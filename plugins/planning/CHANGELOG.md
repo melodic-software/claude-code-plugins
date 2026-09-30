@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.4] - 2026-09-30
+## [0.49.5] - 2026-09-30
 
 ### Fixed
 
 - **`check-plan-outcome.sh` prints at most 20 `path-hit=` lines** and a `path-hit-truncated=<n>` line when more exist, so a plan with many non-portable paths no longer floods stdout. `hits=` still reports the full count; the `criterion=portable-paths status=fail` line and exit code are unchanged ([#5478](https://github.com/melodic-software/claude-code-plugins/issues/5478)).
+
+## [0.49.4] - 2026-09-30
+
+### Added
+
+- **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
 ## [0.49.3] - 2026-09-30
 

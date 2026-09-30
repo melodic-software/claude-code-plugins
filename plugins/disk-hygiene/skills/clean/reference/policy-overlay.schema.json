@@ -68,7 +68,13 @@
         "kind": { "enum": ["name_glob", "path_glob"] },
         "pattern": { "$ref": "#/$defs/nonEmptyString" },
         "confidence_ceiling": { "enum": ["low", "medium", "high"] },
-        "reason": { "$ref": "#/$defs/nonEmptyString" }
+        "reason": { "$ref": "#/$defs/nonEmptyString" },
+        "entry_types": {
+          "description": "Entry kinds the hint matches. A hint that sets none matches every kind; link is a symlink or reparse point.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["file", "directory", "link", "other"] }
+        }
       }
     },
     "protectionGlob": {
