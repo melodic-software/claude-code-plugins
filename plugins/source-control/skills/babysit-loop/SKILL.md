@@ -240,9 +240,20 @@ notification silently. The record path is relative to **this session's checkout*
 `<owner/repo>` names another repository the notification reaches the *launching* project's endpoint
 and the target's tracked hook is never consulted (§2 owns why): **launching from the target
 repository's own checkout is required, not preferred, whenever that repository's endpoint is the
-one that must hear.** A background launch loses the record; the convention's
+one that must hear.** Launch a background lane from inside an isolated linked worktree to keep
+the record; the convention's
 [Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
 paragraph owns why. Telemetry is the report surface, never the escalation channel.
+
+Verification record for the launch advice. Claim: a background session launched inside a linked
+git worktree keeps the record Write in place. Basis: Claude Code skips its pre-edit move into an
+isolated worktree when "the session is already inside a linked git worktree, whether Claude
+created it under `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
+(<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>), and a `claude --bg`
+probe from such a worktree wrote the record there (the work-loop skill's "Background-job launch
+mode" verification record carries the probe). As of 2026-09-29. Recheck trigger: that docs
+section changes its skip rules, or a Claude Code release note changes background-session
+isolation.
 
 A non-convergence, round-cap, or pause-the-loop escalation carries one extra precondition before
 it may be raised: read the actual content of every unresolved review thread first
@@ -388,6 +399,10 @@ daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same s
 cycle-budget or seven-day-expiry hit, write a restart-request into the telemetry state block and
 stop the loop cleanly, the budget restarts the session, never ends the loop, and every budget hit
 is a manual-restart state, per the convention.
+
+## Next
+
+`/work-items:attend-queue` for the escalations this lane raised and the human queue they join.
 
 ## Gotchas
 
