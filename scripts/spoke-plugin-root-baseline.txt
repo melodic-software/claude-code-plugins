@@ -67,13 +67,6 @@ plugins/instruction-placement/skills/migrate/reference/verification.md 4
 plugins/instruction-placement/skills/realign/context/apply-recipes.md 3
 plugins/kindle-dedrm/skills/manage/reference/troubleshooting.md 2
 plugins/kindle-dedrm/skills/manage/reference/workflow.md 2
-plugins/knowledge/skills/course-digest/context/workflow.md 6
-plugins/knowledge/skills/docpage-digest/context/pipeline-hardening.md 2
-plugins/knowledge/skills/video-digest/context/output-contract.md 1
-plugins/knowledge/skills/video-digest/context/quality-gates.md 3
-plugins/knowledge/skills/video-digest/context/watch-pipeline.md 12
-plugins/knowledge/skills/video-digest/context/watch-queue.md 6
-plugins/knowledge/skills/video-digest/reference/sources/youtube.md 1
 plugins/overengineering/skills/audit/context/report-template.md 3
 plugins/overengineering/skills/audit/context/surface-walk.md 3
 plugins/overengineering/skills/delta/context/baseline-model.md 2
