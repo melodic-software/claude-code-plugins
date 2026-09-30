@@ -70,7 +70,7 @@ find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
 # Session state and the judge's state, at every depth. An empty directory goes
 # only once it is an hour old, so a parallel run's fresh mkdir keeps its
 # directory until it writes.
-find "$DATA"/{sessions,verdicts,locks,relayed,attempts,slots,successors} -mindepth 1 \
+find "$DATA"/{sessions,verdicts,locks,relayed,attempts,slots,successors,pending,runs,findings} -mindepth 1 \
   \( -type f -mtime +7 -o -type d -empty -mmin +60 \) -delete 2>/dev/null
 
 out_file="$(mktemp)"
@@ -79,20 +79,17 @@ trap 'rm -f "$out_file"' EXIT
 # state_write blocks|null: record this write for the task-end judge, one file
 # per call so parallel writers never share one, renamed into place so a reader
 # never sees half of it. A block the lexer lost is never listed, so a scan that
-# lost one records null too. <pkey> is the first 16 hex of the sha256 of the
-# project directory, a newline and the transcript directory: a /clear or fork
-# successor gets a new session id but keeps both. The project directory is
-# CLAUDE_PROJECT_DIR, else the payload cwd, which a Bash cd moves.
+# lost one records null too. `lines` are the lines the patch wrote (null for a
+# create or when unknown), the judge's hint for a whole-file bash harness.
 state_write() {
-  local proj="${CLAUDE_PROJECT_DIR:-$pcwd}" repo="$REPO_ROOT" dir sum sha=(sha256sum)
-  [[ "$session" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ && -n "$tpath" && -n "$proj" ]] || return 0
-  command -v sha256sum >/dev/null || sha=(shasum -a 256)
-  sum="$(printf '%s\n%s' "$proj" "${tpath%[/\\]*}" | "${sha[@]}")" || return 0
-  dir="$DATA/sessions/${sum:0:16}/$session"
+  local repo="$REPO_ROOT" dir
+  [[ "$session" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
+  testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$tpath" || return 0
+  dir="$DATA/sessions/$PKEY/$session"
   ((${HOOK_REPO_ROOT_UNRESOLVED:-0} == 0)) || repo=""
   mkdir -p "$dir" 2>/dev/null || return 0
   if jq -n --arg mode "$1" --rawfile out "$out_file" --rawfile text "$FILE" --arg file "$FILE" \
-    --arg repo "$repo" --arg agent "$agent" --argjson create "$create" '{
+    --arg repo "$repo" --arg agent "$agent" --argjson create "$create" --arg lines "$lines" '{
         file: $file,
         repo: (if $repo == "" then null else $repo end),
         agent_id: (if $agent == "" then null else $agent end),
@@ -100,6 +97,7 @@ state_write() {
         blocks: (if $mode == "null" or ($out | test("lost sync \\(not judged\\): [1-9]")) then null else [$out | splits("\n")
           | capture("^block .*?:(?<start>[0-9]+)-(?<end>[0-9]+) (?<ordinal>[0-9]+) (?<name>.*)$")
           | {name, ordinal: (.ordinal | tonumber), start: (.start | tonumber), end: (.end | tonumber)}] end),
+        lines: (if $lines == "" then null else $lines | split(",") | map(tonumber) end),
         ok_markers: ([$text | match("cant-fail-ok:"; "g")] | length),
         written_at: (now | todate)}' >"$dir/.$call.tmp" 2>/dev/null; then
     mv -f "$dir/.$call.tmp" "$dir/$call.json"

@@ -309,6 +309,8 @@ run Edit "$REPO/src/mixed.test.ts" st1 agent-7 st-edit "$EDIT_GOOD"
 f="$(rec st1 st-edit)"
 assert_jq "state: an edit records only the edited block" "$f" '.blocks == [{name: "adds two", ordinal: 1, start: 8, end: 10}]'
 assert_jq "state: an edit is not a create, and names its agent" "$f" '.create == false and .agent_id == "agent-7"'
+assert_jq "state: an edit records the lines it wrote, the judge's bash-harness hint" "$f" '.lines == [9]'
+assert_jq "state: a create records lines:null, meaning the whole file" "$(rec st1 st-create)" '.lines == null'
 printf '%s\n' "import { test, expect } from 'vitest';" "test('caps', () => {" "  expect(cap(60)).toBe(50);" "});" >"$REPO/src/clean.test.ts"
 run Write "$REPO/src/clean.test.ts" st1 "" st-clean
 assert_jq "state: a clean file still records its blocks" "$(rec st1 st-clean)" '.blocks == [{name: "caps", ordinal: 1, start: 2, end: 4}]'
@@ -318,9 +320,9 @@ run Write "$REPO/src/marked.test.ts" st1 "" st-marked
 assert_jq "state: the cant-fail-ok: markers in the file are counted" "$(rec st1 st-marked)" '.ok_markers == 2'
 DEL='{"structuredPatch":[{"oldStart":5,"oldLines":1,"newStart":5,"newLines":0,"lines":["-  sum(3, 3);"]}]}'
 run Edit "$REPO/src/mixed.test.ts" st1 "" st-del "$DEL"
-assert_jq "state: a deletion-only edit records blocks:null" "$(rec st1 st-del)" '.blocks == null'
+assert_jq "state: a deletion-only edit records blocks:null and lines:null" "$(rec st1 st-del)" '.blocks == null and .lines == null'
 run Edit "$REPO/src/mixed.test.ts" st1 "" st-nopatch '{}'
-assert_jq "state: an edit with no patch records blocks:null" "$(rec st1 st-nopatch)" '.blocks == null'
+assert_jq "state: an edit with no patch records blocks:null and lines:null" "$(rec st1 st-nopatch)" '.blocks == null and .lines == null'
 # A block the lexer loses (a string open at the end of the file) is not
 # listed, so the record says the whole file rather than only the blocks
 # the scanner could read.
@@ -371,11 +373,14 @@ assert_contains "pkey: without CLAUDE_PROJECT_DIR the payload cwd is the project
 
 # Session state and the Phase 3 judge state are pruned after 7 days, at every
 # depth.
-mkdir -p "$S/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/locks"
-touch "$S/oldkey/oldsid/old.json" "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid/v.json" "$CLAUDE_PLUGIN_DATA/locks/l"
-touch -d '10 days ago' "$S/oldkey/oldsid/old.json" "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid/v.json" "$CLAUDE_PLUGIN_DATA/locks/l"
+mkdir -p "$S/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/locks" \
+  "$CLAUDE_PLUGIN_DATA/pending/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/runs/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/findings"
+old=("$S/oldkey/oldsid/old.json" "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid/v.json" "$CLAUDE_PLUGIN_DATA/locks/l"
+  "$CLAUDE_PLUGIN_DATA/pending/oldkey/oldsid/p" "$CLAUDE_PLUGIN_DATA/runs/oldkey/oldsid/r" "$CLAUDE_PLUGIN_DATA/findings/f.md")
+touch "${old[@]}"
+touch -d '10 days ago' "${old[@]}"
 run Write "$REPO/src/sum.test.ts" st5 "" st-prune
-if [[ ! -e "$S/oldkey/oldsid/old.json" && ! -e "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid/v.json" && ! -e "$CLAUDE_PLUGIN_DATA/locks/l" ]]; then
+if [[ -z "$(find "${old[@]}" 2>/dev/null)" ]]; then
   ok "prune: nested state older than 7 days is removed"
 else
   fail "prune: nested state older than 7 days is removed"

@@ -1,6 +1,22 @@
 # shellcheck shell=bash
-# Shared by test-scan.sh and test-weaken.sh, which set HOOK_DIR before sourcing.
-# shellcheck disable=SC2034,SC2154 # HOOK_DIR and SCANNER come from the hook; DATA and SCAN_RC go back to it
+# Shared by test-scan.sh, test-weaken.sh and the test-judge hooks, which set
+# HOOK_DIR before sourcing. It only defines functions, so the judge hooks may
+# source it before their no-state exit.
+# shellcheck disable=SC2034,SC2154 # HOOK_DIR and SCANNER come from the hook; DATA, PKEY and SCAN_RC go back to it
+
+# testing::pkey <project dir> <transcript path>: set PKEY to the project key,
+# the first 16 hex of the sha256 of the project directory, a newline and the
+# transcript directory. A /clear or fork successor gets a new session id but
+# keeps both. The project directory is CLAUDE_PROJECT_DIR, else the payload
+# cwd, which a Bash cd moves; the caller picks.
+testing::pkey() {
+  local sum sha=(sha256sum)
+  PKEY=""
+  [[ -n "$1" && -n "$2" ]] || return 1
+  command -v sha256sum >/dev/null || sha=(shasum -a 256)
+  sum="$(printf '%s\n%s' "$1" "${2%[/\\]*}" | "${sha[@]}")" || return 1
+  PKEY="${sum:0:16}"
+}
 
 # testing::data_dir: set DATA to the plugin's data directory, never under
 # TMPDIR. The consumer settings entry gets no CLAUDE_PLUGIN_DATA; it derives
