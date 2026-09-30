@@ -1046,4 +1046,137 @@ parity "dispatched parity: unresolved reference" 'Run `/alpha:nonexistent`.' 0 \
 parity "dispatched parity: resolving reference" 'Run `/alpha:setup`.' 0 ""
 parity "dispatched parity: manifest name, not directory" 'Run `/beta:check`.' 0 ""
 
+# ============ A CACHE THAT ANOTHER FIRE IS REWRITING ==========================
+# Parallel sessions and subagents in one repo share the index file. A reader can
+# see it while a writer is still on it, and two writers that both truncate leave
+# a mix of their bytes. A header over a partial row list would pass as a whole
+# index and every plugin missing from it would stop being adjudicated, so the
+# file ends with `end <count>` and one that is not exactly that shape is a miss
+# that rebuilds through jq. A fresh fixture keeps this section's edits to the
+# index and the manifests off every case above.
+IDX_REPO="$TEST_TMPDIR/idx-market"
+mkdir -p "$IDX_REPO"
+git -C "$IDX_REPO" init -q
+for idx_p in alpha beta; do
+  mkdir -p "$IDX_REPO/plugins/$idx_p/.claude-plugin" "$IDX_REPO/plugins/$idx_p/skills/setup"
+  MSYS_NO_PATHCONV=1 jq -n --arg n "$idx_p" '{name:$n,version:"0.1.0"}' \
+    >"$IDX_REPO/plugins/$idx_p/.claude-plugin/plugin.json"
+  : >"$IDX_REPO/plugins/$idx_p/skills/setup/SKILL.md"
+done
+: >"$IDX_REPO/notes.md"
+IDX_PAYLOAD=$(write_json "$IDX_REPO/notes.md" 'Run `/alpha:gone` and `/beta:gone`.')
+IDX_CACHE="$IDX_REPO/.git/guardrails-skill-index"
+
+# One fire against the fixture; the jq shim counts the manifest reads.
+idx_fire() {
+  : >"$JQ_LOG"
+  OUT=$(CLAUDE_PROJECT_DIR="$IDX_REPO" PATH="$SHIM_DIR:$PATH" bash "$HOOK" <<<"$IDX_PAYLOAD" 2>&1)
+  IDX_JQ=$(grep -c 'INVOKE' "$JQ_LOG" || true)
+}
+# idx_finds <label>: both plugins are indexed, so both references are adjudicated.
+idx_finds() {
+  assert_contains "$1: alpha is still adjudicated" "$OUT" "UNRESOLVED_SKILL: /alpha:gone"
+  assert_contains "$1: beta is still adjudicated" "$OUT" "UNRESOLVED_SKILL: /beta:gone"
+}
+# idx_is_whole <file>: two manifests put the header at four lines; the last line
+# is `end <n>` with n equal to the rows between them, and no row looks like one.
+idx_is_whole() {
+  local -a l
+  local n
+  mapfile -t l <"$1"
+  n=$((${#l[@]} - 5))
+  ((n >= 0)) && [[ "${l[0]}" == 2 && "${l[3]}" == '---' && "${l[${#l[@]} - 1]}" == "end $n" ]] &&
+    [[ "$(printf '%s\n' "${l[@]:4:n}" | grep -c '^end [0-9]')" == 0 ]]
+}
+assert_idx_whole() {
+  if idx_is_whole "$IDX_CACHE"; then ok "$1"; else bad "$1: $(cat "$IDX_CACHE" 2>&1)"; fi
+}
+
+rm -f "$IDX_CACHE"
+idx_fire
+idx_finds "index cache: a cold fire"
+assert_eq "index cache: a cold fire reads the manifests once" 1 "$IDX_JQ"
+assert_idx_whole "index cache: a cold fire leaves a whole file"
+mapfile -t IDX_GOOD <"$IDX_CACHE"
+
+idx_fire
+idx_finds "index cache: a whole file"
+assert_eq "index cache: a whole file is trusted, no manifest read" 0 "$IDX_JQ"
+
+# Cut after its header: no rows, no sentinel.
+printf '%s\n' "${IDX_GOOD[@]:0:4}" >"$IDX_CACHE"
+idx_fire
+idx_finds "index cache: a file cut after its header is a miss"
+assert_eq "index cache: the cut file is rebuilt through jq" 1 "$IDX_JQ"
+assert_idx_whole "index cache: the cut file is rebuilt whole"
+
+# Cut in the middle of the last row: the row parses, under the name `be`, and
+# the plugin it belongs to is silently not adjudicated.
+{
+  printf '%s\n' "${IDX_GOOD[@]:0:5}"
+  printf '%s' "${IDX_GOOD[5]%???}"
+} >"$IDX_CACHE"
+idx_fire
+idx_finds "index cache: a file cut inside its last row is a miss"
+assert_eq "index cache: the file cut inside a row is rebuilt through jq" 1 "$IDX_JQ"
+assert_idx_whole "index cache: the file cut inside a row is rebuilt whole"
+
+# A shorter body under a longer body's sentinel: one row, `end 2`.
+printf '%s\n' "${IDX_GOOD[@]:0:5}" 'end 2' >"$IDX_CACHE"
+idx_fire
+idx_finds "index cache: a count that disagrees with the rows read is a miss"
+assert_eq "index cache: the miscounted file is rebuilt through jq" 1 "$IDX_JQ"
+assert_idx_whole "index cache: the miscounted file is rebuilt whole"
+
+# Two writers leave the later one's sentinel inside the earlier one's rows; the
+# count can still agree by chance, so a sentinel-shaped row is a miss.
+printf '%s\n' "${IDX_GOOD[@]:0:5}" 'end 9' 'end 2' >"$IDX_CACHE"
+idx_fire
+idx_finds "index cache: a sentinel inside the rows is a miss even when the count agrees"
+assert_eq "index cache: the mixed file is rebuilt through jq" 1 "$IDX_JQ"
+
+# A header naming another manifest set is a miss however whole the file is.
+printf '%s\n' "${IDX_GOOD[0]}" /elsewhere/plugin.json "${IDX_GOOD[@]:2}" >"$IDX_CACHE"
+idx_fire
+idx_finds "index cache: a file for another manifest set is a miss"
+assert_eq "index cache: the other-set file is rebuilt through jq" 1 "$IDX_JQ"
+assert_idx_whole "index cache: the other-set file is rebuilt whole"
+
+# A whole file that is not newer than a manifest is stale, and is rebuilt. The
+# last manifest is the one touched, so the check has to look past the first.
+touch "$IDX_REPO/plugins/beta/.claude-plugin/plugin.json"
+idx_fire
+idx_finds "index cache: a file older than the manifests is a miss"
+assert_eq "index cache: the stale file is rebuilt through jq" 1 "$IDX_JQ"
+assert_idx_whole "index cache: the stale file is replaced whole"
+idx_fire
+assert_eq "index cache: the rebuilt file is newer than the manifests, so it is trusted" 0 "$IDX_JQ"
+
+# Two cold fires at once both report the findings and leave a whole file.
+IDX_BAD=0
+for _ in 1 2 3 4 5; do
+  rm -f "$IDX_CACHE"
+  (CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" >"$TEST_TMPDIR/idx-a" 2>&1) &
+  (CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" >"$TEST_TMPDIR/idx-b" 2>&1) &
+  wait
+  for idx_out in "$TEST_TMPDIR/idx-a" "$TEST_TMPDIR/idx-b"; do
+    [[ "$(cat "$idx_out")" == *"UNRESOLVED_SKILL: /alpha:gone"* &&
+      "$(cat "$idx_out")" == *"UNRESOLVED_SKILL: /beta:gone"* ]] || IDX_BAD=1
+  done
+  idx_is_whole "$IDX_CACHE" || IDX_BAD=1
+done
+assert_eq "index cache: two cold fires at once both report the findings and leave a whole file" 0 "$IDX_BAD"
+idx_fire
+idx_finds "index cache: the file the concurrent fires left"
+assert_eq "index cache: and it is trusted, so no manifest read runs" 0 "$IDX_JQ"
+
+# A git directory the hook cannot write costs it the index, not a diagnostic on
+# stderr. (Where chmod does not restrict the owner, the write succeeds and the
+# case holds trivially.)
+rm -f "$IDX_CACHE"
+chmod 555 "$IDX_REPO/.git"
+RO_ERR=$(CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" 2>&1 >/dev/null)
+chmod 755 "$IDX_REPO/.git"
+assert_silent "index cache: an unwritable git directory leaves stderr empty" "$RO_ERR"
+
 report

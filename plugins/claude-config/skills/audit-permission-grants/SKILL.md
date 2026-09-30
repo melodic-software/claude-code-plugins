@@ -152,9 +152,8 @@ the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Repo
 
 "Fix my permission rules" can mean this audit or the dialog that edits the rules.
 
-- **`/permissions` (built-in command, alias `/allowed-tools`).** Ships with Claude Code rather
-  than as a marketplace plugin. An interactive dialog to view, add, and remove allow, ask, and
-  deny rules by scope. It is reserved for the person to run; the model does not invoke it.
+- **`/permissions` (built-in command, alias `/allowed-tools`)**: an interactive dialog to view,
+  add, and remove allow, ask, and deny rules by scope. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Audits grants for portability and auto mode durability
   across frontmatter and every settings scope, and writes nothing.
 
