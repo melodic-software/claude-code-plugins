@@ -22,7 +22,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Improvements and Quality of life finding carries a research line, not only those with a
   remediation, and a claim that cannot meet the bar is an open question. A tier record names the
   fetched bytes as `<url> saved=<path> span=<span>`, and `collect-categories.sh` checks that the
-  saved file resolves inside the ledger's directory, exists, is non-empty and holds the span, for the primary and each distinct
+  saved file resolves inside the ledger's directory, exists, is non-empty and holds a non-empty span, for the primary and each distinct
   corroborator. The effort table says which claims get research at `low`, `medium` and `high`.
 
 ## [0.10.0] - 2026-09-29

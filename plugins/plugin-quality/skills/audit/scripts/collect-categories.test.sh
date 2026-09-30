@@ -204,6 +204,12 @@ has "research-primary-shape" "the self-attested primary is named"
 run 1 "a corroborator repeating the primary url does not count" --notes "$(tier_ledger t-dup.md "$SRC_A" "$SRC_B" "https://code.claude.com/docs/en/skills saved=$SAVED_B span=$SPAN")"
 has "research-corroborators" "the duplicate corroborator is not counted"
 
+run 1 "an empty quoted span is rejected" --notes "$(tier_ledger t-emptyspan.md "https://x.invalid/p saved=$SAVED_A span=\"\"" "$SRC_B" "$SRC_C")"
+has "research-primary-empty-span" "the empty span is named"
+
+run 1 "a corroborator that is a fragment or query variant of the primary does not count" --notes "$(tier_ledger t-variant.md "$SRC_A" "https://code.claude.com/docs/en/skills/?x=1#top saved=$SAVED_B span=$SPAN" "$SRC_C")"
+has "research-corroborators" "the url variant is not counted"
+
 run 1 "one corroborator does not meet the bar" --notes "$(tier_ledger t-one.md "$SRC_A" "$SRC_B")"
 has "research-corroborators" "the short corroborator count is named"
 

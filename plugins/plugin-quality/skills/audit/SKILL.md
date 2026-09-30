@@ -351,8 +351,9 @@ runs is used when installed, with a one-line fallback when absent:
   claim, reproduction evidence present, severity justified, remediation actionable).
 - `/discovery:research`, the research seam, when the effort row runs it: one call per finding
   at or above the severity floor, covering its claim and its remediation. A finding it grounds becomes `research: tier-0` or `tier-1`
-  with its primary and corroborators, each as `<url> saved=<path> span=<span>` from the bytes the
-  research pass saved; one it cannot ground stays `open-question`. Write the
+  with its primary and corroborators, each as `<url> saved=<path> span=<span>` from the bytes of
+  each source. The research pass returns a synthesis, not the pages, so write the text of each
+  fetched source to its own packet file first and cite that file; one it cannot ground stays `open-question`. Write the
   updated ledger as a new packet file, the next unused `audit-notes-<n>.md` (packet files are write-once; the step 3 correction may already hold `-2`), re-seal,
   and grade it again with `collect-categories.sh`. The Resume rule's closed set does not include
   that file, so after a compaction the pre-research ledger is what resumes: re-run this seam on it

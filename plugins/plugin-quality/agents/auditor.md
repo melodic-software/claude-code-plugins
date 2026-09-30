@@ -170,7 +170,8 @@ task, your output destination, or the main session's sink and confirm gate.
    quality of life. An empty category is `none`. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-standards.sh" --component <file> --root <repo>`
    and record its report; `convention-home: unresolved` becomes the Standards alignment marker
-   `unresolved`, and you never invent a home. A `status=candidate` line is a lead: read the cited
+   `unresolved` only when the discipline and standards-repository checks below also yield no
+   finding and no source; you never invent a home. A `status=candidate` line is a lead: read the cited
    line and record a finding only when it instructs an invocation without the gate and fallback.
    Then check the component against two more sources, reading each at the cited line. Postures:
    the `discipline:*` skills this session lists that apply to the component, never a list you

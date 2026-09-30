@@ -95,6 +95,10 @@ function check_source(label, val,    i, j, url, rest, path, span, r, n, line, fo
   path = substr(rest, 1, j - 1)
   span = substr(rest, j + 6)
   if (span ~ /^".*"$/) span = substr(span, 2, length(span) - 2)
+  if (span == "") {
+    problem("research-" label "-empty-span section=" section " title=" title)
+    return 0
+  }
   gsub(/\047/, "\047\\\047\047", path)
   cmd = "realpath -m -- \047" path "\047"
   cmd | getline path
@@ -114,7 +118,11 @@ function check_source(label, val,    i, j, url, rest, path, span, r, n, line, fo
   if (r < 0) problem("research-" label "-file-missing section=" section " title=" title " saved=" path)
   else if (n == 0) problem("research-" label "-file-empty section=" section " title=" title " saved=" path)
   else if (!found) problem("research-" label "-span-not-in-file section=" section " title=" title " saved=" path)
-  else return url
+  else {
+    sub(/[#?].*$/, "", url)
+    sub(/\/+$/, "", url)
+    return tolower(url)
+  }
   return 0
 }
 function close_finding(    k, u, ok) {

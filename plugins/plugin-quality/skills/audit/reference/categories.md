@@ -48,7 +48,7 @@ primary and at least two independent corroborators, each naming the file the byt
 saved to (an absolute path with no spaces, inside the directory that holds the ledger; a rung-2 read saves the text it received the same way). The
 collector checks each record rather than trusting it: the saved file resolves inside the ledger's directory, exists and is
 non-empty, and the span, which must sit on one line, is in it (`grep -F` semantics). A
-corroborator that repeats the primary's or another corroborator's URL does not count. Standards
+corroborator that repeats the primary's or another corroborator's URL (ignoring fragment, query and trailing slash) does not count, and an empty span fails. Standards
 findings and emitted-finding samples are graded by their own fields below, and need `research:`
 only when they carry a `remediation:`. The tier names are discovery's
 source-tier table (`plugins/discovery/skills/research/context/discipline.md`);
