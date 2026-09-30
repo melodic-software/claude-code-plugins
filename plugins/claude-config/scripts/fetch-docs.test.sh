@@ -326,6 +326,13 @@ assert_eq "case 19: discover lists the top-level page with its url" "https://doc
 assert_eq "case 19: discover does not call the top-level page not-in-index" read "$(page "$m" x .state)"
 assert_eq "case 19: discover still resolves the nested page" "https://docs.test/docs/en/plugins/x.md" "$(page "$m" plugins/x .url)"
 
+# --- Case 20: a non-https index link to the slug is off-origin, not absent ------
+src="$TEST_TMPDIR/served20"
+mkdir -p "$src"
+printf '%s\n' '# Docs' '- [X](http://other.test/docs/en/x.md): x' >"$src/llms.txt"
+shim_run "$src" "$TEST_TMPDIR/out20" x
+assert_eq "case 20: non-https link is off-origin" "unread off-origin" "$(page "$TEST_TMPDIR/out20/manifest.json" x '"\(.state) \(.reason)"')"
+
 # --- Case: the claude version probe runs under a timeout ---
 mkdir -p "$TEST_TMPDIR/tbin"
 # shellcheck disable=SC2016 # the stub script expands its own arguments
