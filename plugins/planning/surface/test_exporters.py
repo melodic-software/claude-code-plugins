@@ -323,6 +323,76 @@ class TestConfirmedInTheTerminal(SessionCase):
         self.assertIn("confirmed:: One writer only; No network", row)
 
 
+PENDING = "pending agent validation"
+
+
+class TestAcceptAuditExport(SessionCase):
+    """An accept an accept-audit made exports as accepted pending agent validation."""
+
+    def audited(self, extra=(), terminal=None):
+        items = [{"id": "Q1", "contentRev": 0}, {"id": "Q2", "contentRev": 0}]
+        qs = [
+            question("Q1", commits=["One writer only"], **(terminal or {})),
+            question("Q2"),
+            question("Q3"),
+        ]
+        events = [
+            {**event(1, None, "accept-audit", alt="1"), "items": items},
+            {**event(2, "Q1", "accept"), "auditSeq": 1},
+            {**event(3, "Q2", "accept"), "auditSeq": 1},
+            event(4, "Q3", "accept"),
+            *extra,
+        ]
+        self.session(qs, events)
+
+    def test_audit_accepts_carry_the_note_and_a_hand_accept_does_not(self):
+        self.audited()
+        ledger = self.export("ledger")
+        q1, q2, q3 = register_rows(ledger)
+        self.assertIn(
+            f"answer:: accepted: Recommended answer for Q1.; note: {PENDING}", q1
+        )
+        self.assertIn(f"note: {PENDING}", q2)
+        self.assertRegex(q3, r"\| accepted: Recommended answer for Q3\.$")
+        rc, out = self.check("--ledger", ledger)
+        self.assertEqual(rc, 0, out)
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn(
+            f"- Q1 Short Q1: accepted: Recommended answer for Q1.; note: {PENDING}\n",
+            brief,
+        )
+        self.assertIn("- Q3 Short Q3: accepted: Recommended answer for Q3.\n", brief)
+
+    def test_commitments_stay_unconfirmed(self):
+        self.audited()
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- 0 commitments confirmed; 1 unconfirmed", brief)
+        self.assertIn("- risk: One writer only (unconfirmed); from Q1", brief)
+
+    def test_a_later_decision_or_terminal_answer_reads_as_its_own(self):
+        later = "2099-01-01T00:00:00Z"
+        self.audited(
+            extra=[event(5, "Q2", "alt", alt="a")],
+            terminal={
+                "terminal": {"decision": "accept", "text": "", "updatedAt": later}
+            },
+        )
+        q1, q2, _ = register_rows(self.export("ledger"))
+        self.assertNotIn(PENDING, q1)
+        self.assertIn("alt a: Alt a of Q2", q2)
+        self.assertNotIn(PENDING, q2)
+
+    def test_the_note_survives_import_and_re_export(self):
+        self.audited()
+        ledger = self.export("ledger")
+        rows = register_rows(ledger)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+
+
 class TestCommitmentsCarriedByAnswerKind(SessionCase):
     """Q24: accept and own carry a recommendation's commitments; alt and defer carry none."""
 
