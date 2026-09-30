@@ -404,6 +404,73 @@ class TestRevise(DirCase):
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
 
 
+class TestReviseCommits(DirCase):
+    def revise_commits(self, *commits):
+        args = [a for c in commits for a in ("--commit", c)]
+        return self.rp("revise", "Q1", "--rec", "New.", "--affects", "none", *args)
+
+    def test_cli_writes_the_commitments_in_order(self):
+        rc, out, err = self.revise_commits("A", "B")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], ["A", "B"])
+
+    def test_commit_none_clears_them(self):
+        rc, out, err = self.revise_commits("none")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], [])
+
+    def test_commit_alone_is_a_revision(self):
+        rc, out, err = self.rp("revise", "Q1", "--commit", "A")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], ["A"])
+        self.assertEqual(self.q("Q1")["contentRev"], 1)
+        self.assertIn("commitments", self.q("Q1")["history"][-1]["text"])
+
+    def test_the_same_list_changes_nothing(self):
+        out = self.assert_refused("revise", "Q1", "--commit", "Only one writer")
+        self.assertIn("nothing to revise", out)
+
+    def test_apply_op_takes_a_list_and_an_empty_list_clears(self):
+        for commits, want in ((["A", "B"], ["A", "B"]), (["none"], ["none"]), ([], [])):
+            ops = {"ops": [{"op": "revise", "id": "Q1", "commits": commits}]}
+            rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+            self.assertEqual(rc, 0, out + err)
+            self.assertEqual(self.q("Q1")["commits"], want)
+
+    def test_an_over_cap_commitment_is_refused_before_writing(self):
+        self.assert_refused("revise", "Q1", "--commit", "x" * 501)
+        ops = {"ops": [{"op": "revise", "id": "Q1", "commits": ["ok", "x" * 501]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_a_changed_list_drops_old_confirmations(self):
+        doc = self.doc()
+        doc["questions"][0]["commitsConfirmed"] = [
+            {"index": 0, "reason": "said in chat", "at": "2026-09-24T10:00:00Z"}
+        ]
+        self.write_doc(doc)
+        self.write_events(
+            [
+                {
+                    "seq": 7,
+                    "id": "Q1",
+                    "kind": "confirm",
+                    "alt": "0",
+                    "text": "",
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp(
+            "revise", "Q1", "--commit", "A", "--commit", "B", "--seq", "7"
+        )
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertNotIn("commitsConfirmed", q)
+        self.assertEqual(q["commitsSinceSeq"], 7)
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+
 class TestStatus(DirCase):
     """status: withdrawn events are not unhandled; event text is quoted data on one line."""
 
@@ -1260,6 +1327,140 @@ class TestRecordTerminal(DirCase):
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
+
+
+class TestReviseSetsAsideOwn(DirCase):
+    """A recommendation revision sets aside the counted own answer; other decisions stay."""
+
+    REC = ["--rec", "Use the lock.", "--affects", "none"]
+    CLOSED = "First group: 1 of 2 closed; open: Q2 Short Q2"
+    OPEN = "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2"
+
+    def answer(self, kind, text=""):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": kind,
+                    "alt": "a" if kind == "alt" else None,
+                    "text": text,
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+    def status(self):
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        return out.splitlines()
+
+    def latest(self):
+        from exporters import latest_decision
+
+        responses = json.loads((self.dir / "responses.json").read_text("utf-8"))
+        return latest_decision(self.q("Q1"), responses["responses"])
+
+    def test_revise_rec_sets_the_own_answer_aside(self):
+        self.answer("own", "what are the patterns?")
+        self.assertIn(self.CLOSED, self.status())
+        rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["setAsideSeq"], 1)
+        self.assertEqual(q["setAsideRev"], self.doc()["rev"])
+        self.assertNotIn("waiting", q)
+        self.assertNotIn("waitingBy", q)
+        self.assertIsNone(self.latest())
+        self.assertIn(self.OPEN, self.status())
+
+    def test_reply_rec_sets_the_own_answer_aside(self):
+        self.answer("own", "what are the patterns?")
+        rc, out, err = self.rp(
+            "reply", "Q1", "--text", "See below.", *self.REC, "--seq", "1"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["setAsideSeq"], 1)
+        self.assertIsNone(self.latest())
+        self.assertIn(self.OPEN, self.status())
+
+    def test_reply_without_rec_and_revise_without_rec_keep_the_answer(self):
+        self.answer("own", "what are the patterns?")
+        self.assertEqual(self.rp("reply", "Q1", "--text", "Noted.", "--seq", "1")[0], 0)
+        self.assertEqual(
+            self.rp("revise", "Q1", "--title", "Renamed?", "--seq", "1")[0], 0
+        )
+        self.assertNotIn("setAsideSeq", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_accept_and_alt_answers_are_not_set_aside(self):
+        for kind in ("accept", "alt"):
+            self.answer(kind)
+            rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("setAsideSeq", self.q("Q1"))
+            self.assertIsNotNone(self.latest())
+            self.assertIn(self.CLOSED, self.status())
+
+    def test_an_answer_saved_after_the_guard_read_is_not_set_aside(self):
+        sys.path.insert(0, str(HERE))
+        import round as r
+
+        snapshot = r.guard_revision(self.dir, self.doc(), "Q1", 0, False)
+        self.answer("own", "arrived after the guard read")
+        q = self.q("Q1")
+        r.set_aside_own(snapshot, self.doc(), q)
+        self.assertNotIn("setAsideSeq", q)
+
+    def test_a_terminal_own_answer_is_set_aside_too(self):
+        self.apply_ops(
+            {"op": "record-terminal", "id": "Q1", "decision": "own", "text": "x"}
+        )
+        self.apply_ops(
+            {"op": "revise", "id": "Q1", "rec": "Use the lock.", "affects": "none"}
+        )
+        q = self.q("Q1")
+        self.assertGreater(q["setAsideRev"], q["terminal"]["rev"])
+        self.assertIn(self.OPEN, self.status())
+
+    def test_a_terminal_own_record_after_the_revision_counts(self):
+        self.answer("own", "what are the patterns?")
+        self.assertEqual(self.rp("revise", "Q1", *self.REC, "--seq", "1")[0], 0)
+        rc, out, err = self.rp(
+            "record-terminal", "Q1", "--decision", "own", "--text", "the patterns"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.latest()["decision"], "own")
+        self.assertEqual(self.latest()["text"], "the patterns")
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_a_terminal_record_in_the_same_apply_counts(self):
+        self.answer("own", "what are the patterns?")
+        self.apply_ops(
+            {
+                "op": "revise",
+                "id": "Q1",
+                "rec": "Use the lock.",
+                "affects": "none",
+                "seq": 1,
+            },
+            {
+                "op": "record-terminal",
+                "id": "Q1",
+                "decision": "own",
+                "text": "the patterns",
+            },
+        )
+        q = self.q("Q1")
+        self.assertLess(q["setAsideRev"], q["terminal"]["rev"])
+        self.assertEqual(self.latest()["text"], "the patterns")
+        self.assertIn(self.CLOSED, self.status())
+
+    def apply_ops(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
 
 
 class TestArchive(DirCase):

@@ -152,63 +152,63 @@ delivered per the delivery tiers above (local HTML file or published Artifact).
 
 ### Design canvas (bundled `design` skill, presence-gated preview)
 
-A hand-tweakable visual layout, drafted as `.dc.html` artboards on one pan/zoom
-canvas and published as an Artifact running the Claude Design canvas editor. It
-covers UI mockups and screen flows, landing pages, posters/flyers/one-pagers, and
-memos as one flowing artboard. Where saving is enabled for the viewer's account
-the canvas is hand-editable (click-to-select, properties panel, inline text,
-undo/redo) and Save publishes a new version; otherwise it is
-view-plus-PNG/PDF-export. It rides the published-Artifact surface, so every
-Artifact gate above applies, **plus** the skill's own gates:
+A hand-tweakable visual layout, drafted as artboards on one canvas and published
+as a Claude Design Artifact. It covers UI mockups and screen flows, landing pages,
+and posters. The person edits the artboards in a desktop browser, edits save
+automatically, and each artboard exports as PNG or PDF. It rides the
+published-Artifact surface, so every Artifact gate above applies, **plus** the
+skill's own gates:
 
-- an early **research preview**: enabled by a server-side rollout flag (on by
-  default at v2.1.263), first-party context only, and an Artifact tool that
-  supports `capabilities`, so two same-version clients can differ;
+- Claude Code v2.1.265 or later and an account where the Design template is
+  available; with that template turned off, `/design` doesn't draft designs;
 - removable by settings (`disableBundledSkills`, or `skillOverrides` naming
   `design`) and absent on non-first-party platforms (Bedrock / GCP / Foundry /
   AWS) and in headless SDK/CI/MCP contexts;
-- **model-invocable where enabled** (no model-invocation gate in its
-  registration), so the skill can be invoked by name, bare `design`; no
-  namespace exists for bundled skills. A local skill named `design` at any level
-  silently overrides the bundled one, and a same-named Claude Design hub variant
-  (model invocation disabled) registers behind an `allow_design_sync` setting.
+- **reserved for the person to run**: the 2.1.285 extraction reads the `design`
+  registration as model-invocation-disabled, so the model never lists it and
+  never invokes it; the person runs `/design`. A local skill named `design` at
+  any level silently overrides the bundled one.
 
-The honest presence check is whether `design` appears in the current session's
-skill list **and its listed description is the design canvas**: because of the
-override and the hub variant above, a bare name match may be an unrelated local
-skill or the hub; when the listed description does not describe a canvas or
-artboard capability, treat the capability as absent rather than invoking a
-shadowing skill. Absent: the rich-page paths above cover the ground (and
-`/design` must not be suggested; that user has no such command).
-Listed-but-refused: user invocation of `/design` survives invocability gates.
+The model cannot check presence: a model-invocation-disabled skill never enters
+its listing. So the skill renders its own page either way and offers the person a
+conditional sentence ("If /design is available in your session ..."), which the
+person checks against their own session. User invocation of `/design` survives
+the model-invocation gate. The model sees only part of the identity question: a
+`design` entry in its own skill listing can only be a shadowing local skill, so
+the offer is withheld and the shadowing named, but a local `design` skill that
+disables model invocation shadows the command while staying hidden. So every
+offer asks the person to confirm `/design`'s description reads "Make a new
+Design artifact from a brief" before running it for a canvas.
 
-> Verified 2026-09-11 against the installed v2.1.263 binary (string search of the
-> registrations) and three pages fetched that day. The `/design` row on
-> <https://code.claude.com/docs/en/commands> is labeled a bundled skill and
-> describes the canvas: artboards on one canvas, published as an artifact running
-> a research preview of Claude Design's editor, hand-editable where saving is
-> enabled, otherwise view-plus-PNG/PDF-export; "requires a session where artifacts
-> are available and Claude Code v2.1.234 or later". "Draft a design canvas" on
-> <https://code.claude.com/docs/en/artifacts> shows `/design <brief>`, and its
-> Availability table lists artifacts' gates (Pro, Max, Team, or Enterprise; a
-> claude.ai login; the Anthropic API provider; no CMEK, HIPAA, or Zero Data
-> Retention; CLI 2.1.183 or later; off by default in SDK, GitHub Action, and MCP
-> contexts). The binary carries two bundled registrations named `design`. The
-> canvas skill: menu line "Draft a design on a canvas Artifact, editable where
-> saving is enabled (Claude Design preview)", argument hint `[what to design]`,
-> `userInvocable` on and no model-invocation gate, subcommand dispatch with bare
-> words only, enabled by a first-party-context check, a rollout flag that now
-> defaults **on** (it defaulted off at v2.1.234), and an Artifact tool whose schema
-> carries `capabilities`. The Claude Design hub: menu line "Work with Claude
-> Design (claude.ai/design): create, import, export, sync, login", argument hint
-> `[sync|login|consent|revoke|import|export|status|<prompt>]`,
-> `disableModelInvocation` on, enabled only behind an `allow_design_sync` setting,
-> a policy gate, and a feature flag; a local `design consent | revoke` command sits
-> beside it. The changelog names no design-family surface through v2.1.268. The
-> design-sync family's registry disposition (defer, observed-only) lives in
-> `docs/native-surfaces/records.json`. Recheck when a release changes either
-> registration's invocation gate or enablement, the commands-page row stops
-> describing the canvas, or a release note first names a design-family surface.
+> Re-verified 2026-09-29 against a binary extraction of v2.1.285: one bundled
+> registration named `design`, `model_invocable` false (`disable_model_invocation`
+> true), `user_invocable` true, `gated` true, description unresolved. A targeted
+> string search of the same binary on 2026-09-30 resolves its identity: the
+> `design` config reads "Make a new Design artifact from a brief" with argument
+> hint `[what to design]`, its prompt creates a new Artifact from the published
+> Artifact type titled "Design", the v2.1.263 canvas strings no longer occur, and
+> the claude.ai/design hub text now belongs to a separate `ClaudeDesign` tool. So
+> `/design` is a user-only design-Artifact creator, not the hub. The `/design`
+> row on <https://code.claude.com/docs/en/commands> and "Draft a design canvas" on
+> <https://code.claude.com/docs/en/artifacts>, fetched 2026-09-30, describe it as
+> artboards on one canvas published as a Claude Design artifact, edited in a
+> desktop browser with edits saved automatically and each artboard exportable as
+> PNG or PDF, requiring v2.1.265 or later and an account where the Design template
+> is available. Recheck when a release makes the `design` registration
+> model-invocable, changes its description (the identity string the offer
+> quotes), changes its gating, or splits or merges its registrations, or
+> either page changes the description, the gate, or the version floor.
+
+> Verified 2026-09-11 against pages fetched that day: the Availability table on
+> <https://code.claude.com/docs/en/artifacts> lists artifacts' gates (Pro, Max,
+> Team, or Enterprise; a claude.ai login; the Anthropic API provider; no CMEK,
+> HIPAA, or Zero Data Retention; CLI 2.1.183 or later; off by default in SDK,
+> GitHub Action, and MCP contexts), and the changelog names no design-family
+> surface through v2.1.268. The design-sync family's registry disposition (defer,
+> observed-only) lives in `docs/native-surfaces/records.json`, which also keeps
+> that day's v2.1.263 registration evidence as history. Recheck when the
+> Availability table changes or a release note first names a design-family
+> surface.
 
 ## Third-party visualization plugins
 

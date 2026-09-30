@@ -1353,6 +1353,40 @@ class TestTerminalStale(WaitCase):
         self.assertEqual(self.states(), {"A": "open", "B": "stale"})
 
 
+class TestAnswered(WaitCase):
+    """`answered` is true when a page or terminal decision counts; `state` stays dependency staleness."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"), question("B"), question("C"))
+
+    def answered(self):
+        return {
+            q["id"]: (q.get("answered"), q.get("state"))
+            for q in self.state()["questions"]["questions"]
+        }
+
+    def test_1_unanswered_is_false(self):
+        self.assertEqual(self.answered()["A"], (False, "open"))
+
+    def test_2_terminal_decision_is_answered_and_state_stays_open(self):
+        rc, out = self.rp("record-terminal", "A", "--decision", "accept")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.answered()["A"], (True, "open"))
+
+    def test_3_page_accept_is_answered(self):
+        code, data = self.post({"id": "B", "kind": "accept"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.answered()["B"], (True, "open"))
+        self.assertEqual(self.answered()["C"], (False, "open"))
+
+    def test_4_reopen_is_not_answered(self):
+        for kind in ("accept", "reopen"):
+            code, data = self.post({"id": "C", "kind": kind})
+            self.assertEqual(code, 200, data)
+        self.assertEqual(self.answered()["C"], (False, "open"))
+
+
 class TestConfirm(WaitCase):
     """The `confirm` event: ticks one commitment, records no decision, needs handling."""
 
@@ -1391,6 +1425,39 @@ class TestConfirm(WaitCase):
         code, data = self.post({**body, "alt": "0"})
         self.assertEqual(code, 200, data)
         self.assertEqual(data["seq"], after["seq"] + 1)
+
+    def test_4_a_confirm_after_a_commitments_revise_is_a_new_event(self):
+        body = {"id": "A", "kind": "confirm", "alt": "0"}
+        code, first = self.post(body)
+        self.assertEqual(code, 200, first)
+        rc, out = self.rp(
+            "revise", "A", "--commit", "Third", "--commit", "Fourth", "--force"
+        )
+        self.assertEqual(rc, 0, out)
+        code, data = self.post(body)
+        self.assertEqual(code, 200, data)
+        self.assertGreater(data["seq"], first["seq"])
+        code, again = self.post(body)
+        self.assertEqual((code, again["seq"]), (200, data["seq"]), again)
+
+    def test_5_a_confirm_carrying_an_old_question_rev_is_stale(self):
+        rev = next(
+            q.get("contentRev") or 0
+            for q in self.state()["questions"]["questions"]
+            if q["id"] == "A"
+        )
+        rc, out = self.rp("revise", "A", "--commit", "Fifth", "--force")
+        self.assertEqual(rc, 0, out)
+        before = len(self.state()["responses"]["events"])
+        code, data = self.post(
+            {"id": "A", "kind": "confirm", "alt": "0", "contentRev": rev}
+        )
+        self.assertEqual((code, data["error"]), (409, "stale"), data)
+        self.assertEqual(len(self.state()["responses"]["events"]), before)
+        code, data = self.post(
+            {"id": "A", "kind": "confirm", "alt": "0", "contentRev": rev + 1}
+        )
+        self.assertEqual(code, 200, data)
 
 
 def seed_restatement(d, rev):
@@ -1462,6 +1529,153 @@ class TestConfirmUnderstanding(WaitCase):
         code, data = self.post(body)
         self.assertEqual((code, data["seq"]), (200, after["seq"]), data)
         self.assertEqual(self.state()["responses"]["events"], after["events"])
+
+
+class TestAcceptAudit(WaitCase):
+    """The `accept-audit` event: one post accepts the listed eligible questions, refuses the rest."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C"),
+            question("D", archived={"why": "off path", "at": "t"}),
+            question("E", recommendation=""),
+            question("F", waiting=True),
+        )
+
+    def audit(self, *items, alt="1"):
+        return self.post(
+            {
+                "kind": "accept-audit",
+                "alt": alt,
+                "items": [{"id": i, "contentRev": r} for i, r in items],
+            }
+        )
+
+    def events(self):
+        return self.state()["responses"]["events"]
+
+    def test_1_a_malformed_event_is_400_and_writes_nothing(self):
+        item = {"id": "A", "contentRev": 0}
+        for body in (
+            {"kind": "accept-audit", "items": [item]},
+            {"kind": "accept-audit", "alt": " ", "items": [item]},
+            {"kind": "accept-audit", "alt": "1"},
+            {"kind": "accept-audit", "alt": "1", "items": []},
+            {"kind": "accept-audit", "alt": "1", "items": ["A"]},
+            {"kind": "accept-audit", "alt": "1", "items": [{"id": "A"}]},
+            {"kind": "accept-audit", "alt": "1", "items": [{**item, "extra": 1}]},
+            {
+                "kind": "accept-audit",
+                "alt": "1",
+                "items": [{"id": "A", "contentRev": True}],
+            },
+            {"kind": "accept-audit", "alt": "1", "items": [{"id": 7, "contentRev": 0}]},
+            {"kind": "accept-audit", "alt": "1", "items": [item, item]},
+        ):
+            code, data = self.post(body)
+            self.assertEqual(code, 400, (body, data))
+        self.assertEqual(self.events(), [])
+
+    def test_2_the_accepted_event_lists_its_items_and_fans_out_one_accept_each(self):
+        code, data = self.audit(("A", 0), ("C", 0))
+        self.assertEqual(code, 200, data)
+        self.assertEqual(
+            (data["seq"], data["accepted"], data["skipped"]), (1, ["A", "C"], [])
+        )
+        head, *accepts = self.events()
+        self.assertEqual(
+            {k: head[k] for k in ("seq", "id", "kind", "alt", "items")},
+            {
+                "seq": 1,
+                "id": None,
+                "kind": "accept-audit",
+                "alt": "1",
+                "items": [
+                    {"id": "A", "contentRev": 0},
+                    {"id": "C", "contentRev": 0},
+                ],
+            },
+        )
+        self.assertEqual(
+            [(e["seq"], e["id"], e["kind"], e["auditSeq"]) for e in accepts],
+            [(2, "A", "accept", 1), (3, "C", "accept", 1)],
+        )
+        responses = self.state()["responses"]["responses"]
+        self.assertEqual(
+            (responses["A"]["decision"], responses["A"]["seq"]), ("accept", 2)
+        )
+        self.assertEqual(responses["C"]["seq"], 3)
+
+    def test_3_a_stale_or_ineligible_question_is_skipped_and_left_alone(self):
+        # Claude revised C after the user opened it.
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        next(q for q in doc["questions"] if q["id"] == "C")["contentRev"] = 5
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        before = self.state()["responses"]["responses"]
+        code, data = self.audit(
+            ("B", 0), ("C", 2), ("D", 0), ("E", 0), ("F", 0), ("X", 0)
+        )
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["accepted"], ["B"])
+        self.assertEqual(
+            data["skipped"],
+            [
+                {"id": "C", "reason": "changed"},
+                {"id": "D", "reason": "ineligible"},
+                {"id": "E", "reason": "ineligible"},
+                {"id": "F", "reason": "ineligible"},
+                {"id": "X", "reason": "ineligible"},
+            ],
+        )
+        after = self.state()["responses"]["responses"]
+        self.assertEqual({k: v for k, v in after.items() if k != "B"}, before)
+        self.assertEqual(self.events()[-2]["items"], [{"id": "B", "contentRev": 0}])
+
+    def test_4_a_prerequisite_decided_only_in_the_same_batch_does_not_count(self):
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["questions"].append(question("G", dependsOn=["H"]))
+        doc["questions"].append(question("H"))
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        code, data = self.audit(("G", 0), ("H", 0))
+        self.assertEqual((code, data["accepted"]), (200, ["H"]), data)
+        self.assertEqual(data["skipped"], [{"id": "G", "reason": "ineligible"}])
+
+    def test_5_nothing_accepted_is_409_and_writes_nothing(self):
+        n = len(self.events())
+        code, data = self.audit(("E", 0), ("X", 0))
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data["error"], "nothing accepted")
+        self.assertEqual(len(data["skipped"]), 2)
+        self.assertEqual(len(self.events()), n)
+
+    def test_6_content_rev_counts_the_fanned_out_accept_and_undo_restores(self):
+        code, data = self.post({"id": "A", "kind": "accept", "contentRev": 1})
+        self.assertEqual(code, 200, data)
+        code, data = self.audit(("A", 1))
+        self.assertEqual(
+            (code, data["skipped"]), (409, [{"id": "A", "reason": "changed"}])
+        )
+        undo = self.events()[-1]["seq"]
+        code, data = self.post({"kind": "undo", "id": "A", "undoSeq": undo})
+        self.assertEqual(code, 200, data)
+        # The audit's own accept of A is live again, as it was before the plain accept.
+        self.assertEqual(self.state()["responses"]["responses"]["A"]["seq"], 2)
+
+    def test_7_the_log_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        r = self.state()["responses"]
+        responses, history = rebuild_responses(r["events"])
+        self.assertEqual(responses, r["responses"])
+        self.assertEqual(history, r["history"])
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
 
 
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):

@@ -3,6 +3,85 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0] - 2026-09-30
+
+### Added
+
+- **The interview page can accept a round's recommendations and hand the round to `/planning:audit-answers`, limited to the accepted questions.** "Accept all and have agents check them" posts one `accept-audit` event; the server records one accept per eligible question, each marked pending agent validation in the exports, and `context/surface.md` routes the event to the audit skill. A question with a typed note is left out, since the event carries no notes. Per-question undo still works, and the page holds no validation logic ([#5472](https://github.com/melodic-software/claude-code-plugins/issues/5472)).
+
+## [0.50.2] - 2026-09-30
+
+### Fixed
+
+- **The interview surface sets aside a counted own answer when the session revises the recommendation.** `reply --rec` and `revise --rec` stamp the set-aside fields on a question whose decision is an own answer, so the page and status stop showing the earlier own text as the decision, and the note field no longer prefills from it. Accept, alt and defer decisions stay, and a `record-terminal` after the revision counts ([#5453](https://github.com/melodic-software/claude-code-plugins/issues/5453)).
+
+## [0.50.1] - 2026-09-30
+
+### Fixed
+
+- **`check-plan-outcome.sh` prints at most 20 `path-hit=` lines** and a `path-hit-truncated=<n>` line when more exist, so a plan with many non-portable paths no longer floods stdout. `hits=` still reports the full count; the `criterion=portable-paths status=fail` line and exit code are unchanged ([#5478](https://github.com/melodic-software/claude-code-plugins/issues/5478)).
+
+## [0.50.0] - 2026-09-30
+
+### Added
+
+- **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
+
+## [0.49.4] - 2026-09-30
+
+### Added
+
+- **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
+
+## [0.49.3] - 2026-09-30
+
+### Added
+
+- **The interview page badges its title while the tab is hidden.** The title shows a count of new activity and notes that land while the tab is hidden, and the count clears when the tab is shown ([#5473](https://github.com/melodic-software/claude-code-plugins/issues/5473)).
+
+## [0.49.2] - 2026-09-30
+
+### Changed
+
+- **The `/goal` Boundary bullet in `draft-goal-condition` and the `/plan` bullet in `plan` no
+  longer assert that the command ships with Claude Code.** Each keeps the provenance class, what
+  the command does and how it is invoked, in the native-references template form.
+
+## [0.49.1] - 2026-09-30
+
+### Fixed
+
+- **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.49.0] - 2026-09-30
+
+### Added
+
+- **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
+
+## [0.48.1] - 2026-09-30
+
+### Fixed
+
+- **The surface warns beside Wrap up while assumptions are still open.** The hint shows the count of unconfirmed assumptions next to the existing understanding-not-confirmed line ([#5460](https://github.com/melodic-software/claude-code-plugins/issues/5460)).
+
+## [0.48.0] - 2026-09-29
+
+### Added
+
+- **`interview` Step 3 sign-off recap.** Before the confirmation request in `me` and `auto` modes, the restatement carries one line per `Q<N>` naming its status, question text and resolution, generated from the ledger's open-question register rather than the transcript, so it survives a compaction. The recap extends the existing confirmation gate instead of adding an Action Router action or a separate skill: the user already confirms at that gate, the register already holds the data, and the digest-pinned Action Router stays unchanged ([#3941](https://github.com/melodic-software/claude-code-plugins/issues/3941)).
+- **`check-open-questions.sh --procedure`** checks what a ledger file can show about the procedure: rounds appear contiguously in the register and every retired row carries a resolution. With `--brief` it also requires all seven Brief template headings, so the Step 4 cross-check halts on a Brief missing one. The Step 3 gate and the Step 4 Brief cross-check cite its exit code and `procedure=` field. The skill names what stays unchecked: survey grounding, domain classification, ask-time register writes and frontier recomputation.
+
+### Changed
+
+- `interview` and `audit-answers` each state their relationship: the recap and `--procedure` check show the Q&A and that the procedure ran, `audit-answers` adversarially re-validates the answers, and neither composes nor duplicates the other.
+
+## [0.47.12] - 2026-09-30
+
+### Fixed
+
+- **The interview surface docs say how to read the watcher's JSON after a wake.** The wake notification carries only the output-file path and exit status. On exit 0 the session Reads the file and takes the last line that starts with `{` (the file ends with an exit-code footer), falling back to `grep '^{' | tail -n 1` when Read reports a partial view; on a nonzero exit it reads the diagnostic and follows the exit-specific recovery. A verification record with an upstream pointer backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+
 ## [0.47.11] - 2026-09-30
 
 ### Added

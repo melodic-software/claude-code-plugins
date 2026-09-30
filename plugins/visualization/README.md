@@ -22,7 +22,7 @@ Two decisions, then the output:
   | A small structural sketch | ASCII or Unicode |
   | Logic, a call path, a component or file tree, types, or a delta over code | A code-shape sketch (pseudocode, call tree, component tree, shallow file tree, types and signatures, diff), a fenced text form that stays in the terminal by default |
   | A composite or interactive view, an infographic, or a short slide deck | A rich rendered page |
-  | A visual layout the user would rather tweak by hand | A hand-editable design canvas, via the bundled `design` skill when that presence-gated preview is available |
+  | A visual layout the user would rather tweak by hand | A rich rendered page, with `/design` (the bundled `design` skill's hand-editable canvas, which the person runs) offered alongside it |
 
 - **Medium**. One of three ascending tiers, **inline terminal → local HTML file →
   published Artifact**, chosen by the form's weight, a configurable preference, and

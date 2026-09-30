@@ -59,7 +59,7 @@
       "expectations": [
         "Output does not delete or offer to delete the tests",
         "Output proposes adding a discriminating assertion per finding (repair posture)",
-        "Output notes the skill is read-only on the suite and routes repair to the appropriate lane"
+        "Output notes the skill is read-only on the suite and routes repair to /testing:write for authoring and the review fix pass for applying"
       ]
     },
     {
