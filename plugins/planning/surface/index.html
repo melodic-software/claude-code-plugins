@@ -689,7 +689,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         const elig = s.items.filter(q => op.has(q.id) && eligible(q)), aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + s.collapsed + '" data-dflt="' + s.done + '">' +
           '<div class="sec-top"><button class="sec-h" aria-expanded="' + !s.collapsed + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + "</span></button>" +
-          (elig.length && aa ? '<button class="tbtn small" ' + aa + ' data-submit="1" title="Accept the recommendation on the open questions you have opened here">Accept all (' + elig.length + ")</button>" : "") + "</div>" +
+          (elig.length && aa ? '<button class="tbtn small" ' + aa + ' data-submit="1" title="Accept the recommendation on the open questions you have opened here">Accept all (' + elig.length + ")</button>" : "") +
+          (elig.length && s.round && !s.gid ? '<button class="tbtn small" data-auditround="' + esc(s.round) + '" data-submit="1" title="Accept the recommendation on the open questions you have opened here and have agents check the answers">Accept all and have agents check them</button>' : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
           (s.hint ? '<div class="sec-hint">' + esc(s.hint) + "</div>" : "") +
           '<ul class="qlist">' + (items.length ? items.map(q => "<li>" + railItem(q, s, carry, fresh) + "</li>").join("") : '<li class="empty">None.</li>') + "</ul></div>";
@@ -1527,7 +1528,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const base = lsGet("openedRev", {})[q.id];
     return typeof base === "number" ? crev(q) - (q.contentRev || 0) + base : crev(q);
   }
-  function acceptAllDialog(pool, where){ // one accept event per eligible question, each carrying its note
+  function acceptAllDialog(pool, where, audit){ // one accept event per eligible question, each carrying its note; audit (a round id): one accept-audit event instead
     const op = opened(), elig = pool.filter(q => op.has(q.id) && eligible(q)).sort(byIdCmp);
     const challenged = elig.filter(q => /^\s*Challenge:/m.test(carried(q))), items = elig.filter(q => !challenged.includes(q));
     const unopened = pool.filter(q => !op.has(q.id) && eligible(q)).length;
@@ -1535,8 +1536,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     // A question Claude revised after the user last opened it goes with that older revision, so
     // the server refuses it and the toast names it.
     const snaps = items.map(q => ({id: q.id, rev: openedRev(q), text: carried(q)}));
-    $("dlgTitle").textContent = "Accept " + items.length + " in " + where + "?";
-    $("dlgBody").innerHTML = "<p>Accepts the recommendation on each open question you have opened here, with the note you typed on it. Commitments stay unconfirmed.</p><ul>" +
+    $("dlgTitle").textContent = "Accept " + items.length + " in " + where + (audit ? " and have agents check them?" : "?");
+    $("dlgBody").innerHTML = "<p>Accepts the recommendation on each open question you have opened here" + (audit ? ". Agents will then check the accepted answers. " : ", with the note you typed on it. ") + "Commitments stay unconfirmed.</p><ul>" +
       snaps.map(s => { const q = Q[s.id]; return "<li><b>" + esc(q.id) + "</b> " + esc(q.short || q.title) + ": " + esc(trunc(firstLine(q.recommendation), 110)) + (s.text ? '<div class="kbd">Note: ' + esc(trunc(s.text, 160)) + "</div>" : "") + "</li>"; }).join("") + "</ul>" +
       (challenged.length ? '<p class="left-out">Left out, their note challenges a commitment: ' + challenged.map(q => esc(q.id)).join(", ") + ".</p>" : "") +
       (unopened ? '<p class="left-out">Left out: ' + unopened + " open " + (unopened === 1 ? "question" : "questions") + " you have not opened.</p>" : "") +
@@ -1547,6 +1548,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       dlg.close(); if (S.busy) return;
       if (wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
       S.busy = true; let ok = 0; const skipped = [];
+      if (audit) {
+        try {
+          const {res, data} = await post({kind: "accept-audit", alt: audit, items: snaps.map(s => ({id: s.id, contentRev: s.rev}))});
+          S.busy = false;
+          const sk = (data.skipped || []).map(x => x.id);
+          if (res.ok) snaps.forEach(s => { if (!sk.includes(s.id)) lsSet("draft:" + s.id, null); });
+          await refresh().catch(() => {});
+          toast(res.ok ? "Accepted " + (data.accepted || []).length + "." + (sk.length ? " Skipped " + sk.join(", ") + ": changed or not eligible." : "") : "Not accepted (" + (data.error || res.status) + ")." + (sk.length ? " Skipped " + sk.join(", ") + "." : ""), !res.ok || sk.length > 0);
+          renderAll();
+        } catch (e) { S.busy = false; if (!e.quiet) toast("Not sent (" + e.message + ").", true); }
+        return;
+      }
       for (const s of snaps) {
         try { const {res} = await post({id: s.id, kind: "accept", alt: null, text: s.text, contentRev: s.rev}); if (res.ok) { ok++; lsSet("draft:" + s.id, null); } else skipped.push(s.id); }
         catch (e) { if (e.quiet) return; skipped.push(s.id); }
@@ -1653,6 +1666,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("#keysClose")) { $("keysDlg").close(); return; }
     if (t.closest("[data-sum]")) { select(SUMMARY, {animate: true}); return; }
     const ref = t.closest(".ref[data-q], .qbtn"); if (ref) { select(ref.dataset.q, {animate: true}); return; }
+    const au = t.closest("[data-auditround]"); if (au) { const s = sections().secs.find(x => x.round === au.dataset.auditround); if (s) acceptAllDialog(s.items, s.title, s.round); return; }
     const aa = t.closest("[data-acceptall]"); if (aa) { acceptAllDialog(S.doc.questions.filter(q => q.group === aa.dataset.acceptall), groupTitle(aa.dataset.acceptall)); return; }
     const sh = t.closest(".sec-h");
     if (sh) { const sec = sh.closest(".sec"), c = sec.dataset.collapsed !== "true"; sec.dataset.collapsed = String(c); sh.setAttribute("aria-expanded", String(!c)); lsSet("col:" + sec.dataset.key, {c, d: sec.dataset.dflt === "true"}); return; }
