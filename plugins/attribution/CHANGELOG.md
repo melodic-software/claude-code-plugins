@@ -13,12 +13,58 @@
   synthetic `source.md`. The measure is lexical and does not cover a sentence-by-sentence
   paraphrase.
 
+### Changed
+
+- **Whole-set score against rubric version 4 and restated-fact version 1, 38 cases, 114 blind
+  judges: 22 tp / 3 fp / 1 fn / 13 tn, precision 0.88, recall 0.96.** Each case was judged by
+  three independent judges run as in 0.7.1, with no tools, skills, MCP servers or CLAUDE.md, a
+  neutral working directory, and labels that carry no path or case name. The local passage was the
+  whole `case.md`, and the source's own disclaimer paragraph was dropped. The combine rule is
+  0.7.1's: a unanimous `STANDS` with one class is a finding, unanimous `CLEARED` is none, and a
+  split routes to a human and gives none. Restated-fact cases were scored on the panel verdict
+  alone; the refutation pass was not run on them here.
+
+  | Class | n | tp | fp | fn | tn | Precision | Recall | Previous (0.7.1) |
+  |---|---|---|---|---|---|---|---|---|
+  | verbatim | 3 | 3 | 0 | 0 | 0 | 1.00 | 1.00 | n 2, 1.00 / 1.00 |
+  | near-verbatim | 13 | 12 | 1 | 1 | 0 | 0.92 | 0.92 | n 5, 1.00 / 1.00 |
+  | paraphrase | 1 | 1 | 0 | 0 | 0 | 1.00 | 1.00 | n 1, 1.00 / 1.00 |
+  | restated-fact | 6 | 6 | 0 | 0 | 0 | 1.00 | 1.00 | not measured |
+  | hard negatives | 15 | 0 | 2 | 0 | 13 | n/a | n/a | n 2, 2 tn |
+
+  **Near-verbatim crossed `min_n_per_class` and its gate is binding, and it fails the 0.95
+  precision bar** (0.92, one false positive in thirteen), so it is not fix-eligible. The
+  hard-negative class also crossed the gate. No class is declared fix-eligible.
+
+  **Where the panel disagreed with a recorded expectation.** None of the expectations was changed.
+  - `c26` returned `verbatim` where the fixture records `near-verbatim`, on the same lines: the
+    case reproduces the source's three rules word for word, so the class disagreement counts as a
+    false negative and a false positive.
+  - `c23` and `c36`, recorded as negatives, each returned a `near-verbatim` finding. For `c36`
+    the panel read the stamped record as covering only the two numbers it claims, not the
+    sentences lifted beside them. For `c23` it found inline attributions with no URL or as-of
+    date on time-bound claims.
+  - `c24` and `c34`, recorded as negatives, split 1 to 2 and count as true negatives under the
+    rule above.
+
+  Of the 14 new cases `c25` to `c38`, 12 matched their expectation; the misses are `c26` and
+  `c36`. Nine of them are findings adjudicated from real repository text, which is most of the
+  near-verbatim class, so that row reports a set of known-hard cases and is not an estimate of
+  ordinary performance. Four of the nine share one source.
+
 ### What this entry does not support
 
-- Verbatim stays at 3 cases, below the more-than-10 target: 49 of 68 candidate panels have not
-  run, and four panels were split or turned on an owner-only call, so they are not converted.
-  Four of the nine converted findings share one source. No class is declared fix-eligible and no
-  per-class precision or recall is re-measured here.
+- Verbatim has 3 cases against the more-than-10 target. All 68 candidate panels ran: 35
+  unanimous findings (3 verbatim, 32 near-verbatim), 22 cleared, 10 blocked (eight splits or
+  class splits, one resting on the owned-content carve-out, one with an UNKNOWN grade), and one
+  restated-fact `STANDS` that survived refutation. Three candidates were adjudicated verbatim:
+  one is converted (`c32`), one is a 16-word list of product identifiers that an earlier
+  adjudication recorded as failing C2, which this panel contradicts and which is left for the
+  owner, and one is not converted. The pool cannot reach more than 10 verbatim cases, so the
+  target stays open. Near-verbatim is above 10, and 24 adjudicated near-verbatim findings are
+  not converted to cases.
+- The blocked panels are not resolved here; each turns on a split the panel could not settle or
+  on whether this repository owns a passage.
 
 ## [0.8.0] - 2026-09-29
 
