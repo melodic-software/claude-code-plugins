@@ -18,17 +18,24 @@ anyone holding a candidate address can confirm it.
 ## Reading the account
 
 ```shell
-set -o pipefail; jq -er '.oauthAccount.emailAddress | strings | select(length>0)' < "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json" | sha256sum | cut -c1-16
+set -o pipefail
+fp() { jq -er "$1"' | strings | select(length >= 3 and length <= 254 and contains("@") and all(explode[]; . >= 32 and . != 34 and . != 92 and . != 127))' | { sha256sum || shasum -a 256; } 2>/dev/null | cut -c1-16; }
+fp .oauthAccount.emailAddress < "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
 ```
 
-The file goes in on stdin because a native Windows `jq` cannot open an MSYS-style path argument. A
-non-zero exit (file absent, unparsable, key missing or not a string) means **cannot attribute**;
-discard the output. A failed `jq` still leaves `sha256sum` printing the hash of empty input,
-`e3b0c44298fc1c14`; that value is never a fingerprint, so it also means cannot attribute. The
-address never reaches the output, a variable, or a command line. Fingerprint a tee snapshot's
-`account.email` the same way, feeding the snapshot on stdin (`jq -er '.account.email | strings |
-select(length>0)' < "$HOME/.claude/rate-limit-guard/rate-limits.json" | sha256sum | cut -c1-16`),
-to test whether it describes the new account.
+The file goes in on stdin because a native Windows `jq` cannot open an MSYS-style path argument.
+`sha256sum` is absent on stock macOS, so the pipeline falls back to `shasum -a 256`. The `select`
+is the tee writer's shape whitelist (reader contract, "Tee file shape"), so a corrupt value such as
+`logged-out` is not an account. A non-zero exit (file absent, unparsable, key missing, not a string,
+or not email-shaped) means **cannot attribute**; discard the output. A failed `jq` still leaves the
+hash step printing the hash of empty input, `e3b0c44298fc1c14`; that value is never a fingerprint,
+so it also means cannot attribute. The address never reaches the output or a command line.
+
+Read the tee file once into a variable and derive everything from that copy: `snap=$(cat
+"$HOME/.claude/rate-limit-guard/rate-limits.json")`, then `printf '%s' "$snap" | fp .account.email`
+for the fingerprint and the same `printf` into `jq` for `captured_at` and the windows. Never reopen
+the path between them: another session's drain can replace the file, and a fingerprint from one
+snapshot beside windows from another attributes the windows to the wrong account.
 
 `.oauthAccount.emailAddress` is internal Claude Code state, not a documented surface. Its
 verification record is the recheck trigger in the `rate-limit-guard` reader contract
@@ -42,8 +49,9 @@ bounds how late a switch is seen.
 
 ## At pause entry
 
-1. Fingerprint the `account.email` of the snapshot the trip was read from. No `account.email`: the
-   entry is **unattributed**, so `latched_account` stays `null`.
+1. Fingerprint the `account.email` of the snapshot copy the trip was read from, the one that gave
+   `paused_until`. No `account.email`: the entry is **unattributed**, so `latched_account` stays
+   `null`.
 2. Write `paused_until` and `latched_account` together.
 3. Read the `.claude.json` fingerprint. Stay paused when it cannot be attributed, when
    `latched_account` is `null` (nothing to differ from), or when the two are equal. Different: the
@@ -57,15 +65,18 @@ bounds how late a switch is seen.
    switch to detect. Record the fingerprint as `latched_account` and continue the ordinary
    re-evaluation.
 3. Fingerprint equals `latched_account`: no switch; continue the ordinary re-evaluation.
-4. Fingerprint differs: re-evaluate against the new account with a tee snapshot that is fresh
-   (`captured_at` within 10 minutes) and whose `account.email` fingerprint equals the new one.
-   - Both windows below 90: **resume**. Clear `rate_limit_latch`, `paused_until`, and
+4. Fingerprint differs: re-evaluate against the new account with a tee snapshot copy that is fresh
+   (`captured_at` within 10 minutes) and whose `account.email` fingerprint equals the new one. Apply
+   the per-window rule from `SKILL.md`: a window that is absent or absurd is unknown, and the other
+   window still counts.
+   - Every plausible window below 90: **resume**. Clear `rate_limit_latch`, `paused_until`, and
      `latched_account` together, and resume mutating work and the normal schedule.
-   - Either window at or above 90: **re-latch**. Stay paused, rewrite `paused_until` to the new
-     account's pause end (the floor's Pause end rule) and `latched_account` to the new fingerprint.
-     `rate_limit_latch` stays set.
-   - No fresh, attributable snapshot: windows are **unknown**. Clear `rate_limit_latch`,
-     `paused_until`, and `latched_account`, resume, and run reactive-only.
+   - Any plausible window at or above 90: **re-latch**. Stay paused, rewrite `paused_until` to the
+     new account's pause end (the floor's Pause end rule) and `latched_account` to the new
+     fingerprint. `rate_limit_latch` stays set.
+   - No plausible window (no fresh, attributable snapshot, or neither window usable): windows are
+     **unknown**. Clear `rate_limit_latch`, `paused_until`, and `latched_account`, resume, and run
+     reactive-only.
 5. On a switch, add one `account-switch:` line to that cycle's report, `resumed`, `re-latched`, or
    `unknown`. Never write the address or the fingerprint into the report.
 

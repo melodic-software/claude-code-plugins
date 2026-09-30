@@ -203,6 +203,20 @@
         "On the first later wake records the .claude.json fingerprint as latched_account and continues the ordinary re-evaluation",
         "Never prints, logs, or interpolates the address or the state file"
       ]
+    },
+    {
+      "id": 14,
+      "name": "work-loop-switch-with-one-plausible-window-resumes",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint. The tee file holds one snapshot captured 2 minutes ago whose account.email matches the new account, with the five-hour window at 40% and no seven-day window.",
+      "expected_output": "The fingerprint differs, so the lane re-evaluates against the new account using the fresh snapshot, read once and used for both the fingerprint and the windows. Only the five-hour window is plausible and it is below 90, so it resumes: it clears rate_limit_latch, paused_until, and latched_account together and resumes claiming work. It does not treat the absent seven-day window as blocking the resume, does not fall to reactive-only, and does not keep the old account's paused_until. It adds an account-switch: resumed line to the cycle report without the address or fingerprint.",
+      "files": [],
+      "expectations": [
+        "Resumes because every plausible window is below 90, treating the absent seven-day window as unknown rather than as a reason to stay paused",
+        "Does not fall back to reactive-only, since one window is plausible",
+        "Clears rate_limit_latch, paused_until, and latched_account together",
+        "Derives the snapshot's fingerprint and its windows from one read of the tee file, not from two reads",
+        "Records an account-switch: resumed line in the cycle report with neither the address nor the fingerprint"
+      ]
     }
   ]
 }
