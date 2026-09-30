@@ -3,13 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.3] - 2026-09-30
+## [0.42.4] - 2026-09-30
 
 ### Fixed
 
 - **`block-dangerous-git` lets read-only git through PowerShell grouping.** A `{}` or `()` group sent the whole command to the fail-closed sink, so `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }` was refused. The sink now passes a command whose every git invocation is a built-in interrogator (`status`, `log`, `show`, `diff`, `rev-parse`, `ls-files`, `remote -v`, `stash list` and similar), optionally behind `-C <path>`. A `-c` override, `--exec-path`, an environment write (a `GIT_*` name, an `Env:` provider path, a `$env:NAME` assignment, `SetEnvironmentVariable`), a computed or obscured subcommand, an alias, `fetch`, `grep` and any mutating verb keep the command blocked, and dynamic-invocation, launcher and here-string triggers are unchanged. `scripts/check-guardrails-ps-differential.sh origin/main` shows 19 commands newly allowed, all read-only git, and no other cell moved.
 - **The PowerShell read-only git test judges `remote` and `stash` by arguments.** Both were listed as mutating stems, so bare `git remote`, `remote -v`, `remote show`, `remote get-url`, `stash list` and `stash show` were refused. Every other `remote` or `stash` form still blocks.
 - **The PowerShell sink denial offers the commit form only for a commit and names the PowerShell rewrite first.**
+
+## [0.42.3] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` allows a computed PowerShell call whose target resolves to a single-quoted non-writer literal.** `$p = 'git'; & $p 'status' bare` was refused by the positional-write arm. The arm now skips a call site whose variable resolves to such a literal; an unresolved target stays blocked and no allow token was added.
+- **The computed-call positional arm has its own block reason.** It reports form `powershell-computed-positional` with a reason that names the computed call, instead of the cmdlet/redirect message with Write/Edit advice. The telemetry schema lists the new form token.
 
 ## [0.42.2] - 2026-09-30
 
