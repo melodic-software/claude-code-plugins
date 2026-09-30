@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.36.0] - 2026-09-30
+## [0.37.0] - 2026-09-30
 
 ### Added
 
@@ -19,6 +19,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
   `tmp-producer` category reads `/tmp`, not `$TMPDIR`. `skills/clean/SKILL.md` and its references
   document the attended workflow.
+
+## [0.36.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:audit`, a model-invocable read-only scan**
+  ([#5516](https://github.com/melodic-software/claude-code-plugins/issues/5516)). A delegated or
+  orchestrated session can run the probe and one engine `scan` and report the snapshot with its
+  coverage gaps. It runs no `preview` or `apply` and hands any removal to `/disk-hygiene:clean`,
+  which stays manual-only.
 
 ## [0.35.2] - 2026-09-30
 

@@ -1,5 +1,5 @@
 ---
-description: "Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks only when the target is genuinely ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed; does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for rendering its own output. Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), and asks only when the target is ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
 argument-hint: "[terminal|file|artifact]. Omit to auto-decide; name a form in the request itself"
 user-invocable: true
 disable-model-invocation: false
@@ -291,6 +291,27 @@ Recheck when a release makes the `design` registration model-invocable, changes 
 (the identity string the offer quotes), changes its gating, or splits or merges its
 registrations. The remaining surface facts live in the catalog spoke's
 design canvas section ([context/decision-matrix.md](context/decision-matrix.md)).
+
+A request to draw a layout or a deck can name a Claude Design project the person already has, and
+then it means that project, not a new render:
+
+- **`ClaudeDesign` (built-in tool)**: lists the person's claude.ai/design projects and reads and
+  writes files in an existing one (list, get a project, write, copy, and plan writes). The model
+  calls it by name. It does not create a new Design artifact; that is the bundled `design` skill
+  above, which the person runs.
+- **This skill (marketplace plugin)**: picks the form and medium and renders its own output.
+
+**Routing:** when the person names or links an existing claude.ai/design project, or asks for the
+work to go into one, and the `ClaudeDesign` tool resolves in this session, use that tool for the
+project's files. Otherwise this skill renders its own output as today. The tool is the project's
+editor; this skill is the form and medium router.
+
+**Mutation gate:** a `ClaudeDesign` write changes a project the person's team shares. Write only
+to the project the person named, and only after they asked for the change. A first write asks the
+person for a one-time project approval, or goes through the tool's plan step; the tool refuses
+writes in a subagent, in a non-interactive session, and in plan mode without that plan step, so
+report the refusal and never retry around it. The four-part records live in
+[context/claude-design-tool.md](context/claude-design-tool.md).
 
 ## What this skill does NOT do
 

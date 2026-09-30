@@ -233,7 +233,12 @@ launched.
 ```text
 /disk-hygiene:clean <target-directory>
 /disk-hygiene:clean --policy <policy.json> <target-directory>
+/disk-hygiene:audit [--max-depth <N>] [--sizes-only] [--policy <policy.json>] <target-directory>
 ```
+
+`/disk-hygiene:audit` is the model-invocable, read-only counterpart for delegated or orchestrated
+scans. It runs the engine's `scan` subcommand only, reports the snapshot with coverage gaps, and
+removes nothing. Any removal is a separate `/disk-hygiene:clean` run that a person invokes.
 
 `--root-children` with `--root-child <name>` inventories only the named immediate children of the
 target. That is required for an OS-managed volume root (the root itself is never walked) and is
