@@ -9,10 +9,12 @@ their repo mid-session.
 - **Audit skill** (`skills/audit`), the six-step hub:
   1. Evidence capture on the main thread, into a durable, compaction-proof packet.
   2. Map and ground in the fresh `auditor` subagent, with every load-bearing harness-behavior claim
-     verified against current official docs.
+     verified against current official docs, and a ledger of errors, improvements, quality of life
+     and standards alignment per component.
   3. Persist-check on the returned findings, then a blindspot pass and candidates.
   4. Interactive contract lock: scope, severity, and assumptions, written into the packet.
-  5. Presence-gated review seams with stated fallbacks.
+  5. Presence-gated review seams with stated fallbacks, including a research gate: a remediation
+     without a research line is emitted as `needs-decision`, never `agent-ready`.
   6. Emit to the resolved sink behind an unconditional draft+confirm gate.
   Two further modes, both operator-invoked only: `/plugin-quality:audit session` discovers the
   plugins and skills the session used (from the retro transcript parser), confirms the list with

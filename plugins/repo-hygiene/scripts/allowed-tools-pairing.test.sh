@@ -127,8 +127,8 @@ for skill in "${SKILLS[@]}"; do
 
   # The frontmatter must not promise guard coverage the guard does not provide.
   # `--apply` on the mutating scripts and a forced `git worktree remove` are in
-  # the net. `git branch -D` and `git push --delete` are not (#3852). A comment
-  # that says the scripts "stay behind the PreToolUse destructive guard" without
+  # the net, as are bare `git branch -D`/`-d`/`--delete` and `git push --delete`.
+  # A comment that says the scripts "stay behind the PreToolUse destructive guard" without
   # naming `--apply` overstates a dry-run. The mention has to state both halves.
   if grep -qiE 'behind the (PreToolUse )?destructive guard' <<<"$at"; then
     fail "$skill: allowed-tools uses the overstated 'behind the destructive guard' claim"
