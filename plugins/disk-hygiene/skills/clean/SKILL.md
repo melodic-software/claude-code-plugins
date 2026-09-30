@@ -44,7 +44,7 @@ optional execution lane. On Windows and macOS a run ends in a report plus the `e
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
 `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--quiet`, optional `--root-children` with zero or more `--root-child <name>`, and one target
-directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
+directory. Remaining engine flags (`--output`, `--project-dir`, `--in-flight-refs`, `--data-root` on scan;
 `--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and
 `--vcs-evidence` on the other subcommands) are supplied by this skill's command templates, not typed
 by the user. `--execute` means "deletion may be offered" on every platform, the gated engine lane
@@ -174,8 +174,22 @@ or `${CLAUDE_PLUGIN_ROOT}`. Run:
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
   [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] \
+  [--in-flight-refs "<run-dir>/in-flight-refs.json"] \
   [--root-children [--root-child <name>]...]
 ```
+
+**Optional: in-flight references.** Before the scan, dispatch a read-only subagent to collect paths
+that open work still points at. It searches open issues and PRs (`gh search issues` and `gh search
+prs`, `--state open`) for the target's absolute path, and reads the session-flow handoff save-points
+in `<memory_dir>/handoffs/` for it. The belt does not apply to a subagent (see the fan-out paragraph
+below). It returns `{path, reason}` pairs: `path` absolute, `reason` naming the reference ("referenced
+by PR #123", "referenced by handoff <file>"). The parent writes them as
+`{"references": [{"path": "...", "reason": "..."}]}` to `<run-dir>/in-flight-refs.json` and passes
+`--in-flight-refs`; any other field, or a relative path, fails the scan. The engine makes no network
+call: an entry at, under, or holding a listed path keeps its tier, is never `preselected`, and
+carries `in_flight_reason`. A hit is a reason for caution, not proof, and never changes a tier. When
+`gh` is unavailable or not authenticated, scan without the flag and say in the report that open
+issues and PRs were not checked.
 
 For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
 `--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`). The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
@@ -407,7 +421,9 @@ the gate still needs the tier and path list named. Preview unticks a candidate w
 preview, and question. A rule with `min_age_days` leaves an entry touched inside the
 window unticked (`min_age_basis` is mtime by default, or atime or ctime; ctime is inode change time on POSIX
 and creation time on Windows; atime can be unreliable under noatime or relatime mounts), with `in_flight_reason` shown. A directory is as new as its newest inventoried
-descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight.
+descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight. An entry
+named by `--in-flight-refs` is unticked the same way, with the reference as its `in_flight_reason`,
+whether or not a rule matched it.
 
 ## 6. Apply only the confirmed preview
 

@@ -1343,6 +1343,93 @@ def apply_rules(
                 entry["in_flight_reason"] = reason
 
 
+def load_in_flight_refs(path: Path) -> list[dict[str, str]]:
+    """Read and validate the `--in-flight-refs` file.
+
+    The file is `{"references": [{"path": "<absolute>", "reason": "<text>"}]}`.
+    The engine stays offline: whoever assembles the file (an open issue or PR,
+    a handoff) names the reference in `reason`.
+    """
+    data = load_json(path)
+    if set(data) != {"references"} or not isinstance(data["references"], list):
+        raise HygieneError(
+            f"in-flight refs file must be an object with only a references array: {path}"
+        )
+    refs: list[dict[str, str]] = []
+    for ref in data["references"]:
+        if not isinstance(ref, dict) or set(ref) != {"path", "reason"}:
+            raise HygieneError(
+                f"each in-flight reference must contain exactly path and reason: {path}"
+            )
+        for field in ("path", "reason"):
+            if not isinstance(ref[field], str) or not ref[field].strip():
+                raise HygieneError(
+                    f"in-flight reference {field} must be a non-empty string: {path}"
+                )
+        if not Path(ref["path"]).is_absolute():
+            raise HygieneError(
+                f"in-flight reference path must be absolute: {ref['path']}"
+            )
+        refs.append({"path": ref["path"], "reason": ref["reason"].strip()})
+    return refs
+
+
+def _ref_key(path: str) -> str:
+    return os.path.normcase(path).replace("\\", "/").strip("/")
+
+
+def apply_in_flight_refs(
+    entries: list[dict[str, Any]], target: Path, refs: list[dict[str, str]]
+) -> None:
+    """Mark entries at, under, or holding a referenced path as in-flight.
+
+    An entry keeps its tier but is not preselected and carries
+    `in_flight_reason`. A reference outside the target affects nothing; one
+    above it covers every entry. An ancestor of a referenced path is marked
+    too, because removing it would remove the referenced path.
+    """
+    root = _ref_key(str(target))
+    below = root + "/" if root else ""
+    covered: dict[str, str] = {}
+    holders: dict[str, str] = {}
+    for ref in refs:
+        key = _ref_key(str(Path(ref["path"]).resolve(strict=False)))
+        if key == root or below.startswith(key + "/"):
+            relative = ""
+        elif key.startswith(below):
+            relative = key[len(below) :]
+        else:
+            continue
+        covered.setdefault(relative, ref["reason"])
+        parent = relative
+        while "/" in parent:
+            parent = parent.rsplit("/", 1)[0]
+            holders.setdefault(parent, ref["reason"])
+    if not covered:
+        return
+    for entry in entries:
+        key = _ref_key(entry["path"])
+        parts = key.split("/")
+        reason = covered.get("") or next(
+            (
+                covered["/".join(parts[:i])]
+                for i in range(1, len(parts) + 1)
+                if "/".join(parts[:i]) in covered
+            ),
+            None,
+        )
+        if reason is None and key in holders:
+            reason = f"contains a referenced path ({holders[key]})"
+        if reason is None:
+            continue
+        reason = f"in-flight: {reason}"
+        entry["in_flight_reason"] = "; ".join(
+            filter(None, [entry.get("in_flight_reason"), reason])
+        )
+        if "preselected" in entry:
+            entry["preselected"] = False
+
+
 def validate_hint(hint: Any) -> None:
     if not isinstance(hint, dict):
         raise HygieneError("each additional hint must be an object")
@@ -2447,6 +2534,7 @@ def scan_tree(
     *,
     root_children: list[str] | None = None,
     sizes_only: bool = False,
+    in_flight_refs: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     # A sizes-only walk keeps no per-path record: each path folds straight into
@@ -2644,6 +2732,7 @@ def scan_tree(
                 if isinstance(item, dict) and isinstance(item.get("path"), str)
             },
         )
+        apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
@@ -4090,8 +4179,8 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 and TIER_RANK[plan["tier"]] <= TIER_RANK[ceiling]
                 and set(blockers) <= {PLATFORM_BLOCKER},
             }
-            if isinstance(candidate_entry.get("in_flight_reason"), str):
-                rule_fields["in_flight_reason"] = candidate_entry["in_flight_reason"]
+        if isinstance(candidate_entry.get("in_flight_reason"), str):
+            rule_fields["in_flight_reason"] = candidate_entry["in_flight_reason"]
         results.append(
             {
                 "path": relative,
@@ -5316,6 +5405,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")
+            in_flight_refs = (
+                load_in_flight_refs(Path(args.in_flight_refs).expanduser().absolute())
+                if args.in_flight_refs
+                else []
+            )
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target, policy)
             sizes_only = bool(args.sizes_only)
@@ -5405,6 +5499,7 @@ def main(argv: list[str] | None = None) -> int:
                         args.max_depth,
                         root_children=resolved_children,
                         sizes_only=sizes_only,
+                        in_flight_refs=in_flight_refs,
                     )
                 except HygieneError as exc:
                     return emit(
@@ -5477,7 +5572,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
             try:
                 snapshot = scan_tree(
-                    target, policy, args.max_depth, sizes_only=sizes_only
+                    target,
+                    policy,
+                    args.max_depth,
+                    sizes_only=sizes_only,
+                    in_flight_refs=in_flight_refs,
                 )
             except HygieneError as exc:
                 return emit(

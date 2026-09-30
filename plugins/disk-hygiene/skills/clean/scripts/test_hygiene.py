@@ -1116,6 +1116,94 @@ class HygieneTests(unittest.TestCase):
                     rules = hygiene.load_policy(path)["rules"]
                     self.assertEqual(basis, rules[-1]["min_age_basis"])
 
+    def _refs_file(self, directory: str, references: Any) -> Path:
+        path = Path(directory) / "refs.json"
+        path.write_text(json.dumps({"references": references}), encoding="utf-8")
+        return path
+
+    def _scan_with_refs(self, temporary: str, *paths: str):
+        root, policy = self._aged_fixture(temporary)
+        for name in ("old.stage", "fresh.stage", "dir.stage", "dir.stage/child.txt"):
+            self._age(root / name, 30)
+        refs = hygiene.load_in_flight_refs(
+            self._refs_file(
+                temporary,
+                [
+                    {"path": str(root / name), "reason": "referenced by PR #123"}
+                    for name in paths
+                ],
+            )
+        )
+        snapshot = hygiene.scan_tree(root, policy, in_flight_refs=refs)
+        return snapshot, hygiene.entry_map(snapshot)
+
+    def test_in_flight_ref_covers_the_path_and_its_descendants_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot, entries = self._scan_with_refs(temporary, "dir.stage")
+            for name in ("dir.stage", "dir.stage/child.txt"):
+                self.assertEqual(
+                    "in-flight: referenced by PR #123", entries[name]["in_flight_reason"]
+                )
+            self.assertIs(False, entries["dir.stage"]["preselected"])
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertNotIn("in_flight_reason", entries["old.stage"])
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("dir.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)["candidates"][0]
+            self.assertEqual("low", result["tier"])
+            self.assertIs(False, result["preselected"])
+            self.assertEqual(
+                "in-flight: referenced by PR #123", result["in_flight_reason"]
+            )
+
+    def test_in_flight_ref_marks_the_ancestor_that_would_remove_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, entries = self._scan_with_refs(temporary, "dir.stage/child.txt")
+            self.assertIs(False, entries["dir.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: contains a referenced path (referenced by PR #123)",
+                entries["dir.stage"]["in_flight_reason"],
+            )
+            self.assertIn("in_flight_reason", entries["dir.stage/child.txt"])
+            self.assertNotIn("in_flight_reason", entries["fresh.stage"])
+
+    def test_in_flight_ref_outside_the_target_affects_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("old.stage", "fresh.stage", "dir.stage", "dir.stage/child.txt"):
+                self._age(root / name, 30)
+            refs = [{"path": str(root.parent / "elsewhere"), "reason": "x"}]
+            entries = hygiene.entry_map(
+                hygiene.scan_tree(root, policy, in_flight_refs=refs)
+            )
+            self.assertTrue(all("in_flight_reason" not in e for e in entries.values()))
+
+    def test_in_flight_refs_file_is_validated_strictly(self) -> None:
+        good = {"path": os.path.abspath("abs-path"), "reason": "referenced by PR #1"}
+        cases = {
+            "not an object": [good],
+            "unknown top-level field": {"references": [good], "extra": 1},
+            "references not a list": {"references": good},
+            "unknown entry field": {"references": [{**good, "extra": 1}]},
+            "missing reason": {"references": [{"path": good["path"]}]},
+            "empty reason": {"references": [{**good, "reason": " "}]},
+            "relative path": {"references": [{**good, "path": "rel/path"}]},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "refs.json"
+            for name, content in cases.items():
+                path.write_text(json.dumps(content), encoding="utf-8")
+                with self.subTest(name), self.assertRaises(hygiene.HygieneError):
+                    hygiene.load_in_flight_refs(path)
+            path.write_text("{not json", encoding="utf-8")
+            with self.assertRaises(hygiene.HygieneError):
+                hygiene.load_in_flight_refs(path)
+            path.write_text(json.dumps({"references": [good]}), encoding="utf-8")
+            self.assertEqual([good], hygiene.load_in_flight_refs(path))
+
     def _basis_entries(self, basis: str, old: int, new: int) -> list[dict[str, Any]]:
         base = {"kind": "file", "hints": [], "protected_reasons": []}
         stamps = {"mtime_ns": old, "atime_ns": old, "ctime_ns": old}
