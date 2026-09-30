@@ -95,6 +95,15 @@ sync_cluster::check_manifest_bumps_to() {
   printf -v "$1" '%s' "$_sc_stale"
 }
 
+# sync_cluster::print_sync_only_line
+#
+# Prints on stderr the CHANGELOG entry for a carrying plugin whose bump only
+# carries the sync. The surface noun is the first path segment of the strip glob.
+sync_cluster::print_sync_only_line() {
+  local _sc_surface="${sync_cluster_manifest_strip#/}"
+  echo "For a bump that only carries the sync, the CHANGELOG entry is: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${_sc_surface%%/*}." >&2
+}
+
 sync_cluster::check_bump() {
   local base="$1" stale=0
   if git diff --quiet "$base" -- "$src"; then
@@ -104,7 +113,7 @@ sync_cluster::check_bump() {
   sync_cluster::check_manifest_bumps_to stale "$base"
   if [[ "$stale" -ne 0 ]]; then
     echo "Bump the version of every $sync_cluster_carrier plugin so consumers receive the lib change." >&2
-    echo "For a bump that only carries the sync, the CHANGELOG entry is: Shared \`$(basename "$src")\` synced (<link to the lib change>); no change to this plugin's hooks." >&2
+    sync_cluster::print_sync_only_line
     exit 1
   fi
   echo "$sync_cluster_noun changed vs $base and every $sync_cluster_carrier plugin bumped its version."

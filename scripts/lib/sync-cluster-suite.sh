@@ -222,7 +222,7 @@ sync_cluster_suite::_case_unknown_flag() {
 
 # --- --check-bump requires a carrier version bump when canonical changed -----
 sync_cluster_suite::_case_check_bump() {
-  local base out extra
+  local base out extra surface
   sync_cluster_suite::_base_fixture
   if base="$(sync_cluster_suite::_git_fixture)"; then
     if ((_scs_unchanged_bump_arm == 1)); then
@@ -241,8 +241,9 @@ sync_cluster_suite::_case_check_bump() {
       fail "--check-bump should fail when the canonical changed but no carrier version moved"
     else
       ok "--check-bump fails when the canonical changed but no carrier version moved"
-      if [[ "$out" == *"no change to this plugin"* && "$out" == *"${_scs_canonical##*/}"* ]]; then
-        ok "--check-bump failure prescribes the sync-only CHANGELOG line naming the canonical file"
+      IFS=/ read -r _ _ surface _ <<<"$_scs_copy"
+      if [[ "$out" == *"no change to this plugin's $surface."* && "$out" == *"${_scs_canonical##*/}"* ]]; then
+        ok "--check-bump failure prescribes the sync-only CHANGELOG line naming the canonical file and the copy's surface"
       else
         fail "--check-bump failure should prescribe the sync-only CHANGELOG line, got: $out"
       fi

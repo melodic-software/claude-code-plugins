@@ -14,8 +14,9 @@ at runtime**:
 - CI (`hook-utils-sync` lane) fails a PR when any plugin copy drifts from the source, and when the lib
   changed but a carrying plugin's manifest version did not — the plugin `version` is the update cache
   key, so an unbumped plugin never delivers the change to consumers. A bump that only carries a sync
-  gets the standard CHANGELOG entry, "Shared `hook-utils.sh` synced (<link to the lib change>); no
-  change to this plugin's hooks." (the other `sync-*.sh` clusters name their own source file), not a
+  gets the standard CHANGELOG entry, "Shared `hook-utils.sh` synced (<link to the change>); no
+  change to this plugin's hooks." (the other `sync-*.sh` clusters name their own source file and
+  the directory their copies live in), not a
   copy of another plugin's release note.
 - Runtime is untouched: each installed plugin stays self-contained under cache isolation, with no
   cross-plugin coupling and no change to the one-plugin install UX.
