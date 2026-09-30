@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
+## [0.47.10] - 2026-09-30
+
+### Changed
+
+- **`interview-defenses.test.sh` states that recomputing a digest or pin is attended-only.** An unattended run that hits a failing digest reports the pin and the git diff, then stops; the digest and pin failure messages say so too ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
+
 ## [0.47.9] - 2026-09-29
 
 ### Changed
