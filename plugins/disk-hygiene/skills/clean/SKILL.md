@@ -108,7 +108,7 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   guard would deny. The guard is the backstop, not the sole enforcer. Every engine call and the
   probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
   needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
-  functions can replace them. The expansion of this command carries a `disk-hygiene guard values`
+  functions can replace them. The expansion of this command normally carries a `disk-hygiene guard values`
   note naming `hook_python` and `data_root`, resolved by the guard's own code; use both from the
   first call. Only when the note is absent, submit the probe once with bare `python`: the guard
   denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
