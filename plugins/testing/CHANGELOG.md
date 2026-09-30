@@ -3,6 +3,22 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-30
+
+### Added
+
+- **audit:** `cant-fail-scan.sh --blocks` also prints `block <file>:<start>-<end> <ordinal> <name>`
+  for each examined test block in `--lines` scope, in every adapter family; a bash harness is one
+  whole-file block. The ordinal counts same-named blocks through the whole file, so a block's
+  identity is its name and ordinal, never its line range.
+- **hooks:** `test-scan` records each scanned write in
+  `sessions/<pkey>/<session_id>/<tool_use_id>.json` under the plugin data directory: the file, its
+  repository, the agent, whether the write created the file, the blocks it created or changed
+  (`null` when unknown, meaning the whole file) and the `cant-fail-ok:` count. `<pkey>` hashes the
+  project directory and the transcript directory, so a `/clear` or fork successor finds its
+  predecessor's writes. Session state and the task-end judge's state directories are pruned after
+  7 days.
+
 ## [0.11.7] - 2026-09-30
 
 ### Fixed
