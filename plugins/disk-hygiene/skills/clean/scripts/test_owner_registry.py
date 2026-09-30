@@ -335,9 +335,26 @@ class RegistryGrantsNoApprovalTest(unittest.TestCase):
 PLUGIN = Path(__file__).resolve().parents[3]
 TELEMETRY_PATH = PLUGIN / "lib" / "hook_telemetry.py"
 EXECUTORS = {ENGINE_PATH, TELEMETRY_PATH}
-# The engine's apply lane: the only code that may delete or name a registry command.
-APPLY_LANE = {"apply_plan", "anchored_remove"}
-FENCED = ("apply_plan", "anchored_remove")
+# The engine functions that may delete. `apply_plan` and `handoff_apply` are the two
+# lanes, each reached only from the CLI behind its own gates. `anchored_remove`, and
+# `purge_directory_contents` beneath it, are the removers both lanes share.
+# `write_text_atomic` removes only the temporary file it wrote itself.
+DELETERS = {
+    "apply_plan",
+    "handoff_apply",
+    "anchored_remove",
+    "purge_directory_contents",
+    "write_text_atomic",
+}
+# The only function that may name a registry command or tool: `apply_plan` carries
+# the plan's owner claim, which `handoff_apply` has no parameter to receive.
+REGISTRY_NAMERS = {"apply_plan"}
+FENCED = (
+    "apply_plan",
+    "handoff_apply",
+    "anchored_remove",
+    "purge_directory_contents",
+)
 CODE_SUFFIXES = {".py", ".sh", ".mjs", ".js", ".ps1"}
 DELETIONS = {"unlink", "rmdir", "rmtree", "removedirs"}
 RUNNERS = (
@@ -377,11 +394,11 @@ SHIPPED = sorted(
 )
 
 
-def without_apply_lane(tree: ast.Module) -> ast.Module:
+def without(tree: ast.Module, names: set[str]) -> ast.Module:
     keep = [
         node
         for node in tree.body
-        if not (isinstance(node, ast.FunctionDef) and node.name in APPLY_LANE)
+        if not (isinstance(node, ast.FunctionDef) and node.name in names)
     ]
     return ast.Module(body=keep, type_ignores=[])
 
@@ -400,31 +417,33 @@ def uses(tree: ast.AST) -> set[str]:
 
 
 def violations(path: Path, source: str) -> list[str]:
-    """What a shipped file does that only the engine's apply lane may do.
+    """What a shipped file does that only the engine's lanes may do.
 
     Deleting, running a registry command, naming the registry or its tools, and
-    reaching the apply lane without the CLI's gates are all found by name.
-    Outside the engine and the telemetry emitter a process runner is also a
-    violation. A non-Python file is checked for deletion verbs beyond the
-    launchers' pinned count.
+    reaching a lane or a remover without the CLI's gates are all found by name.
+    In the engine, `DELETERS` may delete and `REGISTRY_NAMERS` may name the
+    registry. Outside the engine and the telemetry emitter a process runner is
+    also a violation. A non-Python file is checked for deletion verbs beyond
+    the launchers' pinned count.
     """
     hits: set[str] = set()
-    text, found = source, set()
+    text, found, removals = source, set(), set()
     if path.suffix == ".py":
         tree = ast.parse(source)
+        scanned, deleting = tree, tree
         if path == ENGINE_PATH:
-            tree = without_apply_lane(tree)
-        text, found = ast.unparse(tree), uses(tree)
+            scanned, deleting = without(tree, REGISTRY_NAMERS), without(tree, DELETERS)
+        text, found, removals = ast.unparse(scanned), uses(scanned), uses(deleting)
         hits |= {
             node.value
-            for node in ast.walk(tree)
+            for node in ast.walk(scanned)
             if isinstance(node, ast.Constant) and node.value in REGISTRY_TOOLS
         }
     elif len(actions := ACTIONS.findall(source)) > LAUNCHER_ACTIONS.get(path, 0):
         hits.update(actions)
     hits |= {
         name
-        for name in found
+        for name in removals
         if name == "os.remove" or name.rpartition(".")[2] in DELETIONS
     }
     if path not in EXECUTORS:
@@ -435,8 +454,15 @@ def violations(path: Path, source: str) -> list[str]:
     return sorted(hits)
 
 
-class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
-    """Any destructive path is the engine's: its tier, exact-list and token gates.
+class OnlyTheEngineLanesDestroyTest(unittest.TestCase):
+    """Only the engine deletes, through two lanes that each keep their own gates.
+
+    `apply` needs `--execute`, `--confirm-tier` and a fresh token, then runs
+    `apply_plan`. `handoff-apply` needs `--execute` and one exact path, verifies
+    it in process, then runs `handoff_apply`, which takes no plan and so no owner
+    claim. Both reach `anchored_remove`. A registry command may appear only in
+    `apply_plan`, so a destructive route built on the registry would sit behind
+    the tier and token gates.
 
     The scan is static. It reads every shipped file, test files excepted. A
     non-Python file is checked for registry names, commands and deletion verbs,
@@ -446,7 +472,7 @@ class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
     constants above, in review.
     """
 
-    def test_no_shipped_file_deletes_names_the_registry_or_reaches_the_apply_lane(
+    def test_no_shipped_file_deletes_names_the_registry_or_reaches_a_lane(
         self,
     ) -> None:
         self.assertLessEqual({ENGINE_PATH, TELEMETRY_PATH}, set(SHIPPED))
@@ -466,6 +492,9 @@ class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
             "from os import unlink\nunlink(path)\n",
             "import shutil\nshutil.rmtree(path)\n",
             "import hygiene\nhygiene.apply_plan(snapshot, plan)\n",
+            "import hygiene\nhygiene.handoff_apply(snapshot, 'x', {})\n",
+            "import hygiene\nhygiene.anchored_remove(fd, 'x', entry, {}, target)\n",
+            "import hygiene\nhygiene.purge_directory_contents(fd, 0, path, check)\n",
         ):
             self.assertNotEqual([], violations(elsewhere, source), source)
         for source in (
@@ -483,7 +512,7 @@ class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
             ),
         )
 
-    def test_the_apply_lane_and_the_telemetry_emitter_are_not(self) -> None:
+    def test_the_engine_lanes_and_the_telemetry_emitter_are_not(self) -> None:
         lane = (
             "def apply_plan(snapshot, plan):\n"
             "    subprocess.run(entry['destructive_native_command'])\n"
@@ -493,6 +522,26 @@ class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
         self.assertEqual([], violations(ENGINE_PATH, lane))
         self.assertNotEqual(
             [], violations(ENGINE_PATH, lane.replace("apply_plan", "preview"))
+        )
+        removers = (
+            "def handoff_apply(snapshot, relative, evidence):\n"
+            "    anchored_remove(fd, relative)\n"
+            "def anchored_remove(fd, name):\n"
+            "    purge_directory_contents(fd)\n"
+            "    os.rmdir(name)\n"
+            "def purge_directory_contents(fd):\n"
+            "    os.unlink(name)\n"
+            "def write_text_atomic(path, text):\n"
+            "    temporary.unlink()\n"
+        )
+        self.assertEqual([], violations(ENGINE_PATH, removers))
+        for name in ("handoff_apply", "anchored_remove", "purge_directory_contents"):
+            call = "    subprocess.run(entry['destructive_native_command'])\n"
+            self.assertNotEqual(
+                [], violations(ENGINE_PATH, f"def {name}(x):\n{call}"), name
+            )
+        self.assertNotEqual(
+            [], violations(ENGINE_PATH, "def preview(x):\n    os.unlink(x)\n")
         )
         self.assertEqual(
             [],
@@ -512,26 +561,73 @@ class EngineSourceTest(unittest.TestCase):
             for node in ast.walk(self.tree)
         )
 
+    def calls(self, name: str, within: ast.AST | None = None) -> list[tuple[str, Any]]:
+        """Each call to `name` as (enclosing function, call node), sorted by function."""
+        return sorted(
+            (
+                (function.name, node)
+                for function in ast.walk(within or self.tree)
+                if isinstance(function, ast.FunctionDef)
+                for node in ast.walk(function)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == name
+            ),
+            key=lambda call: call[0],
+        )
+
     def callers(self, name: str) -> list[str]:
-        return [
-            function.name
-            for function in ast.walk(self.tree)
-            if isinstance(function, ast.FunctionDef)
-            for node in ast.walk(function)
+        return [function for function, _ in self.calls(name)]
+
+    def function(self, name: str) -> ast.FunctionDef:
+        (found,) = (
+            node
+            for node in ast.walk(self.tree)
+            if isinstance(node, ast.FunctionDef) and node.name == name
+        )
+        return found
+
+    def test_each_lane_has_exactly_one_caller_and_it_is_the_cli(self) -> None:
+        for lane in ("apply_plan", "handoff_apply"):
+            self.assertEqual(1, self.references(lane), lane)
+            self.assertEqual(["main"], self.callers(lane), lane)
+
+    def test_the_remover_is_reached_only_from_the_two_lanes(self) -> None:
+        self.assertEqual(2, self.references("anchored_remove"))
+        self.assertEqual(
+            ["apply_plan", "handoff_apply"], self.callers("anchored_remove")
+        )
+
+    def test_git_metadata_is_emptied_only_from_the_handoff_lane(self) -> None:
+        self.assertEqual(2, self.references("purge_directory_contents"))
+        self.assertEqual(
+            ["anchored_remove", "purge_directory_contents"],
+            self.callers("purge_directory_contents"),
+        )
+        for lane, keywords in (
+            ("apply_plan", []),
+            ("handoff_apply", ["purge_protected"]),
+        ):
+            (call,) = (
+                node for _, node in self.calls("anchored_remove", self.function(lane))
+            )
+            self.assertEqual(keywords, [keyword.arg for keyword in call.keywords], lane)
+
+    def test_the_handoff_lane_takes_no_plan_and_so_carries_no_owner_claim(self) -> None:
+        arguments = self.function("handoff_apply").args
+        self.assertEqual(
+            ["snapshot", "relative", "vcs_evidence"],
+            [argument.arg for argument in arguments.args],
+        )
+
+    def test_write_text_atomic_removes_only_its_own_temporary_file(self) -> None:
+        removals = [
+            ast.unparse(node.func)
+            for node in ast.walk(self.function("write_text_atomic"))
             if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == name
+            and ast.unparse(node.func).rpartition(".")[2] in DELETIONS | {"remove"}
         ]
-
-    def test_apply_plan_has_exactly_one_caller_and_it_is_the_cli_apply_lane(
-        self,
-    ) -> None:
-        self.assertEqual(1, self.references("apply_plan"))
-        self.assertEqual(["main"], self.callers("apply_plan"))
-
-    def test_the_only_removal_is_reached_from_apply_plan(self) -> None:
-        self.assertEqual(1, self.references("anchored_remove"))
-        self.assertEqual(["apply_plan"], self.callers("anchored_remove"))
+        self.assertEqual(["temporary.unlink"], removals)
 
 
 class BaselinePolicyUnchangedTest(unittest.TestCase):
