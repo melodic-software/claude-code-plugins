@@ -1,5 +1,5 @@
 ---
-description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (executes the decisions in scope in this session's PR and hands larger ones off as work items, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
+description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (executes the decisions in scope one PR per owner plugin and hands larger ones off as work items, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
 argument-hint: "<fetch|diff|status|apply> [vA..vB|vX|text]"
 user-invocable: true
 disable-model-invocation: false
@@ -162,13 +162,17 @@ finish and verify. Show the sort with the rows and let the user move a row acros
 2. **Rows too large**: file one issue per row through `/work-items:track` (if the work-items plugin
    is installed), carrying the owner surface, lens, required sentence, item ids and range. That
    issue is worked later in its own PR, behind an interview-style human gate before any edit. When
-   `/work-items:track` is not installed, report the row and file nothing
+   `/work-items:track` is not installed, report the row and file nothing. List the rows to file and
+   file them only after the user confirms that batch; a row the user does not confirm is reported, not
+   filed
 3. **Docs lag**: hand the docs-lag pairs to `/claude-ops:known-issues`. They are never a decision row
 4. **Commit and PR shape**: one PR per owner plugin, each carrying that plugin's `CHANGELOG.md`
    entry. The upstream ledger update is the last PR and references the others. Every commit subject
    reads `chore(<plugin>): address Claude Code v<A>..<B> changelog`, the ledger's taking the
-   ledger owner's scope, so the ledger PR moves the read marker to the top of the applied range and
-   `status` reports it from the ledger and, until the ledger exists, from that subject
+   ledger owner's scope. The ledger PR moves the read marker only once every row in the range is
+   applied in a merged PR, recorded as declined or deferred, or filed, and stops below the first
+   release that still has a row outside those states, so no unfinished row drops out of the next
+   default range. `status` reports it from the ledger and, until the ledger exists, from that subject
 
 ### Phase 5. Native-surface drift
 

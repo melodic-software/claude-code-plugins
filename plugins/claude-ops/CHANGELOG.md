@@ -15,6 +15,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   gate, hand off, native-surface drift.
 - **The description, router and README describe `apply` as in-scope execution plus handoff**, not
   a full integrate pipeline.
+- **Filing and the read marker are gated.** Rows too large are filed only after the user confirms the
+  batch. The ledger PR advances the marker only past releases whose rows are all applied in a merged
+  PR, recorded as declined or deferred, or filed.
 - **Eval 2 checks the handoff**: `apply` scopes the range and hands off, and does not plan,
   implement or close issues itself.
 
