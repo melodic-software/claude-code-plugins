@@ -15,17 +15,20 @@ place.
 ## Decision
 
 **Compatibility field: no skill carries it, and nothing requires it.** The specification says most
-skills do not need the field. 0 of 303 skills carry it (every `SKILL.md` under `plugins/`, excluding `vendor` and
-`eval` paths). `check-skill.sh` treats a missing field as a pass and length-checks a present one (1-500 characters), so a skill that needs it later can
+skills do not need the field. No skill under `plugins/` carries it (`grep -rl '^compatibility:' plugins --include=SKILL.md`
+finds nothing outside `vendor`). `check-skill.sh` treats a missing field as a pass and length-checks a present one (1-500 characters), so a skill that needs it later can
 add it without a gate change.
 
-**Frontmatter: no rule.** Frontmatter is loader metadata only. 0 of those 303 skills put instructions
+**Frontmatter: no rule.** Frontmatter is loader metadata only. No skill puts instructions
 in frontmatter beyond `description`. The Claude Code skills reference does not say whether
 frontmatter is stripped from the content Claude reads, so a rule would enforce a guess.
 
-**Compaction: accept the runtime behavior, add no check.** The skills reference says
-auto-compaction re-attaches each skill's most recent invocation, up to 5,000 tokens each within a
-25,000-token shared budget. The remedy is to invoke the skill again, and a static check cannot
+**Compaction: accept the runtime behavior, add no check.** The [skills reference](https://code.claude.com/docs/en/skills)
+says auto-compaction re-attaches each skill's most recent invocation, up to 5,000 tokens each
+within a 25,000-token shared budget (verified 2026-09-30; quote: "keeping the first 5,000 tokens
+of each. Re-attached skills share a combined budget of 25,000 tokens"). Recheck when a Claude Code
+release note changes compaction or skill re-attachment, or when that page's numbers stop matching
+this paragraph. The remedy is to invoke the skill again, and a static check cannot
 predict what one session compacts.
 
 **`.agents/skills` root: do not add it now.** Harness verdict row 5 in
