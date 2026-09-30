@@ -155,6 +155,16 @@ Three rules bind every read, whichever rung it comes from:
 | 2: primary, degraded | The `.md` channel fetched through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only for a page short enough to arrive whole, and the read must show it arrived whole |
 | 3: mirror | A verbatim third-party mirror of the same docs, with the freshness step below | Verbatim text, **one rung below a primary read**; the record says so |
 
+`lib/fetch-docs.sh` is the rung-1 implementation. A plugin carries it as `scripts/fetch-docs.sh`,
+and `scripts/sync-fetch-docs.sh` keeps every carried copy identical to `lib/`. It reads a page
+verbatim to a file and writes a manifest, and it applies the identity check
+[below](#a-200-does-not-mean-you-got-the-page-you-asked-for) as the **index-listed identity rule**:
+a slug the publisher's index does not list is unread, never fetched. A **publisher profile**
+(`--profile`, default `anthropic`) names the index, the path prefix, the raw channel and the content
+types. The Anthropic profile is tried first. A page whose channel does not resolve as the profile
+declares is recorded unread with a reason, so the reader drops a rung and says so; the script never
+falls back to another channel itself.
+
 Rung 1 is the default. It was verified against `env-vars` on 2026-08-10: `curl` returned
 `text/markdown`, 361,797 bytes over 458 lines carrying 315 variable rows including the full
 `CLAUDE_CODE_MAX_*` range, and two fetches seconds apart hashed identically
@@ -356,8 +366,10 @@ contract to fit its exceptions.
 | [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only: an in-repo source-hoisting decision; not a four-part record. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: revision-pinned four-part record over the Wikipedia source page (claim, `oldid` basis, as-of date, recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week), plus a recorded fetch-gap note for two source sections the same trigger covers. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one four-part record per external writing standard the skill falls back to (Diátaxis, Google developer documentation style, ASD-STE100, Global English), each carrying claim, basis, as-of date, and an observable recheck trigger. Three are publication events (an STE issue, a Global English edition, a Diátaxis revision); the Google record's is a page-content divergence, because that guide is a continuously-edited site with no edition to pin. The contract admits either shape, and the record names which one it is. The STE record additionally states a fidelity ceiling: the layer is a principles subset, not the specification, so a document written to it is not thereby STE-conformant. |
+| `/claude-config:audit`, the docs pages it reads | fetches through `scripts/fetch-docs.sh` | Rung-1 reads: each cited page is read verbatim through the index-listed identity rule, with a manifest recording status, hash and read state. |
+| `/claude-ops:changelog` status | fetches through `scripts/fetch-docs.sh` | Rung-1 read of the changelog page, with the same manifest. |
 
-Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
+Elsewhere the name binds on touch (a surface that reads upstream docs adopts `scripts/fetch-docs.sh` then): living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the
 canonical `## Recheck triggers` heading) adopt the canonical name, the observability bar, and their
 kind's firing procedure the next time they change; a surface restating an upstream-owned specific
