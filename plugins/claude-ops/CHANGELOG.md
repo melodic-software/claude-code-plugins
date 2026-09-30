@@ -3,11 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.73.1] - 2026-09-30
+## [0.73.2] - 2026-09-30
 
 ### Fixed
 
 - **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
+## [0.73.1] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` files native-drift items without a `native-drift` label.** The body's
+  `native-drift:<kind>:<surface>:<component>` key already finds every item (on GitHub,
+  `gh issue list --state all --limit 1000 --search '"native-drift:" in:body'`), so the label step and its two recorded facts
+  are gone.
 
 ## [0.73.0] - 2026-09-30
 
