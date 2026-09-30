@@ -70,9 +70,10 @@ rather than a symlink (an nvm alias, `.tool-versions`) is not seen, so its row c
 sweep window (`ORPHAN_SWEEP_DAYS` in `scripts/deep_inventory.py`), in `evidence` and in the reason,
 so a version Claude Code removes itself reads differently from one it has not.
 
-`tmp-producer` covers the entries of `/tmp` itself, not `$TMPDIR`, and runs only where `/tmp` is an
-ordinary directory a target can name (Linux): macOS rejects `/tmp` (a link) and `/private/tmp` (an
-OS-managed root), so the category has no rows there.
+`tmp-producer` covers the entries of `/tmp` itself, not `$TMPDIR`, and produces rows only when the
+target is `/tmp` or contains it, so a home inventory has none: run `--deep /tmp` as its own
+target. It runs only where `/tmp` is an ordinary directory a target can name (Linux): macOS rejects
+`/tmp` (a link) and `/private/tmp` (an OS-managed root), so the category has no rows there.
 
 `superseded-version` and `tmp-producer` also keep an entry a running process uses; where `/proc`
 cannot be read (macOS, Windows), a row that would be a `CANDIDATE` on that basis is `UNKNOWN`,
