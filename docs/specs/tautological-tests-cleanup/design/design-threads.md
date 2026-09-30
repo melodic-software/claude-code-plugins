@@ -4,7 +4,7 @@ Contract: the Brief in `docs/specs/tautological-tests.md` (Q1-Q13, amendments A1
 "Release 3 outline" (spec:879-890) names three items: `testing:cleanup`, opt-in split mode, and the
 wave 2 adapters. Research (gitignored, main checkout): `.work/tautological-tests/cleanup/`,
 `.work/tautological-tests/context-separation/`, `.work/tautological-tests/mutation/`. Release 2
-design (read-only, unmerged): `docs/topics/tautological-tests-judge/` on branch
+design (read-only, unmerged): `docs/specs/tautological-tests-judge/` on branch
 `docs/tautological-tests-judge-design`.
 
 Status values: resolved, directional, deferred.
@@ -83,9 +83,10 @@ PLAN.md:233-234; Fowler 2011, "Eradicating Non-Determinism in Tests"
 outcomes on the same code. Nothing in the repo detects flaky tests today, so without step 3 the
 first step of Q9's order would never fire.
 
-Decided 2026-09-30 (user): no three-run pre-pass. A test is flaky when the user names it, or when
-its result differs between the recording run's own two baseline runs (Release 2b's exercised-scope
-Phase 0); cleanup quarantines it and records again. This replaces item 3 above.
+Decided 2026-09-30 (user): no three-run pre-pass. Cleanup quarantines only the tests the user names
+as flaky. A red baseline in the recording run stops the batch, as Release 2b's one restricted
+baseline already does, and cleanup reports the failing tests so the user can name the flaky ones or
+fix them. No rerun. This replaces item 3 above.
 
 ### DT4. Per-test decision rule and who classifies (resolved)
 
@@ -153,13 +154,13 @@ user).
 Decision:
 
 - Scope: mutate the production code the batch's tests exercise. Release 2b's DT3 static mapping
-  (PR #5603) owns that question. The recording run takes 2b's exercised scope over the batch
-  folder's tests, with no `--paths`. Because a recording runs before any test is edited, the
-  mapping starts from the folder's tests as they stand, not from a change set.
+  (PR #5603) owns that question. The recording run passes 2b's `--exercised <test-path>` with the
+  batch folder, and no `--paths`. That form maps the named tests as they stand, not the changed
+  set, which is empty before any test is edited.
 - No diff intersection. Today `--paths` is intersected with the changed lines (Phase 1 step 1), so a
   test-only batch would mutate nothing and pass vacuously. A recording run mutates every mutable
-  line in the scope, one mutant each, with no diff. No effort-derived cap and no 2b cap applies to
-  recording runs; an explicit `--max` does, and the report states it.
+  line in the scope, one mutant each, with no diff. 2b's effort cap and `--max` apply unchanged;
+  cleanup passes `--max` explicitly to cover the batch, and the report states it.
 - Replay: the recording run writes its mutant list. The replay run applies exactly that list by
   per-mutant application (apply, run the covering tests, revert), the regime `tool: manual` already
   uses, whatever tool is configured. This avoids depending on a tool regenerating the same mutants:
@@ -206,8 +207,8 @@ Decided 2026-09-30 (user):
   drop the mutation gate missed.
 - Release 2b's DT3 static mapping owns which production files the tests exercise. It replaces the
   `--paths` glob proposal and is passed to the recording run without `--paths`; cleanup depends on
-  2b. Today `--exercised` excludes `--paths` and `--record-mutants` required `--paths`, so the
-  recording run accepts 2b's mapped scope instead.
+  2b. `--exercised` excludes `--paths`, and the earlier `--record-mutants` required `--paths`, so
+  the recording run takes 2b's `--exercised <test-path>` form instead.
 - Probe R3-P1 runs once, with `tool: manual`.
 
 ### DT7. Per-test kill attribution (resolved: not built)
@@ -257,8 +258,8 @@ than a week", RESEARCH-suite-types.md:79); Google Testing Blog 2016
 (<https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html>): quarantine can mask
 a real race, so it is bounded; spec:212-213 (`test_skip` and `body_skip` fields).
 
-Decided 2026-09-30 (user): quarantine the tests the user names, or the ones whose result flips
-during the audit's own baseline runs (DT3). The expired-quarantine sweep is deferred. Switch
+Decided 2026-09-30 (user): quarantine only the tests the user names as flaky; a red baseline stops
+the batch and names the failing tests (DT3). The expired-quarantine sweep is deferred. Switch
 condition: a quarantine outlives its date in practice.
 
 ### DT10. Interplay with `test-weaken` (resolved)
@@ -359,7 +360,7 @@ the hook's data-directory resolution, so both read the same file.
 
 Q4 consistency: Q4 limits which detection signals may block. This deny is not a detection verdict.
 It is a lock the user asked for by opting in and starting split mode, released when split mode ends.
-The dated Q4 clarification goes in A15's PR (DT2 records the amendment path).
+The dated Q4 clarification goes with split mode if it ships (PLAN "Deferred: split mode").
 
 Known gaps, recorded and not closed: Bash and script writes bypass the hook (the same gap
 spec:910 records, covered by guardrails `block-hook-bypass`); a freeze left by a crashed session is
@@ -447,7 +448,7 @@ seams (`test-freeze.sh`, `test-pretool.sh`, `freeze-list.sh`, the regenerated ro
 Decision:
 
 - Config: one new userConfig key, `split_mode_enabled`. Cleanup adds no key: it is invoked
-  explicitly, and its inputs (folder, `--paths`) are arguments. The quarantine bound is fixed at
+  explicitly, and its inputs (folder, `--max`) are arguments. The quarantine bound is fixed at
   7 days (DT9).
 - Extension: new languages reach cleanup through adapters (the scanner, spec:193-262) and through
   `mutation-testing`'s tool table or the manual protocol. Cleanup has no per-language code.

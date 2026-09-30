@@ -34,8 +34,9 @@ convention file with a CLAUDE.md pointer the default config location; any cleanu
 testing config wherever #5606 puts it (DT18).
 
 Dependency: Release 2b (PR #5603) owns the question "which production files do these tests
-exercise" through its DT3 static mapping and the `--exercised` scope. Phase 2 builds on that scope
-and cannot start before 2b's Phase 4 lands.
+exercise" through its DT3 static mapping and the `--exercised <test-path>` interface, which maps the
+named tests instead of the changed set. Phase 2 builds on that interface and cannot start before
+2b's Phase 4 lands.
 
 Test strategy: TDD (Red, Green, Refactor) for every script. Test boundaries, all through their
 command lines:
@@ -75,7 +76,7 @@ same way.
 
 ### Phase 2: Mutation record, replay and compare (DT6, DT7, DT12) [TODO]
 
-Needs Release 2b's `--exercised` scope and DT3 mapping (PR #5603). Pre-flight consumer check, first
+Needs Release 2b's `--exercised <test-path>` interface and DT3 mapping (PR #5603). Pre-flight consumer check, first
 work item: `git grep -n 'mutation-testing:audit'` over `plugins/` and `docs/`, listing every caller
 and every reader of its findings file. The two new flags are additive, so the existing flag set and
 findings shape must stay unchanged for them.
@@ -87,17 +88,16 @@ findings shape must stay unchanged for them.
   `\t`, `\n`, `\\`, so a multi-line statement removal fits one row. No other plugin reads a record.
   A record lives for one batch in the caller's `.work/` directory.
 - `plugins/mutation-testing/skills/audit/SKILL.md`:
-  - `--record-mutants <file>` runs under 2b's exercised scope over a named test folder
-    (`--exercised <test-folder>`), not `--paths`. Under record, the mapping (2b DT3) starts from
-    that folder's tests as they stand, because a recording runs before any test is edited and the
-    change set is empty. It mutates every mutable line in the mapped functions, one mutant each,
-    with no diff intersection. Neither the effort-derived cap nor 2b's cap (the smaller of the
-    effort cap and 15) applies; an explicit `--max` does and is stated in the report. When 2b's
-    Phase 0 stops because the two baseline runs differ, the stop names each test whose result
-    differed. It writes the record.
+  - `--record-mutants <file>` runs under 2b's `--exercised <test-path>` scope, not `--paths`: 2b's
+    DT3 mapping starts from the named tests as they stand, because a recording runs before any
+    test is edited. It mutates every mutable line in the mapped functions, one mutant each, with no
+    diff intersection. 2b's effort cap and `--max` apply unchanged; the caller passes `--max`
+    explicitly to cover the batch, and the report states it. A red baseline stops the run, as 2b
+    already does, and the report names the failing tests. It writes the record.
   - `--replay-mutants <file>` applies exactly the listed mutants by per-mutant application (apply,
     run the covering tests, revert: the `tool: manual` regime), whatever tool is configured, with no
-    incremental cache. It refuses when HEAD's production files differ from the recorded sha on any
+    incremental cache. A red baseline stops the replay and names the failing tests, the same
+    shape as recording. It refuses when HEAD's production files differ from the recorded sha on any
     listed path, or when a listed `original` no longer matches its lines. It re-selects covering
     tests, because the tests changed, and writes the after record. Its compare step runs
     `compare-records.sh`; replay survivors go through Phase 4 triage, and a newly surviving mutant
@@ -126,8 +126,9 @@ findings shape must stay unchanged for them.
 **Sanity Check:**
 
 - `bash plugins/mutation-testing/scripts/compare-records.test.sh` exits 0.
-- `grep -c -- '--record-mutants\|--replay-mutants' plugins/mutation-testing/skills/audit/SKILL.md`
-  returns at least 2, and `grep -c 'compare-records.sh' plugins/mutation-testing/skills/audit/SKILL.md`
+- `grep -c -- '--record-mutants' plugins/mutation-testing/skills/audit/SKILL.md` and
+  `grep -c -- '--replay-mutants' plugins/mutation-testing/skills/audit/SKILL.md` each return at
+  least 1, and `grep -c 'compare-records.sh' plugins/mutation-testing/skills/audit/SKILL.md`
   returns at least 1.
 - `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/mutation-testing/skills/audit/evals/evals.json`
   exits 0.
@@ -157,10 +158,10 @@ paths to `mutation-testing:audit` and reads only its report, never a record.
    present; the flaky tests the user names.
 2. Quarantine first (DT6, DT9): skip the named flaky tests in the working tree with the
    `test-change: quarantined <date>` reason, so both mutation runs exclude them.
-3. Baseline: `mutation-testing:audit --exercised <folder> --record-mutants <before>` on the current
-   production commit, with no `--paths` (the 2b scope, DT6). When the audit stops because its two
-   baseline runs differ, quarantine each test it names as in step 2 and record again. Stop when the
-   report shows K0 empty.
+3. Baseline: `mutation-testing:audit --exercised <folder> --max <n> --record-mutants <before>` on
+   the current production commit, with no `--paths` (the 2b scope, DT6), and `--max` set to cover
+   the batch. A red baseline stops the batch: cleanup reports the failing tests so the user can
+   name the flaky ones for step 2 or fix them. Stop when the report shows K0 empty.
 4. Classify (DT4): dispatch a fresh-context general-purpose subagent, `model: opus` named in the
    body so it does not inherit a session model by accident, with a brief file (the candidates, the
    rule table, the pointer to `testing:test-value` section 1). It returns one row per candidate:
@@ -171,7 +172,8 @@ paths to `mutation-testing:audit` and reads only its report, never a record.
    levels; a `test-change:` marker where `test-weaken-block: error` is set. A changed test with no K0
    mutant in a production file it imports is marked gate-blind and needs a per-item yes.
 6. Gate (DT6): `--replay-mutants <before>` writes `<after>` and reports `Gate: pass` or
-   `Gate: block`. On a block, the batch stops. For each newly surviving mutant, cleanup lists the
+   `Gate: block`. A red replay baseline (a changed test failing on unmutated code) stops the batch
+   and names the failing tests, as in step 3. On a block, the batch stops. For each newly surviving mutant, cleanup lists the
    candidate changes, the batch's changed tests that import its file. The user reverts the ones
    they choose, and cleanup replays again. Cleanup reverts nothing itself.
 7. Report (DT11): the decision table and gate result as a detector-findings file and a PR-body
@@ -185,7 +187,8 @@ Other files:
   positive no-contract statement and not applied without approval; a test whose contract is reached
   only through dependency injection is not proposed for deletion; a bash-harness file gets no
   deletion; a test the user names as flaky is quarantined with a `test-change:` dated reason and
-  the gate still passes; a lost kill blocks the batch, lists its candidate changes and reverts
+  the gate still passes; a red baseline stops the batch and names the failing tests without
+  quarantining any; a lost kill blocks the batch, lists its candidate changes and reverts
   nothing; a judge FLAG diff is not applied unclassified; with `test-weaken-block: error`, the
   quarantine edit is not denied.
 - One pointer line each in `plugins/testing/skills/audit/SKILL.md` "What this skill does NOT do"
@@ -226,7 +229,8 @@ Other files:
 
 Deferred by A16 (DT13, decided 2026-09-30 by the user). Switch condition: probe R2-P1 passes, and
 the Release 2 judge's calibration shows that main-session tests carry provenance defects the
-Release 1 hooks and the judge both miss.
+Release 1 hooks and the judge both miss. R2-P1 already holds on the Release 2 branch (#5605,
+`docs/specs/tautological-tests/probes.md`), so the calibration half is what remains open.
 
 Design summary (DT13-DT16): `/testing:write --split`, run per vertical slice. The orchestrator
 writes a spec brief (behaviors with expected values from requirements, signatures only) and
@@ -257,7 +261,7 @@ The hook form, kept here for when detection proves too late:
   test-writer spawn is denied, and the list is gone at the end.
 - A dated Q4 clarification: the freeze deny is a lock the user starts and ends, not a detection
   signal.
-- If R2-P1 fails, the list keys on a hash of the normalized repo toplevel, and the flow clears it on
+- If R2-P1 regresses (it holds today), the list keys on a hash of the normalized repo toplevel, and the flow clears it on
   done, refusal and error.
 
 ## Alternatives considered
@@ -277,11 +281,11 @@ The hook form, kept here for when detection proves too late:
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Release 2b does not ship, or its mapping cannot start from a named test folder | Med | High | Phase 2 waits on 2b; the named-folder mapping is an open question for 2b (below) |
+| Release 2b's `--exercised <test-path>` does not ship | Low | High | Phase 2 waits on 2b; no fallback scope is built |
 | A module-wide mutation run is slow or costly | High | Med | `--max` caps the recording run; replay runs the same list only; one folder per batch |
 | The gate passes while a deletion loses real regression detection | Med | High | The gate is necessary, not sufficient: every deletion needs a no-contract reason and the user's yes (DT4, DT5) |
 | The classifier misreads "contract exists" | Med | Med | K must cite `file:line`; rewrite is the default; eval cases; the user reviews the batch |
-| A mild flake passes both baseline runs and later kills a mutant by chance | Med | Low | the user can name it; a chance kill only adds to K0, and a lost chance kill shows up as a candidate the user reviews |
+| An unnamed flaky test passes the one baseline and kills or loses a mutant by chance | Med | Low | a red baseline stops the batch and names the failing tests; a lost chance kill shows up as a candidate the user reviews, and the user can name the test as flaky |
 | A long cleanup run is compacted mid-batch | High | Med | records and the decision table on disk under `.work/testing-cleanup/<folder-slug>/`; steps read them by path |
 | `mutation-testing:audit` flags change a contract other callers read | Low | Med | Phase 2 pre-flight consumer check; flags are additive |
 
@@ -360,10 +364,6 @@ earlier rows belonged to split mode, now deferred.
 
 ## Open questions
 
-- Release 2b's mapping (PR #5603, DT3) starts from the changed tests, which are none when cleanup
-  records before any edit. Recommended: 2b's `--exercised` accepts a named test folder under
-  `--record-mutants`, and its cap yields to the recording rule (Phase 2). Unblocks Phase 2; it
-  changes 2b's plan, so it goes to that PR.
 - Every DT1-DT18 answer not covered by a "Decided 2026-09-30 (user)" line was taken unattended;
   each is the user's to redirect.
 
