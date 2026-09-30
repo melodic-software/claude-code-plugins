@@ -190,7 +190,8 @@ const isFile = (p) => { try { return statSync(p).isFile(); } catch { return fals
 process.stdout.write(resolveBash(process.env, process.platform, isFile) ?? "");
 ' 2>/dev/null)"
 invoking_bash="$(command -v bash)"
-invoking_bash_native="$(cygpath -w "$invoking_bash" 2>/dev/null || printf '%s' "$invoking_bash")"
+native_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
+invoking_bash_native="$(native_path "$invoking_bash")"
 
 node_floor="$(median_ms node -e 0)"
 bash_floor="$(median_ms "${launcher_bash:-bash}" -c :)"
@@ -291,7 +292,7 @@ date: $WHEN
 samples: $SAMPLES
 invoking_bash_path: $invoking_bash
 invoking_bash_native_path: $invoking_bash_native
-launcher_bash_path: ${launcher_bash:-unresolved}
+launcher_bash_path: $(native_path "${launcher_bash:-unresolved}")
 node_spawn_floor_median_ms: $node_floor
 bash_spawn_floor_median_ms: $bash_floor
 invoking_bash_spawn_floor_median_ms: $invoking_bash_floor

@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.74.1] - 2026-09-30
+## [0.74.2] - 2026-09-30
 
 ### Changed
 
@@ -14,6 +14,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `invoking_bash_path`, `invoking_bash_native_path`, `launcher_bash_path`, `uname_s` and the PATH
   bash's own floor. On Windows the launcher resolves Git's `bin\bash.exe` wrapper, not the
   `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S.
+
+## [0.74.1] - 2026-09-30
+
+### Fixed
+
+- **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
 
 ## [0.74.0] - 2026-09-30
 

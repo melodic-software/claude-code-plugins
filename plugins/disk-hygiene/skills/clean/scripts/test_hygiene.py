@@ -10992,6 +10992,50 @@ class GuardTests(unittest.TestCase):
             with self.subTest(command_node=command_node):
                 self.assertTrue(self._powershell_if_admits(command_node), command_node)
 
+    def test_powershell_engine_name_in_string_data_defers(self) -> None:
+        """A name inside string data an ordinary command receives is a mention.
+
+        Runs from a neutral cwd: a bare `hygiene.py` resolving to the bundled
+        engine gates by identity, deliberately, even inside a string.
+        """
+        mentions = [
+            "gh issue create --title x --body @'\n"
+            "The engine hygiene.py and kill_switch_probe.py deny.\n'@",
+            'gh issue create --title x --body @"\n'
+            'The engine hygiene.py and kill_switch_probe.py deny.\n"@',
+            'gh search issues "hygiene.py deny"',
+            "git commit -m 'fix hygiene.py gate'",
+            "gh issue create --title x --body 'The Python hygiene.py engine denies this'",
+        ]
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in mentions:
+                with self.subTest(command=command):
+                    self.assertFalse(guard._engine_gate_relevant(command, "PowerShell"))
+                    self.assertIsNone(guard.powershell_decision(command, True))
+
+    def test_powershell_executable_string_naming_engine_still_denies(self) -> None:
+        """A string something can run stays an invocation, as does identity."""
+        engine = (SCRIPT_DIR / "hygiene.py").as_posix()
+        executable = [
+            "pwsh -Command 'python hygiene.py scan'",
+            "iex 'python hygiene.py scan'",
+            "& 'hygiene.py' scan",
+            "sudo 'hygiene.py' scan",
+            'env "hygiene.py" apply --plan p --token t',
+            "timeout 5 'hygiene.py' scan",
+            "exec 'hygiene.py' scan",
+            'gh issue create --title x --body @"\n$(python hygiene.py scan)\n"@',
+            "$s='hygiene.py'; python $s scan",
+            f"gh issue create --title x --body '{engine}'",
+        ]
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in executable:
+                with self.subTest(command=command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
+                    verdict = guard.powershell_decision(command, True)
+                    self.assertIsNotNone(verdict)
+                    self.assertEqual("deny", verdict[0])
+
     def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
         self,
     ) -> None:

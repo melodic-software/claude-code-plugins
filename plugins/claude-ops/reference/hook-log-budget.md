@@ -16,10 +16,10 @@ capture lands.
 
 | Probe | Windows Git Bash |
 |---|---|
-| kill-switch off, median ms, and the parallel wall of 30 events with logging off and on | kill-switch off median 60 ms (bash spawn floor S 29 ms through the launcher's bash, 17 ms on the PATH bash; node spawn floor 46 ms); parallel wall of 30 events 365 ms off, 453 ms on |
+| kill-switch off, median ms, and the parallel wall of 30 events with logging off and on | kill-switch off median 60 ms (bash spawn floor S 33 ms through the launcher's bash, 20 ms on the PATH bash; node spawn floor 49 ms); parallel wall of 30 events 406 ms off, 466 ms on |
 | append of 33 lines at 4 KB and at 16 KB, corrupt line count | 33 lines at 4 KB, 0 corrupt; 33 lines at 16 KB, 0 corrupt |
 | `ls -t` order of two files touched in the same second | listed `first second` at same-second resolution: mtime resolution ties at one second, so the order is not guaranteed |
-| late-EOF held-open pipe, elapsed ms | 352 ms |
+| late-EOF held-open pipe, elapsed ms | 358 ms |
 
 ## Which bash
 
@@ -30,16 +30,16 @@ shell.
 
 Two Git binaries are involved, and the capture records both paths:
 
-- The `bash` on PATH inside Git Bash is `C:\Program Files\Git\usr\bin\bash.exe`
+- The `bash` on PATH inside Git Bash is `C:/Program Files/Git/usr/bin/bash.exe`
   (`invoking_bash_*`). The harness, the append probe and the `ls -t` probe run in it.
-- `exec-bash.mjs` resolves `C:\Program Files\Git\bin\bash.exe` first (`launcher_bash_path`), a 47 KB
-  wrapper that starts the real bash. Every enabled hook row spawns it, so S is timed through it: 29 ms,
-  against 17 ms for the PATH bash. Only the enabled parallel wall and late-EOF spawn bash; the
+- `exec-bash.mjs` resolves `C:/Program Files/Git/bin/bash.exe` first (`launcher_bash_path`), a 47 KB
+  wrapper that starts the real bash. Every enabled hook row spawns it, so S is timed through it: 33 ms,
+  against 20 ms for the PATH bash. Only the enabled parallel wall and late-EOF spawn bash; the
   kill-switch-off row and the off wall exit in node before bash is resolved.
 
-With `CLAUDE_CODE_GIT_BASH_PATH` set to `C:\Program Files\Git\usr\bin\bash.exe`, a second run gave S
-16 ms, kill-switch off 55 ms, parallel wall 282 ms off and 377 ms on, late-EOF 335 ms. The wrapper is
-about 12 ms of S. The table above is the default resolution, which is what a hook runs.
+With `CLAUDE_CODE_GIT_BASH_PATH` set to `C:/Program Files/Git/usr/bin/bash.exe`, a second run gave S
+20 ms, kill-switch off 60 ms, parallel wall 391 ms off and 441 ms on, late-EOF 350 ms. The wrapper is
+about 13 ms of S. The table above is the default resolution, which is what a hook runs.
 
 ## How to capture
 
@@ -55,24 +55,24 @@ Paste that capture under this heading.
 host: windows-git-bash
 ostype: cygwin
 uname_s: MINGW64_NT-10.0-26200
-date: 2026-09-30T16:11:43Z
+date: 2026-09-30T16:32:40Z
 samples: 10
 invoking_bash_path: /usr/bin/bash
-invoking_bash_native_path: C:\Program Files\Git\usr\bin\bash.exe
-launcher_bash_path: C:\Program Files\Git\bin\bash.exe
-node_spawn_floor_median_ms: 46
-bash_spawn_floor_median_ms: 29
-invoking_bash_spawn_floor_median_ms: 17
+invoking_bash_native_path: C:/Program Files/Git/usr/bin/bash.exe
+launcher_bash_path: C:/Program Files/Git/bin/bash.exe
+node_spawn_floor_median_ms: 49
+bash_spawn_floor_median_ms: 33
+invoking_bash_spawn_floor_median_ms: 20
 kill_switch_off_median_ms: 60
-parallel_wall_off_ms: 365
-parallel_wall_on_ms: 453
+parallel_wall_off_ms: 406
+parallel_wall_on_ms: 466
 append_4kb_lines: 33
 append_4kb_corrupt: 0
 append_16kb_lines: 33
 append_16kb_corrupt: 0
 ls_t_order: first second
 ls_t_resolution: same-second
-late_eof_ms: 352
+late_eof_ms: 358
 ```
 
 `measure-hook-log-budget.sh --check-doc plugins/claude-ops/reference/hook-log-budget.md` exits 0 when a `host: windows-git-bash` line is present. It also exits 0 for a doc whose Windows cells still hold the unmeasured placeholder, and exits 1 when neither is present.

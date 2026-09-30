@@ -128,8 +128,8 @@ was 18 creations and 6 execs before #3512. Counts are measured with `strace -ff
 whose command carries its own redirection forks a subshell that xtrace cannot
 see, and those forks were most of the cost. `hook-failure-audit.test.sh`
 asserts both ceilings. Windows Git Bash, the host the convention binds to,
-measured S (the bash spawn floor) at 29 ms on 2026-09-30, through the bash the
-launcher spawns (17 ms on the PATH bash), but the hook-failure-audit wall
+measured S (the bash spawn floor) at 33 ms on 2026-09-30, through the bash the
+launcher spawns (20 ms on the PATH bash), but the hook-failure-audit wall
 there is still unmeasured for this row, so its spawn-equivalents (hook wall
 divided by the same-run S) are still owed.
 
@@ -285,11 +285,11 @@ late-EOF stall, all through the launcher, are measured by
 [`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
 recorded in
 [`reference/hook-log-budget.md`](reference/hook-log-budget.md). On Windows Git
-Bash (2026-09-30), the kill-switch-off median is 60 ms against a 29 ms bash
-spawn floor through the launcher's bash (46 ms node floor). Thirty parallel
-events take 365 ms wall off and 453 ms on. The 4 KB and 16 KB appends leave 0
+Bash (2026-09-30), the kill-switch-off median is 60 ms against a 33 ms bash
+spawn floor through the launcher's bash (49 ms node floor). Thirty parallel
+events take 406 ms wall off and 466 ms on. The 4 KB and 16 KB appends leave 0
 corrupt lines out of 33. `ls -t` ties at one-second resolution there, so no
-ordering is claimed. Late-EOF costs 352 ms. The switch stays off by default.
+ordering is claimed. Late-EOF costs 358 ms. The switch stays off by default.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
 hook, gated by the same switch, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
