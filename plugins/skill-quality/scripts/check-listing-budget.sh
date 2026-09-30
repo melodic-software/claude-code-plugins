@@ -218,6 +218,10 @@ fi
 
 ROOTS=()
 EXPLICIT_ROOTS=0
+if [[ "${1:-}" == -* ]]; then
+  printf 'Error: unknown option: %s (run with --help)\n' "$1" >&2
+  exit 2
+fi
 if (($# > 0)); then
   ROOTS=("$@")
   EXPLICIT_ROOTS=1
