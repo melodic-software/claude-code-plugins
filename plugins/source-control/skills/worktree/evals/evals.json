@@ -164,6 +164,19 @@
     },
     {
       "id": 14,
+      "name": "cleanup-offers-stale-lock-behind-the-gate",
+      "prompt": "/worktree cleanup — one worktree is locked, its PR merged last week, and the session that locked it is long gone. Clean it up.",
+      "expected_output": "The locked worktree is classed Stale lock, not the never-a-candidate Locked row, because its branch's PR is merged (or landed-work.sh reports landed) and `worktree-claim.sh stale <path>` exits 0. It is presented as a candidate with the lock reason and the evidence line, and only on explicit confirmation is it unlocked with `git worktree unlock <path>` and then removed plainly. A lock without that proof stays Locked. `--force --force` is never used.",
+      "files": [],
+      "expectations": [
+        "A locked worktree with a merged PR is treated as a candidate only after worktree-claim.sh stale <path> exits 0, not on the merged PR alone",
+        "The candidate is presented with the lock reason and the stale evidence, and nothing is unlocked or removed before explicit confirmation",
+        "Removal is git worktree unlock followed by a plain remove; --force --force is never used",
+        "When stale exits 1 the worktree stays classified as Locked and is not offered for removal"
+      ]
+    },
+    {
+      "id": 15,
       "name": "audit-root-scan-stray-directories",
       "prompt": "/worktree audit — find stray directories under the worktree root that no repo registers.",
       "expected_output": "The audit runs worktree-root-scan.sh with one --repo-dir per canonical repository (Step 2c), reports rows by class, proposes only rows the scan marks proposed=yes (empty directories, and husks holding only their .git file) for removal through cleanup's gated flow, and reports foreign, live, symlink, unknown and content-holding husk rows without proposing removal. A worktree whose main clone was moved or deleted is unknown, never a husk.",
@@ -177,14 +190,15 @@
       ]
     },
     {
-      "id": 15,
-      "name": "cleanup-reap-age-gates-locked-worktrees",
-      "prompt": "/worktree cleanup — two worktrees have had no commits for three days. One is merged with nothing unpushed and was created by the worktree helper, so it is locked. The other has two unpushed commits that are not on the base.",
-      "expected_output": "Cleanup proposes the merged, locked worktree by the reap-age reason (last commit older than worktree_reap_after_hours, Work axis safe) but lists it apart from the main candidate table with its lock reason, and does not unlock or remove it until the user confirms that worktree by name; a yes to the main table never covers it. The worktree with unpushed unlanded commits is never proposed by the reap-age reason however old it is, and the skill does not treat age as evidence of safety. No --force --force.",
+      "id": 16,
+      "name": "cleanup-reap-age-needs-stale-proof-for-locked-worktrees",
+      "prompt": "/worktree cleanup — three worktrees have had no commits for three days, and the worktree helper locked all of them. Two are merged with nothing unpushed: the session that locked the first is long gone, and the session that locked the second wrote to its transcript ten minutes ago. The third has two unpushed commits that are not on the base.",
+      "expected_output": "Cleanup proposes the first worktree by the reap-age reason (last commit older than worktree_reap_after_hours, Work axis safe) because `worktree-claim.sh stale <path>` exits 0 for it, presents it with its lock reason and the evidence line, and only on explicit confirmation re-runs stale, then runs `git worktree unlock <path>` and a plain removal. The second worktree stays Locked and is reported, not proposed, because stale exits 1: its lane may still be running. The third is never proposed by the reap-age reason however old it is, and the skill does not treat age as evidence of safety. No --force --force.",
       "files": [],
       "expectations": [
-        "The merged, old, safe worktree is proposed by the reap-age reason",
-        "Because the worktree is locked, it is listed apart with its lock reason and is not unlocked or removed without confirmation naming that worktree",
+        "The locked, merged, old, safe worktree whose stale check exits 0 is proposed by the reap-age reason with its lock reason and the evidence line",
+        "Nothing is unlocked or removed before explicit confirmation, and stale is re-run before the unlock",
+        "The locked worktree whose stale check exits 1 stays Locked and is reported, not proposed, however old its last commit is",
         "The worktree with unpushed commits not on the base is not proposed by the reap-age reason",
         "It does not bypass the lock with --force --force"
       ]

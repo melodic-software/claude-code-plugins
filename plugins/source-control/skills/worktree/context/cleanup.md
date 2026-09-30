@@ -1,6 +1,6 @@
 # Worktree `cleanup`: full 5-step procedure
 
-`<scripts-dir>` is the scripts directory and `<session-id>` is this session's id, both resolved in SKILL.md. This file is read as raw bytes, so substitute those resolved values for `<scripts-dir>` and `<session-id>` before a command reaches Bash. If SKILL.md carried the session id as a literal `${CLAUDE_SESSION_ID}`, stop and do not call the helper.
+`<scripts-dir>` is the scripts directory resolved in SKILL.md. This file is read as raw bytes, so substitute that resolved absolute path for `<scripts-dir>` before a command reaches Bash.
 
 Full detail for the `/source-control:worktree cleanup [--dry-run]` action. SKILL.md carries the headline plus the safety invariants; this file carries the complete step-by-step (prune → identify → present → execute → verify), including the Windows file-lock handling and the user-emitted branch deletion.
 
@@ -14,7 +14,7 @@ git worktree prune
 
 Cleans up worktree administrative records for directories that no longer exist on disk (e.g., manually deleted via `rm -rf`).
 
-A **locked** worktree's record survives `prune` even when its directory is gone. That is deliberate on git's part, and what makes the lock a durable claim. Surface such records (a row of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` with `locked=yes` whose `path` no longer exists) rather than counting them pruned: confirm with the owner, then `git worktree unlock <path>` (works with the directory missing) and prune again.
+A **locked** worktree's record survives `prune` even when its directory is gone. That is deliberate on git's part, and what makes the lock a durable claim. Surface such records (a row of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` with `locked=yes` whose `path` no longer exists) rather than counting them pruned: apply the **Stale lock** test from Step 2 (the merged or landed check needs the branch name from the `branch` column), or otherwise confirm with the owner, then `git worktree unlock <path>` (works with the directory missing) and prune again.
 
 In `--dry-run` mode this step runs `git worktree prune --dry-run` instead. It reports what would be pruned without touching worktree metadata, keeping the whole dry-run pass mutation-free.
 
@@ -28,10 +28,11 @@ Run `status` logic internally and identify candidates:
 | **Prunable** | The `prunable` column of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` is `yes` |
 | **PR merged** | `gh pr list --state merged --head <branch>` returns non-empty result |
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
-| **Reap age** | Proposed by default only when ALL hold: Work is `safe`; Status is `merged` **or** the engine shows zero unpushed commits (`unpushed=0`); last-commit age exceeds `worktree_reap_after_hours` (`status.md` data-collection step 4); and the lock, if any, does not name this session (`bash "<scripts-dir>/worktree-claim.sh" check-enter <path> --session-id <session-id>` exits 0: skip the row and report it). `stranded`, `superseded`, `unknown`, `in-progress`, `dirty` and `notgit` rows are never proposed by this reason, however old. A lock does not suppress the proposal: every helper-created worktree is locked when it is created, and `worktree-claim.sh` has no probe for whether the lane that took a lock still runs. A locked row goes in Step 3's separate list, gated as in **Locked** below. Every Step 4 guard still runs on an accepted row |
+| **Reap age** | Proposed by default only when ALL hold: Work is `safe`; Status is `merged` **or** the engine shows zero unpushed commits (`unpushed=0`); last-commit age exceeds `worktree_reap_after_hours` (`status.md` data-collection step 4); and, when the worktree is locked, `bash "<scripts-dir>/worktree-claim.sh" stale <path>` exits 0, the liveness proof a **Stale lock** needs. Every helper-created worktree is locked when it is created, so this is the common case; a lock that proof does not cover (this session's own, a live lane's, another host's) keeps the row **Locked**: report it, never propose it. `stranded`, `superseded`, `unknown`, `in-progress`, `dirty` and `notgit` rows are never proposed by this reason, however old. Every Step 4 guard still runs on an accepted row, and a locked one is confirmed and unlocked as Step 4b describes |
 | **Stranded** | `landed-work.sh` reports `risk=STRANDED` or `risk=UNKNOWN`. **Not a cleanup candidate.** Listed here because it is the row most easily mistaken for `Stale`: both are old and quiet, but this one holds unpushed commits whose content is not on the base |
 | **In-progress operation** | `landed-work.sh` reports `risk=in-progress`, or its `inprogress` column is anything but `none`. **Not a cleanup candidate.** A rebase, merge, cherry-pick, revert, or bisect is mid-flight, probed via `git rev-parse --git-path` (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`). Clean does not mean idle: an interactive rebase paused at a `break` leaves `git status --porcelain` completely empty, and plain `git worktree remove` then deletes it silently, since git's own refusal covers dirty trees and nothing else. Report the operation; the owner finishes or aborts it first |
-| **Locked** | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason). **Not a cleanup candidate under any reason above except Reap age, which lists it apart.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`, which names the owning session and when the lock was taken. Present the reason; only on explicit per-worktree confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
+| **Locked** | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason) and neither the **Stale lock** test below nor the locked case of **Reap age** holds. **Not a cleanup candidate.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
+| **Stale lock** | Locked, **and** the branch's PR is merged (`gh pr list --state merged --head <branch>` returns non-empty) or `landed-work.sh` reports `risk=landed`, **and** `bash "<scripts-dir>/worktree-claim.sh" stale <path>` exits 0. That verb is read-only and prints the evidence line (no live session transcript for the lane that armed the lock); exit 1 means liveness is unproven, so the row stays **Locked**. A candidate, but only behind the Step 4 confirmation gate: present the lock reason and the evidence line, and on yes run `git worktree unlock <path>` (the caller is not the owning session, so `worktree-claim.sh release`, which refuses a foreign lock, does not apply), then the plain removal. Never `--force --force` |
 
 Take the branch name from the `branch` column of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>`, not from the directory name, since they may differ if the branch was renamed.
 
@@ -47,22 +48,15 @@ Collect the stranded-work record in the same pass, per `status.md`'s data-collec
 | 1 | <worktree-root>/old-fix | fix/old-thing | PR #18 merged 5d ago |
 | 2 | <worktree-root>/moonlit-popping-pike | none | Orphaned directory (scan class `empty`, no git ref) |
 | 3 | (orphaned metadata) | none | Directory no longer exists |
+| 4 | <worktree-root>/old-lane | feat/old-lane | Reap age (nothing unpushed, last commit 3d ago); locked: `lane active on <host> session <id> since <utc>`; stale: session <id> on <host> has no transcript change in 120 minutes |
 
-**Action:** Remove these 3 items? (yes/no/select)
-
-### Locked (reap age only)
-
-| # | Worktree | Branch | Lock reason | Reason |
-|---|----------|--------|-------------|--------|
-| 4 | <worktree-root>/old-lane | feat/old-lane | worktree-create.sh: lane active on <host> session <id> since <utc>; unlock when the owning lane is done | nothing unpushed, last commit 3d ago |
-
-**Action:** Unlock and remove which of these? Name each number. A "yes" to the table above never covers this one.
+**Action:** Remove these 4 items? (yes/no/select)
 ```
 
 ## Step 4: Execute or report
 
-- **`--dry-run`**: Report candidates, and the locked list, and take no action. Exit.
-- **Otherwise**: Ask for confirmation. On "yes", run each candidate through phases 4a → 4b → 4c. A worktree in the locked list waits for its own confirmation that the owner is done; then `git worktree unlock <path>`, re-classify it (its `risk` row is read again in guard 1), and run it through 4a → 4b → 4c like any other candidate.
+- **`--dry-run`**: Report candidates only, take no action. Exit.
+- **Otherwise**: Ask for confirmation. On "yes", run each candidate through phases 4a → 4b → 4c.
 
 ### Step 4a: Release file locks first (Windows-critical)
 
@@ -260,8 +254,10 @@ git worktree remove --force <path>   # dirty-tree override — only after the co
 
 A **locked** worktree never takes the second `--force`. The lock is an owning lane's claim, armed
 at creation by `worktree-create.sh`, not a stronger kind of dirt, and `--force --force` answers
-both questions with one flag. On explicit confirmation that the owner is done:
-`git worktree unlock <path>` first, then remove (plain, or a single `--force` only for a
+both questions with one flag. Only a **Stale lock** or a locked **Reap age** row (Step 2) is removable at all, and both need `bash "<scripts-dir>/worktree-claim.sh" stale <path>` exiting 0. Any other locked worktree stays.
+
+On explicit confirmation that the owner is done, first re-run `bash "<scripts-dir>/worktree-claim.sh" stale <path>` (the owning session may have resumed while the confirmation was pending). If it no longer exits 0, stop and leave the tree locked. Only when it still exits 0, run
+`git worktree unlock <path>`, then remove (plain, or a single `--force` only for a
 confirmed-dirty tree). The unlock is a separate deliberate act naming the lock, so no flag ever
 silently answers a question it was not asked.
 

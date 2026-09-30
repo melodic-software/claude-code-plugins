@@ -3,12 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`worktree` proposes already-safe worktrees for cleanup after `worktree_reap_after_hours` (default 48).** The setting applies only to worktrees whose Work axis is `safe`; stranded and unknown worktrees are never proposed. A locked worktree past the age is proposed only when `worktree-claim.sh stale` proves its lane's lock stale, behind the existing confirmation gate; any other lock, this session's included, keeps it out of the proposal. `worktree_stale_days` keeps its `status` meaning.
+- **`worktree audit` scans the worktree root for unregistered directories** with the new `scripts/worktree-root-scan.sh`, classifying each as empty, husk (a `.git` file whose worktree registration git dropped while its main clone is intact), or foreign (content, no `.git`). Empty directories and husks holding only their `.git` file are proposed for removal by `cleanup`; a husk with other content, a worktree whose main clone was moved or deleted (`unknown`), and foreign directories are reported only. `reference/worktree-root-convention.md` documents the classes.
+
 ## [0.63.0] - 2026-09-29
 
 ### Added
 
-- **`worktree` proposes already-safe worktrees for cleanup after `worktree_reap_after_hours` (default 48).** The setting applies only to worktrees whose Work axis is `safe`; stranded and unknown worktrees are never proposed. A locked worktree past the age is listed apart and unlocked only on per-worktree confirmation that its owner is done, since `worktree-claim.sh` cannot tell whether a lane still runs; a lock naming the current session skips the worktree. `worktree_stale_days` keeps its `status` meaning.
-- **`worktree audit` scans the worktree root for unregistered directories** with the new `scripts/worktree-root-scan.sh`, classifying each as empty, husk (a `.git` file whose worktree registration git dropped while its main clone is intact), or foreign (content, no `.git`). Empty directories and husks holding only their `.git` file are proposed for removal by `cleanup`; a husk with other content, a worktree whose main clone was moved or deleted (`unknown`), and foreign directories are reported only. `reference/worktree-root-convention.md` documents the classes.
+- **`worktree-claim.sh release <path>` unlocks a worktree lane lock this session armed.** A lock that names another session, or carries no reason, is refused with the reason printed and stays locked; the main worktree and an unresolvable session id are refused too.
+- **`worktree-claim.sh stale <path>` reports whether a lane lock is provably stale,** read-only: the lock names this host, and no session transcript changed within `--idle-minutes` (default 120). Anything it cannot prove exits 1.
+
+### Changed
+
+- **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
+- **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
 
 ## [0.62.30] - 2026-09-29
 
