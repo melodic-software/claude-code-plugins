@@ -601,9 +601,38 @@ assert_equals "technology: a connection string on a plain host is unknown" "$(fi
 assert_equals "technology: an Azure SQL host is Azure SQL" "$(field "$(node_line "$XREC" 'store:sql:az.database.windows.net:1433:x')" technology)" "Azure SQL"
 assert_equals "technology: every one of those stays kind sql" "$(grep -c '"store_kind":"sql"' "$XREC" || true)" "5"
 assert_not_contains "technology: nothing is labeled SQL" "$xtext" '"technology":"SQL"'
-assert_not_contains "technology: a search index is not a store kind that is read" "$xtext" "acct.search.windows.net"
+assert_equals "technology: an Azure AI Search host is Azure AI Search" "$(field "$(node_line "$XREC" 'store:search:acct.search.windows.net:')" technology)" "Azure AI Search"
 assert_not_contains "technology: a SQLite Data Source file is not a store" "$xtext" "embedded-app.db"
 assert_not_contains "technology: the password is redacted" "$xtext" "$leak_sql"
+
+# A search endpoint is a search store, and its api key never reaches an output.
+leak_search="searchAdminKey0123456789"
+SRCH="$TEST_TMPDIR/search-repo"
+web_project "$SRCH/src/Api" Api
+cat >"$SRCH/src/Api/appsettings.json" <<EOF
+{
+  "Search": { "Endpoint": "https://acct.search.windows.net", "ApiKey": "${leak_search}" },
+  "Indexing": { "ElasticsearchUrl": "https://user:${leak_search}@es.internal.example.com:9200" },
+  "Aws": { "Domain": "https://vpc-logs.us-east-1.es.amazonaws.com" }
+}
+EOF
+mkdir -p "$SRCH/deploy"
+printf 'services:\n  index:\n    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0\n' >"$SRCH/deploy/compose.yml"
+commit_repo "$SRCH"
+collect_render "$SRCH" "$TEST_TMPDIR/search-out"
+SREC2="$TEST_TMPDIR/search-out/containers.json"
+az_line="$(node_line "$SREC2" 'store:search:acct.search.windows.net:')"
+assert_equals "search: an Azure AI Search endpoint is a search store" "$(field "$az_line" store_kind)" "search"
+assert_equals "search: its technology is Azure AI Search" "$(field "$az_line" technology)" "Azure AI Search"
+assert_contains "search: it cites the file and key" "$(field "$az_line" evidence)" "src/Api/appsettings.json: Search.Endpoint"
+assert_equals "search: a key named for elasticsearch is a search store" "$(field "$(node_line "$SREC2" 'store:search:es.internal.example.com:9200')" technology)" "unknown"
+assert_equals "search: an es.amazonaws.com host is OpenSearch" "$(field "$(node_line "$SREC2" 'store:search:vpc-logs.us-east-1.es.amazonaws.com:')" technology)" "OpenSearch"
+assert_equals "search: a compose elasticsearch image is a search store" "$(field "$(node_line "$SREC2" 'store:image:deploy/compose.yml:index')" store_kind)" "search"
+assert_equals "search: three config stores and one image store" "$(grep -c '"store_kind":"search"' "$SREC2" || true)" "4"
+assert_not_contains "search: the api key is in no record" "$(cat "$SREC2")" "$leak_search"
+assert_not_contains "search: the api key is in no table" "$(cat "$TEST_TMPDIR/search-out/containers.md")" "$leak_search"
+assert_not_contains "search: the api key is not on stdout or stderr" "$(cat "$TEST_TMPDIR/search-out"/*.out "$TEST_TMPDIR/search-out"/*.err)" "$leak_search"
+assert_contains "search: the diagram draws it as a database" "$(cat "$TEST_TMPDIR/search-out/containers.md")" "ContainerDb"
 
 # A store with three owners is one shared row per owner pair.
 THREE="$TEST_TMPDIR/three-repo"
@@ -628,6 +657,230 @@ hmd="$(cat "$TEST_TMPDIR/three-out/containers.md")"
 assert_contains "three owners: the table names the store" "$hmd" "| from | to | store | evidence |"
 assert_contains "three owners: the table lists every pair" "$hmd" "| src/Batch/Batch.csproj | src/Worker/Worker.csproj | store:broker:bus.servicebus.windows.net: |"
 assert_contains "three owners: the table lists the first pair" "$hmd" "| src/Api/Api.csproj | src/Batch/Batch.csproj |"
+
+# An endpoint a deployable's config names is an edge only through a cited fact.
+leak_ep_pass="EndpointPass456"
+leak_ep_tok="EndpointTok789"
+leak_semi_tok="semitok321"
+leak_semi_num="4815162342"
+EP="$TEST_TMPDIR/endpoint-repo"
+web_project "$EP/src/Web" Web
+web_project "$EP/src/OrdersApi" OrdersApi
+cat >"$EP/compose.yml" <<'EOC'
+services:
+  web:
+    build: ./src/Web
+  orders-api:
+    build:
+      context: ./src/OrdersApi
+    ports:
+      - "8081:8080"
+EOC
+cat >"$EP/src/Web/appsettings.json" <<'EOC'
+{ "Services": { "OrdersApi": { "BaseUrl": "http://orders-api:8080" } } }
+EOC
+commit_repo "$EP"
+collect_render "$EP" "$TEST_TMPDIR/endpoint-out"
+EREC="$TEST_TMPDIR/endpoint-out/containers.json"
+eedges="$(grep '"kind":"uses"' "$EREC" || true)"
+assert_equals "endpoint: a configured base URL draws exactly one uses edge" "$(printf '%s\n' "$eedges" | grep -c . || true)" "1"
+assert_contains "endpoint: it runs from the configuring deployable to the target" "$eedges" '{"from":"src/Web/Web.csproj","to":"src/OrdersApi/OrdersApi.csproj","kind":"uses"'
+assert_contains "endpoint: it cites the file and config key" "$eedges" "src/Web/appsettings.json: Services.OrdersApi.BaseUrl"
+assert_contains "endpoint: it cites the compose service that resolved the host" "$eedges" "compose.yml: service orders-api build src/OrdersApi"
+assert_not_contains "endpoint: a resolved endpoint is not a finding" "$(cat "$EREC")" "external-endpoint"
+emd="$(cat "$TEST_TMPDIR/endpoint-out/containers.md")"
+assert_contains "endpoint: the plantuml diagram draws it" "$emd" 'Rel(e_Web, e_OrdersApi, "Uses"'
+assert_contains "endpoint: the uses table lists it with its citation" "$emd" "| src/Web/Web.csproj | src/OrdersApi/OrdersApi.csproj | src/Web/appsettings.json: Services.OrdersApi.BaseUrl"
+mkdir -p "$TEST_TMPDIR/endpoint-likec4" "$TEST_TMPDIR/endpoint-none"
+bash "$RENDER" --record "$EREC" --out "$TEST_TMPDIR/endpoint-likec4" --dialect likec4 >/dev/null
+assert_contains "endpoint: the likec4 diagram draws it" "$(cat "$TEST_TMPDIR/endpoint-likec4/containers.md")" 'e_sys.e_Web -> e_sys.e_OrdersApi "Uses"'
+assert_likec4_golden "containers-endpoints.c4" "$TEST_TMPDIR/endpoint-likec4/containers.md"
+bash "$RENDER" --record "$EREC" --out "$TEST_TMPDIR/endpoint-none" --dialect none >/dev/null
+assert_contains "endpoint: the tables carry it when no diagram is drawn" "$(cat "$TEST_TMPDIR/endpoint-none/containers.md")" "| src/Web/Web.csproj | src/OrdersApi/OrdersApi.csproj |"
+
+# A launchSettings applicationUrl on the target resolves a loopback endpoint on the same port.
+LS="$TEST_TMPDIR/launch-repo"
+web_project "$LS/src/Web" Web
+web_project "$LS/src/Orders" Orders
+mkdir -p "$LS/src/Orders/Properties"
+cat >"$LS/src/Orders/Properties/launchSettings.json" <<'EOC'
+{ "profiles": { "https": { "applicationUrl": "https://localhost:7001;http://localhost:5001" } } }
+EOC
+cat >"$LS/src/Web/appsettings.json" <<'EOC'
+{ "Orders": { "Url": "http://localhost:5001", "Secure": "https://127.0.0.1:7001" } }
+EOC
+commit_repo "$LS"
+collect_render "$LS" "$TEST_TMPDIR/launch-out"
+LREC="$TEST_TMPDIR/launch-out/containers.json"
+ledges="$(grep '"kind":"uses"' "$LREC" || true)"
+assert_equals "launchSettings: two loopback endpoints on one target are one edge" "$(printf '%s\n' "$ledges" | grep -c . || true)" "1"
+assert_contains "launchSettings: it runs from the configuring deployable" "$ledges" '{"from":"src/Web/Web.csproj","to":"src/Orders/Orders.csproj","kind":"uses"'
+assert_contains "launchSettings: it cites both config keys" "$ledges" "src/Web/appsettings.json: Orders.Secure; src/Web/appsettings.json: Orders.Url"
+assert_contains "launchSettings: it cites the applicationUrl" "$ledges" "src/Orders/Properties/launchSettings.json: profiles.https.applicationUrl"
+assert_not_contains "launchSettings: a deployable's own listen address is not an endpoint" "$(cat "$LREC")" "external-endpoint"
+
+# An endpoint that resolves to nothing, to more than one deployable, or only by resemblance draws no edge.
+UNK="$TEST_TMPDIR/unknown-endpoint-repo"
+web_project "$UNK/src/Web" Web
+web_project "$UNK/src/OrdersApi" OrdersApi
+web_project "$UNK/src/BillingApi" BillingApi
+cat >"$UNK/compose.yml" <<'EOC'
+services:
+  orders-api:
+    build: ./src/OrdersApi
+    ports:
+      - "8081:8080"
+  shared:
+    build: ./src/OrdersApi
+EOC
+cat >"$UNK/docker-compose.yml" <<'EOC'
+services:
+  shared:
+    build: ./src/BillingApi
+EOC
+cat >"$UNK/src/Web/appsettings.json" <<'EOC'
+{
+  "Services": {
+    "External": { "BaseUrl": "https://api.example.com" },
+    "WrongPort": { "BaseUrl": "http://orders-api:9999" },
+    "Similar": { "BaseUrl": "http://ordersapi:8080" },
+    "Both": { "BaseUrl": "http://shared:8080" }
+  }
+}
+EOC
+cat >"$UNK/src/OrdersApi/appsettings.json" <<'EOC'
+{ "Self": { "BaseUrl": "http://orders-api:8080" } }
+EOC
+commit_repo "$UNK"
+collect_render "$UNK" "$TEST_TMPDIR/unknown-endpoint-out"
+UREC="$TEST_TMPDIR/unknown-endpoint-out/containers.json"
+utext="$(cat "$UREC")"
+assert_equals "unresolved: no endpoint draws an edge" "$(grep -c '"kind":"uses"' "$UREC" || true)" "0"
+assert_equals "unresolved: each unresolved endpoint is one finding, and a self-reference is none" "$(grep -c '"kind":"external-endpoint"' "$UREC" || true)" "4"
+assert_contains "unresolved: an unknown host is an external endpoint with its file and key" "$utext" "src/Web/appsettings.json: Services.External.BaseUrl names host api.example.com; resolves to no deployable"
+assert_contains "unresolved: a port the service does not declare is not matched" "$utext" "Services.WrongPort.BaseUrl names host orders-api:9999; resolves to no deployable"
+assert_contains "unresolved: a name that only resembles a project is not matched" "$utext" "Services.Similar.BaseUrl names host ordersapi:8080; resolves to no deployable"
+assert_contains "unresolved: a host naming two deployables is not guessed" "$utext" "Services.Both.BaseUrl names host shared:8080; matches more than one deployable"
+assert_contains "unresolved: the findings table lists them" "$(cat "$TEST_TMPDIR/unknown-endpoint-out/containers.md")" "| external-endpoint | 1 |"
+
+# A compose service name resolves whatever its case, and a bare host under a search-named key is no store.
+CASE="$TEST_TMPDIR/case-endpoint-repo"
+web_project "$CASE/src/Web" Web
+web_project "$CASE/src/OrdersApi" OrdersApi
+cat >"$CASE/compose.yml" <<'EOC'
+services:
+  Orders-Api:
+    build: ./src/OrdersApi
+    ports:
+      - "8081:8080"
+  elasticsearch:
+    image: elasticsearch:8.14.0
+EOC
+cat >"$CASE/src/Web/appsettings.json" <<'EOC'
+{
+  "Services": { "Orders": { "BaseUrl": "http://Orders-Api:8080" } },
+  "Indexing": { "ElasticsearchUrl": "http://elasticsearch:9200" }
+}
+EOC
+commit_repo "$CASE"
+collect_render "$CASE" "$TEST_TMPDIR/case-endpoint-out"
+CREC="$TEST_TMPDIR/case-endpoint-out/containers.json"
+assert_equals "case: a mixed-case compose service name draws its edge" "$(grep -c '"kind":"uses"' "$CREC" || true)" "1"
+assert_equals "case: a bare host under a search-named key draws no finding" "$(grep -c '"kind":"external-endpoint"' "$CREC" || true)" "0"
+assert_not_contains "case: a bare host under a search-named key is not a store" "$(cat "$CREC")" '"store:search:'
+
+# Only an http or https URL is an endpoint, and an omitted port is the scheme's own default.
+SCH="$TEST_TMPDIR/scheme-endpoint-repo"
+web_project "$SCH/src/Web" Web
+web_project "$SCH/src/PlainApi" PlainApi
+web_project "$SCH/src/SecureApi" SecureApi
+cat >"$SCH/compose.yml" <<'EOC'
+services:
+  plain-api:
+    build: ./src/PlainApi
+    ports:
+      - "8080:80"
+  secure-api:
+    build: ./src/SecureApi
+    ports:
+      - "8443:443"
+EOC
+cat >"$SCH/src/Web/appsettings.json" <<'EOC'
+{
+  "Services": {
+    "Plain": { "BaseUrl": "http://plain-api" },
+    "Secure": { "BaseUrl": "https://secure-api" },
+    "PlainOverTls": { "BaseUrl": "https://plain-api" },
+    "SecureOverHttp": { "BaseUrl": "http://secure-api" },
+    "Files": { "BaseUrl": "ftp://files.example.com" },
+    "Share": { "BaseUrl": "file://localhost/share" }
+  },
+  "Indexing": { "ElasticsearchUrl": "ftp://logs.internal.example.com" }
+}
+EOC
+commit_repo "$SCH"
+collect_render "$SCH" "$TEST_TMPDIR/scheme-endpoint-out"
+SREC="$TEST_TMPDIR/scheme-endpoint-out/containers.json"
+stext="$(cat "$SREC")"
+assert_equals "scheme: only the two scheme-matched endpoints draw an edge" "$(grep -c '"kind":"uses"' "$SREC" || true)" "2"
+assert_contains "scheme: http with no port reaches the service declaring 80" "$stext" '"to":"src/PlainApi/PlainApi.csproj","kind":"uses"'
+assert_contains "scheme: https with no port reaches the service declaring 443" "$stext" '"to":"src/SecureApi/SecureApi.csproj","kind":"uses"'
+assert_contains "scheme: https does not reach a service declaring only 80" "$stext" "Services.PlainOverTls.BaseUrl names host plain-api; resolves to no deployable"
+assert_contains "scheme: http does not reach a service declaring only 443" "$stext" "Services.SecureOverHttp.BaseUrl names host secure-api; resolves to no deployable"
+assert_equals "scheme: a non-http URL is neither an edge nor a finding" "$(grep -c '"kind":"external-endpoint"' "$SREC" || true)" "2"
+assert_not_contains "scheme: an ftp URL is not recorded" "$stext" "files.example.com"
+assert_not_contains "scheme: an ftp URL under a search-named key is not a search store" "$stext" "logs.internal.example.com"
+
+# Userinfo and a query token do not stop the edge from resolving, and neither reaches an output.
+LEAK="$TEST_TMPDIR/leak-endpoint-repo"
+web_project "$LEAK/src/Web" Web
+web_project "$LEAK/src/OrdersApi" OrdersApi
+cat >"$LEAK/compose.yml" <<'EOC'
+services:
+  orders-api:
+    build: ./src/OrdersApi
+EOC
+cat >"$LEAK/src/Web/appsettings.json" <<EOC
+{ "Services": { "Orders": { "BaseUrl": "https://user:${leak_ep_pass}@orders-api/?token=${leak_ep_tok}" } } }
+EOC
+commit_repo "$LEAK"
+collect_render "$LEAK" "$TEST_TMPDIR/leak-endpoint-out"
+mkdir -p "$TEST_TMPDIR/leak-endpoint-likec4"
+bash "$RENDER" --record "$TEST_TMPDIR/leak-endpoint-out/containers.json" --out "$TEST_TMPDIR/leak-endpoint-likec4" --dialect likec4 >"$TEST_TMPDIR/leak-endpoint-likec4/render.out" 2>&1
+leak_ep_text="$(cat "$TEST_TMPDIR/leak-endpoint-out"/* "$TEST_TMPDIR/leak-endpoint-likec4"/*)"
+assert_contains "leak: the edge still resolves" "$leak_ep_text" '{"from":"src/Web/Web.csproj","to":"src/OrdersApi/OrdersApi.csproj","kind":"uses"'
+assert_not_contains "leak: the password is in no output" "$leak_ep_text" "$leak_ep_pass"
+assert_not_contains "leak: the query token is in no output" "$leak_ep_text" "$leak_ep_tok"
+assert_not_contains "leak: the userinfo is in no output" "$leak_ep_text" "user:"
+
+# A ; inside userinfo is credential text: it is never the host of an edge or a finding.
+SEMI="$TEST_TMPDIR/semi-userinfo-repo"
+web_project "$SEMI/src/Web" Web
+web_project "$SEMI/src/OrdersApi" OrdersApi
+cat >"$SEMI/compose.yml" <<'EOC'
+services:
+  orders-api:
+    build: ./src/OrdersApi
+EOC
+cat >"$SEMI/src/Web/appsettings.json" <<EOC
+{
+  "Services": {
+    "External": { "BaseUrl": "https://${leak_semi_tok};x@api.example.com" },
+    "Numeric": { "BaseUrl": "https://svc:${leak_semi_num};x@api.example.com" },
+    "Orders": { "BaseUrl": "https://${leak_semi_tok};y@orders-api/" }
+  }
+}
+EOC
+commit_repo "$SEMI"
+collect_render "$SEMI" "$TEST_TMPDIR/semi-userinfo-out"
+mkdir -p "$TEST_TMPDIR/semi-userinfo-likec4"
+bash "$RENDER" --record "$TEST_TMPDIR/semi-userinfo-out/containers.json" --out "$TEST_TMPDIR/semi-userinfo-likec4" --dialect likec4 >"$TEST_TMPDIR/semi-userinfo-likec4/render.out" 2>&1
+semi_text="$(cat "$TEST_TMPDIR/semi-userinfo-out"/* "$TEST_TMPDIR/semi-userinfo-likec4"/*)"
+assert_contains "semicolon userinfo: the edge still resolves" "$semi_text" '{"from":"src/Web/Web.csproj","to":"src/OrdersApi/OrdersApi.csproj","kind":"uses"'
+assert_contains "semicolon userinfo: a word before the ; is not the host" "$semi_text" "Services.External.BaseUrl names host api.example.com; resolves to no deployable"
+assert_contains "semicolon userinfo: a number before the ; is not the port" "$semi_text" "Services.Numeric.BaseUrl names host api.example.com; resolves to no deployable"
+assert_not_contains "semicolon userinfo: the word is in no output" "$semi_text" "$leak_semi_tok"
+assert_not_contains "semicolon userinfo: the number is in no output" "$semi_text" "$leak_semi_num"
 
 # Files are read from the working tree, and a dirty tracked file is a finding.
 DIRTY="$TEST_TMPDIR/dirty-repo"
