@@ -31,6 +31,9 @@ import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
+# Overlay versions the loader accepts; version 2 adds the `rules` array.
+OVERLAY_VERSIONS = (1, 2)
+RULE_MIN_AGE_BASES = ("mtime",)
 MAX_SNAPSHOT_ENTRIES = 250_000
 # The temp-zone size walk runs on every scan whose target overlaps the temp
 # directory, including the gated large-target probe, so it stays well below
@@ -744,6 +747,7 @@ def baseline_policy() -> dict[str, Any]:
         "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
+        "rules": [],
         "policy_sources": ["baseline"],
     }
 
@@ -801,19 +805,22 @@ def load_policy(
 
 def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
     overlay = load_json(overlay_path)
+    version = overlay.get("version")
+    if isinstance(version, bool) or version not in OVERLAY_VERSIONS:
+        raise HygieneError(f"policy version must be 1 or 2: {overlay_path}")
     allowed = {
         "version",
         "disabled_hint_ids",
         "additional_hints",
         "additional_protected_path_globs",
     }
+    if version == 2:
+        allowed.add("rules")
     unknown = sorted(set(overlay) - allowed)
     if unknown:
         raise HygieneError(
             f"unknown policy fields in {overlay_path}: {', '.join(unknown)}"
         )
-    if overlay.get("version") != SCHEMA_VERSION:
-        raise HygieneError(f"policy version must be 1: {overlay_path}")
     disabled = overlay.get("disabled_hint_ids", [])
     additions = overlay.get("additional_hints", [])
     protections = overlay.get("additional_protected_path_globs", [])
@@ -834,12 +841,83 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
             )
         known_ids.add(hint["id"])
     disabled_set = set(disabled)
+    merged_ids = known_ids - disabled_set
+    rules = validate_rules(overlay.get("rules", []), merged_ids, overlay_path)
     result["hints"] = [
         hint for hint in result["hints"] if hint.get("id") not in disabled_set
     ]
     result["hints"].extend(additions)
     result["additional_protected_path_globs"].extend(protections)
+    result["rules"].extend(rules)
     result["policy_sources"].append(str(overlay_path))
+
+
+def validate_rules(
+    rules: Any, hint_ids: set[Any], overlay_path: Path
+) -> list[dict[str, Any]]:
+    """Validate an overlay's `rules` and normalize each `match` to `hint_ids`.
+
+    Rules match on hint id: an entry carries no class, only the hints that
+    matched it. A rule naming an id missing from the merged hint set is
+    rejected so a typo cannot silently preselect nothing.
+    """
+    if not isinstance(rules, list):
+        raise HygieneError(f"rules must be an array: {overlay_path}")
+    normalized = []
+    for rule in rules:
+        if not isinstance(rule, dict):
+            raise HygieneError(f"each rule must be an object: {overlay_path}")
+        unknown = sorted(
+            set(rule) - {"match", "preselect", "min_age_days", "min_age_basis"}
+        )
+        if unknown:
+            raise HygieneError(
+                f"unknown rule fields in {overlay_path}: {', '.join(unknown)}"
+            )
+        match = rule.get("match")
+        if not isinstance(match, dict) or len(match) != 1:
+            raise HygieneError(
+                f"rule match must be an object with exactly one of hint_id or hint_ids: {overlay_path}"
+            )
+        if "hint_id" in match:
+            ids = [match["hint_id"]]
+        elif (
+            "hint_ids" in match
+            and isinstance(match["hint_ids"], list)
+            and match["hint_ids"]
+        ):
+            ids = match["hint_ids"]
+        else:
+            raise HygieneError(
+                f"rule match must be a hint_id string or a non-empty hint_ids array: {overlay_path}"
+            )
+        if not all(isinstance(value, str) and value for value in ids):
+            raise HygieneError(
+                f"rule hint IDs must be non-empty strings: {overlay_path}"
+            )
+        missing = sorted(set(ids) - hint_ids)
+        if missing:
+            raise HygieneError(
+                f"rule names unknown hint ID ({overlay_path}): {', '.join(missing)}"
+            )
+        if not isinstance(rule.get("preselect"), bool):
+            raise HygieneError(f"rule preselect must be a boolean: {overlay_path}")
+        entry: dict[str, Any] = {"hint_ids": ids, "preselect": rule["preselect"]}
+        if "min_age_days" in rule:
+            days = rule["min_age_days"]
+            if isinstance(days, bool) or not isinstance(days, int) or days < 0:
+                raise HygieneError(
+                    f"rule min_age_days must be a non-negative integer: {overlay_path}"
+                )
+            entry["min_age_days"] = days
+        if "min_age_basis" in rule:
+            if rule["min_age_basis"] not in RULE_MIN_AGE_BASES:
+                raise HygieneError(
+                    f"rule min_age_basis must be one of {', '.join(RULE_MIN_AGE_BASES)}: {overlay_path}"
+                )
+            entry["min_age_basis"] = rule["min_age_basis"]
+        normalized.append(entry)
+    return normalized
 
 
 def validate_hint(hint: Any) -> None:

@@ -286,6 +286,208 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "must be arrays"):
                 hygiene.load_policy(policy_path)
 
+    def _overlay(self, directory: str, name: str, **fields: Any) -> Path:
+        path = Path(directory) / name
+        path.write_text(json.dumps({"version": 2, **fields}), encoding="utf-8")
+        return path
+
+    def test_version_1_overlay_loads_without_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v1.json", version=1, disabled_hint_ids=[])
+            self.assertEqual([], hygiene.load_policy(path)["rules"])
+
+    def test_version_1_overlay_rejects_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v1.json", version=1, rules=[])
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_unsupported_overlay_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for version in (0, 3, True, "2", None):
+                path = self._overlay(temporary, "bad.json", version=version)
+                with self.subTest(version=version), self.assertRaisesRegex(
+                    hygiene.HygieneError, "version must be 1 or 2"
+                ):
+                    hygiene.load_policy(path)
+
+    def test_version_2_overlay_loads_rules_normalized_to_hint_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[
+                    {"match": {"hint_id": "common-temp-file"}, "preselect": True},
+                    {
+                        "match": {"hint_ids": ["common-temp-file"]},
+                        "preselect": False,
+                        "min_age_days": 0,
+                        "min_age_basis": "mtime",
+                    },
+                ],
+            )
+            self.assertEqual(
+                [
+                    {"hint_ids": ["common-temp-file"], "preselect": True},
+                    {
+                        "hint_ids": ["common-temp-file"],
+                        "preselect": False,
+                        "min_age_days": 0,
+                        "min_age_basis": "mtime",
+                    },
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_rules_may_name_a_hint_the_same_overlay_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[
+                    {
+                        "id": "staging-file",
+                        "os": ["all"],
+                        "kind": "name_glob",
+                        "pattern": "*.stage",
+                        "confidence_ceiling": "low",
+                        "reason": "Staging leftovers",
+                    }
+                ],
+                rules=[{"match": {"hint_id": "staging-file"}, "preselect": True}],
+            )
+            self.assertEqual(
+                [{"hint_ids": ["staging-file"], "preselect": True}],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_policy_rejects_unknown_fields_at_overlay_and_rule_level(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            top = self._overlay(temporary, "top.json", surprise=[])
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(top)
+            rule = self._overlay(
+                temporary,
+                "rule.json",
+                rules=[
+                    {
+                        "match": {"hint_id": "common-temp-file"},
+                        "preselect": True,
+                        "surprise": 1,
+                    }
+                ],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown rule fields"):
+                hygiene.load_policy(rule)
+
+    def test_policy_rejects_malformed_rules(self) -> None:
+        good = {"hint_id": "common-temp-file"}
+        malformed = {
+            "not-an-array": {},
+            "not-an-object": ["common-temp-file"],
+            "no-match": [{"preselect": True}],
+            "both-match-forms": [
+                {
+                    "match": {"hint_id": "common-temp-file", "hint_ids": ["a"]},
+                    "preselect": True,
+                }
+            ],
+            "unknown-match-key": [{"match": {"class": "temp"}, "preselect": True}],
+            "empty-hint-ids": [{"match": {"hint_ids": []}, "preselect": True}],
+            "non-string-hint-id": [{"match": {"hint_id": 3}, "preselect": True}],
+            "missing-preselect": [{"match": good}],
+            "non-bool-preselect": [{"match": good, "preselect": "yes"}],
+            "negative-age": [{"match": good, "preselect": True, "min_age_days": -1}],
+            "bool-age": [{"match": good, "preselect": True, "min_age_days": True}],
+            "float-age": [{"match": good, "preselect": True, "min_age_days": 1.5}],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            for label, rules in malformed.items():
+                path = self._overlay(temporary, "bad.json", rules=rules)
+                with self.subTest(label), self.assertRaises(hygiene.HygieneError):
+                    hygiene.load_policy(path)
+
+    def test_policy_rejects_a_rule_naming_an_unknown_hint_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[
+                    {
+                        "match": {"hint_ids": ["common-temp-file", "nope"]},
+                        "preselect": True,
+                    }
+                ],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown hint ID.*nope"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_a_rule_naming_a_hint_the_overlay_disables(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                disabled_hint_ids=["common-temp-file"],
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown hint ID"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_an_unsupported_min_age_basis(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for basis in ("atime", "ctime", "", None):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[
+                        {
+                            "match": {"hint_id": "common-temp-file"},
+                            "preselect": True,
+                            "min_age_days": 7,
+                            "min_age_basis": basis,
+                        }
+                    ],
+                )
+                with self.subTest(basis=basis), self.assertRaisesRegex(
+                    hygiene.HygieneError, "min_age_basis"
+                ):
+                    hygiene.load_policy(path)
+
+    def test_rules_layer_in_order_and_the_failing_layer_changes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            user = self._overlay(
+                temporary,
+                "user.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": False}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            broken = self._overlay(
+                temporary,
+                "broken.json",
+                rules=[{"match": {"hint_id": "nope"}, "preselect": True}],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                layered = hygiene.load_policy(None)
+            self.assertEqual(
+                [False, True], [rule["preselect"] for rule in layered["rules"]]
+            )
+            self.assertEqual(
+                ["baseline", str(user), str(project)], layered["policy_sources"]
+            )
+            explicit = hygiene.load_policy(project)
+            self.assertEqual([True], [rule["preselect"] for rule in explicit["rules"]])
+            result = hygiene.baseline_policy()
+            with self.assertRaises(hygiene.HygieneError):
+                hygiene.apply_policy_overlay(result, broken)
+            self.assertEqual([], result["rules"])
+            self.assertEqual(["baseline"], result["policy_sources"])
+
     def test_absolute_protection_glob_covers_when_relative_would_miss(self) -> None:
         # Relative `tree/**` matches only when the scan target is the parent.
         # An absolute glob matches the file under `tree` even when `tree` itself
