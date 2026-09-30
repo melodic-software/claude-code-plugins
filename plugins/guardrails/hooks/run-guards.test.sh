@@ -944,12 +944,6 @@ assert_eq "cap: no guard is sourced past the cap" "" "$(cat "$SEEN")"
 cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
 
-# Every spelling counts outside single quotes, and backticks count in pairs.
-for spelling in '<(:)' '>(:)' '$((1))' '"$(:)"'; do
-  cap_run "$(tool_payload Bash "echo $(rep "$spelling" "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
-  assert_exit "cap: $((ROW_CAP + 1)) of $spelling are refused" 2 "$RC"
-done
-
 # A single-quoted span does not count. Every reading bash, the library or the
 # root-delete guard's substitution scan could take differently counts, and so
 # does a command naming anything a guard re-parses an argument of. A refusal
@@ -963,10 +957,26 @@ cap_quoted() { # <label> <expected rc> <command>
   assert_exit "cap quoted: $1" "$2" "$RC"
   assert_absent "cap quoted: $1, no could-not-run" "$ERR" "rc=70"
   assert_absent "cap quoted: $1, no unbound variable" "$ERR" "unbound variable"
+  if [[ $2 == 2 ]]; then
+    assert_contains "cap quoted: $1, refused by the count" "$ERR" "$CAP_MSG"
+  else
+    assert_contains "cap quoted: $1, the guard ran" "$(cat "$SEEN")" "Bash"
+  fi
 }
+# Every spelling: skipped in single quotes, counted unquoted and in double
+# quotes. Backticks count in pairs.
+for spelling in '<(:)' '>(:)' '$((1))' '$(:)' '"$(:)"' '`:`'; do
+  many=$(rep "$spelling" "$OVER")
+  cap_quoted "$OVER of $spelling in one single-quoted string reach the guards" 0 "echo '$many'"
+  cap_quoted "$OVER of $spelling unquoted are refused" 2 "echo $many"
+  cap_quoted "$OVER of $spelling in double quotes are refused" 2 "echo \"${many//\"/}\""
+done
 cap_quoted "$OVER in one single-quoted span reach the guards" 0 "echo '$QS'"
 cap_quoted "$OVER single-quoted spans reach the guards" 0 "echo $(rep "'\$(:)'" "$OVER")"
 cap_quoted "$OVER backtick pairs in a quoted body reach the guards" 0 "gh pr create --title 'x' --body '$(rep '`a` in Git Bash ' "$OVER")'"
+cap_quoted "a PR-body-like command with 300 inline-code spans reaches the guards" 0 "gh pr create --title 'x' --body '$(rep 'Run `check` first. ' 300)'"
+cap_quoted "quoted spans over the cap and unquoted ones under it reach the guards" 0 "echo '$(rep '$(:)' 300)' $(rep '$(:)' 100)"
+cap_quoted "unquoted spans over the cap count beside quoted ones under it" 2 "echo '$(rep '$(:)' 100)' $QS"
 cap_quoted "a plain comment before the span is skipped" 0 "# note${NL}echo '$QS'"
 cap_quoted "a mid-word # starts no comment" 0 "x#'${NL}$QS${NL}'"
 cap_quoted "an unclosed single quote counts" 2 "echo '$QS"
@@ -980,7 +990,11 @@ cap_quoted "a backtick outside a span counts the rest" 2 "echo \`:\` '$QS'"
 cap_quoted "a substitution in double quotes counts the rest" 2 "echo \"\$(:)\" '$QS'"
 for form in "'EOF'" '"EOF"' '\EOF'; do
   cap_quoted "a <<$form body counts" 2 "cat <<$form${NL}$QS${NL}EOF"
+  cap_quoted "$OVER backtick pairs in a <<$form body count" 2 "cat <<$form${NL}$(rep '`:`' "$OVER")${NL}EOF"
 done
+cap_quoted "a <<-'EOF' body counts" 2 "cat <<-'EOF'${NL}$QS${NL}EOF"
+cap_quoted "an unquoted <<EOF body counts" 2 "cat <<EOF${NL}$QS${NL}EOF"
+cap_quoted "a quoted heredoc body with no terminator counts" 2 "cat <<'EOF'${NL}$QS"
 cap_quoted "a heredoc inside \"\$(...)\" counts" 2 "git commit -m \"\$(cat <<'EOF'${NL}$QS${NL}EOF${NL})\""
 cap_quoted "a span in (( )) counts" 2 "(( '$QS' ))"
 cap_quoted "a span in \${x:offset} counts" 2 "echo \${x:'$QS'}"
