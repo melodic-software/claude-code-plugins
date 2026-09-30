@@ -170,7 +170,8 @@ Muse Code `1.4.1`:
 | 262,156-byte `AGENTS.md` | loads | loads | skipped, "over the 256000 byte load limit" |
 | Nested files, cwd at the git root | attach when a file under them is read | absent | absent, and a read attaches nothing |
 | Nested files, cwd in the nested directory | ancestor chain loads, 12 levels | chain loads, 12 levels | chain loads, 12 levels |
-| Non-git copy, cwd nested | ancestors load; attach on read does not occur | cwd directory only | cwd directory only |
+| Non-git copy, cwd nested | ancestors load | cwd directory only | cwd directory only |
+| Non-git copy, cwd at the root, nested file read | attach does not occur | not tested | not tested |
 | `.cursor/rules/x.md` | never loads | loads as a rule | not tested |
 | `.cursor/rules/x.mdc` | loads with frontmatter only | not loaded | not tested |
 

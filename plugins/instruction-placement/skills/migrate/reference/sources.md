@@ -283,7 +283,7 @@ historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
 - **As of**: 2026-09-30.
 - **Recheck trigger**: a new release of any of the three tools, a host that can run the
   editor, a Team plan, a Windows host, or `strace`, which would settle the open bullets, either
-  upstream page stating loader behavior, or any change to the recipe in
+  upstream page coming to state loader behavior, or any change to the recipe in
   [`reference/verification.md`](verification.md#the-loader-recipe-for-other-tools).
 
 ## The canary recipe
