@@ -48,6 +48,8 @@ The answer set to validate is the resolved decisions in whichever of these exist
 
 ### Step 1. Assemble the answer set, holding the never-auto floor
 
+When the caller names the question ids to audit (the interview page's `accept-audit` event lists them), the answer set is exactly those answers: do not fill or validate any other open branch, and leave the rest of the interview open.
+
 Validation needs a complete answer set. If the interview is already fully answered, every consequential branch resolved, whether by hand or by a prior accept-all, validate it as it stands. If open branches remain, drive the interview's accept-recommended path to fill them into a **working, in-session** set of *provisional* answers. For each open branch, take the orchestrator's recommended answer, NOT persisted to the tracked Brief / ledger / summary yet (an auto-accepted answer is unvalidated, and writing it into the contract before validation is exactly what this skill exists to prevent). **The mechanical never-auto floor is held out of any auto-accept, and no validator ever resolves it:**
 
 - a Deferred question tagged **`USER-RESERVED`** stays **deferred**. It is a carry-forward item whose arbiter re-confirms at the `/planning:plan` approval gate *with plan-time context*, so it is not auto-accepted, not validated, and **not turned into an audit question here**; it passes through untouched, arbiter tag intact.

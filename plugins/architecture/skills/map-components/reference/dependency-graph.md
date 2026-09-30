@@ -38,8 +38,10 @@ A node line's first key is `id`. An edge line's first key is `from`.
 
 | Field | What the renderer does with it |
 |---|---|
-| `ecosystem` | `dotnet` renders a view. `unknown` writes the record's `message` and draws no diagram. |
+| `ecosystem` | The name of the one reader that ran, or `mixed` when more than one ran. Either renders a view. `unknown` writes the record's `message` and draws no diagram. |
 | `message` | The reason shown for an `unknown` record. |
+| node `ecosystem` | The reader that produced the node. The component's technology shows it, so a `mixed` record labels each component with its own ecosystem. |
+| `findings` | Not read. A `findings` line of kind `unread-reference-tags` or `unread-manifest` means the edge list is short of what the manifests declare. `map-dependencies` lists them. |
 | `node_threshold` | Component count above which the view aggregates. 40 when absent. |
 | node `kind` | `project` is a component. `package` is not one. |
 | node `namespace` | Optional. The project file's `RootNamespace`, else its `AssemblyName`. Namespace grouping uses it when present, else the node `name`. |

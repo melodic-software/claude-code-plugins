@@ -7,7 +7,25 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Added
 
-- **The interview page can accept a round's recommendations and hand the round to `/planning:audit-answers`.** "Accept all and have agents check them" posts one `accept-audit` event; the server records one accept per eligible question, each marked pending agent validation in the exports, and `context/surface.md` routes the event to the audit skill. A question with a typed note is left out, since the event carries no notes. Per-question undo still works, and the page holds no validation logic ([#5472](https://github.com/melodic-software/claude-code-plugins/issues/5472)).
+- **The interview page can accept a round's recommendations and hand the round to `/planning:audit-answers`, limited to the accepted questions.** "Accept all and have agents check them" posts one `accept-audit` event; the server records one accept per eligible question, each marked pending agent validation in the exports, and `context/surface.md` routes the event to the audit skill. A question with a typed note is left out, since the event carries no notes. Per-question undo still works, and the page holds no validation logic ([#5472](https://github.com/melodic-software/claude-code-plugins/issues/5472)).
+
+## [0.47.8] - 2026-09-29
+
+### Added
+
+- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park, drop or open, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
+
+## [0.47.7] - 2026-09-29
+
+### Fixed
+
+- **A group summary that predates questions added to its group is flagged.** Writing a group `summary` records the group's question ids as `summaryOf`. `round.py add` and `add-round` warn when a question lands in a group whose summary was written for a different set, and the page marks that summary Stale until it is rewritten ([#5451](https://github.com/melodic-software/claude-code-plugins/issues/5451)).
+
+## [0.47.6] - 2026-09-29
+
+### Fixed
+
+- **The interview surface's carry chip reads "carried N rounds" and explains itself on hover.** It no longer repeats the state word ("Open open 2 rounds"), and its tooltip says the question was asked that many rounds before the stage's latest round and is still unanswered ([#5449](https://github.com/melodic-software/claude-code-plugins/issues/5449)).
 
 ## [0.47.5] - 2026-09-29
 

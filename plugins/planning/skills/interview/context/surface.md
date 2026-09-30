@@ -65,7 +65,7 @@ When the first wake prompts for permission, offer the user one allow rule per co
 | `reply` | `id`, `text`, `seq`, `kind` (`reply`, `rephrase`, `note`), `rec` + `why` + `affects`, `handled`, `force` | Answer an ask or rephrase; `rec` revises the recommendation |
 | `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `seq`, `affects`, `force` | Reword a question |
 | `note-reply` | `text`, `seq` | Answer a note in Notes to Claude; with no `seq`, post a closing probe there |
-| `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups |
+| `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups; writing a `summary` records the group's current question ids as `summaryOf`, and the page marks the summary Stale once the members differ, so rewrite the summary after adding questions |
 | `meta` | `set` (`title`, `eyebrow`, `stages`, `next`) | Merge into `meta`; other meta keys stay |
 | `archive` | `ids`, `why` | Take off-path questions out of the open count |
 | `replace-visual` | `visual` | Swap in a full visual object for the top-level visual with the same id; an unknown id is refused |
@@ -130,7 +130,7 @@ When the work returns, clear both (`wait` with `"clear": true`, `set-status` wit
 | `undo` | question, `undoSeq` | withdraws `undoSeq` | Drop that decision from the ledger; `handle` both seqs |
 | `wrapup` | none | no | Run [Wrap-up](#wrap-up), then `handle` |
 | `confirm` | question, `alt` is the commitment index | no; ticks one commitment | `handle` |
-| `accept-audit` | none; `alt` is the round id, `items` lists the accepted questions | yes, once per listed question (each has its own `accept` event carrying `auditSeq`) | Record each accepted question, `handle` the `accept-audit` seq and every fanned-out accept seq with no reply, then run `/planning:audit-answers` on the filled ledger. The audit returns only the doubtful ones as human questions |
+| `accept-audit` | none; `alt` is the round id, `items` lists the accepted questions | yes, once per listed question (each has its own `accept` event carrying `auditSeq`) | Record each accepted question, `handle` the `accept-audit` seq and every fanned-out accept seq with no reply, then run `/planning:audit-answers` on the event's `items` only, so questions outside the round stay open. The audit returns only the doubtful ones as human questions |
 | `confirm-understanding` | none; `alt` is `confirm` or `off`, `contentRev` is the restatement `rev` | no | `confirm`: the gate passed, `handle`. `off`: `note-reply` to its `text` with its `seq`, see [Confirmation gate](#confirmation-gate) |
 
 "Accept all and have agents check them" arrives as one `accept-audit` event plus its accepts; the page holds no validation logic, so the skill routes the round to `/planning:audit-answers`. The page leaves a question that carries a note out of that event, so every fanned-out accept is plain.
