@@ -5,14 +5,16 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [0.54.0] - 2026-09-30
+## [0.55.0] - 2026-09-30
 
 ### Added
 
 - **The audit engine derives more of its criteria from the docs it fetches.** It follows links out of
   `settings-reference` to the pages a check reads (today only `hooks`; a page no check reads is not
   requested), takes the `fallbackModel` cap and the enum values
-  of string keys from the documented sections, checks nested keys inside objects the reference
+  of string keys from the documented sections (a list with a bullet that is not a literal value, such
+  as the strftime pattern in `timeFormat`'s list, is open and gives no row, so `"%H:%M"` is not
+  flagged), checks nested keys inside objects the reference
   documents, and quotes the binary's describe string for a key the docs leave undocumented. The
   string is quoted only when every describe-bearing declaration of the key's name in the binary
   carries the same one: the binary holds many schemas that reuse names such as `timeout` and
@@ -42,6 +44,18 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   a key containing U+0000 stays in one row.
 - **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and a permissions-page
   quotation the page no longer carries is restated from the page's wildcard table.
+
+## [0.54.0] - 2026-09-30
+
+### Changed
+
+- **The docs fetcher is canonical in `lib/fetch-docs.sh` and takes `--profile <name>`.** A profile
+  names a publisher's index URL, page path prefix, raw-channel suffix and content types; `anthropic`
+  is the default and the only one defined, so existing callers behave as before.
+  `scripts/fetch-docs.sh` is a byte-identical copy of the canonical file, kept in step by
+  `scripts/sync-fetch-docs.sh` (run in CI). The test seam variables are renamed to
+  `FETCH_DOCS_FIXTURE_DIR`, `FETCH_DOCS_INDEX_URL` and `FETCH_DOCS_CLAUDE_BIN`; `audit-engine.sh`
+  and `check-doc-citations.sh` use the new names.
 
 ## [0.53.6] - 2026-09-30
 

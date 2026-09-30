@@ -890,6 +890,10 @@ pin "audit-answers: a hedged row never closes on CONFIRMED" "$AUDIT" \
   "never closes on a CONFIRMED verdict"
 pin "audit-answers: a free-text row is validated and flagged" "$AUDIT" \
   "A \`free-text:\` row is validated like any answer and flagged"
+pin "surface.md routes an accept-audit event to audit-answers" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "the skill routes the round to \`/planning:audit-answers\`"
+pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview/context/surface.md" \
+  "| \`accept-audit\` |"
 
 # A8. Whole-line pins — the five lines that ARE the STOP-on-gap defense. These catch the
 #     neutralize-in-place edit the phrase pins above cannot: a qualifier appended to any of

@@ -95,7 +95,7 @@ shim_run() {
   local src="$1" log="$2"
   shift 2
   PATH="$SHIM:$PATH" CURL_SHIM_SRC="$src" CURL_SHIM_LOG="$log" SETTINGS_AUDIT_DOCS_FIXTURE_DIR="" \
-    SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="" bash "$SCRIPT" "$@" 2>&1
+    FETCH_DOCS_FIXTURE_DIR="" bash "$SCRIPT" "$@" 2>&1
 }
 
 # --- Case 1: every span present on fixture pages passes --------------------

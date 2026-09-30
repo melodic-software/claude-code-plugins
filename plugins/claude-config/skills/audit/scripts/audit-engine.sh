@@ -66,9 +66,9 @@
 #   SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE  consent-receipts.json to read the receipt records from
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
-#   SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR  directory holding llms.txt and <slug>.md; when set,
+#   FETCH_DOCS_FIXTURE_DIR              directory holding llms.txt and <slug>.md; when set,
 #                                       nothing is fetched and pages resolve through that llms.txt
-#   SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL the docs index (default https://code.claude.com/docs/llms.txt)
+#   FETCH_DOCS_INDEX_URL                the docs index (default https://code.claude.com/docs/llms.txt)
 #   SETTINGS_AUDIT_ENGINE_CLAUDE_BIN    the claude CLI to version and search (else `command -v claude`)
 #   SETTINGS_AUDIT_FIXTURE_DIR          passed through to check-plugin-drift.sh
 #   SETTINGS_AUDIT_MANAGED_PATH         passed through to the managed-scope library
@@ -564,7 +564,7 @@ if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
 fi
 trap 'rm -rf "$DOCS_TMP"' EXIT
 
-DOCS_INDEX_URL="${SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
+DOCS_INDEX_URL="${FETCH_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
 # Every control character but tab and newline, CR included, is dropped from the
 # working copy of a page, so text quoted from it into a row or the table never
 # carries one. Byte counts are taken from the page as read.
@@ -579,7 +579,9 @@ DOCS_MANIFEST="$DOCS_TMP/manifest.json"
 fetch_pages() {
   local manifest="$1"
   shift
-  if ! bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$manifest" --index-url "$DOCS_INDEX_URL" "$@" >/dev/null; then
+  # The engine reads the CLI version itself below and ignores the manifest's, so
+  # the fetcher runs no claude, whatever SETTINGS_AUDIT_ENGINE_CLAUDE_BIN names.
+  if ! FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$manifest" --index-url "$DOCS_INDEX_URL" "$@" >/dev/null; then
     echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
     exit 2
   fi
@@ -721,18 +723,22 @@ sr_section() {
 
 # type_values <key>: the string values the key's Type bullet accepts, one per
 # line, from either shape the page uses: "string, one of:" followed by nested
-# `"value"` bullets, or "the string `"value"`". Nothing when neither parses.
+# `"value"` bullets, or "the string `"value"`". Nothing when neither parses, and
+# nothing when a nested bullet is not a literal value (a pattern such as
+# `"%H:%M"`): that list is open, so the values read from it are not the set.
 type_values() {
   sr_section "$1" | awk '
     mode == "list" {
-      if ($0 ~ /^[[:space:]]+\* `"[^"]*"`/) { v = $0; sub(/^[[:space:]]+\* `"/, "", v); sub(/"`.*$/, "", v); print v; next }
+      if ($0 ~ /^[[:space:]]+\* `"[^"]*"`/) { v = $0; sub(/^[[:space:]]+\* `"/, "", v); sub(/"`.*$/, "", v); vals = vals v "\n"; next }
+      if ($0 ~ /^[[:space:]]+\* /) vals = ""
       exit
     }
     /^\* \*\*Type\*\*:/ {
       if ($0 ~ /string, one of:[[:space:]]*$/) { mode = "list"; next }
-      if (match($0, /the string `"[^"]*"`/)) print substr($0, RSTART + 13, RLENGTH - 15)
+      if (match($0, /the string `"[^"]*"`/)) vals = substr($0, RSTART + 13, RLENGTH - 15) "\n"
       exit
     }
+    END { printf "%s", vals }
   '
 }
 
