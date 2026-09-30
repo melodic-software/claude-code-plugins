@@ -63,6 +63,24 @@ Write the record so `check-stamps.sh` can parse it: an ISO 8601 date (`YYYY-MM-D
 short span of a stamp keyword. A month-name or bare-year date is honest prose but the checker
 declines it, and a stamp the checker cannot read is a stamp that never expires.
 
+## Restated facts: report-only
+
+A `restated-fact` finding (a passage that states a value, default, limit or field list an
+external source owns, judged by the restated-fact rubric) is never `fingerprint-confirmed`, so it
+is never fix-eligible. `fix` and `sweep` do not reach it: no guard below runs on it and no edit is
+applied. It is reported and routed behind the human gate, and the human applies the disposition.
+The dispositions below are what the report recommends, not what a run performs.
+
+| Disposition | Recommend it when |
+|---|---|
+| `convert-to-pointer` | The reader can follow a link at the moment they need the fact, and the surface does not have to work offline. |
+| `condense-to-stamped-record` | The surface must state the fact to function without the source. The offline-load-bearing rule above still applies: it selects the stamped record over a bare pointer whatever the finding's tier. |
+| `leave-with-reason` | A carve-out applies (a conforming pointer or record, owned content, a distilling-file surface whose own attribution enumerates the fact, quoted and cited text), or the human decided. |
+
+A recommended stamped record carries the four parts above: the claim, the basis URL, an ISO 8601
+as-of date `check-stamps.sh` can parse, and a trigger naming an event someone could notice. When
+no such trigger exists, recommend `convert-to-pointer`.
+
 ## Guards, all of which must pass before an edit is kept
 
 Per file, in this order. Any guard that fails reverts that file's edits and routes the finding

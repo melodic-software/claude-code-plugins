@@ -43,6 +43,12 @@ literal `${CLAUDE_SKILL_DIR}/scripts/x.sh`, which the Bash tool expands from an 
 variable (that variable is not exported into the tool's shell) to `/scripts/x.sh`. It fails safe, a
 prompt or a not-found error rather than a wrong action, but it gives no signal.
 
+## Commands a script runs itself
+
+`clean-batch.sh --fleet` runs `ghq list -p` and `chezmoi source-path` inside the script. Claude
+never issues them, so they need no `allowed-tools` grant, and `clean-batch.sh` stays ungranted
+(it is a mutating script). Add a grant only for a command the skill body tells Claude to run.
+
 ## The rule
 
 Keep `context/*.md` on the `${CLAUDE_PLUGIN_ROOT}` form until substitution scope for bundled
