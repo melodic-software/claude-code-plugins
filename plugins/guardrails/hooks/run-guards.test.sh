@@ -944,17 +944,61 @@ assert_eq "cap: no guard is sourced past the cap" "" "$(cat "$SEEN")"
 cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
 
-# Every spelling counts, quoted or not, and backticks count in pairs.
-for spelling in '<(:)' '>(:)' '$((1))' "'\$(:)'" '"$(:)"'; do
+# Every spelling counts outside single quotes, and backticks count in pairs.
+for spelling in '<(:)' '>(:)' '$((1))' '"$(:)"'; do
   cap_run "$(tool_payload Bash "echo $(rep "$spelling" "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
   assert_exit "cap: $((ROW_CAP + 1)) of $spelling are refused" 2 "$RC"
 done
+
+# A single-quoted span does not count. Every reading bash, the library or the
+# root-delete guard's substitution scan could take differently counts, and so
+# does a command naming anything a guard re-parses an argument of. A refusal
+# must come from the count: rc=70 or an unbound variable would be the
+# dispatcher failing, which allows the command.
+OVER=$((ROW_CAP + 1))
+QS=$(rep '$(:)' "$OVER")
+NL=$'\n'
+cap_quoted() { # <label> <expected rc> <command>
+  cap_run "$(tool_payload Bash "$3")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+  assert_exit "cap quoted: $1" "$2" "$RC"
+  assert_absent "cap quoted: $1, no could-not-run" "$ERR" "rc=70"
+  assert_absent "cap quoted: $1, no unbound variable" "$ERR" "unbound variable"
+}
+cap_quoted "$OVER in one single-quoted span reach the guards" 0 "echo '$QS'"
+cap_quoted "$OVER single-quoted spans reach the guards" 0 "echo $(rep "'\$(:)'" "$OVER")"
+cap_quoted "$OVER backtick pairs in a quoted body reach the guards" 0 "gh pr create --title 'x' --body '$(rep '`a` in Git Bash ' "$OVER")'"
+cap_quoted "a plain comment before the span is skipped" 0 "# note${NL}echo '$QS'"
+cap_quoted "a mid-word # starts no comment" 0 "x#'${NL}$QS${NL}'"
+cap_quoted "an unclosed single quote counts" 2 "echo '$QS"
+cap_quoted "a single quote inside double quotes is literal" 2 "echo \"it's\" $QS '"
+cap_quoted "an escaped \\' opens no span" 2 "echo \\' $QS \\'"
+cap_quoted "an ANSI-C span counts" 2 "echo \$'$QS'"
+cap_quoted "\$\$' counts" 2 "echo \$\$'$QS'"
+cap_quoted "a span after \\\$ counts" 2 "echo \\\$'$QS'"
+cap_quoted "a quote in a comment counts the rest" 2 "# it's${NL}echo '$QS'"
+cap_quoted "a backtick outside a span counts the rest" 2 "echo \`:\` '$QS'"
+cap_quoted "a substitution in double quotes counts the rest" 2 "echo \"\$(:)\" '$QS'"
+for form in "'EOF'" '"EOF"' '\EOF'; do
+  cap_quoted "a <<$form body counts" 2 "cat <<$form${NL}$QS${NL}EOF"
+done
+cap_quoted "a heredoc inside \"\$(...)\" counts" 2 "git commit -m \"\$(cat <<'EOF'${NL}$QS${NL}EOF${NL})\""
+cap_quoted "a span in (( )) counts" 2 "(( '$QS' ))"
+cap_quoted "a span in \${x:offset} counts" 2 "echo \${x:'$QS'}"
+cap_quoted "a span in an array subscript counts" 2 "a['$QS']=5"
+for cmd in "eval '$QS'" "bash -c '$QS'" "sudo sh -lc '$QS'" "'/bin/bash' -c '$QS'" "ba'sh' -c '$QS'" "git -c 'alias.x=!$QS' x"; do
+  cap_quoted "a re-parsed argument counts: ${cmd:0:24}" 2 "$cmd"
+done
+# 16 KB of the shape that costs the scan the most steps finishes well inside
+# the timeout backstop.
+cap_quoted "a 16 KB command of tiny spans is refused" 2 "echo $(rep "'a'\$(:)" 2300)"
 cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: $ROW_CAP backtick pairs reach the guards" 0 "$RC"
 cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")\`")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: an unpaired backtick past the pairs counts as one more" 2 "$RC"
 cap_run "$(tool_payload PowerShell "echo $(rep '$(1)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: a PowerShell command past the cap is refused" 2 "$RC"
+cap_run "$(tool_payload PowerShell "echo '$(rep '$(1)' "$((ROW_CAP + 1))")'")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a PowerShell command counts single-quoted text" 2 "$RC"
 cap_run "$(write_json "$TEST_TMPDIR/w.txt" "$(rep '$(:)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: a payload with no command field is not counted" 0 "$RC"
 # An unprimed payload (a NUL in it) is counted whole.
@@ -983,6 +1027,14 @@ assert_contains "cap row: 2,339 are refused by the count" "$ERR" "$CAP_MSG"
 cap_run "$(tool_payload Bash "$(subst_cmd 2330 '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: 2,330 substitutions then a root delete are refused" 2 "$RC"
 assert_contains "cap row: that one is refused by the count too" "$ERR" "$CAP_MSG"
+# Single-quoted, the same payload reaches the guards, and a root delete behind
+# it is refused by its own guard, not by the count.
+cap_run "$(tool_payload Bash "echo '$(rep '$(: rm)' 2339)'")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: 2,339 single-quoted substitutions reach the guards" 0 "$RC"
+cap_run "$(tool_payload Bash "echo '$(rep '$(: rm)' 2300)'; rm -rf /")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: a root delete after them is refused" 2 "$RC"
+assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem root"
+assert_absent "cap row: the count did not" "$ERR" "$CAP_MSG"
 # --- over-length: the first block ends the chain (#4528) ----------------------
 # Past --max-command-len the guards after a block would only add reasons to a
 # decided verdict, and a row that outlives its hooks.json timeout is cancelled
