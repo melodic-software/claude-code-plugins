@@ -404,6 +404,73 @@ class TestRevise(DirCase):
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
 
 
+class TestReviseCommits(DirCase):
+    def revise_commits(self, *commits):
+        args = [a for c in commits for a in ("--commit", c)]
+        return self.rp("revise", "Q1", "--rec", "New.", "--affects", "none", *args)
+
+    def test_cli_writes_the_commitments_in_order(self):
+        rc, out, err = self.revise_commits("A", "B")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], ["A", "B"])
+
+    def test_commit_none_clears_them(self):
+        rc, out, err = self.revise_commits("none")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], [])
+
+    def test_commit_alone_is_a_revision(self):
+        rc, out, err = self.rp("revise", "Q1", "--commit", "A")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], ["A"])
+        self.assertEqual(self.q("Q1")["contentRev"], 1)
+        self.assertIn("commitments", self.q("Q1")["history"][-1]["text"])
+
+    def test_the_same_list_changes_nothing(self):
+        out = self.assert_refused("revise", "Q1", "--commit", "Only one writer")
+        self.assertIn("nothing to revise", out)
+
+    def test_apply_op_takes_a_list_and_an_empty_list_clears(self):
+        for commits, want in ((["A", "B"], ["A", "B"]), (["none"], ["none"]), ([], [])):
+            ops = {"ops": [{"op": "revise", "id": "Q1", "commits": commits}]}
+            rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+            self.assertEqual(rc, 0, out + err)
+            self.assertEqual(self.q("Q1")["commits"], want)
+
+    def test_an_over_cap_commitment_is_refused_before_writing(self):
+        self.assert_refused("revise", "Q1", "--commit", "x" * 501)
+        ops = {"ops": [{"op": "revise", "id": "Q1", "commits": ["ok", "x" * 501]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_a_changed_list_drops_old_confirmations(self):
+        doc = self.doc()
+        doc["questions"][0]["commitsConfirmed"] = [
+            {"index": 0, "reason": "said in chat", "at": "2026-09-24T10:00:00Z"}
+        ]
+        self.write_doc(doc)
+        self.write_events(
+            [
+                {
+                    "seq": 7,
+                    "id": "Q1",
+                    "kind": "confirm",
+                    "alt": "0",
+                    "text": "",
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp(
+            "revise", "Q1", "--commit", "A", "--commit", "B", "--seq", "7"
+        )
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertNotIn("commitsConfirmed", q)
+        self.assertEqual(q["commitsSinceSeq"], 7)
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+
 class TestStatus(DirCase):
     """status: withdrawn events are not unhandled; event text is quoted data on one line."""
 

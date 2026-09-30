@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.2] - 2026-09-30
+## [0.49.1] - 2026-09-30
 
 ### Fixed
 
 - **The interview surface sets aside a counted own answer when the session revises the recommendation.** `reply --rec` and `revise --rec` stamp the set-aside fields on a question whose decision is an own answer, so the page and status stop showing the earlier own text as the decision, and the note field no longer prefills from it. Accept, alt and defer decisions stay, and a `record-terminal` after the revision counts ([#5453](https://github.com/melodic-software/claude-code-plugins/issues/5453)).
+
+## [0.49.0] - 2026-09-30
+
+### Added
+
+- **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
 
 ## [0.48.1] - 2026-09-30
 
