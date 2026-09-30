@@ -358,6 +358,8 @@ def _run(
         return None, None, None, {}, {}
     if not transcript_path or not isinstance(transcript_path, str):
         return None, None, None, {}, {}
+    if not os.path.isfile(transcript_path):
+        return None, None, None, {}, {}
     cursor_paths = _marker_path_candidates(data_root, str(session_id), ".cursor")
     data, resume_at = _read_new(
         transcript_path, _read_cursor(cursor_paths, transcript_path)

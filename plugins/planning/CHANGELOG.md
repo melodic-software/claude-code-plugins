@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.4] - 2026-09-29
+## [0.47.5] - 2026-09-29
 
 ### Fixed
 
 - **A group summary that predates questions added to its group is flagged.** Writing a group `summary` records the group's question ids as `summaryOf`. `round.py add` and `add-round` warn when a question lands in a group whose summary was written for a different set, and the page marks that summary Stale until it is rewritten ([#5451](https://github.com/melodic-software/claude-code-plugins/issues/5451)).
+
+## [0.47.4] - 2026-09-29
+
+### Fixed
+
+- **Interview surface question cards keep their badge row in column 2** when a question has several `dependsOn` entries. `.qid` spanned a fixed three rows while the card emitted a variable number of needs lines, so the badges landed in the emptied left column and squeezed the title ([#5191](https://github.com/melodic-software/claude-code-plugins/issues/5191)).
 
 ## [0.47.3] - 2026-09-29
 

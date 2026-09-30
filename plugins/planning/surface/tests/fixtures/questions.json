@@ -318,7 +318,8 @@
       "facts": "Both actions record no decision. Claude's reply lands in the question's thread.",
       "recommendation": "Page only, plus a one-line terminal note naming the question.",
       "dependsOn": [
-        "Q4"
+        "Q4",
+        "Q2"
       ],
       "commits": [],
       "alternatives": [

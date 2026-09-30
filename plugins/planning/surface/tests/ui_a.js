@@ -19,6 +19,11 @@ async page => {
   ok("independent group not locked", !(await page.$('.sec[data-key="g:g9"] .lock')));
   ok("only the group whose summary predates a question shows Stale", (await page.$$('.sec[data-key="g:ordering"] .sec-hint .chip.hot')).length === 1 && !(await page.$('.sec[data-key="g:content"] .sec-hint .chip.hot')));
   ok("needs connector on N2", /needs N1/.test(await page.textContent('.qbtn[data-q="N2"]')));
+  await page.setViewportSize({width: 510, height: 860});
+  if (!(await page.isVisible('.qbtn[data-q="Q7"]'))) await page.click('.sec[data-key="g:realtime"] .sec-h');
+  const n4 = await page.evaluate(() => { const b = document.querySelector('.qbtn[data-q="Q7"]'), q = b.querySelector(".qid"), r = document.createRange(); r.selectNodeContents(q); return {idW: q.getBoundingClientRect().width, textW: r.getBoundingClientRect().width, idRight: q.getBoundingClientRect().right, tLeft: b.querySelector(".qtitle").getBoundingClientRect().left}; });
+  ok("a rail card with two dependsOn keeps the id column as wide as the id text", n4.idW <= n4.textW + 2 && n4.tLeft >= n4.idRight, JSON.stringify(n4));
+  await page.setViewportSize({width: 1400, height: 860});
 
   // history labels
   await page.click('.qbtn[data-q="W1"]').catch(async () => { await page.click('.sec[data-key="g:wrap"] .sec-h'); await page.click('.qbtn[data-q="W1"]'); });
