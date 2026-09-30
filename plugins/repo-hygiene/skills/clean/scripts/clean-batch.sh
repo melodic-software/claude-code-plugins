@@ -24,7 +24,7 @@
 #
 # Usage:
 #   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
-#                  [--repo DIR...]... [--repos-from FILE|-]...
+#                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
 #                  [--skip ENTRY]... [--skip-from FILE]...
 #                  [--batch-plan FILE] [--list-paths-max N] [--help]
 # --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
@@ -50,7 +50,7 @@ clean-batch.sh — run the selective clean tiers across many repos behind one ga
 
 Usage:
   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
-                 [--repo DIR...]... [--repos-from FILE|-]...
+                 [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
                  [--skip ENTRY]... [--skip-from FILE]...
                  [--batch-plan FILE] [--list-paths-max N] [--help]
 
@@ -67,13 +67,19 @@ git-tree-reset-batch.sh):
   git     prune/gc each unique shared object store once (git-prune.sh)
   all     build + git per the single-repo `all` tier (no branch audit, no tree)
 
-Repo sources (combine freely; deduped by canonical toplevel):
+Repo sources (combine freely; deduped by canonical toplevel. With --fleet, also
+by origin URL: the first clone that is not skip-listed is kept, each other is
+`skipped duplicate of <path>`. Without --fleet, two clones of one origin are both
+kept):
   --repo DIR...      one or more repositories (repeatable). Consumes every
                      consecutive non-flag path, so a shell glob (--repo
                      ~/repos/*) is ingested whole.
   --repos-from FILE  newline-delimited repo paths (FILE, or - for stdin; the way
                      `ghq list -p` output is ingested). Backslash paths are
                      normalized. Repeatable.
+  --fleet            every `ghq list -p` repo (when ghq resolves) plus the chezmoi
+                     source repo (when chezmoi resolves and its source is a git repo),
+                     and it dedupes clones of one origin URL across the whole set.
 
 Skip list (separator-agnostic; entry = absolute path, owner/repo, or repo):
   --skip ENTRY       skip a repo (repeatable).
@@ -86,8 +92,11 @@ Gate:
                      per repo (largest first, read from the same manifests
                      apply consumes; capped, with an `N more, see plan file:
                      <path>` tail), a `BatchPlan: <path>` line, and `Summary:
-                     repos=N planned=P bytes=K` (gitdirs=G for git/all). NEVER
-                     mutates.
+                     repos=N planned=P bytes=K` (git/all append gitdirs=G
+                     git_bytes=B; all also appends caches_bytes=C build_bytes=D).
+                     The git tier counts prunable worktrees, plus loose objects
+                     and garbage when `git gc --auto` would run (above gc.auto
+                     or gc.autoPackLimit). NEVER mutates.
   --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
                      instead of the default. The default is a new run
                      directory under one durable directory per tier, repo set
@@ -123,6 +132,10 @@ BATCH_PLAN_ARG=""
 LIST_MAX=20
 PLAN_RETAIN_DAYS=14
 REPO_INPUTS=()
+# Clone dedupe by origin URL is part of --fleet only: --repo and --repos-from are an
+# explicit selection, and two clones of one origin each hold their own working-tree
+# caches, build output and object store.
+FLEET=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -161,6 +174,10 @@ while [[ $# -gt 0 ]]; do
     [[ $# -ge 2 ]] || fail_usage "--repos-from requires a file or -"
     batch_read_lines_into REPO_INPUTS "$2" || fail_usage "file not found: $2"
     shift
+    ;;
+  --fleet)
+    FLEET=1
+    batch_discover_fleet REPO_INPUTS
     ;;
   --skip)
     [[ $# -ge 2 ]] || fail_usage "--skip requires an entry"
@@ -259,11 +276,12 @@ summary_field() { sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2"; }
 # SCAN: read-only inventory per repo; no plan, nothing to gate.
 # ---------------------------------------------------------------------------
 if [[ "$TIER" == scan ]]; then
-  [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo and/or --repos-from)"
+  [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
   batch_resolve_repos "${REPO_INPUTS[@]}"
+  if [[ "$FLEET" -eq 1 ]]; then batch_dedupe_clones; fi
   batch_reset_skip_hits
 
-  SKIPPED=0
+  SKIPPED=${#BATCH_DUPS[@]}
   BLOCKED=0
   SCAN_BYTES=0
   printf 'Fleet Clean (scan)\n'
@@ -293,6 +311,7 @@ if [[ "$TIER" == scan ]]; then
     SCAN_BYTES=$((SCAN_BYTES + bytes))
     batch_emit "$top" scanned "$paths path(s), $(clean_human_size "$bytes") reclaimable"
   done
+  batch_emit_dups
   for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
     batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
     BLOCKED=$((BLOCKED + 1))
@@ -465,9 +484,10 @@ fi
 # ---------------------------------------------------------------------------
 # DRY-RUN: enumerate, plan, write the gated plan.
 # ---------------------------------------------------------------------------
-[[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo and/or --repos-from)"
+[[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
 
 batch_resolve_repos "${REPO_INPUTS[@]}"
+if [[ "$FLEET" -eq 1 ]]; then batch_dedupe_clones; fi
 batch_reset_gitdirs
 
 # Batch plan + per-repo manifests live in one dir so they bundle and clean up
@@ -516,7 +536,10 @@ batch_reset_skip_hits
 REPOS=${#BATCH_TOPS[@]}
 PLANNED=0
 PLAN_BYTES=0
-SKIPPED=0
+CACHES_BYTES=0
+BUILD_BYTES=0
+GIT_BYTES=0
+SKIPPED=${#BATCH_DUPS[@]}
 BLOCKED=0
 ROW_TOPS=()
 ROW_OUTCOMES=()
@@ -548,6 +571,38 @@ if tier_has_manifest && ((${#BATCH_TOPS[@]} > 0)); then
   fi
 fi
 printf '%s\n' '---'
+
+# git_plan_measure <worktree> prints "<items> <bytes>": what the git-tier apply ops
+# act on in that object store. `git worktree prune` removes the worktrees its
+# --dry-run -v names, one line each on stderr. `git gc --auto` does nothing
+# until the loose objects exceed gc.auto (default 6700) or the packs exceed
+# gc.autoPackLimit (default 50; a gc.auto of 0 or less turns both checks off), so
+# only then do the loose objects and garbage from `git count-objects -v` count
+# (size figures are KiB), as an upper bound: gc packs reachable loose objects
+# instead of deleting them. Git samples one fan-out directory for its own check,
+# so this trigger is approximate. Remote-prune candidates are not counted;
+# finding them needs a network call.
+git_plan_measure() {
+  local k v wt auto limit n=0 kib=0 loose=0 packs=0 garbage=0 kib_loose=0 kib_garbage=0
+  while IFS=': ' read -r k v; do
+    case "$k" in
+    count) loose=$v ;;
+    packs) packs=$v ;;
+    garbage) garbage=$v ;;
+    size) kib_loose=$v ;;
+    size-garbage) kib_garbage=$v ;;
+    *) ;;
+    esac
+  done < <(git -C "$1" count-objects -v 2>/dev/null)
+  auto="$(git -C "$1" config --type=int --get gc.auto 2>/dev/null)" || auto=6700
+  limit="$(git -C "$1" config --type=int --get gc.autoPackLimit 2>/dev/null)" || limit=50
+  if ((auto > 0)) && { ((loose > auto)) || ((limit > 0 && packs > limit)); }; then
+    n=$((loose + garbage))
+    kib=$((kib_loose + kib_garbage))
+  fi
+  wt="$(git -C "$1" worktree prune --dry-run -v 2>&1 | grep -c .)"
+  printf '%s %s\n' "$((n + wt))" "$((kib * 1024))"
+}
 
 # Per-repo manifest name. The plan index (unique per repo in this batch) prefixes
 # a sanitized key so two keys that differ only by punctuation the sanitizer
@@ -604,6 +659,10 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     bytes="${bytes:-0}"
     PLANNED=$((PLANNED + planned))
     PLAN_BYTES=$((PLAN_BYTES + bytes))
+    # Split by manifest class (`<class>\t<bytes>\t<rel>`): a build manifest folds caches in.
+    read -r cb bb < <(awk -F'\t' '$1=="caches"{c+=$2} $1=="build"{b+=$2} END{print c+0, b+0}' "$manifest" 2>/dev/null)
+    CACHES_BYTES=$((CACHES_BYTES + ${cb:-0}))
+    BUILD_BYTES=$((BUILD_BYTES + ${bb:-0}))
     printf 'REPO\t%s\t%s\t%s\n' "$top" "$tok" "$manifest" >>"$PLAN"
     if [[ "$planned" -gt 0 && -s "$manifest" ]]; then
       LIST_TOPS+=("$top")
@@ -622,7 +681,13 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
       new_gitdir=1
       k="${BATCH_GITDIR_KEYS[${#BATCH_GITDIR_KEYS[@]} - 1]}"
       printf 'GITDIR\t%s\t%s\n' "$top" "$k" >>"$PLAN"
-      reason_parts+=("git: shared object store (new)")
+      read -r gpaths gbytes < <(git_plan_measure "$top")
+      planned=$((planned + gpaths))
+      bytes=$((bytes + gbytes))
+      PLANNED=$((PLANNED + gpaths))
+      PLAN_BYTES=$((PLAN_BYTES + gbytes))
+      GIT_BYTES=$((GIT_BYTES + gbytes))
+      reason_parts+=("git: shared object store (new): $gpaths item(s) counted, $(clean_human_size "$gbytes"); remote prune not measured")
     else
       reason_parts+=("git: shared object store (deduped with a sibling worktree)")
     fi
@@ -639,6 +704,11 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   if [[ "$planned" -eq 0 && "$bytes" -eq 0 && "$new_gitdir" -eq 0 ]]; then outcome=nothing-to-do; fi
   batch_emit "$top" "$outcome" "$reason"
   add_row "$top" "$outcome" "$planned" "$bytes"
+done
+
+batch_emit_dups
+for ((i = 0; i < ${#BATCH_DUPS[@]}; i++)); do
+  add_row "${BATCH_DUPS[$i]}" skipped 0 0
 done
 
 # Invalid inputs reported as blocked outcomes.
@@ -675,8 +745,13 @@ fi
 
 printf 'BatchPlan: %s\n' "$PLAN"
 if tier_has_git; then
-  printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s gitdirs=%s\n' \
+  printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s gitdirs=%s' \
     "$REPOS" "$PLANNED" "$PLAN_BYTES" "$SKIPPED" "$BLOCKED" "${#BATCH_GITDIR_KEYS[@]}"
+  if [[ "$TIER" == all ]]; then
+    printf ' caches_bytes=%s build_bytes=%s git_bytes=%s\n' "$CACHES_BYTES" "$BUILD_BYTES" "$GIT_BYTES"
+  else
+    printf ' git_bytes=%s\n' "$GIT_BYTES"
+  fi
 else
   printf 'Summary: repos=%s planned=%s bytes=%s skipped=%s blocked=%s\n' \
     "$REPOS" "$PLANNED" "$PLAN_BYTES" "$SKIPPED" "$BLOCKED"
