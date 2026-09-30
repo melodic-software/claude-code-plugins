@@ -3,11 +3,48 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.1] - 2026-09-29
+## [0.47.7] - 2026-09-29
 
 ### Fixed
 
 - **The surface warns beside Wrap up while assumptions are still open.** The hint shows the count of unconfirmed assumptions next to the existing understanding-not-confirmed line ([#5460](https://github.com/melodic-software/claude-code-plugins/issues/5460)).
+
+## [0.47.6] - 2026-09-29
+
+### Fixed
+
+- **The interview surface's carry chip reads "carried N rounds" and explains itself on hover.** It no longer repeats the state word ("Open open 2 rounds"), and its tooltip says the question was asked that many rounds before the stage's latest round and is still unanswered ([#5449](https://github.com/melodic-software/claude-code-plugins/issues/5449)).
+
+## [0.47.5] - 2026-09-29
+
+### Fixed
+
+- **The interview wording lint no longer flags a release label such as `V1` as a bare question id.** `round.py` skips `V` followed by digits, so a coined id such as `AC21` still warns, and the rule in `context/surface.md` states the exception ([#5458](https://github.com/melodic-software/claude-code-plugins/issues/5458)).
+
+## [0.47.4] - 2026-09-29
+
+### Fixed
+
+- **Interview surface question cards keep their badge row in column 2** when a question has several `dependsOn` entries. `.qid` spanned a fixed three rows while the card emitted a variable number of needs lines, so the badges landed in the emptied left column and squeezed the title ([#5191](https://github.com/melodic-software/claude-code-plugins/issues/5191)).
+
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
+
+## [0.47.2] - 2026-09-29
+
+### Added
+
+- **`draft-goal-condition` carries a Boundary section for the built-in `/goal` command.** The skill drafts the condition; the person runs `/goal <condition>` with it, and the model never sets a goal.
+- **`plan` carries a Boundary section for the built-in `/plan` command.** Plan mode stays the person's permission-mode switch, offered where Plan Mode Integration already suggests it; the skill keeps the persisted, approval-gated plan.
+
+## [0.47.1] - 2026-09-29
+
+### Fixed
+
+- **`goal-condition-length.sh` exits 2 with a usage hint when stdin is a terminal** and no `--file` is given, instead of blocking on input. Piped and `--file` use are unchanged ([#5291](https://github.com/melodic-software/claude-code-plugins/issues/5291)).
 
 ## [0.47.0] - 2026-09-29
 

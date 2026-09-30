@@ -40,6 +40,11 @@ root is not the default.
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
 
+The OTEL store lines are the three hot files (`<name>:<bytes>B` or `absent`), then `cold:<bytes>B (<n> files)`
+or `cold:absent`, then `last-prune:<UTC time> (<age>)` or `last-prune:never`. A report states hot size (sum of
+the three files), cold size and last-prune age, and flags `last-prune:never` or an age over about 2 days
+(`2d` or more): the scheduled prune is not firing (see [context/operator-setup-retention.md](context/operator-setup-retention.md)).
+
 ## Purpose
 
 **Single place to read Claude Code observability**, where to read telemetry, how the
@@ -195,6 +200,30 @@ retention in effect" section, the six probe lines verbatim.
 
 - `/claude-ops:known-issues`. CC product bugs (not telemetry reads)
 - `/claude-ops:setup`. Turns the hook logging pipeline on, places the guard, migrates the retired shared-file location
+
+## Boundary, the bundled `explain-usage` skill
+
+One native surface also answers "where did my tokens go", and the two get conflated whenever a
+session feels expensive:
+
+- **`explain-usage` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
+  It explains where the current session's tokens went, with one simple chart in plain language.
+  The model and the person can both invoke it where it resolves.
+- **This skill (marketplace plugin).** Reads locally captured telemetry (the OTEL store, the hook
+  event log, ccusage) across sessions: trends, cost, hook latency, which hooks fired, and a
+  per-session timeline.
+
+**Routing.** When the bundled `explain-usage` skill resolves in this session, prefer it for a quick
+plain-language breakdown of this session's tokens. Prefer this skill for cross-session trends,
+cost, hooks, and anything the local telemetry stores hold.
+
+**Mutation gate.** Neither writes to the telemetry stores: `explain-usage` explains, and this skill
+is read-only apart from `--write` reports and the explicit `clean` action. Never chain into one on
+the other's behalf.
+
+**Availability is never assumed.** The skill is gated, and bundled skills vary by settings, plan,
+and host; this section states what to do when it resolves, never that it is present. The four-part
+records live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
 
 ## Gotchas
 

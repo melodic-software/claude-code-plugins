@@ -83,6 +83,8 @@ if [[ -n "$file" ]]; then
     die "--file not found: $file"
   fi
   condition="$(cat -- "$file")"
+elif [[ -t 0 ]]; then
+  die "no condition to read: stdin is a terminal; pipe the condition in or pass --file <path>"
 else
   condition="$(cat)"
 fi

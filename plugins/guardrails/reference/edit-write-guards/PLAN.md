@@ -1,8 +1,19 @@
 # Goal: Edit and Write guardrails fires (#4390)
 
+Status: agent-written draft, not an agreed goal. `/performance:goal` is
+human-gated and no human ran it: Done-when, Realistic and Ideal below were
+written by an agent. The k × S targets are pending a human `/performance:goal`
+run with the Windows harness numbers. The ceilings are what was measured on
+this host, not targets. Tracked on #4390.
+
+The census rows and the Floor line below were measured while the hook rows were
+shell form (`sh`, then bash). Since 0.41.3 every row is exec form: node starts
+first, then the bash it spawns. The rows were not re-measured under exec form on
+this host (strace is not installed). No hook or skill reads this file; it is a
+contributor record.
+
 Target (from /performance:target): the five events in #4390, already measured on
-the dotfiles fan-out harness (E1). This file is the `/performance:goal` record.
-Baselines stay off the tree; the numbers below were taken on this host on
+the dotfiles fan-out harness (E1). Baselines stay off the tree; the numbers below were taken on this host on
 2026-09-28.
 
 `spawn_probe` (22 samples, `/bin/sh -c exit 0`): min 0.3 ms, median 0.4 ms,
@@ -36,21 +47,26 @@ Done when:  each row is at or under its ceiling, verdicts on the existing corpus
 | Event | Census row | Programs (successful execs) | spawns | Wall p50 (direct bash) | k | Ideal |
 | --- | --- | --- | ---: | ---: | ---: | --- |
 | PreToolUse Bash `git status --short` | `block-no-verify.sh` | sh, bash. 0 clones | 2 | 21.29 ms (31.8 S) | 2 | 2 × S |
-| PreToolUse Edit and Write, benign README | `secret-pattern-detection.sh` | sh, bash, grep, 2× git | 13 | 20.32 ms (30.4 S) | 5 execs | 5 × S |
+| PreToolUse Edit and Write, benign README | `secret-pattern-detection.sh` | sh, bash, grep, 2× git. Replacement: not attempted | 13 | 20.32 ms (30.4 S) | 5 execs | 5 × S |
 | PostToolUse Edit `.md`, deleted-path finding, cold | `cli-flag-verify.sh` | sh, bash, 5× git | 19 | 23.98 ms (35.8 S) | 7 execs | 7 × S |
 | Same finding, second fire at that HEAD | `--seed` | history walk omitted | 13 |  |  |  |
 | PostToolUse Edit `.md`, no finding | same row, existing path | sh, bash, 2× git | 9 |  |  |  |
 | PostToolUse Edit `.sh` | same row | cli-flag only | 6 |  |  |  |
 
-**Claim:** the ideal wall, k × S, is below the floor of these fires. No further
-process can be removed without deleting a check. PreToolUse Bash already starts
-no program beyond the shell-form script (spawns=2, creations=0) and still costs
-about 21 ms because the dispatcher sources the guards in-process. PostToolUse's
-cold finding fire's seven execs are the shell, the dispatcher, and five git
-processes: repo root, the tracked list, HEAD, the deleted-path walk, and the
-skip-worktree tag. PreToolUse Edit's extra programs are `grep -E` for the secret
-oracle and two git queries (`rev-parse`, `check-ignore`). awk, tr, and cut were
-incidental and are gone (cold finding 25 → 19, warm 19 → 13).
+**Claim:** the ideal wall, k × S, is below the floor of these fires. PreToolUse
+Bash already starts no program beyond the shell-form script (spawns=2,
+creations=0) and still costs about 21 ms because the dispatcher sources the
+guards in-process. For the PostToolUse cold finding path, the seven execs are
+the shell, the dispatcher, and five git processes: repo root, the tracked list,
+HEAD, the deleted-path walk, and the skip-worktree tag. awk, tr, and cut were
+incidental and are gone (cold finding 25 → 19, warm 19 → 13). Only for that
+path was it shown that no further process can be removed without deleting a
+check. For PreToolUse Edit and Write (13 spawns) the programs are listed (`grep -E`
+for the secret oracle, `git rev-parse`, `git check-ignore`), but replacing them
+with builtins or session state was not attempted, and neither was it for
+PostToolUse:Write. #4390 names hardcoded-path-check's git probes as the suspect
+for its 25-process Windows figure, so the floor for those rows is unknown, not
+demonstrated.
 
 **Basis:** `scripts/hook-census.sh` on this host after that cut, and the
 interleaved wall samples above. `spawn_probe` / `is_measurable` as quoted.

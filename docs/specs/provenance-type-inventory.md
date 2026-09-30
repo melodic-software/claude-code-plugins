@@ -10,6 +10,7 @@ Contracts and shapes the implementation binds to. Working plugin name: `provenan
 | Value | Evidence gate | Reaches relay | Fix-eligible |
 |---|---|---|---|
 | `fingerprint-confirmed` | Matched span above the separation rule against an identity-checked fetched source | Yes | Yes |
+| `vendored-snapshot` | Source read from a committed snapshot because the live fetch was unavailable or failed; the finding records `source.route: vendored-snapshot` and names the snapshot path, its declared upstream ref and its sync date | No (human report) | No |
 | `source-fetched-similar` | Source fetched; below the deterministic rule; unanimous judge verdict STANDS | No (human report) | No |
 | `llm-suspected` | No lexical evidence possible (paraphrase, summary) | No (human report) | No |
 | `not-found` | Budgets exhausted without a source; every searched surface named | No (human report) | No |
@@ -133,7 +134,7 @@ silently collapsed to the documented default.
 | `<name>/audit/rule-stamp-expired` | A four-part record whose as-of date exceeds the configured window (fired values: date, window, days over) | CRITICAL fails identically. IMPORTANT's degradation limb matches with a named trigger: the record's currency ceiling has lapsed, and the first reader acting on the stamped claim without the re-fetch the convention requires acts on an assertion nobody has re-derived. | IMPORTANT | No. The repair is re-deriving the record against its live basis, a judgment the relay surfaces, never applies |
 | `<name>/audit/rule-trigger-less-stamp` | Repo-override only: a dated stamp whose surface states no recheck trigger | The stated-rule limb directly: the consuming repo that enables this check has adopted the upstream-drift required parts, and a trigger-less stamp violates part 4. Portable default stays off because the fleet's stamp forms are not uniformly greppable and a guessing gate converts signal to noise. | IMPORTANT | No. Writing the missing trigger is a judgment about what observable event guards the claim |
 
-Judgment verdicts (`source-fetched-similar`, `llm-suspected`, split rubric outcomes) have NO
+Judgment verdicts (`vendored-snapshot`, `source-fetched-similar`, `llm-suspected`, split rubric outcomes) have NO
 rows: they never reach the relay (the ai-slop V1 boundary, restated in the Brief). The
 fail-safe direction holds structurally: the deterministic rules have no withholding verdicts,
 and every LLM uncertainty falls toward a report-only tier, never toward silence; each tier is
