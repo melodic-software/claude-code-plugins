@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.1] - 2026-09-30
+## [0.48.2] - 2026-09-30
 
 ### Fixed
 
 - **The interview surface sets aside a counted own answer when the session revises the recommendation.** `reply --rec` and `revise --rec` stamp the set-aside fields on a question whose decision is an own answer, so the page and status stop showing the earlier own text as the decision, and the note field no longer prefills from it. Accept, alt and defer decisions stay, and a `record-terminal` after the revision counts ([#5453](https://github.com/melodic-software/claude-code-plugins/issues/5453)).
+
+## [0.48.1] - 2026-09-30
+
+### Fixed
+
+- **The surface warns beside Wrap up while assumptions are still open.** The hint shows the count of unconfirmed assumptions next to the existing understanding-not-confirmed line ([#5460](https://github.com/melodic-software/claude-code-plugins/issues/5460)).
 
 ## [0.48.0] - 2026-09-29
 
