@@ -455,7 +455,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const S = {doc: {meta: {}, groups: [], questions: [], visuals: [], notes: []}, resp: {seq: 0, responses: {}, history: {}, events: []},
     listener: {state: "idle"}, online: false, session: "", sel: null, busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
-    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -749,7 +749,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("eyebrow").textContent = m.eyebrow || (headRound() ? "" : "Interview");
     $("roundLbl").textContent = headRound();
     $("title").textContent = m.title || "Interview";
-    document.title = m.title || "Interview";
     const l = S.doc.questions.filter(live), done = l.filter(q => isAnswered(stateOf(q))).length, wn = l.filter(q => stateOf(q) === "wait").length;
     $("meterText").textContent = done + " of " + l.length + " answered";
     $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
@@ -770,6 +769,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     nb.hidden = !unread || S.fly === "notes"; nb.textContent = unread;
     const un = unseenActs().length, ab = $("actBadge");
     ab.hidden = !un || S.fly === "activity"; ab.textContent = un;
+    const away = document.hidden && S.hiddenBase !== null ? un + unread - S.hiddenBase : 0; // only activity that lands while the tab is hidden
+    document.title = (away > 0 ? "(" + away + ") " : "") + (m.title || "Interview");
     const vb = $("visBadge"), vn = S.sel && S.sel !== SUMMARY && Q[S.sel] ? visualsFor(Q[S.sel]).length : 0;
     vb.hidden = !vn || S.fly === "visuals"; vb.textContent = vn;
   }
@@ -1632,7 +1633,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function startPoll(){ if (pollTimer) return; pollTimer = setInterval(() => refresh().then(() => { setOnline(true); if (!es || es.readyState === 2) connect(); }).catch(() => setOnline(false)), 3000); }
   function stopPoll(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   setInterval(() => { if (es && Date.now() - lastFrame > SILENT_MS) { es.close(); es = null; startPoll(); } }, 5000);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") catchUp(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { S.hiddenBase = unseenActs().length + noteThread().filter(n => n.by === "claude" && Date.parse(n.at) > S.noteSeen).length; return; }
+    S.hiddenBase = null; renderHeader();
+    if (document.visibilityState === "visible") catchUp();
+  });
 
   // ---------- events ----------
   document.addEventListener("click", e => {
