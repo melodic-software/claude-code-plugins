@@ -66,9 +66,11 @@ basis: the fetched source the verdict rests on
 
 ## Collectors
 
+Run from the audit skill directory:
+
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <audit-notes.md>
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-standards.sh" --component <file> --root <repo>
+bash scripts/collect-categories.sh --notes <audit-notes.md>
+bash scripts/collect-standards.sh --component <file> --root <repo>
 ```
 
 `collect-categories.sh` exits 1 when a section or field is missing.
