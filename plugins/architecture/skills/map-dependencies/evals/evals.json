@@ -18,13 +18,13 @@
     {
       "id": 2,
       "name": "unrecognized-ecosystem-is-unknown",
-      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a package.json and no .NET project file. This is a non-interactive run.",
-      "expected_output": "Writes a dependency-graph.json whose result is unknown and whose message names package.json, and a dependency-graph.md with that message and no mermaid flowchart.",
+      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a Gemfile and no .NET project file. This is a non-interactive run.",
+      "expected_output": "Writes a dependency-graph.json whose result is unknown and whose message names Gemfile, and a dependency-graph.md with that message and no mermaid flowchart.",
       "narration": true,
       "expectations": [
         "result is unknown, not ok with an empty node list presented as a graph of no dependencies",
-        "The message names package.json and says an empty graph was not invented",
-        "Does not parse dependencies out of package.json",
+        "The message names Gemfile and says an empty graph was not invented",
+        "Does not parse dependencies out of the Gemfile",
         "dependency-graph.md has no mermaid fence",
         "Does not ask the operator to pick an ecosystem"
       ]
@@ -53,6 +53,20 @@
         "Must not add an edge from a using directive or any other source import",
         "The rendered diagram is a mermaid flowchart, never a C4Component or C4Container block",
         "Passes --cycles-only to render-dependencies.sh rather than deleting edges from the JSON"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "mixed-ecosystems-are-read-and-declined-ones-named",
+      "prompt": "/architecture:map-dependencies\n\nThe convention home resolves and architecture_dir is docs/architecture. The repository has a Node package a whose package.json depends on sibling package b with file:../b, a Go module c whose go.mod replaces foo with ../a, and a Gemfile at the root.",
+      "expected_output": "Runs dependency-graph.sh once. The record's ecosystem is mixed and each node carries its own ecosystem. The Node and Go edges cite their manifest and declaration. The message names the Gemfile as not read, and no Ruby edge or node is drawn.",
+      "narration": true,
+      "expectations": [
+        "result is ok and ecosystem is mixed, with node and go nodes each carrying their own ecosystem",
+        "The a to b edge cites the package.json declaration and the c to a edge cites the go.mod replace line",
+        "The message names the Gemfile as not read",
+        "No node or edge is derived from the Gemfile",
+        "Does not run the script once per ecosystem or merge records by hand"
       ]
     }
   ]
