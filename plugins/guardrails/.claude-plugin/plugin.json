@@ -43,6 +43,12 @@
       "description": "Block irreversible git operations (push --force, reset --hard, clean -f, worktree-wide checkout/restore discards, and push --force-with-lease when it leases against a value git resolves at push time, meaning either no expected value, or an expectation that is not an object id of the repository's own hash width)",
       "default": true
     },
+    "block_credential_read_enabled": {
+      "type": "boolean",
+      "title": "block-credential-read guard",
+      "description": "Block a Bash or PowerShell command whose output is a credential: git credential fill and credential-helper get, gh auth token, echo or printenv of a token-shaped variable, and cat of .git-credentials, .netrc or .env",
+      "default": true
+    },
     "block_hook_bypass_enabled": {
       "type": "boolean",
       "title": "block-hook-bypass guard",
@@ -127,6 +133,12 @@
       "description": "Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force, plus PowerShell fail-closed sink shapes ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, ps-unparsable-herestring-subexpr (block-no-verify honors the same sink tokens, so one entry clears a mutating block both guards hold; a command still unreadable after five granted sink rounds is refused whatever the list holds); empty blocks all",
       "default": ""
     },
+    "block_credential_read_allow": {
+      "type": "string",
+      "title": "block-credential-read allow-list",
+      "description": "Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read; empty blocks all",
+      "default": ""
+    },
     "block_noncanonical_commit_allow": {
       "type": "string",
       "title": "block-noncanonical-commit allow-list",
@@ -153,5 +165,5 @@
       "min": 1
     }
   },
-  "version": "0.43.0"
+  "version": "0.44.0"
 }

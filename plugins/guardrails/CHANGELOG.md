@@ -3,11 +3,17 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.43.0] - 2026-09-29
+## [0.44.0] - 2026-09-30
 
 ### Added
 
 - **A SessionStart notice warns when `node` is missing.** Every guard launches through `node`, so a host without it enforced nothing silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README Requirements section documents the row.
+
+## [0.43.0] - 2026-09-30
+
+### Added
+
+- **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
 
 ## [0.42.5] - 2026-09-30
 
