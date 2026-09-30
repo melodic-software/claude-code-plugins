@@ -38,15 +38,14 @@ An operator facing a full disk acts with OS tools, Recycle Bin / Trash, or the o
 GC; this engine does not become more aggressive under pressure.
 
 Regenerable-but-costly state (a build cache versus an irreplaceable artifact) is not an engine
-signal. High/Medium/Low already encode provenance, not regeneration cost; ranking stays a model
-instruction per the #3858 park.
+signal. High/Medium/Low already encode provenance, not regeneration cost.
 
 **Claim:** the cleaner does not distinguish a tidiness pass from a disk-full emergency; none of
 the three rules yields, and regenerable-at-a-cost is not an engine signal. **Basis:** #3855 is
 the decision carrier and lists changing nothing as a complete answer; relaxing any of those
-rules under pressure is when a wrong deletion is most likely. Option A keeps the current
-defaults rather than funding a proportionality rebuild. **As of:** 2026-09-28. **Recheck:** an
-operator unpark of #3855, or a funded design that names which rule yields and under what
+rules under pressure is when a wrong deletion is most likely. The no-proportionality decision keeps
+the current defaults rather than funding a proportionality rebuild. **As of:** 2026-09-28.
+**Recheck:** reopening #3855, or a funded design that names which rule yields and under what
 bounded conditions.
 
 ## Non-overridable checks
@@ -56,12 +55,15 @@ bounded conditions.
   a recursive walk target, while `--root-children` may address that same root only as a listing of
   immediate non-OS child entries (regular files and directories) with explicit `--root-child`
   selection (never a whole-root
-  walk); `--root-children` is also valid on a non-OS directory (a user home), where only
-  directories are admitted, so approved immediate children can be re-inventoried into one snapshot
-  without walking the rest of the tree; a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
+  walk); `--root-children` is also valid on a directory that is not a volume root (a user home),
+  where only directories are admitted and hidden and OS-named ones stay selectable, so approved
+  immediate children can be re-inventoried into one snapshot without walking the rest of the tree;
+  a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
-  confirm), and deletion stays gated by the preview and per-tier approval;
+  confirm), its `--root-children` listing uses the same strict ladder as an OS-managed volume root
+  (`System Volume Information`, `$Recycle.Bin`, `$`-prefixed, hidden, and OS-owned names are
+  withheld), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
   registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
   verifier may classify a whole standalone Git checkout `clear` under the complete evidence bundle
@@ -165,9 +167,9 @@ question, not this trigger firing. **Basis:** the trigger quoted from the
 [#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
 affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
 near-miss recurrence), reopen as a design issue with full security review." No post-#1109
-near-miss recurrence is on the record in this checkout; #3855 remains the open related
-design issue. **As of:** 2026-09-28. **Recheck:** a documented post-#1109 near-miss in the
-manual lane, or #3855 closing with a per-primitive design.
+near-miss recurrence is on the record in this checkout. #3855 closed 2026-09-28 with the
+no-emergency-lane decision, not a per-primitive design. **As of:** 2026-09-28. **Recheck:** a
+documented post-#1109 near-miss in the manual lane, or a macOS consumer.
 
 ## Manual-handoff revalidation (`handoff-verify`)
 
@@ -220,7 +222,8 @@ and every path approved in the same handoff, and must resolve a `--git-common-di
 candidate shares stash refs and is not an independent backup. Only GitHub.com is implemented:
 unsupported providers, missing tools, timeouts, diagnostics, malformed output, set mismatches,
 dirty trees, unconfirmed heads, and missing stash copies all fail closed and retain the original
-categorical reasons.
+categorical reasons, except that the `accept_unpublished` acknowledgement below waives the dirty-tree
+and unconfirmed-head reasons for one exact approved path.
 
 An operator who wants a throwaway checkout gone even though it fails gates 1 or 2 records that on
 the evidence entry: `"accept_unpublished": true` with a non-empty `"reason"`. The engine accepts it
@@ -230,10 +233,10 @@ cannot carry it. For that repository, porcelain output and local heads that are 
 `accepted-unpublished` and the evidence result lists each acknowledgement with its reason under
 `accept_unpublished`. A status or head probe that fails to run still fails closed, and gate 3, the
 repository-set and Git-boundary checks, and every check in the next paragraph still apply. Without
-the acknowledgement the verdict is unchanged. The acknowledgement exists because a categorical
-refusal did not stop the deletion in #4227: the operator had the directories removed outside the
-engine with every check skipped. Before deleting under it, tell the operator that unpushed commits
-and untracked or ignored files in the checkout will be lost.
+the acknowledgement the verdict is unchanged. A refusal alone does not prevent deletion, so the
+lane keeps every other check in force and records the acknowledgement. Before deleting under it,
+tell the operator that unpushed commits and untracked or ignored files in the checkout will be
+lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
@@ -347,8 +350,7 @@ settings reach, get the marketplace without adding it themselves"
 ([extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces)).
 Scope is `Any file`. A `directory` source is "for development only". Project-scope entries were
 already declined because repository content is hostile to this guard. User-scope is declined too:
-the key's documented purpose is repo-or-org registration, a plugin setup skill and
-`claude plugin marketplace add` both write user settings, and distinguishing user-scope from
+the key's documented purpose is repo-or-org registration, and distinguishing user-scope from
 project-scope in a skill-frontmatter hook would add a settings-merge parser this belt does not
 need. The directory channel stays pinned to harness-written `known_marketplaces.json`.
 **Claim:** `extraKnownMarketplaces` is not a trusted directory-marketplace channel for this
@@ -564,15 +566,13 @@ tries `python3`, then `python`, then `py -3`, rejects the zero-length `WindowsAp
 in monitor mode, emits the `systemMessage` itself when nothing resolves, so a host with no usable
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
 and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
-host where `node` is missing, or where that launcher cannot resolve Git Bash, takes the guard and
+host where `node` is missing, or where that launcher resolves no bash, takes the guard and
 its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
-the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The one deliberate
-difference from the watchdog is the engine gate's marker-free commands: they proceed unchecked with a
-once-per-session `systemMessage` and `additionalContext` notice rather than an `ask`, because a
-missing interpreter is persistent where a missed deadline is transient, and an `ask` on every
-`PowerShell(*& $*)` call would stop unrelated work. The Stop detector is kept as the end-of-turn
+the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
+marker-free commands differ from the watchdog: they proceed unchecked with a once-per-session
+`systemMessage` and `additionalContext` notice rather than an `ask`. The Stop detector is kept as the end-of-turn
 backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
 <https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
 exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
@@ -679,6 +679,10 @@ performs a cheap top-level probe and returns `large-target-confirmation-required
 unbounded traversal, so an unauthenticated whole-volume walk cannot begin by omission. This is
 scan-cost gating (time and resources), distinct from the hard rejection of an OS-managed root as an
 invalid target.
+
+`--sizes-only`, as implemented, bypasses that gate. It does not ask the large-scan question, does
+not stop at VCS or protected directories (it sums through them, read-only, and emits no entries),
+and has no entry cap. Its snapshot is refused by disposition.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
