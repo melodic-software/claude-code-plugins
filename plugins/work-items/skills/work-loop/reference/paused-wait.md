@@ -44,8 +44,9 @@ headless sessions never writes it. Wakes carry the detection there: a paused lan
 1. Fingerprint the `account.email` of the snapshot the trip was read from. No `account.email`: the
    entry is **unattributed**, so `latched_account` stays `null`.
 2. Write `paused_until` and `latched_account` together.
-3. Read the `.claude.json` fingerprint. Cannot attribute, or equal to `latched_account`: stay
-   paused. Different: the operator switched after that snapshot, so apply step 4 below at once.
+3. Read the `.claude.json` fingerprint. Stay paused when it cannot be attributed, when
+   `latched_account` is `null` (nothing to differ from), or when the two are equal. Different: the
+   operator switched after that snapshot, so apply step 4 below at once.
 
 ## On each wake and each Monitor tick
 

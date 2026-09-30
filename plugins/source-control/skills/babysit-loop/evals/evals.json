@@ -199,6 +199,20 @@
         "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint",
         "Never prints, logs, or interpolates the address or the state file"
       ]
+    },
+    {
+      "id": 13,
+      "name": "babysit-loop-unattributed-trip-stays-paused",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose seven-day window reads 92% and which has no account.email field. ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a readable .oauthAccount.emailAddress. Durable state carries no latched_account.",
+      "expected_output": "The 92% reading trips the pause threshold. The snapshot has no account.email, so the pause entry is unattributed: latched_account stays null, and with no latched account there is nothing for the .claude.json account to differ from, so the lane does not treat it as a switch and does not re-evaluate at entry. It stays paused with paused_until set to the seven-day window's resets_at and rate_limit_latch set, and stops mutating work. On its first later wake it reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, records the fingerprint as latched_account, and continues the ordinary re-evaluation.",
+      "files": [],
+      "expectations": [
+        "Leaves latched_account null at pause entry because the tripping snapshot has no account.email",
+        "Does not treat the readable .claude.json account as a switch at pause entry and does not drop the pause through the unknown-windows branch",
+        "Stays paused until the tripped window's resets_at with rate_limit_latch set, and stops mutating work",
+        "On the first later wake records the .claude.json fingerprint as latched_account and continues the ordinary re-evaluation",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
     }
   ]
 }

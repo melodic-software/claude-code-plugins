@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`babysit-loop` drops a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet, and the lane latches the account of the snapshot that tripped the pause, not the account `.claude.json` names at pause entry. The paused wait (`reference/paused-wait.md`) reads `.oauthAccount.emailAddress` at pause entry and on each wake and Monitor tick. On a change it clears the latch when the new account is below the pause threshold, re-latches at or above it, and drops the latch and runs reactive-only when no fresh snapshot attributes the new account. It records the event in cycle telemetry. Two evals cover the unknown-windows drop on a wake and a switch found at pause entry.
+- **`babysit-loop` drops a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet, and the lane latches the account of the snapshot that tripped the pause, not the account `.claude.json` names at pause entry. The paused wait (`reference/paused-wait.md`) reads `.oauthAccount.emailAddress` at pause entry and on each wake and Monitor tick. On a change it clears the latch when the new account is below the pause threshold, re-latches at or above it, and drops the latch and runs reactive-only when no fresh snapshot attributes the new account. It records the event in cycle telemetry. Three evals cover the unknown-windows drop on a wake, a switch found at pause entry, and an unattributed trip that stays paused.
 
 ## [0.63.0] - 2026-09-29
 
