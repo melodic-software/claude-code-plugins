@@ -1,5 +1,5 @@
 ---
-description: "Answers LLM-evaluation design questions from Anthropic's official evaluation guidance: success criteria, eval-suite design, and grading methods for LLM-based applications and Claude Code skills. Use when: 'define success criteria', 'how do I eval this', 'LLM eval', 'measure prompt quality', 'LLM judge', 'model-graded eval', 'golden answer', 'grading rubric', 'eval grading method', 'exact match vs LLM-graded', 'how many eval cases', 'is my success criteria measurable'. Knowledge (WHY/WHAT of eval design), not a runner; for scaffolding a suite use /evals:design, and for running and scoring a plugin's suite against a no-plugin baseline use /evals:plugin-eval."
+description: "When the bundled claude-api skill resolves in this session, prefer its hillclimb for sweeping model and effort against an existing eval suite; this skill when the suite does not exist yet or its criteria are not yet measurable, before handing the suite to that search. Answers LLM-evaluation design questions from Anthropic's official evaluation guidance: success criteria, eval-suite design, and grading methods for LLM-based applications and Claude Code skills. Use when: 'define success criteria', 'how do I eval this', 'LLM eval', 'measure prompt quality', 'LLM judge', 'model-graded eval', 'golden answer', 'grading rubric', 'eval grading method', 'exact match vs LLM-graded', 'how many eval cases', 'is my success criteria measurable'. Knowledge (WHY/WHAT of eval design), not a runner; for scaffolding a suite use /evals:design, and for running and scoring a plugin's suite against a no-plugin baseline use /evals:plugin-eval."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
@@ -64,11 +64,11 @@ scores, or scaffolds evals. To interview for criteria and scaffold an eval suite
 One native surface consumes the eval suites this plugin teaches you to design, and the two get
 conflated when the question is "how do I find the cheapest configuration that holds my target":
 
-- **`claude-api` (bundled skill), `hillclimb` and `build-eval` subcommands.** Ship with Claude Code
-  rather than as a marketplace plugin. Given an eval suite, `hillclimb` splits cases into train and
-  test sets, proposes one configuration change per round from failing train transcripts (prompt
-  text, tool descriptions, model and effort), and scores the winner on the held-out test set;
-  `build-eval` scaffolds the suite it needs. They run evals and change configuration.
+- **`claude-api` (bundled skill)**: given an eval suite, its `hillclimb` subcommand splits cases
+  into train and test sets, proposes one configuration change per round from failing train
+  transcripts (prompt text, tool descriptions, model and effort), and scores the winner on the
+  held-out test set; its `build-eval` subcommand scaffolds the suite it needs. They run evals and
+  change configuration.
 - **This skill (marketplace plugin).** Knowledge about designing the suite in the first place:
   success criteria, eval anatomy, grading methods, and effort as an eval axis. It runs nothing and
   edits nothing.
