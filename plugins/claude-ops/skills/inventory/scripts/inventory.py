@@ -608,6 +608,20 @@ _NUMBER_RE = re.compile(
 )
 
 
+def _primitive_text(text: str, *, joined: bool) -> str | None:
+    """How a template (or, `joined`, `Array.join`) renders a known
+    primitive literal: `true`, `false`, `null`, `undefined`, or a plain
+    decimal integer. None for anything else, which stays a runtime value."""
+    text = text.strip()
+    if text in ("null", "undefined") or text.startswith("void "):
+        return "" if joined else ("null" if text == "null" else "undefined")
+    if text in ("true", "false"):
+        return text
+    if re.fullmatch(r"-?(?:0|[1-9]\d{0,15})", text):
+        return str(int(text))
+    return None
+
+
 def _literal_truthy(text: str) -> bool | None:
     """How `||` sees a non-string literal: truthy, falsy, or None (unknown)."""
     text = text.strip()
@@ -1258,7 +1272,10 @@ def _read_string(
                 if hops > 1
                 else None
             )
-            if value is None:
+            primitive = _primitive_text(src[j + 2 : end - 1], joined=False)
+            if value is None and primitive is not None:
+                parts.append([primitive])
+            elif value is None:
                 parts.append([_ELLIPSIS])
                 via.add("template")
             else:
@@ -1312,6 +1329,10 @@ def _array_join(
                 out.extend(elements(start + 3, inner - 1))
                 continue
             value = _sub_value(src, braces, start, stop + 1, acc, **kw)
+            primitive = _primitive_text(src[start : stop + 1], joined=True)
+            if value is None and primitive is not None:
+                out.append([primitive])
+                continue
             # A partial element keeps a runtime alternative ahead of its values.
             partial = not value or value.partial
             out.append(([_ELLIPSIS] if partial else []) + list(value or []))
@@ -1486,6 +1507,20 @@ def _declaration(
         ]
         return top[0] if len(top) == 1 else None
     pattern = pattern_for(ident)
+    if pattern_for is _function_pattern:
+        # A function declaration is hoisted through its whole block, so the
+        # innermost visible one wins wherever it sits, then the nearest.
+        visible = [
+            m for m in pattern.finditer(src, lo, hi) if _visible(braces, m.start(), at)
+        ]
+        if not visible:
+            return None
+
+        def rank(m: re.Match[str]) -> tuple[int, int]:
+            block = braces.enclosing(m.start())
+            return (block[0] if block else -1, -abs(m.start() - at))
+
+        return max(visible, key=rank)
     found = None
     for m in pattern.finditer(src, lo, at):
         if _visible(braces, m.start(), at):
@@ -1740,9 +1775,9 @@ def _resolve_chain(
         # The object the reader sees: the visible binding holding a literal,
         # following aliases (`let t=c`) through each one's own visible
         # binding; no visible binding at all is unresolved.
-        obj, target, where = None, ident, at
+        obj, target, where, hop_deferred = None, ident, at, deferred
         for _ in range(_MAX_HOPS):
-            v = _binding_value(src, braces, target, where, deferred=deferred)
+            v = _binding_value(src, braces, target, where, deferred=hop_deferred)
             if v is None:
                 break
             close_v = braces.pairs.get(v)
@@ -1752,6 +1787,9 @@ def _resolve_chain(
             alias = re.match(_IDENT + r"(?=[;,)\s])", src[v : v + 64])
             if not alias:
                 break
+            # An alias initializer runs when its own scope does: a top-level
+            # one at load time, so it reads no later binding.
+            hop_deferred = hop_deferred and braces.enclosing(v) is not None
             target, where = alias.group(0), v
         if obj is None:
             return None

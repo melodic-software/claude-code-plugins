@@ -1407,6 +1407,15 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
         self.assertEqual(_tool(src, "Holes")["description"], "-A--B")
 
+    def test_known_primitives_render_like_javascript(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Joined";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Count ${2} ${false} ${null}`});"
+            '$t({name:Rz,maxResultSizeChars:1,description:["A",null,false,0,"B"].join("-")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Count 2 false null")
+        self.assertEqual(_tool(src, "Joined")["description"], "A--false-0-B")
+
     def test_a_nullish_fallback_keeps_an_empty_string(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:""??"FALLBACK"});'
         self.assertEqual(_tool(src, "Probe")["description"], "")
@@ -1518,6 +1527,22 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "REAL")
         self.assertEqual(_tool(src, "Alias")["description"], "LATER")
+
+    def test_a_hoisted_local_function_shadows_an_outer_one(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function helper(){return"WRONG"}'
+            'function outer(){return helper();function helper(){return"LOCAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "LOCAL")
+
+    def test_a_top_level_alias_reads_no_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";let tt=later;'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return tt.p}});"
+            'var later={p:"LATER"};'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
 
     def test_a_later_declaration_must_be_visible(self) -> None:
         src = _modules(
