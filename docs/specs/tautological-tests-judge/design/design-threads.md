@@ -46,14 +46,14 @@ the configured class (a `claude-sonnet-*` session with judge `sonnet`), it uses
 session (assistant lines carry `"model":"claude-opus-5-5"`); undocumented format, hence the probe.
 
 Superseded 2026-09-30 (user, accuracy first): the defaults are `opus` at `medium`, fallback
-`sonnet`, until the Phase 4 sweep picks the most accurate arm (PLAN.md Open questions).
+`sonnet`, until the Phase 4 sweep picks the most accurate arm (plan.md Open questions).
 
 Amended 2026-09-30 (#5605 review): the judge's class must differ from every writer, not only the
 main transcript's model. Subagent assistant lines live only in
 `<session>/subagents/agent-<agent_id>.jsonl` (probe R2-P2), so the writer classes are the main
 session's plus those of the subagents whose `agent_id` the session files record for the judged
 file. When opus, sonnet and haiku are all writers, the keys go to UNKNOWN (derived from Q7, never
-fable unless configured). Rules in PLAN.md Phase 3, "Model".
+fable unless configured). Rules in plan.md Phase 3, "Model".
 
 Raters (Q12 amendment, handoff h8): the human, a model rater, and the judge. The model rater's class
 differs from the judge's.
@@ -67,7 +67,7 @@ Basis: `plugins/testing/.claude-plugin/plugin.json` userConfig; test-scan.sh:26.
 ### DT5. Artifact location (resolved)
 
 Decision: work in `docs/topics/tautological-tests-judge/` on branch
-`docs/tautological-tests-judge-design` (worktree `/home/kyle/worktrees/ccp-tt-judge`); graduate to
+`docs/tautological-tests-judge-design` (worktree `<worktrees-root>/ccp-tt-judge`); graduate to
 `docs/specs/tautological-tests-judge/` before merge; rewrite the spec's Release 2 sanity check
 (spec:877) to the graduated path in the same PR. Basis: handoff h7, spec:877.
 
@@ -317,7 +317,7 @@ by the hang timeout, not special-cased.
 
 ## Probes for the plan's first phase
 
-PLAN.md Phase 1 lists the probes; their results are rows R2-P1 to R2-P11 in the "Release 2 probes"
+plan.md Phase 1 lists the probes; their results are rows R2-P1 to R2-P11 in the "Release 2 probes"
 section of `docs/specs/tautological-tests/probes.md`.
 
 ## Deferred

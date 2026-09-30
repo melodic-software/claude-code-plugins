@@ -97,7 +97,7 @@ Housekeeping:
   verdicts for the user to approve; it never gates a stop, a commit or `--check`, and it never
   blocks on its own failure."
 - Graduation: `git mv docs/topics/tautological-tests-judge docs/specs/tautological-tests-judge`
-  before PR A flips ready; spec:877 becomes `test -f docs/specs/tautological-tests-judge/PLAN.md`
+  before PR A flips ready; spec:877 becomes `test -f docs/specs/tautological-tests-judge/plan.md`
   in the same commit. Later phases edit the graduated files.
 
 **Sanity Check:**
@@ -108,7 +108,7 @@ Housekeeping:
 - `grep -c 'Section 5' docs/specs/tautological-tests.md` returns 0.
 - `grep -c 'Amended 2026-09-29 (user' docs/specs/tautological-tests.md` returns 2 and
   `grep -c 'Clarified 2026-09-30 (design DT16)' docs/specs/tautological-tests.md` returns 1.
-- `test -f docs/specs/tautological-tests-judge/PLAN.md && ! test -e docs/topics/tautological-tests-judge` passes.
+- `test -f docs/specs/tautological-tests-judge/plan.md && ! test -e docs/topics/tautological-tests-judge` passes.
 - `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0.
 
 ### Phase 2: Block listing and session state (DT8, DT13) [TODO]
@@ -230,9 +230,9 @@ Shared pieces:
   `tail -n 400` of the main transcript, plus the same for each subagent whose `agent_id` a session
   file for that file's in-doubt blocks records. Paths use the session id of the directory the session
   file sits in (an adopted predecessor's, not the current one): `<tdir>/<sid>.jsonl` and
-  `<tdir>/<sid>/subagents/agent-<agent_id>.jsonl`, `<tdir>` = `dirname(transcript_path)` (R2-P2:
-  subagent lines live only there; subagent hook payloads carry the main `transcript_path`, probe
-  logs `p12-hooks.jsonl`). Read with `jq -R 'fromjson? | ...'`; a missing file adds no class. The
+  `<tdir>/<sid>/subagents/agent-<agent_id>.jsonl`, `<tdir>` = `dirname(transcript_path)` (probe R2-P2:
+  subagent lines live only there, and subagent hook payloads carry the main `transcript_path`). Read with
+  `jq -R 'fromjson? | ...'`; a missing file adds no class. The
   main session's class is always a writer class, since the main agent may have written the code the
   test restates. Q7 requires a different model from every writer: the judge class if it is not a
   writer class, else the fallback, else the next of `opus, sonnet, haiku` that is not (never fable
@@ -412,10 +412,10 @@ Other files:
 
 **Sanity Check:**
 
-- `grep -cE '^### Phase [0-9]+:' docs/specs/tautological-tests-judge/PLAN.md` equals
-  `grep -cE '^### Phase [0-9]+:.*\[DONE\]$' docs/specs/tautological-tests-judge/PLAN.md` (every
+- `grep -cE '^### Phase [0-9]+:' docs/specs/tautological-tests-judge/plan.md` equals
+  `grep -cE '^### Phase [0-9]+:.*\[DONE\]$' docs/specs/tautological-tests-judge/plan.md` (every
   phase heading is `[DONE]`; the Phase 5 bullet's "stays `[TODO]`" is prose, not a tag).
-- `git grep -n 'docs/topics/tautological-tests-judge' -- ':(exclude)docs/specs/tautological-tests-judge/PLAN.md' ':(exclude)docs/specs/tautological-tests-judge/design/design-threads.md'`
+- `git grep -n 'docs/topics/tautological-tests-judge' -- ':(exclude)docs/specs/tautological-tests-judge/plan.md' ':(exclude)docs/specs/tautological-tests-judge/design/design-threads.md'`
   returns nothing (those two files name the old path only as history: the graduation step, its
   Phase 1 check, DT5 and this check itself).
 
