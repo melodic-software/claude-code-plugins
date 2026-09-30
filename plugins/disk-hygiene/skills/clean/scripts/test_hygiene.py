@@ -9518,6 +9518,11 @@ class GuardTests(unittest.TestCase):
         """#4226: a mutation word inside a quoted literal of an allow-listed command."""
         for command in (
             'git log --oneline --grep "move"',
+            "git log --grep 'move'",
+            "gh issue list --search 'rename flag'",
+            "Write-Output 'rm is a word'",
+            "Get-ChildItem | Where-Object { $_.Name -eq 'rd' }",
+            "gh issue comment 1 --body 'the move to a batched lane'",
             'gh issue list --search "rename flag"',
             'git commit -m "del stale entry"',
             'Write-Output "rm is a word"',
@@ -9540,6 +9545,11 @@ class GuardTests(unittest.TestCase):
             'Write-Output @"\n$(Remove-Item x)\n"@',
             'git log --grep "$($item.Name) move"',
             # Command position, and unquoted arguments.
+            'Write-Output "$(Remove-Item x)"',
+            "iex 'rm x'",
+            "& 'rm' x",
+            "git log; rm x",
+            "git status | Remove-Item x",
             "Remove-Item x",
             "Move-Item a b",
             "Rename-Item a b",
@@ -9598,6 +9608,27 @@ class GuardTests(unittest.TestCase):
             verdict = guard.powershell_decision(command, True)
             assert verdict is not None, command
             self.assertEqual("ask", verdict[0], command)
+
+    def test_powershell_bare_mutation_cmdlets_prompt_or_deny(self) -> None:
+        """#4226: a bare mutation cmdlet or alias keeps its ask, and its audit-only deny."""
+        for command in (
+            "Remove-Item x",
+            "rm x",
+            "del x",
+            "Move-Item a b",
+            "mv a b",
+            "Rename-Item a b",
+            "ren a b",
+            "Set-Content x y",
+            "Out-File x",
+        ):
+            with self.subTest(command=command):
+                verdict = guard.powershell_decision(command, True)
+                assert verdict is not None, command
+                self.assertEqual("ask", verdict[0], command)
+                verdict = guard.powershell_decision(command, False)
+                assert verdict is not None, command
+                self.assertEqual("deny", verdict[0], command)
 
     def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
         """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
