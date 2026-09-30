@@ -3531,6 +3531,24 @@
     },
     {
       "native": {
+        "name": "output-style",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "animation",
+        "skill": "learn-style",
+        "kind": "skill"
+      },
+      "reason": "Shared word only: /output-style switches Claude Code's response style; learn-style studies an art style for the animation plugin. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "ec2d2d2f5067a922525327def51e6840",
+        "component": "6d6c6ce151e7c54ac487c0338382b067"
+      }
+    },
+    {
+      "native": {
         "name": "plan",
         "class": "builtin-command"
       },
