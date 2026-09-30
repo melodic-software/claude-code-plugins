@@ -755,9 +755,11 @@ values outside this shape are in "The `verification:` values" below. The
 acceptance gate prints this value as `verification=<value>`. `pending` left in place after the
 boundary closed is the one wrong value: a later reader cannot tell it from a run still waiting. A
 `fail` sends the run back to the phase or dimension the failed criterion names, the family's own
-routing (research at `Budget: low` is bounded: `skills/research/SKILL.md`, "Effort, source
-breadth"), and the value is rewritten when the re-run is verified. It is not a place to annotate an
-artifact with its own failure and ship it.
+routing, and the value is rewritten when the re-run is verified. It is not a place to annotate an
+artifact with its own failure and ship it. The one exception is research at `Budget: low`, which
+does not resume the researcher on a verifier-owned FAIL row: the artifact keeps the `fail` value
+with the failed rows named, and the result is presented with that caveat (`skills/research/SKILL.md`,
+"Effort, source breadth").
 
 **When no verifier can be dispatched.** The `Agent` tool is denied, the session is at the nesting
 limit, or the invoking context is itself a subagent with no spawn: write
