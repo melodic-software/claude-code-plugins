@@ -3,13 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.75.1] - 2026-09-30
+## [0.75.2] - 2026-09-30
 
 ### Fixed
 
 - **`audit-native-overlap generate` marks an evidence line that carries an em dash with an
   `ai-slop-ignore` comment.** A native description is quoted verbatim, so the dash stays and the
   ai-slop audit skips that line instead of reporting it.
+
+## [0.75.1] - 2026-09-30
+
+### Changed
+
+- **Hook event log budget records Windows Git Bash figures.** `reference/hook-log-budget.md` and
+  the README replace the unmeasured Windows placeholder with the captured spawn floor, parallel
+  wall time, append integrity and `ls -t` tie. The switch stays off by default.
+- **`measure-hook-log-budget.sh` times S through the bash the launcher spawns** and records
+  `invoking_bash_path`, `invoking_bash_native_path`, `launcher_bash_path`, `uname_s` and the PATH
+  bash's own floor. On Windows the launcher resolves Git's `bin\bash.exe` wrapper, not the
+  `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S. The two native
+  paths print in `cygpath -m` form (`C:/Program Files/Git/bin/bash.exe`), which the
+  shell-portability gate does not read as a GNU `\b` regex escape.
 
 ## [0.75.0] - 2026-09-30
 
