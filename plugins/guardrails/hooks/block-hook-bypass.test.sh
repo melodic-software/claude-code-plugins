@@ -2003,8 +2003,9 @@ run_pwsh_cwd "PS exempt: single-quoted destination plus a switch (allowed)" \
   "Get-ChildItem | Export-Csv -Path '$PSD/my out.csv' -NoTypeInformation" 0
 run_pwsh_cwd "PS exempt: Tee-Object -FilePath into plugin data (allowed)" \
   "Get-ChildItem | Tee-Object -FilePath $PSD/t.txt" 0
+WIN_HOME="C:\\"'Users\me'
 run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
-  'Get-ChildItem | Export-Csv -Path C:\Us'ers'\me\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
+  "Get-ChildItem | Export-Csv -Path ${WIN_HOME}"'\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
 run_pwsh_cwd "PS exempt: temp tree (allowed)" \
   "Write-Output hi > /tmp/bhb-ps-probe/out.txt" 0
 run_pwsh_cwd "PS exempt: configured scratch root (allowed)" \
