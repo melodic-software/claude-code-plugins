@@ -255,9 +255,10 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         id="merge.autopilot-tier-without-required-sets",
         claim=(
-            "The autopilot merge tier is fail-closed: the umbrella flag alone, with none "
-            "of --lane-logins, --approver-bot-logins, or --block-labels, refuses at exit 3 "
-            "before any network access."
+            "The autopilot merge tier is fail-closed: the umbrella flag alone, with "
+            "neither --lane-logins nor --approver-bot-logins, refuses at exit 3 before "
+            "any network access. Its block labels may instead come from the target "
+            "repository, so that set is checked once the repository's policy is read."
         ),
         entry_point=MERGE_CLI,
         argv=(
@@ -267,7 +268,7 @@ REFUSALS: tuple[Refusal, ...] = (
             "--autopilot-merge-tier",
         ),
         exit_code=3,
-        error_contains=("--lane-logins", "--approver-bot-logins", "--block-labels"),
+        error_contains=("--lane-logins", "--approver-bot-logins"),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
         gh_free=True,
@@ -286,11 +287,11 @@ REFUSALS: tuple[Refusal, ...] = (
             "--autopilot-merge-tier",
             "--lane-logins",
             "lane",
-            "--approver-bot-logins",
-            "bot",
+            "--block-labels",
+            "do-not-merge",
         ),
         exit_code=3,
-        error_contains=("--block-labels",),
+        error_contains=("--approver-bot-logins",),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
         gh_free=True,

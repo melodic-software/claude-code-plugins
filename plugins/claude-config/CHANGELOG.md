@@ -5,11 +5,17 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [0.55.1] - 2026-09-30
+## [0.55.2] - 2026-09-30
 
 ### Changed
 
 - `automode-entry-diff.sh --oracle` removes its scratch directory on exit; the suites remove their temporary directories.
+
+## [0.55.1] - 2026-09-30
+
+### Changed
+
+- **`audit`, `audit-instructions` and `audit-permission-state` descriptions fit the 500-character listing budget.** Each keeps its leading native-route phrase, its quoted trigger phrases and its sibling boundary, in fewer words ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
 
 ## [0.55.0] - 2026-09-30
 

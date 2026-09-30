@@ -22,9 +22,11 @@ import unittest
 from typing import Any
 from unittest import mock
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_gh as gh
+from repo_config_fake import RepoConfigFake
 import babysit_merge as merge
 import refresh_pr_branch as refresh
 
@@ -1214,6 +1216,9 @@ class AutoMergeArming(unittest.TestCase):
     """`--auto` arms auto-merge only when running checks are the sole hold and
     both AI review lanes have finished on the live head."""
 
+    def setUp(self) -> None:
+        RepoConfigFake().install(self)
+
     CI_RULES = [
         {
             "type": "required_status_checks",
@@ -1422,6 +1427,247 @@ class RefreshDisarmsAutoMerge(unittest.TestCase):
     def test_disarm_failure_raises(self) -> None:
         with self.assertRaises(RuntimeError):
             self._disarm(armed=True, disable_error=True)
+
+
+class RepoPolicyReachesTheGate(unittest.TestCase):
+    """`main` reads the target repository's policy; the flags are the fallback."""
+
+    TIER_FLAGS = (
+        "--autopilot-merge-tier",
+        "--lane-logins",
+        LANE,
+        "--approver-bot-logins",
+        APPROVER,
+        "--block-labels",
+        "do-not-merge",
+    )
+
+    def _run_real_gate(
+        self, ref: str, pr: dict[str, Any], *flags: str
+    ) -> tuple[int, dict[str, Any]]:
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                return pr
+            if args[0] == "api":
+                return RULES
+            raise AssertionError(f"unexpected gh_json call: {args}")
+
+        argv = ["babysit_merge.py", ref, "--allowed-owners", "owner", *flags]
+        out = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(merge, "gh_json", side_effect=gh_json),
+            mock.patch.object(merge, "resolve_authors", return_value=[]),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(
+                merge, "fetch_pull_request_reviews", return_value=CLEAN_APPROVAL
+            ),
+            mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
+            mock.patch.object(
+                merge, "fetch_pull_request_review_comments", return_value=[]
+            ),
+            contextlib.redirect_stdout(out),
+        ):
+            code = merge.main()
+        return code, json.loads(out.getvalue())
+
+    def _run_stubbed_gate(self, *flags: str) -> tuple[int, dict[str, Any], mock.Mock]:
+        evaluate = mock.Mock(
+            return_value={
+                "ready": True,
+                "blockers": [],
+                "headRefOid": HEAD,
+                "autoMerge": {"ready": True, "blockers": []},
+            }
+        )
+        argv = [
+            "babysit_merge.py",
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            *flags,
+        ]
+        out = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(merge, "evaluate", evaluate),
+            mock.patch.object(merge, "allowed_method", return_value="squash") as method,
+            mock.patch.object(
+                merge,
+                "gh_capture",
+                return_value=mock.Mock(returncode=0, stdout="", stderr=""),
+            ),
+            contextlib.redirect_stdout(out),
+        ):
+            code = merge.main()
+        return code, json.loads(out.getvalue()), method
+
+    def test_repo_block_label_added_to_the_userconfig_set_blocks_merge(self) -> None:
+        labeled = _pr(labels=[{"name": "repo-veto"}])
+        RepoConfigFake({}).install(self)
+        code, result = self._run_real_gate("owner/repo#1", labeled, *self.TIER_FLAGS)
+        self.assertEqual((code, result["ready"]), (0, True), result["blockers"])
+
+        RepoConfigFake(
+            {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
+        ).install(self)
+        code, result = self._run_real_gate("owner/repo#1", labeled, *self.TIER_FLAGS)
+        self.assertEqual((code, result["ready"]), (10, False))
+        self.assertEqual(result["autopilotMergeTier"]["blockingLabels"], ["repo-veto"])
+
+    def test_two_repositories_get_different_effective_holds(self) -> None:
+        RepoConfigFake(
+            {
+                "owner/a": "## babysit_merge_block_labels\n- hold-a\n",
+                "owner/b": "## babysit_merge_block_labels\n- hold-b\n",
+            }
+        ).install(self)
+        pr = _pr(labels=[{"name": "hold-a"}])
+        code_a, held = self._run_real_gate("owner/a#1", pr, *self.TIER_FLAGS)
+        code_b, clear = self._run_real_gate("owner/b#1", pr, *self.TIER_FLAGS)
+        self.assertEqual((code_a, held["ready"]), (10, False))
+        self.assertEqual((code_b, clear["ready"]), (0, True), clear["blockers"])
+
+    def test_repo_block_label_is_add_only(self) -> None:
+        RepoConfigFake(
+            {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
+        ).install(self)
+        code, result = self._run_real_gate(
+            "owner/repo#1",
+            _pr(labels=[{"name": "do-not-merge"}]),
+            *self.TIER_FLAGS,
+        )
+        self.assertEqual(code, 10)
+        self.assertEqual(
+            result["autopilotMergeTier"]["blockingLabels"], ["do-not-merge"]
+        )
+
+    def test_repo_block_labels_enable_the_tier_with_the_flag_unset(self) -> None:
+        flags = self.TIER_FLAGS[:-2]
+        self.assertNotIn("--block-labels", flags)
+        RepoConfigFake(
+            {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
+        ).install(self)
+        code, held = self._run_real_gate(
+            "owner/repo#1", _pr(labels=[{"name": "repo-veto"}]), *flags
+        )
+        self.assertEqual((code, held["ready"]), (10, False))
+        self.assertEqual(held["autopilotMergeTier"]["blockingLabels"], ["repo-veto"])
+        code, clear = self._run_real_gate("owner/repo#1", _pr(), *flags)
+        self.assertEqual((code, clear["ready"]), (0, True), clear["blockers"])
+
+    def test_tier_with_no_block_labels_from_either_source_refuses(self) -> None:
+        RepoConfigFake({}).install(self)
+        evaluate = mock.Mock()
+        argv = ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner"]
+        argv += self.TIER_FLAGS[:-2]
+        out = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(merge, "evaluate", evaluate),
+            contextlib.redirect_stdout(out),
+        ):
+            code = merge.main()
+        self.assertEqual(code, 3)
+        self.assertIn("block labels", json.loads(out.getvalue())["error"])
+        evaluate.assert_not_called()
+
+    def test_repo_dependency_manager_logins_add_to_the_flag_set(self) -> None:
+        RepoConfigFake(
+            {
+                "owner/repo": (
+                    "## babysit_extra_dependency_manager_logins\n- Repo-Dep[bot]\n"
+                )
+            }
+        ).install(self)
+        for author in ("repo-dep", "flag-dep"):
+            code, result = self._run_real_gate(
+                "owner/repo#1",
+                _pr(author={"login": author}),
+                "--extra-dependency-manager-logins",
+                "flag-dep",
+            )
+            self.assertEqual(code, 10, author)
+            self.assertFalse(result["ready"], author)
+        RepoConfigFake({}).install(self)
+        code, result = self._run_real_gate(
+            "owner/repo#1", _pr(author={"login": "repo-dep"})
+        )
+        self.assertEqual((code, result["ready"]), (0, True), result["blockers"])
+
+    def test_fetch_error_refuses_before_evaluating(self) -> None:
+        RepoConfigFake({"owner/repo": 500}).install(self)
+        evaluate = mock.Mock()
+        out = io.StringIO()
+        argv = ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner"]
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(merge, "evaluate", evaluate),
+            contextlib.redirect_stdout(out),
+        ):
+            code = merge.main()
+        result = json.loads(out.getvalue())
+        self.assertEqual(code, 2)
+        self.assertIn("repository policy unreadable", result["error"])
+        evaluate.assert_not_called()
+
+    def test_invalid_repo_file_refuses_a_merge_run(self) -> None:
+        RepoConfigFake(
+            {"owner/repo": "## babysit_merge_method\nfast-forward\n"}
+        ).install(self)
+        code, result, _ = self._run_stubbed_gate("--merge", "--expected-head", HEAD)
+        self.assertEqual(code, 2)
+        self.assertIn("babysit_merge_method", result["error"])
+        self.assertFalse(result.get("merged", False))
+
+    def test_repo_merge_method_wins_over_the_flag(self) -> None:
+        RepoConfigFake({"owner/repo": "## babysit_merge_method\nrebase\n"}).install(
+            self
+        )
+        code, _, method = self._run_stubbed_gate(
+            "--merge", "--expected-head", HEAD, "--method", "squash"
+        )
+        self.assertEqual(code, 0)
+        method.assert_called_once_with("owner/repo", "rebase")
+
+    def test_flag_method_applies_when_the_repo_declares_none(self) -> None:
+        RepoConfigFake({}).install(self)
+        _, _, method = self._run_stubbed_gate(
+            "--merge", "--expected-head", HEAD, "--method", "merge"
+        )
+        method.assert_called_once_with("owner/repo", "merge")
+
+    def test_auto_refuses_a_repo_method_other_than_squash(self) -> None:
+        RepoConfigFake({"owner/repo": "## babysit_merge_method\nrebase\n"}).install(
+            self
+        )
+        code, result, method = self._run_stubbed_gate(
+            "--merge", "--expected-head", HEAD, "--auto"
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("squash", result["error"])
+        method.assert_not_called()
+
+    def test_auto_with_a_non_squash_flag_is_judged_on_the_effective_method(
+        self,
+    ) -> None:
+        RepoConfigFake({"owner/repo": "## babysit_merge_method\nsquash\n"}).install(
+            self
+        )
+        code, result, method = self._run_stubbed_gate(
+            "--merge", "--expected-head", HEAD, "--auto", "--method", "merge"
+        )
+        self.assertEqual(code, 0, result)
+        method.assert_called_once_with("owner/repo", "squash")
+
+    def test_auto_refuses_a_non_squash_flag_the_repo_does_not_override(self) -> None:
+        RepoConfigFake({}).install(self)
+        code, result, method = self._run_stubbed_gate(
+            "--merge", "--expected-head", HEAD, "--auto", "--method", "merge"
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("squash", result["error"])
+        method.assert_not_called()
 
 
 if __name__ == "__main__":
