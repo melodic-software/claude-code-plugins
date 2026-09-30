@@ -468,11 +468,12 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   fi
   [[ "$FAILED" -eq 0 ]] || exit 1
   # The plan and its manifests are spent once every record applied. Only a plan the
-  # dry-run put in the default location is removed: an explicit --batch-plan path is
-  # the caller's. rmdir removes the directory only when nothing else is in it.
+  # dry-run put in the default location is removed, and only that dry-run writes the
+  # marker, so a caller's own path is never matched by name. rmdir removes the
+  # directory only when nothing else is in it.
   plan_dir="$(cd "$(dirname "$BATCH_PLAN_ARG")" && pwd -P)"
-  if [[ "$(dirname "$plan_dir")" == "$(cd "$PLAN_ROOT" 2>/dev/null && pwd -P)" && "$(basename "$plan_dir")" == clean-batch.?????? ]]; then
-    rm -f "$BATCH_PLAN_ARG" "$plan_dir"/*.manifest
+  if [[ -f "$plan_dir/.default-location" ]]; then
+    rm -f "$BATCH_PLAN_ARG" "$plan_dir"/*.manifest "$plan_dir/.default-location"
     rmdir "$plan_dir" 2>/dev/null
   fi
   exit 0
@@ -496,6 +497,7 @@ else
   mkdir -p "$PLAN_ROOT" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_ROOT"
   PLAN_DIR="$(mktemp -d "$PLAN_ROOT/clean-batch.XXXXXX" 2>/dev/null)" || fail_usage "cannot create batch-plan directory under: $PLAN_ROOT"
   PLAN="$PLAN_DIR/plan"
+  : >"$PLAN_DIR/.default-location" 2>/dev/null
 fi
 # Refuse to truncate an unrelated file: a typo'd --batch-plan path must not
 # silently destroy user data. An existing target is overwritten only when it is

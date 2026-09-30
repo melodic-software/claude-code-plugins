@@ -226,7 +226,7 @@ RemotePR, RemoteReason, and RemoteAhead for a drift, then `RemoteSummary:`.
 RemoteTier: PROTECTED, MERGED (tip is a merged PR's head), MERGED-DRIFT (tip
 differs from every merged PR head: commits landed after the merge),
 NO-MERGED-PR, or UNKNOWN (gh or jq absent, or the lookup failed). RemoteAhead
-counts commits past the PR head, or says why it cannot (an unfetched object; the
+counts commits past the PR head, says diverged when the PR head is not an ancestor of the tip, or says why it cannot (an unfetched object; the
 audit never fetches). In the fleet form --remote and --read-only apply to every repo.
 --remote and --remote-families are separate reports and cannot combine.
 
@@ -394,9 +394,15 @@ remote_audit() {
         else
           tier=MERGED-DRIFT reason="tip differs from the merged PR's head (commits since the merge)"
           pr_line="#$pr MERGED (head $oid)"
-          if git -C "$REPO_ROOT" cat-file -e "$oid^{commit}" 2>/dev/null && git -C "$REPO_ROOT" cat-file -e "$tip^{commit}" 2>/dev/null &&
-            n="$(git -C "$REPO_ROOT" rev-list --count "$oid..$tip" 2>/dev/null | tr -d '\r')" && [[ -n "$n" ]]; then
-            ahead_line="$n commits past the PR head"
+          if git -C "$REPO_ROOT" cat-file -e "$oid^{commit}" 2>/dev/null && git -C "$REPO_ROOT" cat-file -e "$tip^{commit}" 2>/dev/null; then
+            if ! git -C "$REPO_ROOT" merge-base --is-ancestor "$oid" "$tip" 2>/dev/null; then
+              reason="tip differs from the merged PR's head and does not descend from it (branch rewritten after the merge)"
+              ahead_line="diverged (the PR head is not an ancestor of the tip)"
+            elif n="$(git -C "$REPO_ROOT" rev-list --count "$oid..$tip" 2>/dev/null | tr -d '\r')" && [[ -n "$n" ]]; then
+              ahead_line="$n commits past the PR head"
+            else
+              ahead_line="not computable"
+            fi
           else
             ahead_line="not computable (tip or PR head not fetched locally; this audit never fetches)"
           fi

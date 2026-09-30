@@ -21,7 +21,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 | `RemoteTier` | Meaning |
 |--------------|---------|
 | `MERGED` | The tip is a merged PR's `headRefOid`: the merged work is the whole branch |
-| `MERGED-DRIFT` | A merged PR exists but the tip differs from every merged PR's head: commits landed on the branch after the merge, and deleting it loses them. `RemoteAhead:` counts commits past the newest merged PR's head, or says the count is not computable because an object is not fetched locally (the audit never fetches) |
+| `MERGED-DRIFT` | A merged PR exists but the tip differs from every merged PR's head: commits landed on the branch after the merge, and deleting it loses them. `RemoteAhead:` counts commits past the newest merged PR's head, says `diverged` when that head is not an ancestor of the tip (the branch was rewritten after the merge), or says the count is not computable because an object is not fetched locally (the audit never fetches) |
 | `NO-MERGED-PR` | `gh` answered and no merged PR has this branch as its head |
 | `UNKNOWN` | `gh` or `jq` is absent, or the lookup failed: the branch is still listed with its live tip, and nothing is claimed about it |
 | `PROTECTED` | The default branch or a protected pattern |

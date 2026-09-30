@@ -115,6 +115,20 @@ counted because finding them needs a network call. The git and all tiers end the
 `git_bytes=B`; `all` also adds `caches_bytes=C build_bytes=D`, split by manifest class.
 These fields come after the existing ones.
 
+Verification of the `gc.auto` and `gc.autoPackLimit` statements above:
+
+- Claim: `git gc --auto` packs loose objects only above `gc.auto` (default 6700) and consolidates
+  packs only above `gc.autoPackLimit` (default 50, packs without a `.keep` file); `gc.auto=0`
+  turns both checks off. The script also treats a negative `gc.auto` as off and calls the
+  loose-object trigger approximate; the page states neither exactly.
+- Basis: <https://git-scm.com/docs/git-gc>, Configuration: `gc.auto` ("When there are
+  approximately more than this many loose objects in the repository, git gc --auto will pack
+  them ... The default value is 6700.") and `gc.autoPackLimit` ("The default value is 50 ...
+  Setting gc.auto to 0 will also disable this.").
+- As of: 2026-09-30.
+- Recheck trigger: a Git release note that changes the `gc --auto` heuristics or either default,
+  or a `git-gc` page whose two entries no longer match the quotes above.
+
 **Known limitation.** The plan stores only the first-seen worktree as each store's
 representative. If that specific worktree vanishes before apply while a live
 sibling still shares the store, the prune is reported `skipped`, not run. It is

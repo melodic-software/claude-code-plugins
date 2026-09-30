@@ -1841,6 +1841,14 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$RM/work" push -q origin feat/drift 2>/dev/null
   git -C "$RM/work" checkout -q main
   drift_tip="$(git -C "$RM/work" rev-parse feat/drift)"
+  # A branch rewritten after its PR merged: the PR head is no ancestor of the live tip.
+  push_branch feat/rewritten 1
+  rewritten_old="$(git -C "$RM/work" rev-parse feat/rewritten)"
+  git -C "$RM/work" checkout -q feat/rewritten
+  git -C "$RM/work" reset -q --hard main
+  git -C "$RM/work" commit -q --allow-empty -m "rewritten"
+  git -C "$RM/work" push -q --force origin feat/rewritten 2>/dev/null
+  git -C "$RM/work" checkout -q main
   # The tracking ref goes stale: it still says the PR head is the tip.
   git -C "$RM/work" update-ref refs/remotes/origin/feat/drift "$drift_old"
   # A branch pushed by another clone: no tracking ref and no objects here.
@@ -1863,6 +1871,7 @@ echo "\$head" >>"$RM/gh-heads.log"
 case "\$head" in
   feat/current) printf '[{"number":11,"headRefOid":"$current_tip"}]\n' ;;
   feat/drift) printf '[{"number":5,"headRefOid":"0000000000000000000000000000000000000005"},{"number":7,"headRefOid":"$drift_old"}]\n' ;;
+  feat/rewritten) printf '[{"number":13,"headRefOid":"$rewritten_old"}]\n' ;;
   feat/unfetched) printf '[{"number":9,"headRefOid":"1111111111111111111111111111111111111111"}]\n' ;;
   *) printf '[]\n' ;;
 esac
@@ -1874,10 +1883,12 @@ GH
 
   before_remote="$(capture_state "$RM/work")"
   rout="$(remote_run)"
-  assert_contains "remote: counts the live branches" "$rout" "RemoteBranches: 6"
+  assert_contains "remote: counts the live branches" "$rout" "RemoteBranches: 7"
   assert_no_line "remote: no local records" "$rout" "^Branch: "
   assert_not_contains "remote: no capture line" "$rout" "TipCapture"
-  assert_contains "remote: summary counts each tier" "$rout" "RemoteSummary: protected=2 merged=1 merged-drift=2 no-merged-pr=1 unknown=0"
+  assert_contains "remote: summary counts each tier" "$rout" "RemoteSummary: protected=2 merged=1 merged-drift=3 no-merged-pr=1 unknown=0"
+  assert_contains "remote: a rewritten branch reports divergence, not a commit count" "$(rec "$rout" feat/rewritten RemoteAhead)" "diverged"
+  assert_not_contains "remote: a rewritten branch gives no commits-past claim" "$(rec "$rout" feat/rewritten RemoteAhead)" "commits past"
   if [[ "$(rec "$rout" feat/current RemoteTier)" == MERGED ]]; then pass "remote: tip equal to the merged PR head is MERGED"; else fail "remote: tip equal to the merged PR head is MERGED" MERGED "$(rec "$rout" feat/current RemoteTier)"; fi
   if [[ "$(rec "$rout" feat/current RemotePR)" == "#11 MERGED" ]]; then pass "remote: MERGED names its PR"; else fail "remote: MERGED names its PR" "#11 MERGED" "$(rec "$rout" feat/current RemotePR)"; fi
   # The stale tracking ref says feat/drift is at the PR head; the live tip is two commits past it.
@@ -1904,7 +1915,7 @@ GH
   nogh_out="$(PATH="$NOGH_BIN" "$BASH" -c "cd '$RM/work' && \"$BASH\" '$AUDIT' --remote" 2>/dev/null)"
   assert_contains "remote without gh: says why" "$nogh_out" "merged-PR lookup unavailable (gh not on PATH)"
   assert_contains "remote without gh: still lists the live tip" "$nogh_out" "RemoteTip: $unfetched_tip"
-  assert_contains "remote without gh: summary" "$nogh_out" "RemoteSummary: protected=2 merged=0 merged-drift=0 no-merged-pr=0 unknown=4"
+  assert_contains "remote without gh: summary" "$nogh_out" "RemoteSummary: protected=2 merged=0 merged-drift=0 no-merged-pr=0 unknown=5"
 
   # A failing gh is UNKNOWN too, and a remote that cannot be read is an error.
   printf '#!/usr/bin/env bash\nexit 1\n' >"$RM/failgh"
@@ -1921,7 +1932,7 @@ GH
   printf '%s\n%s\n' "$RM/work" "$FL/fresh" >"$RM/repos.txt"
   rfleet="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repos-from "$RM/repos.txt" --remote 2>/dev/null)"
   assert_contains "remote fleet: the origin repo is a block with its summary" "$rfleet" "Repo: $RM/work
-RemoteBranches: 6"
+RemoteBranches: 7"
   assert_contains "remote fleet: a repo without origin reports its error and the fleet goes on" "$rfleet" "RemoteError: git ls-remote --heads origin failed"
   assert_contains "remote fleet: summary" "$rfleet" "FleetSummary: repos=2 audited=2 skipped=0 duplicate=0 blocked=0 failed=0"
   assert_not_contains "remote fleet: no capture" "$rfleet" "TipCapture"
@@ -1930,14 +1941,14 @@ RemoteBranches: 6"
   # first only. A local audit reads each clone's own branches, so it audits both.
   rdup="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --remote 2>/dev/null)"
   assert_contains "remote fleet: the first clone of an origin is audited" "$rdup" "Repo: $RM/work
-RemoteBranches: 6"
+RemoteBranches: 7"
   assert_contains "remote fleet: another clone of that origin is a duplicate" "$rdup" "Repo: $RM/other
 Outcome: skipped
 Reason: skipped duplicate of $RM/work"
   assert_contains "remote fleet: summary counts the clone duplicate" "$rdup" "FleetSummary: repos=2 audited=1 skipped=0 duplicate=1 blocked=0 failed=0"
   rdup_skip="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --remote --skip "$RM/work" 2>/dev/null)"
   assert_contains "remote fleet: skipping one clone leaves the other audited" "$rdup_skip" "Repo: $RM/other
-RemoteBranches: 6"
+RemoteBranches: 7"
   ldup="$(PATH="$RM_BIN:$PATH" bash "$AUDIT" --repo "$RM/work" "$RM/other" --read-only 2>/dev/null)"
   assert_contains "local fleet: clones of one origin are both audited" "$ldup" "FleetSummary: repos=2 audited=2 skipped=0 duplicate=0 blocked=0 failed=0"
 else

@@ -658,6 +658,13 @@ KEEP="$TEST_TMPDIR/keep/plan"
 bash "$BATCH" --tier caches --repo "$(mkrepo applykeep)" --batch-plan "$KEEP" >/dev/null 2>&1
 bash "$BATCH" --tier caches --apply --batch-plan "$KEEP" >/dev/null 2>&1
 assert_file_exists "an explicit --batch-plan survives a clean apply" "$KEEP"
+# An explicit path whose directory looks like a generated one is still the caller's.
+LOOKALIKE="$TEST_TMPDIR/state/repo-hygiene/clean-batch.manual/plan"
+bash "$BATCH" --tier caches --repo "$(mkrepo applylook)" --batch-plan "$LOOKALIKE" >/dev/null 2>&1
+bash "$BATCH" --tier caches --apply --batch-plan "$LOOKALIKE" >/dev/null 2>&1
+assert_file_exists "an explicit plan in a generated-looking directory survives a clean apply" "$LOOKALIKE"
+LOOK_MANIFESTS=("$(dirname "$LOOKALIKE")"/*.manifest)
+assert_file_exists "its manifests survive too" "${LOOK_MANIFESTS[0]}"
 
 help_out="$(bash "$BATCH" --help)"
 assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"
