@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-09-30
+
+### Added
+
+- **Read-only `inventory` subcommand with a deep mode**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
+  --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
+  a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
+  validated KEEP reason (exit 5 when the validator fails). The engine grammar declares the subcommand
+  read-only, so the destructive guard admits it. `skills/clean/SKILL.md` and its references document the
+  attended workflow.
+
 ## [0.29.2] - 2026-09-30
 
 ### Fixed
