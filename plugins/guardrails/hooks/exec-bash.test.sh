@@ -44,7 +44,9 @@ printf '%s' "$payload" | node "$ENTRY" "$script" "$record" "kept-arg" >/dev/null
 got=$(cat "$record")
 grep -q 'token=kept-arg' <<<"$got" || fail "script arg missing: $got"
 grep -q "$payload" <<<"$got" || fail "stdin missing: $got"
-grep -E -q '^bash=(/bin/bash|/usr/bin/bash)$' <<<"$got" || fail "bash was not a real path: $got"
+# The launcher takes the first bash on PATH (a Homebrew bash included), else /bin/bash or /usr/bin/bash.
+grep -F -x -q -e "bash=$(command -v bash)" -e 'bash=/bin/bash' -e 'bash=/usr/bin/bash' <<<"$got" ||
+  fail "bash was not the PATH bash or a fallback path: $got"
 
 # --- usage -------------------------------------------------------------------
 rc=0
