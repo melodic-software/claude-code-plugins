@@ -91,7 +91,10 @@ USAGE='usage: skill-pair-cooccurrence.sh [--store PATH | --scope SCOPE --dir REL
                       matching audit_skill_visibility.py exposure_floor_days)
   --floor-groups N    minimum CALLER-bearing groups (the denominator) before any rate
                       is reportable (default 5)
-  --json              emit the report as one JSON object instead of prose'
+  --json              emit the report as one JSON object instead of prose
+
+exit: 0 a reading, a WITHHELD, or the --print-store path; 2 the store is missing,
+      unreadable or unresolvable, or jq is missing; 3 bad arguments'
 
 die_usage() {
   printf 'skill-pair-cooccurrence.sh: %s\n\n%s\n' "$1" "$USAGE" >&2
