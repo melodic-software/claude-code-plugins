@@ -3,11 +3,24 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.71.2] - 2026-09-29
+## [0.71.3] - 2026-09-29
 
 ### Changed
 
 - The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
+
+## [0.71.2] - 2026-09-29
+
+### Changed
+
+- **`observability`'s description opens with a presence-gated routing clause for the bundled
+  `explain-usage` skill.** It routes a quick plain-language breakdown of this session's tokens to
+  `explain-usage` and keeps cross-session trends, cost, hooks, and anything the local telemetry
+  stores hold, the split its Boundary section states.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `doctor` bullets in `audit-install-state`, `audit-performance` and
+  `audit-skill-visibility`, and the `explain-usage` bullet in `observability`, keep the provenance
+  class, what the surface does and how it is invoked, in the native-references template form.
 
 ## [0.71.1] - 2026-09-29
 
