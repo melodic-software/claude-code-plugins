@@ -544,7 +544,7 @@
       },
       "recheck": {
         "trigger": "a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas",
-        "verified": "2026-09-29"
+        "verified": "2026-09-30"
       },
       "baked": {
         "description_phrase": false,
@@ -586,7 +586,7 @@
       },
       "recheck": {
         "trigger": "a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas",
-        "verified": "2026-09-29"
+        "verified": "2026-09-30"
       },
       "baked": {
         "description_phrase": false,

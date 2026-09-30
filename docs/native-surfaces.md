@@ -661,7 +661,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on
   - name collision (2026-09-11, Claude Code 2.1.263): the canvas registration (`registerDesignCanvasSkill`, model-invocable, no invocation-control field) is the surface this row describes; the claude.ai/design hub is a separate model-invocation-disabled registration this row does not describe; a `local` access command shares the name
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search (2026-09-29)
-- **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-29)
+- **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-30)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `design` → `visualization:visualize`
@@ -680,7 +680,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill with a /design dispatch table and no model-invocation gate, and the rollout flag defaulted off at v2.1.234; the 2.1.263 registration matches except that the flag now defaults on
   - name collision (2026-09-11, Claude Code 2.1.263): the canvas registration (`registerDesignCanvasSkill`, model-invocable, no invocation-control field) is the surface this row describes; the claude.ai/design hub is a separate model-invocation-disabled registration this row does not describe; a `local` access command shares the name
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search (2026-09-29)
-- **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-29)
+- **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-30)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `design-sync` → `visualization:visualize`
