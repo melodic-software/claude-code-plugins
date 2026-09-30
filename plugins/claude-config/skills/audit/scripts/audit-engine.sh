@@ -16,13 +16,15 @@
 #
 # WHERE ITS CRITERIA COME FROM. The upstream pages, read every run. The engine
 # asks the plugin's shared fetcher (scripts/fetch-docs.sh) to read the docs index
-# (llms.txt) and each page it needs (settings-reference, env-vars) from a link
-# in that index, verbatim, into a temp directory it removes on exit (trap). The
+# (llms.txt) and each page it needs (settings-reference, env-vars, and the pages
+# settings-reference links to that a check reads, such as hooks) from a link in
+# that index, verbatim, into a temp directory it removes on exit (trap). The
 # fetcher's manifest supplies each page's hash, status, content type, line count
 # and read time. A page supplied through --docs-dir is read from there instead.
 # Whether a key is documented or deprecated, the accepted effortLevel and
 # disableDeepLinkRegistration values, and the version a key requires are taken
-# from settings-reference; env-var documentation status from env-vars. A row
+# from settings-reference; env-var documentation status from env-vars; the hook
+# events a settings or plugin hook may name from the hooks page. A row
 # resting on a page that was not read is not-inspectable, never clean. The
 # engine also runs `claude --version` and records the result, and searches the
 # installed claude binary for the literal names of undocumented keys. The
@@ -570,27 +572,39 @@ DOC_CNTRL='\000-\010\013-\037\177'
 # requests nothing. A slug the index does not list, or lists off the docs
 # origin, is unread, and so is a page that did not arrive whole as text/markdown.
 DOCS_MANIFEST="$DOCS_TMP/manifest.json"
-DOCS_WANT=()
-for slug in settings-reference env-vars; do
-  [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]] || DOCS_WANT+=("$slug")
-done
-DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
-  '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
-if [[ ${#DOCS_WANT[@]} -gt 0 ]]; then
-  if ! bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$DOCS_MANIFEST" --index-url "$DOCS_INDEX_URL" "${DOCS_WANT[@]}" >/dev/null; then
+# fetch_pages <manifest> <slug>...: one fetcher call for the index and the slugs.
+fetch_pages() {
+  local manifest="$1"
+  shift
+  if ! bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$manifest" --index-url "$DOCS_INDEX_URL" "$@" >/dev/null; then
     echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
     exit 2
   fi
+}
+# unsupplied <slug>...: the slugs --docs-dir does not hold, one per line.
+unsupplied() {
+  local s
+  for s in "$@"; do
+    [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$s.md" ]] || printf '%s\n' "$s"
+  done
+}
+DOCS_WANT=()
+while IFS= read -r slug; do DOCS_WANT+=("$slug"); done < <(unsupplied settings-reference env-vars)
+DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
+  '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
+if [[ ${#DOCS_WANT[@]} -gt 0 ]]; then
+  fetch_pages "$DOCS_MANIFEST" "${DOCS_WANT[@]}"
   DOCS_INDEX_JSON="$(jq -c --arg url "$DOCS_INDEX_URL" \
     '.index | {url:$url,source:(.source // ""),bytes,state,reason:(.reason // ""),sha256,content_type,lines,retrieved}' "$DOCS_MANIFEST")"
 fi
 
 declare -A PAGE_FILE=()
 DOCS_PAGES_JSON='[]'
-# acquire_page <slug>: record where the page came from, its hash, byte and line
-# counts and state, and keep a working copy with control characters stripped.
+# acquire_page <slug> [manifest]: record where the page came from, its hash, byte
+# and line counts and state, and keep a working copy with control characters
+# stripped. The manifest is the one from the fetcher call that requested the page.
 acquire_page() {
-  local slug="$1" rec raw=""
+  local slug="$1" manifest="${2:-$DOCS_MANIFEST}" rec raw=""
   if [[ -n "$DOCS_DIR" && -s "$DOCS_DIR/$slug.md" ]]; then
     raw="$DOCS_DIR/$slug.md"
     rec="$(jq -cn --arg s "$slug" --arg l "$raw" --argjson b "$(wc -c <"$raw" | tr -d ' ')" --argjson n "$(awk 'END { print NR }' "$raw")" \
@@ -599,7 +613,7 @@ acquire_page() {
   else
     rec="$(jq -c --arg s "$slug" '(first(.pages[] | select(.slug == $s)) // {}) as $p
       | {slug:$s,url_or_path:($p.url // ""),source:($p.source // ""),bytes:($p.bytes // 0),state:($p.state // "unread"),
-         reason:($p.reason // ""),sha256:$p.sha256,content_type:$p.content_type,lines:($p.lines // 0),retrieved:$p.retrieved}' "$DOCS_MANIFEST")"
+         reason:($p.reason // ""),sha256:$p.sha256,content_type:$p.content_type,lines:($p.lines // 0),retrieved:$p.retrieved}' "$manifest")"
     [[ "$(jq -r '.state' <<<"$rec")" == read ]] && raw="$DOCS_TMP/fetch/$slug.md"
   fi
   if [[ -n "$raw" ]]; then
@@ -723,6 +737,46 @@ if [[ -n "$SR" && ( -z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins
   SR=""
   SR_UNREAD_WHY="settings-reference was read but has no heading for permissions or enabledPlugins, so it did not parse"
   DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .state = "unparsed" | .reason = "no-key-headings" else . end)' <<<"$DOCS_PAGES_JSON")"
+fi
+
+# Pages a check reads that settings-reference links to, by slug: a check that
+# reads another page adds its slug here. A page settings-reference does not link
+# is not requested. One more fetcher call reads those --docs-dir does not hold.
+LINKED_PAGES=(hooks)
+linked=()
+if [[ -n "$SR" ]]; then
+  for slug in "${LINKED_PAGES[@]}"; do
+    grep -qE "\]\((https://[^/)]+)?/docs/(en/)?$slug(\.md)?[#)]" "$SR" && linked+=("$slug")
+  done
+fi
+if [[ ${#linked[@]} -gt 0 ]]; then
+  LINKED_MANIFEST="$DOCS_TMP/manifest-linked.json"
+  linked_fetch=()
+  while IFS= read -r slug; do linked_fetch+=("$slug"); done < <(unsupplied "${linked[@]}")
+  [[ ${#linked_fetch[@]} -gt 0 ]] && fetch_pages "$LINKED_MANIFEST" "${linked_fetch[@]}"
+  for slug in "${linked[@]}"; do acquire_page "$slug" "$LINKED_MANIFEST"; done
+fi
+
+# The hook events, from the Event table on the hooks page. A page that was read
+# but lists neither PreToolUse nor SessionStart did not parse, and no hook event
+# is then called unknown.
+declare -A HOOK_EVENTS=()
+HP="${PAGE_FILE[hooks]:-}"
+HP_UNREAD_WHY="the hooks page was not read this run"
+if [[ -n "$HP" ]]; then
+  while IFS= read -r ev; do
+    [[ -n "$ev" ]] && HOOK_EVENTS[$ev]=1
+  done < <(awk '
+    /^\| Event \|/ { on = 1; next }
+    on && /^\| :?-/ { next }
+    on && /^\| `/ { v = $0; sub(/^\| `/, "", v); sub(/`.*$/, "", v); print v; next }
+    on { exit }
+  ' "$HP")
+  if [[ -z "${HOOK_EVENTS[PreToolUse]:-}" || -z "${HOOK_EVENTS[SessionStart]:-}" ]]; then
+    HP=""
+    HP_UNREAD_WHY="the hooks page was read but its Event table has no PreToolUse or SessionStart row, so it did not parse"
+    DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "hooks" then .state = "unparsed" | .reason = "no-event-table" else . end)' <<<"$DOCS_PAGES_JSON")"
+  fi
 fi
 
 # --- Category A: schema and structure ----------------------------------------
@@ -1292,6 +1346,7 @@ resolve_hook_path() {
 
 declare -A HOOK_SEEN=()
 declare -A MATCHER_SEEN=()
+declare -A EVENT_SEEN=()
 declare -A PLUGIN_PATH=()
 while IFS=$'\t' read -r pkey pstatus ppath; do
   [[ -n "$pkey" ]] || continue
@@ -1321,6 +1376,17 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
     row D duplicate-hook finding info "$surface" "duplicate-hook:$event:$matcher:$cmd_ref" "the same command is registered twice for $event/$matcher" "$event/$matcher/$cmd"
   fi
   HOOK_SEEN[$key]=1
+  # Event name against the hooks page's Event table: one row per source and event.
+  if [[ -z "${EVENT_SEEN[$src|$event]:-}" ]]; then
+    EVENT_SEEN[$src|$event]=1
+    if [[ -z "$HP" ]]; then
+      row D hook-event not-inspectable none "$surface" "hook-event-page-not-read:$event" "$HP_UNREAD_WHY; whether $event is a hook event is not decided" -
+    elif [[ -n "${HOOK_EVENTS[$event]:-}" ]]; then
+      row D hook-event ok none "$surface" "documented-hook-event:$event" "$event is an event the hooks page lists" -
+    else
+      row D hook-event finding error "$surface" "undocumented-hook-event:$event" "$event is not an event the hooks page lists; Claude Code may never run its hooks" "$event"
+    fi
+  fi
   [[ "$htype" == "command" || -z "$htype" ]] || continue
   # Timeout shape: a round thousands multiple reads as milliseconds.
   if [[ -n "$timeout" && "$timeout" =~ ^[0-9]+$ && $timeout -ge 1000 && $((timeout % 1000)) -eq 0 ]]; then

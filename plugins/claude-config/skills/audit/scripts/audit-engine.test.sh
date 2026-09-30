@@ -142,6 +142,38 @@ section() {
   section codeFenced '* **Type**: Boolean' '```bash' '# a comment inside a fence, not a heading' '```' '' 'Deprecated since v2.1.100, after a fenced comment.'
 } >"$DOCS/settings-reference.md"
 
+# The hooks page in the shape the published one uses: an Event table under the
+# lifecycle heading, then a later table whose first column is not events.
+HOOKS_MD="$TEST_TMPDIR/hooks.md"
+cat >"$HOOKS_MD" <<'EOF'
+# Hooks reference
+
+## Hook lifecycle
+
+| Event | When it fires |
+| :- | :- |
+| `SessionStart` | When a session begins or resumes |
+| `PreToolUse` | Before a tool call executes |
+
+## Matcher patterns
+
+| Tool | Meaning |
+| :- | :- |
+| `Bash` | A tool name, not an event |
+EOF
+# docs_with_link <dir> <slug>...: a docs directory whose settings-reference links each slug.
+docs_with_link() {
+  local d="$1" s
+  shift
+  mkdir -p "$d"
+  cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$d/"
+  {
+    cat "$DOCS/settings-reference.md"
+    printf '\n'
+    for s in "$@"; do printf 'See [%s](/docs/en/%s#top) for more.\n' "$s" "$s"; done
+  } >"$d/settings-reference.md"
+}
+
 # make_cli <path> <version line> [literal...]: a stand-in claude CLI that prints
 # the version line for --version and carries each literal in its own text, the
 # way the real binary carries the key names it reads.
@@ -897,6 +929,17 @@ for bad in status ctype; do
 done
 rm -f "$m/served/settings-reference.md.status" "$m/served/settings-reference.md.ctype"
 
+# A page settings-reference links to is a second fetcher call: the index again,
+# then that page, from the URL the index gives it.
+docs_with_link "$m/linked" hooks
+cp "$m/linked/settings-reference.md" "$m/served/settings-reference.md"
+cp "$HOOKS_MD" "$m/served/hooks.md"
+printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' '- [Hooks](https://docs.test/docs/en/hooks.md): hooks' >"$m/served/llms.txt"
+rm -f "$m/curl.log"
+out=$(fetch_run) || true
+assert_eq "case 31: a linked page is fetched from the URL the index gives it" "read fetch https://docs.test/docs/en/hooks.md" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.source) \(.url_or_path)"' <<<"$out")"
+assert_eq "case 31: the linked page costs one more index read and one page read" "https://docs.test/docs/llms.txt https://docs.test/docs/en/settings-reference.md https://docs.test/docs/llms.txt https://docs.test/docs/en/hooks.md" "$(awk '{print $NF}' "$m/curl.log" | paste -sd' ' -)"
+
 # --- Case 32: a read page that does not parse fails closed --------------------
 # A soft 404 arrives as a page with a body and no key headings. Read at face
 # value it would make every key undocumented; the positive control stops that.
@@ -1359,6 +1402,50 @@ printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"bogus"}' >"$m/project/.c
 out=$(DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || true
 assert_contains "case 50: a repeated heading keeps the first value set" "$(jq -r '.findings[] | select(.identity.claim=="effortLevel:bogus") | .detail' <<<"$out")" "low, medium, high, xhigh"
 assert_eq "case 50: and not the second" "0" "$(jq '[.findings[] | select(.identity.claim=="effortLevel:bogus") | select(.detail | contains("later"))] | length' <<<"$out")"
+
+# --- Case 51: a page settings-reference links to is acquired and feeds a check ----
+m="$(make_machine linked)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {hooks:{PreToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"true"}]}],Bash:[{hooks:[{type:"command",command:"true"}]}]}}' >"$m/project/.claude/settings.json"
+pages() { jq -r '[.docs.pages[] | .slug] | join(" ")' <<<"$1"; }
+hook_row() { jq -r --arg c "$2" '.rows[] | select(.claim == $c) | "\(.status) \(.severity)"' <<<"$1"; }
+
+# --docs-dir supplies the linked page; an unlinked sandboxing page is not acquired.
+docs_with_link "$m/docs" hooks sandboxing
+cp "$HOOKS_MD" "$m/docs/hooks.md"
+cp "$HOOKS_MD" "$m/docs/sandboxing.md"
+out=$(run "$m" --json --docs-dir "$m/docs" 2>&1) || true
+assert_eq "case 51: the linked page joins the docs pages, one no check reads does not" "settings-reference env-vars hooks" "$(pages "$out")"
+assert_eq "case 51: it is read from --docs-dir" "read docs-dir true" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.source) \(.url_or_path | endswith("/docs/hooks.md"))"' <<<"$out")"
+assert_eq "case 51: an event in the Event table is ok" "ok none" "$(hook_row "$out" documented-hook-event:PreToolUse)"
+assert_eq "case 51: a name from another table is not an event" "finding error" "$(hook_row "$out" undocumented-hook-event:Bash)"
+
+# The fixture seam supplies it through the index, the route a fetched page takes.
+docs_with_link "$m/fx" hooks
+cp "$HOOKS_MD" "$m/fx/hooks.md"
+printf '%s\n' '- [Hooks](https://code.claude.com/docs/en/hooks.md): hooks' >>"$m/fx/llms.txt"
+out=$(DOCS_FIXTURE="$m/fx" run "$m" --json 2>&1) || true
+assert_eq "case 51: the linked page resolves through the index" "read fixture https://code.claude.com/docs/en/hooks.md" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.source) \(.url_or_path)"' <<<"$out")"
+assert_eq "case 51: and feeds the same check" "ok none" "$(hook_row "$out" documented-hook-event:PreToolUse)"
+
+# The index does not list it: unread, and the event rows are not decided.
+rm -f "$m/fx/hooks.md"
+grep -v 'hooks.md' "$m/fx/llms.txt" >"$m/fx/llms.new" && mv "$m/fx/llms.new" "$m/fx/llms.txt"
+out=$(DOCS_FIXTURE="$m/fx" run "$m" --json 2>&1) || true
+assert_eq "case 51: a linked page the index lacks is unread" "unread not-in-index" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.reason)"' <<<"$out")"
+assert_eq "case 51: its event rows are not inspectable" "not-inspectable none" "$(hook_row "$out" hook-event-page-not-read:PreToolUse)"
+
+# A read page with no Event table is unparsed, never a run of unknown events.
+docs_with_link "$m/bad" hooks
+printf '%s\n' '# Hooks reference' 'A soft 404 body.' >"$m/bad/hooks.md"
+out=$(run "$m" --json --docs-dir "$m/bad" 2>&1) || true
+assert_eq "case 51: a page with no Event table is unparsed" "unparsed no-event-table" "$(jq -r '.docs.pages[] | select(.slug=="hooks") | "\(.state) \(.reason)"' <<<"$out")"
+assert_eq "case 51: no event is called unknown on it" "not-inspectable none" "$(hook_row "$out" hook-event-page-not-read:Bash)"
+
+# No link, no request: a lookalike slug does not count, whatever --docs-dir holds.
+docs_with_link "$m/nolink" hooks-guide
+cp "$HOOKS_MD" "$m/nolink/hooks.md"
+out=$(run "$m" --json --docs-dir "$m/nolink" 2>&1) || true
+assert_eq "case 51: a page settings-reference does not link is not acquired" "settings-reference env-vars" "$(pages "$out")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

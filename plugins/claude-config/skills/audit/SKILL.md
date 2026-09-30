@@ -62,7 +62,7 @@ the document and does only what needs judgment:
 | A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level and `permissions.*` key is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one), and the `A/consent-receipt` label for an undocumented top-level key `reference/consent-receipts.json` records (gates in validation-categories.md Category A) | A: nothing |
 | B: presence of each baseline pattern, deny rules in the local file, blanket `Bash(git *)`, the allow-completeness rows at `info`, narrowing 3 where a hook plugin ships a coverage manifest, suppression-record matching | B: narrowings 1 and 2 (a documented exemption, a documented hook convention), narrowing 3 for hooks with no manifest, the consuming repo's extra required patterns |
 | C: command resolution, `${VAR}` syntax, URL shape, `enableAllProjectMcpServers`, enabled/disabled coverage and name validity | C: documented reasons for disabled servers, launcher-wrapper conventions |
-| D: path resolution and readability, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo, event validity against the live hooks page |
+| D: path resolution and readability, event names against the fetched `hooks` page, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo |
 | E: marketplace membership, every `false` key as an inventory row (a finding only when an enabled plugin depends on it), ORPHAN / RENAME drift, catalog plugins with no entry in any scope as one inventory row per marketplace, keys the drift check did not diff, `strict` versus `plugin.json` | E: the fix for a disabled dependency, orphan-`true` review, rename confirmation |
 | F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log; `skillOverrides` keys that name a known plugin (inert, `warning`), colon keys whose prefix names no plugin (`skip`), and entries in the user dir's `settings.local.json` (`info`) | G: the levers, scoped to the roster's composition, and what an undecided colon key names |
@@ -129,10 +129,11 @@ The `docs` object in the document is the coverage record, built from the fetcher
 index and each page with its URL or path, byte count, line count, `sha256`, content type, read time,
 and one `state`: `read`; `unread`, with a `reason` such as `fetch-failed`, `http-404`,
 `unexpected-content-type`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
-settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins` (a soft
-404, a reshaped page). Only `read` means the engine decided anything from the page; every row resting
-on an `unread` or `unparsed` page is `not-inspectable`. The pages this covers today are `settings-reference` and `env-vars`; every
-other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
+settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins`, or a
+hooks page with no Event table (a soft 404, a reshaped page). Only `read` means the engine decided
+anything from the page; every row resting on an `unread` or `unparsed` page is `not-inspectable`.
+The pages this covers today are `settings-reference`, `env-vars`, and `hooks`, which the engine
+requests only when `settings-reference` links it; every other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
 instead of fetched again, and a page missing from it is fetched as usual.
 
 Run it with `--json` instead when you want the whole document; `--table` prints the version and
