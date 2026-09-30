@@ -861,6 +861,15 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
 - An operator answer clears the question with or without an owner, so `{"path": "<name>",
   "disposition": "keep"}` is a "keep, don't re-raise" answer. While identity holds, later engine
   findings do not overwrite it and the entry is not asked again.
+- The catalog accounts for an entry when it is in scope: every immediate child of the target; every
+  entry at any depth that is hinted, or empty (`logical_size` 0 with empty `size_qualifiers`); and,
+  at a user-home or `--root-children` target, every immediate child with empty `protected_reasons`
+  and no hints (`out-of-place`, the section 2 positional read). Any other deeper entry is ordinary.
+  Give one record per owning tool or product instead of one per file: a finding or answer with an
+  `owner` and `"owner_level": true` covers every entry below its path while its identity holds. The
+  `catalog` output lists each in-scope entry with no record and no owner-level ancestor under
+  `uncatalogued`, with its `reasons`; report every one, so nothing that looks out of place is skipped.
+  The catalog reads only snapshot fields and walks nothing.
 - The scan sets `prior_disposition` on an entry whose record still holds. Report new or changed
   entries first, one line for each unchanged entry, and end with the questions. Records for entries
   the snapshot did not inventory are kept unchanged.

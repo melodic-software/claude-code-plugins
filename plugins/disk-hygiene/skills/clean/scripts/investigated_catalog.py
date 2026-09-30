@@ -31,6 +31,8 @@ RECORD_KEYS = frozenset(
         "question",
     }
 )
+# Optional on a record: absent means the record describes its own entry only.
+OWNER_LEVEL_KEY = "owner_level"
 DISPOSITIONS = frozenset({"keep", "remove", "review"})
 SOURCES = frozenset({"engine", "human"})
 
@@ -125,6 +127,57 @@ def _other_target_answer(
     return None
 
 
+def catalog_scope(snapshot: dict[str, Any], positional: bool) -> dict[str, list[str]]:
+    """The entries a catalog must account for, each with why it is in scope.
+
+    Every immediate child; every hinted or genuinely empty entry at any depth;
+    and, at a user-home or root-children target (``positional``), every
+    immediate child with no protection and no hint, the loose entry that
+    belongs to no recognizable convention. Any other deeper entry is ordinary
+    and is covered at owner level instead. Only snapshot fields are read.
+    """
+    scope: dict[str, list[str]] = {}
+    for entry in snapshot.get("entries") or []:
+        path = entry["path"]
+        hinted = bool(entry.get("hints"))
+        reasons = []
+        if "/" not in path:
+            reasons.append("immediate-child")
+            if positional and not hinted and not entry.get("protected_reasons"):
+                reasons.append("out-of-place")
+        if hinted:
+            reasons.append("hinted")
+        if _size(entry) == 0 and not entry.get("size_qualifiers"):
+            reasons.append("empty")
+        if reasons:
+            scope[path] = reasons
+    return scope
+
+
+def _uncatalogued(
+    target: str,
+    scope: dict[str, list[str]],
+    records: dict[tuple[str, str], dict[str, Any]],
+    reused: set[str],
+) -> list[dict[str, Any]]:
+    """In-scope entries with no record of their own and no owner-level ancestor."""
+    owners = {
+        path
+        for (record_target, path), record in records.items()
+        if record_target == target and record.get(OWNER_LEVEL_KEY)
+    }
+
+    def covered(path: str) -> bool:
+        parts = path.split("/")
+        return any("/".join(parts[:end]) in owners for end in range(1, len(parts)))
+
+    return [
+        {"path": path, "reasons": reasons}
+        for path, reasons in sorted(scope.items())
+        if (target, path) not in records and path not in reused and not covered(path)
+    ]
+
+
 def _question(path: str) -> str:
     return f"Who owns {path}? No owner is recorded."
 
@@ -187,9 +240,14 @@ def _apply(record: dict[str, Any], conclusion: dict[str, Any], source: str) -> N
     An engine conclusion without an owner is not a conclusion: the record stays
     ``keep`` and keeps its question. An operator answer always retires the
     question, with or without an owner, and so is not asked again while identity
-    holds.
+    holds. ``owner_level: true`` with an owner makes the record cover every
+    entry below its path: one record per owning tool, not one per file.
     """
     owner = _text(conclusion.get("owner"))
+    if owner and conclusion.get(OWNER_LEVEL_KEY) is True:
+        record[OWNER_LEVEL_KEY] = True
+    else:
+        record.pop(OWNER_LEVEL_KEY, None)
     unresolved = source == "engine" and owner is None
     disposition = conclusion.get("disposition")
     if unresolved or disposition not in DISPOSITIONS:
@@ -238,6 +296,7 @@ def _well_formed(record: Any) -> bool:
                 and all(isinstance(item, str) for item in record["descendant_set"])
             )
         )
+        and isinstance(record.get(OWNER_LEVEL_KEY, False), bool)
         and record["evidence"] == _evidence(record["evidence"])
         and record["disposition"] in DISPOSITIONS
         and (record["tier"] is None or record["tier"] in TIERS)
@@ -259,13 +318,15 @@ def sync_catalog(
     findings: list[dict[str, Any]],
     answers: list[dict[str, Any]],
     run_id: str,
+    positional: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Merge findings and operator answers into the catalog. Return it and the report.
 
     Records for entries this snapshot did not inventory are kept as they are:
     not seen is not changed. A record for an entry that was inventoried, and
     whose identity or descendant set changed, is replaced by an unresolved one,
-    so its question returns.
+    so its question returns. The report lists every in-scope entry that has no
+    record, so nothing that looks out of place is skipped without a trace.
     """
     target = str(snapshot["target"])
     entries = snapshot.get("entries") or []
@@ -325,7 +386,10 @@ def sync_catalog(
         "version": CATALOG_VERSION,
         "records": [records[key] for key in sorted(records)],
     }
-    return catalog, _report(target, records, state, unmatched)
+    uncatalogued = _uncatalogued(
+        target, catalog_scope(snapshot, positional), records, reused
+    )
+    return catalog, _report(target, records, state, unmatched, uncatalogued)
 
 
 def _report(
@@ -333,6 +397,7 @@ def _report(
     records: dict[tuple[str, str], dict[str, Any]],
     state: dict[str, str],
     unmatched: list[str],
+    uncatalogued: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """New or changed entries first, unchanged entries one line each."""
     new_or_changed = []
@@ -361,6 +426,7 @@ def _report(
         "new_or_changed": new_or_changed,
         "unchanged": unchanged,
         "questions": questions,
+        "uncatalogued": uncatalogued,
         "unmatched": unmatched,
     }
 
@@ -430,6 +496,11 @@ def render_markdown(catalog: dict[str, Any], report: dict[str, Any]) -> str:
         ]
     lines += ["### Unchanged", ""]
     lines += [f"- {line}" for line in report["unchanged"]] or ["None."]
+    lines += ["", "### Uncatalogued", ""]
+    lines += [
+        f"- `{item['path']}` ({', '.join(item['reasons'])})"
+        for item in report["uncatalogued"]
+    ] or ["None."]
     lines += ["", "### Questions", ""]
     lines += [
         f"{index}. `{item['path']}`: {item['question']}"
@@ -443,6 +514,11 @@ def render_markdown(catalog: dict[str, Any], report: dict[str, Any]) -> str:
             "",
             f"- target: `{record['target']}`",
             f"- owner: {record['owner'] or 'unknown'}",
+            *(
+                ["- owner level: covers every entry below"]
+                if record.get(OWNER_LEVEL_KEY)
+                else []
+            ),
             f"- disposition: {record['disposition']}",
             f"- tier: {record['tier']}",
             f"- size: {record['size']}",

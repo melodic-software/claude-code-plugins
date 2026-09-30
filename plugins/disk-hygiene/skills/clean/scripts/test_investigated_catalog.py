@@ -329,6 +329,95 @@ class CatalogRulesTest(unittest.TestCase):
         self.assertIn("- owner: unknown", text)
 
 
+class CatalogScopeTest(unittest.TestCase):
+    def snapshot(self) -> dict:
+        return _snapshot(
+            _entry("tool", inode=1),
+            _entry("tool/data", inode=2, logical_size=9),
+            _entry("tool/data/blob.bin", kind="file", inode=3, logical_size=9),
+            {**_entry("tool/data/cache", inode=4, logical_size=9), "hints": ["cache"]},
+            _entry("tool/empty", inode=5, logical_size=0),
+            {
+                **_entry("tool/cut", inode=6, logical_size=0),
+                "size_qualifiers": ["not-walked"],
+            },
+            {**_entry("Library", inode=7), "protected_reasons": ["shell-folder"]},
+            {
+                **_entry("Library/x", kind="file", inode=8),
+                "protected_reasons": ["shell-folder"],
+            },
+        )
+
+    def test_scope_names_each_entry_shape(self) -> None:
+        scope = catalog.catalog_scope(self.snapshot(), positional=True)
+        self.assertEqual(
+            {
+                "tool": ["immediate-child", "out-of-place"],
+                "tool/data/cache": ["hinted"],
+                "tool/empty": ["empty"],
+                "Library": ["immediate-child"],
+            },
+            scope,
+        )
+
+    def test_out_of_place_needs_a_home_or_root_children_target(self) -> None:
+        scope = catalog.catalog_scope(self.snapshot(), positional=False)
+        self.assertEqual(["immediate-child"], scope["tool"])
+
+    def test_an_in_scope_entry_without_a_record_is_reported(self) -> None:
+        _, report = catalog.sync_catalog(
+            self.snapshot(), None, [_finding("tool")], [], "run-a", positional=True
+        )
+        self.assertEqual(
+            ["Library", "tool/data/cache", "tool/empty"],
+            [item["path"] for item in report["uncatalogued"]],
+        )
+        self.assertEqual(["hinted"], report["uncatalogued"][1]["reasons"])
+
+    def test_an_owner_level_record_covers_its_descendants(self) -> None:
+        stored, report = catalog.sync_catalog(
+            self.snapshot(),
+            None,
+            [_finding("tool", owner_level=True), _finding("Library")],
+            [],
+            "run-b",
+        )
+        self.assertTrue(stored["records"][1]["owner_level"])
+        self.assertEqual([], report["uncatalogued"])
+        self.assertIn("owner level", catalog.render_markdown(stored, report))
+
+    def test_an_owner_level_marker_needs_an_owner(self) -> None:
+        stored, report = catalog.sync_catalog(
+            self.snapshot(),
+            None,
+            [_finding("tool", owner=None, owner_level=True), _finding("Library")],
+            [],
+            "run-c",
+        )
+        self.assertNotIn("owner_level", stored["records"][1])
+        self.assertEqual(
+            ["tool/data/cache", "tool/empty"],
+            [item["path"] for item in report["uncatalogued"]],
+        )
+
+    def test_a_record_that_lost_identity_stops_covering(self) -> None:
+        snapshot = self.snapshot()
+        stored, _ = catalog.sync_catalog(
+            snapshot, None, [_finding("tool", owner_level=True)], [], "run-d"
+        )
+        snapshot["entries"][0]["inode"] = 99
+        _, report = catalog.sync_catalog(snapshot, stored, [], [], "run-e")
+        self.assertIn("tool/empty", [item["path"] for item in report["uncatalogued"]])
+
+    def test_a_human_answer_from_another_target_counts_as_a_record(self) -> None:
+        elsewhere = {**self.snapshot(), "target": "/other"}
+        stored, _ = catalog.sync_catalog(
+            elsewhere, None, [], [{"path": "tool", "disposition": "keep"}], "run-f"
+        )
+        _, report = catalog.sync_catalog(self.snapshot(), stored, [], [], "run-g")
+        self.assertNotIn("tool", [item["path"] for item in report["uncatalogued"]])
+
+
 class CatalogCommandTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -395,6 +484,32 @@ class CatalogCommandTest(unittest.TestCase):
         annotated = next(e for e in second["entries"] if e["path"] == "loose.txt")
         self.assertEqual("remove", annotated["prior_disposition"])
         self.assertTrue(self.item.is_file())
+
+    def test_catalog_output_lists_the_uncatalogued_in_scope_entries(self) -> None:
+        snapshot = self.scan("snapshot.json")
+        code, result = self.run_main(
+            "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
+        )
+        self.assertEqual(0, code)
+        self.assertEqual(
+            [{"path": "loose.txt", "reasons": ["immediate-child"]}],
+            result["uncatalogued"],
+        )
+        self.assertIn(
+            "### Uncatalogued\n\n- `loose.txt`",
+            (self.data / "CATALOG.md").read_text(encoding="utf-8"),
+        )
+
+    def test_a_home_target_marks_loose_root_entries_out_of_place(self) -> None:
+        snapshot = self.scan("snapshot.json")
+        with mock.patch.object(hygiene, "user_home", return_value=self.target):
+            code, result = self.run_main(
+                "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
+            )
+        self.assertEqual(0, code)
+        self.assertEqual(
+            ["immediate-child", "out-of-place"], result["uncatalogued"][0]["reasons"]
+        )
 
     def test_operator_answer_file_is_persisted_as_human_source(self) -> None:
         snapshot = self.catalog_remove()

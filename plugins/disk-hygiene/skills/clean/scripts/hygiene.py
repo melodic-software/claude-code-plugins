@@ -340,6 +340,18 @@ def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
         snapshot["catalog_unreadable"] = True
 
 
+def catalog_target_is_positional(snapshot: dict[str, Any]) -> bool:
+    """True for a root-children scan or a scan of the user home directory.
+
+    Only there does "no protection and no hint" mark a loose root-level entry
+    as out of place.
+    """
+    if snapshot.get("root_children_mode"):
+        return True
+    home = user_home()
+    return home is not None and Path(snapshot["target"]) == home.resolve(strict=False)
+
+
 def write_text_atomic(path: Path, text: str) -> None:
     """Replace ``path`` whole or leave it as it was."""
     temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
@@ -5530,6 +5542,7 @@ def main(argv: list[str] | None = None) -> int:
                 findings,
                 answers,
                 args.run_id,
+                positional=catalog_target_is_positional(snapshot),
             )
             write_text_atomic(
                 json_path, json.dumps(merged, indent=2, sort_keys=True) + "\n"
@@ -5547,8 +5560,8 @@ def main(argv: list[str] | None = None) -> int:
                     "note": (
                         "A catalog record is a hint. It does not authorize deletion, "
                         "skip a preview, or shorten approval. Report new_or_changed "
-                        "first, then one line per unchanged entry, and end with the "
-                        "questions."
+                        "first, then one line per unchanged entry, then every "
+                        "uncatalogued in-scope entry, and end with the questions."
                     ),
                 }
             )
