@@ -154,8 +154,9 @@ jobs:
               **/*.psm1
               **/*.psd1
 
-  # The ONLY job on a Windows runner in this repository, and deliberately so.
-  # Every other suite is platform-agnostic bash string logic that a Linux runner
+  # One of the only two jobs on a Windows runner in this repository, and
+  # deliberately so; `test-windows-guardrails` below is the other. Every other
+  # suite is platform-agnostic bash string logic that a Linux runner
   # exercises identically — `lib/powershell/ps-command.sh`, for instance,
   # carries zero `OSTYPE`/`cygpath`/`uname` branches despite classifying
   # PowerShell commands, so Linux tests it faithfully.
@@ -178,15 +179,7 @@ jobs:
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
   #
-  # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
-  # cygpath or MSYS run here: block-windows-drive-tmp, hardcoded-path-check,
-  # block-hook-bypass, secret-pattern-detection, run-guards and
-  # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
-  # `jq.exe` on a Windows host writes CRLF after every line, so its family and
-  # README lookups miss there and only a Windows run exercises that. Each suite
-  # is a step of its own so its log shows its own duration against this job's
-  # 20-minute timeout. A host-gated case that cannot run must print a counted
-  # SKIP line.
+  # The guardrails suites run in `test-windows-guardrails`, not here.
   #
   # HOST-SKIP SUITES (#3683). Three suites probe the host at run time and two
   # print a SKIP line when they cannot pin their cases, so their Windows
@@ -257,20 +250,6 @@ jobs:
       # discovered.
       - name: Test the file-name rename executor on Windows
         run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh
-      # Guardrails suites whose guards branch on OSTYPE, cygpath, or MSYS
-      # (#4527).
-      - name: Test block-windows-drive-tmp on Windows
-        run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
-      - name: Test hardcoded-path-check on Windows
-        run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
-      - name: Test block-hook-bypass on Windows
-        run: bash plugins/guardrails/hooks/block-hook-bypass.test.sh
-      - name: Test secret-pattern-detection on Windows
-        run: bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
-      - name: Test run-guards on Windows
-        run: bash plugins/guardrails/hooks/run-guards.test.sh
-      - name: Test coverage-manifest on Windows
-        run: bash plugins/guardrails/hooks/coverage-manifest.test.sh
       # The host-skip suites of #3683, named explicitly: each probes the host at
       # run time, so a green step is only evidence once its log shows whether
       # the probe fired or the cases ran.
@@ -327,3 +306,45 @@ jobs:
         run: node --test lib/exec-bash.resolver.test.mjs
       - name: Test the guardrails exec-bash launcher on Windows
         run: bash plugins/guardrails/hooks/exec-bash.test.sh
+
+  # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
+  # cygpath or MSYS run here: block-windows-drive-tmp, hardcoded-path-check,
+  # block-hook-bypass, secret-pattern-detection, run-guards and
+  # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
+  # `jq.exe` on a Windows host writes CRLF after every line, so its family and
+  # README lookups miss there and only a Windows run exercises that. Each suite
+  # is a step of its own so its log shows its own duration. They are a job of
+  # their own because added to `test-windows`'s steps they run past its
+  # 20-minute timeout. A host-gated case that cannot run must print a counted
+  # SKIP line.
+  test-windows-guardrails:
+    needs:
+      - changes
+    # `test-windows`'s gate, verbatim.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && needs.changes.outputs.run_windows == 'true' }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+      - name: Test block-windows-drive-tmp on Windows
+        run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
+      - name: Test hardcoded-path-check on Windows
+        run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
+      - name: Test block-hook-bypass on Windows
+        run: bash plugins/guardrails/hooks/block-hook-bypass.test.sh
+      - name: Test secret-pattern-detection on Windows
+        run: bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
+      - name: Test run-guards on Windows
+        run: bash plugins/guardrails/hooks/run-guards.test.sh
+      - name: Test coverage-manifest on Windows
+        run: bash plugins/guardrails/hooks/coverage-manifest.test.sh
