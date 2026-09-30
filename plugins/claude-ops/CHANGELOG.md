@@ -3,13 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.71.0] - 2026-09-29
+## [0.72.0] - 2026-09-30
 
 ### Added
 
 - **`changelog` has a surface-discovery script**, `scripts/discover-surfaces.sh [root]`. It prints
   `repo-shape: marketplace|consumer`, then one line per surface class present with its count and
-  glob, and reports how many vendored skill files it excluded. Covered by
+  glob, and reports how many vendored skill files it excluded. It recognizes marketplace,
+  standalone-plugin and consumer repos, and counts skills and conventions by their `SKILL.md` and
+  `README.md` files. Covered by
   `scripts/discover-surfaces.test.sh` and a consumer fixture.
 - **`changelog` has an eval that runs discovery on both repo shapes**: the marketplace shape on this
   repo and the consumer shape on the fixture.
@@ -20,6 +22,57 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   read a fixed surface list.
 - **`context/repo-surfaces.md` is an examples spoke**: per-class examples of what an item changes,
   not a checklist. A class the script does not print does not exist in the repo.
+
+## [0.71.2] - 2026-09-29
+
+### Changed
+
+- **`observability`'s description opens with a presence-gated routing clause for the bundled
+  `explain-usage` skill.** It routes a quick plain-language breakdown of this session's tokens to
+  `explain-usage` and keeps cross-session trends, cost, hooks, and anything the local telemetry
+  stores hold, the split its Boundary section states.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `doctor` bullets in `audit-install-state`, `audit-performance` and
+  `audit-skill-visibility`, and the `explain-usage` bullet in `observability`, keep the provenance
+  class, what the surface does and how it is invoked, in the native-references template form.
+
+## [0.71.1] - 2026-09-29
+
+### Fixed
+
+- **`changelog apply` Phase 7 files nothing in a repository with no overlap store**: `overlap.py
+  self-check` exits `3` there in report-only mode, which the phase read as a passing run, so it
+  filed tracker items and replaced the baseline. `native_drift.py diff` now marks such a run
+  `report_only`, moves its items to `unfiled`, and the phase keeps the previous baseline.
+- **`native_drift.py` rejects wrong-shaped JSON with exit `2`**: a summary, detect report, store
+  or inventory that parsed but lacked its shape (a top-level `[]`, a string where an object
+  belongs) raised a traceback with exit `1`.
+- **`native_drift.py` hardens its inputs and the facts it hands a filed body**: leaf types
+  (aliases, markers, descriptions, store row names and classes, candidate keys), the store's and
+  the detect report's schema and required fields, deeply nested JSON and oversized integer
+  literals all exit `2`, and any type error left over exits `2` rather than a traceback. Each fact
+  is one line without backticks, and each item carries a `quote` block that sets every fact in a
+  code span, so upstream text cannot forge a `Drift key:` line and suppress a filing. `diff` has
+  no default for `report_only`.
+- **`inventory --docs` stops reading the tools table at the next heading**: when the table's rows
+  stopped matching (tool names without backticks), the parser read on through the page and took a
+  later backticked row as the table, reporting every tool `undocumented` instead of the block
+  `broken`.
+
+## [0.71.0] - 2026-09-29
+
+### Added
+
+- **`CC_OTEL_HOT_MAX_MB` caps each hot OTEL store file.** `prune-otel-store.sh` applies the size cap
+  as a fallback when age-based pruning alone leaves a hot file over the limit, because the
+  collector's file exporter appends and cannot rotate.
+- **`probe-observability-state.sh --otel-store` reports cold size and last-prune age**, beside the
+  per-file hot sizes it already printed.
+
+### Changed
+
+- **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
+  exporter's append-only limit, replacing the earlier cold-store estimate.
 
 ## [0.70.0] - 2026-09-29
 

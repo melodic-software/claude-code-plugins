@@ -1,13 +1,14 @@
 # Surface discovery and per-class examples for CC changelog integration
 
-Referenced by `/claude-ops:changelog` (Phase 1 explore). `scripts/discover-surfaces.sh [root]` is the source of the surface list. It prints `repo-shape: marketplace|consumer`, then one line per class present with its count and glob. Explore runs it first and greps only the classes it prints. The tables below are examples of what a changelog item typically changes in each class, not a checklist: a class the script does not print does not exist here.
+Referenced by `/claude-ops:changelog` (Phase 1 explore). `scripts/discover-surfaces.sh [root]` is the source of the surface list. It prints `repo-shape: marketplace|plugin|consumer`, then one line per class present with its count and glob. Explore runs it first and greps only the classes it prints. The tables below are examples of what a changelog item typically changes in each class, not a checklist: a class the script does not print does not exist here.
 
 ## Consumer classes
 
-Printed for any repo.
+Printed for any repo. A standalone plugin (`.claude-plugin/plugin.json`, no marketplace) also prints its root-level `skills/`, `agents/`, `commands/` and `hooks/` classes; treat them as the plugin classes below.
 
 | Class | What to check |
 |---|---|
+| `README.md`, `docs/**/*.md` | Onboarding and feature documentation that names a CC feature, flag, or workflow |
 | `CLAUDE.md` (+ `CLAUDE.local.md`), `AGENTS.md` | CLI references, workflow guidance, feature mentions, prerequisites |
 | `.claude/rules/**/*.md` | Quirk and workaround docs keyed to CC behavior. Behavioral changes may obsolete entries; new features may need new ones |
 | `.claude/settings.json` (+ `settings.local.json`) | New `env` vars, permission patterns, hook entries, plugin config |

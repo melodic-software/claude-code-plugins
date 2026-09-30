@@ -3,9 +3,10 @@
 #
 # Usage: discover-surfaces.sh [ROOT]
 #
-# Prints "repo-shape: marketplace|consumer", then one line per present surface
+# Prints "repo-shape: marketplace|plugin|consumer", then one line per present surface
 # class with its count and glob. A marketplace repo has plugins/ and
-# .claude-plugin/marketplace.json; anything else is a consumer. Vendored upstream
+# .claude-plugin/marketplace.json; a standalone plugin has .claude-plugin/plugin.json
+# and no marketplace; anything else is a consumer. Vendored upstream
 # docs (*/skills/*/vendor) are not counted; the last line says how many trees were
 # skipped. Exits 0 whenever ROOT exists, 2 for a missing ROOT or an unknown argument.
 set -euo pipefail
@@ -37,9 +38,12 @@ emit_tree() {
 }
 
 shape=consumer
-if [[ -d plugins ]] && [[ -f .claude-plugin/marketplace.json ]]; then shape=marketplace; fi
+if [[ -d plugins ]] && [[ -f .claude-plugin/marketplace.json ]]; then shape=marketplace
+elif [[ -f .claude-plugin/plugin.json ]]; then shape=plugin; fi
 echo "repo-shape: $shape"
 
+emit_file "readme (README.md)" README.md
+emit_tree "documentation" docs 'docs/**/*.md' -name '*.md' -not -path '*/vendor/*'
 emit_file "project instructions (CLAUDE.md)" CLAUDE.md
 emit_file "project instructions (AGENTS.md)" AGENTS.md
 emit_file "local instructions (CLAUDE.local.md)" CLAUDE.local.md
@@ -48,8 +52,15 @@ emit_file "project settings" .claude/settings.json
 emit_file "local settings" .claude/settings.local.json
 emit_file "mcp config" .mcp.json
 emit_tree "project hooks" .claude/hooks '.claude/hooks/**'
-if [[ -d .claude/skills ]]; then emit "project skills" "$(count_dirs .claude/skills)" '.claude/skills/*/SKILL.md'; fi
+emit "project skills" "$(find .claude/skills -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | count_lines)" '.claude/skills/*/SKILL.md'
 emit_tree "project agents" .claude/agents '.claude/agents/*.md' -name '*.md'
+
+if [[ "$shape" = plugin ]]; then
+  emit "plugin skills (excl. vendor)" "$(find skills -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | count_lines)" 'skills/*/SKILL.md'
+  emit_tree "plugin agents" agents 'agents/*.md' -name '*.md'
+  emit_tree "plugin commands" commands 'commands/*.md' -name '*.md'
+  emit_tree "plugin hooks" hooks 'hooks/**'
+fi
 
 if [[ "$shape" = marketplace ]]; then
   emit "plugins" "$(count_dirs plugins)" 'plugins/*/'
@@ -58,7 +69,7 @@ if [[ "$shape" = marketplace ]]; then
   emit "plugin agents" "$(find plugins -path '*/agents/*.md' 2>/dev/null | count_lines)" 'plugins/*/agents/*.md'
   emit "plugin hook dirs" "$(find plugins -mindepth 2 -maxdepth 2 -type d -name hooks 2>/dev/null | count_lines)" 'plugins/*/hooks/**'
   emit "plugin READMEs" "$(find plugins -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'plugins/*/README.md'
-  if [[ -d docs/conventions ]]; then emit "conventions" "$(count_dirs docs/conventions)" 'docs/conventions/*/README.md'; fi
+  emit "conventions" "$(find docs/conventions -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'docs/conventions/*/README.md'
   emit_tree "upstream drift ledgers" docs/upstream 'docs/upstream/*.md' -maxdepth 1 -name '*.md'
   emit_file "native-surfaces store" docs/native-surfaces/records.json
   emit_file "official-docs index" docs/official-docs.md

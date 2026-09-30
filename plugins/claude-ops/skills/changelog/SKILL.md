@@ -105,7 +105,7 @@ Resolve the range, check the cap, and check version alignment:
 
 ### Phase 1. Explore
 
-Orient on repo impact for EACH changelog item. Run `scripts/discover-surfaces.sh` first: its output is the surface list, and `context/repo-surfaces.md` gives per-class examples and scoped grep patterns:
+Orient on repo impact for EACH changelog item. Run `bash "${CLAUDE_SKILL_DIR}/scripts/discover-surfaces.sh"` first: its output is the surface list, and `context/repo-surfaces.md` gives per-class examples and scoped grep patterns:
 
 1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL surface classes the script printed
 2. Classify each item per `context/classification-rubric.md` into one action lens per owner surface it touches: **correct**, **replace**, **adopt**, **note**, or **skip**
@@ -175,7 +175,8 @@ store's recheck triggers. Report surface changes (added, removed, renamed, recla
 invocability and marker changes, docs cross-check changes, and new overlap candidates. File one
 work item per new candidate, fired trigger, and degraded or broken self-check through
 `/work-items:track`, deduped by a `native-drift:<kind>:<surface>:<component>` key; a self-check
-degraded only by a CLI version past the validated build proposes revalidation instead. Commands,
+degraded only by a CLI version past the validated build proposes revalidation instead. A repository
+with no overlap store is report-only: report, file nothing, keep the baseline. Commands,
 the summary's location, items, dedupe and approval: [context/native-drift.md](context/native-drift.md).
 Its commands write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that
 path in place of the placeholder before running one.
