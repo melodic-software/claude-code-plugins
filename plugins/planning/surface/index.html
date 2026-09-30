@@ -654,7 +654,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
     if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot">Claude is revising</span>');
-    if (carry[q.id]) chips.push('<span class="chip hot">open ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
+    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     if (lastEventSeq(q.id) && !isHandled(lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
