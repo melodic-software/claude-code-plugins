@@ -1,7 +1,7 @@
 # Plugin-data report keying, retention, and overwrite
 
-Version: 1.0.2
-Last updated: 2026-09-07
+Version: 1.0.3
+Last updated: 2026-09-30
 
 A marketplace-wide contract for **how a plugin names what it writes under `${CLAUDE_PLUGIN_DATA}`**:
 the key, the retention shape, and whether a write may overwrite. It does not govern *what* may live
@@ -175,6 +175,7 @@ holds every project's artifact under the same deletable root.
 | `machine-health:audit` | Not keyed: roots are passed in by the caller, deliberately, per that skill's own inherited-variable hazard. Cited above for retention shape only |
 | `claude-ops:observability --write` | Keyed (#3576), `reports/<state-key>/claude-observability-<date>.md`, resolved by running `skills/observability/scripts/report-path.sh` rather than composing a path (rule 1a). One file per project per date is the stated retention shape: the report is a working artifact, and its source, the hook event log inside the checkout, is why the key's worktree split is the behavior it wants. Rule 3 on the leftovers: the script names any unkeyed `reports/claude-observability-<date>.md` on stderr and reads none of them |
 | `claude-ops:known-issues check-all` | Keyed (#3576), `check-all-output/<state-key>/`, obtained by running `scripts/check-all.sh --print-output-dir`. A read-back artifact under rule 2 and a rule 3 surface: the registry is project-relative whenever the `registry_dir` option is set, and the pre-fix unkeyed directory was reproduced serving one project the other's registry rows. Both this writer and the one above fail closed when the key cannot be derived, rather than falling back to the unkeyed path |
+| `code-metrics` (all `audit-*` skills) | Keyed by `lib/state-key.sh`, `reports/<state-key>/<skill>-<stamp>.json`, one timestamped file per run with the newest 20 per skill kept per key. Fails closed when the key cannot be derived: no document is kept and the cap line says to re-run with `--json`. Never read back, so Rule 3 is limited to naming unkeyed leftovers on stderr. `CODE_METRICS_REPORT_DIR` is the explicit override |
 
 ## Related
 
