@@ -15,10 +15,10 @@ in any session.
 
 `update-config` makes a change the person asks for. This skill checks what is already configured
 against current docs and the project's conventions and reports findings; its `--fix` phase applies
-only findings it produced, each behind a confirmation. One writes on request, the other judges the
-result, so an audit finding the person wants fixed in a way `--fix` does not cover is a natural
-request to hand to `update-config`, which the person or the model makes as a new request, not a
-chain from this skill.
+only findings it produced, each behind a confirmation, and routes those settings edits through
+`update-config` when it resolves. One writes on request, the other judges the result, so an audit
+finding the person wants fixed in a way `--fix` does not cover is a natural request to hand to
+`update-config`, which the person or the model makes as a new request, not a chain from this skill.
 
 ## Presence
 

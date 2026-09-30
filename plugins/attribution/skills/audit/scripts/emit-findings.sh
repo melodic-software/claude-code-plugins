@@ -15,12 +15,18 @@
 # escaping, rule-id-first Finding cells, and tier lookup.
 #
 # The RELAY BOUNDARY is enforced here, not upstream. Only fingerprint-confirmed
-# copies and the two deterministic stamp rules may reach a findings file;
-# judgment verdicts (vendored-snapshot, source-fetched-similar, llm-suspected,
-# not-found) stay in the human report. They are counted in `## Surfaces` rather than dropped, and
-# their tier names are deliberately NOT printed — the findings file is the
-# apply relay's input, and a tier name in it invites a consumer to act on a
-# verdict this producer withheld on purpose.
+# copies, the two deterministic stamp rules, and one judged rule under a declared
+# outcome may reach a findings file; judgment verdicts (vendored-snapshot, source-fetched-similar,
+# llm-suspected, not-found) stay in the human report. They are counted in
+# `## Surfaces` rather than dropped, and their tier names are deliberately NOT
+# printed — the findings file is the apply relay's input, and a tier name in it
+# invites a consumer to act on a verdict this producer withheld on purpose.
+#
+# The judged rule is rule-restated-upstream-fact. Its relay decision keys on the
+# rule, the class and the DECLARED OUTCOME (a unanimous STANDS that the refutation
+# pass could not refute), never on a tier name: such a finding maps to a judgment
+# tier by fixed rule, so a tier test would either withhold every one or relay every
+# judgment verdict. Its Confidence cell is empty, because a judgment selected the row.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
 # docs/specs/provenance-type-inventory.md, which lands in
@@ -420,10 +426,23 @@ def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 # paired with a valid rule id, and a verdict declared inside a `verdict` object,
 # are withheld too.
 #
+# ONE CLASS IS DECIDED BEFORE THAT, and by no tier: a restated-fact record, by its
+# rule slug or its class. Only the fully qualified rule id can relay; a record carrying
+# the slug under another prefix is W, as the copy and stamp rows match by slug. It maps
+# to a judgment tier by fixed rule, so the tier test above would withhold every one, and
+# relaying on a tier name would relay every judgment verdict. It relays on its declared
+# outcome, and every other restated-fact
+# record is W whatever it declares (a split, a refutation, no outcome, an unreadable
+# block, no tier at all): each is a judgment finding on the human report, and none may
+# fall through to "U", which would print its rubric and review payload into the file.
+# A restated-fact class under the copy rule id is W too, never a copy row, because
+# the Action of the copy row names the fix flow this class is never eligible for.
+#
 # Four kinds, because `## Surfaces` states what each count IS and a count that
 # lumps them together says something false about the records in it:
 #   R  relay-eligible, a table row
-#   W  a declared judgment verdict, withheld and counted as such
+#   W  a declared judgment verdict, or a restated-fact finding lacking the declared
+#      outcome, withheld and counted as such
 #   X  a mapped rule whose declaration does not authorize the relay — a copy naming
 #      no fingerprint-confirmed, a stamp whose own tier names no tier this reader
 #      knows: not relay-eligible, but not a judgment finding on the human report
@@ -439,6 +458,24 @@ def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 # a single bad record is what `## Unparsed` is for.
 def opt($k): if type == "object" then .[$k] else null end;
 
+# The restated-fact relay reads a DECLARED OUTCOME, and reads it the opposite way the
+# tier reader reads a tier. A missed tier verdict is a leak, so that reader is generous
+# about the wrapper; a missed outcome here is a withheld record counted in
+# `## Surfaces`, and a generous read of it is a relay nobody authorized. So: the exact
+# top-level keys `class`, `rubric` and `review` (a differently cased key declares
+# nothing), a real boolean for `unanimous`, and a string equal to the documented name
+# for each verdict, folded by the same `norm` so a rendering-equivalent spelling still
+# reads as the name it shows. Anything else, an unreadable block included, is not an
+# outcome. The size of the panel and how it reached its verdict are not checked here:
+# this reads the declaration, and the run owns its arithmetic.
+def says($want): type == "string" and norm == $want;
+def restated_class: opt("class") | says("restated-fact");
+def outcome_declared:
+  restated_class
+  and ((opt("rubric") | opt("unanimous")) == true)
+  and (opt("rubric") | opt("verdict") | says("stands"))
+  and (opt("review") | opt("verdict") | says("survives"));
+
 [ (.findings // [])[]
   | if type != "object" then
       (if stray_verdict then "W" else "U" end) as $kind
@@ -450,8 +487,11 @@ def opt($k): if type == "object" then .[$k] else null end;
   | (if (.line | type) == "number" then .line
      elif (.span | opt("start_line") | type) == "number" then .span.start_line
      else 0 end) as $lnum
+  | ($rule == "attribution/audit/rule-restated-upstream-fact") as $restated_rule
   | (
-      if withheld_verdict then "W"
+      if $slug == "rule-restated-upstream-fact" or restated_class then
+        (if $restated_rule and outcome_declared then "R" else "W" end)
+      elif withheld_verdict then "W"
       elif $slug == "rule-verbatim-copy" then
         (if declares_confirmed then "R" else "X" end)
       elif $slug == "rule-stamp-expired" or $slug == "rule-trigger-less-stamp" then
@@ -478,6 +518,13 @@ def opt($k): if type == "object" then .[$k] else null end;
           "stamp \(.stamp_date // "?") exceeds the \(.window_days // "?")-day window by \(.days_over // "?") days"
         elif $slug == "rule-trigger-less-stamp" then
           "stamp \(.stamp_date // "?") on a surface stating no recheck trigger"
+        elif $slug == "rule-restated-upstream-fact" then
+          # Only what the row needs, each read type-guarded so a stray object in
+          # `samples`, `url` or `excerpt` cannot carry a tier name in as a value. No
+          # grade, no evidence, no tier and no searched surface reaches the cell.
+          "restates a fact an external source owns with no conforming pointer or record; unanimous panel of \(.rubric | opt("samples") | if type == "number" then tostring else "?" end) samples, refutation survived"
+          + (.source | opt("url") | if type == "string" then "; source \(.)" else "" end)
+          + (.excerpt | if type == "string" and . != "" then "; excerpt: \(.)" else "" end)
         else "" end),
       # Defense in depth for the boundary above: only the ONE kind that prints a
       # raw record carries one into the composition stage, so no later edit to the
@@ -525,10 +572,16 @@ function yaml_scalar(s) {
   return s
 }
 
-# Tier/Action mirror of the severity crosswalk (see header comment). All three
+# Tier/Action mirror of the severity crosswalk (see header comment). All four
 # rules argue to IMPORTANT and none is auto-applicable: each repair is a
 # judgment the relay surfaces rather than applies.
 function rule_tier(slug) { return "IMPORTANT" }
+# Confidence is confidence-of-realness, `high` or omitted. The three deterministic
+# rules fired on a computation; the restated-fact row was selected by a panel, so
+# its cell is empty rather than `high`.
+function rule_confidence(slug) {
+  return slug == "rule-restated-upstream-fact" ? "" : "high"
+}
 function rule_action(slug) {
   if (slug == "rule-verbatim-copy")
     return "Not auto-applicable: remediate with `/attribution:audit fix`; disposition choice, the semantic-diff guard and pointer liveness are producer-owned"
@@ -536,6 +589,8 @@ function rule_action(slug) {
     return "Not auto-applicable: re-derive the record against its live basis and restamp, or replace the restatement with a pointer"
   if (slug == "rule-trigger-less-stamp")
     return "Not auto-applicable: state the observable event that obliges re-derivation (upstream-drift required part 4)"
+  if (slug == "rule-restated-upstream-fact")
+    return "Not auto-applicable: report-only, no fix pass reaches it; replace the restatement with a pointer at the point of use, or with a four-part record (claim, basis URL, as-of date, observable recheck trigger) when the surface must work offline"
   return "Review by hand"
 }
 
@@ -609,14 +664,15 @@ END {
   printf("| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n")
   printf("|------|------|------------|----------|------------|---------|--------|\n")
   for (i = 1; i <= n_relay; i++) {
-    # Confidence is `high` for every row here: each is a deterministic rule
-    # that fired. Confidence is confidence-of-realness, never confidence in the
+    # Confidence is `high` on the deterministic rules that fired and empty on the
+    # judged one. Confidence is confidence-of-realness, never confidence in the
     # fix — the fix judgment is said in Tier and in the Action wording.
     # Location is escaped like every other cell that carries input. A path is not
     # trusted to be pipe-free — `a|b.md` split the row, and every cell after it
     # shifted one column left, so the consumer read the Finding as a Surface.
-    printf("| %d | %s | high | %s | attribution:audit | %s | %s |\n",
-      i, rule_tier(r_slug[i]), esc(r_loc[i]), esc(r_find[i]), esc(rule_action(r_slug[i])))
+    printf("| %d | %s | %s | %s | attribution:audit | %s | %s |\n",
+      i, rule_tier(r_slug[i]), rule_confidence(r_slug[i]), esc(r_loc[i]), esc(r_find[i]),
+      esc(rule_action(r_slug[i])))
   }
   printf("\n")
 

@@ -111,11 +111,10 @@ This variant tracks `/discovery:research`'s conventions. Same discipline file, s
 A native workflow also answers "research this deeply" with a cited report, so a request for deep
 research can mean either surface.
 
-- **`deep-research` (bundled workflow).** Ships with Claude Code rather than as a marketplace
-  plugin. `/deep-research <question>` scopes one question, fans out web searches, fetches and
-  cross-checks sources, votes on each claim, and returns one cited report. It is reserved for the
-  person to run: its registration disables model invocation, so the model does not start it and
-  Tier 1 does not dispatch it.
+- **`deep-research` (bundled workflow)**: `/deep-research <question>` scopes one question, fans out
+  web searches, fetches and cross-checks sources, votes on each claim, and returns one cited report.
+  It is reserved for the person to run: its registration disables model invocation, so the model
+  does not start it and Tier 1 does not dispatch it.
 - **This skill (marketplace plugin).** Splits a multi-topic ask across per-topic
   `discovery:researcher` workers under the `/discovery:research` discipline (source tiers, recency
   gate, coverage ledger), and grades every run off disk with a fresh verifier before surfacing it.

@@ -3,6 +3,60 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.2] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block.
+
+### Changed
+
+- Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
+## [0.43.0] - 2026-09-30
+
+### Added
+
+- **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
+
+## [0.42.5] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.42.4] - 2026-09-30
+
+### Changed
+
+- `block-root-delete-target` states its scope in the hook header: friction against accidental or casual root deletes, not a sandbox. The launcher grammar is not widened further without a filed bypass. Converging the walker with `lib/powershell/ps-command.sh` stays deferred, and any future convergence is checked against the delete lane in `scripts/check-guardrails-ps-differential.sh`. No verdict changes.
+- `scripts/check-guardrails-ps-differential.sh` compares `block-root-delete-target` in the PowerShell differential, with a delete-lane corpus. The guard tokenizes on its own, and an outside-tree target is judged from one neutral payload cwd for both arms.
+
+## [0.42.3] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` allows a computed PowerShell call whose target resolves to a single-quoted non-writer literal.** `$p = 'git'; & $p 'status' bare` was refused by the positional-write arm. The arm now skips a call site whose variable resolves to such a literal; an unresolved target stays blocked and no allow token was added.
+- **The computed-call positional arm has its own block reason.** It reports form `powershell-computed-positional` with a reason that names the computed call, instead of the cmdlet/redirect message with Write/Edit advice. The telemetry schema lists the new form token.
+
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **The substitution cap no longer counts text inside single-quoted spans ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).** A Bash command whose issue or PR body quotes `$(`, `<(`, `>(` or backticks in single quotes is no longer refused at 256, because bash substitutes nothing there. Unquoted, double-quoted and heredoc-body substitutions still count. A command naming a shell, `eval`, `su`, `env` or `alias`, or with quoting the scan does not model, counts whole. PowerShell is unchanged.
+
+## [0.42.1] - 2026-09-29
+
+### Fixed
+
+- **`block-windows-drive-tmp` catches inline python `open (` and `getattr(__builtins__,'open')(`.** The inline-python write check required `open(` with no space and no `getattr` form, so a drive-root `\tmp` path opened either way passed. The README row names both shapes and the suite covers them.
+
 ## [0.42.0] - 2026-09-29
 
 ### Added
