@@ -20,7 +20,8 @@ managed state stay as [the safety model](safety-model.md) states them.
    destructive command, or offer one behind the engine's tier and exact-list approval, is the
    owner's decision, and no route for either is built.
 5. **Unmatched paths.** A managed-looking path with no registry match is reported as a coverage
-   gap. It is never `clean` and never removable.
+   gap. It is never `clean` and never removable. It gets the native-command handoff that SKILL.md §4
+   gives managed state with no registry match.
 
 ## Design check
 

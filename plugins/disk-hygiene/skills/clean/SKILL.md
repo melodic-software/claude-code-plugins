@@ -366,9 +366,9 @@ mix tiers:
 }
 ```
 
-For managed state, report the documented native command and its current dry-run result, but do not add
-the path to an engine plan. Paths in an engine plan are unmanaged, snapshot-relative, exact,
-non-overlapping, and never globs. Report a registry match per `reference/managed-state-report.md`.
+Managed state never enters an engine plan, whose paths are unmanaged, snapshot-relative, exact, non-overlapping,
+and never globs. A registry match follows only `reference/managed-state-report.md`; its step 4 shows no destructive
+command. Other managed state: report the documented native command and its current dry-run result.
 
 ## 5. Preview, then ask
 
