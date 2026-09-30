@@ -694,7 +694,7 @@ write and stays locally informative; the shape does not follow the name.
 |---|---|---|
 | Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it | `install-ruff` (dev-dependency add through the repo's Python manager, for example `uv add --dev ruff`, into an environment the repo already has), `install-biome` (`@biomejs/biome` dev dependency: `pnpm add -D`, `yarn add -D`, `bun add -d` or `npm install --save-dev`), `install-lint` (`markdownlint-cli2` dev dependency, same managers) |
 | Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix | `install-cli`: context7 `npm install -g ctx7@latest`, playwright `npm install -g @playwright/cli` |
-| Plugin-owned dependencies | the write provisions the plugin's own runtime under `${CLAUDE_PLUGIN_DATA}` and touches nothing in the consumer's repo or the global prefix | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium), `install-build-deps` (ai-briefing: `npm ci` plus `npx playwright install --only-shell chromium` in a staged `runtime/build`) |
+| Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium, the browser in `${CLAUDE_PLUGIN_DATA}/ms-playwright` unless `PLAYWRIGHT_BROWSERS_PATH` is set), `install-build-deps` (ai-briefing: `npm ci` in a staged `runtime/build` under the data dir, then `npx playwright install --only-shell chromium`, which on Linux is `npx playwright install --with-deps --only-shell chromium`; the skill sets no `PLAYWRIGHT_BROWSERS_PATH`, so the browser goes to Playwright's default per-user cache, and `--with-deps` installs OS packages machine-wide) |
 | Hook file | the write copies a named hook script into the operator's personal `.git/hooks/` | `install-commit-msg` (`hooks/commit-msg` and `hooks/guardrails-resolve-convention.sh`), `install-pre-commit-content` (`hooks/pre-commit` and `hooks/guardrails-content-lib/`) |
 
 A new install subaction fits one of those four by what it writes. It does not invent a fifth, and it
@@ -710,8 +710,11 @@ paper over the gap; name every reason that applies; at least one always does.
    Homebrew, a pre-built binary), not a dependency recorded through the repo's package manager.
 2. The tool publishes several official install methods, so choosing one is the consumer's call.
 
-A machine-global or `@latest` install is not itself a reason to refuse: the Machine-global CLI shape
-installs the plugin's own subject CLI that way, and context7 does so unpinned.
+The discriminator is the preamble, not the install command. A plugin that exists to drive a CLI
+(context7's `ctx7`, playwright's `@playwright/cli`) installs it machine-globally under the
+Machine-global CLI shape. A plugin whose hook only runs a tool over the consumer's files
+(go-format's `goimports`, typos-format's `typos`) refuses under the list above, though that tool is
+also its subject. A machine-global or `@latest` install is not itself a reason to refuse.
 
 `go-format` (no `install-goimports`: only `go install ...@latest`, reason 1) and `typos-format` (no
 `install-typos`: cargo, Homebrew, Conda, pacman or a pre-built binary, reasons 1 and 2) are the
@@ -726,7 +729,8 @@ current refusals. They stay; they are not defects against a missing subaction.
   `plugins/context7/skills/setup/SKILL.md` and `plugins/playwright/skills/setup/SKILL.md`
   (`install-cli`, the two `npm install -g` commands above),
   `plugins/knowledge/skills/setup/SKILL.md` (`install-deps`),
-  `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`),
+  `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`: the Linux `--with-deps`
+  branch and the absence of `PLAYWRIGHT_BROWSERS_PATH`),
   `plugins/guardrails/skills/setup/context/install-commit-msg.md` and
   `plugins/guardrails/skills/setup/context/install-pre-commit-content.md` (hook files). The
   refusals: `plugins/go-format/skills/setup/SKILL.md` and
