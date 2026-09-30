@@ -36,6 +36,50 @@ Neutrally named: cross-OS algorithm.
 
 . (Join-Path $PSScriptRoot 'Get-CheckLastRun.ps1')
 
+function Format-TrendCell {
+    <#
+    .SYNOPSIS
+    The glance-table Trend cell for one check result, in the glyphs
+    reference/shared/report-template.md defines: '↑' (the metric worsened),
+    '↓' (improved), '→' (steady) and '·' (no prior value to compare).
+
+    .DESCRIPTION
+    A moving metric carries its signed delta after the arrow. A row the trend
+    rule raised is always '↑', with the delta only when the delta itself is
+    worsening: the drivers repeat raises on CodeIntegrity events, whatever the
+    unsigned-in-store count did. Direction follows Get-TrendWorseningSign, not
+    the raw sign of the delta.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([Parameter(Mandatory = $true)] $Result)
+
+    $trend = $Result.PSObject.Properties['trend'] ? $Result.trend : $null
+    if (-not $trend -or -not $trend.last_run) { return '·' }
+
+    $value = $null
+    if ($trend.delta -match ':\s*([+-]?[\d.]+(?:E[+-]?\d+)?) vs prior') { $value = $Matches[1] }
+    $worse = $null -ne $value -and ([double]$value * (Get-TrendWorseningSign -CheckId $Result.id)) -gt 0
+
+    if ($trend.adjusted_from) { return $worse ? "↑ $value" : '↑' }
+    if ($null -eq $value) { return '·' }
+    if ([double]$value -eq 0) { return '→' }
+    return ($worse ? '↑' : '↓') + " $value"
+}
+
+function Get-TrendWorseningSign {
+    <#
+    .SYNOPSIS
+    -1 for a check whose trend metric worsens as it falls (battery capacity,
+    reliability stability), +1 for every other check.
+    #>
+    [CmdletBinding()]
+    [OutputType([int])]
+    param([string] $CheckId)
+
+    return @('battery', 'reliability') -contains $CheckId ? -1 : 1
+}
+
 function Invoke-TrendAnalysis {
     [CmdletBinding()]
     [OutputType([object[]])]
@@ -243,15 +287,13 @@ function Test-WorseningTrend {
     # upgrade would mint a CRIT from five new stray files.
     # winget-upgrades stays here, but Invoke-TrendAnalysis skips it when the WARN
     # carries a KEV match: the match is name-only, so a count trend cannot make it CRIT.
-    $downwardWorsens = @('battery', 'reliability')
-
     $delta = $cur - $prev
 
     if ($upwardWorsens -contains $CheckId) {
         # Threshold: >= +5 (raw units or percentage points) counts as worsening.
         return $delta -ge 5
     }
-    if ($downwardWorsens -contains $CheckId) {
+    if ((Get-TrendWorseningSign -CheckId $CheckId) -lt 0) {
         return $delta -le -5
     }
     return $false

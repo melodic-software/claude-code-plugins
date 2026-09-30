@@ -5,9 +5,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ## [0.47.11] - 2026-09-30
 
-### Fixed
+### Added
 
-- **Removed the em dashes in `reference/standards-contract.md`.** Wording only; behavior is unchanged.
+- **`surface/wake.sh`** wraps the interview wake loop's compound command (`round.sh apply` then `watch.sh`) so each wake sends one short call. `watch.sh` emits it as the `next` command, and `context/surface.md` and the surface README document it ([#5462](https://github.com/melodic-software/claude-code-plugins/issues/5462)).
 
 ## [0.47.10] - 2026-09-30
 
