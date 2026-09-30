@@ -196,13 +196,15 @@ bypass), block once with "dispatch the judge, apply nothing, do not wait"; the f
 review surface for the PR. Basis: RESEARCH-hooks.md:29, :98-112; AGENTS.md lane launch mode.
 
 Amended 2026-09-30 (user, after probe R2-P9 failed): `permission_mode` cannot mark an unattended
-session, because `-p` and `-p --permission-mode auto` both report `default` (hooks.md: Manual also
-arrives as `default`). A session is attended only when the hook environment has
-`CLAUDE_CODE_SESSION_ATTENDED=1` exactly; any other value or its absence is unattended and gets no
-forced turn, only the `systemMessage` and the findings file. The variable is undocumented, so the
+session: plain `-p` reports `default` like an attended manual session (hooks.md: Manual arrives as
+`default`), and `-p --permission-mode auto` reports `auto` like an attended auto session. A
+session is attended only when the hook environment has `CLAUDE_CODE_SESSION_ATTENDED=1` exactly;
+any other value or its absence is unattended and gets no forced turn, only the `systemMessage` and
+the findings file. The variable is undocumented, so the
 rule fails safe: if it is renamed or dropped, every session falls back to the no-forced-turn path.
 Probe R2-P9 pins its values and is rechecked on each Claude Code release. Basis: probe logs
-`p5-hooks.jsonl` (1 in interactive default and auto sessions, 0 under `-p`).
+`p5r-hooks.jsonl` and `p9r-hooks.jsonl` (1 in interactive default and auto sessions; 0 under `-p`,
+`-p --permission-mode auto` and `--bg`).
 
 ## Round 5 (from stress-test round 2; user chose the recommended design 2026-09-30)
 

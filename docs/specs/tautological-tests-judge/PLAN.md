@@ -47,7 +47,7 @@ Test strategy: TDD for every script (Red, Green, Refactor). Test boundaries:
 - `judge-calibration/metrics.sh` through `metrics.test.sh`, known-answer cases (new).
 - Judge verdict quality is measured by Phase 4, not by unit tests.
 
-### Phase 1: Live probes, spec housekeeping, graduation [TODO]
+### Phase 1: Live probes, spec housekeeping, graduation [DONE]
 
 Probes in a scratch repo under `.work/tautological-tests-judge/probe/` (gitignored), with `claude -p`
 sessions and throwaway hooks. Each is a row `| R2-P<n> | ... |` (version, command, observed output,
