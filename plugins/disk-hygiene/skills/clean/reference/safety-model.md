@@ -8,6 +8,8 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Investigated catalog](#investigated-catalog)
+- [Opt-in elevation](#opt-in-elevation)
 - [Outcome vocabulary](#outcome-vocabulary)
 - [Primary references](#primary-references)
 
@@ -71,15 +73,51 @@ bounded conditions.
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
+- no virtual-disk image file, matched by name and case-insensitively against the baseline
+  `disk_image_name_globs` (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`; WSL's
+  `ext4.vhdx` is covered by `*.vhdx`). The entry reports `virtual-disk` in `protected_reasons` and
+  `size_qualifiers`, so any candidate that is or contains one is blocked in preview, apply, and
+  `handoff-verify`, and its bytes stay out of every reclaimable total. An image is a whole guest
+  disk, usually held open by a hypervisor or WSL, so the name proves nothing about it being
+  disposable; the owning product's own compaction or removal is the path. Each image also gets an
+  attach probe, which adds one more reason:
+  - `attached-virtual-disk:<mount>` for each drive letter (`D:`) or mount point the attached image
+    backs, or a bare `attached-virtual-disk` when it is attached with no mounted volume;
+  - `virtual-disk-attach-unverified` when the probe errors, times out, or has no route on the
+    platform, or when it runs under WSL and finds no loop device for the image. An unanswered probe
+    never reads as detached;
+  - nothing more for a detached image, which keeps only `virtual-disk`.
+
+  Windows asks `Get-DiskImage` through a PowerShell call bounded at 20 seconds. Linux reads
+  `/sys/block/loop*/loop/backing_file` and the loop devices' mounts. WSL sees only its own loop
+  devices, never the Windows host's attachments, so a WSL image with no loop device reads as
+  unverified rather than detached; a loop device that does back it is reported as attached. WSL is
+  detected from a `microsoft` kernel release or `/proc/sys/fs/binfmt_misc/WSLInterop`. macOS has no
+  probe and always reads as unverified.
+
+  **Claim:** `Get-DiskImage` is documented for virtual hard disk and ISO images, so for a `.vmdk`,
+  `.vdi`, `.qcow2`, or `.img` the Windows route may error (`virtual-disk-attach-unverified`) or
+  answer not attached (bare `virtual-disk`); what it returns for those formats, and for an image
+  another process holds open, such as a running WSL distro's `ext4.vhdx`, has not been observed.
+  The image keeps `virtual-disk` and the block either way. **Basis:** the cmdlet's page
+  `https://learn.microsoft.com/en-us/powershell/module/storage/get-diskimage?view=windowsserver2025-ps`,
+  fetched whole as rendered HTML: "Gets one or more disk image objects (virtual hard disk or ISO)"
+  and "reports whether the specified ISO or VHD file is currently attached"; its image-path
+  examples are an `.iso` and a `.vhdx`, and the page names no VMDK, VDI, QCOW2, or IMG. No
+  Windows host has run this route. **As of:** 2026-09-29. **Recheck:** the operator's Windows pilot (an attached VHDX, a
+  `.vmdk`, and a running WSL distro's `ext4.vhdx`), or that page naming more image formats;
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
 - live-handle state proven clear; missing authority or tooling blocks;
-- no elevation and no handle closing;
+- no handle closing, and no elevation unless the operator opted in (see
+  [Opt-in elevation](#opt-in-elevation));
 - one confidence tier per plan and approval.
 
 The policy overlay can add protections, disable candidate hints, and add consumer hints. It cannot
-remove a non-overridable check or baseline protected name.
+remove a non-overridable check or baseline protected name. Its version 2 `elevation` field is the
+one setting that widens what the skill may do, on Windows only, as described under
+[Opt-in elevation](#opt-in-elevation).
 
 ## Live agent scratchpads
 
@@ -272,6 +310,9 @@ typing `/skillname` fires it, it matches on `command_name`, and `additionalConte
 alongside the expanded prompt); recheck when that section changes, or if a release note names the
 event. Whether `command_name` carries the leading `/` was not observed, so the matcher admits both.
 
+The hook is the chosen primary delivery path for both values. The one denied bare-python probe in
+the no-hook path is an accepted residual: the probe cannot supply `hook_python` to itself.
+
 `--max-depth` accepts only a bare positive-integer literal. `--confirmed-large-scan`, `--quiet`
 and `--root-children` are the valueless scan flags; the guard permits at most one of each and
 rejects any trailing value, so the scan grammar stays exact.
@@ -417,7 +458,7 @@ the filesystem is the consumer's own permission policy, never this guard. The ma
 per-path approval covers the paths selected for removal, so it does not reach what such a command
 collaterally destroys: a `Move-Item -Force` destination, a truncated `Out-File` target, or an entire
 volume. The engine's own containment, revalidation, and platform gates remain the deletion
-authority.
+authority, except inside the [opt-in elevated script](#opt-in-elevation).
 
 **Kill-switch enforcement: both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, exec form:
@@ -505,7 +546,7 @@ preview/approval-token containment). The model additionally reads the `disk_hygi
 the skill content and self-enforces audit-only, now defense-in-depth over the guard rather than the only path.
 Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
-deletion authority.
+deletion authority, except inside the [opt-in elevated script](#opt-in-elevation).
 
 **Hook launch form, and what it does and does not bound.** All three registrations use **exec form**:
 the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatter belt in the clean
@@ -580,7 +621,7 @@ payload names what was in scope.)
 | `walked` | `true` only when the child's whole subtree was inventoried |
 | `logical_bytes` | Recursive LOGICAL total, qualifiers included; `null` unless `walked` |
 | `reclaimable_local_bytes` | Recursive total over unqualified files only, the bytes deleting the child is expected to return locally; `null` unless `walked` |
-| `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, …); `null` unless `walked` |
+| `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, `virtual-disk`, …); `null` unless `walked` |
 | `entry_count` | Inventoried descendants, excluding the child's own record; `null` unless `walked` |
 | `newest_mtime_ns` | Newest `mtime_ns` across the child and its inventoried descendants; `null` unless `walked` |
 | `unwalked_reasons` | Sorted causes when `walked` is false: `depth-cut`, `protected`, `vcs-boundary`, `scan-error`, `descendant-not-walked`, or the bare `not-walked` fallback when the walk recorded no more specific cause. Empty when `walked` |
@@ -606,7 +647,7 @@ is in `truncated_paths`.
 
 The third failure mode, a byte figure that overstates what deleting would return, is closed by
 pairing, not by omission. `logical_bytes` is a logical total, so a cloud placeholder's REMOTE size, a
-hard link's shared object, and a sparse file's unallocated extent all inflate it; `size_qualifiers`
+hard link's shared object, a sparse file's unallocated extent, and a virtual-disk image's capacity all inflate it; `size_qualifiers`
 says which of those are present in the subtree and `reclaimable_local_bytes` counts only unqualified
 files, exactly as `target_reclaimable_local_bytes` does for the target. Rank a child on the
 reclaimable figure and state the qualified bytes separately with their reasons. Never read
@@ -627,8 +668,8 @@ subtree.
 The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout.
 The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
 record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
-the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals, `errors`, `policy_sources`
-and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
+the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals, `errors`, `policy_sources`,
+`elevation` and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
 closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
 of truncated paths, not the list: a depth-2 home scan truncated about 140, which is most of what the
 flag exists to avoid. The count is printed even at zero, so a clean scan reads differently from a
@@ -675,6 +716,86 @@ rather than exempted. Residue inside a managed directory is reported as a handof
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
 
+## Investigated catalog
+
+`catalog.json` and a rendered `CATALOG.md` under the data root record what an investigation or the
+operator concluded about an entry. A record holds `target`, `path`, `identity` (device, inode,
+kind), `descendant_set`, `owner`, `provenance`, `evidence` (each item's `source` is a file path,
+command, or URL), `disposition`, `tier`, `size`, `first_seen_run`, `last_seen_run`,
+`last_verified`, `source` (`engine` or `human`), and `question`.
+
+`catalog` merges a findings file (`{"records": [...]}`, `source: engine`) and an operator answers
+file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapshot-relative
+`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence`:
+
+```text
+"<hook-python>" "<skill-dir>/scripts/hygiene.py" catalog \
+  --snapshot "<run-dir>/snapshot.json" --run-id "<run-id>" \
+  [--findings "<run-dir>/findings.json"] [--answers "<run-dir>/answers.json"] \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
+- A record is a hint. It records a conclusion, never an approval. Preview and apply do not read it,
+  so a catalogued `remove` still needs the same preview, approval token, and revalidation as an
+  entry that was never catalogued.
+- A record belongs to one scan target: the same entry reached from another target is not annotated
+  and is asked again.
+- A changed identity (device, inode, kind) or descendant set invalidates the record. It is replaced
+  by an unresolved `keep` with its question, and the next scan stops annotating it.
+- An engine finding with no owner is not a conclusion: the record stays `keep` and the report asks
+  who owns it. Unknown stays visibly unknown, and `prior_unresolved` marks it on the next scan.
+- An operator answer clears the question with or without an owner, so `{"path": "<name>",
+  "disposition": "keep"}` is a "keep, don't re-raise" answer. While identity holds, later engine
+  findings do not overwrite it and the entry is not asked again.
+- The scan sets `prior_disposition` on an entry whose record still holds. Report new or changed
+  entries first, one line for each unchanged entry, and end with the questions. Records for entries
+  the snapshot did not inventory are kept unchanged.
+
+## Opt-in elevation
+
+The version 2 overlay field `elevation` is `never` by default, and the `scan-complete` output
+reports the effective value beside `policy_sources`. With `never`, the skill never elevates or
+triggers UAC or sudo. `uac-prompt` opens one narrow lane on Windows, inside the
+[unsupported-platform handoff](unsupported-platform-handoff.md). It covers a path in the approved
+tier whose per-path `handoff-verify` returns `contested` with `needs-elevation` as its only reason.
+For those paths the skill writes an elevated PowerShell script under the run directory, shows the
+operator its full contents, launches it with `Start-Process -Verb RunAs -Wait` so it waits behind the
+UAC prompt the operator approves, and reads the per-path results back from a log file the script
+writes.
+**Claim:** `-Verb RunAs` starts the process through the Run as administrator option, `-Verb` does
+not apply off Windows, and `-Wait` returns only after the process and all its descendants exit.
+**Basis:**
+[Start-Process](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-process)
+(Example 5; the `-Verb` and `-Wait` parameters; Notes). **As of:** 2026-09-29, PowerShell 7.6 page
+dated 2026-07-06. **Recheck:** when that page changes `-Verb` or `-Wait` semantics.
+
+The lane never runs on Linux or macOS (no sudo there), never for a protected entry or any other
+contest reason, never without the per-tier approval, and never for a preview-time `needs-elevation`
+blocker: that preview is `blocked` and still stops the tier. The script never invokes the engine,
+because engine invocations stay on the Bash lane's exact shapes. It re-checks each path natively
+before removing it: the path is still present, is not a reparse point, has the identity the
+snapshot recorded (volume and file ID), and holds no entry the snapshot did not record, and an
+exclusive-open probe finds no live handle, where a sharing violation skips the path as `locked`.
+The Windows handle probe itself reports an access-denied open as `needs-elevation`, so a
+`needs-elevation`-only verdict can mean the handle check is the one that failed; the elevated
+re-check must repeat it, and skips any path it cannot re-prove. The manual lane's other rules still apply: one path at a time, no
+container-wide deletion, and a fresh approval for a permanent fallback.
+
+Only the user-global file or an explicit `--policy` can set `uac-prompt`. A project file lives in a
+repository the operator may not control, so the loader rejects `uac-prompt` there and accepts only
+`never`. When layers disagree, the last layer that sets the field wins.
+
+**What the guard does not see.** Neither guard surface denies the launch. The engine gate fires only
+on commands that name the engine, and the belt's PowerShell lane flags deletion spellings on the
+command line. `Start-Process -Verb RunAs` carries none, and the deletions live inside the script
+file. So the kill switch does not block this lane: offer it only when the kill-switch probe reports
+execution enabled. Nothing checks the script against the approved list except the operator, who
+reads the script's contents and then answers the UAC prompt. Making the belt `ask` or deny
+`-Verb RunAs` would be a guard change and stays with the owner.
+
+**Unverified.** No Windows UAC pilot has run this lane. Until the operator runs one, treat it as
+documented intent, not observed behavior.
+
 ## Outcome vocabulary
 
 | Outcome | Meaning | Next action |
@@ -682,7 +803,7 @@ without that lane.
 | `locked` | A current handle was observed | Close the owning application yourself, rescan |
 | `changed-or-link` | Identity changed or a link appeared | Keep; investigate and rescan |
 | `protected` | Hard or consumer protection matched | Keep |
-| `needs-elevation` | Access could not be proven without greater privilege | Defer to a human-run elevated workflow |
+| `needs-elevation` | Access could not be proven without greater privilege | Defer to a human-run elevated workflow, or on Windows with `elevation: uac-prompt`, the [opt-in elevated script](#opt-in-elevation) |
 | `handle-state-unverified` | Handle tool/authority/timeout prevented proof | Keep; install/configure the declared verifier if desired |
 | `delete-failed` | Final OS operation failed after preflight | Keep remaining content; inspect the reported error |
 

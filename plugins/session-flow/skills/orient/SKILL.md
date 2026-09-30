@@ -110,11 +110,10 @@ and point at `/session-flow:reanchor` to verify which still holds.
 
 Both answer "where were we", so a request to catch up can land on either.
 
-- **`/recap` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
-  It generates a one-line summary of the current conversation on demand, alongside the
-  automatic recap shown when you return to an idle terminal. It writes nothing to disk and
-  reads nothing outside the conversation. It is reserved for the person to run; the model does
-  not invoke it.
+- **`/recap` (built-in command)**: generates a one-line summary of the current conversation on
+  demand, alongside the automatic recap shown when you return to an idle terminal. It writes nothing
+  to disk and reads nothing outside the conversation. It is reserved for the person to run; the
+  model does not invoke it.
 - **This skill (marketplace plugin).** A four-part briefing that adds what the conversation
   does not hold: handoff save-points, workflow checklists, running-retro ledgers, open PRs and
   work items, git state, and off-thread work at a glance.

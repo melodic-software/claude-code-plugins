@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 5, "end_line": 6 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "notes": {
+    "shape": "One bullet in a list of what a local check does. The bullet's subject is the local check; the number it checks against is the product's cap, stated as a bare figure.",
+    "carve_outs": "None apply. Owned content does not: the check is this repository's, but the cap it compares against is the product's, and the bullet states it as a fact rather than as a local choice.",
+    "rubric": "R1 holds: the product owns the per-entry listing cap. R2 holds: a character count. R3 holds: stated as the limit now in force. R4 holds: no source, date or trigger anywhere in the excerpt. The neighboring bullet and the intro line are the check's own behavior and are outside the span.",
+    "carries": "The hazard here is a nomination that flags the intro line or the neighboring bullet. Only the cap bullet restates an external fact.",
+    "tier_reason": "A source was supplied, so source-fetched-similar. Report-only."
+  }
+}

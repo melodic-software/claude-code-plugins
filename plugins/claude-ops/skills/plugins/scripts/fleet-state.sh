@@ -265,11 +265,6 @@ else
   exit 2
 fi
 
-if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
-  exit 2
-fi
-
 INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
 MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
 USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
@@ -304,6 +299,37 @@ native_cwd_to() {
 # --- Arg parsing ---------------------------------------------------------------
 # Parsed before any file is read so a usage error costs no process and reports
 # as exit 2 rather than as whatever the resolution attempt would have hit first.
+
+# Built-ins only, so --help runs on a machine that lacks jq.
+usage() {
+  local text
+  IFS= read -r -d '' text <<'EOF' || true
+fleet-state.sh: read-only plugin-fleet state, as one JSON object or a plain id list.
+
+Usage:
+  fleet-state.sh [--marketplace <name> | --all]
+  fleet-state.sh [--marketplace <name>] --ids <selector>
+  fleet-state.sh --ids <selector> --from <report.json> [--marketplace <name>]
+  fleet-state.sh --marketplaces
+
+With neither --marketplace nor --all, the target is the marketplace this plugin
+was installed from. --ids prints one TAB-separated record per line instead of
+JSON; the first field is the <name>@<marketplace> id. --from projects --ids from
+a saved single-marketplace report instead of reading the fleet. --marketplaces
+prints every marketplace name, one per line.
+
+Selectors: installed-user, update-candidates-user, update-candidates-project,
+downgrade-candidates, current-project, missing-user-install, missing-enabled,
+user-scope-orphans.
+
+Exit: 0 ran to completion; 1 a single marketplace could not be resolved;
+2 usage error, jq missing, or a state file that does not match its expected shape.
+
+The output shapes and the test-only environment overrides are in the header
+comment of this script.
+EOF
+  printf '%s\n' "$text"
+}
 
 MODE="default"
 TARGET=""
@@ -351,8 +377,12 @@ while [[ $# -gt 0 ]]; do
     MODE="all"
     shift
     ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
   *)
-    echo "ERROR: unknown argument: $1" >&2
+    echo "ERROR: unknown argument: $1 (see --help)" >&2
     exit 2
     ;;
   esac
@@ -463,6 +493,12 @@ ids_selector_required_fields() {
 # resolution attempt would have returned first.
 if [[ -n "$IDS_SELECTOR" ]]; then
   ids_selector_valid "$IDS_SELECTOR" || exit 2
+fi
+
+# Checked after argument parsing so --help and usage errors work without jq.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
+  exit 2
 fi
 
 # The selector projection, in ONE place. Pass 3 appends it to its own program so

@@ -44,15 +44,22 @@ ad-hoc loop. A skip entry that matches nothing is reported, never silently ignor
 ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-software/standards
 ```
 
-### Multi-repo audits (read-only)
+### Multi-repo audits
 
 The branch and stash audits take the same repo selection as the batch tiers
 (`--repo`, `--repos-from`, `--skip`, `--skip-from`) and print one `Repo: <path>`
 block per repository. Linked worktrees of one repository are audited once, a
 failing repo is reported without stopping the rest, and each repo writes its own
 branch-tip capture (`--capture-file` is refused with more than one repo).
+The audits delete no branch and change no working-tree file. Besides the
+capture, the branch audit's landed-proof squash check writes one unreferenced
+loose object per branch it reaches, which `git gc` prunes.
 Deletion is not batched: run the delete from inside the audited repo, with that
-repo's `TipCapture:` path.
+repo's `TipCapture:` path. A branch audit across a fleet of repositories is
+`/repo-fleet-hygiene:audit`. Per repository, add `--read-only` to write no capture
+and no object (the squash check runs in a throwaway object directory), or `--remote`
+to audit the live `origin` branches against merged PRs (a tip that differs from its
+merged PR's head is `MERGED-DRIFT`).
 
 ```shell
 ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh --repos-from -

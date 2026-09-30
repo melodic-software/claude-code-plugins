@@ -1,0 +1,10 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative. A model-adaptation chapter states the model's default effort and how one settings key applies to it, and cites a guide section and a documentation page on the same span.",
+    "carve_outs": "Distilling-file surface applies. Each fact carries an inline citation on its span: (vendor-reported; guide, \"Calibrate effort\") and (Claude Code model-config page). Quote those; the carve-out needs them.",
+    "rubric": "Not graded.",
+    "carries": "Two facts in one paragraph, each with its own citation. A run that clears the first and flags the second has read only part of the attribution."
+  }
+}

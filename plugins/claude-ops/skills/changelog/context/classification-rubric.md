@@ -1,6 +1,6 @@
 # Classification rubric for CC changelog items
 
-Every changelog item gets one action lens per owner surface it touches. A lens says what the repo should do about a component, not how important the item is. Surfaces to check are listed in `repo-surfaces.md`.
+Every changelog item gets one action lens per owner surface it touches. A lens says what the repo should do about a component, not how important the item is. Run `scripts/discover-surfaces.sh` for the surfaces to check; `repo-surfaces.md` gives per-class examples.
 
 ## Lenses
 

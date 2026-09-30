@@ -119,7 +119,7 @@ while (($#)); do
     shift 2
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
@@ -231,7 +231,8 @@ elif ! command -v jq >/dev/null 2>&1; then
 else
   plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
   tmp_dir="$(mktemp -d)"
-  if bash "$plugin_root/scripts/fetch-docs.sh" --out "$tmp_dir" changelog >/dev/null 2>&1 &&
+  # The status script never reads the manifest's claude_version, so the fetcher runs no claude.
+  if FETCH_DOCS_CLAUDE_BIN='' bash "$plugin_root/scripts/fetch-docs.sh" --out "$tmp_dir" changelog >/dev/null 2>&1 &&
     [[ "$(jq -r '.pages[0].state' "$tmp_dir/manifest.json" 2>/dev/null)" == "read" ]]; then
     changelog="$tmp_dir/changelog.md"
   else

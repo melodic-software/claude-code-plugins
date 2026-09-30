@@ -251,6 +251,7 @@ assert_contains "warn: an explicit range past the installed version warns agains
 run_in "$EMPTY" --bogus
 assert_eq "args: unknown argument exits 3" 3 "$RC"
 assert_contains "args: unknown argument named" "$ERR" "unknown argument: --bogus"
+assert_contains "args: unknown argument points at --help" "$ERR" "(see --help)"
 run_in "$EMPTY" --changelog "$TMP/does-not-exist.md"
 assert_eq "args: unreadable changelog exits 3" 3 "$RC"
 run_in "$EMPTY" --cap-items ten --changelog "$CHANGELOG"

@@ -1508,6 +1508,18 @@ jobs:
         continue-on-error: true
         run: scripts/check-pipefail-grep-q.sh
 
+      # A *.test.sh that runs mktemp must trap EXIT to remove it; the known
+      # offenders are listed in scripts/test-tmp-cleanup-baseline.txt, which
+      # only shrinks. Self-test first, so a broken checker cannot mask a
+      # regression.
+      - name: Test the test-temp-cleanup gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-test-tmp-cleanup.test.sh
+      - name: Gate test suites on cleaning up their temp paths
+        id: test_tmp_cleanup
+        continue-on-error: true
+        run: scripts/check-test-tmp-cleanup.sh --check
+
       # Runner policy, previously its own job. Reads .github/workflows/** and
       # the pinned policy package, so it gates on the workflows filter group:
       # a change that touches nothing under .github/ cannot move a runner
@@ -1601,6 +1613,7 @@ jobs:
             portability-lint=${{ steps.portability.outcome }}
             shell-portability-lint=${{ steps.shell_portability.outcome }}
             pipefail-grep-q=${{ steps.pipefail_grep_q.outcome }}
+            test-tmp-cleanup=${{ steps.test_tmp_cleanup.outcome }}
             runner-policy=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 

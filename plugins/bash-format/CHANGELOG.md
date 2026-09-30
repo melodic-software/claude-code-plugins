@@ -3,6 +3,22 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/bash-format:check` reports whether the binaries resolve without installing.
+
+### Changed
+
+- The missing `shfmt` and `shellcheck` notices latch once per session, shared by all agents, instead of once per session and agent, and keep the install route when they renew every eighth skip. The SessionStart probe uses the same latch key as the PostToolUse notice (`bash-format-shfmt`, `bash-format-shellcheck`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The `jq` notice is unchanged.
+
 ## [0.8.8] - 2026-09-29
 
 ### Changed

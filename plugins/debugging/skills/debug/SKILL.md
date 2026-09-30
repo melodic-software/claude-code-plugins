@@ -183,10 +183,9 @@ Required before declaring done:
 
 The names collide outright, so "debug this" can land on either, but the two debug different things.
 
-- **`debug` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It turns
-  on debug logging for the current Claude Code session and troubleshoots Claude Code itself by
-  reading that session's debug log. It is reserved for the person to run; the model does not
-  invoke it.
+- **`debug` (bundled skill)**: turns on debug logging for the current Claude Code session and
+  troubleshoots Claude Code itself by reading that session's debug log. It is reserved for the
+  person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Debugs the user's application: build a feedback loop,
   reproduce, hypothesize, instrument, fix with a regression test, clean up.
 
