@@ -813,8 +813,8 @@ for v in "$ns_pw_a" "$ns_pw_b" "$ns_pw_only"; do
 done
 bash "$RENDER" --record "$TEST_TMPDIR/k8s-ns.json" --out "$TEST_TMPDIR/k8s-ns-out" --diff staging prod >/dev/null
 nsmd="$(cat "$TEST_TMPDIR/k8s-ns-out/deployment.md")"
-assert_contains "diff section names the compared kinds" "$nsmd" "Kinds compared: container added or removed, image, replicas, ports, parameter added or removed"
-assert_contains "diff section says nodes are not compared" "$nsmd" "Networks and Ingress hosts are not compared."
+assert_contains "diff section names the compared kinds" "$nsmd" "Kinds compared: container added or removed, image, replicas, ports, network or Ingress added or removed"
+assert_contains "diff section names network and Ingress kinds" "$nsmd" "network or Ingress added or removed"
 for v in "$ns_pw_a" "$ns_pw_b" "$ns_pw_only"; do
   assert_not_contains "k8s diff table has no secret value" "$nsmd" "$v"
 done
@@ -837,6 +837,64 @@ bash "$RENDER" --record "$TEST_TMPDIR/presence.json" --out "$TEST_TMPDIR/presenc
 pmd="$(cat "$TEST_TMPDIR/presence-out/deployment.md")"
 assert_contains "an empty diff names the kinds it looked for" "$pmd" "No differences of these kinds: container added or removed, image,"
 assert_not_contains "an empty diff prints no bare none row" "$pmd" "| none |"
+
+# Two environments that differ only in networks and Ingress hosts.
+repo9="$TEST_TMPDIR/nodes-only"
+init_repo "$repo9"
+mkdir -p "$repo9/deploy/a" "$repo9/deploy/b"
+printf 'services:\n  api:\n    image: x:1\nnetworks:\n  front:\n  shared:\n' >"$repo9/deploy/a/compose.yaml"
+printf 'services:\n  api:\n    image: x:1\nnetworks:\n  back:\n    internal: true\n  shared:\n' >"$repo9/deploy/b/compose.yaml"
+commit_all "$repo9"
+bash "$COLLECT" --repo "$repo9" --out "$TEST_TMPDIR/nodes-compose.json" --generated-on 2026-09-28
+ncrec="$(cat "$TEST_TMPDIR/nodes-compose.json")"
+assert_contains "compose network only in a is removed" "$ncrec" '"change":"network-removed"'
+assert_contains "compose removed network names it" "$ncrec" '"container":"front","detail":"network present only in a"'
+assert_contains "compose network only in b is added" "$ncrec" '"container":"back","detail":"network present only in b"'
+assert_not_contains "a shared network is not a difference" "$ncrec" '"container":"shared"'
+
+k8s_nodes_manifest() {
+  local ns="$1" host="$2" extra="$3"
+  cat <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: ${ns}
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: api
+          image: x:1
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api
+  namespace: ${ns}
+spec:
+  rules:
+    - host: ${host}
+${extra}
+EOF
+}
+repo10="$TEST_TMPDIR/k8s-nodes-only"
+init_repo "$repo10"
+mkdir -p "$repo10/deploy"
+k8s_nodes_manifest stage stage.example.com "" >"$repo10/deploy/stage.yaml"
+k8s_nodes_manifest prod prod.example.com "" >"$repo10/deploy/prod.yaml"
+printf -- '---\napiVersion: v1\nkind: Service\nmetadata:\n  name: cache\n  namespace: prod\nspec:\n  ports:\n    - port: 6379\n' >>"$repo10/deploy/prod.yaml"
+commit_all "$repo10"
+bash "$COLLECT" --repo "$repo10" --out "$TEST_TMPDIR/nodes-k8s.json" --generated-on 2026-09-28
+nkrec="$(cat "$TEST_TMPDIR/nodes-k8s.json")"
+assert_contains "k8s Ingress host differs" "$nkrec" '"change":"ingress","left":"prod","right":"stage","tool":"kubernetes","container":"api","detail":"prod.example.com -> stage.example.com"'
+assert_contains "k8s Service only in prod is a network removed" "$nkrec" '"container":"cache","detail":"network present only in prod"'
+bash "$RENDER" --record "$TEST_TMPDIR/nodes-k8s.json" --out "$TEST_TMPDIR/nodes-k8s-out" --diff prod stage >/dev/null
+nkmd="$(cat "$TEST_TMPDIR/nodes-k8s-out/deployment.md")"
+assert_contains "rendered diff lists the Ingress row" "$nkmd" "prod.example.com -> stage.example.com"
+assert_contains "rendered diff lists the network row" "$nkmd" "network present only in prod"
+assert_not_contains "a node diff is not an empty diff" "$nkmd" "No differences of these kinds"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'

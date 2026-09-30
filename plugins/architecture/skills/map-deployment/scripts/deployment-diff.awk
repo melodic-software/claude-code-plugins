@@ -1,6 +1,7 @@
-# Diff kinds shared by the Compose and Kubernetes readers: ports, parameter
-# presence, plain parameter values, and secret parameters. A reader fills the
-# global arrays placed[env,container], portjoin[env,container],
+# Diff kinds shared by the Compose and Kubernetes readers: ports, network and
+# Ingress nodes, parameter presence, plain parameter values, and secret
+# parameters. A reader fills the global arrays node_seen[env,kind,name] (kind
+# network or ingress, value the node detail), placed[env,container], portjoin[env,container],
 # param_seen[env,container,name], plain_val[...] and secret_val[...] (same key
 # as param_seen), and defines jesc() and the diffs output file. A secret value
 # is compared here and never printed.
@@ -35,5 +36,20 @@ function param_port_diffs(a, b, tool,    sk, sp, c, k, ka, kb, pa, pb, sa, sb, e
       emit_diff("secret-differs", a, b, tool, c, "secret parameter " k " differs")
     else if (!sa && plain_val[ea] != plain_val[eb])
       emit_diff("parameter", a, b, tool, c, k " " plain_val[ea] " -> " plain_val[eb])
+  }
+}
+function node_diffs(a, b, tool,    sk, sp, k, n, ea, eb) {
+  for (sk in node_seen) {
+    split(sk, sp, SUBSEP)
+    if (sp[1] != a && sp[1] != b) continue
+    k = sp[2]; n = sp[3]
+    ea = a SUBSEP k SUBSEP n
+    eb = b SUBSEP k SUBSEP n
+    if ((ea in node_seen) && !(eb in node_seen))
+      emit_diff(k "-removed", a, b, tool, n, k " present only in " a)
+    else if ((eb in node_seen) && !(ea in node_seen))
+      emit_diff(k "-added", a, b, tool, n, k " present only in " b)
+    else if (node_seen[ea] != node_seen[eb])
+      emit_diff(k, a, b, tool, n, node_seen[ea] " -> " node_seen[eb])
   }
 }

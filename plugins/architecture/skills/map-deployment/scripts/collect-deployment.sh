@@ -577,6 +577,7 @@ if [[ -s "$TMP/compose-layers.txt" ]]; then
           if (exposure == "") exposure = "published"
           printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"kind\":\"network\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
             jesc(e "/" np[2]), jesc(e), jesc(np[2]), jesc(exposure), jesc(evidence[e]) >> nodes
+          node_seen[e SUBSEP "network" SUBSEP np[2]] = exposure
         }
       }
       # pair environments for declared diffs. Values of redacted parameters are
@@ -602,6 +603,7 @@ if [[ -s "$TMP/compose-layers.txt" ]]; then
             printf "{\"change\":\"replicas\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(replicas[a SUBSEP c] " -> " replicas[b SUBSEP c]) >> diffs
         }
         param_port_diffs(a, b, "compose")
+        node_diffs(a, b, "compose")
       }
     }
   '; then
@@ -658,6 +660,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       } else if (kind == "Service") {
         printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"network\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(e "/svc-" meta), jesc(e), jesc(meta), jesc(sport), jesc(path) >> nodes
+        node_seen[e SUBSEP "network" SUBSEP meta] = sport
         svc_port[key] = sport
         svc_list[++svc_cnt] = key
         svc_sel[key] = sel
@@ -665,6 +668,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       } else if (kind == "Ingress") {
         printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"ingress\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(e "/ing-" meta), jesc(e), jesc(meta), jesc(host), jesc(path) >> nodes
+        node_seen[e SUBSEP "ingress" SUBSEP meta] = host
         ing_host[key] = host
         ing_list[++ing_cnt] = key
         ing_be[key] = backends
@@ -857,6 +861,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
             printf "{\"change\":\"replicas\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"kubernetes\",\"container\":\"%s\",\"detail\":\"%s\"}\n", jesc(a), jesc(b), jesc(c), jesc(replica_of[a SUBSEP c] " -> " replica_of[b SUBSEP c]) >> diffs
         }
         param_port_diffs(a, b, "kubernetes")
+        node_diffs(a, b, "kubernetes")
       }
     }
   '
