@@ -288,6 +288,12 @@ class TestRefusals(DirCase):
         self.assertNotIn("Q1,", err)
         self.assertNotIn("names Q1", err)
 
+    def test_version_label_is_not_a_bare_id(self):
+        q = question("Q4", title="Ship the V1 release on K8s?")
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0)
+        self.assertNotIn("V1", err)
+
     def test_apply_add_round_warns(self):
         ops = {
             "ops": [
@@ -1328,6 +1334,16 @@ class TestReviseSetsAsideOwn(DirCase):
             self.assertNotIn("setAsideSeq", self.q("Q1"))
             self.assertIsNotNone(self.latest())
             self.assertIn(self.CLOSED, self.status())
+
+    def test_an_answer_saved_after_the_guard_read_is_not_set_aside(self):
+        sys.path.insert(0, str(HERE))
+        import round as r
+
+        snapshot = r.guard_revision(self.dir, self.doc(), "Q1", 0, False)
+        self.answer("own", "arrived after the guard read")
+        q = self.q("Q1")
+        r.set_aside_own(snapshot, self.doc(), q)
+        self.assertNotIn("setAsideSeq", q)
 
     def test_a_terminal_own_answer_is_set_aside_too(self):
         self.apply_ops(

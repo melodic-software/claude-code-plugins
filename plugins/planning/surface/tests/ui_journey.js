@@ -150,6 +150,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
+    const chip = await page.$$eval(".qbtn .chip.hot", els => els.map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
+    ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
     await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
@@ -315,14 +317,15 @@ async page => { // the user journey in order on one page, no reload after phase 
   }
   if (PHASE === 8) { // the shell added Q9; the user answers it with their own text
     await page.waitForSelector('.qbtn[data-q="Q9"]', {state: "attached", timeout: 5000});
-    const q9 = (await state()).questions.questions.find(q => q.id === "Q9");
-    const res = await post({id: "Q9", kind: "own", text: "what are the patterns?", contentRev: q9.contentRev});
-    ok("the own answer on Q9 is saved", res.ok(), res.status());
+    await pick("Q9"); await page.fill("#note", "what are the patterns?"); await arm("o"); await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const own = await last();
+    ok("the own answer on Q9 is saved from the page with the note still focused", own.id === "Q9" && own.kind === "own" && own.text === "what are the patterns?", JSON.stringify(own));
   }
   if (PHASE === 9) { // the shell revised Q9's recommendation in response to that own text
     await page.waitForTimeout(900);
     await pick("Q9");
     ok("the revision sets the own answer aside: the rail reads Open and the card says the answer no longer counts", (await text('.qbtn[data-q="Q9"] .chip')) === "Open" && /Own answer: .*aside\. It no longer counts\./.test(await text("#cur")) && !(await page.$('[data-act="reopen"]')), (await text('.qbtn[data-q="Q9"] .chip')) + " / " + await text("#cur"));
+    ok("the note no longer shows the set-aside own text", (await page.inputValue("#note")) === "", await page.inputValue("#note"));
     await tap("[data-again]", 300);
     await arm("a"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const acc = await last();

@@ -3,11 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.5] - 2026-09-29
+## [0.47.7] - 2026-09-29
 
 ### Fixed
 
 - **The interview surface sets aside a counted own answer when the session revises the recommendation.** `reply --rec` and `revise --rec` stamp the set-aside fields on a question whose decision is an own answer, so the page and status stop showing the earlier own text as the decision, and the note field no longer prefills from it. Accept, alt and defer decisions stay, and a `record-terminal` after the revision counts ([#5453](https://github.com/melodic-software/claude-code-plugins/issues/5453)).
+
+## [0.47.6] - 2026-09-29
+
+### Fixed
+
+- **The interview surface's carry chip reads "carried N rounds" and explains itself on hover.** It no longer repeats the state word ("Open open 2 rounds"), and its tooltip says the question was asked that many rounds before the stage's latest round and is still unanswered ([#5449](https://github.com/melodic-software/claude-code-plugins/issues/5449)).
+
+## [0.47.5] - 2026-09-29
+
+### Fixed
+
+- **The interview wording lint no longer flags a release label such as `V1` as a bare question id.** `round.py` skips `V` followed by digits, so a coined id such as `AC21` still warns, and the rule in `context/surface.md` states the exception ([#5458](https://github.com/melodic-software/claude-code-plugins/issues/5458)).
 
 ## [0.47.4] - 2026-09-29
 

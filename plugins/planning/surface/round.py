@@ -108,6 +108,7 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
+VERSION_LABEL = re.compile(r"V[0-9]+")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 
 if os.name == "nt":
@@ -210,15 +211,12 @@ def mark_handled(doc, seqs):
 
 
 def guard_revision(d, doc, qid, seq, force):
-    """Refuse a revision when the user acted on the question after the event being answered.
+    """Refuse a revision when the user acted on the question after the event being answered, and return the responses it read.
     Without --seq, only an unhandled user event on the question blocks it."""
+    snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
     if force:
-        return
-    events = [
-        e
-        for e in load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
-        if e.get("id") == qid
-    ]
+        return snapshot
+    events = [e for e in snapshot.get("events", []) if e.get("id") == qid]
     if seq is None:
         newer = [
             e["seq"]
@@ -237,6 +235,7 @@ def guard_revision(d, doc, qid, seq, force):
         sys.exit(
             f"refused: {qid} has {why} (#{max(newer)}). Read it first, or pass --force."
         )
+    return snapshot
 
 
 def require_affects(qid, affects):
@@ -246,10 +245,9 @@ def require_affects(qid, affects):
         )
 
 
-def set_aside_own(d, doc, q):
+def set_aside_own(r, doc, q):
     """A recommendation revision answers the user's own text, so a counted `own` decision stops
     counting (the same stamps as a user hold, without the hold). Accept, alt and defer stay."""
-    r = load_json(d / "responses.json", EMPTY_RESPONSES)
     latest = exporters.latest_decision(q, r.get("responses", {}))
     if latest and latest.get("decision") == "own":
         q.update(
@@ -316,7 +314,7 @@ def add_question(doc, q):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget and bare ids that name no question here."""
+    """Warnings, never refusals: R12 length budget and bare ids (not version labels like V1) that name no question here."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         rec = q.get("recommendation") or ""
@@ -334,7 +332,11 @@ def lint_questions(doc, qs):
         for field in ("title", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
-                if tok not in ids and tok not in seen:
+                if (
+                    tok not in ids
+                    and tok not in seen
+                    and not VERSION_LABEL.fullmatch(tok)
+                ):
                     seen.add(tok)
                     warn(
                         f"{q['id']} {field} names {tok}, which is not a question id in this "
@@ -492,8 +494,7 @@ def op_reply(d, doc, a):
     if a.rec:
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
-        guard_revision(d, doc, a.id, a.seq, a.force)
-        set_aside_own(d, doc, q)
+        set_aside_own(guard_revision(d, doc, a.id, a.seq, a.force), doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."
@@ -524,7 +525,7 @@ def op_revise(d, doc, a):
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
-    guard_revision(d, doc, a.id, a.seq, a.force)
+    snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     changed = []
     for field, val in (
         ("title", a.title),
@@ -536,7 +537,7 @@ def op_revise(d, doc, a):
             q[field] = val
             changed.append(field)
     if a.rec is not None:
-        set_aside_own(d, doc, q)
+        set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."
