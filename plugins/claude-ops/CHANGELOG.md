@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.3] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` reads unreferenced plugin-cache versions through a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `disk-hygiene`, and `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge. The report is unchanged.
+
 ## [0.77.2] - 2026-09-30
 
 ### Fixed
