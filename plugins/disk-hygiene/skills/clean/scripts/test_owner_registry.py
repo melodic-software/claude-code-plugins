@@ -62,6 +62,8 @@ def validate(value: Any, schema: dict[str, Any], where: str = "$") -> list[str]:
             return [*errors, f"{where}: expected type {names}"]
     if isinstance(value, str) and len(value) < schema.get("minLength", 0):
         errors.append(f"{where}: shorter than {schema['minLength']}")
+    if isinstance(value, str) and not re.search(schema.get("pattern", ""), value):
+        errors.append(f"{where}: does not match {schema['pattern']}")
     if isinstance(value, list):
         if len(value) < schema.get("minItems", 0):
             errors.append(f"{where}: fewer than {schema['minItems']} items")
@@ -109,6 +111,16 @@ class OwnerRegistryTest(unittest.TestCase):
         del bad["entries"][0]["tool"]
         bad["entries"][1]["platforms"] = ["beos"]
         self.assertEqual(len(validate(bad, SCHEMA)), 2)
+
+    def test_every_entry_carries_a_complete_verification_record(self) -> None:
+        for index, entry in enumerate(REGISTRY["entries"]):
+            bad = json.loads(json.dumps(REGISTRY))
+            del bad["entries"][index]["verification"]["recheck"]
+            self.assertEqual(len(validate(bad, SCHEMA)), 1, entry["id"])
+            bad = json.loads(json.dumps(REGISTRY))
+            bad["entries"][index]["verification"]["as_of"] = "last week"
+            bad["entries"][index]["verification"]["basis"] = []
+            self.assertEqual(len(validate(bad, SCHEMA)), 2, entry["id"])
 
     def test_seeds_the_six_owners(self) -> None:
         ids = [entry["id"] for entry in REGISTRY["entries"]]

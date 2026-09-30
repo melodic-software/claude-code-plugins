@@ -14,7 +14,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   registry match is reported. A match grants no approval and adds no delete path; the engine is
   unchanged. The report neither shows nor runs a product-native destructive command; the registry
   keeps each as data. Its presence check and read-only command run through the PowerShell tool or
-  the operator, because the skill's Bash guard denies them.
+  the operator, because the skill's Bash guard denies them, and by the resolved application
+  executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
+  manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
 
 ## [0.37.0] - 2026-09-30
 

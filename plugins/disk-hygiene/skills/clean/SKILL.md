@@ -269,7 +269,7 @@ For each hinted or suspicious entry, inspect enough neighboring content and meta
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning
    tool over an age/name guess.
 2. Is the owner active? Check current process/tool state without killing, pausing, or modifying it.
-3. Does the owning system provide cleanup or retention? Its dry-run result is authoritative.
+3. Does the owning system provide cleanup or retention? Match `reference/owner-registry.json` `path_patterns` first (§4); its dry-run result is authoritative.
 4. Could this be real work product, a resumable download, a backup, a dependency pinned by constraints,
    or a shell/cloud-sync folder? If uncertain, keep it.
 5. Is the evidence current for this exact path? Re-resolve every sibling independently; never
