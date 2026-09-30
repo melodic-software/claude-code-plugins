@@ -20,13 +20,17 @@ in an ``OSError`` (a plausible shape for an unreachable/slow path — e.g. a
 stale network drive letter or UNC path referenced by an ordinary, unrelated
 Bash command) would not by itself explain an *uncaught* exception. Two things
 follow: (1) the strongest identified candidate for the 17s itself is
-``_engine_gate_relevant``'s marker-free fallback, which calls
-``os.path.samefile`` on every whitespace token (or every literal shell word) of
-*every* Bash/PowerShell command in *every* session (not only disk-hygiene commands) when
-resolving the plugin-level engine gate — a slow or unreachable path argument
-in an unrelated command is a real, user-reachable way to stall this hook for
-longer than milliseconds; (2) empty stderr is not what an uncaught Python
-exception normally produces (the default handler writes a traceback), so an
+``_engine_gate_relevant``'s marker-free fallback, which runs on *every* Bash/
+PowerShell command in *every* session (not only disk-hygiene commands) when
+resolving the plugin-level engine gate. It calls ``os.path.samefile`` on each
+distinct whitespace token (or literal shell word) as written — a slow or
+unreachable path argument in an unrelated command is a real, user-reachable
+way to stall this hook for longer than milliseconds, and the as-written probe
+stays unfiltered because a bare name reaches a link in the working directory —
+and on each distinct relative, non-empty word with no drive or the engine's
+own, joined to the engine's own directory; (2) empty stderr is not what an
+uncaught Python exception normally produces (the default handler writes a
+traceback), so an
 external kill (antivirus/EDR scanning the ``python3`` process, a transient OS
 resource issue) remains an open, unconfirmed possibility this module cannot
 fix from inside the interpreter. What IS fixable and is fixed here: the
@@ -854,13 +858,18 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     (``ssh host './hygiene.py scan'``) reads as data.
 
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
-    under any name — gates regardless of its filename. The marker-free fallback
-    identity-checks every whitespace token (or every ``_literal_shell_words``
-    word) of the command, not only separator-carrying words, and a relative word
-    is also read against the engine's own directory. Accepted residuals, all of the copy-evasion class the gate
-    can never close (a byte copy is a different file): a PATH-installed alias
-    with no separator, an alias inside a command the literal parser rejects
-    when the marker is absent, and a copied engine. This is a belt, not the
+    under any name — gates regardless of its filename. Without the marker, each
+    distinct whitespace token (or ``_literal_shell_words`` word) is read two
+    ways: as written, and joined to the engine's own directory when it is
+    relative, non-empty and has no drive or the engine's own. A link in the
+    working directory therefore gates invoked bare (``python3 alias``) as well
+    as by path, a link beside the engine gates bare or as ``./alias``, and
+    ``C:alias`` reads against the engine's directory on the engine's own drive.
+    Accepted residuals, all of the copy-evasion class the gate can never close
+    (a byte copy is a different file): a PATH-installed alias with no
+    separator, an alias inside a command the literal parser rejects when the
+    marker is absent, an alias qualified with a drive other than the
+    engine's (``D:alias``), and a copied engine. This is a belt, not the
     authority: an invocation smuggled past it still answers to the engine's own
     preview/approval-token containment (and to the skill-frontmatter belt for
     the rest of the session once that belt has registered).
@@ -878,17 +887,22 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         except (OSError, ValueError):
             return False
 
+    def _in_engine_dir(word: str) -> bool:
+        return _samefile(os.path.join(bundled.parent, word))
+
     def _same_file_as_bundled(word: str) -> bool:
         """Whether ``word`` NAMES the bundled engine, under any spelling.
 
-        Read two ways: as written, and — when relative — against the ENGINE'S
-        OWN directory. The second reading is what closes the Windows
-        filename-alias class. Win32 discards trailing dots and spaces from a
-        filename and resolves `::$DATA` to the main stream, so `hygiene.py.`,
-        `"hygiene.py "` and `hygiene.py::$DATA` all open the bundled engine
-        while none of them has its basename; `cd <scripts> && python
-        hygiene.py. apply` then ran the kill-switched engine unseen. 8.3 short
-        names are a third spelling of the same kind.
+        Read two ways: as written (``_samefile``), and — when relative —
+        against the ENGINE'S OWN directory (``_in_engine_dir``). The
+        marker-free branch filters the second reading by drive; the
+        marker-carrying branch uses both unfiltered. The second reading is
+        what closes the Windows filename-alias class. Win32 discards trailing
+        dots and spaces from a filename and resolves `::$DATA` to the main
+        stream, so `hygiene.py.`, `"hygiene.py "` and `hygiene.py::$DATA` all
+        open the bundled engine while none of them has its basename; `cd
+        <scripts> && python hygiene.py. apply` then ran the kill-switched
+        engine unseen. 8.3 short names are a third spelling of the same kind.
 
         Asking the filesystem whether a spelling resolves to the engine closes
         every alias at once. Enumerating the spellings closes one per review
@@ -896,9 +910,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         directory is the right base precisely because it is the directory such
         a command must `cd` into for the alias to run.
         """
-        if _samefile(word):
-            return True
-        return not os.path.isabs(word) and _samefile(os.path.join(bundled.parent, word))
+        return _samefile(word) or (not os.path.isabs(word) and _in_engine_dir(word))
 
     allow_backslash = tool_name == "PowerShell"
     data_free = _powershell_without_string_data(command) if allow_backslash else None
@@ -930,6 +942,15 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # `/tmp/test_hygiene.py;echo`, which resolves to nothing, so identity
         # would miss the engine under a name that is not the marker. Adding
         # candidates can only ever gate more, never less.
+        #
+        # Each distinct candidate is read two ways. As written, always: a bare
+        # name reaches a link in the shell's working directory (`python3
+        # alias`), so no word is skipped. Against the engine's directory when it
+        # is relative, non-empty and has no drive or the engine's own: Windows
+        # joins `D:foo` onto drive D and discards the engine's directory, so
+        # that reading would repeat the as-written probe of the same path, while
+        # `C:foo` on the engine's own drive still resolves inside the engine's
+        # directory.
         candidates = list(marker_candidates)
         words = _literal_shell_words(command, allow_backslash=allow_backslash)
         candidates += (
@@ -937,7 +958,17 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             if words is None
             else list(words)
         )
-        return any(_same_file_as_bundled(candidate) for candidate in candidates)
+        engine_drive = os.path.splitdrive(bundled.parent)[0].casefold()
+        return any(
+            _samefile(candidate)
+            or (
+                bool(candidate)
+                and not os.path.isabs(candidate)
+                and os.path.splitdrive(candidate)[0].casefold() in {"", engine_drive}
+                and _in_engine_dir(candidate)
+            )
+            for candidate in dict.fromkeys(candidates)
+        )
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).
