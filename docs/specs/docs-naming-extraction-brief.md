@@ -93,7 +93,7 @@ resolver's relative paths stay valid inside `docs-naming`.
 That is five callers in four skills. The resolver's own header says "Four callers in three skills"
 (`resolve-config.sh:4`), which is already stale and gets corrected when the file moves.
 
-**Look-alikes that are not consumers and do not move.**
+**Files that look similar but are not consumers and do not move.**
 
 - `plugins/testing/scripts/resolve-config.sh` is a separate resolver for `.claude/testing.yaml`
   (`plugins/testing/scripts/resolve-config.sh:2`). `docs/specs/tautological-tests.md:280` and `:720`
