@@ -1,0 +1,17 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 3, "end_line": 8 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "notes": {
+    "shape": "A local paragraph restating how an external product behaves, in the local author's own words: the budget key with its default, the drop order on overflow, and the consequence for a skill at zero usage. It closes with 'the loop is documented' and names no page, date or trigger.",
+    "carve_outs": "None apply. Not a conforming pointer or record: 'documented' names no source. Not owned content: the budget key, its default and the drop order are the product's. Not a distilling surface and not a quotation.",
+    "rubric": "R1 holds: the product's documentation owns the default and the drop order. R2 holds: a numeric default and an ordering rule the owner can change. R3 holds: stated as how the listing works now, for a reader to act on. R4 holds: the only gesture at a source is the word 'documented', which carries no basis, no as-of date and no recheck trigger. The last sentence of the paragraph is local reasoning built on the facts, and the finding's span covers the whole paragraph because the facts and the reasoning share it.",
+    "tier_reason": "A source was supplied, and this class never reaches fingerprint-confirmed, so the tier is source-fetched-similar. It relays under its own rule only because the panel is unanimous and the refutation pass survives it; the finding is report-only and never fix-eligible."
+  }
+}
