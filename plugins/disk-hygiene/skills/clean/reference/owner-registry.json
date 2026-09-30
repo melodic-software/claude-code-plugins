@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "note": "An entry is a hint for an owner claim, never authorization. A path matching an entry is a starting point for proving the owning product manages it, not proof. Commands are data for an operator to read; nothing here runs them. Paths are relative to the home directory. A null command means the product has none; manual_step names the in-app or settings action instead.",
+  "entries": [
+    {
+      "id": "docker-desktop",
+      "owner": "Docker Desktop",
+      "path_patterns": {
+        "windows": ["AppData/Local/Docker"],
+        "macos": ["Library/Containers/com.docker.docker"]
+      },
+      "tool": "docker",
+      "read_only_command": "docker system df",
+      "destructive_native_command": "docker image prune; docker builder prune",
+      "manual_step": null,
+      "platforms": ["windows", "macos"]
+    },
+    {
+      "id": "nvidia-shader-cache",
+      "owner": "NVIDIA driver shader cache",
+      "path_patterns": {
+        "windows": ["AppData/Local/NVIDIA"]
+      },
+      "tool": "nvidia-smi",
+      "read_only_command": null,
+      "destructive_native_command": null,
+      "manual_step": "Manual step in Windows Disk Cleanup: select DirectX Shader Cache",
+      "platforms": ["windows"]
+    },
+    {
+      "id": "cursor",
+      "owner": "Cursor",
+      "path_patterns": {
+        "windows": ["AppData/Roaming/Cursor"],
+        "macos": ["Library/Application Support/Cursor"],
+        "linux": [".config/Cursor"]
+      },
+      "tool": "cursor",
+      "read_only_command": null,
+      "destructive_native_command": null,
+      "manual_step": "In-app cache clearing in Cursor",
+      "platforms": ["windows", "macos", "linux"]
+    },
+    {
+      "id": "openai-codex-cli",
+      "owner": "OpenAI Codex CLI",
+      "path_patterns": {
+        "windows": [".codex"],
+        "macos": [".codex"],
+        "linux": [".codex"]
+      },
+      "tool": "codex",
+      "read_only_command": null,
+      "destructive_native_command": null,
+      "manual_step": "Adjust Codex history retention in its configuration",
+      "platforms": ["windows", "macos", "linux"]
+    },
+    {
+      "id": "chezmoi",
+      "owner": "chezmoi",
+      "path_patterns": {
+        "windows": [".cache/chezmoi"],
+        "macos": [".cache/chezmoi"],
+        "linux": [".cache/chezmoi"]
+      },
+      "tool": "chezmoi",
+      "read_only_command": "chezmoi doctor",
+      "destructive_native_command": null,
+      "manual_step": null,
+      "platforms": ["windows", "macos", "linux"]
+    },
+    {
+      "id": "pulumi",
+      "owner": "Pulumi",
+      "path_patterns": {
+        "windows": [".pulumi"],
+        "macos": [".pulumi"],
+        "linux": [".pulumi"]
+      },
+      "tool": "pulumi",
+      "read_only_command": "pulumi about; pulumi plugin ls",
+      "destructive_native_command": "pulumi plugin rm <unused version>",
+      "manual_step": null,
+      "platforms": ["windows", "macos", "linux"]
+    }
+  ]
+}

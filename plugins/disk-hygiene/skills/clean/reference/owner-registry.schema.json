@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["version", "note", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "note": {"type": "string", "minLength": 1},
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "owner", "path_patterns", "tool", "read_only_command",
+          "destructive_native_command", "manual_step", "platforms"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "owner": {"type": "string", "minLength": 1},
+          "path_patterns": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"enum": ["windows", "macos", "linux"]},
+            "additionalProperties": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"type": "string", "minLength": 1}
+            }
+          },
+          "tool": {"type": "string", "minLength": 1},
+          "read_only_command": {"type": ["string", "null"]},
+          "destructive_native_command": {"type": ["string", "null"]},
+          "manual_step": {"type": ["string", "null"]},
+          "platforms": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"enum": ["windows", "macos", "linux"]}
+          }
+        }
+      }
+    }
+  }
+}
