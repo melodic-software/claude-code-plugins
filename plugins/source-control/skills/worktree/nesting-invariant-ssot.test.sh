@@ -71,7 +71,7 @@ fi
 # 3. The owner carries what a pointer promises the reader will be there.
 assert_contains "the owner carries the anchor every pointer cites" \
   "$owner_text" "### The nesting invariant, dated measurement"
-assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-08-07**"
+assert_contains "the owner carries an as-of date" "$owner_text" "as-of **2026-09-30**"
 assert_contains "the owner carries an unconditional expiry, not only event triggers" \
   "$owner_text" "Unconditional expiry"
 # Keep the reasoning attached to the expiry, or a later reader deletes it as
@@ -112,7 +112,7 @@ else
 fi
 
 # Parse unconditional expiry arms from the owner sentence:
-#   **Unconditional expiry.** **2.1.244, or 2026-11-07 — whichever comes first.**
+#   **Unconditional expiry.** **2.1.305, or 2026-12-29 — whichever comes first.**
 # Match the complete bold arm (not an arbitrary substring) so malformed tokens
 # such as `2.1.244.1`, `v2.1.244`, or overlong dates cannot pass shape checks.
 # The second alternative is the same whole-arm capture with slightly looser
