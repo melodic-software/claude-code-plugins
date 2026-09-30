@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.5] - 2026-09-30
+## [0.50.1] - 2026-09-30
 
 ### Fixed
 
 - **The interview surface sets aside a counted own answer when the session revises the recommendation.** `reply --rec` and `revise --rec` stamp the set-aside fields on a question whose decision is an own answer, so the page and status stop showing the earlier own text as the decision, and the note field no longer prefills from it. Accept, alt and defer decisions stay, and a `record-terminal` after the revision counts ([#5453](https://github.com/melodic-software/claude-code-plugins/issues/5453)).
+
+## [0.50.0] - 2026-09-30
+
+### Added
+
+- **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
 ## [0.49.4] - 2026-09-30
 
