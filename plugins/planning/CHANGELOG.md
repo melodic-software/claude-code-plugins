@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
+## [0.47.6] - 2026-09-29
+
+### Fixed
+
+- **The interview surface's carry chip reads "carried N rounds" and explains itself on hover.** It no longer repeats the state word ("Open open 2 rounds"), and its tooltip says the question was asked that many rounds before the stage's latest round and is still unanswered ([#5449](https://github.com/melodic-software/claude-code-plugins/issues/5449)).
+
 ## [0.47.5] - 2026-09-29
 
 ### Fixed
