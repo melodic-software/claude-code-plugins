@@ -68,6 +68,8 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 
 CONCERN_FILE=".claude/topic-docs.yaml"
 BASELINE="${CONTRACT_SLICE_BASELINE:-scripts/contract-slice-baseline.txt}"
@@ -151,33 +153,24 @@ canonicalize_repo_path() {
   printf '%s' "$joined"
 }
 
-mode="${1:-}"
-case "$mode" in
---check | --check-diff) ;;
-*)
-  echo "usage: $(basename "$0") [--check | --check-diff <base-ref>]" >&2
-  exit 2
-  ;;
-esac
-
 # --check inspects the working tree (is any entry stale right now?), so it reads
 # both the concern file and the baseline from the working tree. --check-diff
 # judges a change set and therefore resolves both from the BASE revision, so the
-# change set cannot widen its own exemptions. The base ref is validated below,
-# before either is read.
-baseline_rev=""
-if [[ "$mode" == "--check-diff" ]]; then
-  if [[ -z "${2:-}" ]]; then
+# change set cannot widen its own exemptions. classify validates the base ref
+# here, before either is read.
+GE_FLAGS=("--check" "--check-diff:ref")
+GE_BAD_REF_MSG="check-contract-slice-prune: base ref '${2-}' is not a resolvable commit."
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! gate_entry::classify "$@"; then
+  if [[ "${1:-}" == "--check-diff" ]]; then
     echo "usage: $(basename "$0") --check-diff <base-ref>" >&2
-    exit 2
+  else
+    echo "usage: $(basename "$0") [--check | --check-diff <base-ref>]" >&2
   fi
-  # shellcheck disable=SC2310  # the non-zero return IS the handled case
-  if ! changed_files::verify_base "$2"; then
-    echo "check-contract-slice-prune: base ref '$2' is not a resolvable commit." >&2
-    exit 2
-  fi
-  baseline_rev="$2"
+  exit 2
 fi
+mode="$GE_MODE"
+baseline_rev="$GE_REF"
 
 # Both roots are policed, not just one. --check-diff resolves contract_dir from
 # the base revision so a change set cannot narrow its own scope, but a PR that
@@ -268,14 +261,14 @@ if [[ "$mode" == "--check" ]]; then
   if ((stale)); then
     echo "" >&2
     echo "A baseline entry outliving its slice would silently re-open the exemption for a future slice reusing that slug." >&2
-    exit 1
+    gate_entry::finish 1
   fi
   echo "Every $BASELINE entry still names an existing slice under $CONTRACT_DIR/ (${#grandfathered[@]} grandfathered)."
-  exit 0
+  gate_entry::finish 0
 fi
 
 # --check-diff mode (argument and base ref already validated above)
-base="$2"
+base="$GE_REF"
 
 # Three-dot base...HEAD is diff(merge-base(base,HEAD), HEAD) — only the commits
 # unique to this branch. A slice that main gained after this branch forked is
@@ -331,7 +324,7 @@ if ((${#violations[@]})); then
   echo "$CONTRACT_DIR/<slug>/ is Contract tier per docs/conventions/topic-docs/README.md: committed on a task branch only, pruned before merge." >&2
   echo "Before merging, graduate the durable outcomes (ADR / spec / tracker item) and delete the slice — the deletion itself passes this gate." >&2
   echo "Adding the slug to $BASELINE will NOT help: exemptions are read from the base revision, so a baseline line added by this change set grants it nothing." >&2
-  exit 1
+  gate_entry::finish 1
 fi
 
 if ((${#exempted[@]})); then
@@ -339,4 +332,4 @@ if ((${#exempted[@]})); then
 else
   echo "Contract-slice prune gate passed — this change set leaves no path under $roots_label."
 fi
-exit 0
+gate_entry::finish 0

@@ -58,6 +58,20 @@ them turns every next over-fire into a committed regression test. A hook is prec
    an ignored `.work/` file passed explicitly. As of: 2026-09-28. Recheck: a formatter release that
    changes how an explicit path meets its ignore settings, or a hook that stops passing the path
    explicitly.
+7. **Admit any file under `CLAUDE_PROJECT_DIR`; do not require git-work-tree membership.**
+   `hook::read_file_path` accepts a file under the project root, outside the temp tree, whether or not the
+   root is a repository, including when the root is home. Hooks fire only on files Claude itself edited or
+   wrote, so the admitted set is bounded by the session's own actions. A membership requirement would
+   silently turn formatting off at a legitimate project root that is not a repository. The failure modes a
+   requirement would guard against are already covered: rule 5 handles the home-root false positive for
+   repo-path detection, the temp-tree exclusion keeps the harness scratch tree out, and rule 6 fails toward
+   acting when there is no repository, so this rule does the same. Membership applies only when
+   `CLAUDE_PROJECT_DIR` is unset.
+
+   Verification record. Claim: as stated. Basis: the `CLAUDE_PROJECT_DIR` prefix check and temp-tree
+   exclusion in `hook::read_file_path` (`lib/hook-utils.sh`, lines 1596-1626), where the git-work-tree test
+   sits only in the branch for an unset project dir, and rule 6's fail-toward-acting clause. As of:
+   2026-09-30. Recheck: a format hook starts rewriting non-project files under a home root.
 
 ## The discipline
 

@@ -1,5 +1,5 @@
 {
-  "description": "Formats a shell script with shfmt and reports ShellCheck findings after a write or edit.",
+  "description": "Formats a shell script with shfmt and reports ShellCheck findings after a write or edit, and reports a missing shfmt or shellcheck at session start.",
   "hooks": {
     "PostToolUse": [
       {
@@ -26,6 +26,24 @@
             "if": "Edit(*.bash)",
             "timeout": 15,
             "statusMessage": "Formatting shell script..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "BASH_FORMAT_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+            ],
+            "timeout": 10,
+            "statusMessage": "Checking shfmt and shellcheck..."
           }
         ]
       }

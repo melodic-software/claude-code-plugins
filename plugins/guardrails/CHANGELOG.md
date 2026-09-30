@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.2] - 2026-09-30
+## [0.42.3] - 2026-09-30
 
 ### Fixed
 
@@ -12,6 +12,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **The substitution cap no longer counts text inside single-quoted spans ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).** A Bash command whose issue or PR body quotes `$(`, `<(`, `>(` or backticks in single quotes is no longer refused at 256, because bash substitutes nothing there. Unquoted, double-quoted and heredoc-body substitutions still count. A command naming a shell, `eval`, `su`, `env` or `alias`, or with quoting the scan does not model, counts whole. PowerShell is unchanged.
 
 ## [0.42.1] - 2026-09-29
 
