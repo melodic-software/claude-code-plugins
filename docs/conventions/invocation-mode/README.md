@@ -96,7 +96,12 @@ documented budget.
    comprehension broke), or it enters a persistent session-consuming mode the human should choose
    deliberately (e.g. `education:teach`).
 2. **(ii) Setup skills.** Per the plugin-philosophy setup contract ("Setup is explicit and
-   repeatable"): `setup` skills are named `setup` and carry `disable-model-invocation: true`.
+   repeatable"): `setup` skills are named `setup` and carry `disable-model-invocation: true`. The
+   class covers `setup` only. A read-only `check` skill beside it (`<plugin>:check`, which reads
+   and follows only setup's `check` section and installs nothing) is an ordinary `false`-default
+   skill, not an exception. The flag is per skill, so the split is the only way to keep `apply`
+   manual and `check` reachable by a hook's notice; the claim's verification record is in the
+   [setup contract](../../plugin-philosophy.md#setup-is-explicit-and-repeatable).
 3. **(iii) Maintainer-only skills.** Operate on this marketplace's working tree (vendored-content
    sync, drift checks); meaningless or harmful for consumers to reach via the model.
 
