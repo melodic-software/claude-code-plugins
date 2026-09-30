@@ -4,6 +4,18 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [1.7.0] - 2026-09-30
+
+Additive guidance; minor under this contract's own rule. No required part, canonical name, or
+enforceability verdict changes.
+
+The fetch-route section now names `lib/fetch-docs.sh` as the rung-1 implementation, carried by each
+plugin as `scripts/fetch-docs.sh` and kept identical by `scripts/sync-fetch-docs.sh`. It states the
+index-listed identity rule (a slug the publisher's index does not list is unread, never fetched),
+the publisher profile (`--profile`, default `anthropic`) that names the index, path prefix, raw
+channel and content types, and that the script never falls back to another channel: a page whose
+channel does not resolve is recorded unread with a reason, and the reader drops a rung and says so.
+
 ## [1.6.3] - 2026-09-01
 
 Recorded near-miss evidence ADJACENT to the content-hashing deferral; docs-only, the deferral's

@@ -3,11 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.74.2] - 2026-09-30
+## [0.75.1] - 2026-09-30
 
 ### Changed
 
 - **The `hook-failure-audit` Stop row runs in shell form.** The detector that reports unsurfaced hook failures no longer depends on `node`, the launcher whose absence it must report. The README and `/claude-ops:setup` name the exception.
+
+## [0.75.0] - 2026-09-30
+
+### Changed
+
+- **`changelog-status` fetches the Claude Code changelog through `scripts/fetch-docs.sh`** (a synced
+  copy of the shared fetcher) instead of calling `curl` on the changelog URL directly, so the fetch
+  is verified against the publisher's index and recorded in a manifest like every other docs read.
 
 ## [0.74.1] - 2026-09-30
 

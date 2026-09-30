@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.65.6] - 2026-09-30
+## [0.66.1] - 2026-09-30
 
 ### Changed
 
 - **README moves the Node.js requirement into a Requirements section.** The statement is unchanged: without `node` on `PATH` the hooks do not launch.
+
+## [0.66.0] - 2026-09-30
+
+### Added
+
+- **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, each case has a `skill-fired` grader, and each case seeds a repository through `--scaffold`.
 
 ## [0.65.5] - 2026-09-30
 
