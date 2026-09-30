@@ -292,16 +292,16 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
    that directory out of the tree this lane runs its gates against.
    **Background-job launch mode.** Launch a background lane from inside an isolated linked git
-   worktree of the repository (`git worktree add`, then `claude --bg` from there) to keep the
-   record Write: Claude Code moves a background session into a worktree before its first edit
+   worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
+   `/claude-ops:lanes` launches) to keep the record Write: Claude Code moves a background session into a worktree before its first edit
    and skips the move when the session already sits in a linked worktree, so the Write lands in
    place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
    `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
    (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not
    the recommended mode: one lane's record Write there was refused with "parent bg session
    hasn't isolated yet, so writes to the shared checkout are blocked", and otherwise the session
-   moves into an auto-created worktree under `.claude/worktrees/`, where a hook matcher on the
-   project-relative record path may not see the Write; that launch was not probed here. Either
+   moves into an auto-created worktree under `.claude/worktrees/`; that launch was not probed
+   here. Either
    way the tracker marker comment is the escalation of record, and a refused record Write does
    not stop the cycle. This lane must not call `EnterWorktree` (it would end the long-lived
    orchestrator), so isolation comes from where the operator launches it. Foreground on the
