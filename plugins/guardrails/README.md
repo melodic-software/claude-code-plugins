@@ -195,11 +195,16 @@ out of scope until such a signal exists.
   `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }`
   runs. A `-c` override, `--exec-path`, a computed or obscured subcommand, an
   alias, `fetch`, `grep` or any mutating verb keeps the whole command blocked,
-  as do an environment write (a `GIT_*` name, an `Env:` provider path, a
-  `$env:NAME` assignment, `SetEnvironmentVariable`, a .NET `[Environment]` or
-  `.Invoke(` call), dynamic invocation, launchers and here-string shapes. A blocked loop
-  runs once unrolled into flat statements (`git -C <path> status; git -C <path>
-  log --oneline -3`)
+  as does an environment write the guard cannot prove has a plain literal
+  target: `Set-Item`, `New-Item` or `Set-Content` with a path that is computed,
+  held in a variable, splatted or piped in, an `Env:` provider path, a
+  `$env:NAME` assignment, a static .NET call or any method call
+  (`SetEnvironmentVariable`, `InvokeMember`, `.Invoke(`), `ForEach-Object
+  -MemberName`, or a function, filter or alias definition. Dynamic invocation,
+  launchers and here-string shapes block as before. The scan reads syntax, so a
+  name split in pieces is refused too; it does not read code in a file. A
+  blocked loop runs once unrolled into flat statements (`git -C <path> status;
+  git -C <path> log --oneline -3`)
   ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236),
   [#4235](https://github.com/melodic-software/claude-code-plugins/issues/4235)).
 - **Some PowerShell here-string shapes are refused with no allow token.** A

@@ -1010,6 +1010,62 @@ run_pwsh "PS: provider-qualified Environment:: path beside a read-only git group
 # shellcheck disable=SC2016
 run_pwsh "PS: reflection SetEnvironmentVariable with a split name beside a read-only git group (blocked)" \
   "\$m = [Environment].GetMethod(('Set'+'EnvironmentVariable'), [Type[]]@([string],[string])); \$m.Invoke(\$null, [object[]]@(('GI'+'T_PAGER'), 'C:\\evil.exe')); & { git log }" 2
+# Each of these sets GIT_PAGER, or rebinds `git`, through a target that no text
+# search contains whole: a name split in pieces, a path held in a variable or
+# splat or piped in, a computed call or member name, reflection, a drive made at
+# run time. The refusal comes from the syntax of the write, so none of them keeps
+# a contiguous `env:` or `git_` for a substring test to find. Format:
+# label|command.
+mapfile -t env_write_cases <<'CASES'
+split Env: token in a parenthesized path|$n = "GI"+"T_PAGER"; New-Item -Path ("E"+"nv:") -Name $n -Value "C:\evil.exe"; & { git log }
+Env: path held in a variable|$p = "E"+"nv:\GI"+"T_PAGER"; Set-Item $p "C:\evil.exe"; & { git log }
+Set-Content with a computed Env: path|Set-Content -Path ("E"+"nv:" + $e) -Value x; & { git log }
+Type.InvokeMember on System.Environment|$m=[type]"System.Environment"; $m.InvokeMember(("Set"+"EnvironmentVariable"), [Reflection.BindingFlags]::InvokeMethod, $null, $null, @(("GI"+"T_PAGER"),"C:\evil.exe")); & { git log }
+splatted Set-Item path|$a=@{Path=('E'+'nv:\GI'+'T_PAGER');Value='x'}; Set-Item @a; & { git log }
+Set-Item path arriving on the pipeline|('E'+'nv:\GI'+'T_PAGER') | Set-Item -Value x; & { git log }
+Set-Item named through a variable|$c='Set-Item'; & $c ('E'+'nv:\GI'+'T_PAGER') x; & { git log }
+alias of Set-Item|Set-Alias q Set-Item; q ('E'+'nv:\GI'+'T_PAGER') x; & { git log }
+function named git|function git { 'x' }; & { git log }
+function: drive assignment|${function:git} = { 'x' }; & { git log }
+Set-Item into the Function: drive|Set-Item -Path Function:\git -Value { 'x' }; & { git log }
+ForEach-Object -MemberName InvokeMember|$t=[type]'System.Environment'; $t | ForEach-Object -MemberName InvokeMember -ArgumentList @('SetEnvironmentVariable',[Reflection.BindingFlags]::InvokeMethod,$null,$null,[object[]]@('GIT_PAGER','x')); & { git log }
+ForEach-Object with a positional member name|$t=[type]'System.Environment'; $t | % InvokeMember @('SetEnvironmentVariable',[Reflection.BindingFlags]::InvokeMethod,$null,$null,[object[]]@('GIT_PAGER','x')); & { git log }
+subexpression inside an expandable string|"$(Set-Item ('E'+'nv:GIT_PAGER') x)"; & { git log }
+New-PSDrive on the Environment provider|New-PSDrive -Name E -PSProvider Environment -Root ''; Set-Item E:\GIT_PAGER x; & { git log }
+Add-Type compiling an environment write|Add-Type -TypeDefinition 'public class X{public static void S(){System.Environment.SetEnvironmentVariable("GIT_PAGER","x");}}'; [X]::S(); & { git log }
+Invoke-Command of a script block variable|Invoke-Command $sb; & { git log }
+Set-Location to a computed drive, then a relative write|Set-Location ('E'+'nv:'); Set-Content GIT_PAGER x; & { git log }
+static call through a computed type|$e = [Environment]; $e::SetEnvironmentVariable('GIT_PAGER','x'); & { git log }
+method call with a computed name|$o.$m('GIT_PAGER','x'); & { git log }
+target list with an $env: name first|$env:GIT_PAGER, $x = 'C:\evil.exe', 1; & { git log }
+parenthesized target list|($x, $env:GIT_PAGER) = 'a','C:\evil.exe'; & { git log }
+foreach variable|foreach ($env:GIT_PAGER in 'C:\evil.exe') { }; & { git log }
+null-coalescing assignment|$env:GIT_PAGER ??= 'x'; & { git log }
+[ref] of an $env: name|$r = [ref]$env:GIT_PAGER; & { git log }
+drive name spliced from a bareword and a quoted part|Set-Item E'nv':GIT_PAGER x; & { git log }
+drive name with an empty quote inside it|Set-Item E''nv:GIT_PAGER x; & { git log }
+command word spliced from quoted parts|S"et"-Item $p x; & { git log }
+CASES
+for env_write_case in "${env_write_cases[@]}"; do
+  run_pwsh "PS: ${env_write_case%%|*} beside a read-only git group (blocked)" \
+    "${env_write_case#*|}" 2
+done
+# PowerShell accepts a line break or a tab between the dot and the member name.
+run_pwsh "PS: a member call split after the dot beside a read-only git group (blocked)" \
+  $'$t=[type]\'System.Environment\'; $t.\n  InvokeMember(\'SetEnvironmentVariable\',[Reflection.BindingFlags]::InvokeMethod,$null,$null,[object[]]@(\'GIT_PAGER\',\'x\')); & { git log }' 2
+# A write whose target is a plain literal, and ordinary loops, are not refused.
+# shellcheck disable=SC2016
+run_pwsh "PS: a literal-path write beside a read-only git group (allowed)" \
+  "Set-Content -Path out.txt -Value \$x; & { git log }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: a read-only git group piped into a literal-path write (allowed)" \
+  "& { git log } | Set-Content -Path out.txt" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: ForEach-Object with a script block and a read-only git call (allowed)" \
+  "Get-ChildItem | ForEach-Object { git -C \$_.FullName status }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: a computed Set-Location with no write (allowed)" \
+  "foreach (\$d in Get-ChildItem) { Set-Location \$d; git status }" 0
 # shellcheck disable=SC2016
 run_pwsh "PS: a \$env: read inside a read-only git group (allowed)" \
   "foreach (\$d in 'a') { git -C \"\$env:USERPROFILE\\\$d\" status }" 0
@@ -1265,6 +1321,46 @@ assert_absent "PS msg: blocked grouping with no commit token omits the commit fo
   "$grp_out" "canonical PowerShell commit form"
 assert_contains "PS msg: unroll comes before the Bash tool option" \
   "${grp_out%%Bash tool*}" "unroll"
+# A trigger the printer has no line for falls back to a generic one, which also
+# leads with the PowerShell rewrite.
+fallback_out="$(PS_SINK_TRIGGER=unknown ps::print_sink_trigger_line 2>&1)"
+assert_contains "PS msg: the fallback trigger line names the PowerShell rewrite first" \
+  "${fallback_out%%Bash tool*}" "Rewrite the command in PowerShell"
+
+# --- Environment-write scan, judged on its own ---------------------------------
+# rc 0 = the text can write the environment through a target that is not a plain
+# literal; rc 1 = it cannot. These pin the predicate itself, so a refusal that
+# another gate would also give cannot stand in for it.
+pin_predicate "ps::has_unprovable_env_write: Set-Item path held in a variable" \
+  ps::has_unprovable_env_write $'$p = \'x\'; Set-Item $p \'v\'' 0
+pin_predicate "ps::has_unprovable_env_write: New-Item path and name computed" \
+  ps::has_unprovable_env_write $'New-Item -Path ("E"+"nv:") -Name $n -Value v' 0
+pin_predicate "ps::has_unprovable_env_write: a path splatted from a hashtable" \
+  ps::has_unprovable_env_write $'Set-Item @a' 0
+pin_predicate "ps::has_unprovable_env_write: a path piped in with only -Value" \
+  ps::has_unprovable_env_write $'$p | Set-Item -Value v' 0
+pin_predicate "ps::has_unprovable_env_write: a call through a variable" \
+  ps::has_unprovable_env_write $'& $c \'x\' \'v\'' 0
+pin_predicate "ps::has_unprovable_env_write: InvokeMember with a computed name" \
+  ps::has_unprovable_env_write $'$m.InvokeMember((\'Set\'+\'EnvironmentVariable\'), $f)' 0
+pin_predicate "ps::has_unprovable_env_write: a member call split after the dot" \
+  ps::has_unprovable_env_write $'$t.\n  InvokeMember(\'x\')' 0
+pin_predicate "ps::has_unprovable_env_write: a command word spliced from quoted parts" \
+  ps::has_unprovable_env_write $'S"et"-Item $p \'v\'' 0
+pin_predicate "ps::has_unprovable_env_write: a static call through a variable type" \
+  ps::has_unprovable_env_write $'$t::SetEnvironmentVariable($n, $v)' 0
+pin_predicate "ps::has_unprovable_env_write: an \$env: name first in a target list" \
+  ps::has_unprovable_env_write $'$env:X, $y = 1, 2' 0
+pin_predicate "ps::has_unprovable_env_write: a positional value is judged as a target" \
+  ps::has_unprovable_env_write $'Set-Content out.txt $text' 0
+pin_predicate "ps::has_unprovable_env_write: a literal path with a computed -Value" \
+  ps::has_unprovable_env_write $'Set-Content -Path out.txt -Value $text' 1
+pin_predicate "ps::has_unprovable_env_write: a module-qualified literal path" \
+  ps::has_unprovable_env_write $'Microsoft.PowerShell.Management\\Set-Content out.txt -Value (Get-Date)' 1
+pin_predicate "ps::has_unprovable_env_write: an \$env: read is not a write" \
+  ps::has_unprovable_env_write $'$x = $env:USERPROFILE; git -C $x status' 1
+pin_predicate "ps::has_unprovable_env_write: ForEach-Object with a script block" \
+  ps::has_unprovable_env_write $'Get-ChildItem | ForEach-Object { $_.FullName }' 1
 # shellcheck disable=SC2016
 iex_rc=0
 # shellcheck disable=SC2016  # intentional literal $cmd in the PowerShell payload

@@ -1747,6 +1747,164 @@ ps::git_command_is_readonly() {
   return 0
 }
 
+# True (0) when TOK is a plain literal word: characters that cannot carry a
+# variable, subexpression, splat, list or concatenation. A quoted string reaches
+# the caller as the opaque placeholder `_q_`, which is one.
+ps::_is_plain_word() {
+  [[ "$1" =~ ^[a-z0-9_.:\\/~*?-]+$ ]]
+}
+
+# True (0) when the text can write the process environment, or rebind `git`,
+# through a target this scan cannot prove is a plain literal. It refuses whatever
+# it cannot prove, so a target that is computed, held in a variable, splatted,
+# piped in or reached by reflection counts as a write.
+#
+# Syntax decides, not the spelling of a name: a name built at run time from
+# pieces (`'E'+'nv:'`, `'GI'+'T_PAGER'`) is in no text a search could match. The
+# ways a command reaches the environment, each read off the syntax:
+#   - an assignment to `$env:NAME` or `${env:NAME}`, alone, in a target list
+#     (`$env:X, $y = ...`) or as a foreach variable;
+#   - a provider cmdlet that stores a value (Set-, New-, Add-, Copy-, Move- and
+#     Rename- Item, Content and ItemProperty, and their aliases). Every operand
+#     except the value of `-Value` must be a plain word, and at least one must
+#     be present, so a path that is computed, held in a variable, splatted or
+#     arriving on the pipeline refuses. Delete-only verbs are left out: they
+#     cannot introduce a value. Out-File, `>` and Tee-Object cannot write the
+#     Env: drive at all;
+#   - a literal provider path into the Env:, Function: or Alias: drive, or a
+#     provider-qualified `Environment::`, anywhere in the text. A relative path
+#     resolves against the current location, so a write beside a `Set-Location`
+#     to a computed place refuses too;
+#   - a word spliced from quoted parts (`Set'-'Item`, `E'nv':X`), which names
+#     what the parts spell and not what was written;
+#   - a static member (`::`) or a method call (`.Name(`, however the name is
+#     spelled and whatever separates the dot from it), which reach
+#     SetEnvironmentVariable, InvokeMember and `Invoke`;
+#   - ForEach-Object with a member name (`-MemberName`, or a bare word or
+#     variable where the script block goes), which calls a method by name;
+#   - a call whose target is computed (`& $c`, `& (...)`), and the definition of
+#     a function, filter or alias, which rebinds what a command word means;
+#   - Add-Type, New-PSDrive and Invoke-Command, which compile code, rename a
+#     drive and run a script block the scan cannot read;
+#   - a `$( ... )` inside an expandable string, which runs where it is written.
+# Not seen: code in a file, and a script block held in a variable and run by a
+# cmdlet that accepts one. This guards against a computed write, not against
+# every in-process code path.
+ps::has_unprovable_env_write() {
+  local IFS=$' \t\n'
+  local recovered="${1//\`/}" lc opaque s ch head a name val k j n nlit depth env_lhs skip=0 write_head=0 dyn_cd=0
+  local -a t=()
+  lc="${recovered,,}"
+  # shellcheck disable=SC2016  # literal PowerShell `$env:` text, not expansions
+  local env_assign='\$\{?env:[^[:space:]=]+[[:space:]]*((\?\?|[-+*/%])?=)'
+  [[ "$lc" =~ $env_assign ]] && return 0
+  ps::call_target_is_bare_computed "$recovered" && return 0
+  ps::opaque_quoted_spans_to opaque "$recovered"
+  # shellcheck disable=SC2016  # literal PowerShell `$(` text
+  ((PS_QUOTED_SPAN_SAW_EXPANDABLE)) && [[ "$lc" == *'$('* ]] && return 0
+  opaque="${opaque,,}"
+  # A literal drive name, in the text as written and with quoted spans and empty
+  # quotes folded (`E''nv:`). A `$env:NAME` read is fine, so cut reads first.
+  for s in "$lc" "$opaque"; do
+    s="${s//\$\{env:/}"
+    s="${s//\$env:/}"
+    [[ "$s" == *env:* || "$s" == *environment:* || "$s" == *function:* || "$s" == *alias:* ]] && return 0
+  done
+  [[ "$opaque" == *::* || "$opaque" == *'[ref]'* || "$opaque" =~ \.[[:space:]]*[\$a-z0-9_{}:]*\( ]] && return 0
+  # One token per word; `;` marks every statement boundary, and parentheses,
+  # commas and `=` stand alone so `$x=Set-Item ...` and `(Set-Item ...)` show
+  # the command word. `${env:NAME}` is folded to `$env:NAME` first, because
+  # braces would otherwise split it.
+  s="$opaque"
+  while [[ "$s" =~ ^(.*)\$\{env:([^\}]*)\}(.*)$ ]]; do
+    s="${BASH_REMATCH[1]}\$env:${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
+  done
+  for ch in ';' '|' '&' '{' '}' $'\n'; do s="${s//"$ch"/ ; }"; done
+  for ch in '(' ')' ',' '='; do s="${s//"$ch"/ $ch }"; done
+  read -ra t <<<"$s"
+  n=${#t[@]}
+  for ((k = 0; k < n; k++)); do
+    # An assignment target list (`$env:X, $y = ...`, `($y, $env:X) = ...`) or a
+    # foreach variable (`foreach ($env:X in ...)`) writes every `$env:` name on
+    # its left.
+    if ((k == 0)) || [[ "${t[k - 1]}" == ';' || "${t[k - 1]}" == '(' ]]; then
+      env_lhs=0
+      for ((j = k; j < n; j++)); do
+        # shellcheck disable=SC2016  # literal PowerShell `$env:` text
+        case "${t[j]}" in
+        *'$env:'*) env_lhs=1 ;;
+        '$'* | '['* | ',' | '(' | ')') ;;
+        '=' | in)
+          ((env_lhs)) && return 0
+          break
+          ;;
+        *) break ;;
+        esac
+      done
+    fi
+    head="${t[k]}"
+    # A word spliced from quoted parts (`Set'-'Item`, `E'nv':X`) is the word the
+    # parts spell, which no scan of the written text sees.
+    [[ "$head" != _q_ && "$head" =~ ^[a-z0-9_.:\\/~*?-]*_q_[a-z0-9_.:\\/~*?-]*$ ]] && return 0
+    [[ "$head" =~ ^[a-z0-9_.]+\\([a-z-]+)$ ]] && head="${BASH_REMATCH[1]}"
+    a="${t[k + 1]-;}"
+    case "$head" in
+    function | filter | set-alias | sal | new-alias | nal | add-type | new-psdrive | ndr | mount | invoke-command | icm) return 0 ;;
+    set-location | sl | cd | chdir | push-location | pushd) [[ "$a" == ';' ]] || ps::_is_plain_word "$a" || dyn_cd=1 ;;
+    foreach-object | foreach | '%') [[ "$a" == ';' || "$a" == '(' || ("$a" == -* && "$a" != -m*) ]] || return 0 ;;
+    set-item | si | new-item | ni | set-content | sc | add-content | ac | copy-item | cpi | copy | cp | move-item | mi | move | mv | rename-item | rni | ren | set-itemproperty | sp | new-itemproperty | copy-itemproperty | cpp | move-itemproperty | mp | rename-itemproperty | rnp)
+      write_head=1
+      nlit=0
+      for ((j = k + 1; j < n; j++)); do
+        a="${t[j]}"
+        if ((skip)); then
+          # The value of -Value: content, not a target. A parenthesized value
+          # is skipped whole.
+          skip=0
+          if [[ "$a" == '(' ]]; then
+            depth=1
+            while ((depth > 0 && ++j < n)); do
+              case "${t[j]}" in
+              '(') depth=$((depth + 1)) ;;
+              ')') depth=$((depth - 1)) ;;
+              *) ;;
+              esac
+            done
+          fi
+          continue
+        fi
+        case "$a" in
+        ';' | ')') break ;;
+        -*)
+          name="${a#-}"
+          val=""
+          if [[ "$name" == *:* ]]; then
+            val="${name#*:}"
+            name="${name%%:*}"
+          fi
+          if [[ "$name" == va* ]]; then
+            [[ -n "$val" ]] || skip=1
+          elif [[ -n "$val" ]]; then
+            ps::_is_plain_word "$val" || return 0
+            nlit=$((nlit + 1))
+          fi
+          ;;
+        *)
+          ps::_is_plain_word "$a" || return 0
+          nlit=$((nlit + 1))
+          ;;
+        esac
+      done
+      skip=0
+      ((nlit)) || return 0
+      ;;
+    *) ;;
+    esac
+  done
+  ((write_head && dyn_cd)) && return 0
+  return 1
+}
+
 # True (0) when every git invocation in the text is a built-in INTERROGATOR, read
 # off the argv rather than off a list of spellings to refuse. This is the
 # allowlist the residual note above ps::git_command_is_readonly names, and it is
@@ -1764,16 +1922,11 @@ ps::git_command_is_readonly() {
 #   c. `-c <name>=<value>`, `--exec-path`, `--git-dir` and every other global
 #      option outside the four above stop the walk, and what they leave in
 #      subcommand position is not on the list;
-#   d. an environment WRITE refuses, because GIT_PAGER / GIT_EXTERNAL_DIFF turn a
-#      read into execution and a changed PATH swaps the git that runs. Refused:
-#      any `git_` text (however the name is spelled), an `env:` that is not a
-#      `$env:NAME` / `${env:NAME}` read (a provider path such as `Set-Item
-#      ('Env:' + $n)`), an assignment to `$env:NAME`, `Environment::`,
-#      `SetEnvironmentVariable`, a `[Environment]` type literal and reflection
-#      (`.Invoke(`, `GetMethod`). A name or type split in pieces (`'e'+'nv:'`,
-#      `'GI'+'T_'`, `[Type]('System.Env'+'ironment')`) is not seen: text matching
-#      cannot prove a computed string harmless, so this is a guard against a
-#      careless write, not a proof against deliberate obfuscation.
+#   d. an environment WRITE, or a rebinding of `git` itself, refuses, because
+#      GIT_PAGER / GIT_EXTERNAL_DIFF turn a read into execution, a changed PATH
+#      swaps the git that runs, and a function or alias named `git` runs instead
+#      of it. ps::has_unprovable_env_write decides this from the syntax of each
+#      write, so a name built at run time from pieces cannot slip past.
 # `-C` is compared case-sensitively: git reads `-c` as a config override.
 #
 # Dual-mode verbs are argument-aware, as in the blocklist's carve-out: `remote`
@@ -1793,14 +1946,9 @@ ps::git_command_is_interrogation_only() {
   local recovered="${1//\`/}" lc opaque s tok ch i k j sub next n_probe=0 n_git=0
   local -a toks=()
   lc="${recovered,,}"
-  # shellcheck disable=SC2016  # literal PowerShell `$env:` text, not expansions
-  local env_assign='\$\{?env:[^[:space:]=]+[[:space:]]*[-+*/%]?=' env_read="${lc//\$\{env:/}"
-  env_read="${env_read//\$env:/}"
-  [[ "$lc" == *git_* || "$env_read" == *env:* || "$lc" == *environment::* || "$lc" == *environment\]* || "$lc" == *setenvironmentvariable* || "$lc" == *.invoke\(* || "$lc" == *getmethod* ]] && return 1
-  [[ "$lc" =~ $env_assign ]] && return 1
+  ps::has_unprovable_env_write "$1" && return 1
   ps::has_dynamic_invocation "$1" && return 1
   ps::has_launcher "$1" && return 1
-  ps::call_target_is_bare_subexpression "$recovered" && return 1
   ps::call_target_is_interpolating_string "$recovered" && return 1
   s="$lc"
   while [[ "$s" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]]; do
@@ -2511,7 +2659,7 @@ ps::print_sink_trigger_line() {
     echo "Trigger: a carriage return that is not part of a CRLF pair. PowerShell ends a statement at a bare CR, and this guard splits on LF only, so the text after that CR is not the command it classifies. Rewrite the command with LF or CRLF line endings, or run it via the Bash tool." >&2
     ;;
   *)
-    echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2
+    echo "Rewrite the command in PowerShell without the unparsable construct, or run it via the Bash tool." >&2
     ;;
   esac
 }
