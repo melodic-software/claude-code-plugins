@@ -38,8 +38,6 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$HOOK_DIR/rewrite-guard.sh"
 
 # MD_CHANGED is set on the path that ran the fix pass ("true" when
 # markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
@@ -47,10 +45,10 @@ source "$HOOK_DIR/rewrite-guard.sh"
 MD_CHANGED=""
 
 # Every arm exits through hook::finish: telemetry first, then the one JSON
-# document. rewrite-guard.sh is sourced only for hook::gitignored_out_of_scope;
-# this hook never calls rewrite_guard_begin, because markdownlint-cli2's own
-# fix count is authoritative. The verdict arrives on --changed, and a skip arm
-# that passes none omits the key rather than guessing one.
+# document. This hook never calls hook::rewrite_guard_begin, because
+# markdownlint-cli2's own fix count is authoritative. The verdict arrives on
+# --changed, and a skip arm that passes none omits the key rather than guessing
+# one.
 emit_skipped() {
   hook::finish skipped findings array '[]'
 }
@@ -61,11 +59,13 @@ emit_skipped() {
 # never chose — both --fix rewrites and default-rule findings (the MD013
 # line-length class on a repo that never picked a line length). Like
 # bash-format's shfmt gate this is policy, not a degraded capability, so the
-# visible-skip doctrine for missing tools does not apply: no config, no run, no
-# notice. A repo without a config therefore sees neither the
-# install-markdownlint session notice nor the jq one — hence the pre-check
-# below, since a gate that ran only after hook::require_jq would still nag
-# about a prerequisite for a hook that repository has not enabled.
+# visible-skip doctrine for missing tools does not apply: no config, no rewrite,
+# no findings, no jq notice. The SessionStart probe (probe-prerequisite.sh,
+# gated only by the markdown_format_enabled kill switch) still reports a
+# missing markdownlint-cli2 in a repo that never opted in; only this per-edit
+# hook is opt-in gated. The pre-check below keeps a repo without a config from
+# seeing the jq notice, since a gate that ran only after hook::require_jq would
+# still nag about a prerequisite for a hook that repository has not enabled.
 #
 # Candidates are exactly the files markdownlint-cli2 documents as automatically
 # discovered (its README "Configuration" section, fetched 2026-07-31): the four
@@ -405,7 +405,7 @@ fi
 # "User configuration", https://code.claude.com/docs/en/plugins-reference,
 # fetched 2026-08-08). Booleans arrive as the strings "true"/"false"; anything
 # else falls back to the manifest default rather than being interpolated.
-# Shared helper: hook::gitignored_out_of_scope in rewrite-guard.sh (#4671).
+# Shared helper: hook::gitignored_out_of_scope in hook-utils.sh.
 if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
   # silent-skip-ok: this is a path-scope policy verdict, not a missing-tool
   # verdict — the repository declared this path out of scope in its own

@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.31.0] - 2026-09-29
+## [0.33.0] - 2026-09-30
 
 ### Added
 
@@ -32,6 +32,48 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and untracked or ignored files will be lost. `safety-model.md`, `unsupported-platform-handoff.md`
   and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
   for `apply`, or that the engine removes only snapshot entries.
+
+## [0.32.0] - 2026-09-30
+
+### Added
+
+- **Virtual-disk images are protected by name**
+  ([#5228](https://github.com/melodic-software/claude-code-plugins/issues/5228)). `*.vhd`, `*.vhdx`,
+  `*.avhd`, `*.avhdx` (Hyper-V checkpoint disks), `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img`
+  (WSL's `ext4.vhdx` included) are the baseline `disk_image_name_globs`, matched case-insensitively. A matching file carries the `virtual-disk` size qualifier, so
+  its bytes leave `target_reclaimable_local_bytes` and the child roll-ups, and `hard_protection`
+  reports `virtual-disk`; scan, preview, apply, `handoff-verify`, and the root-children ladder refuse
+  it and any candidate that contains one.
+- **The volume an attached image backs is reported.** Windows asks `Get-DiskImage` (bounded at 20
+  seconds); Linux and WSL read the loop devices' backing files and mounts. An attached image adds
+  `attached-virtual-disk:<drive or mountpoint>`; a probe that errors, times out, or has no route adds
+  `virtual-disk-attach-unverified` and never reads as detached. Under WSL, which never sees the
+  Windows host's attachments, an image with no loop device reads as unverified, not detached.
+
+## [0.31.1] - 2026-09-30
+
+### Fixed
+
+- **The snapshot entry-cap error names the largest top-level children**
+  ([#5517](https://github.com/melodic-software/claude-code-plugins/issues/5517)). The error now lists
+  the top five top-level children by entry count so far, marks the one still being walked as a lower
+  bound, and points at `--sizes-only` and then `--root-children --root-child <name>` or `--max-depth`.
+
+## [0.31.0] - 2026-09-30
+
+### Added
+
+- **Investigated entries are recorded in a catalog**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). The new
+  `catalog` command writes investigated entries, each keyed by scan target, path and identity,
+  from a findings file or an operator answers file. The scan only reads the catalog and annotates
+  a scan entry that matches a record with `prior_disposition`. An operator's keep answer is stored
+  with the record, so a later scan reports the entry's prior conclusion instead of asking again,
+  and the report leads with new or changed entries. The catalog is replaced atomically, so an
+  interrupted write keeps the previous one. A record with any invalid field value or a subtree the
+  scan did not walk is skipped, never treated as a conclusion. The command refuses a snapshot
+  whose entries lack a path. The investigation procedure and research escalation are not part of
+  this slice.
 
 ## [0.30.0] - 2026-09-29
 

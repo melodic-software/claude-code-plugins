@@ -20,7 +20,7 @@ redirection, or extra commands in the same tool call. Required flags on every sc
 Use the hook Python launcher from the skill (`<hook-python>` in `SKILL.md`), not a bare `python3`
 on PATH.
 
-Do not run `apply`, `preview`, `handoff-verify`, `handoff-apply`, `rm`, `del`, moves, or any
+Do not run `apply`, `preview`, `handoff-verify`, `handoff-apply`, `catalog`, `rm`, `del`, moves, or any
 command that mutates the target. Do not wrap the engine in compound shells (`;`, `&&`, `|`).
 
 ## Scan invocation templates

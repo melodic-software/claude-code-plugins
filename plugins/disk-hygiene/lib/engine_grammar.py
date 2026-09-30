@@ -254,6 +254,22 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         one_of=(("--paths", "--path"),),
     ),
     Subcommand(
+        "catalog",
+        (
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            Flag(
+                "--run-id",
+                required=True,
+                pattern=r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}",
+                example="run-1",
+            ),
+            Flag("--findings", example="findings.json"),
+            Flag("--answers", example="answers.json"),
+            _data_root_flag(),
+        ),
+        help="record investigated entries under the data root (read-only on the target)",
+    ),
+    Subcommand(
         "apply",
         (
             Flag("--execute", takes_value=False, required=True),

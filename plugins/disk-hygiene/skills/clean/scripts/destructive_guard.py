@@ -572,7 +572,9 @@ _ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
 # The verdict `_decide` gives each admitted subcommand. Placed by hand, not
 # derived from the grammar: a newly declared subcommand is still denied until
 # someone decides whether it is read-only or a mutation that needs the prompt.
-_READONLY_ENGINE_SUBCOMMANDS = frozenset({"scan", "preview", "handoff-verify"})
+_READONLY_ENGINE_SUBCOMMANDS = frozenset(
+    {"scan", "preview", "handoff-verify", "catalog"}
+)
 _MUTATING_ENGINE_SUBCOMMANDS = frozenset({"apply", "handoff-apply"})
 _MUTATION_PROMPTS = {
     "apply": (
