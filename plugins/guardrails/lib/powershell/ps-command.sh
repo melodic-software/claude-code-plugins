@@ -1643,10 +1643,15 @@ ps::git_command_is_readonly() {
 #      a built-in, so `git status` always means status;
 #   c. `-c <name>=<value>`, `--exec-path`, `--git-dir` and every other global
 #      option outside the four above stop the walk, and what they leave in
-#      subcommand position is not on the list. A GIT_* environment variable
-#      anywhere refuses too (`$env:GIT_X`, `${env:GIT_X}`, `Env:\GIT_X`,
-#      `[Environment]::SetEnvironmentVariable`), because GIT_PAGER /
-#      GIT_EXTERNAL_DIFF turn a read into execution.
+#      subcommand position is not on the list;
+#   d. an environment WRITE refuses, because GIT_PAGER / GIT_EXTERNAL_DIFF turn a
+#      read into execution and a changed PATH swaps the git that runs. Refused:
+#      any `git_` text (however the name is spelled), an `env:` that is not a
+#      `$env:NAME` / `${env:NAME}` read (a provider path such as `Set-Item
+#      ('Env:' + $n)`), an assignment to `$env:NAME`, `Environment::` and
+#      `SetEnvironmentVariable`. A name split in pieces across BOTH the drive and
+#      the variable (`'e'+'nv:'`, `'GI'+'T_'`) is not seen: text matching cannot
+#      prove a computed string harmless.
 # `-C` is compared case-sensitively: git reads `-c` as a config override.
 #
 # Dual-mode verbs are argument-aware, as in the blocklist's carve-out: `remote`
@@ -1666,7 +1671,11 @@ ps::git_command_is_interrogation_only() {
   local recovered="${1//\`/}" lc opaque s tok ch i k j sub next n_probe=0 n_git=0
   local -a toks=()
   lc="${recovered,,}"
-  [[ "$lc" =~ env:[/\\]?git_ || "$lc" == *setenvironmentvariable* ]] && return 1
+  # shellcheck disable=SC2016  # literal PowerShell `$env:` text, not expansions
+  local env_assign='\$\{?env:[^[:space:]=]+[[:space:]]*[-+*/%]?=' env_read="${lc//\$\{env:/}"
+  env_read="${env_read//\$env:/}"
+  [[ "$lc" == *git_* || "$env_read" == *env:* || "$lc" == *environment::* || "$lc" == *setenvironmentvariable* ]] && return 1
+  [[ "$lc" =~ $env_assign ]] && return 1
   ps::has_dynamic_invocation "$1" && return 1
   ps::has_launcher "$1" && return 1
   ps::call_target_is_bare_subexpression "$recovered" && return 1

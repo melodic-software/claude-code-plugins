@@ -990,6 +990,21 @@ run_pwsh "PS: Env: drive GIT_PAGER beside a read-only git group (blocked)" \
 run_pwsh "PS: SetEnvironmentVariable beside a read-only git group (blocked)" \
   "[Environment]::SetEnvironmentVariable('GIT_PAGER','x'); & { git log }" 2
 # shellcheck disable=SC2016
+run_pwsh "PS: concatenated Env: path beside a read-only git group (blocked)" \
+  "Set-Item -Path ('Env:' + 'GIT_PAGER') -Value 'C:\\t\\m.exe'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: Env: path from a variable beside a read-only git group (blocked)" \
+  "\$v = 'X'; Set-Item \"env:\$v\" 'C:\\t\\m.exe'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: PATH assignment beside a read-only git group (blocked)" \
+  "\$env:PATH = 'C:\\evil;' + \$env:PATH; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: provider-qualified Environment:: path beside a read-only git group (blocked)" \
+  "Set-Item -Path 'Microsoft.PowerShell.Core\\Environment::X' 'v'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: a \$env: read inside a read-only git group (allowed)" \
+  "foreach (\$d in 'a') { git -C \"\$env:USERPROFILE\\\$d\" status }" 0
+# shellcheck disable=SC2016
 run_pwsh "PS: an alias-shaped subcommand inside grouping (blocked)" \
   "foreach (\$d in 'a') { git co main }" 2
 # shellcheck disable=SC2016
