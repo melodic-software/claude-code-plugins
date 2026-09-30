@@ -191,11 +191,11 @@ if shell_editorconfig_opt_in; then
       fi
       ran_any=1
     fi
-  elif hook::notice_once "bash-format-shfmt" "$INPUT"; then
+  elif hook::notice_once "bash-format-shfmt" "$INPUT" prerequisite; then
     SHFMT_NOTICE=""
     hook::tool_missing_notice_to SHFMT_NOTICE \
       "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' was not found on this hook's PATH — formatting skipped for this edit" \
-      shell ". Install: https://github.com/mvdan/sh#shfmt"
+      shell ". Run /bash-format:check. It does not install. Install: host package or release binary, https://github.com/mvdan/sh#shfmt"
     append_notice "$SHFMT_NOTICE"
   fi
 fi
@@ -228,11 +228,11 @@ if command -v shellcheck >/dev/null 2>&1; then
         "$SC_OUTPUT" FINDINGS_JSON
     fi
   fi
-elif hook::notice_once "bash-format-shellcheck" "$INPUT"; then
+elif hook::notice_once "bash-format-shellcheck" "$INPUT" prerequisite; then
   SC_NOTICE=""
   hook::tool_missing_notice_to SC_NOTICE \
     "bash-format: 'shellcheck' was not found on this hook's PATH — shell lint skipped for this edit" \
-    shell ". Install: https://github.com/koalaman/shellcheck#installing"
+    shell ". Run /bash-format:check. It does not install. Install: host package or release binary, https://github.com/koalaman/shellcheck#installing"
   append_notice "$SC_NOTICE"
 fi
 
