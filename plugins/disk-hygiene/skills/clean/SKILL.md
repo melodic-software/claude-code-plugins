@@ -215,10 +215,13 @@ fan-out worker receives a bounded subtree and returns evidence only (see
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
 The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents. **Claim:** a
 subagent dispatched from a session whose Bash lane is belt-denied still runs Bash, `gh`, and
-`curl` without the belt. **Basis:** #4228 audit on Claude Code 2.1.278 (Windows 11); the hooks
-page describes skill-hook lifetime and is silent on subagent reach
-(https://code.claude.com/docs/en/hooks, fetched 2026-09-19, 329656 bytes). **As of:** 2026-09-28.
-**Recheck:** that page documents subagent inheritance of skill-frontmatter hooks, or a release
+`curl` without the belt. **Basis:** a probe on Claude Code 2.1.285 (Linux): after `/disk-hygiene:clean`
+loaded, the session's `git --version` was denied by the belt and a subagent's `git --version` ran;
+the subagents page lists settings, managed-policy and plugin hooks as the ones that apply inside
+subagents and does not list skill frontmatter hooks
+(https://code.claude.com/docs/en/sub-agents, https://code.claude.com/docs/en/hooks, fetched
+2026-09-30). **As of:** 2026-09-30.
+**Recheck:** a page documents subagent inheritance of skill-frontmatter hooks, or a release
 note names that reach. Enforcing "workers return evidence only" in a hook that fires for
 subagents is parked: a plugin-level gate that reached subagents would be a new
 hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
