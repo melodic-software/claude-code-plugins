@@ -213,6 +213,50 @@ row of its array literal. `bundled_workflow_notes.registrar_route` is `push-site
 A literal list of workflow names (`["autopilot","bugfix","dashboard","deep-research",...]`) also
 sits in the bundle; it is a telemetry allowlist, not a registration, and is not read.
 
+### 9. Find built-in subagents by their definition literal
+
+A built-in subagent is an object literal with `agentType`, `source:"built-in"`, and `whenToUse`
+or `getSystemPrompt`; the last requirement drops runtime context objects that copy `agentType`
+and `source` from a definition. How the definition is registered (the roster function, a chunk
+export, a feature's own spawn) does not matter for finding it. `agentType` is a literal or a
+constant resolved by the nearest-preceding rule against PascalCase or kebab-case bindings
+(`bF="fork"`, `WSr="claude-code-guide"` in 2.1.285).
+
+`roster` comes from the function whose array initializer holds a known agent and whose pushes add
+more, in 2.1.285:
+
+```js
+let n=[D5];if(!br())n.push(Cvt);if(!zit()){let{CLAUDE_AGENT:s}=import.meta.require(...);n.push(s)}
+if(FL())n.push(uw,u8);if(ire())n.push(tot);if(...)n.push(Rvt);return n
+```
+
+An agent in the initializer is `default`, one pushed is `conditional`, one never named is
+`absent`. An agent defined in another chunk is reached by its export name: every
+`export{X as NAME}` for a three-character-or-longer binding is read, since the chunk's own closing
+export can name it plainly (`export{qHe}`) while a later statement renames it. `tools` and
+`disallowedTools` resolve element by element (literals, tool-name constants, one level of
+`...spread`); `get tools(){...}` is `getter` and `tools:uw.tools` is `reference`, each null.
+
+### 10. Find built-in tools by shape, not by builder
+
+The tool builder is a single-character minified name reused by unrelated modules, and some tools
+(`Monitor`, `Artifact`) are plain objects never passed to it. The shape is what holds: an object
+literal with top-level `name` and `maxResultSizeChars` (a value or a getter). `isMcp:!0` marks the
+MCP tool template and is skipped.
+
+Tool-name constants sit megabytes ahead of use, and unrelated modules rebind the same identifiers
+in between (`no="SendMessage"`, then `no="column"`; `yh="SendUserFile"`, then
+`yh="system_assigned_managed_identity"`). The index holds only tool-shaped values, PascalCase or
+snake_case, and `resolve_tool_ident` takes the nearest PascalCase binding, falling back to
+snake_case only when none precedes. A name read from a parameter (`name:e.name`, or a lone `e`
+with nothing bound in reach) is a factory: `factory_definitions` counts it and nothing is guessed.
+
+Per tool: `description` through `resolve_field` with methods read as getters (`async
+description(){return X}`), which often yields the per-call permission text or nothing, so
+`search_hint` is kept beside it; `deferred` from `shouldDefer`, `always_load` from `alwaysLoad`
+(absent is false, `!0`/`!1` as written, anything else null and listed in `flag_driven`); `gated`
+when the literal carries `isEnabled`; `aliases`; `user_facing_name` when it differs.
+
 ## Known non-commands
 
 Strings that match a naive `name:"…"` search but are not slash commands. Each was verified by
@@ -232,7 +276,7 @@ the remainder that are real registrations but never user-typed.
 ## Integrity, per lane
 
 `check_integrity` returns `lanes` (`builtin_commands`, `bundled_skills`, `plugin_backed`, and
-`bundled_workflows` whenever workflows were extracted), each with its own `status`, `problems`, and
+`bundled_workflows`, `builtin_agents`, `builtin_tools` whenever those were extracted), each with its own `status`, `problems`, and
 `advisories`. One rule for one state: the top-level `status` is
 the worst lane. `broken` at the top level means every lane is broken or the binary is unreadable; a
 run with at least one healthy lane is at most `degraded`, with each broken lane's problems restated
@@ -245,6 +289,8 @@ as top-level advisories prefixed by the lane name. The exit mapping is `ok` 0, `
 | `bundled_skills` | no bundled skill resolved | an unknown registrar-shaped export (either export shape); computed names unresolved; a dynamic roster; registration literals in runs below the floor |
 | `plugin_backed` | a `PLUGIN_BACKED_CANARY` name absent | nothing lane-specific |
 | `bundled_workflows` | no `bundledWorkflows.push` registrar; a `WORKFLOW_CANARY` name absent | a registration whose name did not resolve |
+| `builtin_agents` | no definition resolved; an `AGENT_CANARY` name absent | a definition whose `agentType` did not resolve; the roster function not found |
+| `builtin_tools` | no definition resolved; a `TOOL_CANARY` name absent | a definition whose name constant did not resolve (a factory does not degrade: it is counted) |
 
 The CLI-version advisory is top-level, not a lane's. `integrity.undetermined` is informational: a
 runtime-decided field is a property of the build, not an extraction failure, so it never degrades
@@ -284,6 +330,14 @@ The block's own `status`: `unavailable` when the commands page cannot be read or
 not, `broken` when no table rows parse, `degraded` when the changelog is unavailable or a binary
 lane is not `ok`, else `ok`.
 
+`docs_crosscheck.tools` is a nested block with a status of its own, which never changes the
+parent's. `parse_tools_table` reads the ``| `Name` | text | permission |`` rows of the table headed
+`| Tool | Description |` in `docs/en/tools-reference.md` and stops where it ends. Statuses:
+`documented`, `undocumented`, `alias` (a docs row naming a binary tool's alias), `docs_only`. It is
+`unavailable` without a `builtin_tools` lane or the page, `broken` with no rows, and `degraded`
+when that lane is not `ok`. The sub-agents page lists built-ins as prose tabs, not a table, so
+agents have no cross-check.
+
 ## When a build changes
 
 Work the integrity block, not the symptom. `--self-check` prints each lane's status and names which
@@ -301,6 +355,10 @@ check failed, and each maps to one edit:
 | `builtin_commands` broken: yield collapses and one brace pair spans megabytes | The tokenizer desynced on a new syntax shape | Find the largest pairs in `build_brace_map`, read the text at the open brace, fix the tokenizer state that misread it |
 | `bundled_workflows` broken: no push-site registrar | The registrar no longer pushes onto `bundledWorkflows` | Find where `deep-research` is registered and adapt `_workflow_registrars` |
 | `bundled_workflows` broken: canary absent | The call shape changed | Read the `deep-research` call and adapt `extract_bundled_workflows` |
+| `builtin_agents` broken: canary absent | The definition shape changed | Read the `general-purpose` definition and adapt `extract_builtin_agents` |
+| `builtin_agents` degraded: roster not found | The roster function changed shape | Find where `general-purpose` is added to the list and adapt `_agent_roster` |
+| `builtin_tools` broken: canary absent | Tools lost `maxResultSizeChars`, or `Bash`'s name constant moved | Read the `Bash` definition and adapt `extract_builtin_tools` or `resolve_tool_ident` |
+| `builtin_tools` or `builtin_agents` degraded: unresolved names | A name constant the index does not see | Read the binding; widen `TOOL_NAME_RE` or `AGENT_NAME_RE` only for a real name shape |
 | `integrity.undetermined` grows | A field moved behind a getter or a new indirection | Read one such field; extend `_scan` or `_resolve_chain` if the form is static |
 | `docs_crosscheck` broken | The commands page restructured its table | Re-derive `_ROW_RE` and `_SECTION` from the page |
 
@@ -311,4 +369,7 @@ its counts are believed rather than verified, which is the honest state until so
 
 Reading and scanning the executable dominates. On 2.1.284 under WSL2: about 243 MB read once, the
 region pass under 2 seconds, and about 11 seconds wall clock in all, including field resolution
-and, with `--docs`, both fetches. The file is opened read-only and never executed.
+and, with `--docs`, both fetches. On 2.1.285 with the agent and tool lanes, about 12 seconds for
+`--binary-only`. The binding lookup puts the identifier before its boundary lookbehind: a pattern
+that opens with a lookbehind loses the regex engine's literal-prefix scan, and at about 0.2 seconds
+per lookup it tripled the run. The file is opened read-only and never executed.

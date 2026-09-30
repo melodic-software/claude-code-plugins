@@ -138,6 +138,33 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 | `/verification:confirm` finds gaps | Fix, then re-run `/verification:confirm` |
 | Improvement claimed without data | Redirect to `/verification:measure` (`performance` or `metrics`; baseline captured at planning time) |
 
+## Boundary, the bundled `verify` skill
+
+Both answer "does this change actually work", so a request to verify a change can reach for
+either.
+
+- **`/verify` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Builds
+  and runs the project's app and drives the affected flow end to end, observing behavior rather
+  than relying on tests or type checks. When the repository has no project verify skill yet, it
+  bootstraps one, which writes files into the repository. Reserved for the person to run; the model
+  does not invoke it.
+- **This skill (marketplace plugin).** The mechanical prerequisite, then outcome verification
+  against the plan or intent by change type: the intent-match table, out-of-diff couplings, the
+  evidence table, and an independent verdict.
+
+**Routing.** When the change has a runtime surface to drive (an `e2e-*` category above, or any
+product source), offer it to the person at the end of the run, beside the report: "you can run
+`/verify` alongside this skill to drive the change end to end". Skip the offer for a diff touching
+only tests, docs, or code with no runtime surface. An unattended run records the offer in its
+output instead of asking. Its result is added evidence; it replaces neither Stage 1 nor the verdict.
+
+**Mutation gate.** `/verify` may write a project verify skill on first use. This skill never
+triggers it on its own behalf.
+
+**Availability is never assumed.** `disableBundledSkills` or a `skillOverrides` entry hides it;
+this section states what to do when it resolves, never that it is present. The four-part records
+live in [reference/native-verify.md](reference/native-verify.md).
+
 ## What this skill does NOT do
 
 - **Does not reimplement the mechanical pass**. `/toolchain:check` (build+test+lint) and `/toolchain:lint` (cross-cutting) are SSOT. Stage 1 delegates to them.
