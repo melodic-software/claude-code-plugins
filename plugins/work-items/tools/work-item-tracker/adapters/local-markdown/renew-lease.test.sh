@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/renew-lease.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
@@ -16,8 +19,8 @@ TRACKER="$(dirname "$S")/../../work-item-tracker.sh"
 # shellcheck source=common.sh
 source "$(dirname "$S")/common.sh"
 
-STORAGE="$(mktemp -d)"
-BINDING="$(mktemp)"
+STORAGE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+BINDING="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 jq -cn --arg dir "$STORAGE" \
   '{schema_version: "1.0", provider: "local-markdown", config: {lease_ttl_hours: 24, storage_dir: $dir}}' \
   >"$BINDING"
@@ -70,7 +73,7 @@ assert_eq "the renewal replaced the lease marker rather than appending one" "1" 
 # A store write that cannot run must fail the verb rather than report a renewal
 # nothing can read back. A PATH shim denies the temp file the rewrite needs (the
 # dispatcher on this path calls no mktemp of its own, so only the write is hit).
-SHIM="$(mktemp -d)"
+SHIM="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$SHIM/mktemp"
 chmod +x "$SHIM/mktemp"
 LEASE_BEFORE="$(wit_active_lease_json "$LIVE_FILE")"

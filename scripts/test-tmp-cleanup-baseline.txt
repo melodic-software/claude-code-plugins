@@ -11,15 +11,3 @@ plugins/playbooks/skills/skill-authoring/scripts/update.test.sh
 plugins/playwright/skills/playwright/scripts/update.test.sh
 plugins/session-flow/scripts/harness/hop_chain.test.sh
 plugins/testing/scripts/gen-hook-filters.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/common.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/create-item.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/lease-coordination.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/list-sub-items.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/claim-integrity.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/claim.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/create-item.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/list-items.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/renew-lease.test.sh
-plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh
-plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.test.sh
-plugins/work-items/tools/work-item-tracker/conformance/bindings/local-markdown.test.sh
