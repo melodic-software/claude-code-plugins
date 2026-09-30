@@ -13,11 +13,11 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 BATCH="$SCRIPT_DIR/clean-batch.sh"
 TEST_TMPDIR="$(mktemp -d)"
+export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/plugin-data"
+export HOME="$TEST_TMPDIR/home"
+mkdir -p "$HOME"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
-# Run from a non-repo cwd so default plans land under the per-user state dir in
-# TEST_TMPDIR and are cleaned up with it.
-export XDG_STATE_HOME="$TEST_TMPDIR/state"
 cd "$TEST_TMPDIR" || exit 1
 
 mkrepo() {
@@ -87,23 +87,6 @@ printf 'REPO\t/x\tcaches\t/x/m.manifest\nGITDIR\t/y\tkey\n' >"$VALIDPLAN"
 rc=0
 out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent4)" --batch-plan "$VALIDPLAN" 2>&1)" || rc=$?
 assert_exit "existing batch plan is overwritable (resumable)" 0 "$rc"
-
-# --- 1b. default plan location: the state dir, never /tmp or inside a repo; explicit --batch-plan wins ---
-RD="$(mkrepo defplan)"
-out="$(cd "$RD" && bash "$BATCH" --tier caches --repo "$RD" 2>&1)"
-P="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-assert_contains "in-repo default plan lands under the state dir" "$P" "$TEST_TMPDIR/state/repo-hygiene/"
-assert_file_exists "in-repo default plan written" "$P"
-assert_not_contains "the invoking repo gains no .work/" "$(git -C "$RD" status --porcelain)" ".work"
-NOREPO="$TEST_TMPDIR/norepo"
-mkdir -p "$NOREPO"
-out="$(cd "$NOREPO" && bash "$BATCH" --tier caches --repo "$RD" 2>&1)"
-P="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-assert_contains "out-of-repo default plan lands under the state dir" "$P" "$TEST_TMPDIR/state/repo-hygiene/"
-assert_file_exists "out-of-repo default plan written" "$P"
-EXPLICIT="$TEST_TMPDIR/explicit/plan"
-out="$(cd "$RD" && bash "$BATCH" --tier caches --repo "$RD" --batch-plan "$EXPLICIT" 2>&1)"
-assert_contains "explicit --batch-plan overrides the default" "$out" "BatchPlan: $EXPLICIT"
 
 # --- 2. caches dry-run over 2 repos: one plan, aggregate summary ---
 R1="$(mkrepo r1)"
@@ -641,36 +624,67 @@ rm -rf "$TEST_TMPDIR/gitprune-gone"
 out="$(bash "$BATCH" --tier git --repo "$GW" 2>/dev/null)"
 assert_contains "git tier counts a prunable worktree" "$out" "$GW | would-clean | 1 | "
 
-# A clean apply removes a default-location plan and its directory; an explicit
-# --batch-plan is the caller's and stays.
-out="$(bash "$BATCH" --tier caches --repo "$(mkrepo applyclean)" 2>/dev/null)"
-DP="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
-assert_file_exists "default plan is written by the dry-run" "$DP"
-out="$(bash "$BATCH" --tier caches --apply --batch-plan "$DP" 2>&1)"
-assert_contains "the apply the default plan feeds succeeds" "$out" "Summary: removed=1 failed=0"
-assert_file_absent "a clean apply removes the default plan" "$DP"
-if [[ ! -d "$(dirname "$DP")" ]]; then
-  pass "a clean apply removes the default plan directory"
+# --- 5. durable plan location and dry-run path listing ---
+PD_REPO="$(mkrepo pdrepo)"
+PD_OTHER="$(mkrepo pdother)"
+out1="$(bash "$BATCH" --tier caches --repo "$PD_REPO")"
+PD_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out1")"
+assert_contains "default plan lands under CLAUDE_PLUGIN_DATA" "$PD_PLAN" "$CLAUDE_PLUGIN_DATA/"
+assert_file_exists "default plan file written under CLAUDE_PLUGIN_DATA" "$PD_PLAN"
+out2="$(bash "$BATCH" --tier caches --repo "$PD_REPO")"
+PD_PLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out2")"
+assert_contains "same repo set shares its plan directory" "$PD_PLAN2" "$(dirname "$(dirname "$PD_PLAN")")/"
+assert_not_contains "a repeat dry-run gets a new plan path" "$out2" "BatchPlan: $PD_PLAN"
+assert_file_exists "a repeat dry-run leaves the first plan intact" "$PD_PLAN"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_OTHER")"
+assert_not_contains "different repo set gives a different plan path" "$out3" "BatchPlan: $PD_PLAN"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" "$PD_OTHER" --skip pdother)"
+PD_SKIP_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out3")"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" "$PD_OTHER")"
+assert_not_contains "different skip list gives a different plan directory" "$out3" "BatchPlan: $(dirname "$(dirname "$PD_SKIP_PLAN")")/"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" --list-paths-max 08 2>&1)"
+assert_not_contains "leading-zero --list-paths-max is read as decimal" "$out3" "value too great"
+
+PD_SET_DIR="$(dirname "$(dirname "$PD_PLAN")")"
+mkdir "$PD_SET_DIR/run.old" "$PD_SET_DIR/run.recent" && touch "$PD_SET_DIR/run.recent/plan"
+touch "$PD_SET_DIR/run.old/plan" && touch -d "15 days ago" "$PD_SET_DIR/run.old"
+bash "$BATCH" --tier caches --repo "$PD_REPO" >/dev/null
+assert_file_absent "a run directory older than 14 days is pruned" "$PD_SET_DIR/run.old/plan"
+assert_file_exists "a recent run directory is kept" "$PD_SET_DIR/run.recent/plan"
+
+out="$(env -u CLAUDE_PLUGIN_DATA bash "$BATCH" --tier caches --repo "$PD_REPO")"
+assert_contains "without CLAUDE_PLUGIN_DATA the plan lands under HOME/.claude" "$out" "BatchPlan: $HOME/.claude/"
+
+OVERRIDE="$TEST_TMPDIR/override.plan"
+out="$(bash "$BATCH" --tier caches --repo "$PD_REPO" --batch-plan "$OVERRIDE")"
+assert_contains "--batch-plan overrides the default location" "$out" "BatchPlan: $OVERRIDE"
+assert_file_exists "override plan written" "$OVERRIDE"
+
+out="$(bash "$BATCH" --tier caches --apply --batch-plan "$PD_PLAN")"
+assert_contains "apply with the printed default plan cleans" "$out" "Summary: removed=1 failed=0"
+assert_file_absent "apply with the printed plan removed the cache" "$PD_REPO/.pytest_cache/x"
+
+LR="$(mkrepo listrepo)"
+mkdir -p "$LR/.mypy_cache" "$LR/.ruff_cache"
+echo x >"$LR/.mypy_cache/x"
+echo x >"$LR/.ruff_cache/x"
+out="$(bash "$BATCH" --tier caches --repo "$LR")"
+assert_contains "dry run lists the repo's planned paths" "$out" "Paths: $LR"
+assert_contains "listing names a planned cache" "$out" ".pytest_cache"
+assert_contains "listing names another planned cache" "$out" ".mypy_cache"
+assert_not_contains "under the cap there is no tail" "$out" "more, see plan file"
+LR_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+total="$(grep -c . "$(sed -n 's/^REPO\t[^\t]*\t[^\t]*\t//p' "$LR_PLAN")")"
+
+out="$(bash "$BATCH" --tier caches --repo "$LR" --list-paths-max 1)"
+LR_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+assert_contains "over the cap the tail counts the rest" "$out" "$((total - 1)) more, see plan file: $LR_PLAN"
+entries="$(grep -c '^  [^ ].* | ' <<<"$out")"
+if [[ "$entries" -eq 1 ]]; then
+  pass "over the cap exactly the cap entries are listed"
 else
-  fail "a clean apply removes the default plan directory" "absent" "$(ls -A "$(dirname "$DP")")"
+  fail "exactly the cap entries are listed" 1 "$entries"
 fi
-KEEP="$TEST_TMPDIR/keep/plan"
-bash "$BATCH" --tier caches --repo "$(mkrepo applykeep)" --batch-plan "$KEEP" >/dev/null 2>&1
-bash "$BATCH" --tier caches --apply --batch-plan "$KEEP" >/dev/null 2>&1
-assert_file_exists "an explicit --batch-plan survives a clean apply" "$KEEP"
-# An explicit path whose directory looks like a generated one is still the caller's.
-LOOKALIKE="$TEST_TMPDIR/state/repo-hygiene/clean-batch.manual/plan"
-bash "$BATCH" --tier caches --repo "$(mkrepo applylook)" --batch-plan "$LOOKALIKE" >/dev/null 2>&1
-bash "$BATCH" --tier caches --apply --batch-plan "$LOOKALIKE" >/dev/null 2>&1
-assert_file_exists "an explicit plan in a generated-looking directory survives a clean apply" "$LOOKALIKE"
-LOOK_MANIFESTS=("$(dirname "$LOOKALIKE")"/*.manifest)
-assert_file_exists "its manifests survive too" "${LOOK_MANIFESTS[0]}"
-# A marker copied outside the state directory (a backed-up plan directory) does not make the plan removable.
-STRAY="$TEST_TMPDIR/stray/plan"
-bash "$BATCH" --tier caches --repo "$(mkrepo applystray)" --batch-plan "$STRAY" >/dev/null 2>&1
-: >"$(dirname "$STRAY")/.default-location"
-bash "$BATCH" --tier caches --apply --batch-plan "$STRAY" >/dev/null 2>&1
-assert_file_exists "a stray marker outside the state directory leaves the plan" "$STRAY"
 
 help_out="$(bash "$BATCH" --help)"
 assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"

@@ -43,11 +43,13 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   [--dry-run|--apply] \
   [--repo DIR]... [--repos-from FILE|-]... [--fleet] \
   [--skip ENTRY]... [--skip-from FILE]... \
-  [--batch-plan FILE]
+  [--batch-plan FILE] [--list-paths-max N]
 ```
 
 Default: `--dry-run`. `--batch-plan FILE` is also accepted with `--dry-run`, to write the
-plan to a stable path instead of the default state directory (below). Output labels and full flag help: script `--help`.
+plan to another path than the default: a new `run.*` directory per dry-run under one directory
+per tier, repo set and skip list in `${CLAUDE_PLUGIN_DATA}` (else
+`~/.claude/plugins/data/repo-hygiene`), so a repeat dry-run never replaces a confirmed plan; run directories older than 14 days are removed. `--list-paths-max N` caps the dry-run path listing per repo (default 20). Output labels and full flag help: script `--help`.
 
 ### Tiers
 
@@ -139,22 +141,13 @@ dry-run → apply over the live siblings picks a new representative.
 
 `--dry-run` writes a plan file enumerating exactly the repos and shared object
 stores to act on, plus a per-repo child manifest for `caches`/`build`, and prints
-`BatchPlan: <path>`. `--apply --batch-plan <path>` acts on **that plan only** and
+`BatchPlan: <path>`, after listing the planned paths per repo from those manifests (capped, with an
+`N more, see plan file: <path>` tail). `--apply --batch-plan <path>` acts on **that plan only** and
 errors without it (the fleet gate is mandatory). This is the fleet-level analogue
 of the child's per-repo manifest staleness guard, and it is what makes a live
 fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply. Pass the plan back.
-
-Default location: a fresh `clean-batch.XXXXXX` directory under
-`${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene/`, wherever the command runs. It is
-never under `/tmp`, so it also works where the guardrails `block-windows-drive-tmp` hook
-rejects a temp-dir path (Windows), and never inside a repo: `.work/` is ignored only by
-some repos' own convention, so a plan there would leave the working tree dirty. An apply
-that finishes with `failed=0` removes the plan, its manifests and that directory. A
-dry-run that is never applied, and an apply that fails, leave the directory; `BatchPlan:`
-names it. `--batch-plan FILE` overrides the location and is never removed: pass a path
-outside `/tmp` there too.
 
 `RUNTIME_PROCS` and `RECENT_BUILD` are scoped to the batch repositories and `IDE_OPEN` is
 machine-wide. Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
@@ -228,9 +221,9 @@ gated plan after confirming:
 ```bash
 ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   --tier caches --repos-from - --skip melodic-software/standards
-# → BatchPlan: <state-dir>/clean-batch.…/plan  — confirm, then:
+# → BatchPlan: <plan-path>  — confirm, then:
 CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
-  --tier caches --apply --batch-plan <state-dir>/clean-batch.…/plan
+  --tier caches --apply --batch-plan <plan-path>
 ```
 
 Dry-run a git prune across an explicit set including worktrees (each shared store

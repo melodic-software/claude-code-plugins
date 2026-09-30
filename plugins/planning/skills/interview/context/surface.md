@@ -64,7 +64,7 @@ When the first wake prompts for permission, offer the user one allow rule, `Bash
 |---|---|---|
 | `handle` | `seqs` | Plain accepts (no new note text), `reopen`, `confirm`, `confirm-understanding` with `confirm`, `undo`, `wrapup`: no reply (R9) |
 | `reply` | `id`, `text`, `seq`, `kind` (`reply`, `rephrase`, `note`), `rec` + `why` + `affects`, `handled`, `force` | Answer an ask or rephrase; `rec` revises the recommendation |
-| `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `seq`, `affects`, `force` | Reword a question |
+| `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `commits`, `seq`, `affects`, `force` | Reword a question; `commits` replaces the list and resets its confirmations |
 | `note-reply` | `text`, `seq` | Answer a note in Notes to Claude; with no `seq`, post a closing probe there |
 | `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups; writing a `summary` records the group's current question ids as `summaryOf`, and the page marks the summary Stale once the members differ, so rewrite the summary after adding questions |
 | `meta` | `set` (`title`, `eyebrow`, `stages`, `next`) | Merge into `meta`; other meta keys stay |
@@ -206,7 +206,7 @@ Every question states its decision in plain words. Before `add-round`, scan each
 On a `wrapup` event, or when the user ends the session in the terminal, in this order:
 
 1. `round.sh export-ledger --out '<data_dir>/ledger-export.md'`. Replace the live rows under `## Open-question register` in `'<memory_dir>/<topic-slug>/interview-checklist.md'` with the export's rows, one row per `Q<N>`; never paste a second register heading. Run the Step 3 register gate.
-2. Engineering sessions: `round.sh export-brief --out '<data_dir>/brief-export.md'`, then merge its sections into PLAN.md's `## Brief`, keeping the goal and acceptance criteria the interview captured where the export has none. Unconfirmed commitments arrive as named risks. Run the `--brief` gate.
+2. Engineering sessions: `round.sh export-brief --out '<data_dir>/brief-export.md'`, then merge its sections into PLAN.md's `## Brief`, keeping the goal the interview captured where the export has none. The export carries the acceptance criteria from the latest `restate` once the user has confirmed it; hand-merge criteria captured outside the page or on a restatement still unconfirmed. Unconfirmed commitments arrive as named risks. Run the `--brief` gate.
 3. `round.sh export-report --out '<run_dir>/interview-report.html'`, where `<run_dir>` is the run's ephemeral-tier directory per the topic-docs binding; give the user the path.
 4. `handle` the `wrapup` seq, make the decomposition offer, and stop the server once the user is done with the page.
 

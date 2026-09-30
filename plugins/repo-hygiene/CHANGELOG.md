@@ -3,7 +3,7 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.0] - 2026-09-30
+## [0.18.0] - 2026-09-30
 
 ### Added
 
@@ -13,12 +13,28 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Changed
 
-- **`clean-batch.sh` plans default under a per-user state directory, not a temporary directory (#5234),** so Windows guardrail hooks no longer block the write and no repo gains an untracked directory. This replaces the 0.12.0 default. A successful `--apply` removes the default-location plan it read.
 - **The git-tier dry-run counts what the apply ops act on (#5234).** `planned=` and `bytes=` cover the worktrees `git worktree prune` would remove and, only when `git gc --auto` would run (loose objects above `gc.auto`, or packs above `gc.autoPackLimit`), the loose objects and garbage. A store below both limits counts 0 and stays `would-clean`, and its `Reason:` says the remote prune is not measured. `Summary:` gains `git_bytes=`, and the `all` tier also gains `caches_bytes=` and `build_bytes=`.
 
 ### Fixed
 
 - **The `clean` repository-context block reports "not a repository" from a non-repo cwd instead of skipping the block (#5234).**
+
+## [0.17.0] - 2026-09-30
+
+### Changed
+
+- **The batch plan defaults to a durable per-repo-set directory (#5215).** `clean-batch.sh` without
+  `--batch-plan` now writes the plan and manifests to `clean-batch/<tier>-<key>` under
+  `${CLAUDE_PLUGIN_DATA}`, else `~/.claude/plugins/data/repo-hygiene`, instead of a `mktemp`
+  directory. Each dry-run writes a new `run.*` directory under its tier, repo set and skip list, so
+  a later dry-run never replaces a plan already confirmed, and removes that set's `run.*`
+  directories older than 14 days. `--batch-plan FILE` still overrides.
+
+### Added
+
+- **The batch dry-run lists the planned paths per repo (#5215).** Each repo's paths print largest
+  first, read from the manifests apply consumes, capped at 20 per repo by the new
+  `--list-paths-max N`, with an `N more, see plan file: <path>` tail when the cap truncates.
 
 ## [0.16.0] - 2026-09-30
 

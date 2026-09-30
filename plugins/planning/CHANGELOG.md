@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1] - 2026-09-30
+
+### Fixed
+
+- **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.49.0] - 2026-09-30
+
+### Added
+
+- **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
+
 ## [0.48.1] - 2026-09-30
 
 ### Fixed

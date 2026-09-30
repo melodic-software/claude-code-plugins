@@ -3,6 +3,33 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.73.1] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` files native-drift items without a `native-drift` label.** The body's
+  `native-drift:<kind>:<surface>:<component>` key already finds every item (on GitHub,
+  `gh issue list --state all --limit 1000 --search '"native-drift:" in:body'`), so the label step and its two recorded facts
+  are gone.
+
+## [0.73.0] - 2026-09-30
+
+### Added
+
+- **`hook_events_max_bytes` option** (default 10 MiB) sets the size at which the telemetry sink
+  rotates the shared `hook-events.jsonl`. It reaches the sink only when a claude-ops hook emits the
+  envelope; an emitter in another plugin that runs the sink keeps the default.
+
+### Fixed
+
+- **The shared `hook-events.jsonl` no longer grows without bound.** The telemetry sink now rotates
+  it to `hook-events.jsonl.1` (replacing any older `.1`) under its existing append lock once it
+  passes `hook_events_max_bytes`, so the pair stays near twice that. Rotation runs whether or not
+  the per-session event log is enabled, which the SessionEnd retention sweep never covered for this
+  file. `observability` clean and its state probe treat the rotated file like the live one, and the
+  README and observability references describe the cap. `clean` prunes the rotated file under the
+  live file's lock, so a concurrent rotation cannot be overwritten by the pruned copy.
+
 ## [0.72.1] - 2026-09-30
 
 ### Changed
