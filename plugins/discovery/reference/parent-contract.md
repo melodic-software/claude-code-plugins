@@ -655,8 +655,8 @@ So the honest statement is the one the rest of this plugin already makes about u
 multi-turn command is settings, not frontmatter: "To pre-approve tools for the whole session rather
 than a single turn, add allow rules to those permission settings instead." The plugin cannot ship
 them: a plugin's `settings.json` supports only the `agent` and `subagentStatusLine` keys. So the
-operator adds them to their own `~/.claude/settings.json`, and `/discovery:setup apply` offers to do
-it with `<plugin root>` already filled in. The rules, with `<plugin root>` replaced by the absolute
+operator adds them to their own `~/.claude/settings.json`, and `/discovery:setup check` prints them
+resolved for this install. The rules, with `<plugin root>` replaced by the absolute
 path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
 
 ```json
@@ -680,17 +680,21 @@ not. Each rule names the script directly, so it is not the interpreter-led shape
 The trailing space-and-`*` covers `--help` and every gate argument.
 
 **Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries
-the version (`…/discovery/<version>/`), so these rules stop matching after an update, the gates
-prompt again, and re-running `/discovery:setup apply` refreshes them. Writing `…/discovery/*/scripts/…`
+the version (`…/discovery/<version>/`), so these rules stop matching after an update and the gates
+prompt again; re-run `/discovery:setup check` and paste its output. Writing `…/discovery/*/scripts/…`
 instead would survive the update but is unsafe. Claude Code "matches everything before the first `*`
-as written", a `*` "matches any text, including spaces", and it "warns at startup about an allow rule
-with a `*` before the subcommand". A `*` in the path's version segment is before the program name
-ends, so it can stand in for `../../../usr/bin/<any program> <any arguments>` and the rule would
-approve that program. A prompt after an update is the safe failure; an arbitrary-program allow rule
-is not. *Claim:* a mid-path `*` in a Bash allow rule matches any text and draws a startup warning.
-*Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched 2026-09-28.
-*As of:* 2026-09-28. *Recheck when:* that section documents path normalization or a `*` that stops
-at `/`, which would make a version wildcard safe.
+as written" and a `*` "matches any text, including spaces". Tested on Claude Code 2.1.285 (probe
+linked under *Basis*): a `*` in the version segment matched across `/`, and
+`<root>/cache/discovery/../../outside/scripts/gate.sh` was allowed with no prompt, so the rule matches
+the command text without normalizing `..` and runs a script outside the plugin cache. A prompt after an
+update is the safe failure; a rule that approves a script outside the cache is not. *Claim:* a `*` in
+the version segment of a Bash allow rule spans `/` and is not path-normalized, so `..` escapes the
+plugin cache. *Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched
+2026-09-30, and the probe recorded at
+<https://github.com/melodic-software/claude-code-plugins/issues/4233#issuecomment-5900240219>
+(allowed 3 of 3 runs, Claude Code 2.1.285, Linux). *As of:* 2026-09-29, Claude Code 2.1.285.
+*Recheck when:* the permissions page documents path normalization or a `*` that stops at `/`, or a
+Claude Code release changes the probe result, which would make a version wildcard safe.
 
 ### What this gate does not grade
 
