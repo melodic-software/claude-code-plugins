@@ -18,6 +18,10 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   application-code prompts to the bundled `claude-api` skill's `prompt-audit`, keeps the standing
   audit of Claude Code instruction surfaces, and runs both when a sweep wants both. The `suggest`
   surfaces (`/permissions`, `/auto-mode-setup`, `doctor`) get no phrase.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The six bullets in `audit-instructions`, `audit-permission-grants`,
+  `audit-permission-state`, `audit` and `draft-auto-mode-rules` keep the provenance class, what
+  the surface does and how it is invoked, in the native-references template form.
 
 ## [0.53.2] - 2026-09-29
 

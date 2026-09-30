@@ -379,8 +379,7 @@ as fixed patterns here.
 
 Both surfaces handle `settings.json` files, so a request about settings can mean either.
 
-- **`update-config` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
-  It edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
+- **`update-config` (bundled skill)**: edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
   automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
   the person can both invoke it.
 - **This skill (marketplace plugin).** Audits the configuration that exists for correctness,

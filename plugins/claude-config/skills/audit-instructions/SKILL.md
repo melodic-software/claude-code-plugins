@@ -88,10 +88,9 @@ repository's tracker, never in-place edits; absent such a declaration, no exclus
 One native surface audits prompts for the same anti-pattern families this catalog names, and the
 two are routinely conflated:
 
-- **`claude-api` (bundled skill), `prompt-audit` subcommand.** Ships with Claude Code rather than
-  as a marketplace plugin. It audits the whole prompt surface of the working directory, application
-  code that calls the Claude API included, against the current model's documented anti-patterns,
-  and produces a report with a proposed diff that it applies when asked. Its catalog is the
+- **`claude-api` (bundled skill), `prompt-audit` subcommand**: audits the whole prompt surface of
+  the working directory, application code that calls the Claude API included, against the current
+  model's documented anti-patterns, and produces a report with a proposed diff that it applies when asked. Its catalog is the
   vendor's own migration guidance, refreshed with the model.
 - **This skill (marketplace plugin).** A standing, report-only audit of locally-owned Claude Code
   instruction surfaces against the versioned I-catalog in [reference/criteria.md](reference/criteria.md):
@@ -117,8 +116,7 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 
 `/doctor prompt-audit` also audits these files for outdated or conflicting instructions.
 
-- **`doctor` (bundled skill, alias `checkup`).** Ships with Claude Code rather than as a marketplace
-  plugin; its `prompt-audit` subcommand audits `CLAUDE.md` files, skills, agents, and commands for
+- **`doctor` (bundled skill, alias `checkup`)**: its `prompt-audit` subcommand audits `CLAUDE.md` files, skills, agents, and commands for
   older-model prompting patterns. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Report-only catalog audit that adds over-prescription with
   target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.
