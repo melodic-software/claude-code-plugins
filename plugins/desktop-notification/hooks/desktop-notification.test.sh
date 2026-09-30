@@ -172,9 +172,7 @@ wait_for_sink "$TEL"
 if [[ $RC -eq 0 ]]; then ok "telemetry/stub: hook exit 0"; else fail "telemetry/stub: hook exit $RC"; fi
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub: envelope received"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL" >/dev/null 2>&1; then ok "telemetry/envelope: $field present"; else fail "telemetry/envelope: $field missing: $(cat "$TEL")"; fi
-  done
+  if check_envelope "$TEL"; then ok "telemetry/envelope: matches envelope schema"; else fail "telemetry/envelope: does not match envelope schema. envelope=$(cat "$TEL")"; fi
   if [[ "$(jq -r '.hook' "$TEL")" == "desktop-notification" ]]; then ok "telemetry/envelope: hook id"; else fail "telemetry/envelope: hook id = $(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.hook_event' "$TEL")" == "Notification" ]]; then ok "telemetry/envelope: hook_event Notification"; else fail "telemetry/envelope: hook_event = $(jq -r '.hook_event' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "telemetry/envelope: status ok"; else fail "telemetry/envelope: status = $(jq -r '.status' "$TEL")"; fi
