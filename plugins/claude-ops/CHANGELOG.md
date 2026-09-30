@@ -21,6 +21,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   README and observability references describe the cap. `clean` prunes the rotated file under the
   live file's lock, so a concurrent rotation cannot be overwritten by the pruned copy.
 
+## [0.72.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.72.0] - 2026-09-30
 
 ### Changed
