@@ -4,8 +4,8 @@ Copy into your working task notes. Tick as each phase completes.
 
 ## Phases
 
-- [ ] Phase 1: Run the engine. It records `claude --version`, fetches `settings-reference` and `env-vars` through `llms.txt` (network; `--docs-dir` reuses pages on disk), and reads `.claude/settings.json` + `settings.local.json` + `.mcp.json`; check its `docs` coverage record for unread pages. Machine-scope managed settings: structure only, via `check-structure.sh`
-- [ ] Phase 2: Validate. Schema check; permission rule correctness; hook event names; `enabledPlugins` boolean values; `enableAllProjectMcpServers` semantics
+- [ ] Phase 1: Run the engine. It records `claude --version`, fetches `settings-reference`, `env-vars`, and `hooks` (when `settings-reference` links it) through `llms.txt` (network; `--docs-dir` reuses pages on disk), and reads `.claude/settings.json` + `settings.local.json` + `.mcp.json`; check its `docs` coverage record for unread pages. Machine-scope managed settings: structure only, via `check-structure.sh`
+- [ ] Phase 2: Validate. The engine's rows are settled; work the judgment column of SKILL.md's division-of-labor table, category by category (permission narrowings, hook timeout and exec-form judgment, MCP and plugin conventions, skill-listing levers)
 - [ ] Phase 3: Research & recheck. The pages the engine did not read: fetch the cited pages verbatim, run `check-doc-citations.sh --docs-dir`, compare against `settings-reference` and `settings`; recheck known issues by the degrade ladder
 - [ ] Phase 4: Report. Categorized findings (correctness / drift / issue-affected / convention-conflict)
 - [ ] Phase 5: Fix (only with `--fix` flag). Apply Phase 4 findings; verify config files still valid JSON

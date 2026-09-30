@@ -79,10 +79,10 @@ Repo → Validate → THEN Synthesize.
 
 **Steps (sequential):**
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase contact-sheets`: generate labeled thumbnail grids
-2. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase dedup`: near-duplicate detection
-3. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" generate-manifests.js --course-dir <path>`: curate frame sets per lesson
-4. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" classify-frames.js --course-dir <path> --phase summary`: print frame inventory
+1. `node "<skill-dir>/extraction/run.mjs" classify-frames.js --course-dir <path> --phase contact-sheets`: generate labeled thumbnail grids
+2. `node "<skill-dir>/extraction/run.mjs" classify-frames.js --course-dir <path> --phase dedup`: near-duplicate detection
+3. `node "<skill-dir>/extraction/run.mjs" generate-manifests.js --course-dir <path>`: curate frame sets per lesson
+4. `node "<skill-dir>/extraction/run.mjs" classify-frames.js --course-dir <path> --phase summary`: print frame inventory
 
 **Output:** Contact sheets, dedup report, manifests per lesson.
 
@@ -129,7 +129,7 @@ downloaded source code ZIPs. If neither exists, skip.
 
 **Steps (GitHub repo path):**
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" analyze-code-repo.js --course-dir <path>`: clone to temp, detect structure, write metadata
+1. `node "<skill-dir>/extraction/run.mjs" analyze-code-repo.js --course-dir <path>`: clone to temp, detect structure, write metadata
 2. Clone again to `code/repo/` for Phase 3 access: `git clone --depth 1 --single-branch <url> code/repo/`
 3. Review `code/analysis.json` for repo structure (per-section vs single-state)
 4. Build section-to-module mapping table: which repo sections correspond to which course modules
@@ -170,7 +170,7 @@ only, then discard.
 
 **Steps:**
 
-1. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/run.mjs" validate-extraction.js --course-dir <path>`: run all quality checks
+1. `node "<skill-dir>/extraction/run.mjs" validate-extraction.js --course-dir <path>`: run all quality checks
 2. Review `validation-report.json` and fix any FAIL items before proceeding
 3. On re-runs: compare against previous `validation-report.json` for regressions
 

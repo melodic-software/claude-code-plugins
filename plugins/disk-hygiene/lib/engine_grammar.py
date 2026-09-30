@@ -221,6 +221,26 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         help="inventory a target without mutating it",
     ),
     Subcommand(
+        "inventory",
+        (
+            Flag("--target", required=True, example="target-dir"),
+            _data_root_flag(),
+            Flag(
+                "--deep",
+                takes_value=False,
+                help=(
+                    "list every level of the target instead of its immediate "
+                    "children; the default when the target is the user's home "
+                    "directory"
+                ),
+            ),
+        ),
+        help=(
+            "report each entry's producer, disposition and reason; writes a "
+            "report that preview and apply never accept"
+        ),
+    ),
+    Subcommand(
         "preview",
         (
             Flag("--snapshot", required=True, example="snapshot.json"),

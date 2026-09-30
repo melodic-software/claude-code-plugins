@@ -226,6 +226,15 @@ Repo-applicability analysis follows the template in [reference/analysis-template
 | [reference/adapters/dometrain.md](reference/adapters/dometrain.md) | Working on Dometrain extraction: selectors, auth, player specifics |
 | [reference/adapters/teachable.md](reference/adapters/teachable.md) | Working on Teachable or Hotmart-video extraction: selectors, auth, player specifics |
 
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command. Those files arrive through the
+Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the
+Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Storage
 
 Generated course output lands under the invoking project's `library_dir` seam (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), one self-contained directory per course slug. See [context/storage-schema.md](context/storage-schema.md) for the full directory structure.

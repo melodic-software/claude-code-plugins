@@ -182,6 +182,16 @@ slices coexist under one queue root.
 The authoritative enumeration of every produced artifact, lane, staged verdict, kind, producer, plus work-root resolution and the `library_dir` seam is `context/output-contract.md`. Read it
 before writing or staging slice artifacts.
 
+## Spoke paths
+
+The `context/` and `reference/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Gotchas
 
 Observed failure modes. Recovery detail in `context/gotchas.md`: bot/sign-in cookie fallback,
