@@ -1,10 +1,10 @@
 # Changelog for the ecosystem-commands convention
 
-## Consumers table, 2026-09-28
+## [1.3.1] - 2026-09-29
 
-- **`code-metrics` reads `globs` and `enabled` only (#3847).** The contract gains a Consumers
-  table for plugins that take lane membership without running a verb. Schema unchanged, so no
-  version bump.
+Docs-only, no schema shape change: the Consumers section records that `code-metrics` reads `globs`
+and `enabled` only, runs no verb, and declares its fail-hard divergence from the tolerant-reader
+rule. The section is a plain note that binds no plugin (#3847).
 
 ## [1.3.0] - 2026-08-15
 

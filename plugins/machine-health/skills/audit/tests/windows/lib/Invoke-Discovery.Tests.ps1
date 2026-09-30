@@ -29,8 +29,8 @@ BeforeAll {
 
 Describe 'Invoke-Discovery' -Tag 'lib' {
     It 'returns no proposals when catalog already covers every detection' {
-        $catalog = @(New-CatalogEntry 'docker-disk-usage')
-        $probes = @(New-Probe -Dimension 'Docker Desktop' -Detected $true -SuggestedCheckId 'docker-disk-usage')
+        $catalog = @(New-CatalogEntry 'container-disk-usage')
+        $probes = @(New-Probe -Dimension 'Container runtimes' -Detected $true -SuggestedCheckId 'container-disk-usage')
 
         $out = @(Invoke-Discovery -Catalog $catalog -ProbeResults $probes)
         $out.Count | Should -Be 0
@@ -38,15 +38,15 @@ Describe 'Invoke-Discovery' -Tag 'lib' {
 
     It 'returns a proposal when detection is not in catalog' {
         $catalog = @()
-        $probes = @(New-Probe -Dimension 'Docker Desktop' -Detected $true -SuggestedCheckId 'docker-disk-usage')
+        $probes = @(New-Probe -Dimension 'Container runtimes' -Detected $true -SuggestedCheckId 'container-disk-usage')
 
         $out = @(Invoke-Discovery -Catalog $catalog -ProbeResults $probes)
         $out.Count | Should -Be 1
-        $out[0].dimension | Should -Be 'Docker Desktop'
+        $out[0].dimension | Should -Be 'Container runtimes'
     }
 
     It 'skips probes where nothing is detected' {
-        $probes = @(New-Probe -Dimension 'Docker Desktop' -Detected $false -SuggestedCheckId 'docker-disk-usage')
+        $probes = @(New-Probe -Dimension 'Container runtimes' -Detected $false -SuggestedCheckId 'container-disk-usage')
         $out = @(Invoke-Discovery -Catalog @() -ProbeResults $probes)
         $out.Count | Should -Be 0
     }

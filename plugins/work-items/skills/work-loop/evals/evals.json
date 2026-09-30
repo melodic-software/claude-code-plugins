@@ -159,6 +159,64 @@
         "Keeps #321 silently excluded: no marker, no label change, no dispatch, reported as in flight",
         "Does not count the escalation as progress for the no-progress streak"
       ]
+    },
+    {
+      "id": 11,
+      "name": "work-loop-paused-lane-drops-latch-on-account-switch",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint, and the tee file holds a fresh snapshot whose account.email matches the new account with both windows at 40%. Later in the same run a second wake finds .claude.json unparsable.",
+      "expected_output": "On the wake the lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser (never via the tee) and compares fingerprints, never printing or interpolating the address. The fingerprint differs, so it re-evaluates with the fresh tee snapshot whose account.email fingerprint equals the new account: both windows below 90, so it resumes, clearing rate_limit_latch, paused_until, and latched_account together in the durable state, and adds an account-switch: resumed line to the cycle report without the address or fingerprint. On the second wake the unparsable state file means cannot attribute: the lane keeps its existing state, with no spurious drop of a latch and no fabricated pause.",
+      "files": [],
+      "expectations": [
+        "Reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser on the wake, not from the tee file",
+        "Compares a fingerprint of the account against latched_account and never prints, logs, or interpolates the address or the state file",
+        "On a differing account, takes the new account's windows only from a fresh tee snapshot whose account.email matches the new account",
+        "With both windows below 90, resumes and clears rate_limit_latch, paused_until, and latched_account together rather than leaving a future paused_until behind",
+        "Records an account-switch: resumed line in the cycle report carrying neither the address nor the fingerprint",
+        "Treats an unparsable, absent, or key-less .claude.json as cannot attribute and keeps the existing latch instead of dropping it"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "work-loop-pause-entry-latches-the-tripping-snapshot-account",
+      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose account.email names account A and whose five-hour window reads 91%. After that snapshot the operator switched to account B: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names account B, and no other tee snapshot exists. Durable state carries no latched_account.",
+      "expected_output": "The 91% reading trips the pause threshold. At pause entry the lane records latched_account as the fingerprint of the tripping snapshot's account.email (account A), never the fingerprint of the account .claude.json names now (account B), and writes it in the same write as paused_until. It then reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, finds that account B differs from the latched account A, and re-evaluates at once instead of waiting for a later wake. No fresh tee snapshot attributes account B, so B's windows are unknown: it clears rate_limit_latch, paused_until, and latched_account together, runs reactive-only, and adds an account-switch: unknown line to the cycle report without the address or the fingerprint. It does not sleep until account A's resets_at.",
+      "files": [],
+      "expectations": [
+        "Records latched_account at pause entry as the fingerprint of the tripping snapshot's account.email, not of the account .claude.json names now",
+        "Compares the .claude.json account against the latched account at pause entry and re-evaluates at once when they differ, without waiting for a wake",
+        "Takes account B's windows only from a fresh tee snapshot attributed to B and, finding none, treats them as unknown and falls back to reactive-only",
+        "Does not pause until account A's resets_at and leaves no future paused_until, rate_limit_latch, or latched_account behind",
+        "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "work-loop-unattributed-trip-stays-paused",
+      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose five-hour window reads 91% and which has no account.email field. ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a readable .oauthAccount.emailAddress. Durable state carries no latched_account.",
+      "expected_output": "The 91% reading trips the pause threshold. The snapshot has no account.email, so the pause entry is unattributed: latched_account stays null, and with no latched account there is nothing for the .claude.json account to differ from, so the lane does not treat it as a switch and does not re-evaluate at entry. It stays paused with paused_until set to the five-hour window's resets_at and rate_limit_latch set, finishes in-flight work, and stops claiming new work. On its first later wake it reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, records the fingerprint as latched_account, and continues the ordinary re-evaluation.",
+      "files": [],
+      "expectations": [
+        "Leaves latched_account null at pause entry because the tripping snapshot has no account.email",
+        "Does not treat the readable .claude.json account as a switch at pause entry and does not drop the pause through the unknown-windows branch",
+        "Stays paused until the tripped window's resets_at with rate_limit_latch set, and stops claiming new work",
+        "On the first later wake records the .claude.json fingerprint as latched_account and continues the ordinary re-evaluation",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "work-loop-switch-with-one-plausible-window-resumes",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint. The tee file holds one snapshot captured 2 minutes ago whose account.email matches the new account, with the five-hour window at 40% and no seven-day window.",
+      "expected_output": "The fingerprint differs, so the lane re-evaluates against the new account using the fresh snapshot, read once and used for both the fingerprint and the windows. Only the five-hour window is plausible and it is below 90, so it resumes: it clears rate_limit_latch, paused_until, and latched_account together and resumes claiming work. It does not treat the absent seven-day window as blocking the resume, does not fall to reactive-only, and does not keep the old account's paused_until. It adds an account-switch: resumed line to the cycle report without the address or fingerprint.",
+      "files": [],
+      "expectations": [
+        "Resumes because every plausible window is below 90, treating the absent seven-day window as unknown rather than as a reason to stay paused",
+        "Does not fall back to reactive-only, since one window is plausible",
+        "Clears rate_limit_latch, paused_until, and latched_account together",
+        "Derives the snapshot's fingerprint and its windows from one read of the tee file, not from two reads",
+        "Records an account-switch: resumed line in the cycle report with neither the address nor the fingerprint"
+      ]
     }
   ]
 }
