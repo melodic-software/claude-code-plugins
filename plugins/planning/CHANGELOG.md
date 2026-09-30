@@ -9,6 +9,25 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
+## [0.47.4] - 2026-09-29
+
+### Fixed
+
+- **Interview surface question cards keep their badge row in column 2** when a question has several `dependsOn` entries. `.qid` spanned a fixed three rows while the card emitted a variable number of needs lines, so the badges landed in the emptied left column and squeezed the title ([#5191](https://github.com/melodic-software/claude-code-plugins/issues/5191)).
+
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
+
+## [0.47.2] - 2026-09-29
+
+### Added
+
+- **`draft-goal-condition` carries a Boundary section for the built-in `/goal` command.** The skill drafts the condition; the person runs `/goal <condition>` with it, and the model never sets a goal.
+- **`plan` carries a Boundary section for the built-in `/plan` command.** Plan mode stays the person's permission-mode switch, offered where Plan Mode Integration already suggests it; the skill keeps the persisted, approval-gated plan.
+
 ## [0.47.1] - 2026-09-29
 
 ### Fixed
