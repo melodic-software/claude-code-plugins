@@ -787,16 +787,31 @@ class GuardLaunchMonitorTests(unittest.TestCase):
                 self.assertEqual(0, monitor.main(["--data-root", str(self.data_root)]))
         self.assertEqual("", stderr.getvalue())
 
-    def test_missing_transcript_exits_0_with_one_stderr_line(self) -> None:
-        stderr = io.StringIO()
+    def test_missing_transcript_exits_0_silently(self) -> None:
+        stdout, stderr = io.StringIO(), io.StringIO()
         payload = json.dumps(
             {"session_id": "s", "transcript_path": str(self.transcript_path)}
         )
         with mock.patch.object(monitor.sys, "stdin", io.StringIO(payload)):
-            with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
                 self.assertEqual(0, monitor.main(["--data-root", str(self.data_root)]))
+        self.assertEqual("", stdout.getvalue())
+        self.assertEqual("", stderr.getvalue())
+
+    def test_a_nonzero_system_exit_fails_open_with_its_status(self) -> None:
+        self.transcript_path.write_text("", encoding="utf-8")
+        stderr = io.StringIO()
+        payload = json.dumps(
+            {"session_id": "s", "transcript_path": str(self.transcript_path)}
+        )
+        with mock.patch.object(monitor, "_run", side_effect=SystemExit(3)):
+            with mock.patch.object(monitor.sys, "stdin", io.StringIO(payload)):
+                with redirect_stdout(io.StringIO()), redirect_stderr(stderr):
+                    self.assertEqual(
+                        0, monitor.main(["--data-root", str(self.data_root)])
+                    )
         text = stderr.getvalue()
-        self.assertIn("guard-launch-monitor: did not run", text)
+        self.assertIn("did not run (status 3); fail-open", text)
         self.assertEqual(1, text.count("\n"))
 
 
