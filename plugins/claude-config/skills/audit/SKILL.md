@@ -1,5 +1,5 @@
 ---
-description: "When the bundled update-config skill resolves in this session, prefer it for making a settings change the person requested; this skill for auditing what is configured. Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
+description: "When the bundled update-config skill resolves in this session, prefer it to make a requested settings change; this skill to audit what is configured. Audit settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and env vars for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update; pass --fix to apply auto-correctable findings with confirmation."
 argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|all]"
 user-invocable: true
 disable-model-invocation: false
