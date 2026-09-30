@@ -404,9 +404,10 @@ catalog on, and the cloud bootstrap installs from the two together (see
   while the parity lane stayed green over it. It exists because the claim was
   prose for three plugin releases that shipped catalogued but never enabled, a silent failure,
   since the bootstrap computes its install set from the same map and a session simply comes up
-  without those skills. `claude-config`'s `check-plugin-drift.sh` cannot cover it: that detector
-  resolves each marketplace through `source.repo` and records SKIP for one declaring none, which
-  is precisely this repo's relative `directory` source.
+  without those skills. `claude-config`'s `check-plugin-drift.sh` cannot cover it: it reads this
+  repo's relative `directory` catalog, but it diffs it only against the settings file's
+  `enabledPlugins` keys, reports a plugin with no key as NEW (report only), never reads the fleet
+  list, and checks no key order.
 - Entries are sorted alphabetically, one per line, so a single plugin can be flipped to `false`
   without disturbing the rest, a state the gate accepts, since an explicit `false` is a recorded
   decision where an absent key is drift. The one opt-out recorded today is `playgrounds`: its
