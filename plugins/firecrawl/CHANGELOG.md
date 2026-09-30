@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.20] - 2026-09-29
+
+### Added
+
+- `firecrawl` carries a Boundary section for the built-in `WebFetch` and `WebSearch` tools: the built-ins for a plain unprotected page or a quick inline lookup, this skill for blocked or JS-rendered pages, full text on disk, crawls, and browser interaction. The four-part record is in the skill's `context/native-web-tools.md`. The section's bullets follow the native-references template and describe the built-ins without asserting they are available.
+
 ## [0.5.19] - 2026-09-29
 
 ### Fixed
