@@ -3,11 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.64.0] - 2026-09-29
+## [0.65.0] - 2026-09-29
 
 ### Changed
 
 - **`babysit-loop` drops a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet, and the lane latches the account of the snapshot that tripped the pause, not the account `.claude.json` names at pause entry. The paused wait (`reference/paused-wait.md`) reads `.oauthAccount.emailAddress` at pause entry and on each wake and Monitor tick. On a change it clears the latch when the new account is below the pause threshold, re-latches at or above it, and drops the latch and runs reactive-only when no fresh snapshot attributes the new account. It records the event in cycle telemetry. Three evals cover the unknown-windows drop on a wake, a switch found at pause entry, and an unattributed trip that stays paused.
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three path plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
 
 ## [0.63.0] - 2026-09-29
 
