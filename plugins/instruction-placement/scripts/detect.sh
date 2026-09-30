@@ -138,6 +138,7 @@ if [[ "${1:-}" == "identity" ]]; then
   esac
   case "/$ID_FILE/" in
   */./* | */../* | *//* | *\\*) id_die "--file must be a canonical relative path (no ., .., empty or backslash segments): $ID_FILE" ;;
+  *) ;;
   esac
   command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 ||
     id_die "identity needs sha256sum or shasum"
