@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.3] - 2026-09-29
+## [0.47.4] - 2026-09-29
 
 ### Fixed
 
 - **`check-plan-outcome.sh` prints at most 20 `path-hit=` lines** and a `path-hit-truncated=<n>` line when more exist, so a plan with many non-portable paths no longer floods stdout. `hits=` still reports the full count; the `criterion=portable-paths status=fail` line and exit code are unchanged ([#5478](https://github.com/melodic-software/claude-code-plugins/issues/5478)).
+
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
 
 ## [0.47.2] - 2026-09-29
 
