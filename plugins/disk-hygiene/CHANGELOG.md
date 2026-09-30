@@ -12,7 +12,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
   them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
   registry match is reported. A match grants no approval and adds no delete path; the engine is
-  unchanged. Product-native destructive commands are not included.
+  unchanged. The report neither shows nor runs a product-native destructive command; the registry
+  keeps each as data.
 
 ## [0.30.0] - 2026-09-29
 

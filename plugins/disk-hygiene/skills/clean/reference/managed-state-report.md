@@ -14,10 +14,11 @@ managed state stay as [the safety model](safety-model.md) states them.
 3. **Read-only command.** When present and `read_only_command` is set, run it and capture its
    output into the report verbatim. A null command means the product has none; the report shows
    `manual_step` as information.
-4. **Destructive native command.** Shown as information only, never run by the report. No route
-   runs it: the engine blocks a plan that claims a registry owner with `native-managed-report-only`
-   and issues no approval token for it. A route would need an engine change, and the owner decides
-   whether to make one.
+4. **Destructive native command.** Neither shown nor run by the report. The registry keeps each one
+   as data to inspect. The engine blocks a plan that claims a registry owner with
+   `native-managed-report-only` and issues no approval token for it. Whether the report may show a
+   destructive command, or offer one behind the engine's tier and exact-list approval, is the
+   owner's decision, and no route for either is built.
 5. **Unmatched paths.** A managed-looking path with no registry match is reported as a coverage
    gap. It is never `clean` and never removable.
 
@@ -26,7 +27,7 @@ managed state stay as [the safety model](safety-model.md) states them.
 | Design constraint | How this report meets it |
 |---|---|
 | Containment is untouched | The report adds no deletion capability; engine eligibility is unchanged. |
-| Read-only and destructive are different gates | Step 3 runs freely; step 4 is information only, and no route to run it is built. |
+| Read-only and destructive are different gates | Step 3 runs freely. Step 4 shows and runs no destructive command, so none is offered outside the engine's approval; offering one behind that approval is not built. |
 | Tool presence is checked first | Step 2 precedes every command; absent gives `absent-tool` and no commands. |
 | An entry is a hint, never authorization | Step 1 treats a match as a claim to prove. |
 | Unmatched stays a coverage gap | Step 5. |
