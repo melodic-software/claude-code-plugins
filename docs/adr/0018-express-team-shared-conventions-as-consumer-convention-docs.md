@@ -8,8 +8,8 @@
 Fleet inventory (2026-08-31, `.work/customization-consistency-inventory/INVENTORY.md`, memory
 tier) found ~20 consumer-facing configuration surfaces across 51 setup skills, twelve verified
 cross-plugin drift classes, and eight bespoke, mutually drifting implementations of "detect the
-old convention and clean it up". Several surfaces are prose the model reads — a repo map, audit
-targets, lane descriptions — carried in dedicated `.claude/<name>.md` files with a three-layer
+old convention and clean it up". Several surfaces are prose the model reads: a repo map, audit
+targets, lane descriptions, carried in dedicated `.claude/<name>.md` files with a three-layer
 cascade whose overlay channel nobody uses, while the consumer's own conventions already live as
 natural-language docs the team maintains. The operator's stated goal: plugins should be able to
 write succinctly to the consumer's instruction surface, the current setup is over-engineered for
@@ -20,7 +20,7 @@ An interview (14 questions, register clean) rejected a machine-parsed one-liner 
 `CLAUDE.md` (`<plugin> <key>: <value>`) in favor of natural-language convention docs with
 progressive disclosure. A blind three-validator tournament
 (`docs/topics/customization-consistency/design/mechanism-validation.md`) ranked three retirement
-mechanisms; candidate B — per-plugin `retirements.yaml` plus one shared deterministic helper —
+mechanisms; candidate B (per-plugin `retirements.yaml` plus one shared deterministic helper)
 won unanimously, with a hybrid of amendments. The plan
 (`docs/topics/customization-consistency/PLAN.md`) was stress-tested twice; its findings are the
 constraints below.
@@ -64,9 +64,9 @@ constraints below.
 
 - **Machine-parsed one-liners in CLAUDE.md.** Rejected in the interview: it re-instantiates a
   parser contract the model does not need and turns the instruction file into a config file.
-- **Candidate A — SKILL.md-embedded prose retirement entries.** Lost the tournament: prose
+- **Candidate A: SKILL.md-embedded prose retirement entries.** Lost the tournament: prose
   semantics are ungradeable and re-create the drift the mechanism exists to kill.
-- **Candidate C — CI-aggregated fleet registry.** Lost on machinery and coupling; its aggregator
+- **Candidate C: CI-aggregated fleet registry.** Lost on machinery and coupling; its aggregator
   is the deferred item above, revived only if orphan leftovers appear.
 - **Migrating every surface, including per-operator-keyed ones.** Rejected at plan approval: a
   convention doc has no overlay channel, so a surface with a legitimate personal axis would lose
