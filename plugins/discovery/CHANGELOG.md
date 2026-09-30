@@ -1,12 +1,24 @@
 # Changelog: discovery plugin
 
-## [0.25.13] - 2026-09-29
+## [0.25.14] - 2026-09-29
 
 ### Changed
 
 - **The `deep-research` Boundary bullet in `research-deep` no longer asserts that the workflow
   ships with Claude Code.** It keeps the provenance class, what the workflow does and how it is
   invoked, in the native-references template form.
+
+## [0.25.13] - 2026-09-30
+
+### Changed
+
+- **`/discovery:setup` no longer writes the gate allow rules into user settings.** `check` prints
+  the rules resolved to the installed plugin version, ready to paste into `permissions.allow`, and
+  says they pin this version's cache directory, so a plugin update invalidates them again. The
+  parent contract, the `research` skill and the setup eval cases describe check-only setup. A
+  version-wildcard rule stays rejected: the `..` traversal probe showed it matches paths outside
+  the plugin root
+  ([#4233](https://github.com/melodic-software/claude-code-plugins/issues/4233)).
 
 ## [0.25.12] - 2026-09-29
 
