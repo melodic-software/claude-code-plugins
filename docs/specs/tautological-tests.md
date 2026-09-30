@@ -882,7 +882,7 @@ Re-planned as its own sub-topic PLAN once the Release 1 precision data exists.
 
 **Sanity Check:**
 
-- `test -f docs/topics/tautological-tests-judge/PLAN.md` passes before any Release 2 code lands.
+- `test -f docs/specs/tautological-tests-judge/PLAN.md` passes before any Release 2 code lands.
 
 ### Release 3 outline: cleanup, split mode, wave 2 [TODO]
 
