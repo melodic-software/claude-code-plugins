@@ -55,7 +55,7 @@ component_layers: host, application, domain  # optional; outside to inside; no d
 
 | Key | Values | Default | Meaning |
 |---|---|---|---|
-| `architecture_dir` | repo-relative directory path | **none** | Where every `map-*` skill writes its record and its rendered view. `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and reads `landscape-notes.md`. The other skills write their own records in this same directory (`dependency-graph.json`, `context.json`, `containers.json`, `flow.json`, `events.json`, `data-model.json`, `deployment.json`, `states.json`) and the matching rendered `.md` files. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
+| `architecture_dir` | repo-relative directory path | **none** | Where every `map-*` skill writes its record and its rendered view. `map-landscape` writes `landscape.json`, `landscape.dsl` / `landscape.md`, and `portfolio.md`, and reads `landscape-notes.md`. The other skills write their own records in this same directory (`dependency-graph.json`, `context.json`, `containers.json`, `flow.json`, `events.json`, `data-model.json`, `deployment.json`) and the matching rendered `.md` files. No default: an undeclared, unconfirmed value stops the skill rather than picking a directory. `--out <dir>` overrides it for one run. |
 | `landscape_dialect` | `structurizr` \| `mermaid` | `mermaid` | Which landscape artifact `map-landscape` emits. `structurizr` emits `landscape.dsl` with a `systemLandscape` view; `mermaid` emits `landscape.md` with a `C4Context` block. No other `map-*` skill reads it; see the dialect decision below. |
 | `component_layers` | comma-separated layer names | **none** | Optional. Ordered from outside to inside. `/architecture:map-components --group-by layer` reads it. Absent, that grouping cannot run. A name is letters, digits, `.`, `_`, or `-`. |
 
@@ -93,7 +93,6 @@ views refuse it too. No per-skill dialect key is added.
 | map-flow | no dialect key; a mermaid `sequenceDiagram` |
 | map-events | no dialect key; a mermaid `flowchart` of publish, send, and consume |
 | map-dependencies | no dialect key; a mermaid `flowchart` of the build graph |
-| map-states | no dialect key; a mermaid `stateDiagram-v2` |
 | map-landscape | `landscape_dialect`, unchanged |
 
 The four C4 views resolve `diagram_dialect.system` through

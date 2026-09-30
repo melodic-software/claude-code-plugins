@@ -27,16 +27,32 @@
 #   SKIP     path  reason
 #   SUMMARY  files_swept  files_skipped  sections  rules
 #
+# The `identity` subcommand emits one record for one section, using the same
+# per-file pass as the sweep:
+#
+#   IDENTITY  path  start  check  claim  anchor/v1  finding_id  heading_path
+#
+# check is instruction-placement/audit/<lane>; claim is narrower-scope:<rung>
+# for demote and unloaded-convention:<rung> for promote. anchor/v1 is the first
+# 8 hex of sha256 over the section's heading path (each enclosing heading, then
+# its own) joined by 0x1F. finding_id is the first 16 hex of sha256 over
+# check 0x1F claim 0x1F path 0x1F anchor. heading_path joins the same elements
+# with ' > ' for display. The formula is a local copy: plugins do not import
+# sibling-plugin files.
+#
 # Frontmatter and fenced code blocks are excluded from signal and hint counting:
 # a convention stated inside an example block is illustrating, not instructing.
 #
 # Usage:
 #   detect.sh [--root <dir>] [--tier core|expanded] [--] [<path>...]
+#   detect.sh identity [--root <dir>] --file <path> --start <n>
+#                      --lane demote|promote --destination <rung>
 #
 #   no paths   sweep the corpus (core tier, plus expanded unless --tier core)
 #   <path>...  emit facts for exactly these files
 #
-# Exit: 0 on a successful emission (including zero findings); 2 on usage error.
+# Exit: 0 on a successful emission (including zero findings); 2 on usage error
+# (for `identity`, also when no section starts at --start).
 
 set -uo pipefail
 
@@ -50,6 +66,8 @@ detect.sh — deterministic fact emitter for instruction-placement's audit.
 
 Usage:
   detect.sh [--root <dir>] [--tier core|expanded] [--] [<path>...]
+  detect.sh identity [--root <dir>] --file <path> --start <n>
+                     --lane demote|promote --destination <rung>
 
   --root <dir>       repository root (default: cwd)
   --tier core        instruction surfaces only; skip ordinary documentation
@@ -64,6 +82,10 @@ Records (TSV, sorted, deterministic):
   RULE     path  scope  globs                scope: scoped | unscoped
   SKIP     path  reason
   SUMMARY  files_swept  files_skipped  sections  rules
+  IDENTITY path  start  check  claim  anchor/v1  finding_id  heading_path
+                                                 (identity subcommand only)
+
+identity rungs: path-scoped-rule, nested-agents-md, skill, linter, deletion.
 
 Facts only — this script classifies nothing and proposes nothing.
 
@@ -79,8 +101,51 @@ die() {
 ROOT="$PWD"
 TIER="expanded"
 declare -a EXPLICIT=()
+IDENTITY=0
+ID_FILE="" ID_START="" ID_LANE="" ID_RUNG=""
 
-while [[ $# -gt 0 ]]; do
+id_die() {
+  printf 'ERROR: %s\n' "$1" >&2
+  usage >&2
+  exit 2
+}
+
+if [[ "${1:-}" == "identity" ]]; then
+  IDENTITY=1
+  shift
+  while [[ $# -gt 0 ]]; do
+    [[ $# -lt 2 ]] && id_die "$1 needs a value"
+    case "$1" in
+    --root) ROOT="$2" ;;
+    --file) ID_FILE="$2" ;;
+    --start) ID_START="$2" ;;
+    --lane) ID_LANE="$2" ;;
+    --destination) ID_RUNG="$2" ;;
+    *) id_die "unknown argument: $1" ;;
+    esac
+    shift 2
+  done
+  [[ -n "$ID_FILE" ]] || id_die "--file is required"
+  [[ "$ID_FILE" != /* ]] || id_die "--file must be a path relative to --root: $ID_FILE"
+  [[ "$ID_START" =~ ^[0-9]+$ ]] || id_die "--start must be an integer"
+  case "$ID_LANE" in
+  demote | promote) ;;
+  *) id_die "--lane must be demote or promote" ;;
+  esac
+  case "$ID_RUNG" in
+  path-scoped-rule | nested-agents-md | skill | linter | deletion) ;;
+  *) id_die "--destination must be path-scoped-rule, nested-agents-md, skill, linter, or deletion" ;;
+  esac
+  case "/$ID_FILE/" in
+  */./* | */../* | *//* | *\\*) id_die "--file must be a canonical relative path (no ., .., empty or backslash segments): $ID_FILE" ;;
+  *) ;;
+  esac
+  command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 ||
+    id_die "identity needs sha256sum or shasum"
+  EXPLICIT=("$ID_FILE")
+fi
+
+while [[ $IDENTITY -eq 0 && $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
     usage
@@ -390,6 +455,68 @@ lang_hints() {
     END { for (s in seen) { split(s, p, "\t"); printf "HINT\t%s\t%s\tlang\t%s\n", path, p[1], p[2] } }
   ' "$file"
 }
+
+sha256_hex() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | cut -d' ' -f1
+  else
+    shasum -a 256 | cut -d' ' -f1
+  fi
+}
+
+# One IDENTITY record for the section starting at --start, from the sweep's own
+# SECTION records. The heading path takes, level by level, the nearest preceding
+# section with a strictly lower level than the last one taken, so a skipped level
+# (an H3 directly under an H1) leaves no gap and borrows no unrelated heading.
+emit_identity() {
+  [[ -f "$ID_FILE" ]] || id_die "not a readable file: $ID_FILE"
+  local -a starts=() levels=() heads=()
+  local kind start level head
+  while IFS=$'\t' read -r kind _ start _ level head; do
+    [[ "$kind" == SECTION ]] || continue
+    starts+=("$start")
+    levels+=("$level")
+    heads+=("$head")
+  done < <(emit_file_facts "$ID_FILE")
+
+  local want=$((10#$ID_START)) idx=-1 i
+  for ((i = 0; i < ${#starts[@]}; i++)); do
+    [[ "${starts[i]}" -eq "$want" ]] && idx=$i
+  done
+  ((idx >= 0)) || id_die "no section starts at line $want in $ID_FILE"
+
+  local -a elems=("${heads[idx]}")
+  local cur="${levels[idx]}"
+  for ((i = idx - 1; i >= 0 && cur > 1; i--)); do
+    if ((levels[i] < cur)); then
+      elems=("${heads[i]}" "${elems[@]}")
+      cur="${levels[i]}"
+    fi
+  done
+
+  local us=$'\x1f' joined="" display="" e claim
+  for e in "${elems[@]}"; do
+    joined+="${joined:+$us}$e"
+    display+="${display:+ > }$e"
+  done
+  local check="instruction-placement/audit/$ID_LANE"
+  if [[ "$ID_LANE" == demote ]]; then
+    claim="narrower-scope:$ID_RUNG"
+  else
+    claim="unloaded-convention:$ID_RUNG"
+  fi
+  local anchor fid
+  anchor="$(printf '%s' "$joined" | sha256_hex)"
+  anchor="${anchor:0:8}"
+  fid="$(printf '%s' "$check$us$claim$us$ID_FILE$us$anchor" | sha256_hex)"
+  printf 'IDENTITY\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$ID_FILE" "$want" "$check" "$claim" "$anchor" "${fid:0:16}" "$display"
+}
+
+if ((IDENTITY)); then
+  emit_identity
+  exit 0
+fi
 
 for f in "${FILES[@]}"; do
   tier="$(classify_tier "$f")"
