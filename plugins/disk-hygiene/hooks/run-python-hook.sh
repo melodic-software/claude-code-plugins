@@ -552,7 +552,7 @@ if [[ -z "$PYTHON" ]]; then
 fi
 
 _NO_PYTHON='no Python 3 interpreter resolved on this host (python3, python and py -3 are missing, below the engine floor, or the Windows App Execution Alias stub)'
-_NO_PYTHON_FIX='Install Python 3 ahead of WindowsApps on PATH, then run /disk-hygiene:setup check.'
+_NO_PYTHON_FIX='Install Python 3 ahead of WindowsApps on PATH, then run /disk-hygiene:check.'
 
 # Set `_MODE_VALUE` to the guard's `--mode`, read the way the guard's own
 # `_argv_flag_value` reads it: the first `--mode <value>` or `--mode=<value>`.

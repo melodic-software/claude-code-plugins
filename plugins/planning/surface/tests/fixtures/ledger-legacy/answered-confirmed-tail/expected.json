@@ -1,0 +1,151 @@
+{
+  "Q1": {
+    "title": "Question Q1?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A; b",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed::",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed:: x",
+        "confirmed": true
+      },
+      {
+        "text": "",
+        "confirmed": true
+      }
+    ],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "",
+      "seeded": true
+    },
+    "recommendation": "Recommended answer for Q1.",
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "accepted: Recommended answer for Q1."
+    }
+  },
+  "Q2": {
+    "title": "Question Q2?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A; b",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed::",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed:: x",
+        "confirmed": true
+      },
+      {
+        "text": "",
+        "confirmed": true
+      }
+    ],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "fine; really",
+      "seeded": false
+    },
+    "recommendation": "Recommended answer for Q2.",
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": null
+  },
+  "Q3": {
+    "title": "Question Q3?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A; b",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed::",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed:: x",
+        "confirmed": true
+      },
+      {
+        "text": "",
+        "confirmed": true
+      }
+    ],
+    "terminal": {
+      "decision": "alt",
+      "alt": "a",
+      "text": "a note",
+      "seeded": false
+    },
+    "recommendation": null,
+    "alternatives": [
+      {
+        "key": "a",
+        "text": "Alt a of Q3"
+      }
+    ],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": null
+  },
+  "Q4": {
+    "title": "Question Q4?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A; b",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed::",
+        "confirmed": true
+      },
+      {
+        "text": "confirmed:: x",
+        "confirmed": true
+      },
+      {
+        "text": "",
+        "confirmed": true
+      }
+    ],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "mine",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: mine"
+    }
+  }
+}

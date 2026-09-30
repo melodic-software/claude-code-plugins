@@ -32,6 +32,11 @@ skills, one concern: proving behavior with tests.
   smoke-test playbook, and diagnosis loops ship inside the plugin and are referenced
   via `${CLAUDE_PLUGIN_ROOT}`.
 
+## Requirements
+
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
+  finds Bash. A missing `node` is a hook launch error, not a skip notice.
+
 ## Install
 
 ```shell

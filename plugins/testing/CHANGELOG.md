@@ -15,6 +15,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
   every Bash call, whatever `test_guards_enabled` says; the README states the cost
   ([#5608](https://github.com/melodic-software/claude-code-plugins/issues/5608)).
 
+## [0.11.9] - 2026-09-30
+
+### Changed
+
+- **README declares the Node.js requirement.** A Requirements section states that every hook row launches through `node`, and that a missing `node` is a hook launch error. `/testing:setup` checks it.
+
 ## [0.11.8] - 2026-09-30
 
 ### Changed
