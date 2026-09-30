@@ -149,9 +149,42 @@ Shipped readers, every one that is present:
   JSON parameters file with no template to pair is `arm-parameters-unpaired:<file>`. A nested
   `Microsoft.Resources/deployments` resource is `<bicep|arm>-deployment-unread:<file>:<symbol>`.
 
-Pulumi, CloudFormation, Helm (a `Chart.yaml`), and Kustomize are recognized. If any of them is
-present, the record is refused, including when a shipped reader also matches. A diagram of only the shipped tool would be a partial read. A repository whose only
-IaC is an unshipped tool is refused as `adapter-not-shipped`, not drawn empty. Files under CI
+- CloudFormation (YAML or JSON), read as text. No `aws` binary, stack, or credentials. A template
+  names `AWSTemplateFormatVersion`, or holds a top-level `Resources` section with `AWS::` types
+  (`Resources` at the left margin in YAML). The short tags (`!Ref`, `!Sub`, `!GetAtt`, `!Join`,
+  `!If`) read the same as `Ref` and `Fn::*` in JSON. Containers come from `AWS::ECS::TaskDefinition`
+  `ContainerDefinitions` (`Name`, `Image`, `PortMappings`, `Environment`, `Secrets`), and compute
+  nodes from `AWS::ECS::Cluster`. An `AWS::ECS::Service` names the task definition and cluster it
+  runs (`!Ref` or `!GetAtt`) and gives `DesiredCount`. Environments come from parameter files, one
+  per environment, in either JSON shape (the `ParameterKey`/`ParameterValue` array, or
+  `{"Parameters": {}}`): `<stem>.<env>.json` or `<stem>.parameters.<env>.json` beside
+  `<stem>.<ext>`, else, when the repository holds exactly one template, `<env>.json` or
+  `parameters.<env>.json` anywhere. With no parameter file the environment is the directory name
+  (`default` at the repository root). A `Ref` to a template parameter and a `Sub` over parameters
+  resolve, from the parameter file and then the parameter `Default`. A `Transform` (SAM, a macro)
+  refuses as `cloudformation-transform-unread:<file>`, a nested `AWS::CloudFormation::Stack` as
+  `cloudformation-stack-unread:<file>:<id>` (its `TemplateURL` is never printed), a parameter file
+  that pairs with no template as `cloudformation-parameters-unpaired:<file>`, and a file that does
+  not parse as `cloudformation-unreadable:<file>`.
+- Pulumi YAML: a `Pulumi.yaml` whose `runtime` is `yaml` and that holds its own program (no `main`,
+  no runtime options). Its environments are the `Pulumi.<stack>.yaml` files beside it, else the
+  directory name. The mapped resources are `aws:ecs:Cluster`, `aws:ecs:TaskDefinition` (with
+  `containerDefinitions` as `fn::toJSON`), and `aws:ecs:Service`, in the short or the
+  `aws:ecs/<type>:<Type>` form. `${pulumi.stack}` and `${pulumi.project}` resolve. `${key}` resolves
+  from the stack file's `config` (`<project>:<key>` or `<key>`), then the project's `config`
+  default. `${resource.attr}` links a service to its cluster and task definition. A file that does
+  not parse is `pulumi-unreadable:<file>`.
+- Both YAML readers refuse anchors, aliases, the `<<` merge key, duplicate keys, a tab in the
+  indentation, and more than one document. Their `containerDefinitions` given as anything but a list
+  (a JSON string, a function) places one container whose image is `unresolved:containerDefinitions`.
+
+A Pulumi project of any other runtime (`nodejs`, `python`, `go`, `dotnet`, ...), Helm (a
+`Chart.yaml`), and Kustomize are recognized and named, never read. If any of them is present, the
+record is refused, including when a shipped reader also matches. A diagram of only the shipped tool
+would be a partial read. A repository whose only IaC is one of them is refused as
+`adapter-not-shipped`, not drawn empty. The declined Pulumi projects are the tool `pulumi` with the
+runtime in the evidence (`Pulumi.yaml (runtime nodejs)`); the shipped reader is the tool
+`pulumi-yaml`. Files under CI
 directories such as `.github/` are not IaC and are skipped. A double-brace expression in a Compose
 or Kubernetes value (a Go template in a healthcheck) reads normally; one in a name, image,
 namespace, replicas, or kind field refuses the file as unreadable.
@@ -220,6 +253,8 @@ End every run with this block, in this order:
 - Call a cloud API, use credentials, or compare live state to the declaration.
 - Run `terraform`, read Terraform state, or fetch a remote module.
 - Run `bicep` or `az`, restore a registry module, or evaluate an ARM function.
+- Run `aws` or `pulumi`, expand a CloudFormation `Transform`, or evaluate `Fn::If`, `Fn::FindInMap`,
+  `Fn::Join`, or a Pulumi `fn::*` function.
 - Cost, scaling, capacity, or runtime health.
 - Apply Helm templates or Kustomize. Those tools are a refusal, not a guessed render.
 - Add a dialect key, read `landscape_dialect`, or emit mermaid. The dialect is the existing
@@ -267,8 +302,56 @@ End every run with this block, in this order:
   is recorded on `default`. A service that names a network is recorded on that network.
 - **A required secret is not a topology fact.** The value is dropped. The diff can say the
   parameter differs. It cannot show the value.
-- **Two tools are not half-read.** Seeing Pulumi or any other unshipped tool beside Compose
-  refuses the whole record. Terraform or Bicep beside Compose is read, since both are shipped.
+- **Two tools are not half-read.** Seeing a Pulumi project of another runtime, Helm, or Kustomize
+  beside Compose refuses the whole record. Terraform, Bicep, CloudFormation, or Pulumi YAML beside
+  Compose is read, since all are shipped.
+- **CloudFormation and Pulumi values are resolved, never evaluated.** A parameter or config value
+  resolves only through the sources listed above. Every other function (`Fn::If`, `Fn::FindInMap`,
+  `Fn::Join`, `GetAtt`, a pseudo parameter such as `AWS::Region`, `fn::join`, a Pulumi variable) is
+  recorded as `unresolved:<text>`. A resource `Condition`, `Mappings`, and
+  `Fn::ForEach` are not applied, so a conditional resource is drawn in every environment. Only the
+  ECS types above are mapped: an EKS cluster, a Fargate-only service with no task definition here, a
+  Lambda, or an `aws:eks` or `kubernetes:` Pulumi resource is not drawn. YAML parameter files and
+  CloudFormation git-sync deployment files are not read.
+- **CloudFormation and Pulumi secrets.** A parameter with `NoEcho: true`, any value holding a
+  `{{resolve:...}}` dynamic reference, every container `Secrets` entry, a Pulumi `config` key with
+  `secret: true`, a `secure:` stack value, and a `fn::secret` wrapper are redacted wherever they
+  land, including in a name, image or port. A secret that differs between two environments is
+  reported as differing, and neither value is printed.
+- **CloudFormation template shape.** Claim: the YAML short form `!Ref name` equals
+  `Ref: name`, and JSON writes `{ "Ref": "name" }`. Basis:
+  <https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/intrinsic-function-reference-ref.html>.
+  Claim: `Fn::Sub`, `Fn::GetAtt`, and the other functions take the same `!Name` short form and
+  `Fn::Name` long form; `Ref` to a parameter returns its value. Basis: the same reference index,
+  <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/intrinsic-function-reference.html>.
+  Claim: `AWS::ECS::Service` takes `Cluster`, `DesiredCount`, `ServiceName`, and `TaskDefinition`.
+  Basis: <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ecs-service.html>.
+  As of: 2026-09-30. Recheck when any of those pages changes a form or property name.
+- **CloudFormation parameters and secrets.** Claim: `NoEcho: true` masks a parameter's value in
+  describe calls, and `Default` is the value used when none is given. Basis:
+  <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html>.
+  Claim: a dynamic reference is written `{{resolve:secretsmanager:...}}` (likewise `ssm` and
+  `ssm-secure`). Basis: <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html>
+  and its `secretsmanager` page. Claim: a parameter file is either the `ParameterKey`/`ParameterValue`
+  array or a template configuration file with a top-level `Parameters` object. Basis:
+  <https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-using-cli-parameters.html>. No
+  document names a per-environment file convention, so the pairing rules above are this skill's own.
+  As of: 2026-09-30. Recheck when those pages change the syntax or add a parameter file shape.
+- **Pulumi YAML program and stack shape.** Claim: `runtime` is a string (`runtime: nodejs`) or an
+  object (`name`, `options`), and a YAML program keeps `resources`, `variables`, and `outputs` in
+  `Pulumi.yaml`. Basis: <https://www.pulumi.com/docs/concepts/projects/project-file/>. Claim: `config`
+  items take `type`, `default`, and `secret`, a scalar is shorthand for `default`, `${...}` interpolates
+  with `pulumi.stack` and `pulumi.project`, and `fn::toJSON`, `fn::secret`, and `fn::join` exist. Basis:
+  <https://www.pulumi.com/docs/iac/languages-sdks/yaml/yaml-language-reference/>. Claim:
+  `Pulumi.<stack>.yaml` holds a `config` map keyed `[<namespace>:]<key>`, the project name is the default
+  namespace, and an encrypted value is `secure: <ciphertext>`. Basis:
+  <https://www.pulumi.com/docs/concepts/config/> and
+  <https://www.pulumi.com/docs/iac/concepts/secrets/>. Claim: `aws:ecs:Service` takes `cluster`,
+  `taskDefinition`, `desiredCount`, and `name`, and `aws:ecs:TaskDefinition` takes `containerDefinitions`
+  as `fn::toJSON` over a list of `name`, `image`, `portMappings` (`containerPort`). Basis:
+  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/service/> and
+  <https://www.pulumi.com/registry/packages/aws/api-docs/ecs/taskdefinition/>. As of: 2026-09-30.
+  Recheck when any of those pages changes a key, the `secure:` form, or the `runtime` forms.
 - **Bicep and ARM values are resolved, never evaluated.** A parameter resolves from a module
   `params` argument, then the environment's parameters file, then its default, and `${name}` inside
   a Bicep string the same way. An ARM value resolves only when it is exactly

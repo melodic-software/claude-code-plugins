@@ -21,8 +21,8 @@
     {
       "id": 2,
       "name": "two-tools-refuse",
-      "prompt": "/architecture:map-deployment\n\nThe repository has deploy/compose.yaml and a Pulumi.yaml project file. Both are tracked.",
-      "expected_output": "The record reason is partial-read. The record and any deployment.md name compose and pulumi, and no deployment diagram is drawn.",
+      "prompt": "/architecture:map-deployment\n\nThe repository has deploy/compose.yaml and a Pulumi.yaml project file whose runtime is nodejs. Both are tracked.",
+      "expected_output": "The record reason is partial-read. The record and any deployment.md name compose and pulumi (declined, with runtime nodejs), and no deployment diagram is drawn.",
       "narration": true,
       "expectations": [
         "Does not draw the Compose services and ignore Pulumi",
@@ -133,6 +133,33 @@
         "The diff reports FEATURE_X as present in one environment only",
         "The diff says the secret parameter differs and does not contain either password",
         "The diff section lists the kinds compared and does not claim networks or Ingress hosts were compared"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "cloudformation-parameter-file-environments",
+      "prompt": "/architecture:map-deployment --diff staging prod\n\nTracked files are infra/service.yaml, a CloudFormation template with an AWS::ECS::Cluster, an AWS::ECS::TaskDefinition whose api container image is !Sub \"ghcr.io/acme/api:${Tag}\" and whose DB_PASSWORD env value is !Ref DbPassword (NoEcho: true), and an AWS::ECS::Service with DesiredCount !Ref Count, plus infra/service.staging.json and infra/service.prod.json, ParameterKey and ParameterValue arrays. Prod sets Tag 1.4.0, Count 3 and a DbPassword. Staging sets Tag 1.0.0 and a different DbPassword.",
+      "expected_output": "The environments are staging and prod, named by the parameter files. The api container runs on the cluster in each. The diff names the image and the replica count, and says DB_PASSWORD differs without printing either value.",
+      "narration": true,
+      "expectations": [
+        "Recognizes CloudFormation as a shipped reader",
+        "The environments come from the two parameter files",
+        "The diff reports the image change and the replica change",
+        "The diff says the secret parameter differs and does not contain either password",
+        "Does not call an AWS API"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "pulumi-yaml-stacks-and-declined-runtimes",
+      "prompt": "/architecture:map-deployment\n\nTracked files are api/Pulumi.yaml (runtime: yaml, an aws:ecs:Cluster, TaskDefinition and Service) with api/Pulumi.dev.yaml and api/Pulumi.prod.yaml, and site/Pulumi.yaml whose runtime is nodejs.",
+      "expected_output": "The record reason is partial-read. The tools name pulumi-yaml as shipped and pulumi as declined with runtime nodejs. No deployment diagram is drawn, so the YAML project is not presented as the whole repository.",
+      "narration": true,
+      "expectations": [
+        "Names the nodejs Pulumi project as declined and does not read it",
+        "Does not draw the YAML project alone",
+        "The artifact states partial-read",
+        "Does not run pulumi"
       ]
     }
   ]

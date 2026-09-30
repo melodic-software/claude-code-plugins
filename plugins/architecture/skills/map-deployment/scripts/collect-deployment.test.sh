@@ -732,7 +732,9 @@ check_declines() {
   assert_contains "$label beside compose is a partial read" "$(cat "$TEST_TMPDIR/decl.json")" '"reason": "partial-read"'
 }
 check_declines "a Pulumi project" pulumi Pulumi.yaml "name: web"
+check_declines "a Pulumi nodejs project" pulumi Pulumi.yaml $'name: web\nruntime: nodejs'
 check_declines "a Kustomize overlay" kustomize deploy/kustomization.yaml "resources: []"
+check_declines "a Helm chart" helm chart/Chart.yaml $'apiVersion: v2\nname: web\nversion: 0.1.0'
 declining_fixture "$TEST_TMPDIR/notarm" package.json "$(printf '{"%sschema": "https://json.schemastore.org/package.json"}' '$')"
 bash "$COLLECT" --repo "$TEST_TMPDIR/notarm" --out "$TEST_TMPDIR/notarm.json" --generated-on 2026-09-28
 assert_contains "an unrelated json schema is not ARM" "$(cat "$TEST_TMPDIR/notarm.json")" '"reason": "no-declared-iac"'
@@ -742,7 +744,8 @@ bash "$COLLECT" --repo "$TEST_TMPDIR/cfn-word" --out "$TEST_TMPDIR/cfn-word.json
 assert_contains "a script that names the CloudFormation key is not a template" "$(cat "$TEST_TMPDIR/cfn-word.json")" '"reason": "no-declared-iac"'
 declining_fixture "$TEST_TMPDIR/cfn" stack.yaml "AWSTemplateFormatVersion: '2010-09-09'"
 bash "$COLLECT" --repo "$TEST_TMPDIR/cfn" --out "$TEST_TMPDIR/cfn.json" --generated-on 2026-09-28
-assert_contains "a CloudFormation template declines" "$(cat "$TEST_TMPDIR/cfn.json")" '"name":"cloudformation"'
+assert_contains "a bare CloudFormation template is a shipped read" "$(cat "$TEST_TMPDIR/cfn.json")" '"name":"cloudformation","shipped":"yes"'
+assert_contains "a bare CloudFormation template places nothing" "$(cat "$TEST_TMPDIR/cfn.json")" '"placements": []'
 
 # --diff names are validated like --env.
 bash "$RENDER" --record "$TEST_TMPDIR/dep.json" --out "$TEST_TMPDIR/dep-bad-diff" --diff staging prdo >/dev/null
@@ -1526,6 +1529,471 @@ alsum="$(bash "$RENDER" --record "$TEST_TMPDIR/arm-leaks.json" --out "$TEST_TMPD
 assert_no_leak "arm render" "$(cat "$TEST_TMPDIR/arm-leaks-out/deployment.md")$alsum"
 bash "$RENDER" --record "$TEST_TMPDIR/arm-leaks.json" --out "$TEST_TMPDIR/arm-leaks-l" --dialect likec4 >/dev/null
 assert_no_leak "arm likec4 render" "$(cat "$TEST_TMPDIR/arm-leaks-l/deployment.md")"
+
+# CloudFormation: one template, one environment per parameter file (both file shapes), short tags,
+# a block Sub, and every intrinsic the reader does not evaluate recorded as unresolved.
+repoC="$TEST_TMPDIR/cfn-env"
+init_repo "$repoC"
+mkdir -p "$repoC/infra"
+cat >"$repoC/infra/service.yaml" <<'EOF'
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Service line one
+  and line two # trailing comment
+Metadata:
+  Note: "quoted line
+    continues"
+Parameters:
+  EnvName:
+    Type: String
+  Tag:
+    Type: String
+    Default: latest
+  Count:
+    Type: Number
+    Default: 1
+Conditions:
+  IsProd: !Equals [!Ref EnvName, prod]
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "app-${EnvName}"
+  TaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Join
+        - "-"
+        - - api
+          - !Ref EnvName
+      ContainerDefinitions:
+        - Name: api
+          Image: !Sub "ghcr.io/acme/api:${Tag}"
+          PortMappings:
+            - ContainerPort: 8080
+          Environment:
+            - Name: LOG_LEVEL
+              Value: info
+            - Name: GREETING
+              Value: !Sub |
+                hello ${EnvName}
+            - Name: REGION
+              Value: !Ref AWS::Region
+            - Name: CLUSTER_ARN
+              Value: !GetAtt Cluster.Arn
+            - {Name: MODE, Value: !If [IsProd, strict, lax]}
+        - Name: sidecar
+          Image: ghcr.io/acme/proxy:1
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: api
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDef
+      DesiredCount: !Ref Count
+EOF
+printf '[{"ParameterKey":"EnvName","ParameterValue":"staging"},{"ParameterKey":"Tag","ParameterValue":"1.0.0"}]\n' >"$repoC/infra/service.staging.json"
+printf '[\n  {"ParameterKey": "EnvName", "ParameterValue": "prod"},\n  {"ParameterKey": "Tag", "ParameterValue": "1.4.0"},\n  {"ParameterKey": "Count", "ParameterValue": "3"}\n]\n' >"$repoC/infra/service.prod.json"
+printf '{\n  "Parameters": {\n    "EnvName": "qa",\n    "Tag": "0.9.0"\n  }\n}\n' >"$repoC/infra/service.parameters.qa.json"
+commit_all "$repoC"
+bash "$COLLECT" --repo "$repoC" --out "$TEST_TMPDIR/cfn-env.json" --generated-on 2026-09-28
+crec="$(cat "$TEST_TMPDIR/cfn-env.json")"
+assert_contains "cloudformation is drawn" "$crec" '"status": "drawn"'
+assert_contains "cloudformation is a shipped tool" "$crec" '"name":"cloudformation","shipped":"yes","evidence":"infra/service.yaml"'
+for e in staging prod qa; do
+  assert_contains "cloudformation environment $e" "$crec" "\"environment\":\"$e\",\"tool\":\"cloudformation\""
+done
+assert_contains "an environment cites its template and parameter file" "$crec" '"evidence":"infra/service.yaml, infra/service.prod.json"'
+assert_contains "a parameters-object file names its environment" "$crec" '"evidence":"infra/service.yaml, infra/service.parameters.qa.json"'
+assert_contains "the cluster is a compute node named through Sub" "$crec" '"id":"prod/Cluster","env":"prod","tool":"cloudformation","kind":"compute","name":"app-prod","detail":"AWS::ECS::Cluster"'
+assert_contains "a container resolves a parameter file value and DesiredCount" "$crec" '"container":"api","env":"prod","tool":"cloudformation","node":"prod/Cluster","compute":"prod/Cluster","image":"ghcr.io/acme/api:1.4.0","replicas":"3","ports":"8080"'
+assert_contains "a container falls back to the parameter Default" "$crec" '"container":"api","env":"staging","tool":"cloudformation","node":"staging/Cluster","compute":"staging/Cluster","image":"ghcr.io/acme/api:1.0.0","replicas":"1","ports":"8080"'
+assert_contains "a sidecar container is its own placement on the same cluster" "$crec" '"container":"sidecar","env":"prod","tool":"cloudformation","node":"prod/Cluster","compute":"prod/Cluster","image":"ghcr.io/acme/proxy:1"'
+assert_contains "a block Sub resolves a parameter" "$crec" '"parameter":"GREETING","env":"prod","tool":"cloudformation","container":"api","value":"hello prod"'
+assert_contains "a plain env value is kept" "$crec" '"parameter":"LOG_LEVEL","env":"prod","tool":"cloudformation","container":"api","value":"info","redacted":"no"'
+assert_contains "a pseudo parameter is unresolved" "$crec" 'unresolved:{Ref:\"AWS::Region\"}'
+assert_contains "GetAtt is unresolved" "$crec" 'unresolved:{Fn::GetAtt:\"Cluster.Arn\"}'
+assert_contains "a flow-map env entry with If is unresolved" "$crec" '"parameter":"MODE","env":"prod","tool":"cloudformation","container":"api","value":"unresolved:{Fn::If:['
+assert_contains "the cloudformation diff reports the image" "$crec" '"change":"image","left":"prod","right":"staging","tool":"cloudformation","container":"api","detail":"ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"'
+assert_contains "the cloudformation diff reports replicas" "$crec" '"change":"replicas","left":"prod","right":"staging","tool":"cloudformation","container":"api","detail":"3 -> 1"'
+csum="$(bash "$RENDER" --record "$TEST_TMPDIR/cfn-env.json" --out "$TEST_TMPDIR/cfn-env-out" --dialect c4-plantuml --diff prod staging)"
+assert_contains "cloudformation renders one node per environment" "$(cat "$TEST_TMPDIR/cfn-env-out/deployment.md")" 'Deployment_Node'
+assert_contains "cloudformation summary" "$csum" 'status=drawn reason=none tools=cloudformation environments=3'
+bash "$RENDER" --record "$TEST_TMPDIR/cfn-env.json" --out "$TEST_TMPDIR/cfn-env-l" --dialect likec4 >/dev/null
+assert_equals "cloudformation renders under likec4" "$?" "0"
+
+# A JSON template, one parameter file per environment in another directory, and detection by
+# Resources with AWS:: types when there is no format version.
+repoCJ="$TEST_TMPDIR/cfn-json"
+init_repo "$repoCJ"
+mkdir -p "$repoCJ/params"
+cat >"$repoCJ/stack.json" <<'EOF'
+{
+  "Parameters": { "Tag": { "Type": "String", "Default": "latest" } },
+  "Resources": {
+    "Cluster": { "Type": "AWS::ECS::Cluster", "Properties": { "ClusterName": "main" } },
+    "TaskDef": {
+      "Type": "AWS::ECS::TaskDefinition",
+      "Properties": {
+        "ContainerDefinitions": [
+          { "Name": "web", "Image": { "Fn::Sub": "ghcr.io/acme/web:${Tag}" }, "PortMappings": [{ "ContainerPort": 80 }] }
+        ]
+      }
+    },
+    "Service": {
+      "Type": "AWS::ECS::Service",
+      "Properties": { "Cluster": { "Ref": "Cluster" }, "TaskDefinition": { "Ref": "TaskDef" }, "DesiredCount": 2 }
+    }
+  }
+}
+EOF
+printf '[{"ParameterKey":"Tag","ParameterValue":"3.1"}]\n' >"$repoCJ/params/prod.json"
+printf '[{"ParameterKey":"Tag","ParameterValue":"3.0"}]\n' >"$repoCJ/params/dev.json"
+commit_all "$repoCJ"
+bash "$COLLECT" --repo "$repoCJ" --out "$TEST_TMPDIR/cfn-json.json" --generated-on 2026-09-28
+cjrec="$(cat "$TEST_TMPDIR/cfn-json.json")"
+assert_contains "a JSON template without a format version is detected by its AWS types" "$cjrec" '"name":"cloudformation","shipped":"yes","evidence":"stack.json"'
+assert_contains "a JSON template resolves Fn::Sub from a parameter file" "$cjrec" '"container":"web","env":"prod","tool":"cloudformation","node":"prod/Cluster","compute":"prod/Cluster","image":"ghcr.io/acme/web:3.1","replicas":"2","ports":"80"'
+assert_contains "the environment is the parameter file name" "$cjrec" '"environment":"dev","tool":"cloudformation","evidence":"stack.json, params/dev.json"'
+assert_contains "the JSON diff reports the image" "$cjrec" '"detail":"ghcr.io/acme/web:3.0 -> ghcr.io/acme/web:3.1"'
+declining_fixture "$TEST_TMPDIR/cfn-detect" only.yaml $'Resources:\n  Job:\n    Type: Custom::Thing'
+bash "$COLLECT" --repo "$TEST_TMPDIR/cfn-detect" --out "$TEST_TMPDIR/cfn-detect.json" --generated-on 2026-09-28
+assert_contains "Resources without an AWS:: type is not a template" "$(cat "$TEST_TMPDIR/cfn-detect.json")" '"reason": "no-declared-iac"'
+declining_fixture "$TEST_TMPDIR/cfn-lower" only.yaml $'resources:\n  job:\n    type: AWS::ECS::Cluster'
+bash "$COLLECT" --repo "$TEST_TMPDIR/cfn-lower" --out "$TEST_TMPDIR/cfn-lower.json" --generated-on 2026-09-28
+assert_contains "a lowercase resources key is not CloudFormation" "$(cat "$TEST_TMPDIR/cfn-lower.json")" '"reason": "no-declared-iac"'
+declining_fixture "$TEST_TMPDIR/cfn-stray" params.json '[{"ParameterKey":"A","ParameterValue":"b"}]'
+bash "$COLLECT" --repo "$TEST_TMPDIR/cfn-stray" --out "$TEST_TMPDIR/cfn-stray.json" --generated-on 2026-09-28
+assert_contains "a parameter file with no template is not IaC" "$(cat "$TEST_TMPDIR/cfn-stray.json")" '"reason": "no-declared-iac"'
+
+# CloudFormation no-leak: NoEcho parameters (a Default, a param-file value, through Sub, in an
+# image), dynamic references, container Secrets, and literal credentials in Environment values.
+cfn_needles=("$(gh_tok Q)" "$(gh_tok R)" "$(gh_tok C)" "${fake}-CFN" "resolve:" "secretsmanager:prod")
+repoCL="$TEST_TMPDIR/cfn-leaks"
+init_repo "$repoCL"
+cat >"$repoCL/app.yaml" <<EOF
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Opaque:
+    Type: String
+    NoEcho: true
+    Default: ${fake}-CFNDEFAULT
+  Upstream:
+    Type: String
+Resources:
+  TaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: api
+          Image: ghcr.io/acme/api:1
+          Environment:
+            - {Name: OPAQUE, Value: !Ref Opaque}
+            - Name: PREFIXED
+              Value: !Sub "prefix-\${Opaque}"
+            - Name: LITERAL_GH
+              Value: $(gh_tok C)
+            - Name: FROM_PARAM
+              Value: !Ref Upstream
+            - Name: DYN_SM
+              Value: "{{resolve:secretsmanager:prod/db:SecretString:password}}"
+            - Name: DYN_SSM
+              Value: !Sub "{{resolve:ssm-secure:/prod/api/key:1}}"
+            - Name: CS_SQL
+              Value: "Server=db.example.com;User ID=app;Password=${fake}-CFNSQL"
+            - Name: LOG_LEVEL
+              Value: info
+          Secrets:
+            - Name: API_KEY
+              ValueFrom: arn:aws:ssm:eu-west-1:000000000000:parameter/api
+  Hidden:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: hidden
+          Image: !Ref Opaque
+EOF
+for s in Q R; do
+  [[ "$s" == Q ]] && d=staging || d=prod
+  printf '[{"ParameterKey":"Opaque","ParameterValue":"%s-CFNOPQ%s"},{"ParameterKey":"Upstream","ParameterValue":"%s"}]\n' "$fake" "$s" "$(gh_tok "$s")" >"$repoCL/app.$d.json"
+done
+commit_all "$repoCL"
+bash "$COLLECT" --repo "$repoCL" --out "$TEST_TMPDIR/cfn-leaks.json" --generated-on 2026-09-28
+clrec="$(cat "$TEST_TMPDIR/cfn-leaks.json")"
+assert_contains "cloudformation leak fixture is drawn" "$clrec" '"status": "drawn"'
+for k in OPAQUE PREFIXED LITERAL_GH FROM_PARAM DYN_SM DYN_SSM CS_SQL API_KEY; do
+  assert_contains "cloudformation leak fixture redacts $k" "$clrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"cloudformation\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
+done
+assert_contains "cloudformation leak fixture keeps a plain value" "$clrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"cloudformation","container":"api","value":"info","redacted":"no"'
+assert_contains "a NoEcho parameter in an image prints as redacted" "$clrec" '"container":"hidden","env":"prod","tool":"cloudformation","node":"prod","compute":"","image":"[redacted]"'
+assert_contains "a NoEcho parameter that differs is reported without its value" "$clrec" "secret parameter OPAQUE differs"
+assert_contains "a secret-shaped parameter file value that differs is reported without its value" "$clrec" "secret parameter FROM_PARAM differs"
+cl_all="$clrec"
+clsum="$(bash "$RENDER" --record "$TEST_TMPDIR/cfn-leaks.json" --out "$TEST_TMPDIR/cfn-leaks-out" --dialect c4-plantuml --diff prod staging)"
+cl_all="$cl_all$(cat "$TEST_TMPDIR/cfn-leaks-out/deployment.md")$clsum"
+bash "$RENDER" --record "$TEST_TMPDIR/cfn-leaks.json" --out "$TEST_TMPDIR/cfn-leaks-l" --dialect likec4 >/dev/null
+cl_all="$cl_all$(cat "$TEST_TMPDIR/cfn-leaks-l/deployment.md")"
+for needle in "${cfn_needles[@]}"; do
+  assert_not_contains "cloudformation record, renders and summary hold no ${needle:0:12}" "$cl_all" "$needle"
+done
+
+# CloudFormation refuses what it cannot read as text, by file name.
+cfn_refusal() {
+  local label="$1" reason="$2" dir="$TEST_TMPDIR/cfn-refuse"
+  shift 2
+  rm -rf "$dir"
+  init_repo "$dir"
+  while [[ $# -ge 2 ]]; do
+    mkdir -p "$dir/$(dirname "$1")"
+    printf '%s\n' "$2" >"$dir/$1"
+    shift 2
+  done
+  commit_all "$dir"
+  bash "$COLLECT" --repo "$dir" --out "$TEST_TMPDIR/cfn-refuse.json" --generated-on 2026-09-28
+  cfn_refused="$(cat "$TEST_TMPDIR/cfn-refuse.json")"
+  assert_contains "$label refuses" "$cfn_refused" "\"reason\": \"$reason\""
+  assert_contains "$label draws nothing" "$cfn_refused" '"placements": []'
+}
+cfn_ecs=$'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster'
+cfn_refusal "a SAM Transform" "cloudformation-transform-unread:sam.yaml" sam.yaml $'Transform: AWS::Serverless-2016-10-31\nResources:\n  Fn:\n    Type: AWS::Serverless::Function'
+cfn_refusal "a nested stack" "cloudformation-stack-unread:root.yaml:Child" root.yaml $'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n  Child:\n    Type: AWS::CloudFormation::Stack\n    Properties:\n      TemplateURL: https://s3.example.com/hidden-bucket/child.yaml'
+assert_not_contains "a nested stack template location is never printed" "$cfn_refused" "hidden-bucket"
+cfn_refusal "a parameter file beside two templates" "cloudformation-parameters-unpaired:params.prod.json" a.yaml "$cfn_ecs" b.yaml "$cfn_ecs" params.prod.json '[{"ParameterKey":"A","ParameterValue":"b"}]'
+cfn_refusal "a YAML anchor" "cloudformation-unreadable:anchor.yaml" anchor.yaml $'Resources:\n  Cluster: &c\n    Type: AWS::ECS::Cluster'
+cfn_refusal "a merge key" "cloudformation-unreadable:merge.yaml" merge.yaml $'Resources:\n  Cluster:\n    <<: *c\n    Type: AWS::ECS::Cluster'
+cfn_refusal "a tab in the indentation" "cloudformation-unreadable:tab.yaml" tab.yaml $'Resources:\n\tCluster:\n\t\tType: AWS::ECS::Cluster'
+cfn_refusal "a duplicate key" "cloudformation-unreadable:dup.yaml" dup.yaml $'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n    Type: AWS::ECS::Service'
+cfn_refusal "a second document" "cloudformation-unreadable:docs.yaml" docs.yaml $'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n---\nResources: {}'
+cfn_refusal "an unclosed flow collection" "cloudformation-unreadable:flow.yaml" flow.yaml $'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n    Properties: {ClusterName: a'
+cfn_refusal "an unterminated quoted scalar" "cloudformation-unreadable:quote.yaml" quote.yaml $'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n    Properties:\n      ClusterName: "a'
+cfn_refusal "a truncated JSON template" "cloudformation-unreadable:cut.json" cut.json $'{\n  "AWSTemplateFormatVersion": "2010-09-09",\n  "Resources": {'
+
+# CloudFormation beside Compose is read, and beside an unshipped tool is a partial read.
+repoCB="$TEST_TMPDIR/cfn-both"
+init_repo "$repoCB"
+printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repoCB/compose.yaml"
+printf '%s\n' "$cfn_ecs" >"$repoCB/stack.yaml"
+commit_all "$repoCB"
+bash "$COLLECT" --repo "$repoCB" --out "$TEST_TMPDIR/cfn-both.json" --generated-on 2026-09-28
+assert_contains "cloudformation beside compose is drawn" "$(cat "$TEST_TMPDIR/cfn-both.json")" '"status": "drawn"'
+mkdir -p "$repoCB/overlay"
+printf 'resources: []\n' >"$repoCB/overlay/kustomization.yaml"
+commit_all "$repoCB"
+bash "$COLLECT" --repo "$repoCB" --out "$TEST_TMPDIR/cfn-both.json" --generated-on 2026-09-28
+assert_contains "cloudformation beside kustomize is a partial read" "$(cat "$TEST_TMPDIR/cfn-both.json")" '"reason": "partial-read"'
+
+# Pulumi YAML: one environment per Pulumi.<stack>.yaml, ${pulumi.stack}, config from the stack file
+# then the project default, a secure: value, and fn::secret.
+repoP="$TEST_TMPDIR/pulumi-env"
+init_repo "$repoP"
+mkdir -p "$repoP/infra"
+cat >"$repoP/infra/Pulumi.yaml" <<'EOF'
+name: web
+runtime: yaml
+config:
+  imageTag:
+    type: string
+    default: latest
+  replicas:
+    type: integer
+    default: 1
+  dbPassword:
+    type: string
+    secret: true
+resources:
+  cluster:
+    type: aws:ecs:Cluster
+    properties:
+      name: web-${pulumi.stack}
+  taskdef:
+    type: aws:ecs/taskDefinition:TaskDefinition
+    properties:
+      family: api
+      containerDefinitions:
+        fn::toJSON:
+          - name: api
+            image: ghcr.io/acme/api:${imageTag}
+            portMappings:
+              - containerPort: 8080
+            environment:
+              - name: LOG_LEVEL
+                value: info
+              - name: DB_URL
+                value: postgres://u:${dbPassword}@h/db
+              - name: JOINED
+                value:
+                  fn::join:
+                    - "-"
+                    - [a, b]
+            secrets:
+              - name: API_KEY
+                valueFrom: arn:aws:ssm:eu-west-1:000000000000:parameter/api
+  svc:
+    type: aws:ecs:Service
+    properties:
+      cluster: ${cluster.arn}
+      taskDefinition: ${taskdef.arn}
+      desiredCount: ${replicas}
+EOF
+printf 'encryptionsalt: v1:abc:def\nconfig:\n  web:imageTag: 2.0.0\n  web:replicas: 3\n  web:dbPassword:\n    secure: v1:%s-PUL:cipher\n  aws:region: us-east-1\n' "$fake" >"$repoP/infra/Pulumi.prod.yaml"
+printf 'config:\n  replicas: 1\n' >"$repoP/infra/Pulumi.dev.yaml"
+commit_all "$repoP"
+bash "$COLLECT" --repo "$repoP" --out "$TEST_TMPDIR/pulumi-env.json" --generated-on 2026-09-28
+prec="$(cat "$TEST_TMPDIR/pulumi-env.json")"
+assert_contains "pulumi yaml is drawn" "$prec" '"status": "drawn"'
+assert_contains "pulumi yaml is a shipped tool" "$prec" '"name":"pulumi-yaml","shipped":"yes","evidence":"infra/Pulumi.yaml"'
+assert_not_contains "stack files are not tools of their own" "$prec" 'Pulumi.prod.yaml","shipped"'
+assert_contains "a stack is an environment" "$prec" '"environment":"prod","tool":"pulumi-yaml","evidence":"infra/Pulumi.yaml, infra/Pulumi.prod.yaml"'
+assert_contains "the other stack is an environment" "$prec" '"environment":"dev","tool":"pulumi-yaml","evidence":"infra/Pulumi.yaml, infra/Pulumi.dev.yaml"'
+assert_contains "pulumi.stack resolves in a node name" "$prec" '"id":"prod/cluster","env":"prod","tool":"pulumi-yaml","kind":"compute","name":"web-prod","detail":"aws:ecs:Cluster"'
+assert_contains "a stack config value beats the project default" "$prec" '"container":"api","env":"prod","tool":"pulumi-yaml","node":"prod/cluster","compute":"prod/cluster","image":"ghcr.io/acme/api:2.0.0","replicas":"3","ports":"8080"'
+assert_contains "a missing stack value falls back to the project default" "$prec" '"container":"api","env":"dev","tool":"pulumi-yaml","node":"dev/cluster","compute":"dev/cluster","image":"ghcr.io/acme/api:latest","replicas":"1","ports":"8080"'
+assert_contains "a bare stack config key resolves" "$prec" '"replicas":"1"'
+assert_contains "fn::join is unresolved, never evaluated" "$prec" '"parameter":"JOINED","env":"prod","tool":"pulumi-yaml","container":"api","value":"unresolved:{fn::join:['
+assert_contains "a secret config value is a redacted parameter" "$prec" '"parameter":"DB_URL","env":"prod","tool":"pulumi-yaml","container":"api","value":"","redacted":"yes"'
+assert_contains "a container secret is a redacted parameter" "$prec" '"parameter":"API_KEY","env":"dev","tool":"pulumi-yaml","container":"api","value":"","redacted":"yes"'
+assert_contains "the pulumi diff reports the image" "$prec" '"change":"image","left":"dev","right":"prod","tool":"pulumi-yaml","container":"api","detail":"ghcr.io/acme/api:latest -> ghcr.io/acme/api:2.0.0"'
+assert_contains "the pulumi diff reports replicas" "$prec" '"change":"replicas","left":"dev","right":"prod","tool":"pulumi-yaml","container":"api","detail":"1 -> 3"'
+assert_contains "the pulumi diff reports a secret that differs" "$prec" "secret parameter DB_URL differs"
+assert_not_contains "a secure: ciphertext is never printed" "$prec" "PUL"
+psum="$(bash "$RENDER" --record "$TEST_TMPDIR/pulumi-env.json" --out "$TEST_TMPDIR/pulumi-env-out" --dialect c4-plantuml --diff dev prod)"
+assert_contains "pulumi renders one node per environment" "$(cat "$TEST_TMPDIR/pulumi-env-out/deployment.md")" 'Deployment_Node'
+assert_contains "pulumi summary" "$psum" 'status=drawn reason=none tools=pulumi-yaml environments=2'
+
+# Pulumi no-leak: a secret: true default, a secure: value that differs by stack, fn::secret,
+# a secret-shaped stack value, and literal credentials.
+pul_needles=("$(gh_tok U)" "$(gh_tok V)" "$(gh_tok C)" "${fake}-PUL")
+repoPL="$TEST_TMPDIR/pulumi-leaks"
+init_repo "$repoPL"
+cat >"$repoPL/Pulumi.yaml" <<EOF
+name: web
+runtime: yaml
+config:
+  apiToken:
+    type: string
+    secret: true
+    default: ${fake}-PULDEFAULT
+  dbPassword:
+    type: string
+    secret: true
+  upstream:
+    type: string
+resources:
+  taskdef:
+    type: aws:ecs:TaskDefinition
+    properties:
+      containerDefinitions:
+        fn::toJSON:
+          - name: api
+            image: ghcr.io/acme/api:1
+            environment:
+              - name: TOKEN
+                value: \${apiToken}
+              - name: PREFIXED
+                value: prefix-\${dbPassword}
+              - name: WRAPPED
+                value:
+                  fn::secret: ${fake}-PULWRAP
+              - name: LITERAL_GH
+                value: $(gh_tok C)
+              - name: FROM_STACK
+                value: \${upstream}
+              - name: CS_SQL
+                value: "Server=db.example.com;User ID=app;Password=${fake}-PULSQL"
+              - name: LOG_LEVEL
+                value: info
+  hidden:
+    type: aws:ecs:TaskDefinition
+    properties:
+      containerDefinitions:
+        fn::toJSON:
+          - name: hidden
+            image: \${dbPassword}
+EOF
+for s in U V; do
+  [[ "$s" == U ]] && d=staging || d=prod
+  printf 'config:\n  web:dbPassword:\n    secure: v1:%s-PUL%s:cipher\n  web:upstream: %s\n' "$fake" "$s" "$(gh_tok "$s")" >"$repoPL/Pulumi.$d.yaml"
+done
+commit_all "$repoPL"
+bash "$COLLECT" --repo "$repoPL" --out "$TEST_TMPDIR/pulumi-leaks.json" --generated-on 2026-09-28
+plrec="$(cat "$TEST_TMPDIR/pulumi-leaks.json")"
+assert_contains "pulumi leak fixture is drawn" "$plrec" '"status": "drawn"'
+for k in TOKEN PREFIXED WRAPPED LITERAL_GH FROM_STACK CS_SQL; do
+  assert_contains "pulumi leak fixture redacts $k" "$plrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"pulumi-yaml\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
+done
+assert_contains "pulumi leak fixture keeps a plain value" "$plrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"pulumi-yaml","container":"api","value":"info","redacted":"no"'
+assert_contains "a secret config key in an image prints as redacted" "$plrec" '"container":"hidden","env":"prod","tool":"pulumi-yaml","node":"prod","compute":"","image":"[redacted]"'
+assert_contains "a secure stack value that differs is reported without its value" "$plrec" "secret parameter PREFIXED differs"
+assert_contains "a secret-shaped stack value that differs is reported without its value" "$plrec" "secret parameter FROM_STACK differs"
+pl_all="$plrec"
+plsum="$(bash "$RENDER" --record "$TEST_TMPDIR/pulumi-leaks.json" --out "$TEST_TMPDIR/pulumi-leaks-out" --dialect c4-plantuml --diff prod staging)"
+pl_all="$pl_all$(cat "$TEST_TMPDIR/pulumi-leaks-out/deployment.md")$plsum"
+bash "$RENDER" --record "$TEST_TMPDIR/pulumi-leaks.json" --out "$TEST_TMPDIR/pulumi-leaks-l" --dialect likec4 >/dev/null
+pl_all="$pl_all$(cat "$TEST_TMPDIR/pulumi-leaks-l/deployment.md")"
+for needle in "${pul_needles[@]}"; do
+  assert_not_contains "pulumi record, renders and summary hold no ${needle:0:12}" "$pl_all" "$needle"
+done
+
+# Pulumi runtimes: only a program written in Pulumi.yaml is read. Every other runtime, and a
+# yaml project with a compiler or a main, is declined by the tool name with its runtime cited.
+for rt in nodejs python go dotnet java; do
+  declining_fixture "$TEST_TMPDIR/pulumi-rt" Pulumi.yaml "$(printf 'name: web\nruntime: %s' "$rt")"
+  printf 'config:\n  aws:region: us-east-1\n' >"$TEST_TMPDIR/pulumi-rt/Pulumi.dev.yaml"
+  git -C "$TEST_TMPDIR/pulumi-rt" add -A && git -C "$TEST_TMPDIR/pulumi-rt" commit -q -m stack
+  bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-rt" --out "$TEST_TMPDIR/pulumi-rt.json" --generated-on 2026-09-28
+  rtrec="$(cat "$TEST_TMPDIR/pulumi-rt.json")"
+  assert_contains "a $rt Pulumi project is refused" "$rtrec" '"reason": "adapter-not-shipped"'
+  assert_contains "a $rt Pulumi project is declined by name" "$rtrec" "\"name\":\"pulumi\",\"shipped\":\"no\",\"evidence\":\"Pulumi.yaml (runtime $rt)\""
+  assert_contains "a $rt Pulumi project draws nothing" "$rtrec" '"placements": []'
+done
+declining_fixture "$TEST_TMPDIR/pulumi-rt" Pulumi.yaml $'name: web\nruntime:\n  name: nodejs\n  options:\n    typescript: false'
+bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-rt" --out "$TEST_TMPDIR/pulumi-rt.json" --generated-on 2026-09-28
+assert_contains "the object runtime form names its runtime" "$(cat "$TEST_TMPDIR/pulumi-rt.json")" '(runtime nodejs)'
+declining_fixture "$TEST_TMPDIR/pulumi-rt" Pulumi.yaml $'name: web\nruntime:\n  name: yaml\n  options:\n    compiler: cue export'
+bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-rt" --out "$TEST_TMPDIR/pulumi-rt.json" --generated-on 2026-09-28
+assert_contains "a yaml runtime with a compiler is declined" "$(cat "$TEST_TMPDIR/pulumi-rt.json")" '"reason": "adapter-not-shipped"'
+declining_fixture "$TEST_TMPDIR/pulumi-rt" Pulumi.yaml $'name: web\nruntime: yaml\nmain: ./sub'
+bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-rt" --out "$TEST_TMPDIR/pulumi-rt.json" --generated-on 2026-09-28
+assert_contains "a yaml project with a main directory is declined" "$(cat "$TEST_TMPDIR/pulumi-rt.json")" '"reason": "adapter-not-shipped"'
+for form in $'runtime: yaml' $'runtime: "yaml"' $'runtime: yaml # the program is this file' $'runtime:\n  name: yaml'; do
+  declining_fixture "$TEST_TMPDIR/pulumi-rt" Pulumi.yaml "$(printf 'name: web\n%s\nresources:\n  cluster:\n    type: aws:ecs:Cluster' "$form")"
+  bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-rt" --out "$TEST_TMPDIR/pulumi-rt.json" --generated-on 2026-09-28
+  assert_contains "the runtime form [${form//$'\n'/ }] is read" "$(cat "$TEST_TMPDIR/pulumi-rt.json")" '"id":"default/cluster"'
+done
+repoPM="$TEST_TMPDIR/pulumi-mixed"
+init_repo "$repoPM"
+mkdir -p "$repoPM/a" "$repoPM/b"
+printf 'name: a\nruntime: yaml\nresources:\n  cluster:\n    type: aws:ecs:Cluster\n' >"$repoPM/a/Pulumi.yaml"
+printf 'name: b\nruntime: nodejs\n' >"$repoPM/b/Pulumi.yaml"
+commit_all "$repoPM"
+bash "$COLLECT" --repo "$repoPM" --out "$TEST_TMPDIR/pulumi-mixed.json" --generated-on 2026-09-28
+pmrec="$(cat "$TEST_TMPDIR/pulumi-mixed.json")"
+assert_contains "a yaml and a nodejs project is a partial read" "$pmrec" '"reason": "partial-read"'
+assert_contains "the mixed record lists the shipped project" "$pmrec" '"name":"pulumi-yaml","shipped":"yes","evidence":"a/Pulumi.yaml"'
+assert_contains "the mixed record declines the other by name" "$pmrec" '"name":"pulumi","shipped":"no","evidence":"b/Pulumi.yaml (runtime nodejs)"'
+declining_fixture "$TEST_TMPDIR/pulumi-orphan" Pulumi.dev.yaml $'config:\n  aws:region: us-east-1'
+bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-orphan" --out "$TEST_TMPDIR/pulumi-orphan.json" --generated-on 2026-09-28
+assert_contains "a stack file alone is not IaC" "$(cat "$TEST_TMPDIR/pulumi-orphan.json")" '"reason": "no-declared-iac"'
+declining_fixture "$TEST_TMPDIR/pulumi-bad" Pulumi.yaml $'name: web\nruntime: yaml\nresources:\n  cluster: &c\n    type: aws:ecs:Cluster'
+bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-bad" --out "$TEST_TMPDIR/pulumi-bad.json" --generated-on 2026-09-28
+assert_contains "a Pulumi.yaml that does not parse is refused by name" "$(cat "$TEST_TMPDIR/pulumi-bad.json")" '"reason": "pulumi-unreadable:Pulumi.yaml"'
+printf 'config:\n\tweb:a: b\n' >"$TEST_TMPDIR/pulumi-bad/Pulumi.prod.yaml"
+printf 'name: web\nruntime: yaml\n' >"$TEST_TMPDIR/pulumi-bad/Pulumi.yaml"
+git -C "$TEST_TMPDIR/pulumi-bad" add -A && git -C "$TEST_TMPDIR/pulumi-bad" commit -q -m stack
+bash "$COLLECT" --repo "$TEST_TMPDIR/pulumi-bad" --out "$TEST_TMPDIR/pulumi-bad.json" --generated-on 2026-09-28
+assert_contains "a stack file that does not parse is refused by name" "$(cat "$TEST_TMPDIR/pulumi-bad.json")" '"reason": "pulumi-unreadable:Pulumi.prod.yaml"'
+
+# CloudFormation and Pulumi YAML in one repository are both read, each diffed only against itself.
+repoCP="$TEST_TMPDIR/cfn-pulumi"
+init_repo "$repoCP"
+mkdir -p "$repoCP/cfn" "$repoCP/pulumi"
+printf '%s\n' "$cfn_ecs" >"$repoCP/cfn/stack.yaml"
+printf 'name: a\nruntime: yaml\nresources:\n  cluster:\n    type: aws:ecs:Cluster\n' >"$repoCP/pulumi/Pulumi.yaml"
+commit_all "$repoCP"
+bash "$COLLECT" --repo "$repoCP" --out "$TEST_TMPDIR/cfn-pulumi.json" --generated-on 2026-09-28
+cprec="$(cat "$TEST_TMPDIR/cfn-pulumi.json")"
+assert_contains "cloudformation beside pulumi yaml is drawn" "$cprec" '"status": "drawn"'
+assert_contains "the cloudformation environment is its directory" "$cprec" '"environment":"cfn","tool":"cloudformation"'
+assert_contains "the pulumi environment is its directory" "$cprec" '"environment":"pulumi","tool":"pulumi-yaml"'
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'

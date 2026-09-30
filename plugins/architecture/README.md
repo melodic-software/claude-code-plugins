@@ -119,11 +119,11 @@ declarations and does not open a database connection. The dialect is
 refused.
 
 `/architecture:map-deployment` draws a C4 deployment view from tracked Docker
-Compose, Kubernetes manifests, Terraform, Bicep, and ARM templates, one diagram
-per environment. `--diff` lists declared differences. Every emitted value passes
-the shared connection redactor. The picture is `diagram_dialect.system`.
-Pulumi, CloudFormation, Helm, and Kustomize are named and then the run stops.
-`--live` is refused.
+Compose, Kubernetes manifests, Terraform, Bicep, ARM templates, CloudFormation, and
+Pulumi YAML programs, one diagram per environment. `--diff` lists declared
+differences. Every emitted value passes the shared connection redactor. The
+picture is `diagram_dialect.system`. Pulumi projects of any other runtime, Helm,
+and Kustomize are named and then the run stops. `--live` is refused.
 
 `/architecture:map-states` draws one entity from an explicit XState `createMachine`
 block or a Stateless `Configure`/`Permit` table. Unreachable and dead-end states

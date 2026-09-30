@@ -3,7 +3,8 @@
 #
 # WHY. A deployment diagram is a fact only when every node is a declaration in
 # a named file. This script reads Docker Compose, Kubernetes manifests,
-# Terraform, Bicep, and ARM templates as text. It does not call a cloud API,
+# Terraform, Bicep, ARM, CloudFormation, and Pulumi YAML as text. It does not
+# call a cloud API,
 # even when --live is passed, and it never runs terraform, bicep, or az, or
 # reads state.
 #
@@ -16,8 +17,11 @@
 # excluded. Shipped readers: Compose, Kubernetes manifests, and Terraform (.tf,
 # .tf.json, .tfvars, .tfvars.json; see terraform-reader.awk), and Bicep and ARM
 # templates with their .bicepparam and deploymentParameters files (see
-# azure-reader.awk). Pulumi, CloudFormation, Helm (a Chart.yaml), and
-# Kustomize are recognized and then the record is refused,
+# azure-reader.awk), CloudFormation YAML and JSON templates with their JSON
+# parameter files, and Pulumi projects of runtime yaml with their
+# Pulumi.<stack>.yaml files (see cloudformation-reader.awk, pulumi-reader.awk,
+# and the shared yaml-rows.awk). A Pulumi project of any other runtime, Helm (a
+# Chart.yaml), and Kustomize are recognized and then the record is refused,
 # including when a shipped reader also matches, so the diagram is never a
 # partial read. A compose base file and its compose.override.yaml, or the files
 # a tracked .env COMPOSE_FILE lists, merge in Compose merge order into one
@@ -234,6 +238,8 @@ fi
 : >"$TMP/k8s.txt"
 : >"$TMP/tf.txt"
 : >"$TMP/azure.txt"
+: >"$TMP/cfn.txt"
+: >"$TMP/pulumi.txt"
 shipped=0
 unshipped=0
 
@@ -245,6 +251,50 @@ is_compose() {
   compose.*.yml | compose.*.yaml | docker-compose.*.yml | docker-compose.*.yaml) return 0 ;;
   *) return 1 ;;
   esac
+}
+
+# The runtime of a Pulumi.yaml: "yaml" only for a program written in the file itself.
+# A main: key, or runtime options such as a compiler, make it something else.
+pulumi_runtime() {
+  awk -f - "$1" <<'AWK'
+function unq(s) { gsub(/^["']|["']$/, "", s); return s }
+function val(s) { sub(/[ \t]+#.*$/, "", s); return unq(trim(s)) }
+function trim(s) { gsub(/^[ \t\r]+|[ \t\r]+$/, "", s); return s }
+/^main:/ { extra = 1 }
+/^runtime:[ \t]*(#.*)?$/ { blk = 1; next }
+/^runtime:/ {
+  v = $0; sub(/^runtime:[ \t]*/, "", v); blk = 0
+  if (v ~ /^\{/) {
+    if (v ~ /options/) extra = 1
+    if (match(v, /name:[ \t]*["']?[A-Za-z0-9._+-]+/)) { rt = substr(v, RSTART, RLENGTH); sub(/name:[ \t]*["']?/, "", rt) }
+  } else rt = val(v)
+  next
+}
+blk && /^[ \t]+name:/ { v = $0; sub(/^[ \t]+name:[ \t]*/, "", v); rt = val(v); next }
+blk && /^[ \t]+options:/ { extra = 1; next }
+blk && /^[^ \t#]/ { blk = 0 }
+END { rt = tolower(rt); if (rt !~ /^[a-z0-9._+-]+$/) rt = "unknown"; print (extra && rt == "yaml") ? "yaml-options" : rt }
+AWK
+}
+
+# A CloudFormation template names the format version, or holds a Resources
+# section with AWS:: types. A YAML file needs Resources at the left margin.
+is_cfn_template() {
+  local file="$1"
+  if grep -E -q '^[[:space:]]*"?AWSTemplateFormatVersion"?[[:space:]]*:' "$file"; then
+    return 0
+  fi
+  case "$file" in
+  *.json) grep -E -q '"Resources"[[:space:]]*:' "$file" ;;
+  *) grep -E -q '^Resources[[:space:]]*:' "$file" ;;
+  esac && grep -E -q '"?Type"?[[:space:]]*:[[:space:]]*"?AWS::[A-Za-z0-9]+::[A-Za-z0-9]+' "$file"
+}
+
+# A CloudFormation parameter file: the ParameterKey/ParameterValue array, or an
+# object whose first key is Parameters.
+is_cfn_parameter_file() {
+  grep -q '"ParameterKey"' "$1" && grep -q '"ParameterValue"' "$1" && return 0
+  [[ "$(tr -d '[:space:]' <"$1" | head -c 15)" == '{"Parameters":{' ]] && ! grep -q '"Resources"' "$1"
 }
 
 while IFS= read -r rel || [[ -n "$rel" ]]; do
@@ -272,8 +322,19 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     continue
     ;;
   Pulumi.yaml | Pulumi.yml)
-    add_tool pulumi no "$rel"
-    unshipped=1
+    runtime="$(pulumi_runtime "$repo/$rel")"
+    if [[ "$runtime" == yaml ]]; then
+      printf '%s\n' "$rel" >>"$TMP/pulumi.txt"
+      add_tool pulumi-yaml yes "$rel"
+      shipped=1
+    else
+      add_tool pulumi no "$rel (runtime $runtime)"
+      unshipped=1
+    fi
+    continue
+    ;;
+  Pulumi.*.yaml | Pulumi.*.yml)
+    printf '%s\n' "$rel" >>"$TMP/pulumi.txt"
     continue
     ;;
   kustomization.yaml | kustomization.yml)
@@ -304,13 +365,18 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       printf '%s\n' "$rel" >>"$TMP/azure.txt"
       continue
     fi
+    if is_cfn_parameter_file "$repo/$rel"; then
+      printf '%s\n' "$rel" >>"$TMP/cfn.txt"
+      continue
+    fi
     ;;
   *) ;;
   esac
   if [[ "$base" == *.yml || "$base" == *.yaml || "$base" == *.json || "$base" == *.template ]] &&
-    grep -E -q '^[[:space:]]*"?AWSTemplateFormatVersion"?[[:space:]]*:' "$repo/$rel"; then
-    add_tool cloudformation no "$rel"
-    unshipped=1
+    is_cfn_template "$repo/$rel"; then
+    printf '%s\n' "$rel" >>"$TMP/cfn.txt"
+    add_tool cloudformation yes "$rel"
+    shipped=1
     continue
   fi
   case "$rel" in
@@ -904,6 +970,28 @@ if [[ -s "$TMP/azure.txt" ]]; then
     fi
   done
 fi
+
+# CloudFormation and Pulumi YAML share one flattener and run once per tool.
+for yaml_tool in cloudformation pulumi-yaml; do
+  grep -q "\"name\":\"$yaml_tool\"" "$TOOLS" || continue
+  yaml_list="$TMP/cfn.txt"
+  yaml_reader="cloudformation-reader.awk"
+  if [[ "$yaml_tool" == pulumi-yaml ]]; then
+    yaml_list="$TMP/pulumi.txt"
+    yaml_reader="pulumi-reader.awk"
+  fi
+  yaml_args=()
+  while IFS= read -r rel || [[ -n "$rel" ]]; do
+    yaml_args+=("./$rel")
+  done <"$yaml_list"
+  if ! (cd "$repo" && awk -v tool="$yaml_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/yaml-flag" \
+    -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/yaml-rows.awk" -f "$SCRIPT_DIR/$yaml_reader" "${yaml_args[@]}"); then
+    refuse "${yaml_tool%-yaml}-unreadable"
+  fi
+  if [[ -s "$TMP/yaml-flag" ]]; then
+    refuse "$(head -n 1 "$TMP/yaml-flag")"
+  fi
+done
 
 if [[ -n "$containers_file" ]]; then
   names="$(grep -E -o '"name"[[:space:]]*:[[:space:]]*"[^"]+"' "$containers_file" | sed -E 's/.*"name"[[:space:]]*:[[:space:]]*"([^"]+)"/\1/' | sort -u)"
