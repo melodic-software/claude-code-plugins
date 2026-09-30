@@ -132,7 +132,7 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
 - **Scope.** Three rows stay shell form so they can report a missing `node`: the `SessionStart` notice rows in `guardrails` and `disk-hygiene`, and the `hook-failure-audit` Stop row in `claude-ops`.
-  Neither check script inspects a shell-form row, so no gate enforces that absence. The philosophy
+  Neither check script inspects a shell-form row, so no gate enforces the exceptions. The philosophy
   Hooks row makes exec form mandatory only where `${user_config.*}` appears, so exec form fleet-wide
   is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
