@@ -4,21 +4,32 @@ Evidence-only subtree worker for `/disk-hygiene:clean` home or large-target audi
 owns classification, the single report, approvals, preview, and execution. You return scan
 evidence only.
 
+## Parent: fill the placeholders before spawning
+
+A worker cannot expand `${...}` tokens (the guard rejects shell expansion) and never receives the
+guard-values note, which a hook emits only when a person types the command. Before spawning,
+replace `<hook-python>`, `<engine>` (the path `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/` plus the
+engine filename), `<data-root>` (the `data_root` value), `<run-dir>`, and, when it applies,
+`<project-dir>` with the literal absolute values you already hold from the guard-values note or the
+kill-switch probe in `SKILL.md`.
+
 ## Bash contract (instructions to you; the belt may not enforce them in a subagent)
 
 The session's skill-frontmatter belt is not reliably active inside a subagent, so nothing here is
-enforced for you by that belt. The plugin-level engine gate still checks any call that names
-`hygiene.py`. Follow the contract yourself.
+enforced for you by that belt. The plugin-level engine gate still checks any call that names the
+engine. Follow the contract yourself.
 
-Make every engine call a **single** invocation of `hygiene.py` with no shell chaining,
-redirection, or extra commands in the same tool call. Required flags on every scan:
+Make every engine call a **single** invocation of the engine with no shell chaining, redirection,
+or extra commands in the same tool call. Required flags on every scan:
 
-- `--data-root "${CLAUDE_PLUGIN_DATA}"` (the plugin data directory the engine gate authorizes)
-- `--project-dir "${CLAUDE_PROJECT_DIR}"` when the consumer project has standing policy files
-- `--output "<run-dir>/snapshot.json"` under `${CLAUDE_PLUGIN_DATA}/runs/…`, never inside the target
+- `--data-root "<data-root>"` (the plugin data directory the engine gate authorizes)
+- `--output "<run-dir>/snapshot.json"` under `<data-root>/runs/…`, never inside the target
 
-Use the hook Python launcher from the skill (`<hook-python>` in `SKILL.md`), not a bare `python3`
-on PATH.
+`--project-dir` is optional: pass it (as a literal absolute path filled by the parent) only when the
+session's project has standing policy that should apply to the target, and omit it otherwise, for
+example in a home-directory session; the engine then skips the project policy layer.
+
+Use the hook Python launcher the parent filled in for `<hook-python>`, not a bare `python3` on PATH.
 
 Do not run `apply`, `preview`, `handoff-verify`, `rm`, `del`, moves, or any command that mutates the
 target. Do not wrap the engine in compound shells (`;`, `&&`, `|`).
@@ -28,9 +39,9 @@ target. Do not wrap the engine in compound shells (`;`, `&&`, `|`).
 **Exact subtree sizing (no per-entry inventory, no entry cap):**
 
 ```text
-"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
+"<hook-python>" "<engine>" scan \
   --target "<subtree-path>" --output "<run-dir>/sizes.json" \
-  --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
+  --data-root "<data-root>" [--project-dir "<project-dir>"] \
   --sizes-only
 ```
 
@@ -41,9 +52,9 @@ floors.
 **Bounded inventory (hints + handoff paths):**
 
 ```text
-"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
+"<hook-python>" "<engine>" scan \
   --target "<subtree-path>" --output "<run-dir>/snapshot.json" \
-  --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
+  --data-root "<data-root>" [--project-dir "<project-dir>"] \
   [--max-depth <N>] [--confirmed-large-scan]
 ```
 
@@ -52,9 +63,9 @@ Depth-cut rollups carry `walked: false` and `unwalked_reasons`; do not treat the
 **Home fan-out after depth-1 (selected top-level children only):**
 
 ```text
-"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
+"<hook-python>" "<engine>" scan \
   --target "<home-path>" --output "<run-dir>/snapshot.json" \
-  --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
+  --data-root "<data-root>" [--project-dir "<project-dir>"] \
   --root-children --root-child "<ChildName>" [--root-child "<Other>"]...
 ```
 
