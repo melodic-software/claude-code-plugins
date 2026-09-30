@@ -520,6 +520,27 @@ fails to recover a run that reached the limit, or a turns-to-complete distributi
 after the explorer stops re-reading files it already read. Change the number only on one of
 those, and change it here and in every definition it names together.
 
+*Measured, one machine.* Procedure:
+`python3 plugins/discovery/scripts/turns-to-complete.py --root ~/.claude/projects`, with
+`--since YYYY-MM-DD` to narrow the window. It counts distinct assistant message ids per
+`subagents/agent-*.jsonl` and flags a run at or above `--ceiling` (default 40, also applied to
+the 30-turn verifier). Scope: this one machine's local transcripts, 2026-09-23 to 2026-09-29, 32
+dispatches. Turns, p50 / p90 / max, and runs at the 40 ceiling:
+
+| agentType | n | p50 | p90 | max | at 40 |
+|---|---|---|---|---|---|
+| `discovery:researcher` | 25 | 29 | 46 | 50 | 4 |
+| `discovery:explorer` | 2 | 30 | 31 | 31 | 0 |
+| `discovery:research-verifier` | 5 | 10 | 14 | 14 | 0 |
+
+Three of the four researcher runs at the ceiling were resumed, and their counts of 46 to 50
+include the resumed turns. Post-read-once, dispatches on or after 2026-09-28 (the
+[#4739](https://github.com/melodic-software/claude-code-plugins/pull/4739) merge), reported
+separately: researcher n=5, p50 26, p90 41, max 41, 1 at the ceiling (resume not detectable);
+explorer n=2, p50 30, max 31, 0 at the ceiling; research-verifier n=5, p50 10, max 14, 0 at the
+ceiling. Samples this small do not settle a number. Whether to size the research lanes to
+finish within one dispatch is the owner's decision, and `maxTurns` stays 40 meanwhile.
+
 ## Running the acceptance gate
 
 Each entry skill's `SKILL.md` carries the gate's steps. What follows is the same for every family whenever

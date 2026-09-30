@@ -4853,6 +4853,43 @@ desc_case desc-block-multi 'description: >
   a thing.
 compatibility: Requires git.' 0 "multi-line block-scalar description with colon-space passes"
 
+# Check 7 runs a skill's script tests with stdin closed, so a test that reads
+# stdin sees EOF instead of blocking; a long failing test is replayed as its
+# last 100 lines with a truncation line naming the command.
+make_skill script-stdin "$good_body"
+mkdir -p "$SKILLS/script-stdin/scripts"
+printf '#!/usr/bin/env bash\nif read -r -t 2 _x; then exit 1; fi\nexit 0\n' >"$SKILLS/script-stdin/scripts/x.test.sh"
+out="$(run script-stdin 2>&1 </dev/zero)"
+if grep -q 'script test passed: scripts/x.test.sh' <<<"$out"; then
+  pass "check 7 gives a skill script test EOF on stdin"
+else
+  fail "check 7 should close stdin for the script test: $out"
+fi
+make_skill script-long "$good_body"
+mkdir -p "$SKILLS/script-long/scripts"
+printf '#!/usr/bin/env bash\nseq 1 300\nexit 1\n' >"$SKILLS/script-long/scripts/x.test.sh"
+out="$(run script-long 2>&1)"
+if grep -q 'output truncated to the last 100 lines; run bash .*x.test.sh for all of it' <<<"$out" &&
+  grep -qx '300' <<<"$out" && ! grep -qx '200' <<<"$out"; then
+  pass "check 7 replays only the last 100 lines of a long failing script test"
+else
+  fail "check 7 should truncate a 300-line failing test: $out"
+fi
+
+# The usage error carries no bash-internal prefix and points at --help; the
+# header names the markdownlint seam.
+out="$(run_roots 2>&1)"
+if ! grep -q 'line [0-9]*:' <<<"$out" && grep -q 'run with --help' <<<"$out"; then
+  pass "no positionals prints a clean usage line that points at --help"
+else
+  fail "usage error should be clean and point at --help: $out"
+fi
+if run_roots --help 2>&1 | grep -q 'CHECK_SKILL_SKIP_MARKDOWNLINT'; then
+  pass "--help documents CHECK_SKILL_SKIP_MARKDOWNLINT"
+else
+  fail "--help should document CHECK_SKILL_SKIP_MARKDOWNLINT"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
