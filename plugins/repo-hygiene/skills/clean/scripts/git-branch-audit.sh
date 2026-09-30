@@ -4,7 +4,8 @@
 #
 # Output: PR-map status (PRCount, or PRDataUnavailable; PRDataTruncated when the
 # lookup hit its cap); then per branch Branch, Tip, Tier, Age days, PR, Unpushed,
-# Loss, Reason, Family (plus Worktree, the checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
+# Loss, Reason, Landed (the proof, on a landed branch only), Family (plus Worktree, the
+# checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
 # LossBlockEnd); then TipCapture (or TipCaptureError); Summary line. A missing
 # map is NOT the same as a repo with no PRs, and the two are distinguishable
 # here on purpose: PR state is what detects a squash merge, so without it a
@@ -18,8 +19,32 @@
 # Each audited repo is this same script run from inside it, one after another,
 # printed as `Repo: <path>` then its unchanged output. A repo whose git common
 # dir was already audited (a linked worktree) is reported skipped, and a repo
-# that fails is reported without stopping the rest. Read-only throughout:
-# git-branch-delete.sh is never batched.
+# that fails is reported without stopping the rest. It deletes no branch and
+# moves no ref or working-tree file; what it writes is the tip capture and the
+# landed proof's loose objects (below). git-branch-delete.sh is never batched.
+#
+# LANDED PROOF. A squash or rebase merge leaves a branch that no ancestry check
+# can see as merged, and without PR data (no gh, a truncated map) nothing else
+# says so. When the chain would end at one of its REVIEW fallbacks (no upstream,
+# upstream gone, stale, orphaned) and origin/<default> exists,
+# clean_landed_proof (lib/clean-common.sh) looks for the work already on
+# origin/<default> in three pure-git steps: `git cherry` finding every commit's
+# patch-id there (a rebase or cherry-pick merge; skipped for a branch holding a
+# merge commit, which cherry does not list), the branch's tree equal to
+# origin/<default>'s (the work landed as differently split commits), or the
+# branch's whole diff from its merge-base, re-created as one unreferenced commit,
+# finding its patch-id there (a squash merge). Any proof makes the branch
+# LIKELY-SAFE, never SAFE, with a `Landed:` line naming the proof, which the
+# capture records so git-branch-delete.sh can run the same proof live. It runs
+# after the PR MERGED / MERGED_SET / PR CLOSED checks and never touches
+# PROTECTED, WORKTREE, a CLOSED PR, or an OPEN PR. Any failed or missing signal
+# keeps the verdict, so it can only narrow what an operator must review. A
+# landed branch is no longer REVIEW, so the LOSSY tier below never sees it.
+# The squash step's `git commit-tree` writes one loose commit object, referenced
+# by nothing, for each branch that reaches it; `git gc` prunes it. And each
+# `git cherry` patch-ids every commit on origin/<default> since the merge-base,
+# so a REVIEW branch costs up to two of them: slow for an old branch in a large
+# repository, and a fleet audit multiplies it.
 #
 # LOSSY TIER. A branch is LOSSY when it is deletable and deleting it loses work:
 # it would otherwise be REVIEW, origin/<default> is present so "landed" can be
@@ -31,9 +56,9 @@
 # would overstate the loss) or OPEN (an active claim on the branch) keeps the
 # branch in REVIEW. Every missing or failed signal (no tip, no origin/<default>,
 # a failed count) yields `Loss: undetermined` and REVIEW, never LOSSY and never
-# SAFE. SAFE and LIKELY-SAFE are computed exactly as before; LOSSY is carved out
-# of REVIEW only, so this tier can widen what an operator must confirm and can
-# never narrow it.
+# SAFE. SAFE and LIKELY-SAFE are decided before this step (the landed proof
+# above included); LOSSY is carved out of REVIEW only, so this tier can widen
+# what an operator must confirm and can never narrow it.
 #
 # BULK READS. Git is asked about the branches together, not one at a time: one
 # for-each-ref carries every branch's tip, upstream and ahead/behind summary, and
@@ -54,6 +79,20 @@
 # operator confronts it as a separate decision before any deletion is
 # confirmed: a prose flag beside a verdict column is easy to skim past.
 #
+# MAIN CHECKOUT. Before the branch records, `MainCheckout:` names what the audit
+# runs from: the branch or `detached at <short sha>`, then `MainCheckoutDirty:`
+# (the `git status --porcelain --untracked-files=all` line count) and one `MainCheckoutOperation:
+# <name> <path>` per in-progress operation (MERGE_HEAD, rebase-merge,
+# rebase-apply, CHERRY_PICK_HEAD, REVERT_HEAD, BISECT_LOG). An operation in
+# progress means the checkout is mid-change, so no branch is offered as deletable:
+# SAFE, LIKELY-SAFE and LOSSY become REVIEW with the reason `operation in
+# progress: <path>`, and `OperationInProgress: <path>` is printed. Detached and
+# dirty state are reported and do not block. The block describes the checkout
+# the audit runs from, a linked worktree when it runs from one, not necessarily
+# the main checkout; an operation in another worktree is not detected there, and
+# a worktree mid-rebase reads as detached, so its branch is not in the WORKTREE
+# tier.
+#
 # TIP CAPTURE. Every branch's tip commit is written, together with its verdict,
 # upstream and ahead/behind counts, to a durable TSV under the repository's
 # common git dir (`.git/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv`), and
@@ -64,7 +103,7 @@
 # (created exclusively, so two runs can never share one) and renamed into place
 # only when every row landed; any failure (no writable location, a short write)
 # yields `TipCaptureError:` instead of a path, so a partial capture can never
-# present itself as a complete one. Rows are recognized by shape (nine
+# present itself as a complete one. Rows are recognized by shape (ten
 # tab-separated columns, a commit id in the second), never by a leading `#`,
 # which is a legal first character of a branch name.
 set -u
@@ -104,14 +143,24 @@ capture and prints its own `TipCapture:`; --capture-file with more than one repo
 is a usage error (exit 2). Deletion is never batched: run git-branch-delete.sh
 from inside the audited repo with that repo's capture.
 
-Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
-Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason, Family; a WORKTREE
-branch adds `Worktree: <path>`, the worktree that has it checked out.
+Leading: PRCount or PRDataUnavailable, optional PRDataTruncated. Then
+`MainCheckout: <branch | detached at <sha>>`, `MainCheckoutDirty: <n>` and a
+`MainCheckoutOperation: <name> <path>` per merge, rebase, cherry-pick, revert or
+bisect in progress; any of those prints `OperationInProgress: <path>` and demotes
+SAFE, LIKELY-SAFE and LOSSY to REVIEW. These describe the checkout the audit runs
+from (a linked worktree when it runs from one); an operation in another
+worktree is not detected.
+Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason, Landed (a
+landed branch only, `Landed: <proof>`), Family; a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out.
 Family: agent (agent-<hex>), claude (claude/*), plan (plan/*), stranded
 (stranded/*), pre-wipe (pre-wipe/*), or none. Information only; never a tier input.
-Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. LOSSY is a branch
-that is deletable but whose deletion loses commits present on no remote ref and
-no tag; its `Loss:` line carries the count. A loss that cannot be determined is
+Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. A branch whose work
+origin/<default> already holds, by patch-id (`git cherry`), by tree equality, or
+as one squashed diff, is LIKELY-SAFE with a `Landed:` line, unless its PR is OPEN
+or CLOSED. The squash check writes one unreferenced loose commit object per
+branch that reaches it (`git gc` prunes it).
+LOSSY is a branch that is deletable but whose deletion loses commits present on
+no remote ref and no tag; its `Loss:` line carries the count. A loss that cannot be determined is
 `Loss: undetermined (<why>)` and the branch stays REVIEW.
 Then the loss block, `LossBlock: <n> ...` to `LossBlockEnd: <n>`, listing every
 LOSSY branch (LossBranch) and the commits it would lose (LossCommit, at most
@@ -237,7 +286,7 @@ capture_line "# common_dir: ${COMMON_DIR:-unknown}"
 capture_line "# default_branch: $DEFAULT_BRANCH"
 capture_line "# captured_at: $CAPTURED_AT"
 capture_line "# restore: git branch <branch> <tip>"
-capture_line $'# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on_default\tcaptured_at'
+capture_line $'# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on_default\tlanded\tcaptured_at'
 
 # PR map: branch → state, the mitigation for squash merges that `git --merged`
 # cannot see. clean_pr_map emits PRCount / PRDataTruncated / PRDataUnavailable
@@ -257,6 +306,21 @@ if [[ -f "$PR_MAP_FILE" ]]; then
     PR_REFOID["$head"]="$refoid"
   done <"$PR_MAP_FILE"
 fi
+
+# The checkout the audit runs from: HEAD, dirty count, in-progress operations.
+MAIN_HEAD_LINE="$CURRENT_BRANCH"
+[[ -n "$MAIN_HEAD_LINE" ]] || MAIN_HEAD_LINE="detached at $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null | tr -d '\r')"
+printf 'MainCheckout: %s\n' "$MAIN_HEAD_LINE"
+printf 'MainCheckoutDirty: %s\n' "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all 2>/dev/null | wc -l | tr -d ' \r')"
+OP_PATH=""
+for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
+  op_file="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path "$op_name" 2>/dev/null | tr -d '\r')"
+  if [[ -n "$op_file" && -e "$op_file" ]]; then
+    printf 'MainCheckoutOperation: %s %s\n' "$op_name" "$op_file"
+    OP_PATH="${OP_PATH:-$op_file}"
+  fi
+done
+[[ -n "$OP_PATH" ]] && printf 'OperationInProgress: %s\n' "$OP_PATH"
 
 # Membership sets, each read once. WORKTREE_PATH maps a branch to the worktree
 # that has it checked out.
@@ -454,7 +518,7 @@ classify_branch() {
   local branch="$1" age_days="$2" refname="$3" tip="$4" otype="$5" upfull="$6" upshort="$7" track="$8"
   local tier reason pr_line="none" local_tip bulk=0
   local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up="" behind_up=""
-  local loss_line lost="" row ancestor
+  local loss_line lost="" row ancestor landed_reason=""
 
   # The tip is the one fact that makes a deleted branch restorable, so it is
   # resolved first and reported for every branch regardless of verdict: a
@@ -564,6 +628,30 @@ classify_branch() {
     reason="orphaned or needs review"
   fi
 
+  # Landed proof, only for a branch the chain left in one of its REVIEW
+  # fallbacks: the PR-state REVIEW verdicts (CLOSED, merged with tip drift) and
+  # an OPEN PR are claims about the branch that a patch-id match does not
+  # answer.
+  if [[ "$tier" == REVIEW && $ORIGIN_DEFAULT -eq 1 && -n "$local_tip" && -n "$ahead_default" ]]; then
+    case "${PR_STATE[$branch]:-}" in
+    MERGED | CLOSED | OPEN) ;;
+    *)
+      if landed_reason="$(clean_landed_proof "$REPO_ROOT" "$DEFAULT_BRANCH" "$branch")"; then
+        tier="LIKELY-SAFE"
+        reason="$landed_reason"
+      fi
+      ;;
+    esac
+  fi
+
+  # An operation in progress in the checkout offers no deletable tier, so a
+  # landed proof no longer describes the verdict.
+  if [[ -n "$OP_PATH" && ("$tier" == SAFE || "$tier" == LIKELY-SAFE) ]]; then
+    tier="REVIEW"
+    reason="operation in progress: $OP_PATH"
+    landed_reason=""
+  fi
+
   # Loss assessment, and the REVIEW -> LOSSY refinement. Only a REVIEW verdict
   # is ever refined, and only upward into "deletable, loses work": every branch
   # the chain above already deemed safe keeps its verdict untouched, and every
@@ -598,11 +686,15 @@ classify_branch() {
         loss_line+=" (PR open, stays REVIEW)"
         ;;
       *)
-        tier="LOSSY"
-        LOSSY_BRANCHES+=("$branch")
-        LOSSY_COUNTS+=("$lost")
-        LOSSY_REASONS+=("$reason")
-        LOSSY_TIPS+=("$local_tip")
+        if [[ -n "$OP_PATH" ]]; then
+          reason="operation in progress: $OP_PATH"
+        else
+          tier="LOSSY"
+          LOSSY_BRANCHES+=("$branch")
+          LOSSY_COUNTS+=("$lost")
+          LOSSY_REASONS+=("$reason")
+          LOSSY_TIPS+=("$local_tip")
+        fi
         ;;
       esac
     fi
@@ -644,13 +736,14 @@ classify_branch() {
   printf 'Unpushed: %s\n' "$unpushed_line"
   printf 'Loss: %s\n' "$loss_line"
   printf 'Reason: %s\n' "$reason"
+  [[ -n "$landed_reason" ]] && printf 'Landed: %s\n' "$landed_reason"
   printf 'Family: %s\n' "$(branch_family "$branch")"
   [[ "$tier" == WORKTREE ]] && printf 'Worktree: %s\n' "${WORKTREE_PATH[$branch]}"
 
   if [[ -n "$local_tip" ]]; then
-    printf -v row '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+    printf -v row '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
       "$branch" "$local_tip" "$tier" "$pr_line" "${upstream:-none}" \
-      "${ahead_up:--}" "${behind_up:--}" "${ahead_default:--}" "$CAPTURED_AT"
+      "${ahead_up:--}" "${behind_up:--}" "${ahead_default:--}" "${landed_reason:--}" "$CAPTURED_AT"
     capture_line "$row"
     CAPTURE_ROWS=$((CAPTURE_ROWS + 1))
   fi
@@ -694,12 +787,12 @@ printf 'LossBlockEnd: %s\n' "${#LOSSY_BRANCHES[@]}"
 # written file agrees with the rows this run produced. A short write (disk full,
 # a vanished mount) therefore surfaces as TipCaptureError, never as a capture
 # that silently lacks some of the branches the report above lists. A row is
-# counted by shape: nine columns, a commit id in the second, this run's stamp in
+# counted by shape: ten columns, a commit id in the second, this run's stamp in
 # the last (a truncated row fails that test); a branch name beginning with `#`
 # is a row like any other.
 if [[ -z "$CAPTURE_ERROR" ]]; then
   written="$(awk -F'\t' -v at="$CAPTURED_AT" \
-    'NF == 9 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 && $9 == at { n++ } END { print n + 0 }' \
+    'NF == 10 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 && $10 == at { n++ } END { print n + 0 }' \
     "$CAPTURE_TMP" 2>/dev/null | tr -d '\r')"
   if [[ "${written:-x}" != "$CAPTURE_ROWS" ]]; then
     CAPTURE_ERROR="short write: expected $CAPTURE_ROWS rows, found ${written:-0} in $CAPTURE_TMP"
