@@ -33,6 +33,31 @@ thing this plugin exists not to do.
 - Whether an existing block is any good → `claude auto-mode critique`, surfaced by
   `audit-permission-state --critique`. It owns the semantic judgment; this skill owns composition.
 
+## Boundary, the built-in `/auto-mode-setup` command
+
+Both surfaces help a person write auto mode classifier content, so a request to "set up auto mode"
+can mean either.
+
+- **`/auto-mode-setup` (built-in command)**: drafts `autoMode.environment` entries from the
+  project and recent sessions, with optional rule tweaks, lets the person review the draft, and
+  saves it to user settings. It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** Interviews for entries in every section (`environment`,
+  `allow`, `soft_deny`, `hard_deny`), each with stated exclusions and a transcript-visible
+  condition, and prints the block without writing anything.
+
+**Routing.** At the start of the run, offer it to the person: you can run `/auto-mode-setup`
+instead of or alongside this skill to have the `environment` section drafted from your sessions
+and saved for you; this interview then covers the allow and deny sections. If they take it, run
+Phase 1 again after it saves so the draft builds on what it wrote. An unattended run records the
+offer in its output instead of asking.
+
+**Mutation gate.** `/auto-mode-setup` writes user settings when the person confirms its draft. This
+skill writes nothing and never chains into that command on the person's behalf.
+
+**Availability is never assumed.** The command is hidden, gated by plan and version, and varies by
+platform; this section states what to offer, never that it is present. The four-part records live
+in [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md).
+
 ## Inputs, and one deliberate omission
 
 The draft is built from **the interview plus the effective merge** (`audit-permission-state`), and

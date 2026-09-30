@@ -25,8 +25,8 @@ export CODE_METRICS_REPORT_DIR="$REPORTS"
 out="$(bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "--json exits 0" 0 "$rc"
-assert_doc "--json prints a code-metrics/v1 document for audit-size" "$out" \
-  'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-size" and d["run"]'
+assert_doc "--json prints a code-metrics/v2 document for audit-size" "$out" \
+  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-size" and d["run"]'
 
 out="$(bash "$SCRIPT" --all "$SOURCES")"
 rc=$?

@@ -40,6 +40,8 @@ run "git commit -m multi-line via \$'…' (blocked — tokenizer decodes ANSI-C)
   "git commit -m \$'feat: x\nbody'" 2
 run "git commit -m single-line (allowed — no newline, no mangling hazard)" \
   "git commit -m 'feat: x'" 0
+run "wsl git commit -m multi-line (blocked)" "wsl git commit -m 'feat: x${NL}body'" 2
+run "wsl git commit -m single-line (allowed)" "wsl git commit -m 'feat: x'" 0
 run "git commit -am multi-line (bundled cluster, blocked)" "git commit -am 'feat: x${NL}body'" 2
 run "git commit -am single-line (allowed)" "git commit -am 'feat: x'" 0
 run "git commit -m<attached> multi-line (blocked)" "git commit -m'feat: x${NL}body'" 2

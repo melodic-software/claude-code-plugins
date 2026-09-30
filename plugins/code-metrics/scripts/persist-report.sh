@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Sourced by every audit entry point: keep the `code-metrics/v1` document the
+# Sourced by every audit entry point: keep the `code-metrics/v2` document the
 # markdown was rendered from, so the table's cap line and its summary can
 # name a file that exists instead of a document a temporary directory
 # deleted on exit.

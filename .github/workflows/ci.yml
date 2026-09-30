@@ -833,6 +833,15 @@ jobs:
         continue-on-error: true
         run: scripts/check-adr-numbers.sh --check
 
+      # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run spoke-plugin-root tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-spoke-plugin-root.test.sh
+      - name: Check skill spokes do not name paths through the plugin-root token
+        id: spoke_plugin_root
+        continue-on-error: true
+        run: scripts/check-spoke-plugin-root.sh --check
+
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
       # `default` is unimplemented upstream — anthropics/claude-code#46477), so
@@ -957,6 +966,21 @@ jobs:
         id: plugin_options_docs
         continue-on-error: true
         run: python3 scripts/sync-plugin-options-docs.py --check
+
+      # The config-cascade "Semantics at a glance" table is generated from the
+      # Implementers rows, so the failure this catches is a row edited without
+      # regenerating the table, or a table hand-edited away from its rows. The
+      # gate is ungated on purpose: a change that edits only the Implementers
+      # table is docs-only, and that is exactly the edit that can leave the
+      # generated block stale. Self-test first so a broken generator cannot
+      # mask a regression.
+      - name: Test the config-cascade semantics generator
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/sync-config-cascade-semantics.test.sh
+      - name: Check the config-cascade semantics table against the Implementers rows
+        id: config_cascade_semantics
+        continue-on-error: true
+        run: python3 scripts/sync-config-cascade-semantics.py --check
 
       # code-metrics resolves every tunable from one defaults file and restates
       # every key in a reference table with its default. The setup template is
@@ -1536,6 +1560,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            spoke-plugin-root=${{ steps.spoke_plugin_root.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
@@ -1544,6 +1569,7 @@ jobs:
             hooks-description=${{ steps.hooks_description.outcome }}
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
+            config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
             silent-skips=${{ steps.silent_skips.outcome }}

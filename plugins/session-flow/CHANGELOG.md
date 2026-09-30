@@ -6,6 +6,20 @@
 
 - **`tidy-work` skill and `scripts/tidy_work.py`** ([#5222](https://github.com/melodic-software/claude-code-plugins/issues/5222)). `report` inventories the memory root (resolved from the concern file's `memory_dir`) and `~/.work` by age, size, and kind and marks what is in flight; `normalize` moves misplaced handoffs and running-retro ledgers into the standard layout; `clean` removes stale known-kind items. Both mutating actions are dry runs listing exact paths until `--apply`, refuse paths outside the resolved roots, never modify content git tracks (a memory root without a `*` `.gitignore` is refused, and a root that is the repository root is rejected), and always keep unknown and in-flight items. A slice is in flight unless its `INDEX.md` status is `done`; a handoff or running retro that names an open issue or PR is in flight; other skills' concern dirs are reported and kept. Opt-in only.
 
+## [0.40.2] - 2026-09-29
+
+### Changed
+
+- **running-retro tests:** the `_short_id` determinism check carries `cant-fail-ok: determinism contract`, so the can't-fail scanner counts it as a deliberate exemption instead of a finding. Test-only.
+
+## [0.40.1] - 2026-09-29
+
+### Added
+
+- **`orient` carries a Boundary section for the built-in `/recap` command.** It keeps the durable and off-thread briefing and offers the person-run `/recap` for a one-line conversation recap rather than invoking it.
+- **`continue-in-background` carries a Boundary section for the built-in `/subtask`, `/fork`, and `/background` commands.** It keeps the save-point plus fresh `claude --bg` launch and offers the person-run native commands as alternatives or additions rather than invoking them.
+- **`retro` carries a Boundary section for the built-in `/insights` command.** It keeps the single-session scored retrospective and offers the person-run `/insights` for a cross-session usage report rather than invoking it.
+
 ## [0.40.0] - 2026-09-29
 
 ### Changed

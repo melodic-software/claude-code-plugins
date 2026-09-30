@@ -40,11 +40,11 @@ if prs=$(gh pr list --state merged --search "head:chore/repo-sweep-" --limit 100
     /^<!-- repo-sweep:begin / { inb = 1; next }
     /^<!-- repo-sweep:end -->/ { inb = 0; next }
     inb && /^- \[[xX]\] / {
-      if ($0 ~ /, not applicable:/) next
+      if (substr($0, index($0, ": ") + 2) ~ /^not applicable: / || $0 ~ /, not applicable: /) next
       rest = substr($0, 7); i = index(rest, ": ")
       if (i) {
         eid = substr(rest, 1, i - 1)
-        if (!(eid in seen) && $0 ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\))(, partial coverage: .+)?$/) {
+        if (!(eid in seen) && $0 ~ /(, committed [0-9a-f]+|, filed [^ ,]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\))(, partial coverage: .+)?$/) {
           seen[eid] = 1
           if ($0 ~ /partial coverage:/) print eid > partialf
         }
