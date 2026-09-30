@@ -7,8 +7,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **`clean` hints Windows device-name files on Linux.** The baseline policy flags an entry named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) at confidence ceiling low; the reason says a regular file of that name is most likely a redirection artifact. Hints match by name for files and directories alike.
-- **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means tmpfiles.d configuration is present and the temp zone is left to systemd-tmpfiles.
+- **`clean` hints Windows device-name files on Linux.** The baseline policy flags an entry named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) at confidence ceiling low; the reason says an entry of that name is most likely a redirection artifact. Hints match by name for files and directories alike, and apply on Linux only.
+- **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means a tmpfiles.d directory exists, not that a rule covers the temp zone.
 
 ## [0.32.0] - 2026-09-30
 

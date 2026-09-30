@@ -225,8 +225,9 @@ class HygieneTests(unittest.TestCase):
                 self.assertTrue(device_hints(name), name)
             for name in ("notes.txt", "console", "com10", "null", "auxiliary"):
                 self.assertFalse(device_hints(name), name)
-        with mock.patch.object(hygiene, "os_key", return_value="windows"):
-            self.assertFalse(device_hints("nul"))
+        for other in ("windows", "macos"):
+            with mock.patch.object(hygiene, "os_key", return_value=other):
+                self.assertFalse(device_hints("nul"), other)
 
     def test_atomic_write_staging_remnants_are_hinted_as_a_class(self) -> None:
         # The producer-specific hint encodes one filename while its own reason
