@@ -468,11 +468,13 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   fi
   [[ "$FAILED" -eq 0 ]] || exit 1
   # The plan and its manifests are spent once every record applied. Only a plan the
-  # dry-run put in the default location is removed, and only that dry-run writes the
-  # marker, so a caller's own path is never matched by name. rmdir removes the
-  # directory only when nothing else is in it.
+  # dry-run put in the default location is removed: the directory must hold the marker
+  # only that dry-run writes and sit directly under the state directory, so a caller's
+  # own path is never matched by name and a stray marker elsewhere does nothing. rmdir
+  # removes the directory only when nothing else is in it.
   plan_dir="$(cd "$(dirname "$BATCH_PLAN_ARG")" && pwd -P)"
-  if [[ -f "$plan_dir/.default-location" ]]; then
+  plan_root_resolved="$(cd "$PLAN_ROOT" 2>/dev/null && pwd -P)"
+  if [[ -f "$plan_dir/.default-location" && -n "$plan_root_resolved" && "$(dirname "$plan_dir")" == "$plan_root_resolved" ]]; then
     rm -f "$BATCH_PLAN_ARG" "$plan_dir"/*.manifest "$plan_dir/.default-location"
     rmdir "$plan_dir" 2>/dev/null
   fi

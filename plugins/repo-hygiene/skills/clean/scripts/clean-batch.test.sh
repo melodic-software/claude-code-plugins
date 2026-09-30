@@ -665,6 +665,12 @@ bash "$BATCH" --tier caches --apply --batch-plan "$LOOKALIKE" >/dev/null 2>&1
 assert_file_exists "an explicit plan in a generated-looking directory survives a clean apply" "$LOOKALIKE"
 LOOK_MANIFESTS=("$(dirname "$LOOKALIKE")"/*.manifest)
 assert_file_exists "its manifests survive too" "${LOOK_MANIFESTS[0]}"
+# A marker copied outside the state directory (a backed-up plan directory) does not make the plan removable.
+STRAY="$TEST_TMPDIR/stray/plan"
+bash "$BATCH" --tier caches --repo "$(mkrepo applystray)" --batch-plan "$STRAY" >/dev/null 2>&1
+: >"$(dirname "$STRAY")/.default-location"
+bash "$BATCH" --tier caches --apply --batch-plan "$STRAY" >/dev/null 2>&1
+assert_file_exists "a stray marker outside the state directory leaves the plan" "$STRAY"
 
 help_out="$(bash "$BATCH" --help)"
 assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"
