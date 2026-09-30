@@ -3,6 +3,19 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-09-29
+
+### Changed
+
+- **`visualize` offers `/design` to the person instead of routing the model to it.** A binary
+  extraction of Claude Code 2.1.285 reads the bundled `design` skill as model-invocation-disabled,
+  so a route phrase naming it was dead text. The description and the plugin manifest drop the
+  design clause. A hand-tweakable layout now gets this skill's rich page, and where the medium
+  permits publishing the Boundary section's sentence tells the person they can run `/design`
+  instead of or alongside it. The catalog spoke's design canvas section records the 2.1.285
+  registration and drops the listed-description presence check, which the model can no longer
+  perform.
+
 ## [0.8.2] - 2026-09-29
 
 ### Fixed
