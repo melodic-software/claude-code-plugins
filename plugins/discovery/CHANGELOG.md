@@ -1,12 +1,20 @@
 # Changelog: discovery plugin
 
-## [0.25.15] - 2026-09-30
+## [0.25.16] - 2026-09-30
 
 ### Changed
 
 - **The `deep-research` Boundary bullet in `research-deep` no longer asserts that the workflow
   ships with Claude Code.** It keeps the provenance class, what the workflow does and how it is
   invoked, in the native-references template form.
+
+## [0.25.15] - 2026-09-30
+
+### Fixed
+
+- **`research` at `breadth=low` is bounded.** Phase 1 is capped at 6 web queries and fetches
+  combined, the researcher runs with `Turn budget: 15`, and a verifier-owned FAIL is presented with
+  a caveat instead of resuming the researcher.
 
 ## [0.25.14] - 2026-09-30
 
