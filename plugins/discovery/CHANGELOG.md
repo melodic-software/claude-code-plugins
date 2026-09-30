@@ -1,5 +1,14 @@
 # Changelog: discovery plugin
 
+## [0.25.11] - 2026-09-29
+
+### Added
+
+- **`explore` carries a Boundary section for the built-in `Explore` agent.** A bare locate
+  dispatches the built-in agent directly; a persisted exploration stays with this skill, which
+  keeps `Explore` as its locate-tier scout. The four-part record is in the skill's
+  `reference/native-explore.md`.
+
 ## [0.25.10] - 2026-09-29
 
 ### Added

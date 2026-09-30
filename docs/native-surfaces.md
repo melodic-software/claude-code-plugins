@@ -21,8 +21,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Bundled skills | 29 | 22 | route 20, suggest 7, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 2 | 1 | route 2 | complementary 2 |
-| Built-in subagents | 0 | 0 | none | none |
-| Built-in tools | 0 | 0 | none | none |
+| Built-in subagents | 3 | 2 | route 3 | complementary 3 |
+| Built-in tools | 2 | 2 | route 2 | complementary 2 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
 
@@ -1015,11 +1015,99 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ## Built-in subagents
 
-No rows recorded in this lane.
+### `Explore` → `discovery:explore`
+
+- **Verdict:** `complementary`: The built-in agent locates code and returns excerpts, one-shot and convention-blind; ours runs a persisted, resumable exploration that writes EXPLORE.md, and uses the built-in agent as its locate-tier scout. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `Explore` (built-in subagent; markers: gated)
+- **Our component:** `discovery:explore` (skill)
+- **Evidence:**
+  - `Explore` present in the extraction as builtin-agent
+  - markers: gated
+  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions.
+  - disallowed tools: Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit; omits CLAUDE.md
+  - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional
+  - detect: origin discovered, score 0.5706, invocable_by model+user, recommended integration route
+  - docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent; removable with CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `Explore` agent, lets it write files or read CLAUDE.md, or changes its gating (verified 2026-09-29)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `Explore` → `discovery:explorer`
+
+- **Verdict:** `complementary`: The built-in agent locates code and returns excerpts; this agent runs the full /discovery:explore workflow and persists EXPLORE.md. Agents are registry rows only: the routing line belongs at the dispatching skill, /discovery:explore. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `Explore` (built-in subagent; markers: gated)
+- **Our component:** `discovery:explorer` (agent)
+- **Evidence:**
+  - `Explore` present in the extraction as builtin-agent
+  - markers: gated
+  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions.
+  - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional
+  - detect: origin discovered, score 0.6029, invocable_by model+user, recommended integration route
+  - docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `Explore` agent, lets it write files, or changes its gating (verified 2026-09-29)
+- **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `Plan` → `planning:plan`
+
+- **Verdict:** `complementary`: The built-in agent returns a read-only implementation approach to its caller and cannot write files; ours produces a stress-tested, approval-gated plan persisted as PLAN.md for a cleared session. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `Plan` (built-in subagent; markers: gated)
+- **Our component:** `planning:plan` (skill)
+- **Evidence:**
+  - `Plan` present in the extraction as builtin-agent
+  - markers: gated
+  - native description: Software architect agent for designing implementation plans. Use this when you need to plan the implementation strategy for a task. Returns step-by-step plans, identifies critical files, and considers architectural trade-offs.
+  - disallowed tools: Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit; omits CLAUDE.md
+  - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional
+  - detect: origin discovered, score 0.6849, invocable_by model+user, recommended integration route
+  - docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent used during plan mode to gather context before presenting a plan
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `Plan` agent, lets it write files, or changes its gating (verified 2026-09-29)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Built-in tools
 
-No rows recorded in this lane.
+### `WebFetch` → `firecrawl:firecrawl`
+
+- **Verdict:** `complementary`: The built-in tool fetches one unprotected page and returns a small model's extraction inline; ours scrapes, crawls, or renders pages WebFetch cannot reach (anti-bot, JS) and writes the full content to disk. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `WebFetch` (built-in tool; markers: gated)
+- **Our component:** `firecrawl:firecrawl` (skill)
+- **Evidence:**
+  - `WebFetch` present in the extraction as builtin-tool
+  - markers: gated
+  - search hint: fetch and extract content from a URL
+  - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable, not user-invocable; deferred (loads through tool search)
+  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.1829)
+  - docs cross-check (tools reference, 2026-09-29): documented
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `WebFetch` tool, stops returning a model extraction in place of the page, or gains JS rendering (verified 2026-09-29)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `WebSearch` → `firecrawl:firecrawl`
+
+- **Verdict:** `complementary`: The built-in tool returns result titles and URLs inline for a quick lookup; ours searches with page content scraped and written to disk, for results worth keeping or reading in full. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `WebSearch` (built-in tool; markers: gated)
+- **Our component:** `firecrawl:firecrawl` (skill)
+- **Evidence:**
+  - `WebSearch` present in the extraction as builtin-tool
+  - markers: gated
+  - search hint: search the web for current information
+  - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable, not user-invocable; deferred (loads through tool search)
+  - detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.1443)
+  - docs cross-check (tools reference, 2026-09-29): documented
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `WebSearch` tool or makes it fetch result pages (verified 2026-09-29)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Session-provided skills (observation-only)
 
@@ -1077,6 +1165,19 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 
 | Native surface | Class | Component | Reason | As of | Date |
 |---|---|---|---|---|---|
+| `Agent` | builtin-tool | `docs-hygiene:write-for-agents` | The Agent tool launches a subagent; ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Bash` | builtin-tool | `bash-format:setup` | The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Explore` | builtin-agent | `prototype:explore-directions` | The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Plan` | builtin-agent | `planning:plan-reviewer (agent)` | The Plan agent drafts an implementation approach; this agent stress-tests a written plan for /planning:plan. The Plan pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Plan` | builtin-agent | `testing:plan` | The Plan agent drafts an implementation approach; ours plans tests for a change by regression risk. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `PowerShell` | builtin-tool | `powershell-format:setup` | The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Read` | builtin-tool | `x:read` | The Read tool reads a local file; ours reads an X post through third-party converters. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `SendUserMessage` | builtin-tool | `claude-ops:morning-brief` | SendUserMessage (alias Brief) sends the user a message; ours prints a repo's morning ops view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Workflow` | builtin-tool | `session-flow:workflow` | The Workflow tool runs a workflow script; ours routes the next stage of a staged workflow. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Workflow` | builtin-tool | `songwriting:workflow` | The Workflow tool runs a workflow script; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Write` | builtin-tool | `bugs:write` | The Write tool writes a file; ours drafts a structured bug report. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Write` | builtin-tool | `docs-hygiene:write-for-agents` | The Write tool writes a file; ours authors agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Write` | builtin-tool | `docs-hygiene:write-for-humans` | The Write tool writes a file; ours authors human-facing prose. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `agents` | builtin-command | `docs-hygiene:write-for-agents` | /agents manages subagents (its registration now reads "(removed)"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `artifact-design` | bundled-skill | `planning:design` | Design guidance for Artifact pages versus resolving code design decisions (types, contracts, module boundaries). Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `artifact-explainer` | bundled-skill | `review:pr-explainer` | The bundled skill publishes a concept walkthrough artifact; ours explains one pull request's diff as a local HTML page. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1116,6 +1217,7 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `mcp` | builtin-command | `mcp-tools:audit` | /mcp manages server connections and OAuth; ours audits MCP tool definition quality in source. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `mcp` | builtin-command | `mcp-tools:audit-posture` | /mcp manages server connections and OAuth; ours audits configured servers' supply-chain posture without connecting to any. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `memory` | builtin-command | `claude-memory:audit` | /memory opens CLAUDE.md files for editing; ours audits the instruction layer against a checklist. The auto-memory toggle overlap is recorded against claude-memory:stateless. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `memory_read` | builtin-tool | `claude-memory:audit` | memory_read reads a document from a session memory store; ours audits CLAUDE.md, rules, and auto-memory. Different memory. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `plan` | builtin-command | `planning:plan-reviewer (agent)` | /plan enters plan mode; the agent stress-tests a written plan for /planning:plan. The plan-mode pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `plan` | builtin-command | `testing:plan` | /plan enters plan mode; ours writes a test plan for a change. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `plugin-types` | builtin-command | `code-metrics:audit-type-debt` | Writes TypeScript declarations for typing a hooks module versus measuring how much of a codebase is typed. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1131,6 +1233,9 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `update` | builtin-command | `playbooks:update` | /update switches Claude Code to the latest version; ours drift-checks the playbooks plugin's vendored packs. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `update-config` | bundled-skill | `firecrawl:update` | Edits Claude Code settings.json versus drift-checking the firecrawl wrapper against its upstream. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `verify` | bundled-skill | `performance:verify` | Exercises a code change end to end versus re-deriving a performance measurement in a fresh context. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `worker` | builtin-agent | `discipline:script-the-deterministic-work` | The worker agent executes a delegated task; ours is a scripting discipline corrector. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `worker` | builtin-agent | `work-items:work` | The worker agent executes a delegated task; ours picks and executes a tracker item end to end. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `worker` | builtin-agent | `work-items:work-loop` | The worker agent executes a delegated task; ours drains a tracker backlog as a loop. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `workflow-authoring` | bundled-skill | `playbooks:skill-authoring` | Reference for Workflow tool scripts versus SKILL.md authoring guidance. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `workflow-authoring` | bundled-skill | `songwriting:workflow` | Reference for Workflow tool scripts versus a songwriting situation router. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `workflows` | builtin-command | `session-flow:workflow` | /workflows browses Workflow tool runs; ours navigates staged engineering work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |

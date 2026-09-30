@@ -6,6 +6,14 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.3.1] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the first `builtin-agent` and `builtin-tool` Boundary sections**, from
+  the 2026-09-29 triage of those lanes: the `Explore` agent in `discovery:explore`, the `Plan`
+  agent in `planning:plan`, and `WebFetch` and `WebSearch` in `firecrawl:firecrawl`.
+
 ## [3.3.0] - 2026-09-29
 
 Minor: additive guidance.

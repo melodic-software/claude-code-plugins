@@ -325,6 +325,25 @@ mode. This skill never toggles the mode on the person's behalf.
 never that it is present. The four-part records live in
 [reference/native-plan.md](reference/native-plan.md).
 
+## Boundary, the built-in `Plan` agent
+
+Both produce an implementation plan, so "plan this" can also route to the subagent.
+
+- **`Plan` (built-in subagent).** Ships with Claude Code; reached through the Agent tool's
+  `subagent_type`. A read-only research agent that returns a step-by-step approach to its caller.
+  It cannot write files, skips CLAUDE.md, and runs no approval gate.
+- **This skill (marketplace plugin).** The plan the person approves: stress-test, blast radius,
+  decision gates, and a persisted PLAN.md.
+
+**Routing.** When the built-in `Plan` agent resolves in this session, dispatch it for a throwaway
+approach sketch or read-only context-gathering whose result feeds other work; use this skill when
+the plan needs the person's approval or must outlive the session. This skill may dispatch `Plan`
+to gather context, but the plan it presents is its own.
+
+**Mutation gate.** `Plan` writes nothing. This skill writes PLAN.md and its checklist.
+
+The four-part records live in [reference/native-plan-agent.md](reference/native-plan-agent.md).
+
 ## Plan Review Mode
 
 Read [context/review-mode.md](context/review-mode.md) when invoked with `review`. It holds the review procedure and how it differs from `/planning:devils-advocate`.

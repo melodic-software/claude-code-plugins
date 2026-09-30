@@ -2365,9 +2365,450 @@
         "suggest_sentence": false
       },
       "budget_caveat": false
+    },
+    {
+      "native": {
+        "name": "Explore",
+        "class": "builtin-agent",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "explore",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in agent locates code and returns excerpts, one-shot and convention-blind; ours runs a persisted, resumable exploration that writes EXPLORE.md, and uses the built-in agent as its locate-tier scout. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`Explore` present in the extraction as builtin-agent",
+        "markers: gated",
+        "native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. \"src/components/**/*.tsx\"), grep for symbols or keywords (eg. \"API endpoints\"), or answer \"where is X defined / which files reference Y.\" Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: \"quick\" for a single targeted lookup, \"medium\" for moderate exploration, or \"very thorough\" to search across multiple locations and naming conventions.",
+        "disallowed tools: Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit; omits CLAUDE.md",
+        "invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional",
+        "detect: origin discovered, score 0.5706, invocable_by model+user, recommended integration route",
+        "docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent; removable with CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `Explore` agent, lets it write files or read CLAUDE.md, or changes its gating",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "Explore",
+        "class": "builtin-agent",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "explorer",
+        "kind": "agent"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in agent locates code and returns excerpts; this agent runs the full /discovery:explore workflow and persists EXPLORE.md. Agents are registry rows only: the routing line belongs at the dispatching skill, /discovery:explore. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`Explore` present in the extraction as builtin-agent",
+        "markers: gated",
+        "native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. \"src/components/**/*.tsx\"), grep for symbols or keywords (eg. \"API endpoints\"), or answer \"where is X defined / which files reference Y.\" Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: \"quick\" for a single targeted lookup, \"medium\" for moderate exploration, or \"very thorough\" to search across multiple locations and naming conventions.",
+        "invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional",
+        "detect: origin discovered, score 0.6029, invocable_by model+user, recommended integration route",
+        "docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `Explore` agent, lets it write files, or changes its gating",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "Plan",
+        "class": "builtin-agent",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "planning",
+        "skill": "plan",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in agent returns a read-only implementation approach to its caller and cannot write files; ours produces a stress-tested, approval-gated plan persisted as PLAN.md for a cleared session. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`Plan` present in the extraction as builtin-agent",
+        "markers: gated",
+        "native description: Software architect agent for designing implementation plans. Use this when you need to plan the implementation strategy for a task. Returns step-by-step plans, identifies critical files, and considers architectural trade-offs.",
+        "disallowed tools: Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit; omits CLAUDE.md",
+        "invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional",
+        "detect: origin discovered, score 0.6849, invocable_by model+user, recommended integration route",
+        "docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent used during plan mode to gather context before presenting a plan"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `Plan` agent, lets it write files, or changes its gating",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "WebFetch",
+        "class": "builtin-tool",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "firecrawl",
+        "skill": "firecrawl",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in tool fetches one unprotected page and returns a small model's extraction inline; ours scrapes, crawls, or renders pages WebFetch cannot reach (anti-bot, JS) and writes the full content to disk. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`WebFetch` present in the extraction as builtin-tool",
+        "markers: gated",
+        "search hint: fetch and extract content from a URL",
+        "invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable, not user-invocable; deferred (loads through tool search)",
+        "detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.1829)",
+        "docs cross-check (tools reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `WebFetch` tool, stops returning a model extraction in place of the page, or gains JS rendering",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "WebSearch",
+        "class": "builtin-tool",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "firecrawl",
+        "skill": "firecrawl",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The built-in tool returns result titles and URLs inline for a quick lookup; ours searches with page content scraped and written to disk, for results worth keeping or reading in full. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`WebSearch` present in the extraction as builtin-tool",
+        "markers: gated",
+        "search hint: search the web for current information",
+        "invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable, not user-invocable; deferred (loads through tool search)",
+        "detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.1443)",
+        "docs cross-check (tools reference, 2026-09-29): documented"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284, so counts are floors)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the built-in `WebSearch` tool or makes it fetch result pages",
+        "verified": "2026-09-29"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
     }
   ],
   "dismissals": [
+    {
+      "native": {
+        "name": "Agent",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "docs-hygiene",
+        "skill": "write-for-agents",
+        "kind": "skill"
+      },
+      "reason": "The Agent tool launches a subagent; ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "0e5d10812cf33140ad9fff5fc1fd4a08",
+        "component": "e86f6506f34e1755f133f801bf57677e"
+      }
+    },
+    {
+      "native": {
+        "name": "Bash",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "bash-format",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "e3b0c44298fc1c149afbf4c8996fb924",
+        "component": "5ac7b1857920ab401d31da3b719abc26"
+      }
+    },
+    {
+      "native": {
+        "name": "Explore",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "explore-directions",
+        "kind": "skill"
+      },
+      "reason": "The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "5fac9fea053bdbf76984411e6472edb1",
+        "component": "b5d35110af24ea23c683993810ca8811"
+      }
+    },
+    {
+      "native": {
+        "name": "Plan",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "planning",
+        "skill": "plan-reviewer",
+        "kind": "agent"
+      },
+      "reason": "The Plan agent drafts an implementation approach; this agent stress-tests a written plan for /planning:plan. The Plan pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "6bbfd7f717bc99f360fd31b2d78ad20d",
+        "component": "3c83c0f287dd47abdc539f0cb0a2c186"
+      }
+    },
+    {
+      "native": {
+        "name": "Plan",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "plan",
+        "kind": "skill"
+      },
+      "reason": "The Plan agent drafts an implementation approach; ours plans tests for a change by regression risk. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "6bbfd7f717bc99f360fd31b2d78ad20d",
+        "component": "0d0c9124d766430cdac185203828a762"
+      }
+    },
+    {
+      "native": {
+        "name": "PowerShell",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "powershell-format",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "e3b0c44298fc1c149afbf4c8996fb924",
+        "component": "dffaf27e9cc00f3743cab750ef41a571"
+      }
+    },
+    {
+      "native": {
+        "name": "Read",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "x",
+        "skill": "read",
+        "kind": "skill"
+      },
+      "reason": "The Read tool reads a local file; ours reads an X post through third-party converters. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "97b8b3e1c949a56d8c43d5194fc5fb8a",
+        "component": "74ee32515711d56b10ecdf9051406baa"
+      }
+    },
+    {
+      "native": {
+        "name": "SendUserMessage",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "claude-ops",
+        "skill": "morning-brief",
+        "kind": "skill"
+      },
+      "reason": "SendUserMessage (alias Brief) sends the user a message; ours prints a repo's morning ops view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "9a47eb01e547032118030e1a78baf974",
+        "component": "9648b17d76a5aff222e60fc2704daa4b"
+      }
+    },
+    {
+      "native": {
+        "name": "Workflow",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "workflow",
+        "kind": "skill"
+      },
+      "reason": "The Workflow tool runs a workflow script; ours routes the next stage of a staged workflow. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "e3b0c44298fc1c149afbf4c8996fb924",
+        "component": "15a9d6185384b83662bf90b63359a9c7"
+      }
+    },
+    {
+      "native": {
+        "name": "Workflow",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "songwriting",
+        "skill": "workflow",
+        "kind": "skill"
+      },
+      "reason": "The Workflow tool runs a workflow script; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "e3b0c44298fc1c149afbf4c8996fb924",
+        "component": "57f30812b809930d11e028dada56bb15"
+      }
+    },
+    {
+      "native": {
+        "name": "Write",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "bugs",
+        "skill": "write",
+        "kind": "skill"
+      },
+      "reason": "The Write tool writes a file; ours drafts a structured bug report. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "de7ede1b4920d66f0766cb4e1bba0add",
+        "component": "ea27351eadfc6810acd989427bce2e82"
+      }
+    },
+    {
+      "native": {
+        "name": "Write",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "docs-hygiene",
+        "skill": "write-for-agents",
+        "kind": "skill"
+      },
+      "reason": "The Write tool writes a file; ours authors agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "de7ede1b4920d66f0766cb4e1bba0add",
+        "component": "e86f6506f34e1755f133f801bf57677e"
+      }
+    },
+    {
+      "native": {
+        "name": "Write",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "docs-hygiene",
+        "skill": "write-for-humans",
+        "kind": "skill"
+      },
+      "reason": "The Write tool writes a file; ours authors human-facing prose. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "de7ede1b4920d66f0766cb4e1bba0add",
+        "component": "9acf05b562f22ca3fa2615cf0b9e8720"
+      }
+    },
     {
       "native": {
         "name": "agents",
@@ -3072,6 +3513,24 @@
     },
     {
       "native": {
+        "name": "memory_read",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "claude-memory",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "reason": "memory_read reads a document from a session memory store; ours audits CLAUDE.md, rules, and auto-memory. Different memory. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "20e2779c31780454ae1365bb5be8727b",
+        "component": "4551730bb3be32f29ce0809800283145"
+      }
+    },
+    {
+      "native": {
         "name": "plan",
         "class": "builtin-command"
       },
@@ -3338,6 +3797,60 @@
       "fingerprint": {
         "native": "25d8aa91d54324b8ce8c1ddc7fe6aa4a",
         "component": "8176aa634ea3b1db3606ed42db2373d6"
+      }
+    },
+    {
+      "native": {
+        "name": "worker",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "discipline",
+        "skill": "script-the-deterministic-work",
+        "kind": "skill"
+      },
+      "reason": "The worker agent executes a delegated task; ours is a scripting discipline corrector. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "cbc1f297a2e2195d9616355d9371b597",
+        "component": "b30c829b801f29dd87dbba3477fc0f60"
+      }
+    },
+    {
+      "native": {
+        "name": "worker",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "work-items",
+        "skill": "work",
+        "kind": "skill"
+      },
+      "reason": "The worker agent executes a delegated task; ours picks and executes a tracker item end to end. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "cbc1f297a2e2195d9616355d9371b597",
+        "component": "43f35eb531272adc57a1eaeada2fbbff"
+      }
+    },
+    {
+      "native": {
+        "name": "worker",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "work-items",
+        "skill": "work-loop",
+        "kind": "skill"
+      },
+      "reason": "The worker agent executes a delegated task; ours drains a tracker backlog as a loop. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.285",
+      "date": "2026-09-29",
+      "fingerprint": {
+        "native": "cbc1f297a2e2195d9616355d9371b597",
+        "component": "292ceb03545672b8a0e0eec8a8c9bf14"
       }
     },
     {
