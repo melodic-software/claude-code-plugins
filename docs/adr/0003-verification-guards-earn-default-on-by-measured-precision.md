@@ -16,8 +16,8 @@ reasoning that each had a mechanical oracle and no existing coverage:
 
 All three reasoned soundly from the oracle. Two did not survive contact with the repository.
 
-The **version guard** was dropped before implementation. Its only in-repo surface — a
-`## [<version>]` heading versus the manifest — is already covered deterministically by
+The **version guard** was dropped before implementation. Its only in-repo surface (a
+`## [<version>]` heading versus the manifest) is already covered deterministically by
 `scripts/check-changelog-parity.sh --check-bump`, a required CI gate. An enumeration of the
 residual prose surface (all `*.md` under `plugins/` and `docs/`, every string in every
 `plugin.json` and `marketplace.json` outside the `version` field, `plugins/*/hooks/*.sh`,
@@ -36,14 +36,14 @@ measurement. Swept across all 975 tracked markdown files, each fed to the hook a
 | Findings | **389** |
 | True positives | **0** |
 
-The oracle never misfired — no candidate resolved at the repo root. Every finding was a
+The oracle never misfired: no candidate resolved at the repo root. Every finding was a
 scoping failure. 72% were consumer-project config paths (`.claude/**` and similar) that a
 doc describes for a *consuming* repo and that a marketplace correctly lacks; its
 first-segment gate passed only because this repo happens to carry same-named top-level
 directories. Fixing the three dominant causes still left ~4% firing at zero true positives.
 
 The **reference guard** shipped. Same corpus: 4 true positives, verified individually. Its
-noise was 89% CHANGELOG rename entries — content the hook's own advisory calls correct as
+noise was 89% CHANGELOG rename entries: content the hook's own advisory calls correct as
 written, because a CHANGELOG is append-only by contract and a rename entry must keep naming
 the old command. Excluding CHANGELOGs moved it from 3.4% firing at 6% precision to **0.51%
 firing at 57% precision**.
@@ -54,9 +54,9 @@ firing at 57% precision**.
 been measured against a real corpus.** A sound oracle is a necessary condition, never a
 sufficient one. Specifically:
 
-1. **Measure before shipping, on the real corpus, at real scale — where "real corpus" means the
+1. **Measure before shipping, on the real corpus, at real scale: where "real corpus" means the
    guard's deployment surface, not necessarily the authoring repository.** Not a sample, not the
-   contract suite. A passing contract suite is evidence for the cases it contains — nothing
+   contract suite. A passing contract suite is evidence for the cases it contains; nothing
    more; an input shape absent from the suite can still be misclassified. A corpus sweep is
    what exposes the scoping. The path guard had 61 green cases and a 23.7% real-world firing
    rate.
@@ -65,11 +65,11 @@ sufficient one. Specifically:
 
    - A guard whose matcher explicitly confines it to this marketplace may measure here.
    - A guard that ships default-on into consumer projects measures against corpora
-     representative of that deployment scope — and states which corpora, since a single-repo
+     representative of that deployment scope, and states which corpora, since a single-repo
      sweep is not evidence about other distributions.
 
-   The path guard's dominant failure class — consumer-project config paths (`.claude/**`) that a
-   doc describes for a *consuming* repo and that a marketplace correctly lacks — is the
+   The path guard's dominant failure class, consumer-project config paths (`.claude/**`) that a
+   doc describes for a *consuming* repo and that a marketplace correctly lacks, is the
    motivating case: the oracle was exact at the repo root, but the corpus was the wrong
    deployment surface.
 2. **Report the number in the PR.** "It looks quieter now" is not a measurement. The
@@ -77,36 +77,36 @@ sufficient one. Specifically:
 3. **A guard that fires and is never right disqualifies itself**, however sound its oracle.
    The disqualifying condition is **observed false positives with no true positive**, not the
    absence of true positives on its own. A guard that fires on a quarter of writes and is
-   never right trains readers to ignore every advisory, including the ones that are right —
+   never right trains readers to ignore every advisory, including the ones that are right:
    negative value, not low value.
 
    **A guard that does not fire at all is not thereby disqualified.** A corpus may simply
    contain no violation of the class, which leaves precision *undefined* rather than zero, and
    a guard for a rare defect is exactly the kind worth having. The exemption is for **zero
-   findings only** — it is not a low-volume allowance, because precision does not improve with
+   findings only**: it is not a low-volume allowance, because precision does not improve with
    scarcity:
 
    | Sweep result | Reading |
    |---|---|
-   | **zero findings** — did not fire at all | precision *undefined*, not zero. Inconclusive: establish detection by seeding known defects, then ship if the unseeded firing rate stays acceptable |
-   | fires at all, no true positive | disqualified. Precision is 0% whether the firing count is 389 or 1 — the path guard is the loud case, but a single false finding with no real one fails identically |
-   | fires AND precision is acceptable | shippable — the reference guard, 0.51% firing, 57% precision |
+   | **zero findings**: did not fire at all | precision *undefined*, not zero. Inconclusive: establish detection by seeding known defects, then ship if the unseeded firing rate stays acceptable |
+   | fires at all, no true positive | disqualified. Precision is 0% whether the firing count is 389 or 1; the path guard is the loud case, but a single false finding with no real one fails identically |
+   | fires AND precision is acceptable | shippable: the reference guard, 0.51% firing, 57% precision |
 
    For a zero-finding sweep the burden shifts to **seeded defects**: plant instances the guard
-   should catch, confirm it catches them, and report the unseeded firing rate — which is zero
-   by construction in this branch — as the noise figure. Absence of evidence is not the
+   should catch, confirm it catches them, and report the unseeded firing rate (which is zero
+   by construction in this branch) as the noise figure. Absence of evidence is not the
    evidence of absence that rule 1 asks for.
 
    **"Acceptable precision" is a judgment, and the ADR deliberately does not fix a
-   threshold** — the tolerable ratio depends on how costly a false advisory is in the surface
+   threshold**: the tolerable ratio depends on how costly a false advisory is in the surface
    being guarded, and a single number would be false precision. But rarity is not itself
    evidence: one real finding among a hundred false ones is a 1%-precision guard however
    rarely it fires, and it fails for the same reason the path guard did at 23.7%. Scarcity
    changes the volume of noise, never its ratio. State the measured precision, name the ratio you consider
    acceptable for that surface, and justify it. The reference guard shipped at 57% with the
-   remaining noise attributed to a single identified cause — that shape of argument, not the
+   remaining noise attributed to a single identified cause: that shape of argument, not the
    bare number, is what earns default-on.
-4. **Distinguish "wrong oracle" from "wrong scope" — by checking, not by assuming.** That
+4. **Distinguish "wrong oracle" from "wrong scope" by checking, not by assuming.** That
    distinction decides whether a guard is deleted or re-filed for rescoping, so it is worth
    establishing rather than inferring from a green suite. For the path guard it was
    established per finding: each candidate was re-tested against the repo root and confirmed
@@ -117,7 +117,7 @@ sufficient one. Specifically:
    duplicating `check-changelog-parity --check-bump` would fire correctly; it would simply
    add no signal the required gate does not already produce, while adding a second place the
    rule can drift. That is the **one mechanism per concern** principle
-   (`plugin-philosophy.md`'s validation section, owned upstream in `standards`) — redundancy,
+   (`plugin-philosophy.md`'s validation section, owned upstream in `standards`): redundancy,
    not a silent skip. The deletion criterion for a future guard author is "supplies no
    additional signal," which is a coverage test, not a correctness one.
 
@@ -128,8 +128,8 @@ sufficient one. Specifically:
   withdrawals are recorded with their evidence (#1314 carries the sweep) so the ideas can be
   rescoped rather than rediscovered.
 - The cost is real: the path guard reached 61 contract cases and a full review round before
-  the measurement ran. Measuring earlier — right after the first working version, before
-  review — would have saved that. **The sweep belongs immediately after the guard first
+  the measurement ran. Measuring earlier (right after the first working version, before
+  review) would have saved that. **The sweep belongs immediately after the guard first
   works, not after it is polished.**
 - This extends the verification-promotion discipline in
   [ADR 0002](0002-default-on-ai-review-advisory-with-earned-promotion.md) one step earlier in
@@ -163,7 +163,7 @@ observability store.
 - #1270 (scoping, amended twice), #1284 (the two-guard PR, closed), #1319 (the shipped
   guard), #1314 (the withdrawn guard's measurement and rescope), #3756 (session-log
   grading parked until an operator collection window)
-- `docs/conventions/hook-precision/README.md` — over-fire discipline
-- `docs/plugin-philosophy.md` — one mechanism per concern (validation section)
-- `melodic-software/standards`, `conventions/engineering/enforceability-tiers.md` —
+- `docs/conventions/hook-precision/README.md`: over-fire discipline
+- `docs/plugin-philosophy.md`: one mechanism per concern (validation section)
+- `melodic-software/standards`, `conventions/engineering/enforceability-tiers.md`:
   classify the tier first, justify automation second
