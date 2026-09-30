@@ -140,17 +140,20 @@ coverage command key).
 Recommended answer taken unattended (2026-09-30):
 
 - New flag `--exercised` selects the scope explicitly.
-- A diff that changes at least one file matching `tests` and no line inside the `mutate` globs
-  engages the scope automatically. That diff produces zero mutants today, so no existing run
-  changes; the scope report names the auto-engagement.
+- A change set that touches at least one file matching `tests` and no line inside the `mutate`
+  globs engages the scope automatically. The change set is the committed range plus the working
+  tree, the same set DT1 uses (review 2, 2026-09-30: the trigger read the committed diff only, so
+  uncommitted tests never auto-engaged). That change set produces zero mutants today, so no
+  existing run changes; the scope report names the auto-engagement.
 - A mixed diff without the flag runs the diff scope as today, and the scope report names
   `--exercised` and the count of changed tests it did not examine. With the flag, the exercised
   scope replaces the diff scope for that run.
 - `--exercised` is mutually exclusive with `--full` and `--paths`; a scope path argument narrows the
   changed tests considered.
 - The effort cap, `--max` and `max-mutants` apply unchanged (SKILL.md:46-64). An auto-engaged run
-  with none of them set takes the `medium` cap (15 mutants), because auto-engagement turns a no-op
-  into a real run nobody asked for; the scope report states the cap. The cost estimate uses the
+  with neither `--max` nor `max-mutants` set takes the smaller of the effort cap and 15 mutants
+  (the `medium` cap), so a `low`-effort run keeps its 5, because auto-engagement turns a no-op into
+  a real run nobody asked for; the scope report states the cap. The cost estimate uses the
   restricted changed-test baseline (DT15), not `baseline-suite-ms`.
 - Revised 2026-09-30 after the devils-advocate pass (old: no cap on auto-engage, estimate from the
   full-suite time; new: medium cap and restricted baseline; why: the skill is model-invocable, and
@@ -253,10 +256,18 @@ every mutant and hide the rest.
 - One `app.py` (`tool: manual`) with `price_with_tax` spread over several lines, so the manual
   protocol's one-mutant-per-line operators (statement removal, then relational inversion;
   SKILL.md:158-163) produce more than one mutant, plus a discount branch above a threshold.
-- Scenarios, one test file each: calls-SUT oracle (`expected-from-sut`), relation oracle
-  (survivors expected `input-gap`), copied-logic oracle (no survivor; the blind-spot line), literal
-  oracle (no survivor), assertion-free test (`no-assertion`), and a literal test that never reaches
-  the discount branch (its mutants are unreached; DT13 must not label them survivors).
+- Scenarios, one test file each, directory names in snake case so `python -m unittest <path>`
+  imports them: `calls_sut` (`expected-from-sut`); `relation`, whose expected side calls the code
+  under test (`expected-from-sut` under DT5's tie-break); `boundary`, a literal oracle at an input
+  far above the discount threshold, so the relational-inversion mutant on the threshold line is
+  reached and survives (`input-gap`); `copied_logic` (no survivor; the blind-spot line); `literal`
+  (no survivor); `no_assertion` (`no-assertion`); and `unreached_branch`, a literal test that never
+  reaches the discount branch (its mutants are `unreached`; DT13 must not label them survivors).
+  At least one listed mutant sits on a continuation or header line, to exercise DT13's
+  insert-before rule.
+- Review 2, 2026-09-30: the relation oracle `f(200)==2*f(100)` calls the code under test on its
+  expected side, so DT5's own tie-break makes it `expected-from-sut`, not `input-gap`; `boundary`
+  now carries `input-gap`.
 - `EXPECTED.md` lists, per scenario, the exact mutants the manual protocol generates and the state
   and cause each must get. The Tier 0 3-mutant matrix is not reproduced literally; only its
   qualitative outcomes are (calls-SUT kills none, copied logic and literal kill all).
@@ -323,6 +334,10 @@ strong one is the `testing:audit` scanner's and the Release 2 judge's concern, n
 report's scope line says the verdict is for the changed tests as a set. Switch condition for B: the
 user wants per-test verdicts and accepts runs multiplied by the changed-test count.
 
+Because the unit is the set, the Phase 4 triage brief hands over every changed test for each
+survivor, not only "the tests that covered it" (SKILL.md:195-196); `no-assertion` means no
+assertion anywhere in the set reaches the value (review 2, 2026-09-30).
+
 Basis: SKILL.md:167 (one state per mutant against the cached covering tests); Q11 (spec:98-100).
 
 ### DT13: Reachability: telling an unreached mutant from a survivor
@@ -330,17 +345,31 @@ Basis: SKILL.md:167 (one state per mutant against the cached covering tests); Q1
 Found by the devils-advocate pass (HIGH). Under the manual protocol a mutant on a line the changed
 tests never run passes those tests and would read as survived.
 
-Recommended answer taken unattended (2026-09-30): every survivor gets one sentinel run before triage.
-The mutated line is replaced by a statement that raises (Python `raise`, JS `throw`, C# `throw`, Go
-`panic`), under the same per-mutant apply-and-restore gate. The changed tests failing means the
-line is reached, so the mutant is a survivor. The tests passing means the line is unreached (or the
-exception is swallowed), so the mutant is reported `unreached`: a mapping miss, never a survivor and
-never given a cause. A tool whose restricted run keeps its own no-coverage state (Phase 1 column,
-DT8) skips the sentinel. Cost: one extra run per survivor, not per mutant.
+Recommended answer taken unattended (2026-09-30): every survivor gets one sentinel run before triage,
+under the same per-mutant apply-and-restore gate.
+
+- The sentinel is a process exit with a unique code, inserted before the statement that contains
+  the mutated line (at its indentation; for a continuation or header line, before the statement's
+  first line), with the original code left in place. Python `os._exit(97)`, JS
+  `process.exit(97)`, C# `Environment.Exit(97)`, Go `os.Exit(97)`. An `except Exception` or
+  `catch` cannot swallow a process exit.
+- Reached: the changed-test run exits with code 97. The mutant is a survivor.
+- Unreached: the run completes without code 97. The mutant is reported `unreached`: a mapping
+  miss, never a survivor and never given a cause.
+- Unknown: any other failure (a syntax or compile error from the insertion, a runner crash). The
+  mutant is a survivor with reachability `unknown`, which DT5's rule handles.
+- A tool whose restricted run keeps its own no-coverage state (Phase 1 column, DT8) skips the
+  sentinel. Cost: one extra run per survivor, not per mutant.
+
+Review 2, 2026-09-30 (old: replace the line with a raise, any failure means reached; new: insert
+an exit before the statement, only exit code 97 means reached; why: a replacement can fail to
+parse, which read as a false "reached", and a `try/except: pass` test, the exact can't-fail shape
+this release targets, swallowed the raise and hid its mutants as `unreached`).
 
 The sentinel is a reachability probe only. It is not the extreme-mutation mode A12 names as a
 candidate (that mode would report pseudo-tested methods as findings); no sentinel result becomes a
-finding.
+finding. A reached survivor under a test that swallows exceptions is close to a pseudo-tested
+signal; reporting it as such stays A12's scope.
 
 Basis: SKILL.md:125-126 (no-coverage only when a coverage report exists); restoration-regimes.md:35-43
 (in-tree per-mutant gate); A12 (spec:977).
@@ -351,10 +380,22 @@ Found by the devils-advocate pass (HIGH). The config's `command` invokes the mut
 (config-template.md:18-22); nothing holds the project's test command or its per-file filter.
 
 Recommended answer taken unattended (2026-09-30): a new optional key `test-command`, a command with
-a `{tests}` placeholder that the audit fills with the changed test paths (for example
-`python -m pytest {tests}`, `npx vitest run {tests}`, `dotnet test --filter {tests}` with the
-filter form Phase 1 records). `setup apply` proposes it per ecosystem. The exercised scope under the
-manual protocol refuses without it, naming `/mutation-testing:setup apply`.
+a `{tests}` placeholder that the audit fills with the changed test paths, for runners that take a
+path list (`python -m pytest {tests}`, `python -m unittest {tests}`, `npx vitest run {tests}`,
+`npx jest {tests}`). `setup apply` proposes it per ecosystem. The exercised scope under the manual
+protocol refuses without it, naming `/mutation-testing:setup apply`.
+
+- Each path is substituted as its own shell-quoted argument. A changed path containing a character
+  outside `[A-Za-z0-9._/-]` is refused by name, never substituted: file names come from a diff the
+  audit may be reading on an untrusted branch.
+- v1 supports path-list runners only. Runners that filter by name (`dotnet test --filter`, Go
+  `-run`, surefire `-Dtest`) use a tool restriction Phase 1 verified, or the scope refuses for that
+  ecosystem; `setup check` reports a `test-command` without `{tests}` as a failure.
+- Windows: the command runs under the same bash the plugin's scripts use (Git Bash); forward-slash
+  repository paths are passed as-is. No `cmd.exe` form is supported.
+- Review 2, 2026-09-30 (old: one raw substitution, a `dotnet --filter` example; new: per-path
+  quoting, a character allowlist, path-list runners only; why: spaces split arguments, a crafted
+  file name was shell injection, and a name filter cannot take a path list).
 
 Basis: config-template.md:18-22; SKILL.md:161-163 (manual protocol).
 
@@ -364,13 +405,24 @@ Found by the devils-advocate pass (HIGH and MEDIUM). Phase 0 resolves the write 
 dirty-target stop before Phase 1 knows which files the exercised scope will mutate, and its
 baseline runs the whole suite.
 
-Recommended answer taken unattended (2026-09-30): under the exercised scope, Phase 0 also resolves
-the changed tests (DT1), the mapping (DT3) and the effective runner (tool with a verified restriction,
-else manual, DT8) before the first mutant. The dirty-target stop and the regime gate, including the
-refusal rule, apply to the mapped files and the effective regime. Phase 0 also runs the changed-test
-set alone twice: red stops the run, and two different results stop it as flaky, because a flaky
-changed test kills mutants by accident and hides the weakness being judged. Its wall-clock is the
-cost-estimate base (DT4).
+Recommended answer taken unattended (2026-09-30): under the exercised scope Phase 0 runs in this
+order: config, tool availability, changed tests (DT1), mapping (DT3), effective runner and regime
+(a tool with a verified restriction, else manual, DT8), dirty-target stop on the mapped files,
+regime gate including the refusal rule, restricted baseline run twice, then the Phase 0 snapshot.
+
+- The restricted double run replaces the full-suite baseline for this scope: a red test the
+  mutants never run cannot kill them, so it is no reason to stop. Red stops the run; two different
+  results stop it as flaky. Its wall-clock is the cost-estimate base (DT4).
+- Two runs catch only gross flakiness (a test failing 10% of runs differs across two runs about
+  18% of the time). So after the mutant loop, the changed-test set runs once more on the
+  unmutated tree; a result different from the baseline marks every kill in the report as
+  unreliable.
+- Phase 1 steps 2 and 3 (coverage drop, suppression dispositions) key on the mapped-line set
+  instead of the changed-line set under this scope, so an arid record on a mapped node still
+  applies instead of falling to not-examined (SKILL.md:143-144).
+- Review 2, 2026-09-30 (old: order and baseline unstated, steps 2 and 3 unadapted; new: the order
+  above, replacement baseline, post-loop rerun, mapped-line keying; why: an unrelated red test
+  stopped the run, and every suppression on a mapped node was ignored).
 
 Basis: SKILL.md:93-119 (Phase 0 stops and regime); SKILL.md:335-336 (flaky tests inflate the score).
 
@@ -382,15 +434,23 @@ change under review" (`docs/conventions/detector-findings/README.md:234`). Under
 scope the mutated node is outside the change; the change is the tests.
 
 Recommended answer taken unattended (2026-09-30): keep the rule ids and the IMPORTANT tier, and
-amend the row's rationale to cover both scopes: under the exercised scope IMPORTANT's
-degradation-with-a-named-trigger limb matches, as it does for `testing/audit/rule-zero-assertion`
-(the changed test is a coverage claim nothing backs; the trigger is the first regression in the
-mapped behavior shipping green). The tier and every consumer's reading of it stay the same
-(`plugins/review/skills/audit-enforceability/context/crosswalk.md:38-41` keys on the rule id). The
-amendment is a convention edit with its own CHANGELOG entry and a consumer check first.
+amend the rationale of two rows, `rule-survivor-productive` (README.md:234) and
+`rule-survivor-unclassified` (README.md:235, which argues from "a mutant survived inside the
+diff"), to cover both scopes. Under the exercised scope IMPORTANT's degradation-with-a-named-trigger
+limb matches for every productive or unclassified survivor, whatever its cause. The trigger is
+named so it holds for `input-gap` too: "the first regression that changes the result for an input
+the changed tests do not use, in a function they exercise, ships green". The row is rule-keyed, so
+the argument must hold for every cause; README.md:240 forbids a per-finding tier drop. The tier and
+every consumer's reading of it stay the same: `crosswalk.md:38-41` keys on the rule id, and no
+reader in `persist-findings.md` or `SKILL.md` quotes the rationale text. The amendment is a
+convention edit with its own CHANGELOG entry and a consumer check first.
 
-Basis: `docs/conventions/detector-findings/README.md:234` and the `rule-zero-assertion` row below
-it; crosswalk.md:38-41.
+Review 2, 2026-09-30 (old: row 234 only, trigger "the first regression in the mapped behavior";
+new: rows 234 and 235, a trigger that holds for `input-gap`; why: row 235 argues from the diff
+too, and the old trigger rested on "a coverage claim nothing backs", which an `input-gap` test
+does back).
+
+Basis: `docs/conventions/detector-findings/README.md:234-235, :238, :240`; crosswalk.md:38-41.
 
 ## Dependency order
 

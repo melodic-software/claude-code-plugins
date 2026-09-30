@@ -78,29 +78,32 @@ Then the fixture, `plugins/mutation-testing/skills/audit/evals/fixtures/exercise
 
 - `app.py`: `price_with_tax` spread over several lines, so the manual protocol's one-mutant-per-line
   operators (SKILL.md:158-163) yield more than one mutant, and a discount branch above a threshold.
-- `scenarios/<name>/test_app.py`, one per outcome: `calls-sut` (survivors, `expected-from-sut`),
-  `relation` (survivors, `input-gap`), `copied-logic` (no survivor, the blind-spot line), `literal`
-  (no survivor), `no-assertion` (survivors, `no-assertion`), `unreached-branch` (the discount-branch
-  mutants are `unreached`, never survivors).
+- `scenarios/<name>/test_app.py`, one per outcome, snake-case directory names so
+  `python -m unittest <path>` imports them: `calls_sut` (survivors, `expected-from-sut`),
+  `relation` (survivors, `expected-from-sut`: its expected side calls the code under test),
+  `boundary` (the threshold-line mutant is reached and survives, `input-gap`), `copied_logic` (no
+  survivor, the blind-spot line), `literal` (no survivor), `no_assertion` (survivors,
+  `no-assertion`), `unreached_branch` (the discount-branch mutants are `unreached`, never
+  survivors). At least one listed mutant sits on a continuation or header line (DT13).
 - `.claude/mutation-testing.md`: `tool: manual`, `diff-target: main`, `mutate: [app.py]`,
-  `tests: ["**/test_*.py"]`, `test-command: python -m unittest {tests}` (or the form Phase 1
-  records).
-- `EXPECTED.md`: per scenario, the exact mutants (line, operator), the expected state and cause of
-  each, which the eval cases and the self-check both read.
+  `tests: ["**/test_*.py"]`, `test-command: python -m unittest {tests}`.
+- `EXPECTED.md`: per scenario, the exact mutants (line, operator), the expected state, sentinel
+  result and cause of each, which the eval cases and the self-check both read.
 
 **Sanity Check:**
 
 - `bash plugins/mutation-testing/scripts/exercised-fixture.test.sh` exits 0.
-- `ls plugins/mutation-testing/skills/audit/evals/fixtures/exercised-scope/scenarios | wc -l` returns 6.
-- `grep -cE 'expected-from-sut|no-assertion|input-gap|unreached' plugins/mutation-testing/skills/audit/evals/fixtures/exercised-scope/EXPECTED.md` is at least 4.
+- `ls plugins/mutation-testing/skills/audit/evals/fixtures/exercised-scope/scenarios | wc -l` returns 7.
+- `for t in expected-from-sut no-assertion input-gap unreached; do grep -q -- "$t" plugins/mutation-testing/skills/audit/evals/fixtures/exercised-scope/EXPECTED.md || echo "missing $t"; done` prints nothing.
 
 ### Phase 3: Config keys and setup (DT2, DT14) [TODO]
 
 - `skills/setup/templates/config-template.md`: optional `tests` key (framework filename-convention
   globs; never a bare `test/` or `tests/` folder, per Q6) and optional `test-command` key (with the
   `{tests}` placeholder).
-- `skills/setup/SKILL.md`: `apply` proposes both per detected ecosystem; `check` reports a
-  bare-folder `tests` glob and a `test-command` without `{tests}` as failures.
+- `skills/setup/SKILL.md`: `apply` proposes both per detected ecosystem, `test-command` only for
+  path-list runners (DT14); `check` reports a bare-folder `tests` glob and a `test-command` without
+  `{tests}` as failures.
 - `skills/setup/evals/evals.json`: a case where a bare `tests/` glob fails `check`.
 
 The user's reading of Q6 (design DT2 open question) may change where `apply` takes the `tests`
@@ -125,35 +128,41 @@ rule ids, which do not change).
 Changes, all under `plugins/mutation-testing/` unless named:
 
 - `skills/audit/SKILL.md`:
-  - Argument parsing: `--exercised`, mutually exclusive with `--full` and `--paths`; the
-    description's flag list names it.
-  - Phase 0: under the exercised scope, resolve the changed tests (committed range plus working
-    tree, DT1), the mapping (DT3; zero functions ends as `no mapping: scope empty`), and the
-    effective runner (a verified tool restriction, each option with a four-part verification record,
-    else manual with `test-command`, DT8, DT14) before the first mutant. The dirty-target stop and
-    the regime gate apply to the mapped files and the effective regime. Run the changed-test set
-    alone twice: red or differing results stop the run (DT15).
-  - Phase 1: the exercised scope and its trigger (DT4: auto-engage on a test-only diff with the
-    `medium` cap when no cap is set; the mixed-diff hint with the unexamined count). Step 4's test
-    selection becomes the changed-test set under this scope, stated as a divergence (DT1, DT12).
-  - Phase 3: each mutant runs against the changed-test set; every survivor gets one sentinel run
-    (DT13) and an unreached one is reported `unreached`, never a survivor.
-  - Phase 4: the triage brief adds the cause for productive, reached survivors, with a quoted line
-    or `unclassified`, and the tie-break rules (DT5).
+  - Description: no longer "diff-scoped" only; it names both scopes. Argument parsing:
+    `--exercised`, mutually exclusive with `--full` and `--paths`.
+  - Phase 0, under the exercised scope, in DT15's order: config, tool, changed tests (committed
+    range plus working tree, DT1), mapping (DT3; zero functions ends as `no mapping: scope
+    empty`), effective runner and regime (a verified tool restriction, each option with a
+    four-part verification record, else manual with `test-command` and DT14's quoting and
+    allowlist), dirty-target stop on the mapped files, regime gate, restricted baseline twice
+    (replacing the full-suite baseline for this scope), snapshot.
+  - Phase 1: the trigger (DT4: auto-engage when the committed range plus working tree touches
+    `tests` and no `mutate` line; cap is the smaller of the effort cap and 15 when no cap is set;
+    the mixed-diff hint with the unexamined count). Steps 2 and 3 key on the mapped-line set, and
+    step 4's test selection becomes the changed-test set, both stated as divergences (DT1, DT12,
+    DT15).
+  - Phase 3: each mutant runs against the changed-test set; every survivor gets one sentinel run,
+    an exit with code 97 inserted before its statement (DT13): code 97 is reached, no 97 is
+    `unreached` (never a survivor), any other failure is reachability `unknown`. After the loop,
+    one unmutated rerun of the set; a changed result marks kills unreliable (DT15).
+  - Phase 4: the triage brief hands over the whole changed-test set and adds the cause for
+    productive survivors, with a quoted line or `unclassified`, the tie-break rules, and the
+    `unknown`-reachability rule (DT5, DT12).
   - Phase 5: coverage and gap from reachability, else `unknown` (DT7); the fixed scope line
     `Scope: exercised (<explicit|auto-engaged>), changed tests as one set`; the fixed blind-spot line
     (DT6).
   - `## Next`: add `A clean exercised run: /testing:test-value.`
 - `skills/audit/templates/report.md`: the scope line, a `Cause` column in the Survivors table, an
-  `Unreached` count, the blind-spot line.
+  `Unreached: <n>` line, the blind-spot line.
 - `skills/audit/context/persist-findings.md`: the cause leads the `Finding` text and selects the
   `Action` wording; no new rule id and no new column; an `unreached` mutant is never a row.
 - `skills/principles/reference/theory.md`, section "What a mutation score is evidence for": one
   paragraph on the copied-logic limit with the Tier 0 matrix, which the audit cites.
-- `skills/audit/evals/evals.json`: one case per fixture scenario, one with uncommitted tests, one
-  with an unmappable test.
-- `docs/conventions/detector-findings/README.md` (the `rule-survivor-productive` row's rationale,
-  DT16) and `docs/conventions/detector-findings/CHANGELOG.md`.
+- `skills/audit/evals/evals.json`: one case per fixture scenario (7), one with uncommitted tests,
+  one with an unmappable test.
+- `docs/conventions/detector-findings/README.md` (the rationale of the `rule-survivor-productive`
+  and `rule-survivor-unclassified` rows, DT16, with the trigger phrase "an input the changed tests
+  do not use") and `docs/conventions/detector-findings/CHANGELOG.md`.
 
 No em dashes in new text (the existing `report.md` uses them; do not copy them).
 
@@ -165,9 +174,10 @@ No em dashes in new text (the existing `report.md` uses them; do not copy them).
 - `grep -c 'Scope: exercised (' plugins/mutation-testing/skills/audit/templates/report.md` returns 1.
 - `grep -c '| Cause |' plugins/mutation-testing/skills/audit/templates/report.md` returns 1.
 - `grep -c 'A clean exercised run: /testing:test-value' plugins/mutation-testing/skills/audit/SKILL.md` returns 1.
-- `python3 -c "import json;d=json.load(open('plugins/mutation-testing/skills/audit/evals/evals.json'));print(len(d['evals']))"` prints at least 22.
+- `python3 -c "import json;d=json.load(open('plugins/mutation-testing/skills/audit/evals/evals.json'));print(len(d['evals']))"` prints at least 23.
+- `grep -c 'os._exit(97)' plugins/mutation-testing/skills/audit/SKILL.md` is at least 1 (the sentinel).
 - `test "$(git show origin/main:plugins/mutation-testing/skills/audit/context/persist-findings.md | grep -o 'rule-survivor-[a-z-]*' | sort -u)" = "$(grep -o 'rule-survivor-[a-z-]*' plugins/mutation-testing/skills/audit/context/persist-findings.md | sort -u)"` passes (no new rule id).
-- `grep -c 'exercised' docs/conventions/detector-findings/README.md` is at least 1.
+- `grep -c 'an input the changed tests do not use' docs/conventions/detector-findings/README.md` returns 2.
 - `/skill-quality:check check plugins/mutation-testing` reports no FAIL.
 - `git diff origin/main -- plugins/mutation-testing docs/conventions | grep '^+' | grep -cP '\x{2014}'` returns 0 (no em dash added).
 
@@ -177,25 +187,28 @@ No em dashes in new text (the existing `report.md` uses them; do not copy them).
   and two config keys); description names the exercised scope.
 - `plugins/mutation-testing/CHANGELOG.md` entry; `README.md` names `--exercised`, `tests` and
   `test-command`.
-- Live runs, one per scenario `calls-sut`, `no-assertion`, `copied-logic` and `unreached-branch`,
-  plus `calls-sut` with its tests left uncommitted, run in `live/calls-sut-uncommitted/`. For
-  each: copy `app.py` and the config to
-  `.work/tautological-tests-mutation-scope/live/<run>/` (memory slice, never committed),
-  `git init -b main`, commit `app.py`, then branch `tests` and add the scenario's test file
-  (committed, or left uncommitted for the variant). Run from that directory:
-  `claude -p --plugin-dir <worktree>/plugins/mutation-testing "/mutation-testing:audit"` and save
-  stdout as `report.md` there. Record the Claude Code version, and confirm from the output that the
-  edited plugin (the new version number) loaded rather than the installed one; if the installed
-  copy wins, disable it for the run with `claude plugin disable` and re-enable after, a user-scope
-  change that needs the user's OK at run time. The distilled results go into this phase's notes.
+- Live runs, one per scenario `calls_sut`, `boundary`, `no_assertion`, `copied_logic` and
+  `unreached_branch`, plus `calls_sut` with its tests left uncommitted, run as
+  `calls_sut_uncommitted`. Each runs in `"${TMPDIR:-/tmp}/tt-mutation-live/<run>/"`, outside this
+  checkout so its CLAUDE.md and AGENTS.md do not load into the run. For each: copy `app.py` and
+  `.claude/mutation-testing.md`, `git init -b main`, commit both on `main`, then
+  `git switch -c tests` and add the scenario's test file (committed, or left uncommitted for the
+  variant). Run from that directory:
+  `claude -p --permission-mode auto --plugin-dir <worktree>/plugins/mutation-testing "/mutation-testing:audit"`
+  (auto mode per `AGENTS.md`, because the audit edits `app.py` and runs Bash) and save stdout as
+  `report.md` there. Record the Claude Code version, and confirm from the output that the edited
+  plugin (the new version number) loaded rather than the installed one. If the installed copy wins,
+  disable it for the run with `claude plugin disable` and re-enable it after; that is a user-scope
+  change that needs the user's OK at run time. Distill the results into this phase's notes.
 
-**Sanity Check:**
+**Sanity Check** (with `L="${TMPDIR:-/tmp}/tt-mutation-live"`):
 
-- `grep -l 'Scope: exercised (auto-engaged)' .work/tautological-tests-mutation-scope/live/*/report.md | wc -l` returns 5.
-- `grep -cE '^\| .*\| expected-from-sut \|' .work/tautological-tests-mutation-scope/live/calls-sut/report.md` is at least 1.
-- `grep -cE '^\| .*\| no-assertion \|' .work/tautological-tests-mutation-scope/live/no-assertion/report.md` is at least 1.
-- `grep -c 'copied-logic' .work/tautological-tests-mutation-scope/live/copied-logic/report.md` is at least 1 (the blind-spot line).
-- `grep -cE '^\| .*\| (expected-from-sut|no-assertion|input-gap) \|' .work/tautological-tests-mutation-scope/live/unreached-branch/report.md` returns 0.
+- `grep -l 'Scope: exercised (auto-engaged)' "$L"/*/report.md | wc -l` returns 6.
+- `grep -cE '^\| .*\| expected-from-sut \|' "$L/calls_sut/report.md"` is at least 1, and the same for `"$L/calls_sut_uncommitted/report.md"`.
+- `grep -cE '^\| .*\| input-gap \|' "$L/boundary/report.md"` is at least 1.
+- `grep -cE '^\| .*\| no-assertion \|' "$L/no_assertion/report.md"` is at least 1.
+- `grep -cE '^\| [^|]+:[0-9]+ \|' "$L/copied_logic/report.md"` returns 0 (no survivor row) and `grep -c 'copied-logic' "$L/copied_logic/report.md"` is at least 1 (the blind-spot line).
+- `grep -cE '^Unreached: [1-9]' "$L/unreached_branch/report.md"` returns 1 and `grep -cE '^\| .*\| (expected-from-sut|no-assertion|input-gap) \|' "$L/unreached_branch/report.md"` returns 0.
 - `bash scripts/validate-plugins.sh` exits 0.
 - `bash scripts/run-plugin-tests.sh` exits 0.
 - `bash scripts/check-changelog-parity.sh --check` exits 0.
@@ -205,7 +218,7 @@ No em dashes in new text (the existing `report.md` uses them; do not copy them).
 ## Files affected
 
 Created: `plugins/mutation-testing/scripts/exercised-fixture.test.sh`;
-`plugins/mutation-testing/skills/audit/evals/fixtures/exercised-scope/` (`app.py`, six
+`plugins/mutation-testing/skills/audit/evals/fixtures/exercised-scope/` (`app.py`, seven
 `scenarios/*/test_app.py`, `.claude/mutation-testing.md`, `EXPECTED.md`);
 `docs/specs/tautological-tests-mutation-scope/design/tool-test-restriction.md`.
 
@@ -235,9 +248,9 @@ Modified elsewhere: `docs/conventions/detector-findings/README.md`,
 |---|---|---|---|
 | Static mapping misses a function the tests reach through indirection | Med | Low | Fewer scoped lines, never a false survivor; zero functions ends as `no mapping: scope empty`; the scope report lists the mapped functions |
 | Static mapping includes code the changed tests never reach | Med | Low | The sentinel run reports those mutants `unreached` (DT13) |
-| A swallowed exception makes a reached line read as unreached | Low | Low | The report names `unreached` as "unreached or exception swallowed" |
+| The sentinel insertion breaks parsing or compiling | Med | Low | Reachability becomes `unknown`, never "reached"; DT5's `unknown` rule applies (DT13) |
 | No tool can be restricted to named tests | Med | Med | Manual protocol with `test-command` (DT8, DT14), resolved in Phase 0 |
-| A flaky changed test kills mutants by accident | Med | Med | Phase 0 runs the changed-test set twice and stops on a difference (DT15) |
+| A flaky changed test kills mutants by accident | Med | Med | Phase 0 runs the changed-test set twice and stops on a difference; a post-loop unmutated rerun marks kills unreliable when it differs. Two runs catch gross flakiness only (DT15) |
 | Auto-engaged runs cost more than expected | Med | Med | `medium` cap when no cap is set; estimate from the restricted baseline (DT4) |
 | The `tests` defaults drift from the `testing` adapters' globs | Med | Low | Known risk; Q6 reading is a user question (DT2) |
 | The cause label is wrong but plausible | Med | Med | Quoted evidence or `unclassified`, tie-break rules (DT5); the fixture's causes are graded by evals and live runs |
@@ -284,8 +297,27 @@ timing stated in the Brief (reviewer 14, DA 13); preflight ordering and restrict
 mixed-diff hint count (DA 16). Reviewer 3 (Q6) and reviewer 15 (the spec's Release 2 gate path) are
 open questions below; the single-language fixture (DA 11) is a recorded risk.
 
-Not re-stress-tested: DT12-DT16 and the revised phases were written after both passes and have not
-had a fresh-context review of their own. `/planning:plan review` before approval covers them.
+Review 2 (2026-09-30): `/planning:plan review` dispatched a fresh-context plan-reviewer on DT12-DT16
+and the sections they changed. Findings: 1 CRITICAL, 10 IMPORTANT, 5 SUGGESTION. All were folded
+in:
+
+| Finding | Resolution |
+|---|---|
+| The `relation` scenario expected `input-gap`, but DT5's tie-break makes it `expected-from-sut` (CRITICAL) | `relation` now expects `expected-from-sut`; a new `boundary` scenario carries `input-gap` (DT9; seven scenarios) |
+| Sentinel replacement can fail to parse and read as "reached" | DT13 inserts an exit before the statement; only exit code 97 means reached; other failures mean `unknown` |
+| A `try/except: pass` test swallowed the sentinel and hid its mutants | A process exit cannot be caught; the Risks row is removed |
+| `{tests}` was unquoted, open to injection, and wrong for name filters | DT14: per-path quoting, a character allowlist, path-list runners only, Windows through Git Bash |
+| Auto-engage read only the committed diff | DT4 trigger reads the committed range plus the working tree |
+| Live run had no permission mode and ran inside the checkout | `--permission-mode auto`; the run root moves outside the checkout; config committed on `main` |
+| Sanity checks passed vacuously | Per-term greps, a zero-survivor-row check, an `Unreached: n` check, the exact README phrase |
+| Row 235 (`rule-survivor-unclassified`) also argues from the diff | DT16 amends rows 234 and 235 |
+| The degradation trigger did not hold for `input-gap` | DT16 trigger reworded to name an unused input |
+| Phase 0 order and baseline unstated | DT15 fixes the order; the restricted double run replaces the full-suite baseline |
+| Phase 1 steps 2-3 still keyed on changed lines | DT15 re-keys them on the mapped-line set |
+| Suggestions: two runs miss mild flakes, cap raised a `low` run, triage handover ambiguous, A12 note, stale description | Post-loop unmutated rerun; cap is the smaller of the effort cap and 15; the whole set is handed over (DT12); A12 note in DT13; description reworded in Phase 4 |
+
+Not probed: whether `claude -p --plugin-dir` shadows an installed plugin of the same name (Phase 5
+records it at run time).
 
 ## Execution shape
 
