@@ -2,7 +2,7 @@
 
 ## Decision
 
-**Parked — unpaid infra.** This repository does not add a composition step that writes the
+**Parked: unpaid infra.** This repository does not add a composition step that writes the
 fleet `claude-permissions` allow/deny floor into a Claude Code cloud session's
 `~/.claude/settings.json`
 ([#3172](https://github.com/melodic-software/claude-code-plugins/issues/3172)).

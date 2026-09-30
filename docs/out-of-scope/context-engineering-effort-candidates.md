@@ -2,7 +2,7 @@
 
 ## Decision
 
-**Deferred — record positions; no unpaid vertical.** This repository does not open a parallel
+**Deferred: record positions; no unpaid vertical.** This repository does not open a parallel
 context-engineering implementation lane for the three candidate inputs in
 [#3593](https://github.com/melodic-software/claude-code-plugins/issues/3593). Each stays a
 position for its incumbent owner. ADR 0004 D-3 (no bulk `plugins/**` sweep; findings land in the
