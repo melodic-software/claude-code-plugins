@@ -9,6 +9,14 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The interview surface records a hedged decision, and an accepted or hedged row with an unticked commitment exports as open.** The page has a Hedged choice that takes a required condition; it exports as `answer:: hedged: <recommendation>` with the condition in `note::` and imports back as `hedged`. A row whose counting decision is an accept or a hedge while any commitment is unticked, including after a revise replaces the commitment list, now grades `open` in the ledger, so `check-open-questions.sh` fails it under `lock` instead of passing it with the commitments only named as risks in the Brief ([#5471](https://github.com/melodic-software/claude-code-plugins/issues/5471)).
 
+## [0.52.1] - 2026-09-30
+
+### Changed
+
+- **`reference/standards-contract.md` is the standards contract at 1.0.1.** The contract's prose
+  drops its em dashes; nothing else in it changes. An index at 1.0.0 is older than the bundled
+  contract, so `setup` offers the guided migration.
+
 ## [0.52.0] - 2026-09-30
 
 ### Changed

@@ -185,14 +185,28 @@ out of scope until such a signal exists.
   Which of them, if either, a hook payload reaches has not been traced. Refusing
   is the one verdict correct under all of them, and needs no such trace. A NUL is
   treated as malformed input rather than as an exotic-but-valid command.
-- **Read-only git inside PowerShell grouping is refused.** A PowerShell command
-  carrying a construct the git guards cannot tokenize (`{}` / `()`, a backtick,
-  `--%`, a subexpression) goes to a fail-closed sink, including
-  `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }`.
-  Unroll the loop into flat statements (`git -C <path> status; git -C <path>
-  log --oneline -3`). Related: #4235 lets some interrogation forms
-  through that sink; this note documents the rewrite that already works
-  ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)).
+- **Read-only git inside PowerShell grouping passes; anything else in it is
+  refused.** A PowerShell command carrying a construct the git guards cannot
+  tokenize (`{}` / `()`, a backtick, `--%`, a subexpression) goes to a
+  fail-closed sink. `block-dangerous-git` lets it through when every git
+  invocation is a built-in interrogator (`status`, `log`, `show`, `diff`,
+  `rev-parse`, `ls-files`, `remote` alone or `remote -v`, `remote show`,
+  `stash list`, and similar), optionally behind `-C <path>`, so
+  `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }`
+  runs. A `-c` override, `--exec-path`, a computed or obscured subcommand, an
+  alias, `fetch`, `grep` or any mutating verb keeps the whole command blocked,
+  as does an environment write the guard cannot prove has a plain literal
+  target: `Set-Item`, `New-Item` or `Set-Content` with a path that is computed,
+  held in a variable, splatted or piped in, an `Env:` provider path, a
+  `$env:NAME` assignment, a static .NET call or any method call
+  (`SetEnvironmentVariable`, `InvokeMember`, `.Invoke(`), `ForEach-Object
+  -MemberName`, or a function, filter or alias definition. Dynamic invocation,
+  launchers and here-string shapes block as before. The scan reads syntax, so a
+  name split in pieces is refused too; it does not read code in a file. A
+  blocked loop runs once unrolled into flat statements (`git -C <path> status;
+  git -C <path> log --oneline -3`)
+  ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236),
+  [#4235](https://github.com/melodic-software/claude-code-plugins/issues/4235)).
 - **Some PowerShell here-string shapes are refused with no allow token.** A
   confirmed here-string opener whose line prefix holds a quote, backslash or
   backtick (`Set-Content -Path "f.txt" -Value @'`, `Set-Content C:\tmp\f.txt @'`),

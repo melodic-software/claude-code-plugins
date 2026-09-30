@@ -615,6 +615,28 @@ run_pwsh "PS: git merge-tree (create-only plumbing, allowed)" \
   "& { git merge-tree --write-tree main HEAD }" 0
 run_pwsh "PS: git count-objects (interrogator, allowed)" "& { git count-objects -v }" 0
 run_pwsh "PS: git for-each-ref (interrogator, allowed)" "& { git for-each-ref refs/heads }" 0
+# Dual-mode `remote` and `stash` are argument-aware: their read-only spellings
+# pass, their mutating verbs still block, and a mutating verb anywhere in the
+# command blocks the whole of it.
+run_pwsh "PS: git remote -v in scriptblock (read-only, allowed)" "& { git remote -v }" 0
+run_pwsh "PS: git remote --verbose (read-only, allowed)" "& { git remote --verbose }" 0
+run_pwsh "PS: bare git remote (read-only, allowed)" "& { git remote }" 0
+run_pwsh "PS: git remote show origin (read-only, allowed)" "& { git remote show origin }" 0
+run_pwsh "PS: git remote get-url origin (read-only, allowed)" \
+  "& { git remote get-url origin }" 0
+run_pwsh "PS: git stash list (read-only, allowed)" "& { git stash list }" 0
+run_pwsh "PS: git stash show (read-only, allowed)" "& { git stash show -p }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only foreach loop with remote and stash (allowed)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; \"== \$d\"; git -C \$p remote -v; git -C \$p status --short --branch | Select-Object -First 8; git -C \$p log --oneline -3; git -C \$p stash list }" 0
+run_pwsh "PS: git remote add (remote config write, blocked)" "& { git remote add x y }" 2
+run_pwsh "PS: git stash pop (worktree write, blocked)" "& { git stash pop }" 2
+run_pwsh "PS: git stash drop (destroys a stash, blocked)" "& { git stash drop }" 2
+run_pwsh "PS: bare git stash (means push, blocked)" "& { git stash }" 2
+run_pwsh "PS: -v before a mutating remote verb (blocked)" "& { git remote -v rename a b }" 2
+run_pwsh "PS: read-only remote beside a mutating one (blocked)" \
+  "& { git remote -v; git remote add x y }" 2
+run_pwsh "PS: stash list beside stash drop (blocked)" "& { git stash list; git stash drop }" 2
 # Dynamic-invocation regressions: iex / string-literal call run an opaque string,
 # so a construct-free form must still route to the fail-closed sink (it otherwise
 # reached the Bash parser, which sees `iex`, not git, and passed).
@@ -745,6 +767,22 @@ assert_absent "PS msg #2662: iex headline does not say 'PowerShell git command'"
 stop_nov_out="$(pwsh_stderr 'git --% commit --no-verify')"
 assert_contains "PS msg #2662: unparsable-git path still cannot-parse" \
   "$stop_nov_out" "cannot be parsed with confidence"
+
+# The canonical-commit-form advice belongs to a commit: a grouped push must not
+# get it, and the special-construct line names the PowerShell rewrite before the
+# Bash-tool escape.
+# shellcheck disable=SC2016  # literal PowerShell variables
+grp_out="$(pwsh_stderr 'foreach ($b in $x) { git push origin $b }')"
+assert_absent "PS msg: blocked grouping with no commit token omits the commit form" \
+  "$grp_out" "canonical PowerShell commit form"
+assert_contains "PS msg: special-construct line names the unroll rewrite" \
+  "$grp_out" "unroll"
+assert_contains "PS msg: unroll comes before the Bash tool option" \
+  "${grp_out%%Bash tool*}" "unroll"
+# shellcheck disable=SC2016
+assert_contains "PS msg: blocked grouping with git commit keeps the commit form" \
+  "$(pwsh_stderr 'foreach ($b in $x) { git commit --no-verify -m $b }')" \
+  "canonical PowerShell commit form"
 
 malformed_rc=0
 bash "$HOOK" <<<'not json at all' >/dev/null 2>&1 || malformed_rc=$?

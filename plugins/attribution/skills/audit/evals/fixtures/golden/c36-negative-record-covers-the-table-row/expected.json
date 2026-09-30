@@ -1,0 +1,19 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous on verdict and on failing C3 and C4",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://code.claude.com/docs/en/mcp.md"
+  },
+  "notes": {
+    "shape": "A table row whose how-to-evaluate cell reproduces the source's ceiling sentence, in a file whose opening record names the row's two values, cites the page, dates the check and states a recheck trigger. The row also carries a local severity scheme the source does not have.",
+    "carve_outs": "None is applied as such: the panel grades the criteria. The record sits above the row and not beside it, so the conforming-record carve-out is argued through C3 instead.",
+    "rubric": "C1 holds and C2 holds: the ceiling sentence corresponds to the source's and its numbers are the source's. C3 FAILS: the record names W7's two values, the source, the as-of date and the trigger, so the attribution's scope matches the derivation's. C4 FAILS: the row maps the restated limits onto a local severity scheme with no counterpart upstream. One failing criterion clears the candidate.",
+    "measured": "fingerprint.mjs at k=5: containment 0.086, jaccard 0.056, longest matched span 15 words at local line 12. The span limb fires only just, which is why the candidate reaches judgment.",
+    "carries": "This case fails a run that flags a row for copying a sentence without reading the record at the top of the file. The record has to name the row's values; one that names other criteria would leave the row a finding.",
+    "stamp_window": "The record's as-of date sits inside the configured expiry window today. Once it ages past that window the deterministic stamp rule reports it, which is a different rule and class from this one; re-stamp the case text when that happens."
+  }
+}

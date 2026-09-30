@@ -1,6 +1,13 @@
 # Changelog for the standards convention
 
-## [1.0.0] - 2026-07-17
+## 1.0.1 - 2026-09-30
+
+Wording only. The contract's prose drops its em dashes for the punctuation each sentence needs,
+and the example index in it carries the new version. The schema, the index shape, the resolution
+ladder and the migration rules are unchanged. An index at 1.0.0 is older than the bundled
+contract, so setup offers the guided migration.
+
+## 1.0.0 - 2026-07-17
 
 Initial contract:
 

@@ -6,5 +6,5 @@ Officially documented behavior of the skill listing, and the reason this ladder 
   **shortens descriptions to fit a character budget**, and on overflow it **drops descriptions
   starting with the skills you invoke least**. The budget scales with the context window
   (`skillListingBudgetFraction`, default 1%); `skillListingMaxDescChars` caps each entry.
-- A skill set to `disable-model-invocation: true` is **absent from the model's listing entirely** —
+- A skill set to `disable-model-invocation: true` is **absent from the model's listing entirely**:
   not truncated, gone.
