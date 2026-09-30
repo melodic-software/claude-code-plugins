@@ -285,9 +285,11 @@ check() {
     file=.claude/CLAUDE.md
   elif [[ -f "$ROOT/CLAUDE.local.md" && -f "$ROOT/AGENTS.md" ]]; then
     file=CLAUDE.md note=' (CLAUDE.local.md here keeps AGENTS.md from loading)'
+  elif [[ -f "$ROOT/CLAUDE.local.md" && ! -f "$ROOT/AGENTS.md" ]]; then
+    file=CLAUDE.local.md note=' (it is personal; a CLAUDE.md would share the line with the team)'
   elif [[ ! -f "$ROOT/AGENTS.md" ]]; then
     # shellcheck disable=SC2088 # printed for the user, not expanded
-    file='~/.claude/CLAUDE.md' note=' (this repository has neither; that file applies to every repository)'
+    file="${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md" note=' (this repository has neither; that file applies to every repository)'
   fi
   printf 'Optional. CLAUDE.md and AGENTS.md are yours; /testing:setup never edits them. Paste this into %s yourself%s:\n' "$file" "$note"
   printf '  Tests must be able to fail: take every expected value from a spec, a bug report or a hand-computed literal, never from running the code under test; load the testing:test-value skill before writing or reviewing tests.\n'

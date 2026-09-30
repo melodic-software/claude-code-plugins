@@ -180,7 +180,8 @@ out="$(bash "$SETUP" check --root "$L" 2>&1)" || rc=$?
 assert_line "an adapter_dirs adapter's files glob gets it too" "$out" '^js +vitest/valid-expect +FINDING'
 
 # The instruction line names the file Claude Code loads here: AGENTS.md only
-# when no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md exists
+# when no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md exists; CLAUDE.local.md
+# always loads, and the user file follows CLAUDE_CONFIG_DIR
 # (code.claude.com/docs/en/memory#agents-md).
 target() {
   local d="$T/instr-$1" f
@@ -188,15 +189,16 @@ target() {
   mkdir -p "$d/.claude"
   git -C "$d" init -q
   for f; do printf '# x\n' >"$d/$f"; done
-  bash "$SETUP" check --root "$d" 2>&1 | grep '^Optional\.'
+  env -u CLAUDE_CONFIG_DIR ${CFG:+CLAUDE_CONFIG_DIR="$CFG"} bash "$SETUP" check --root "$d" 2>&1 | grep '^Optional\.'
 }
 assert_line "AGENTS.md alone is the file named" "$(target agents AGENTS.md)" 'Paste this into AGENTS\.md yourself:$'
 assert_line ".claude/CLAUDE.md beats AGENTS.md" "$(target dotclaude .claude/CLAUDE.md AGENTS.md)" 'Paste this into \.claude/CLAUDE\.md yourself:$'
 assert_line "CLAUDE.local.md keeps AGENTS.md from loading, so CLAUDE.md is named" \
   "$(target local CLAUDE.local.md AGENTS.md)" 'Paste this into CLAUDE\.md yourself \(CLAUDE\.local\.md here keeps AGENTS\.md from loading\):$'
-assert_line "CLAUDE.local.md alone suppresses no AGENTS.md, so the user file is named" \
-  "$(target localonly CLAUDE.local.md)" 'Paste this into ~/\.claude/CLAUDE\.md yourself'
+assert_line "CLAUDE.local.md alone loads for this repository, so it is named" \
+  "$(target localonly CLAUDE.local.md)" 'Paste this into CLAUDE\.local\.md yourself \(it is personal; a CLAUDE\.md would share the line with the team\):$'
 assert_line "with neither, the user file is named" "$(target none)" 'Paste this into ~/\.claude/CLAUDE\.md yourself \(this repository has neither; that file applies to every repository\):$'
+assert_line "a relocated CLAUDE_CONFIG_DIR names its CLAUDE.md" "$(CFG=/cfg/claude target relocated)" 'Paste this into /cfg/claude/CLAUDE\.md yourself'
 
 cp "$R/.claude/testing.yaml" "$T/kept.yaml"
 run apply --rule no-such-rule=off
