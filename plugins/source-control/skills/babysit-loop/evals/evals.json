@@ -169,6 +169,22 @@
         "Never reads bound promotion_state alone as sufficient for merge eligibility",
         "Notes that a contrary demotion event in qualified telemetry would exclude the affected class on the next cycle without config change"
       ]
+    },
+    {
+      "id": 11,
+      "name": "babysit-loop-bootstrap-preflight-unset",
+      "prompt": "/source-control:babysit-loop melodic-software/example-repo worker\n\nThe team-tracked .claude/source-control.md carries loop-lane keys with babysit_loop_merge at c3-autonomous. The plugin options promotion_evidence_binding, promotion_evidence_root and promotion_evidence_source are all unset in user and managed settings. Snapshot: PR #41 is quiet, green, gate-provable, close-linked item classifies C3 scoped; PR #42 is identical except the item classifies C2 mechanical. No --merge human-only argument on the invocation line.",
+      "expected_output": "At lane start the resolved rung is merge-capable, so the bootstrap preflight runs once and names each missing surface by option name (promotion_evidence_binding, promotion_evidence_root, promotion_evidence_source) with a pointer to the bootstrap contract. The preflight is report-only: the rung is unchanged, every promotable cell stays effective-unpromoted, and PR #41 and PR #42 both route to the safe per-PR pass. No promotion evidence is read from .claude/source-control.md or any repo-local file, and check-security-binding.mjs is not invoked. The cycle-start report carries the bound-to-effective pairs plus one line naming the missing bootstrap options.",
+      "files": [],
+      "expectations": [
+        "Runs the bootstrap preflight once at lane start because the resolved rung is merge-capable",
+        "Names each missing surface by its option name: promotion_evidence_binding, promotion_evidence_root and promotion_evidence_source",
+        "Treats the preflight as report-only: the rung is unchanged and every promotable cell stays effective-unpromoted",
+        "Routes both the C3 PR and the C2 PR to the safe per-PR pass, so fail-closed behavior is unchanged",
+        "Reads no promotion evidence from .claude/source-control.md or any other repo-local file",
+        "Does not invoke check-security-binding.mjs",
+        "Includes one line in the cycle-start report naming the missing bootstrap options"
+      ]
     }
   ]
 }

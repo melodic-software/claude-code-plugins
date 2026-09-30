@@ -2,6 +2,9 @@
 <#
   Unattended procedure library. The agent authors the block below # STAGES.
   The human launches this script. The agent never launches the real run.
+  Secrets declared on Invoke-UnattendedRun resolve once before the first stage:
+  environment, then file, then the SecretManagement store, then one hidden
+  prompt per name still unresolved. An undeclared name resolves at first use.
   -WhatIf narrates the plan and -Test reports what would change. Neither
   invokes a helper's block, and both write only the result directory.
   Result JSON is cutover.result/1, plus result-latest.json
@@ -23,6 +26,8 @@ $script:Held = [System.Collections.Generic.List[string]]::new()
 $script:Secrets = [System.Collections.Generic.List[string]]::new()
 $script:PlannedResources = [System.Collections.Generic.List[string]]::new()
 $script:Irreversible = @()
+$script:DeclaredSecrets = @()
+$script:SecretCache = @{}
 $script:ResultDirectory = $null
 $script:TranscriptPath = $null
 
@@ -87,7 +92,31 @@ function Assert-NotInside {
     }
 }
 
-function Resolve-UnattendedSecret {
+# Microsoft.PowerShell.SecretManagement fronts whichever vaults are registered. Only a
+# string is used: -AsPlainText leaves a PSCredential, hashtable or byte[] as an object,
+# and redaction would record its type name instead of the secret.
+# Without the module, or without the name, the rung is skipped silently.
+function Get-UnattendedStoreSecret {
+    param([Parameter(Mandatory = $true)][string] $Name)
+    if (-not (Get-Command Get-Secret -ErrorAction SilentlyContinue)) {
+        return $null
+    }
+    try {
+        $value = Get-Secret -Name $Name -AsPlainText -ErrorAction SilentlyContinue
+    } catch {
+        return $null
+    }
+    if ($value -is [string]) {
+        return $value
+    }
+    if ($null -ne $value) {
+        $script:Warnings.Add("store secret $Name is a $($value.GetType().Name), not a string; the store rung skipped it") | Out-Null
+    }
+    return $null
+}
+
+# The ladder both paths share: environment, file, store. $null when nothing resolves.
+function Find-UnattendedSecret {
     param(
         [Parameter(Mandatory = $true)][string] $Name,
         [string] $FilePath
@@ -96,24 +125,87 @@ function Resolve-UnattendedSecret {
     if (-not $value -and $FilePath -and (Test-Path -LiteralPath $FilePath)) {
         $value = (Get-Content -LiteralPath $FilePath -Raw).Trim()
     }
+    if (-not $value) {
+        $value = Get-UnattendedStoreSecret -Name $Name
+    }
+    $value
+}
+
+function Read-UnattendedSecretPrompt {
+    param([Parameter(Mandatory = $true)][string] $Name)
+    $secure = Read-Host -Prompt "Secret $Name" -AsSecureString
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    try {
+        [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+    }
+}
+
+function Add-UnattendedSecretPromptStep {
+    param([Parameter(Mandatory = $true)][string] $Name)
+    Add-UnattendedStep "secret $Name" 'would-run' 'would prompt: not in the environment, the file or the credential store'
+}
+
+function Resolve-UnattendedSecret {
+    param(
+        [Parameter(Mandatory = $true)][string] $Name,
+        [string] $FilePath
+    )
+    if ($Name -in $script:DeclaredSecrets) {
+        return $script:SecretCache[$Name]
+    }
+    $value = Find-UnattendedSecret -Name $Name -FilePath $FilePath
     if (-not $value -and $script:Mode -ne 'run') {
-        Add-UnattendedStep "secret $Name" 'would-run' 'would prompt: not in the environment or the file'
+        Add-UnattendedSecretPromptStep -Name $Name
         return "<$Name>"
     }
     if (-not $value) {
-        $secure = Read-Host -Prompt "Secret $Name" -AsSecureString
-        $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-        try {
-            $value = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
-        } finally {
-            [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
-        }
+        $value = Read-UnattendedSecretPrompt -Name $Name
     }
     if (-not $value) {
         throw "secret $Name was not resolved"
     }
     $script:Secrets.Add($value) | Out-Null
     return $value
+}
+
+# Every declared name resolves before the first stage. In run mode the unresolved
+# ones are prompted together; a dry run records the prompt and caches a placeholder.
+function Initialize-UnattendedSecrets {
+    param([hashtable[]] $Secrets = @())
+    $script:DeclaredSecrets = @()
+    $script:SecretCache = @{}
+    $unresolved = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in $Secrets) {
+        $name = $entry['Name']
+        if (-not $name) {
+            throw 'a declared secret needs a Name'
+        }
+        if ($name -in $script:DeclaredSecrets) {
+            throw "secret $name is declared twice"
+        }
+        $script:DeclaredSecrets += $name
+        $filePath = if ($entry.ContainsKey('FilePath')) { [string] $entry['FilePath'] } else { '' }
+        $value = Find-UnattendedSecret -Name $name -FilePath $filePath
+        if ($value) {
+            $script:SecretCache[$name] = $value
+            $script:Secrets.Add($value) | Out-Null
+        } elseif ($script:Mode -ne 'run') {
+            Add-UnattendedSecretPromptStep -Name $name
+            $script:SecretCache[$name] = "<$name>"
+        } else {
+            $unresolved.Add($name)
+        }
+    }
+    foreach ($name in $unresolved) {
+        $value = Read-UnattendedSecretPrompt -Name $name
+        if (-not $value) {
+            throw "secret $name was not resolved"
+        }
+        $script:SecretCache[$name] = $value
+        $script:Secrets.Add($value) | Out-Null
+    }
 }
 
 function Assert-PriorResult {
@@ -318,6 +410,7 @@ function Complete-UnattendedResult {
         steps        = @($script:Steps | Where-Object status -eq 'would-run').Count
         resources    = $script:PlannedResources.Count
         irreversible = $script:Irreversible.Count
+        secrets      = $script:DeclaredSecrets.Count
     }
     $counts = '{0} step(s) would run, {1} resource(s) would be taken out of service, {2} declared irreversible action(s)' -f $planned.steps, $planned.resources, $planned.irreversible
     if ($script:Mode -eq 'whatif') {
@@ -346,6 +439,7 @@ function Complete-UnattendedResult {
         warnings             = @($script:Warnings)
         held_resources       = @($script:Held)
         irreversible_actions = @($script:Irreversible)
+        secrets              = @($script:DeclaredSecrets)
         transcript           = $script:TranscriptPath
         redacted             = $true
     }
@@ -370,14 +464,18 @@ function Invoke-UnattendedRun {
     param(
         [Parameter(Mandatory = $true)][string] $ResultDirectory,
         [Parameter(Mandatory = $true)][scriptblock] $Stages,
-        [string[]] $Irreversible = @()
+        [string[]] $Irreversible = @(),
+        [hashtable[]] $Secrets = @()
     )
     Initialize-UnattendedResult -ResultDirectory $ResultDirectory
     $script:Irreversible = @($Irreversible)
     if ($script:Mode -ne 'test') {
         Write-Host ('irreversible actions: ' + $(if ($Irreversible.Count) { $Irreversible -join '; ' } else { 'none' }))
+        $names = @($Secrets | ForEach-Object { $_['Name'] })
+        Write-Host ('secrets: ' + $(if ($names.Count) { $names -join '; ' } else { 'none' }))
     }
     try {
+        Initialize-UnattendedSecrets -Secrets $Secrets
         & $Stages
         Complete-UnattendedResult -Status ok
     } catch {
