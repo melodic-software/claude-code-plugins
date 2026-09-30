@@ -318,6 +318,12 @@ function ref(kind, v, rtype) {
   return v
 }
 
+# get() for a field printed as is: a value from a sensitive variable prints as [redacted].
+function show(sc, pre, name, dflt,    v) {
+  v = get(sc, pre, name, dflt)
+  return RES_SEC ? "[redacted]" : v
+}
+
 function get(sc, pre, name, dflt) {
   if (!field(S_dir[sc], pre, name)) { RES_OK = 1; RES_SEC = 0; return dflt }
   return resolve(sc, FK, FV, 0)
@@ -353,14 +359,14 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
 # holds a secret reference instead of a value is a redacted parameter.
 function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, portkey, ev,    d, c, img, n, i, pg, eg, k, v, pv, sec) {
   d = S_dir[sc]
-  c = get(sc, g, "name", dflt)
-  img = get(sc, g, "image", "")
+  c = show(sc, g, "name", dflt)
+  img = show(sc, g, "image", "")
   n = groups(d, g, portre, pg)
-  for (i = 1; i <= n; i++) if (field(d, pg[i], portkey)) { pv = resolve(sc, FK, FV, 0); ports = (ports == "" ? pv : ports "," pv) }
+  for (i = 1; i <= n; i++) if (field(d, pg[i], portkey)) { pv = resolve(sc, FK, FV, 0); if (RES_SEC) pv = "[redacted]"; ports = (ports == "" ? pv : ports "," pv) }
   place(sc, c, img, reps, ports, compute, ev)
   n = groups(d, g, envre, eg)
   for (i = 1; i <= n; i++) {
-    k = get(sc, eg[i], "name", "")
+    k = show(sc, eg[i], "name", "")
     if (k == "") continue
     if (has_under(d, eg[i], secre)) { param(sc, c, k, "reference", 1, ev); continue }
     v = get(sc, eg[i], "value", "")
@@ -391,12 +397,12 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
     td = field(d, pre, "task_definition") ? ref(FK, FV, "aws_ecs_task_definition") : ""
     cl = field(d, pre, "cluster") ? ref(FK, FV, "aws_ecs_cluster") : ""
     cl = ((sc SUBSEP "aws_ecs_cluster." cl) in done) ? compute_id(sc, "aws_ecs_cluster", cl) : ""
-    reps = get(sc, pre, "desired_count", "undeclared")
+    reps = show(sc, pre, "desired_count", "undeclared")
     if (td != "" && (sc SUBSEP "aws_ecs_task_definition." td) in done) {
       if (!((sc SUBSEP td) in svc_cl)) { svc_cl[sc, td] = cl; svc_reps[sc, td] = reps }
     } else {
       td = field(d, pre, "task_definition") ? unresolved(FV) : ""
-      place(sc, get(sc, pre, "name", parts[2]), td, reps, "", cl, res_file[sc, res_list[sc, i]])
+      place(sc, show(sc, pre, "name", parts[2]), td, reps, "", cl, res_file[sc, res_list[sc, i]])
     }
   }
   for (i = 1; i <= res_n[sc]; i++) {
@@ -405,7 +411,7 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
     type = parts[1]; name = parts[2]
     pre = "resource." key "."
     if (type ~ /^(aws_ecs_cluster|aws_eks_cluster|azurerm_container_app_environment|azurerm_kubernetes_cluster|google_container_cluster)$/) {
-      node(sc, compute_id(sc, type, name), type, get(sc, pre, "name", name), res_file[sc, key])
+      node(sc, compute_id(sc, type, name), type, show(sc, pre, "name", name), res_file[sc, key])
     } else if (type == "aws_ecs_task_definition") {
       reps = ((sc SUBSEP name) in svc_reps) ? svc_reps[sc, name] : "undeclared"
       cl = ((sc SUBSEP name) in svc_cl) ? svc_cl[sc, name] : ""
@@ -416,20 +422,20 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
     } else if (type == "azurerm_container_app") {
       cl = field(d, pre, "container_app_environment_id") ? ref(FK, FV, "azurerm_container_app_environment") : ""
       cl = ((sc SUBSEP "azurerm_container_app_environment." cl) in done) ? compute_id(sc, "azurerm_container_app_environment", cl) : ""
-      reps = get(sc, pre, "template.min_replicas", "undeclared")
-      ports = get(sc, pre, "ingress.target_port", "")
+      reps = show(sc, pre, "template.min_replicas", "undeclared")
+      ports = show(sc, pre, "ingress.target_port", "")
       n = groups(d, pre, "^template(\\[[0-9]+\\])?\\.container(\\[[0-9]+\\])?\\.", gs)
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, cl, ports, "^env(\\[[0-9]+\\])?\\.", "^secret_name$", "^$", "", res_file[sc, key])
     } else if (type == "google_cloud_run_v2_service") {
-      reps = get(sc, pre, "template.scaling.min_instance_count", "undeclared")
+      reps = show(sc, pre, "template.scaling.min_instance_count", "undeclared")
       n = groups(d, pre, "^template(\\[[0-9]+\\])?\\.containers(\\[[0-9]+\\])?\\.", gs)
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, "", "", "^env(\\[[0-9]+\\])?\\.", "^value_source", "^ports(\\[[0-9]+\\])?\\.", "container_port", res_file[sc, key])
     } else if (type ~ /^kubernetes_(deployment|stateful_set|daemonset|daemon_set)(_v1)?$/) {
       id = compute_id(sc, type, name)
-      node(sc, id, type, get(sc, pre, "metadata.name", name), res_file[sc, key])
-      reps = get(sc, pre, "spec.replicas", "undeclared")
+      node(sc, id, type, show(sc, pre, "metadata.name", name), res_file[sc, key])
+      reps = show(sc, pre, "spec.replicas", "undeclared")
       n = groups(d, pre, "^spec(\\[[0-9]+\\])?\\.template(\\[[0-9]+\\])?\\.spec(\\[[0-9]+\\])?\\.container(\\[[0-9]+\\])?\\.", gs)
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, id, "", "^env(\\[[0-9]+\\])?\\.", "^value_from", "^port(\\[[0-9]+\\])?\\.", "container_port", res_file[sc, key])

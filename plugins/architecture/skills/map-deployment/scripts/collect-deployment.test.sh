@@ -1007,7 +1007,7 @@ assert_contains "a tfvars file is an environment" "$tfrec" '"environment":"prod"
 assert_contains "the other tfvars file is an environment" "$tfrec" '"environment":"staging","tool":"terraform"'
 assert_contains "an ECS cluster is a compute node" "$tfrec" '"id":"prod/aws_ecs_cluster.main","env":"prod","tool":"terraform","kind":"compute","name":"acme","detail":"aws_ecs_cluster"'
 assert_contains "a task definition container is placed on its service's cluster" "$tfrec" '"container":"api","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.main","compute":"prod/aws_ecs_cluster.main","image":"ghcr.io/acme/api:1.4.0","replicas":"3","ports":"8080"'
-assert_contains "the variable default fills the other environment" "$tfrec" '"container":"api","env":"staging","tool":"terraform","node":"staging/aws_ecs_cluster.main","compute":"staging/aws_ecs_cluster.main","image":"ghcr.io/acme/api:1.0.0","replicas":"1"'
+assert_contains "an auto tfvars file outranks terraform.tfvars" "$tfrec" '"container":"api","env":"staging","tool":"terraform","node":"staging/aws_ecs_cluster.main","compute":"staging/aws_ecs_cluster.main","image":"ghcr.io/acme/api:1.0.0","replicas":"1"'
 assert_contains "a second container of the task is its own placement" "$tfrec" '"container":"sidecar","env":"prod"'
 assert_contains "a local is recorded as unresolved" "$tfrec" '"parameter":"REGION","env":"prod","tool":"terraform","container":"api","value":"unresolved:local.region"'
 assert_contains "a heredoc container definition is read" "$tfrec" '"container":"batch","env":"prod","tool":"terraform","node":"prod","compute":"","image":"ghcr.io/acme/batch:1","replicas":"undeclared"'
@@ -1115,12 +1115,15 @@ variable "cs_sql" {}
 variable "opaque" {
   sensitive = true
 }
+variable "on" {}
 resource "aws_ecs_task_definition" "api" {
   family = "api"
   container_definitions = jsonencode([{
     name  = "api"
     image = "ghcr.io/acme/api:1"
     environment = [
+      { name = "PREFIXED", value = "prefix-\${var.upstream}" },
+      { name = "CHOSEN", value = var.on ? "$(gh_tok C)" : "" },
       { name = "UPSTREAM_A", value = var.upstream },
       { name = "CS_SQL", value = var.cs_sql },
       { name = "OPAQUE", value = var.opaque },
@@ -1131,8 +1134,12 @@ resource "aws_ecs_task_definition" "api" {
     secrets = [{ name = "API_KEY", valueFrom = "arn:aws:ssm:eu-west-1:000000000000:parameter/api" }]
   }])
 }
+resource "aws_ecs_task_definition" "hidden" {
+  family                = "hidden"
+  container_definitions = jsonencode([{ name = "hidden", image = var.opaque }])
+}
 EOF
-leak_needles+=("$(gh_pat L)")
+leak_needles+=("$(gh_pat L)" "$(gh_tok C)")
 for s in S P; do
   [[ "$s" == S ]] && d=staging || d=prod
   {
@@ -1145,7 +1152,8 @@ commit_all "$repoTL"
 bash "$COLLECT" --repo "$repoTL" --out "$TEST_TMPDIR/tf-leaks.json" --generated-on 2026-09-28
 tlrec="$(cat "$TEST_TMPDIR/tf-leaks.json")"
 assert_contains "terraform leak fixture is drawn" "$tlrec" '"status": "drawn"'
-for k in UPSTREAM_A CS_SQL OPAQUE UPSTREAM_B CS_BUS API_KEY; do
+assert_contains "a sensitive variable in an image prints as redacted" "$tlrec" '"container":"hidden","env":"prod","tool":"terraform","node":"prod","compute":"","image":"[redacted]"'
+for k in UPSTREAM_A CS_SQL OPAQUE UPSTREAM_B CS_BUS API_KEY PREFIXED CHOSEN; do
   assert_contains "terraform leak fixture redacts $k" "$tlrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"terraform\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "a tfvars secret that differs is reported without its value" "$tlrec" "secret parameter UPSTREAM_A differs"
