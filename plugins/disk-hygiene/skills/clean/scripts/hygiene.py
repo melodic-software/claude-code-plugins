@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -31,6 +32,10 @@ import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
+# Overlay versions the loader accepts; version 2 adds the `rules` array.
+OVERLAY_VERSIONS = (1, 2)
+RULE_MIN_AGE_BASES = ("mtime",)
+ELEVATION_VALUES = ("never", "uac-prompt")
 MAX_SNAPSHOT_ENTRIES = 250_000
 # The temp-zone size walk runs on every scan whose target overlaps the temp
 # directory, including the gated large-target probe, so it stays well below
@@ -39,6 +44,7 @@ TEMP_ZONE_ENTRY_CAP = 100_000
 # The tier vocabulary is declared with the command grammar so `--confirm-tier`
 # and the guard's admission of it can never disagree with the plan checks here.
 TIERS = engine_grammar.TIERS
+TIER_RANK = {"low": 0, "medium": 1, "high": 2}
 VCS_NAMES = {".git", ".hg", ".svn"}
 GIT_METADATA_NAME = ".git"
 VCS_EVIDENCE_GATE_NAMES = (
@@ -241,6 +247,7 @@ def scan_complete_payload(
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
         "policy_sources": policy["policy_sources"],
+        "elevation": policy["elevation"],
         "os_autoclean": advisory,
         "note": note,
     }
@@ -814,6 +821,8 @@ def baseline_policy() -> dict[str, Any]:
         "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
+        "rules": [],
+        "elevation": "never",
         "policy_sources": ["baseline"],
     }
 
@@ -864,26 +873,42 @@ def load_policy(
         if overlay_path is not None
         else standing_policy_paths(project_dir)
     )
+    project_layer = (
+        project_dir / ".claude" / "disk-hygiene.json"
+        if overlay_path is None and project_dir is not None
+        else None
+    )
     for path in overlays:
-        apply_policy_overlay(result, path)
+        apply_policy_overlay(result, path, project_scope=path == project_layer)
     return result
 
 
-def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
+def apply_policy_overlay(
+    result: dict[str, Any], overlay_path: Path, project_scope: bool = False
+) -> None:
+    """Layer one overlay onto ``result``; a failing layer changes nothing.
+
+    ``elevation`` is the one field that loosens rather than adds, so a
+    repository-controlled project file may set it only to ``never``; opting
+    into ``uac-prompt`` takes the user-global file or an explicit --policy.
+    """
     overlay = load_json(overlay_path)
+    version = overlay.get("version")
+    if isinstance(version, bool) or version not in OVERLAY_VERSIONS:
+        raise HygieneError(f"policy version must be 1 or 2: {overlay_path}")
     allowed = {
         "version",
         "disabled_hint_ids",
         "additional_hints",
         "additional_protected_path_globs",
     }
+    if version == 2:
+        allowed.update({"rules", "elevation"})
     unknown = sorted(set(overlay) - allowed)
     if unknown:
         raise HygieneError(
             f"unknown policy fields in {overlay_path}: {', '.join(unknown)}"
         )
-    if overlay.get("version") != SCHEMA_VERSION:
-        raise HygieneError(f"policy version must be 1: {overlay_path}")
     disabled = overlay.get("disabled_hint_ids", [])
     additions = overlay.get("additional_hints", [])
     protections = overlay.get("additional_protected_path_globs", [])
@@ -904,16 +929,197 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
             )
         known_ids.add(hint["id"])
     disabled_set = set(disabled)
+    merged_ids = known_ids - disabled_set
+    rules = validate_rules(overlay.get("rules", []), merged_ids, overlay_path)
+    elevation = overlay.get("elevation", result["elevation"])
+    if not isinstance(elevation, str) or elevation not in ELEVATION_VALUES:
+        raise HygieneError(
+            f"elevation must be one of {', '.join(ELEVATION_VALUES)}: {overlay_path}"
+        )
+    if project_scope and "elevation" in overlay and elevation != "never":
+        raise HygieneError(
+            "elevation can be opted into only from the user-global policy or an "
+            f"explicit --policy, not a project policy: {overlay_path}"
+        )
     result["hints"] = [
         hint for hint in result["hints"] if hint.get("id") not in disabled_set
     ]
     result["hints"].extend(additions)
     result["additional_protected_path_globs"].extend(protections)
+    result["rules"].extend(rules)
+    result["elevation"] = elevation
     result["policy_sources"].append(str(overlay_path))
 
 
 HINT_ENTRY_TYPES = ("file", "directory", "link", "other")
 MAX_EMPTY_DIRECTORY_PATHS = 200
+
+
+def validate_rules(
+    rules: Any, hint_ids: set[Any], overlay_path: Path
+) -> list[dict[str, Any]]:
+    """Validate an overlay's `rules` and normalize each `match` to `hint_ids`.
+
+    Rules match on hint id: an entry carries no class, only the hints that
+    matched it. A rule naming an id missing from the merged hint set is
+    rejected so a typo cannot silently preselect nothing.
+    """
+    if not isinstance(rules, list):
+        raise HygieneError(f"rules must be an array: {overlay_path}")
+    normalized = []
+    for index, rule in enumerate(rules):
+        if not isinstance(rule, dict):
+            raise HygieneError(f"each rule must be an object: {overlay_path}")
+        unknown = sorted(
+            set(rule) - {"match", "preselect", "min_age_days", "min_age_basis"}
+        )
+        if unknown:
+            raise HygieneError(
+                f"unknown rule fields in {overlay_path}: {', '.join(unknown)}"
+            )
+        match = rule.get("match")
+        if not isinstance(match, dict) or len(match) != 1:
+            raise HygieneError(
+                f"rule match must be an object with exactly one of hint_id or hint_ids: {overlay_path}"
+            )
+        if "hint_id" in match:
+            ids = [match["hint_id"]]
+        elif (
+            "hint_ids" in match
+            and isinstance(match["hint_ids"], list)
+            and match["hint_ids"]
+        ):
+            ids = match["hint_ids"]
+        else:
+            raise HygieneError(
+                f"rule match must be a hint_id string or a non-empty hint_ids array: {overlay_path}"
+            )
+        if not all(isinstance(value, str) and value for value in ids):
+            raise HygieneError(
+                f"rule hint IDs must be non-empty strings: {overlay_path}"
+            )
+        missing = sorted(set(ids) - hint_ids)
+        if missing:
+            raise HygieneError(
+                f"rule names unknown hint ID ({overlay_path}): {', '.join(missing)}"
+            )
+        if not isinstance(rule.get("preselect"), bool):
+            raise HygieneError(f"rule preselect must be a boolean: {overlay_path}")
+        entry: dict[str, Any] = {
+            "hint_ids": ids,
+            "preselect": rule["preselect"],
+            "source": str(overlay_path),
+            "index": index,
+        }
+        if "min_age_days" in rule:
+            days = rule["min_age_days"]
+            if isinstance(days, bool) or not isinstance(days, int) or days < 0:
+                raise HygieneError(
+                    f"rule min_age_days must be a non-negative integer: {overlay_path}"
+                )
+            entry["min_age_days"] = days
+        if "min_age_basis" in rule:
+            if rule["min_age_basis"] not in RULE_MIN_AGE_BASES:
+                raise HygieneError(
+                    f"rule min_age_basis must be one of {', '.join(RULE_MIN_AGE_BASES)}: {overlay_path}"
+                )
+            entry["min_age_basis"] = rule["min_age_basis"]
+        normalized.append(entry)
+    return normalized
+
+
+def rule_age_facts(
+    entries: list[dict[str, Any]], unknown_paths: Iterable[str]
+) -> tuple[dict[str, int], set[str]]:
+    """Newest descendant mtime per directory, and every path with a coverage gap.
+
+    An ancestor of an unknown path is itself unknown: the walk never saw what
+    changed beneath it. Not-walked entries count as unknown alongside
+    `unknown_paths`.
+    """
+    newest: dict[str, int] = {}
+    incomplete: set[str] = set()
+    unknown = set(unknown_paths) | {
+        entry["path"]
+        for entry in entries
+        if "not-walked" in (entry.get("size_qualifiers") or [])
+    }
+    for entry in entries:
+        parent = entry["path"]
+        while "/" in parent:
+            parent = parent.rsplit("/", 1)[0]
+            newest[parent] = max(newest.get(parent, 0), entry["mtime_ns"])
+    for path in unknown:
+        incomplete.add(path)
+        while "/" in path:
+            path = path.rsplit("/", 1)[0]
+            incomplete.add(path)
+    return newest, incomplete
+
+
+def rule_in_flight_reason(
+    entry: dict[str, Any],
+    days: int,
+    facts: tuple[dict[str, int], set[str]],
+    now_ns: int,
+) -> str | None:
+    newest, incomplete = facts
+    path = entry["path"]
+    reason = f"in-flight: modified within {days} days"
+    if path in incomplete:
+        return f"{reason} (coverage incomplete, age unknown)"
+    modified = max(entry["mtime_ns"], newest.get(path, 0))
+    if modified > now_ns - days * 86_400 * 10**9:
+        return reason
+    return None
+
+
+def apply_rules(
+    entries: list[dict[str, Any]],
+    rules: list[dict[str, Any]],
+    unknown_paths: Iterable[str] = (),
+    now_ns: int | None = None,
+) -> None:
+    """Annotate entries a rule matches with `policy_rule` and `preselected`.
+
+    The last matching rule wins, so a project layer overrides the user layer.
+    Preselection is advisory: it changes no hint, tier, or protection, and an
+    entry with any protected reason is never preselected. Preview recomputes
+    it from live blockers and the plan tier, because a snapshot is editable.
+
+    A rule with `min_age_days` does not preselect an entry modified inside the
+    window (mtime basis). A directory is as new as its newest inventoried
+    descendant, and one whose coverage is incomplete is treated as new: unknown
+    is not old. Such an entry keeps its tier and carries `in_flight_reason`.
+    """
+    if now_ns is None:
+        now_ns = time.time_ns()
+    facts = (
+        rule_age_facts(entries, unknown_paths)
+        if any("min_age_days" in rule for rule in rules)
+        else ({}, set())
+    )
+    for entry in entries:
+        hint_ids = [hint["id"] for hint in entry.get("hints", [])]
+        match = None
+        for rule in rules:
+            hit = next((i for i in hint_ids if i in rule["hint_ids"]), None)
+            if hit is not None:
+                match = (rule, hit)
+        if match is None:
+            continue
+        rule, hint_id = match
+        entry["policy_rule"] = {
+            "source": rule["source"],
+            "index": rule["index"],
+            "hint_id": hint_id,
+        }
+        entry["preselected"] = rule["preselect"] and not entry["protected_reasons"]
+        if entry["preselected"] and "min_age_days" in rule:
+            reason = rule_in_flight_reason(entry, rule["min_age_days"], facts, now_ns)
+            if reason:
+                entry["preselected"] = False
+                entry["in_flight_reason"] = reason
 
 
 def validate_hint(hint: Any) -> None:
@@ -2022,7 +2228,7 @@ def scan_tree(
             path = Path(child.path)
             # Root-children mode never walks the volume root as a whole: only
             # explicitly selected immediate children are entered, and
-            # unselected siblings are never inventoried.
+            # unselected siblings are never inventoried, only named.
             child_key = child.name if root_children_sensitive else child.name.casefold()
             if (
                 allowed_root_children is not None
@@ -2030,6 +2236,7 @@ def scan_tree(
                 and directory == target
                 and child_key not in allowed_root_children
             ):
+                unwalked_reasons[child.name] = "root-child-unselected"
                 continue
             relative = path.relative_to(target).as_posix()
             protections = hard_protection(path, target, exact_names, known_mounts)
@@ -2130,6 +2337,16 @@ def scan_tree(
     stdlib_shadowing: list[dict[str, Any]] = []
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        apply_rules(
+            entries,
+            policy.get("rules", []),
+            set(truncated)
+            | {
+                item["path"]
+                for item in errors
+                if isinstance(item, dict) and isinstance(item.get("path"), str)
+            },
+        )
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
     reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
@@ -2183,8 +2400,6 @@ def scan_tree(
             **dict.fromkeys(sorted(truncated), "scan-error"),
             **dict(sorted(unwalked_reasons.items())),
         },
-        # Root-children mode never walks the unselected siblings, and those
-        # are recorded in neither `truncated` nor `unwalked_reasons`.
         "totals_are_lower_bounds": bool(
             truncated or unwalked_reasons or root_children is not None
         ),
@@ -3556,10 +3771,31 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             for name in expected_paths
             if (value := entry_reclaimable_local_bytes(entries[name])) is not None
         )
+        rule_fields = {}
+        if isinstance(candidate_entry.get("policy_rule"), dict):
+            rule = candidate_entry["policy_rule"]
+            ceiling = next(
+                (
+                    hint.get("confidence_ceiling")
+                    for hint in candidate_entry.get("hints", [])
+                    if isinstance(hint, dict) and hint.get("id") == rule.get("hint_id")
+                ),
+                None,
+            )
+            rule_fields = {
+                "policy_rule": rule,
+                "preselected": candidate_entry.get("preselected") is True
+                and ceiling in TIER_RANK
+                and TIER_RANK[plan["tier"]] <= TIER_RANK[ceiling]
+                and set(blockers) <= {PLATFORM_BLOCKER},
+            }
+            if isinstance(candidate_entry.get("in_flight_reason"), str):
+                rule_fields["in_flight_reason"] = candidate_entry["in_flight_reason"]
         results.append(
             {
                 "path": relative,
                 "tier": plan["tier"],
+                **rule_fields,
                 "provenance": candidate["provenance"],
                 "reason": candidate["reason"],
                 "why_not_work_product": candidate["why_not_work_product"],
@@ -4653,7 +4889,8 @@ def main(argv: list[str] | None = None) -> int:
                                 "true, some subtree was not walked, so read them "
                                 "as lower bounds; truncation_reasons maps each "
                                 "unwalked path to its cause (vcs-boundary, "
-                                "protected, depth-cut, scan-error)."
+                                "protected, depth-cut, scan-error, "
+                                "root-child-unselected)."
                             )
                         ),
                     ),

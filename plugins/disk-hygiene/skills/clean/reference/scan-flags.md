@@ -13,7 +13,8 @@ counter, byte total, error and policy source in place. The snapshot file carries
 truncated-path list and each path's reason in full in both modes, so read per-child detail and the coverage gaps there and
 pass `--quiet` whenever the run only needs the frontier summary. `truncation_reasons` covers every
 unwalked path, including a directory whose scan failed (`scan-error`, also listed in `errors`), which
-`truncated_paths` omits, so the tally can sum to more than the `truncated_paths` count.
+`truncated_paths` omits, and every sibling a `--root-children` run left unselected
+(`root-child-unselected`), so the tally can sum to more than the `truncated_paths` count.
 
 ## `--root-children` and `--root-child`
 

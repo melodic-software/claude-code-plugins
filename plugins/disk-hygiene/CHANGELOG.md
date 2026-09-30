@@ -3,13 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.0] - 2026-09-30
+## [0.31.0] - 2026-09-30
 
 ### Added
 
 - **Partial totals are labeled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
   A scan that left any subtree unwalked, and every `--root-children` scan, sets `totals_are_lower_bounds`, and `truncation_reasons`
-  maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut` or `scan-error`. A directory
+  maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`, `scan-error` or
+  `root-child-unselected` (a sibling a `--root-children` run left unselected). A directory
   whose scan failed is in `truncation_reasons` and `errors`, not in `truncated_paths`.
 - **Bounded empty directories are listed** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
   The snapshot carries up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`.
@@ -37,6 +38,22 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **The baseline `*.tmp` and `*.lock` hints no longer match directories**
   ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)), so a directory
   such as `~/.codex/.tmp` is not hinted. They match files and links.
+
+## [0.30.0] - 2026-09-29
+
+### Added
+
+- **Policy overlay version 2: preselect rules, an age threshold, and an elevation opt-in**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A `version: 2`
+  overlay accepts `rules`: each names one or more hint ids and ticks matching candidates in the
+  approval list (`policy_rule` and `preselected` on the candidate). A tick is a default, not
+  approval, and never overrides a blocker or the hint's `confidence_ceiling`. `min_age_days` holds
+  the tick for an entry modified inside the window and reports `in_flight_reason`. The `elevation`
+  field (`never` by default, or `uac-prompt` on Windows from the user-global file or `--policy`
+  only) lets the skill offer an operator-approved elevated re-check for paths contested only for
+  `needs-elevation`. The `scan-complete` output carries the effective `elevation`. Version 1 files
+  load unchanged, and `reference/policy-overlay.schema.json` describes both versions. The elevation
+  lane has not been proven in a Windows UAC pilot.
 
 ## [0.29.2] - 2026-09-30
 

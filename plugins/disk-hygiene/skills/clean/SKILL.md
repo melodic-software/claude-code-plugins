@@ -97,8 +97,15 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
-- Never elevate, trigger UAC/sudo, install a dependency, close another process's handle, or disable a
-  retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
+- Never install a dependency, close another process's handle, or disable a retention mechanism.
+- While the scan output's `elevation` is `never` (the default), never elevate or trigger UAC/sudo.
+  Report `needs-elevation` or `handle-state-unverified` and stop that tier. With `uac-prompt`, on
+  Windows only, a path in the approved tier whose per-path `handoff-verify` returns `contested` with
+  `needs-elevation` as its only reason may go through an operator-approved elevated script: show its
+  full contents, launch it with `Start-Process -Verb RunAs -Wait`, read the results from its log.
+  Never on Linux or macOS, for a protected entry or another contest reason, without the per-tier
+  approval, with execution disabled, or for a preview-time `needs-elevation` blocker. Read
+  [Opt-in elevation](reference/safety-model.md#opt-in-elevation) first.
 - If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
   `${user_config.disk_hygiene_enabled}`), audit only and explain why execution is disabled. A
   literal unexpanded token is not evidence the toggle is unset, resolve it deterministically by
@@ -203,9 +210,9 @@ selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
 confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
 root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdout carries only their count and
-the snapshot the list). `truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut` or
-`scan-error`, as a tally under `--quiet`; a directory whose scan failed is in it as `scan-error` and in `errors`, not
-in `truncated_paths`, so its keys can outnumber that list. `target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees
+the snapshot the list). `truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`,
+`scan-error` or `root-child-unselected`, as a tally under `--quiet`; a directory whose scan failed is in it as `scan-error` and in `errors`, and an
+unselected `--root-children` sibling is in it and in neither, not in `truncated_paths`, so its keys can outnumber that list. `target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees
 only, and `totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked and on every
 `--root-children` scan (which never walks the unselected siblings), so read those totals as lower bounds then; report the unwalked paths as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
@@ -231,7 +238,9 @@ The bundled [baseline policy](reference/baseline-policy.json) contains cross-pla
 and protected names. Without `--policy`, the engine also layers standing policy files when present:
 `~/.claude/disk-hygiene.json` (user-global), then `<project>/.claude/disk-hygiene.json` via
 `--project-dir`. An explicit `--policy` is the invocation-specific choice and replaces both standing
-layers. Every overlay can only disable/add hints and add protected globs; none can weaken hard guards.
+layers. Every overlay can disable/add hints and add protected globs, and `version: 2` adds `rules`
+and `elevation`; none can weaken hard guards. The [overlay schema](reference/policy-overlay.schema.json)
+lists every field; version 1 files load unchanged.
 A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match only those entry kinds,
 `link` being a symlink or reparse point; a hint that sets none matches every kind. The baseline
 `*.tmp` and `*.lock` hints match files and links, so a directory such as `~/.codex/.tmp` is not
@@ -239,8 +248,8 @@ hinted. The engine does not probe processes: a `common-lock-file` hint stays at 
 and whether the lock is stale is proven during investigation (step 2), never by the engine. The
 snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;
 `scan-complete` stdout carries only `empty_directory_count`.
-The scan output names its `policy_sources`. Treat scan errors and unvisited protected roots as
-coverage gaps, not clean results.
+The scan output names its `policy_sources` and the effective `elevation`. Scan errors and unvisited
+protected roots are coverage gaps, not clean.
 
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
@@ -301,7 +310,7 @@ Report every finding with these fields, in this order, size last:
 2. **What it is**. Intent / role of the entry (`reason` in engine plans).
 3. **Why removable**. Why it is not work product, plus owner / native-GC result.
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
-5. Path, tier, evidence, disposition.
+5. Path, tier, evidence, disposition; `policy_rule` and `preselected` when a rule matched.
 6. Logical / reclaimable bytes as a **secondary** signal only. A finding is complete only with
    all six fields; a finding with name-only provenance is Low.
 
@@ -403,6 +412,16 @@ it is, why removable, risk, whether it is an empty directory, the single tier, a
 [confirmation gate](#confirmation-gate). The approval must name **exactly that tier and list**.
 Process another tier only with a new plan, preview, and question.
 
+A candidate a policy rule matched carries `policy_rule` (overlay `source`, rule `index`, matched
+`hint_id`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
+rows ticked with the rule named beside them. A tick is a policy-file default, not a user message:
+the gate still needs the tier and path list named. Preview unticks a candidate with any blocker but
+`execution-platform-unsupported`, or whose plan tier ranks above the matched hint's
+`confidence_ceiling`; never raise a tier to keep a tick. Changing the ticked rows means a new plan,
+preview, and question. A rule with `min_age_days` (mtime basis) leaves an entry modified inside the
+window unticked, with `in_flight_reason` shown. A directory is as new as its newest inventoried
+descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight.
+
 ## 6. Apply only the confirmed preview
 
 After an affirmative answer in this interactive session, run only:
@@ -489,7 +508,7 @@ and what the guard does when no Python resolves → "Hook launch form".
   handoff confirm must appear. Add one if the manual handoff must not depend on hook-`ask`
   surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
-  the deletion authority.
+  the deletion authority, except inside the opt-in elevated script, which no guard sees.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

@@ -9,6 +9,7 @@
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
 - [Windows hint claims](#windows-hint-claims)
+- [Opt-in elevation](#opt-in-elevation)
 - [Outcome vocabulary](#outcome-vocabulary)
 - [Primary references](#primary-references)
 
@@ -76,11 +77,14 @@ bounded conditions.
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
 - live-handle state proven clear; missing authority or tooling blocks;
-- no elevation and no handle closing;
+- no handle closing, and no elevation unless the operator opted in (see
+  [Opt-in elevation](#opt-in-elevation));
 - one confidence tier per plan and approval.
 
 The policy overlay can add protections, disable candidate hints, and add consumer hints. It cannot
-remove a non-overridable check or baseline protected name.
+remove a non-overridable check or baseline protected name. Its version 2 `elevation` field is the
+one setting that widens what the skill may do, on Windows only, as described under
+[Opt-in elevation](#opt-in-elevation).
 
 ## Live agent scratchpads
 
@@ -418,7 +422,7 @@ the filesystem is the consumer's own permission policy, never this guard. The ma
 per-path approval covers the paths selected for removal, so it does not reach what such a command
 collaterally destroys: a `Move-Item -Force` destination, a truncated `Out-File` target, or an entire
 volume. The engine's own containment, revalidation, and platform gates remain the deletion
-authority.
+authority, except inside the [opt-in elevated script](#opt-in-elevation).
 
 **Kill-switch enforcement: both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, exec form:
@@ -506,7 +510,7 @@ preview/approval-token containment). The model additionally reads the `disk_hygi
 the skill content and self-enforces audit-only, now defense-in-depth over the guard rather than the only path.
 Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
-deletion authority.
+deletion authority, except inside the [opt-in elevated script](#opt-in-elevation).
 
 **Hook launch form, and what it does and does not bound.** All three registrations use **exec form**:
 the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatter belt in the clean
@@ -629,8 +633,8 @@ The roll-up is written to the snapshot file on every run, so `scan --quiet` omit
 The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
 record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
 the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals,
-`totals_are_lower_bounds`, `stdlib_shadowing`, `errors`, `policy_sources` and `os_autoclean`, so every
-field a keep-or-review decision rests on survives, and it replaces the
+`totals_are_lower_bounds`, `stdlib_shadowing`, `errors`, `policy_sources`, `elevation` and
+`os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
 closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
 of truncated paths, not the list, and `truncation_reasons` as a per-reason tally, not the path map: a
 depth-2 home scan truncated about 140, which is most of what the
@@ -725,6 +729,51 @@ tells the reader to confirm the owner before acting. Re-fetch the basis before r
     `pending` subdirectory, or a scan hints a `*-updater` directory that has no `pending`
     subdirectory.
 
+## Opt-in elevation
+
+The version 2 overlay field `elevation` is `never` by default, and the `scan-complete` output
+reports the effective value beside `policy_sources`. With `never`, the skill never elevates or
+triggers UAC or sudo. `uac-prompt` opens one narrow lane on Windows, inside the
+[unsupported-platform handoff](unsupported-platform-handoff.md). It covers a path in the approved
+tier whose per-path `handoff-verify` returns `contested` with `needs-elevation` as its only reason.
+For those paths the skill writes an elevated PowerShell script under the run directory, shows the
+operator its full contents, launches it with `Start-Process -Verb RunAs -Wait` so it waits behind the
+UAC prompt the operator approves, and reads the per-path results back from a log file the script
+writes.
+**Claim:** `-Verb RunAs` starts the process through the Run as administrator option, `-Verb` does
+not apply off Windows, and `-Wait` returns only after the process and all its descendants exit.
+**Basis:**
+[Start-Process](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/start-process)
+(Example 5; the `-Verb` and `-Wait` parameters; Notes). **As of:** 2026-09-29, PowerShell 7.6 page
+dated 2026-07-06. **Recheck:** when that page changes `-Verb` or `-Wait` semantics.
+
+The lane never runs on Linux or macOS (no sudo there), never for a protected entry or any other
+contest reason, never without the per-tier approval, and never for a preview-time `needs-elevation`
+blocker: that preview is `blocked` and still stops the tier. The script never invokes the engine,
+because engine invocations stay on the Bash lane's exact shapes. It re-checks each path natively
+before removing it: the path is still present, is not a reparse point, has the identity the
+snapshot recorded (volume and file ID), and holds no entry the snapshot did not record, and an
+exclusive-open probe finds no live handle, where a sharing violation skips the path as `locked`.
+The Windows handle probe itself reports an access-denied open as `needs-elevation`, so a
+`needs-elevation`-only verdict can mean the handle check is the one that failed; the elevated
+re-check must repeat it, and skips any path it cannot re-prove. The manual lane's other rules still apply: one path at a time, no
+container-wide deletion, and a fresh approval for a permanent fallback.
+
+Only the user-global file or an explicit `--policy` can set `uac-prompt`. A project file lives in a
+repository the operator may not control, so the loader rejects `uac-prompt` there and accepts only
+`never`. When layers disagree, the last layer that sets the field wins.
+
+**What the guard does not see.** Neither guard surface denies the launch. The engine gate fires only
+on commands that name the engine, and the belt's PowerShell lane flags deletion spellings on the
+command line. `Start-Process -Verb RunAs` carries none, and the deletions live inside the script
+file. So the kill switch does not block this lane: offer it only when the kill-switch probe reports
+execution enabled. Nothing checks the script against the approved list except the operator, who
+reads the script's contents and then answers the UAC prompt. Making the belt `ask` or deny
+`-Verb RunAs` would be a guard change and stays with the owner.
+
+**Unverified.** No Windows UAC pilot has run this lane. Until the operator runs one, treat it as
+documented intent, not observed behavior.
+
 ## Outcome vocabulary
 
 | Outcome | Meaning | Next action |
@@ -732,7 +781,7 @@ tells the reader to confirm the owner before acting. Re-fetch the basis before r
 | `locked` | A current handle was observed | Close the owning application yourself, rescan |
 | `changed-or-link` | Identity changed or a link appeared | Keep; investigate and rescan |
 | `protected` | Hard or consumer protection matched | Keep |
-| `needs-elevation` | Access could not be proven without greater privilege | Defer to a human-run elevated workflow |
+| `needs-elevation` | Access could not be proven without greater privilege | Defer to a human-run elevated workflow, or on Windows with `elevation: uac-prompt`, the [opt-in elevated script](#opt-in-elevation) |
 | `handle-state-unverified` | Handle tool/authority/timeout prevented proof | Keep; install/configure the declared verifier if desired |
 | `delete-failed` | Final OS operation failed after preflight | Keep remaining content; inspect the reported error |
 
