@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -54,11 +55,11 @@ def expected_phrases(defaults: dict) -> list[tuple[str, str]]:
         ),
         (
             "plugins/code-metrics/skills/audit-duplication/SKILL.md",
-            f"`duplication.max_size`\n(default `{_render(duplication['max_size'])}`",
+            f"`duplication.max_size` (default `{_render(duplication['max_size'])}`",
         ),
         (
             "plugins/code-metrics/skills/audit-duplication/SKILL.md",
-            f"`duplication.max_lines`\n(default `{_render(duplication['max_lines'])}`",
+            f"`duplication.max_lines` (default `{_render(duplication['max_lines'])}`",
         ),
         (
             "plugins/code-metrics/skills/audit-duplication/SKILL.md",
@@ -103,6 +104,10 @@ def expected_phrases(defaults: dict) -> list[tuple[str, str]]:
     ]
 
 
+def _collapse(text: str) -> str:
+    return re.sub(r"\s+", " ", text)
+
+
 def check(root: Path, defaults: dict) -> list[str]:
     problems: list[str] = []
     for relative, phrase in expected_phrases(defaults):
@@ -110,8 +115,10 @@ def check(root: Path, defaults: dict) -> list[str]:
         if not path.is_file():
             problems.append(f"missing {relative}")
             continue
-        text = path.read_text(encoding="utf-8")
-        if phrase not in text:
+        # Whitespace runs collapse on both sides, so reflowing a paragraph
+        # cannot fail the gate while the value is unchanged.
+        text = _collapse(path.read_text(encoding="utf-8"))
+        if _collapse(phrase) not in text:
             problems.append(f"{relative} does not contain {phrase!r}")
     return problems
 

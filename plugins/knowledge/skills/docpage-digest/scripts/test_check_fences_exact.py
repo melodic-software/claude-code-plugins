@@ -252,5 +252,14 @@ none
         self.assertIn(b"PASS", proc.stdout)
 
 
+class TestCliSurface(GateHarness):
+    def test_help_exits_zero_and_documents_exit_codes(self):
+        proc = self.invoke_argv("--help")
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn(b"at least one required", proc.stdout)
+        self.assertIn(b"exit codes: 0", proc.stdout)
+        self.assertEqual(proc.stderr, b"")
+
+
 if __name__ == "__main__":
     unittest.main()

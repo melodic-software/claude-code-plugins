@@ -53,6 +53,28 @@ Escalation order when WebFetch fails:
 3. **`firecrawl interact`** (this skill), when the page needs clicks or login
 4. A synthesis tool with a domain filter, if available. Forces a domain-specific read through another backend
 
+## Boundary, the built-in `WebFetch` and `WebSearch` tools
+
+Both fetch and search the web, so "search the web" or "read this page" can route to either.
+
+- **`WebFetch` (built-in tool)**: fetches one URL, converts it to Markdown, and returns a small
+  model's answer to an extraction prompt, not the raw page; no JS rendering, no anti-bot handling.
+  It writes nothing to disk. It is called by name.
+- **`WebSearch` (built-in tool)**: returns result titles and URLs inline; it does not fetch the
+  result pages. It writes nothing to disk. It is called by name.
+- **This skill (marketplace plugin)**: scrape, search-and-scrape, crawl, map, and interact through
+  a paid API, with full content written to disk.
+
+**Routing.** When the built-in `WebFetch` or `WebSearch` tool resolves in this session, prefer it
+for a plain unprotected page or a quick lookup whose answer fits inline. Use this skill when
+`WebFetch` is blocked or the page needs JS, clicks, or login; when the full page text matters
+rather than an extraction; or when results should land on disk.
+
+**Mutation gate.** Neither built-in tool writes anything. This skill spends Firecrawl credits and
+writes output files under the `-o` path only.
+
+The four-part records live in [context/native-web-tools.md](context/native-web-tools.md).
+
 ## Core pattern. Write to disk, Read selectively
 
 Every firecrawl invocation writes to a spill file created by the platform's temp primitive (`mktemp "${TMPDIR:-/tmp}/<name>-XXXXXX"`, never a hardcoded path and never a bare relative template. See the Windows note under Gotchas) and uses the `Read` tool to pull only the needed portion into context. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository). Create the file and echo its path in the same Bash call so the follow-up `Read` can target it:

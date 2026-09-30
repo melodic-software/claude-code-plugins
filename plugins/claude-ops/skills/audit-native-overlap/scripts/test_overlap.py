@@ -2232,6 +2232,37 @@ class DismissalDetectTests(unittest.TestCase):
         self.assertEqual(report["discovery"]["suppressed"], [])
         self.assertEqual(report["discovery"]["resurfaced"], 1)
 
+    def write_tool_inventory(self, search_hint):
+        self.write_inventory(
+            bundled_skills={},
+            builtin_tools={
+                "Commit": {
+                    "name": "Commit",
+                    "description": "",
+                    "search_hint": search_hint,
+                    "model_invocable": True,
+                }
+            },
+            integrity={"status": "ok", "lanes": {"builtin_tools": {"status": "ok"}}},
+        )
+
+    def test_a_tool_search_hint_change_resurfaces_the_pair(self):
+        self.write_tool_inventory("create a git commit")
+        self.assertEqual(self.dismiss("--as-of", "2.1.284", native="Commit"), 0)
+        [entry] = self.stored_dismissals()
+        self.assertEqual(
+            entry["fingerprint"]["native"], overlap.fingerprint("create a git commit")
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        self.assertEqual(len(report["discovery"]["suppressed"]), 1)
+        self.write_tool_inventory("create a signed git commit")
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["name"], "Commit")
+        self.assertEqual(candidate["resurfaced"]["sides"], ["native"])
+        self.assertEqual(report["discovery"]["resurfaced"], 1)
+
     def test_a_component_description_change_resurfaces_the_pair(self):
         self.write_inventory()
         self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
