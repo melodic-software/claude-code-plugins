@@ -103,7 +103,7 @@ def build(env) -> None:
     write(handoffs / SIDECAR_ORPHAN, "{}")
     age(handoffs / SIDECAR_ORPHAN, 60)
     handoff(handoffs / HANDOFF_LATER, f"See {HANDOFF_NAMED} for the prior state.")
-    age(handoffs / HANDOFF_LATER, 30)
+    age(handoffs / HANDOFF_LATER, 5)
     write(handoffs / "notes.txt", "stray")
     age(handoffs / "notes.txt", 60)
 
@@ -208,6 +208,7 @@ def test_kinds_and_in_flight(env):
     assert items[HANDOFF_URL]["reasons"] == [f"link {URL_REF} is open"]
     assert not items[HANDOFF_CLOSED]["in_flight"]
     assert items[HANDOFF_NAMED]["reasons"] == ["named by a later handoff"]
+    assert items[HANDOFF_LATER]["reasons"] == ["modified within 14 days"]
     assert items["notes.txt"]["kind"] == "unknown"
     assert items["notes.txt"]["keep"]
     assert items["unfinished"]["kind"] == "checklist"
@@ -286,7 +287,9 @@ def test_links_are_looked_up_only_when_nothing_cheaper_keeps_the_item(env):
 
 
 @needs_posix_sh
-def test_gh_lists_the_open_items_once_per_repository(env):
+def test_gh_lists_the_open_items_once_per_repository_and_looks_up_each_closed_one_once(
+    env,
+):
     tmp, _, repo = env
     handoffs = repo / ".work" / "handoffs"
     for name, body in (
@@ -301,7 +304,12 @@ def test_gh_lists_the_open_items_once_per_repository(env):
     age(repo.parent / "home" / ".work", 60)
     gh_env = fake_gh(
         tmp,
-        'case "$*" in\n  *repos/other/repo/*) echo 7 ;;\n  *) echo 5222; echo 8 ;;\nesac',
+        'case "$*" in\n'
+        "  *repos/other/repo/issues?state=open*) echo 7 ;;\n"
+        "  *issues?state=open*) echo 5222; echo 8 ;;\n"
+        "  *issues/6\\ *) echo closed ;;\n"
+        "  *) exit 1 ;;\n"
+        "esac",
     )
     items = report(env, extra_env=gh_env)
     assert items[HANDOFF_STALE]["reasons"] == ["link #5222 is open"]
@@ -313,8 +321,9 @@ def test_gh_lists_the_open_items_once_per_repository(env):
     assert items[HANDOFF_URL]["reasons"] == ["link other/repo#7 is open"]
     assert items[HOME_HANDOFF]["reasons"] == ["link #5222 is unknown"]
     calls = (tmp / "gh-calls.log").read_text(encoding="utf-8").splitlines()
-    assert len(calls) == 2
-    assert sum("repos/other/repo/issues" in call for call in calls) == 1
+    assert len(calls) == 3
+    assert sum("repos/other/repo/issues?state=open" in call for call in calls) == 1
+    assert sum("issues/6 " in call for call in calls) == 1
 
 
 @needs_posix_sh
@@ -377,7 +386,6 @@ STALE = {
     HANDOFF_STALE,
     SIDECAR_STALE,
     HANDOFF_CLOSED,
-    HANDOFF_LATER,
     HOME_HANDOFF,
     "finished",
     "shipped",
@@ -424,6 +432,7 @@ def test_clean_apply_removes_only_stale_known_items(env):
         work / "handoffs" / HANDOFF_LINKED,
         work / "handoffs" / HANDOFF_URL,
         work / "handoffs" / HANDOFF_NAMED,
+        work / "handoffs" / HANDOFF_LATER,
         work / "handoffs" / "notes.txt",
         work / "handoffs" / SIDECAR_ORPHAN,
         work / "unfinished",
@@ -666,3 +675,169 @@ def test_normalize_apply_reports_an_oserror_and_keeps_going(env, monkeypatch, ca
     assert f"failed: {repo / '.work' / HANDOFF_STALE} (denied)" in out
     assert (repo / ".work" / HANDOFF_STALE).exists()
     assert (repo / ".work" / "running-retros" / RETRO).exists()
+
+
+# Names as they sit in a real .work, each with the state of the number it carries.
+SCRATCH = (
+    "lint-5371.log",
+    "measure-4608",
+    "pr4120.md",
+    "reverify-4186",
+    "scratch-4586-d2cc1ea4d",
+)
+NOT_ATTRIBUTED = (
+    "native-surfaces-2-1-284",  # a version
+    "triage-2026-09-28",  # a date
+    "compare-4608-4609",  # two numbers
+    "t1",
+    "12.txt",
+    "verify-ci-r2",
+    "audit-cursor-prs-full.json",
+    "scratch-notes",
+    "20260101T100000Z-notes-4608.txt",  # a writer's timestamp
+)
+SCRATCH_STATE = {
+    "#5371": "closed",
+    "#4608": "merged",
+    "#4120": "open",
+    "#4186": "closed-unmerged",
+    "#4586": "closed",
+    "#284": "closed",
+    "#4609": "closed",
+}
+
+
+def scratch(env, days: float = 60) -> Path:
+    work = env[2] / ".work"
+    for name in (*SCRATCH, *NOT_ATTRIBUTED):
+        if "." in name:
+            write(work / name, "x")
+        else:
+            write(work / name / "out.txt", "x")
+        age(work / name, days)
+    return work
+
+
+def test_scratch_is_attributed_by_the_number_in_its_name(env):
+    scratch(env)
+    items = report(env, *links(env[0], SCRATCH_STATE))
+    assert {items[name]["kind"] for name in SCRATCH} == {"scratch"}
+    assert items["lint-5371.log"]["links"] == {"#5371": "closed"}
+    assert items["scratch-4586-d2cc1ea4d"]["links"] == {"#4586": "closed"}
+    for name in ("lint-5371.log", "measure-4608", "scratch-4586-d2cc1ea4d"):
+        assert not items[name]["keep"], name
+    assert items["pr4120.md"]["reasons"] == ["link #4120 is open"]
+    assert items["reverify-4186"]["reasons"] == ["link #4186 is closed-unmerged"]
+    for name in NOT_ATTRIBUTED:
+        assert items[name]["kind"] == "unknown", name
+        assert items[name]["keep"], name
+        assert items[name]["links"] == {}, name
+
+
+def test_scratch_shows_its_state_even_when_recent_or_offline(env):
+    scratch(env, days=1)
+    items = report(env, *links(env[0], SCRATCH_STATE))
+    assert items["lint-5371.log"]["reasons"] == ["modified within 14 days"]
+    assert items["lint-5371.log"]["links"] == {"#5371": "closed"}
+    offline = report(env, "--offline")
+    assert offline["lint-5371.log"]["links"] == {"#5371": "unknown"}
+    assert offline["lint-5371.log"]["keep"]
+
+
+def test_report_text_shows_the_attributed_state(env):
+    scratch(env)
+    result = run_cli(env, *links(env[0], SCRATCH_STATE))
+    assert "stale [#5371 closed]" in result.stdout
+    assert "keep: link #4120 is open [#4120 open]" in result.stdout
+    assert "keep: unknown kind" in result.stdout
+
+
+def test_clean_removes_scratch_only_when_its_number_is_closed_or_merged(env):
+    work = scratch(env)
+    dry = run_tidy(env, "clean", *links(env[0], SCRATCH_STATE))
+    assert dry.returncode == 0, dry.stderr
+    listed = {
+        line for line in dry.stdout.splitlines() if line.startswith("would remove: ")
+    }
+    assert listed == {
+        f"would remove: {(work / 'lint-5371.log').as_posix()} [#5371 closed]",
+        f"would remove: {(work / 'measure-4608').as_posix()} [#4608 merged]",
+        f"would remove: {(work / 'scratch-4586-d2cc1ea4d').as_posix()} [#4586 closed]",
+    }
+    assert all((work / name).exists() for name in (*SCRATCH, *NOT_ATTRIBUTED))
+    applied = run_tidy(env, "clean", *links(env[0], SCRATCH_STATE), "--apply")
+    assert applied.returncode == 0, applied.stderr
+    survivors = {name for name in (*SCRATCH, *NOT_ATTRIBUTED) if (work / name).exists()}
+    assert survivors == {"pr4120.md", "reverify-4186", *NOT_ATTRIBUTED}
+
+
+def test_clean_keeps_recent_scratch_however_closed_its_number(env):
+    work = scratch(env, days=1)
+    result = run_tidy(env, "clean", *links(env[0], SCRATCH_STATE), "--apply")
+    assert result.returncode == 0, result.stderr
+    assert all((work / name).exists() for name in (*SCRATCH, *NOT_ATTRIBUTED))
+
+
+@needs_posix_sh
+def test_a_number_that_is_no_issue_or_pr_keeps_its_scratch_item(env):
+    tmp, home, repo = env
+    work = repo / ".work"
+    for name in ("lint-5371.log", "notes-123456.txt"):
+        write(work / name, "x")
+        age(work / name, 60)
+    write(home / ".work" / "lint-5371.log", "x")
+    age(home / ".work", 60)
+    gh_env = fake_gh(
+        tmp,
+        'case "$*" in\n'
+        "  *issues?state=open*) echo 7 ;;\n"
+        "  *issues/5371\\ *) echo closed ;;\n"
+        "  *) exit 1 ;;\n"
+        "esac",
+    )
+    payload = json.loads(run_cli(env, "--json", extra_env=gh_env).stdout)
+    by_root = {
+        (i["root"], Path(i["path"]).name): i
+        for i in payload["items"]
+        if i["kind"] == "scratch"
+    }
+    assert by_root["memory", "lint-5371.log"]["links"] == {"#5371": "closed"}
+    assert not by_root["memory", "lint-5371.log"]["keep"]
+    assert by_root["memory", "notes-123456.txt"]["links"] == {"#123456": "unknown"}
+    assert by_root["memory", "notes-123456.txt"]["reasons"] == [
+        "link #123456 is unknown"
+    ]
+    assert by_root["home", "lint-5371.log"]["links"] == {"#5371": "unknown"}
+    assert by_root["home", "lint-5371.log"]["keep"]
+
+
+def test_a_stale_handoff_keeps_neither_the_handoff_nor_the_slice_it_names(env):
+    _, _, repo = env
+    work = repo / ".work"
+    first, second, third = (
+        f"2025010{n}T100000Z-handoff-{name}.md"
+        for n, name in ((1, "a"), (2, "b"), (3, "c"))
+    )
+    handoff(work / "handoffs" / first)
+    age(work / "handoffs" / first, 400)
+    handoff(work / "handoffs" / second, f"Continues {first}. Slice: widget/")
+    age(work / "handoffs" / second, 399)
+    slice_dir(work / "widget", "done")
+    age(work / "widget", 400)
+
+    items = report(env, "--offline")
+    assert not any(items[name]["keep"] for name in (first, second, "widget"))
+    dry = run_tidy(env, "clean", "--offline")
+    listed = {
+        Path(line.split(": ", 1)[1]).name
+        for line in dry.stdout.splitlines()
+        if line.startswith("would remove: ")
+    }
+    assert listed == {first, second, "widget"}
+
+    handoff(work / "handoffs" / third, f"Continues {second}.")
+    items = report(env, "--offline")
+    assert items[third]["reasons"] == ["modified within 14 days"]
+    assert items[second]["reasons"] == ["named by a later handoff"]
+    assert items[first]["reasons"] == ["named by a later handoff"]
+    assert items["widget"]["reasons"] == ["named by a later handoff"]

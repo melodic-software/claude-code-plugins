@@ -22,6 +22,12 @@ from the layout in `reference/topic-docs.md`:
     running-retro  `running-retros/<TS>-running-retro-<topic>.md`
     slice          `<slug>/` holding an `INDEX.md`
     checklist      `<slug>/` holding a `workflow-checklist.md` and no `INDEX.md`
+    scratch        any other entry whose name carries exactly one issue or PR
+                   number: one all-digit token of 3 to 7 digits, optionally
+                   prefixed `pr`, `issue` or `gh` (`lint-5371.log`, `pr4120.md`,
+                   `scratch-4586-d2cc1ea4d`). A name with no such token, with
+                   several all-digit tokens (a version, a date), or starting with
+                   a writer's `<TS>Z-` timestamp is not attributed: it is unknown
     concern        an entry of another skill's concern dir (reviews, exports,
                    ...): state that skill reads back; always reported, always kept
     unknown        everything else; always reported, always kept
@@ -31,17 +37,23 @@ An item is in flight, and so kept, when any of these holds:
       (missing and unrecognized values count as not done)
     - a `workflow-checklist.md` in it has an unticked stage not marked SKIP
     - it changed within `--days` days (default 14)
-    - a later handoff mentions it by name
-    - a handoff or running-retro text names an issue or PR (a github.com URL,
-      `owner/repo#N`, or `#N`) that is open or whose state is unknown
+    - a later handoff that is itself kept mentions it by name
+    - a handoff, running-retro, or scratch item names an issue or PR (a
+      github.com URL, `owner/repo#N`, or `#N` in a handoff or running-retro's
+      text, `#N` in a scratch item's name) that is not closed, not merged, or
+      whose state is unknown
 
 A bare `#N` means the repository holding the memory root; in `$HOME/.work`, or
 any root outside a work tree, it has no repository and counts as unknown.
 Issue and PR state comes from `gh api` (one listing of the open ones per
-repository) unless `--link-state` supplies a JSON object mapping `#N` or
-`owner/repo#N` to a state, or `--offline` treats every link as unknown (in
-flight). A link missing from the table is unknown. A link is looked up only
-when nothing cheaper already keeps the item.
+repository, then one lookup per link that is not open, which also separates a
+closed link from a number that is no issue or PR: that one is unknown) unless
+`--link-state` supplies a JSON object mapping `#N` or `owner/repo#N` to a
+state, or `--offline` treats every link as unknown (in flight). A link missing
+from the table is unknown. A closed PR that was not merged is `closed-unmerged`
+and keeps its item. A link is looked up only when nothing cheaper already keeps
+the item, except a scratch item's: its state is the attribution the report and
+the `clean` dry run show.
 
 `normalize` moves a handoff (with its sidecar) or running-retro file that sits
 in the wrong place (the root, or the other one's directory) into `handoffs/` or
@@ -105,8 +117,12 @@ REF_RE = re.compile(
     r"|(?P<repo>[\w.-]+/[\w.-]+)#(?P<num>\d+)\b"
     r"|(?<![\w&#/])#(?P<bare>[1-9]\d*)\b"
 )
+NAME_TOKEN_RE = re.compile(r"(?:pr|issue|gh)?(\d+)", re.IGNORECASE)
+TIMESTAMP_RE = re.compile(r"^\d{8}T\d{6}Z-")
 UNTICKED_RE = re.compile(r"^\s*[-*]\s+\[ \]\s")
 STAGES_HEADING = "## Stages"
+FINISHED = ("closed", "merged")
+GH_STATES = ("open", *FINISHED, "closed-unmerged")
 
 
 @dataclass
@@ -119,6 +135,8 @@ class Item:
     links: list[str] = field(default_factory=list)
     extras: list[Path] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+    # link -> state, recorded when the link is looked up
+    states: dict[str, str] = field(default_factory=dict)
 
     @property
     def paths(self) -> list[Path]:
@@ -169,6 +187,22 @@ def _refs_of(path: Path) -> list[str]:
     return refs
 
 
+def _name_refs(name: str) -> list[str]:
+    """`#N` when the name holds exactly one all-digit token of 3 to 7 digits
+    (optionally prefixed pr, issue or gh); any other name is not attributed, and
+    neither is a timestamped one (the writers' handoff, retro and export names)."""
+    if TIMESTAMP_RE.match(name):
+        return []
+    numbers = [
+        match[1]
+        for token in re.split(r"[-_.\s]+", name)
+        if (match := NAME_TOKEN_RE.fullmatch(token))
+    ]
+    if len(numbers) == 1 and re.fullmatch(r"[1-9]\d{2,6}", numbers[0]):
+        return [f"#{numbers[0]}"]
+    return []
+
+
 def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
     """(kind, file whose text names the issues and PRs it is about)."""
     if path.is_symlink():
@@ -186,7 +220,7 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
             return "slice", None
         if (path / CHECKLIST).is_file():
             return "checklist", None
-    return "unknown", None
+    return ("scratch" if _name_refs(path.name) else "unknown"), None
 
 
 def _unfinished_stage(slice_dir: Path) -> bool:
@@ -250,6 +284,9 @@ def inventory(root: Path, label: str) -> list[Item]:
             stats = [_tree_stats(p) for p in (path, *extras)]
         except OSError:
             return
+        links = _refs_of(link_file) if link_file else []
+        if kind == "scratch":
+            links = _name_refs(path.name)
         items.append(
             Item(
                 path,
@@ -257,7 +294,7 @@ def inventory(root: Path, label: str) -> list[Item]:
                 kind,
                 max(mtime for mtime, _ in stats),
                 sum(size for _, size in stats),
-                _refs_of(link_file) if link_file else [],
+                links,
                 extras,
             )
         )
@@ -287,13 +324,12 @@ def inventory(root: Path, label: str) -> list[Item]:
     return items
 
 
-def _gh_open_numbers(repo: str, cwd: Path | None) -> set[str] | None:
-    """Numbers of the open issues and PRs of repo (`{owner}/{repo}` from cwd when
-    repo is empty), or None when gh cannot list them."""
-    api_path = f"repos/{repo or '{owner}/{repo}'}/issues?state=open&per_page=100"
+def _gh_api(path: str, jq: str, cwd: Path | None, *flags: str) -> str | None:
+    """Output of `gh api` for a repos/{owner}/{repo}/issues path (`{owner}/{repo}`
+    comes from cwd), or None when gh fails."""
     try:
         result = subprocess.run(
-            ["gh", "api", api_path, "--paginate", "--jq", ".[].number"],
+            ["gh", "api", path, *flags, "--jq", jq],
             capture_output=True,
             text=True,
             check=False,
@@ -302,7 +338,13 @@ def _gh_open_numbers(repo: str, cwd: Path | None) -> set[str] | None:
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    return set(result.stdout.split()) if result.returncode == 0 else None
+    return result.stdout if result.returncode == 0 else None
+
+
+_GH_STATE_JQ = (
+    'if .pull_request then (if .pull_request.merged_at then "merged" '
+    'else "closed-unmerged" end) else .state end'
+)
 
 
 class LinkStates:
@@ -310,6 +352,7 @@ class LinkStates:
         self._table = table
         self._offline = offline
         self._open: dict[tuple[str, Path | None], set[str] | None] = {}
+        self._one: dict[tuple[str, Path | None, str], str] = {}
 
     def state(self, ref: str, root: Path) -> str:
         if self._offline:
@@ -320,12 +363,22 @@ class LinkStates:
         top = None if repo else save_point._git_toplevel(root)
         if not repo and top is None:
             return "unknown"
+        base = f"repos/{repo or '{owner}/{repo}'}/issues"
         if (repo, top) not in self._open:
-            self._open[repo, top] = _gh_open_numbers(repo, top)
+            listing = _gh_api(
+                f"{base}?state=open&per_page=100", ".[].number", top, "--paginate"
+            )
+            self._open[repo, top] = None if listing is None else set(listing.split())
         numbers = self._open[repo, top]
         if numbers is None:
             return "unknown"
-        return "open" if number in numbers else "closed"
+        if number in numbers:
+            return "open"
+        if (repo, top, number) not in self._one:
+            found = _gh_api(f"{base}/{number}", _GH_STATE_JQ, top)
+            state = (found or "").strip()
+            self._one[repo, top, number] = state if state in GH_STATES else "unknown"
+        return self._one[repo, top, number]
 
 
 def _mentions(text: str, name: str, is_dir: bool) -> bool:
@@ -341,14 +394,9 @@ def mark_in_flight(
     now: float,
     roots: dict[str, Path],
 ) -> None:
-    handoffs: list[tuple[float, str]] = []
-    for item in items:
-        if item.kind == "handoff":
-            try:
-                handoffs.append((item.mtime, item.path.read_text(encoding="utf-8")))
-            except (OSError, UnicodeDecodeError):
-                continue
-    for item in items:
+    kept_handoffs: list[tuple[float, str]] = []  # (mtime, text) of handoffs kept
+
+    def judge(item: Item) -> None:
         if item.kind in ("slice", "checklist"):
             item.reasons.extend(_open_work(item.path))
         if now - item.mtime < days * 86400:
@@ -356,17 +404,32 @@ def mark_in_flight(
         is_dir = item.path.is_dir()
         if any(
             mtime > item.mtime and _mentions(text, item.path.name, is_dir)
-            for mtime, text in handoffs
+            for mtime, text in kept_handoffs
         ):
             item.reasons.append("named by a later handoff")
-        if item.reasons:
-            continue
+        if item.reasons and item.kind != "scratch":
+            return
         for ref in item.links:
-            if (state := states.state(ref, roots[item.root])) not in (
-                "closed",
-                "merged",
-            ):
+            state = item.states[ref] = states.state(ref, roots[item.root])
+            if state not in FINISHED:
                 item.reasons.append(f"link {ref} is {state}")
+
+    # Newest first, so a handoff is judged after every later one: a stale
+    # handoff does not keep what it names.
+    for item in sorted(
+        (i for i in items if i.kind == "handoff"), key=lambda i: i.mtime, reverse=True
+    ):
+        judge(item)
+        if item.reasons:
+            try:
+                kept_handoffs.append(
+                    (item.mtime, item.path.read_text(encoding="utf-8"))
+                )
+            except (OSError, UnicodeDecodeError):
+                pass
+    for item in items:
+        if item.kind != "handoff":
+            judge(item)
 
 
 def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[str]]:
@@ -420,15 +483,27 @@ def _to_dict(item: Item, now: float) -> dict[str, object]:
         "in_flight": item.in_flight,
         "reasons": item.reasons,
         "keep": item.keep,
+        "links": item.states,
     }
+
+
+def _attribution(item: Item) -> str:
+    """The issues or PRs a scratch item's name points at, with their states."""
+    if item.kind != "scratch" or not item.states:
+        return ""
+    return (
+        " [" + ", ".join(f"{ref} {state}" for ref, state in item.states.items()) + "]"
+    )
 
 
 def _verdict(item: Item) -> str:
     if item.reasons:
-        return "keep: " + "; ".join(item.reasons)
-    if item.kind == "concern":
-        return "keep: concern state read back by its skill"
-    return "keep: unknown kind" if item.kind == "unknown" else "stale"
+        verdict = "keep: " + "; ".join(item.reasons)
+    elif item.kind == "concern":
+        verdict = "keep: concern state read back by its skill"
+    else:
+        verdict = "keep: unknown kind" if item.kind == "unknown" else "stale"
+    return verdict + _attribution(item)
 
 
 def _table(items: list[Item], now: float) -> str:
@@ -695,12 +770,12 @@ def cmd_clean(args: argparse.Namespace) -> int:
             print(f"refused: {item.path.as_posix()} ({refusal})")
         elif not args.apply:
             for path in item.paths:
-                print(f"would remove: {path.as_posix()}")
+                print(f"would remove: {path.as_posix()}{_attribution(item)}")
         else:
             try:
                 for path in item.paths:
                     _remove(path)
-                    print(f"removed: {path.as_posix()}")
+                    print(f"removed: {path.as_posix()}{_attribution(item)}")
             except OSError as exc:
                 failed += 1
                 print(f"failed: {item.path.as_posix()} ({exc})")

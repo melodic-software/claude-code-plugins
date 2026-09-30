@@ -333,11 +333,14 @@ Inventories the gitignored `.work` memory tiers (the repo's memory root, resolve
 file's `memory_dir`, and `~/.work`) that no other skill prunes. `report` (default, read-only) lists
 each first-level item with age, size, kind, and whether it is in flight. `normalize` moves misplaced
 handoffs and running-retro ledgers into their standard directories. `clean` removes stale items of a
-known kind. Both are dry runs that list exact paths and ask one confirmation before `--apply`, and
-neither modifies anything git tracks. Unknown items (for example a tool's own folder), the entries
-of other skills' concern dirs (`reviews/`, `exports/`), and in-flight items (a slice whose
-`INDEX.md` status is not `done`, a recent change, a handoff naming an open issue or PR) are always
-kept. Opt-in only: nothing runs unless invoked.
+known kind. A top-level entry whose name carries one issue or PR number (`lint-5371.log`,
+`measure-4608`) is scratch: `report` shows that issue or PR and its state, and `clean` removes it
+only once that issue is closed or that PR is merged. Both actions are dry runs that list exact
+paths and ask one confirmation before `--apply`, and neither modifies anything git tracks. Unknown
+items (a name with no number or several, or a tool's own folder), the entries of other skills'
+concern dirs (`reviews/`, `exports/`), and in-flight items (a slice whose `INDEX.md` status is not
+`done`, a recent change, a handoff or scratch entry naming an open issue or PR) are always kept.
+Opt-in only: nothing runs unless invoked.
 
 ```shell
 /session-flow:tidy-work                  # report

@@ -16,10 +16,12 @@ metadata:
 The memory root (default `.work/`, see
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
 and `~/.work` collect handoffs, running-retro ledgers, workflow checklists, and slice folders
-that nothing else deletes. This skill inventories them with age, size, and kind, marks what is
-still in flight, and, only on request, moves misplaced items into the standard layout or removes
-stale ones. `${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py` does the work; this skill sequences it
-and owns the confirmation.
+that nothing else deletes, and agents drop scratch files beside them whose names carry the issue or
+PR they were for. This skill inventories them with age, size, and kind, attributes each scratch
+entry to that issue or PR and reports its state, marks what is still in flight, and, only on
+request, moves misplaced items into the standard layout or removes stale ones.
+`${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py` does the work; this skill sequences it and owns the
+confirmation.
 
 Nothing runs unless the user invokes this skill.
 
@@ -27,13 +29,20 @@ Nothing runs unless the user invokes this skill.
 
 | Action | Effect |
 |---|---|
-| `report` (default) | Read-only inventory: path, age, size, kind, in-flight or stale, per item |
+| `report` (default) | Read-only inventory: path, age, size, kind, in-flight or stale, per item; a scratch entry also shows the issue or PR its name carries and that item's state |
 | `normalize` | Moves misplaced known-kind items into the standard layout. Never deletes, never overwrites an existing target |
-| `clean` | Removes items that are a known kind and not in flight |
+| `clean` | Removes items that are a known kind and not in flight; a scratch entry only once the issue or PR its name carries is closed or merged |
 
 Pass `--days N` (default 14) to change the recency window. Pass `--offline` to treat every linked
 issue or PR as unknown, which counts as in flight; without it the script asks `gh` for the open
-issues and PRs of each repository a handoff names.
+issues and PRs of each repository a handoff names, then for the state of each link that is not
+open.
+
+A scratch entry is any other top-level entry whose name holds exactly one all-digit token of 3 to
+7 digits, optionally prefixed `pr`, `issue`, or `gh`: `lint-5371.log`, `measure-4608`,
+`scratch-4586-d2cc1ea4d`. That number is read as an issue or PR of the repository holding the
+memory root. A name with no such token, or with several (a version, a date), is not attributed and
+stays unknown.
 
 ## Steps
 
@@ -50,8 +59,9 @@ issues and PRs of each repository a handoff names.
    and show the table. `report` is the only `tidy_work.py` invocation `allowed-tools`
    pre-approves. For `report` alone, stop here.
 3. **Dry-run `normalize` or `clean`.** Run the same script with the action name and no
-   `--apply`. It prints the exact absolute path of every move or removal and changes nothing.
-   Show those paths to the user verbatim.
+   `--apply`. It prints the exact absolute path of every move or removal and changes nothing; a
+   scratch path carries `[#N state]`, the issue or PR its name was attributed to. Show those
+   lines to the user verbatim.
 4. **Ask one confirmation** covering exactly the listed paths. A refusal, or silence, ends the
    run with nothing changed.
 5. **Apply.** After a yes, re-run the identical command with `--apply`. That call is not
@@ -70,9 +80,11 @@ too:
   not `done` (`active`, `parked`, missing, and unrecognized all keep it)
 - a workflow checklist with an unfinished stage
 - a change inside the window
-- a later handoff that names the item
-- a handoff or running retro that names an open issue or PR, or one whose state could not be
-  read
+- a later handoff that names the item, unless that handoff is itself stale and going away
+- a handoff or running retro that names an issue or PR that is not closed or merged, or one whose
+  state could not be read
+- a scratch entry whose number is open, a PR closed without merging, or not readable (a number
+  that is no issue or PR of the repository counts as not readable)
 
 No flag overrides any of these.
 
@@ -94,8 +106,13 @@ No flag overrides any of these.
 ## Gotchas
 
 - **`--offline` reads as "in flight", not "stale".** With link state unknown, every handoff
-  that names an issue or PR is kept, so an offline `clean` removes less than an online one. That
-  is the safe direction.
+  or scratch entry that names an issue or PR is kept, so an offline `clean` removes less than an
+  online one. That is the safe direction.
+- **A scratch attribution is read from the name, so check the bracket.** A file called
+  `results-4608.json` is attributed to #4608 whether or not it has anything to do with it; the
+  number must exist in the repository to count, but the match is not proof. Read the `[#N state]`
+  on each path in the dry run before confirming, and decline the run if one is not yours to
+  remove. In `~/.work`, where no repository is known, every scratch entry stays.
 - **A bare `#N` is a reference into the repo that holds the memory root.** A handoff written in
   another repo can name an unrelated open item of this one and stay; in `~/.work`, where no
   repository is known, a bare `#N` counts as unknown and keeps the handoff. `owner/repo#N` and

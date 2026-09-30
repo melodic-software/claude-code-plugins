@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Contract tests for tidy_work.py — delegates to the pytest suite under tests/.
+# Contract tests for tidy_work.py: delegates to the pytest suite under tests/.
 #
 # SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
 # repo test-runner convention for optional toolchains.
