@@ -1426,6 +1426,39 @@ class TestConfirm(WaitCase):
         self.assertEqual(code, 200, data)
         self.assertEqual(data["seq"], after["seq"] + 1)
 
+    def test_4_a_confirm_after_a_commitments_revise_is_a_new_event(self):
+        body = {"id": "A", "kind": "confirm", "alt": "0"}
+        code, first = self.post(body)
+        self.assertEqual(code, 200, first)
+        rc, out = self.rp(
+            "revise", "A", "--commit", "Third", "--commit", "Fourth", "--force"
+        )
+        self.assertEqual(rc, 0, out)
+        code, data = self.post(body)
+        self.assertEqual(code, 200, data)
+        self.assertGreater(data["seq"], first["seq"])
+        code, again = self.post(body)
+        self.assertEqual((code, again["seq"]), (200, data["seq"]), again)
+
+    def test_5_a_confirm_carrying_an_old_question_rev_is_stale(self):
+        rev = next(
+            q.get("contentRev") or 0
+            for q in self.state()["questions"]["questions"]
+            if q["id"] == "A"
+        )
+        rc, out = self.rp("revise", "A", "--commit", "Fifth", "--force")
+        self.assertEqual(rc, 0, out)
+        before = len(self.state()["responses"]["events"])
+        code, data = self.post(
+            {"id": "A", "kind": "confirm", "alt": "0", "contentRev": rev}
+        )
+        self.assertEqual((code, data["error"]), (409, "stale"), data)
+        self.assertEqual(len(self.state()["responses"]["events"]), before)
+        code, data = self.post(
+            {"id": "A", "kind": "confirm", "alt": "0", "contentRev": rev + 1}
+        )
+        self.assertEqual(code, 200, data)
+
 
 def seed_restatement(d, rev):
     doc = json.loads((Path(d) / "questions.json").read_text(encoding="utf-8"))
