@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.77.1] - 2026-09-30
+## [0.77.2] - 2026-09-30
 
 ### Fixed
 
@@ -11,6 +11,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   em dash with an `ai-slop-ignore` comment.** The description is quoted verbatim, so the dash stays
   and the ai-slop audit skips that line instead of reporting it. Authored evidence lines are never
   marked.
+
+## [0.77.1] - 2026-09-30
+
+### Changed
+
+- **The `hook-failure-audit` Stop row runs in shell form.** The detector that reports unsurfaced hook failures no longer depends on `node`, the launcher whose absence it must report. The README and `/claude-ops:setup` name the exception.
 
 ## [0.77.0] - 2026-09-30
 
