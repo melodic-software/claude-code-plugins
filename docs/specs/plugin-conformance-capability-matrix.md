@@ -30,10 +30,10 @@ cohesive capability") and `:92-106`. Hook-split packaging is in ADR 0028 (`docs/
 
 Gap: the scripts check only that a `category` value is legal. None checks that it fits: the
 "subject wins if salient" test (`catalog-taxonomy.md:26-29`), whether the plugin is one cohesive
-capability, whether an existing trigger has fired (the `music` to `audio` rename landed with
-`retro-audio`; later rows in that register are still judgment), or whether a plugin-scoped revisit condition
-was recorded (`:89-97`). Fill: **judgment**. A deterministic change is possible only as an **extend**:
-make the trigger register machine-readable, which it is not today.
+capability, whether an existing trigger has fired (the `music` to `audio` rename has fired; later rows
+in that register are still judgment), or whether a plugin-scoped revisit condition was recorded
+(`:89-97`). Fill: **judgment**. A deterministic change is possible only as an **extend**: make the
+trigger register machine-readable, which it is not today.
 
 ## 2. Naming (verb rule, collisions, words used elsewhere in the fleet)
 
