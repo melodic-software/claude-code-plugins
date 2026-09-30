@@ -134,10 +134,14 @@
 #     showing it, options end at `rm` and the delete runs; the guard cannot
 #     see the shell's environment, so it refuses on both readings.
 #   * `chroot <dir> rm -rf /` and `rm -rf /*` under it. chroot's `/` is host
-#     `<dir>`, so the delete empties `<dir>` and every host directory
-#     bind-mounted inside it. Only GNU rm's default --preserve-root stops the
-#     bare `/` spelling, and not `/*` or `--no-preserve-root`. Not a
-#     harmless line, so kept on the refusal side.
+#     `<dir>`, so the bare `/` spelling empties `<dir>` and every host
+#     directory bind-mounted inside it. An unquoted `/*` is expanded by the
+#     invoking shell against the HOST root before chroot runs, so rm receives
+#     the host's top-level names and resolves each under `<dir>`: still a
+#     recursive delete inside `<dir>`, and still refused. Only GNU rm's
+#     default --preserve-root stops the bare `/` spelling, and not those names
+#     or `--no-preserve-root`. Not a harmless line, so kept on the refusal
+#     side.
 #
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
 #   * PowerShell is covered for the same target classes as Bash, with its own
@@ -146,9 +150,29 @@
 #     (ri, rm, del, erase, rd, rmdir) with -Recurse on any unambiguous prefix
 #     (-r, -rec, -Recurse) or the bash-in-PS cluster -rf; cmd /c (and /k)
 #     rd /s and rmdir /s; a pipeline into Remove-Item -Recurse with no path.
+#     A statement ends at `; | & && ||` and at an unquoted newline (LF, CRLF or
+#     a bare CR) that no backtick continues. An unquoted `(`, `$(` or `{`
+#     opens a nested level whose statements are judged on their own, so a
+#     delete after a newline or inside a scriptblock, a grouping or `$( )` is
+#     caught; the closing `)` or `}` leaves one placeholder word in the
+#     statement that was open, so that statement keeps its later arguments. A
+#     target that is a `( )`, `$( )` or `@( )` grouping is refused, because its
+#     value is not known: as a positional operand even without -Recurse, and
+#     as a -Path value with it. So is a `{ }` scriptblock named as a target of
+#     a recursive delete; as the value of -Filter, -Include or -Exclude it is
+#     stepped over. The
+#     operand `$env:NAME` or `${env:NAME}` is judged as the Bash lane judges
+#     `$NAME` or `${NAME}`: refused bare or with only nameless segments after
+#     it (`$env:TEMP`, `$env:TEMP\`, `$env:TEMP\*`), allowed with a named subpath
+#     (`$env:TEMP\build`).
 #     Still uncovered: Start-Process/iex wrapping a delete, a command word
 #     supplied only by a variable (`& $cmd -Recurse C:\`), nested PowerShell
-#     (`pwsh -Command '...'`), and a here-string body.
+#     (`pwsh -Command '...'`), a `$( )` inside a double-quoted string, a
+#     command that is not the first word of its statement (`$r = Remove-Item
+#     -Recurse C:\`), a comma list of targets (`Remove-Item -Recurse ./x,C:\`),
+#     and a here-string, which is read as ordinary quoting: its body is not
+#     judged, and a quote character inside it ends the span early, so the code
+#     after it is not judged either.
 #   * Other delete verbs: `find -delete`, `rsync --delete`, `xargs rm`,
 #     `shred`, and a delete performed from inside an interpreter.
 #   * Expansion-built targets AND an expansion-built command word. Detection
@@ -204,6 +228,10 @@
 #     modeled: a service unit runs from `/` (or the user's home) unless
 #     `--scope`, `-d` or `--working-directory` says otherwise, and a relative
 #     operand under it is judged from the payload cwd.
+#   * An operand-taking option of a listed launcher that its table does not
+#     carry ends the walk at that option's operand, which is then read as the
+#     command word: uutils `env -f FILE` / `--file FILE` (uutils 0.10.0), so
+#     `env -f x rm -rf /` is not refused.
 #   * sudo's `-R` / `--chroot`, a short cluster ending in an operand-taking
 #     letter (`sudo -Eu bob …`), and an abbreviated long option (`sudo --us bob
 #     …`) are judged on two readings, blocking if either does: as a flag, so
@@ -296,6 +324,29 @@ RDT_CWD_NUL=0
 # the classifier's load path. The PowerShell lane uses a dedicated tokenizer
 # below and does not call the shared classifier.
 [[ "$TOOL_NAME" == "Bash" || "$TOOL_NAME" == "PowerShell" ]] || exit 0
+
+# hook::jq_fields drops every CR from a field, but PowerShell ends a statement
+# at a bare CR as well as at LF, so `Get-Location<CR>Remove-Item ...` would
+# read as one glued word. On the PowerShell tool the command is read again
+# from the payload with a JSON CR escape (`\r`, `\u000d`) spelled as an LF and
+# a CRLF pair as one LF, which is what the read above already made of it. The
+# `\\` pairs are set aside first so an escaped backslash before an `r` (a
+# Windows path such as `C:\\repos`) is not taken for a CR escape.
+if [[ "$TOOL_NAME" == "PowerShell" && ("$INPUT" == *'\r'* || "$INPUT" == *'\u000'[dD]*) ]]; then
+  rdt_bs=$'\\'
+  rdt_cr="${rdt_bs}r" rdt_lf="${rdt_bs}n"
+  rdt_in="${INPUT//"$rdt_bs$rdt_bs"/$'\001'}"
+  rdt_in="${rdt_in//"${rdt_bs}u000d"/"$rdt_cr"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000D"/"$rdt_cr"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000a"/"$rdt_lf"}"
+  rdt_in="${rdt_in//"${rdt_bs}u000A"/"$rdt_lf"}"
+  rdt_in="${rdt_in//"$rdt_cr$rdt_lf"/"$rdt_lf"}"
+  rdt_in="${rdt_in//"$rdt_cr"/"$rdt_lf"}"
+  rdt_in="${rdt_in//$'\001'/"$rdt_bs$rdt_bs"}"
+  if [[ "$rdt_in" != "$INPUT" ]] && hook::jq_fields "$rdt_in" '.tool_input.command'; then
+    COMMAND="${HOOK_JQ_FIELDS[0]}"
+  fi
+fi
 
 # Nothing to inspect.
 [[ -n "$COMMAND" ]] || exit 0
@@ -889,6 +940,19 @@ rdt_short_cluster_arg() {
 # `argv0`, `env0-from` and `quoting-style`) are stepped over by the plain walk
 # and taken only here (see the sudo row of the launcher table). doas is
 # absent: it has no long options.
+# env's names, fetched 2026-09-29. GNU coreutils src/env.c (last change
+# f799b2f) lists `argv0`, `env0-from` and `quoting-style` as options taking an
+# argument, beside `unset` and `chdir`; its NEWS puts `--argv0` in 9.5,
+# `--env0-from` in 9.12 and `--quoting-style` after 9.12; the env manual at
+# gnu.org/software/coreutils/manual/html_node/env-invocation.html lists
+# `--argv0`, `--unset`, `--env0-from` and `--chdir`. uutils/coreutils
+# src/uu/env/src/env.rs (last change b2480b2) implements `argv0`, `unset`,
+# `chdir` and `split-string`, not `env0-from` or `quoting-style`. uutils 0.10.0's
+# own `env --help` lists those four and also `-f, --file <PATH>`, which neither
+# table here carries (see the operand-taking-option gap in the header). So
+# `env0-from` and `quoting-style` exist only in newer GNU env, and are kept: a
+# name an env lacks only adds a refusal, and removing one would loosen the
+# guard. The sudo names above carry no source here.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_long_takes_arg() {
   local name="$2" ops fls o nop=0
@@ -2127,7 +2191,15 @@ rdt_check_segment() {
     # shadow's `sg [-|-l] group [[-c] command]` runs exactly one word through
     # `sh -c`: the one after the group, or after a `-c` that has a word after
     # it. Later words are ignored, so that one word is re-parsed like su's -c
-    # operand. `-` and `-l` start from the user's home, as `su -` does.
+    # operand. Source: shadow-maint/shadow src/newgrp.c (sg is newgrp run under
+    # that name; last change 10c5a20, fetched 2026-09-29): it reads `-` or `-l`
+    # first, then the group (a word not starting with `-`), takes `command =
+    # argv[1]` when `argv[0]` is `-c` and another word follows and `argv[0]`
+    # otherwise, and runs `execl(SHELL, "sh", "-c", command)`; sg(1) on
+    # man7.org says "The command will be executed with the /bin/sh shell". In
+    # that source `-` and `-l` set initflag, whose chdir to the home directory
+    # comes AFTER that execl, so a command runs from the current directory. The
+    # guard still treats the directory as unknown, which only adds refusals.
     sg)
       j=$((i + 1))
       if ((j < n)) && [[ "${words[j]}" == - || "${words[j]}" == -l ]]; then
@@ -2890,7 +2962,16 @@ rdt_scan_substitutions() {
 # backtick is the escape. Parameters match on any unambiguous prefix of
 # Remove-Item's names. cmd /c rd /s and rmdir /s are judged as cmd grammar.
 # A pipeline into Remove-Item -Recurse with no path is refused: the target
-# arrived through the pipe and cannot be named.
+# arrived through the pipe and cannot be named. So is a target that is a
+# `( )`, `$( )` or `@( )` grouping: its value is not known. A statement ends
+# at `;`, `|`, `&`, `&&`, `||` and an unquoted newline (LF, CR or CRLF, unless a
+# backtick continues the line). An unquoted `(`, `$(` or `{` opens a nested
+# level: what is inside is judged as statements of its own, and the closing `)`
+# or `}` puts one placeholder word (`(` or `{`) back into the statement that
+# was open, so the arguments after a grouping still belong to their command
+# (`Remove-Item -Path (Join-Path $a b) -Recurse`). A `}` after an if, foreach,
+# try, function or similar keyword also ends that statement. `${name}` is one
+# variable word.
 
 rdt_ps_piped=0
 
@@ -2965,15 +3046,14 @@ rdt_ps_cmd_split_to() {
 }
 
 # rdt_ps_operand <word>: one PowerShell / cmd target through the same root,
-# empty, bare-variable and outside-tree arms as Bash. $env:NAME is a bare
-# variable in PowerShell and is not a bash $NAME form.
+# empty, bare-variable and outside-tree arms as Bash. `$env:NAME` and
+# `${env:NAME}` are read as `$NAME` and `${NAME}`, so each spelling gets the
+# answer the Bash lane gives: `$env:TEMP`, `$env:TEMP\` and `$env:TEMP\*` are
+# refused as bare variables, and `$env:TEMP\build` is not.
 rdt_ps_operand() {
-  local w="$1" n
-  n="${w,,}"
-  n="${n//\\//}"
-  if [[ "$n" =~ ^\$env:[a-z_][a-z0-9_]*([/].*)?$ || "$n" =~ ^\$\{env:[a-z_][a-z0-9_]*\}([/].*)?$ ]]; then
-    rdt_block "bare-variable" "$w"
-  fi
+  local w="$1"
+  w="${w//\$\{[eE][nN][vV]:/\$\{}"
+  w="${w//\$[eE][nN][vV]:/\$}"
   rdt_check_operand "$w" 0
 }
 
@@ -3110,6 +3190,9 @@ rdt_ps_ri_check() {
     if [[ -z "$__p" ]]; then
       rdt_block "empty-operand"
     fi
+    # The walker's placeholder for a `( )` grouping or a `{ }` scriptblock
+    # named as a target: what it evaluates to is not known.
+    [[ "$__p" == "(" || "$__p" == "{" ]] && rdt_block "pipeline-target" "$__p"
     rdt_ps_operand "$__p"
   done
 }
@@ -3162,11 +3245,16 @@ rdt_ps_statement() {
 }
 
 # rdt_ps_walk <command>: PowerShell quoting (backtick escape, backslash
-# literal) into statements split on ; | & && ||, then judged.
+# literal) into statements split on the boundaries listed above, then judged.
+# Judging a statement resets the pipeline state, so the stage right after a `|`
+# keeps it across an empty boundary (a newline after the pipe). A newline after
+# an unquoted comma does not end the statement: the array continues on the next
+# line. The nested levels are parked in __sv (their words, flat), __svn (how
+# many words each holds) and __svp (their pipeline state).
 rdt_ps_walk() {
   local __s="$1" __n=${#1} __i=0
-  local -a __words=()
-  local __word="" __in=0 __q="" __c __nxt
+  local -a __words=() __sv=() __svn=() __svp=() __svk=()
+  local __word="" __in=0 __q="" __c __nxt __cont=0
   rdt_ps_piped=0
 
   rdt_ps_flush_word() {
@@ -3180,8 +3268,53 @@ rdt_ps_walk() {
     rdt_ps_flush_word
     if ((${#__words[@]})); then
       rdt_ps_statement "${__words[@]}"
+      __words=()
+      rdt_ps_piped=0
     fi
+  }
+  # A `(`, `$(` or `{` (its kind is the argument) opens a level: the statement
+  # so far is parked and what follows is judged on its own.
+  rdt_ps_open() {
+    rdt_ps_flush_word
+    ((${#__svn[@]} < MAX_SUBST_DEPTH)) || rdt_block "nesting-too-deep"
+    if ((${#__words[@]})); then
+      __sv+=("${__words[@]}")
+    fi
+    __svn+=("${#__words[@]}")
+    __svp+=("$rdt_ps_piped")
+    __svk+=("$1")
     __words=()
+    rdt_ps_piped=0
+  }
+  # A `)` or `}` judges the innermost level and hands its parked statement back
+  # with one placeholder word, the kind the level was opened with (`(` or
+  # `{`), whichever closer ended it. Without an open level it only ends the
+  # statement.
+  rdt_ps_close() {
+    rdt_ps_end_stmt
+    local __k=${#__svn[@]} __cnt __tot __kind
+    ((__k)) || return 0
+    __cnt=${__svn[__k - 1]}
+    __kind=${__svk[__k - 1]}
+    __tot=${#__sv[@]}
+    if ((__cnt)); then
+      __words=("${__sv[@]:__tot-__cnt:__cnt}")
+      __sv=("${__sv[@]:0:__tot-__cnt}")
+    else
+      __words=()
+    fi
+    rdt_ps_piped=${__svp[__k - 1]}
+    unset "__svn[__k - 1]" "__svp[__k - 1]" "__svk[__k - 1]"
+    __words+=("$__kind")
+    if [[ "$__kind" == "{" ]]; then
+      case "${__words[0],,}" in
+      if | elseif | else | foreach | for | while | do | until | switch | try | catch | finally | \
+        trap | function | filter | workflow | param | begin | process | end | dynamicparam)
+        rdt_ps_end_stmt
+        ;;
+      *) ;;
+      esac
+    fi
   }
 
   while ((__i < __n)); do
@@ -3203,6 +3336,16 @@ rdt_ps_walk() {
         else
           __word+="$__c"
         fi
+      elif [[ "$__q" == '}' ]]; then
+        # `${name}`: the name runs to the first unescaped `}` and stays in the
+        # word, so `${env:ProgramFiles(x86)}` is one word and its `(` no boundary.
+        if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
+          __word+="$__nxt"
+          __i=$((__i + 1))
+        else
+          __word+="$__c"
+          [[ "$__c" == '}' ]] && __q=""
+        fi
       else
         if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
           __word+="$__nxt"
@@ -3218,15 +3361,19 @@ rdt_ps_walk() {
       continue
     fi
     if [[ "$__c" == '`' ]] && ((__i + 1 < __n)); then
-      if [[ "$__nxt" == $'\n' ]]; then
+      # A backtick before a line break (LF, CR or CRLF) continues the line.
+      if [[ "$__nxt" == $'\n' || "$__nxt" == $'\r' ]]; then
         __i=$((__i + 2))
+        [[ "$__nxt" == $'\r' && "${__s:__i:1}" == $'\n' ]] && __i=$((__i + 1))
         continue
       fi
       __word+="$__nxt"
       __in=1
+      __cont=0
       __i=$((__i + 2))
       continue
     fi
+    [[ "$__c" == [[:space:]] ]] || __cont=0
     case "$__c" in
     "'")
       __q="'"
@@ -3238,12 +3385,44 @@ rdt_ps_walk() {
       ;;
     '#')
       if ((__in == 0)); then
-        while ((__i < __n)) && [[ "${__s:__i:1}" != $'\n' ]]; do
+        while ((__i < __n)) && [[ "${__s:__i:1}" != $'\n' && "${__s:__i:1}" != $'\r' ]]; do
           __i=$((__i + 1))
         done
         continue
       else
         __word+="#"
+      fi
+      ;;
+    '$')
+      # `$(` opens a subexpression: its `(` below opens the level and the `$`
+      # is not a word. `${` opens a braced variable name.
+      if [[ "$__nxt" != '(' ]]; then
+        __in=1
+        if [[ "$__nxt" == '{' ]]; then
+          __word+="\${"
+          __q='}'
+          __i=$((__i + 1))
+        else
+          __word+='$'
+        fi
+      fi
+      ;;
+    ',')
+      __word+=","
+      __in=1
+      __cont=1
+      ;;
+    '(' | '{')
+      rdt_ps_open "$__c"
+      ;;
+    ')' | '}')
+      rdt_ps_close
+      ;;
+    $'\n' | $'\r')
+      if ((__cont)); then
+        rdt_ps_flush_word
+      else
+        rdt_ps_end_stmt
       fi
       ;;
     '|')
@@ -3285,6 +3464,11 @@ rdt_ps_walk() {
     __i=$((__i + 1))
   done
   rdt_ps_end_stmt
+  # A level the text never closes is judged too.
+  while ((${#__svn[@]})); do
+    rdt_ps_close
+    rdt_ps_end_stmt
+  done
 }
 
 # rdt_ps_run: PowerShell lane. Does not load the classifier.
