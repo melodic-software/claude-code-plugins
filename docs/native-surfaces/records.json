@@ -3923,6 +3923,24 @@
         "class": "builtin-agent"
       },
       "component": {
+        "plugin": "session-flow",
+        "skill": "tidy-work",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only ('work'): tidy-work is a user-only skill that tidies the gitignored .work memory tiers; the built-in worker agent executes delegated tasks. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-09-30",
+      "fingerprint": {
+        "native": "cbc1f297a2e2195d9616355d9371b597",
+        "component": "2b87d7d4252ceb57225021542be8bc5c"
+      }
+    },
+    {
+      "native": {
+        "name": "worker",
+        "class": "builtin-agent"
+      },
+      "component": {
         "plugin": "work-items",
         "skill": "work",
         "kind": "skill"
