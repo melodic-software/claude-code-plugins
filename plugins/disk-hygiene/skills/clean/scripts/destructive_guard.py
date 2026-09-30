@@ -578,7 +578,7 @@ _ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
 # derived from the grammar: a newly declared subcommand is still denied until
 # someone decides whether it is read-only or a mutation that needs the prompt.
 _READONLY_ENGINE_SUBCOMMANDS = frozenset(
-    {"scan", "preview", "handoff-verify", "catalog"}
+    {"scan", "inventory", "preview", "handoff-verify", "catalog"}
 )
 _MUTATING_ENGINE_SUBCOMMANDS = frozenset({"apply", "handoff-apply"})
 

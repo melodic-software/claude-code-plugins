@@ -1,6 +1,6 @@
 ---
 description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default and manual-only. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
-argument-hint: "[--execute] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>"
+argument-hint: "[--execute] [--deep] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>"
 user-invocable: true
 disable-model-invocation: true
 hooks:
@@ -27,7 +27,7 @@ metadata:
   summary: Audit a directory tree for stale leftovers and remove validated paths
 ---
 
-**Arguments.** `[--execute] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>`. Full form: `[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>`
+**Arguments.** `[--execute] [--deep] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>`. Full form: `[--execute] [--deep] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>`
 
 # Disk hygiene
 
@@ -41,8 +41,7 @@ optional execution lane. On Windows and macOS a run ends in a report plus the `e
 
 ## Arguments and boundaries
 
-Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
-`--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
+Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional `--deep` ([deep inventory](#deep-inventory)), optional `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--quiet`, optional `--root-children` with zero or more `--root-child <name>`, and one target
 directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
 `--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and
@@ -158,10 +157,13 @@ naming what the question never presented cannot be met.
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on a volume root), never "everything" or the scan target itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
-**`--sizes-only`** goes through the same large-scan question as an ordinary unbounded walk, so a
-known-large root needs `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected
-directories, read-only, keeps no per-path entries, and has no entry cap. Detail:
-[scan-flags.md](reference/scan-flags.md#--sizes-only).
+**`--sizes-only`** goes through the same large-scan question as an ordinary unbounded walk, so a known-large root needs `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only, keeps no per-path entries, and has no entry cap. Detail: [scan-flags.md](reference/scan-flags.md#--sizes-only).
+
+## Deep inventory
+
+A home-directory target, or any target with `--deep`, starts with the read-only `inventory` subcommand (`hygiene.py inventory --target <target> --data-root <data-root> [--deep]`).
+A bare `/disk-hygiene:clean ~` runs it before any `scan`. It asks no question and passes no confirmation-gate row. Present its report grouped by category, `CANDIDATE` rows first and `UNKNOWN` rows as coverage gaps.
+It only reports: removing a listed entry still takes `scan`, a fresh `preview` and the removal approval, and every `KEEP` row needs a specific reason ([safety-model.md](reference/safety-model.md#deep-inventory-is-report-only), [scan-flags.md](reference/scan-flags.md#--deep)).
 
 ## 1. Create a read-only snapshot
 
@@ -177,10 +179,7 @@ or `${CLAUDE_PLUGIN_ROOT}`. Run:
   [--root-children [--root-child <name>]...]
 ```
 
-For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
-`--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`). The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
-when every subtree was walked; a depth cut, a directory that failed to scan, or a mount-state error
-marks `rollup_precision: partial`. Entry-cap error and next steps: [scan-flags.md](reference/scan-flags.md).
+For exact per-child byte totals without a per-entry inventory or the entry cap, add `--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`; [snapshot fields, entry-cap next steps](reference/scan-flags.md#--sizes-only)).
 Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
@@ -188,7 +187,7 @@ the call outright when it cannot recognize the install layout, so a run reportin
 coverage gap, not a clean result. (Derivation and its fail-closed rationale: `reference/safety-model.md`.)
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry cap),
-start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and immediate children,
+a `scan` starts with a bounded pass (a home directory gets the [deep inventory](#deep-inventory) first): add `--max-depth 1` to inventory the target's loose files and immediate children,
 then fan out deeper scans per subtree that the evidence justifies. After that depth-1 pass, re-inventory
 the directories the operator approved with `--root-children` and one `--root-child <name>` per approved
 immediate child: one snapshot, paths relative to the original target, no whole-home walk. The engine backs this with a
@@ -466,8 +465,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
-  catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
+- The Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
+  handoff-verify, catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
   runtime's own absolute interpreter. The same denial text also admits literal-form read-only
   supporting commands whose heads are absolute paths under a trusted system directory: `[`,
   `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete
