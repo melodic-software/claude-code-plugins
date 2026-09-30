@@ -117,7 +117,9 @@ def _row_rest(pattern: re.Pattern[str], line: str) -> tuple[re.Match[str], str] 
 
 def parse_tools_table(text: str) -> dict[str, dict[str, Any]]:
     """Rows of the tools reference's table (`| Tool | Description | Permission
-    required |`), keyed by tool name. Stops where the table ends."""
+    required |`), keyed by tool name. Stops where the table ends, and at the
+    next heading even when no row matched, so a later table never stands in
+    for a table whose rows stopped matching."""
     rows: dict[str, dict[str, Any]] = {}
     in_table = False
     for line in text.splitlines():
@@ -126,6 +128,8 @@ def parse_tools_table(text: str) -> dict[str, dict[str, Any]]:
         if not in_table:
             in_table = bool(_TOOL_HEADER_RE.match(line))
             continue
+        if line.startswith("#"):
+            break
         if not line.startswith("|"):
             if rows:
                 break

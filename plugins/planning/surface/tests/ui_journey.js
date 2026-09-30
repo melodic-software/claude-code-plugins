@@ -150,6 +150,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
+    const chip = await page.$$eval(".qbtn .chip.hot", els => els.map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
+    ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
     await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
@@ -195,10 +197,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     // Claude-side confirmation and Confirm all
     ok("Claude's confirmation leaves Q2's list, shows its reason and lowers the count", !(await page.$('#toConfirm [data-cq="Q2"]')) && /Q2 \(Confirmed in the terminal\)/.test(await text("#byClaude")) && (await text("#assumeCount")) === "3 to confirm", (await text("#assumeCount")) + " / " + await text("#byClaude"));
     ok("a terminal accept mirrored with record-terminal, then confirmed by Claude, leaves no part of Q4 to confirm", !(await page.$('#toConfirm [data-cq="Q4"]')) && /Q4 \(Said yes in the terminal\)/.test(await text("#byClaude")), await text("#toConfirm"));
+    ok("Wrap up warns while assumptions are open and stays enabled", /^3 assumptions not confirmed yet\.$/.test(await text("#openAssumeWarn")) && !(await page.$eval('[data-wrapup="1"]', el => el.disabled)), await text("#openAssumeWarn"));
     const n1 = (await events()).length;
     await tap("[data-confirmall]", 1500);
     const added = (await events()).slice(n1);
     ok("Confirm all posts one confirm per unconfirmed commitment", added.length === 3 && added.every(e => e.kind === "confirm") && await page.$eval("#assumeCount", el => el.hidden), added.map(e => e.id + ":" + e.alt).join(","));
+    ok("the open-assumptions warning is gone after Confirm all", !(await page.$("#openAssumeWarn")));
 
     // confirm understanding
     ok("the summary shows the restatement with Confirm and Something's off", /Ship green builds to staging/.test(await text("#restate")) && /Left to the plan stage/.test(await text("#restate")) && !!(await page.$('[data-understand="confirm"]')) && !!(await page.$('[data-understand="off"]')), (await text("#restate")).slice(0, 160));

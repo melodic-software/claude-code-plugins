@@ -84,8 +84,8 @@ Each rung is its own skill. Facts come from a tested script. An edge cites the
 file and the matched text. Anything no probe derives stays `unknown`.
 
 `/architecture:map-dependencies` cites which project references which from build
-declarations. The first adapter is .NET `ProjectReference` and `PackageReference`.
-The record is `dependency-graph.json`. The human file is a mermaid flowchart. It
+declarations. The ecosystems it reads, and the ones it declines, are listed in its
+`SKILL.md`. The record is `dependency-graph.json`. The human file is a mermaid flowchart. It
 reads no dialect key.
 
 `/architecture:map-components` draws the C4 component view of one deployable from
@@ -162,7 +162,7 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories", "map
+portfolio", "who owns which repo", "map
 dependencies", "component diagram", "map events", "trace this route", "map
 containers", "system context", "entity relationship", "deployment diagram".
 

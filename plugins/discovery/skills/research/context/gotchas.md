@@ -7,7 +7,7 @@ outcome gate's artifact-grounded criteria, or not at all.
 - **A silent preload miss looks exactly like a good run.** A dispatched agent whose `skills:` entry
   did not resolve starts anyway, writes an artifact, and reports `coverage: complete`; the harness
   logs a warning to the debug log and nowhere else. The dated record for that harness behavior is
-  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "Harness facts the dispatch design rests on". The `preload_token` echo is the check that
   distinguishes "the discipline body reached the agent" from "it did not"; a missing or mismatched
   token discards the run rather than downgrading it. It does **not** distinguish preload from the
@@ -18,7 +18,7 @@ outcome gate's artifact-grounded criteria, or not at all.
   harness's partial marking. That is not a discard: resume the agent with `SendMessage` addressed by
   its agent ID, and it continues from retained context. That has recovered a complete artifact set
   and a well-formed payload that passed both gates. The dated record is
-  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "A turn-limit stop returns partial output, and the parent can resume the agent".
 - **Enumerating the corpus from search results.** A Phase 0 ledger built from what searching happened
   to surface inherits precisely the blind spot the ledger exists to close, and then certifies it. Use

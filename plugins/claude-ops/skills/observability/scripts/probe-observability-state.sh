@@ -35,15 +35,20 @@
 # hooks read theirs from the session environment).
 #
 # --hook-events output (stdout, exactly one line) over the root's
-# sessions/*.jsonl files plus its hook-events.jsonl:
+# sessions/*.jsonl files plus its hook-events.jsonl and the rotated .1 beside it:
 #   <N> events
 #   EMPTY (no hook-event emitter wired, or no hooks fired yet)
 #   INVALID root (<value>): the hooks write nothing
 #
-# --otel-store output (stdout, three lines — one per store file, in order
-# cc-logs.json, cc-metrics.json, cc-traces.json):
+# --otel-store output (stdout, five lines — one per store file, in order
+# cc-logs.json, cc-metrics.json, cc-traces.json, then the cold tier and the
+# last prune):
 #   <name>:<bytes>B
 #   <name>:absent
+#   cold:<bytes>B (<n> files) | cold:absent
+#   last-prune:<ISO-8601 UTC> (<age, e.g. 3h or 2d>) | last-prune:never
+# The stamp is <store>/.last-prune, written by prune-otel-store.sh at the end of
+# every successful non-dry run.
 #
 # --pipeline output (stdout, six lines, fixed order and labels; read-only, it
 # never heals the guard):
@@ -51,7 +56,7 @@
 #   guard: ok | absent (the first write heals it) | operator-edited (writes refused)
 #        | not needed (not a git checkout) | n/a (root invalid)
 #   sessions: <S> file(s), newest <id> | none
-#   shared: <L> event(s) in hook-events.jsonl | absent
+#   shared: <L> event(s) in hook-events.jsonl (rotated .1 included) | absent
 #   prune-pending: none | <D> dir(s), <O> older than 24 h[ WARN: an archiver is not finishing]
 #   envelope: <E> row(s) from the audit hooks, outside the switch | none;
 #        event log: on|off; categories: all|<v>; keep: <n> sessions or <n> days;
@@ -136,14 +141,14 @@ while (($#)); do
     exit 0
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
 done
 
 if [[ -z "$MODE" ]]; then
-  err "a mode is required: --hook-events, --otel-store or --pipeline"
+  err "a mode is required: --hook-events, --otel-store or --pipeline (see --help)"
   exit 3
 fi
 
@@ -163,7 +168,19 @@ if ! unset_value "$ROOT_ARG"; then
   slog_contained "$ROOT_REL" || ROOT_VALID=0
 fi
 
-# The files the hook log holds: sessions/*.jsonl plus the shared file.
+# The shared file and the .1 the sink rotates it to at its size cap.
+# Populated by shared_files <abs-root> into SHARED_FILES.
+SHARED_FILES=()
+shared_files() {
+  local f
+  SHARED_FILES=()
+  for f in "$1/hook-events.jsonl" "$1/hook-events.jsonl.1"; do
+    [[ -f "$f" ]] && SHARED_FILES+=("$f")
+  done
+  return 0
+}
+
+# The files the hook log holds: sessions/*.jsonl plus the shared files.
 # Populated by hook_files <abs-root> into HOOK_FILES.
 HOOK_FILES=()
 hook_files() {
@@ -172,7 +189,8 @@ hook_files() {
   shopt -s nullglob
   for f in "$1"/sessions/*.jsonl; do HOOK_FILES+=("$f"); done
   shopt -u nullglob
-  [[ -f "$1/hook-events.jsonl" ]] && HOOK_FILES+=("$1/hook-events.jsonl")
+  shared_files "$1"
+  ((${#SHARED_FILES[@]})) && HOOK_FILES+=("${SHARED_FILES[@]}")
   return 0
 }
 
@@ -191,6 +209,8 @@ case "$MODE" in
   ;;
 --otel-store)
   STORE="${CC_OTEL_STORE:-$(repo_root)/.claude/observability/otel}"
+  # Same Windows backslash normalization as prune-otel-store.sh.
+  case "${OSTYPE:-}" in msys* | cygwin* | win*) STORE="${STORE//\\//}" ;; *) ;; esac
   for name in cc-logs.json cc-metrics.json cc-traces.json; do
     if [[ -f "$STORE/$name" ]]; then
       printf '%s:%sB\n' "$name" "$(wc -c <"$STORE/$name" 2>/dev/null || echo 0)"
@@ -198,6 +218,34 @@ case "$MODE" in
       printf '%s:absent\n' "$name"
     fi
   done
+  cold_bytes=0
+  cold_files=0
+  shopt -s nullglob
+  for f in "$STORE"/cold/*.parquet; do
+    cold_bytes=$((cold_bytes + $(wc -c <"$f" 2>/dev/null || echo 0)))
+    cold_files=$((cold_files + 1))
+  done
+  shopt -u nullglob
+  if ((cold_files)); then
+    printf 'cold:%sB (%s files)\n' "$cold_bytes" "$cold_files"
+  else
+    printf 'cold:absent\n'
+  fi
+  stamp=""
+  [[ -f "$STORE/.last-prune" ]] && read -r stamp <"$STORE/.last-prune" 2>/dev/null
+  stamp="${stamp%$'\r'}"
+  stamp_epoch=""
+  if [[ -n "$stamp" ]]; then
+    stamp_epoch="$(date -u -d "$stamp" +%s 2>/dev/null || date -j -u -f %Y-%m-%dT%H:%M:%SZ "$stamp" +%s 2>/dev/null || true)"  # portability-ok: BSD date -j fallback on the same line
+  fi
+  if [[ -n "$stamp_epoch" ]]; then
+    age=$(($(date +%s) - stamp_epoch))
+    ((age < 0)) && age=0
+    if ((age >= 172800)); then age_txt="$((age / 86400))d"; else age_txt="$((age / 3600))h"; fi
+    printf 'last-prune:%s (%s)\n' "$stamp" "$age_txt"
+  else
+    printf 'last-prune:never\n'
+  fi
   ;;
 --pipeline)
   PROJECT="$(repo_root)"
@@ -250,8 +298,12 @@ case "$MODE" in
   else
     printf 'sessions: none\n'
   fi
-  if ((ROOT_VALID)) && [[ -f "$ABS_ROOT/hook-events.jsonl" ]]; then
-    printf 'shared: %s event(s) in hook-events.jsonl\n' "$(wc -l <"$ABS_ROOT/hook-events.jsonl" | tr -d ' ')"
+  SHARED_FILES=()
+  ((ROOT_VALID)) && shared_files "$ABS_ROOT"
+  shared_rows=0
+  if ((${#SHARED_FILES[@]})); then
+    shared_rows="$(cat "${SHARED_FILES[@]}" | wc -l | tr -d ' ')"
+    printf 'shared: %s event(s) in hook-events.jsonl (rotated .1 included)\n' "$shared_rows"
   else
     printf 'shared: absent\n'
   fi
@@ -282,15 +334,13 @@ case "$MODE" in
   # Per-session files mix the sink's envelope rows (`source: "envelope"`) with
   # the event log's, so those are matched by marker; every line of the shared
   # hook-events.jsonl is a sink envelope in the legacy shape (an audit hook whose
-  # payload carried no session id), so that file counts whole.
+  # payload carried no session id), so that file and its rotated .1 count whole.
   envelope="none"
   envelope_rows=0
   if ((ROOT_VALID)) && [[ -d "$ABS_ROOT/sessions" ]]; then
     envelope_rows="$(cat "$ABS_ROOT"/sessions/*.jsonl 2>/dev/null | grep -c '"source":"envelope"')"
   fi
-  if ((ROOT_VALID)) && [[ -f "$ABS_ROOT/hook-events.jsonl" ]]; then
-    envelope_rows=$((envelope_rows + $(wc -l <"$ABS_ROOT/hook-events.jsonl" | tr -d ' ')))
-  fi
+  envelope_rows=$((envelope_rows + shared_rows))
   ((envelope_rows)) && envelope="$envelope_rows row(s) from the audit hooks, outside the switch"
 
   # --observed: the caller has no option values (the skill's pre-compute line,

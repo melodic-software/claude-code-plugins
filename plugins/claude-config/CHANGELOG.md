@@ -5,6 +5,34 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.53.6] - 2026-09-30
+
+### Changed
+
+- **`audit` / Phase 5:** route approved `settings.json` and `settings.local.json` edits through `update-config` with
+  the `[Self-Modification]` handshake, and document the two auto-mode refusals
+  (`.claude/audit-pass.md` as `[Instruction Poisoning]`, the `audit-engine.sh` re-run as
+  `[Self-Modification]`) with the operator fallback
+  ([#5376](https://github.com/melodic-software/claude-code-plugins/issues/5376)).
+
+## [0.53.5] - 2026-09-29
+
+### Changed
+
+- **`unhobble`: listing description trimmed to 500 characters or fewer.** Quoted triggers are
+  kept; the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.53.4] - 2026-09-29
+
+### Fixed
+
+- **`scripts/fetch-docs.sh`:** a slug resolves only to the top-level docs page
+  (`/docs/en/<slug>.md` or `/docs/<slug>.md`). A nested page with the same basename, such as
+  `plugins/cli-reference.md`, no longer shadows the top-level page, so `--discover` no longer marks
+  the top-level page not-in-index
+  ([#5496](https://github.com/melodic-software/claude-code-plugins/issues/5496)).
+
 ## [0.53.3] - 2026-09-29
 
 ### Changed

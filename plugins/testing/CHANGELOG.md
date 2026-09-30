@@ -3,6 +3,31 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6] - 2026-09-30
+
+### Changed
+
+- **The `run` Boundary bullet in `run-e2e` no longer asserts that the skill ships with Claude
+  Code.** It keeps the provenance class, what the skill does and how it is invoked, in the
+  native-references template form.
+
+## [0.11.5] - 2026-09-30
+
+### Fixed
+
+- **setup:** `check`'s instruction line names the one file Claude Code loads at the repository
+  root (`CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, or the user `CLAUDE.md`
+  under `${CLAUDE_CONFIG_DIR:-~/.claude}` when the repository has none) instead of offering
+  "CLAUDE.md or AGENTS.md": `AGENTS.md` does not load beside a `CLAUDE.md`, `.claude/CLAUDE.md` or
+  `CLAUDE.local.md`, and `CLAUDE.local.md` always loads, so it is named with a note that a
+  `CLAUDE.md` would share the line with the team.
+
+## [0.11.4] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.11.3] - 2026-09-29
 
 ### Fixed

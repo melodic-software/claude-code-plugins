@@ -522,6 +522,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const isOpen = st => st === "open" || st === "need";
   const live = q => !["sup", "arch"].includes(stateOf(q));
   const isStale = q => q.state === "stale" && stateOf(q) !== "arch";
+  const summaryStale = g => {
+    if (!g.summary || !Array.isArray(g.summaryOf)) return false;
+    const now = S.doc.questions.filter(q => q.group === g.id).map(q => q.id).sort();
+    return now.join("\n") !== g.summaryOf.join("\n");
+  };
   const stageLabel = s => ((S.doc.meta || {}).stages || {})[s] || (s ? s[0].toUpperCase() + s.slice(1) : "Round");
   const roundLabel = q => stageLabel(q.stage) + " round " + (q.round ?? 1);
   function headRound(){ // the highest round among live questions of the newest question's stage
@@ -543,7 +548,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return c.length ? c : ps;
   }
   function confirmed(q){ // ticked on the page, or confirmed by Claude after a terminal confirmation
-    const s = new Set(events().filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)));
+    const s = new Set(events().filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && (e.seq || 0) <= q.commitsSinceSeq)).map(e => String(e.alt)));
     (q.commitsConfirmed || []).forEach(c => s.add(String(c.index)));
     return s;
   }
@@ -602,7 +607,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const carry = carryOver(), qs = S.doc.questions.slice().sort(byIdCmp), secs = [];
     if (S.view === "groups") {
       const gs = S.doc.groups || [];
-      gs.forEach(g => secs.push({key: "g:" + g.id, gid: g.id, title: g.title || g.id, hint: g.summary, items: qs.filter(q => q.group === g.id), lock: lockedBy(g.id)}));
+      gs.forEach(g => secs.push({key: "g:" + g.id, gid: g.id, title: g.title || g.id, hint: g.summary, hintStale: summaryStale(g), items: qs.filter(q => q.group === g.id), lock: lockedBy(g.id)}));
       const known = new Set(gs.map(g => g.id)), un = qs.filter(q => !known.has(q.group));
       if (un.length) secs.push({key: "g:-", title: "Ungrouped", items: un, lock: []});
     } else if (S.view === "rounds") {
@@ -649,7 +654,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
     if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot">Claude is revising</span>');
-    if (carry[q.id]) chips.push('<span class="chip hot">open ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
+    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     if (lastEventSeq(q.id) && !isHandled(lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
@@ -692,7 +697,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           '<div class="sec-top"><button class="sec-h" aria-expanded="' + !s.collapsed + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + "</span></button>" +
           (elig.length && aa ? '<button class="tbtn small" ' + aa + ' data-submit="1" title="Accept the recommendation on the open questions you have opened here">Accept all (' + elig.length + ")</button>" : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
-          (s.hint ? '<div class="sec-hint">' + esc(s.hint) + "</div>" : "") +
+          (s.hint ? '<div class="sec-hint">' + (s.hintStale ? '<span class="chip hot" title="This summary was written before questions were added to the group">Stale</span> ' : "") + esc(s.hint) + "</div>" : "") +
           '<ul class="qlist">' + (items.length ? items.map(q => "<li>" + railItem(q, s, carry, fresh) + "</li>").join("") : '<li class="empty">None.</li>') + "</ul></div>";
       }
     }
@@ -1104,9 +1109,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     h += '<section class="blk"><h4>Loose ends</h4>' + (le.length ? '<ul class="loose">' + le.map(x => "<li>" + x + "</li>").join("") + "</ul>" : '<p class="empty">None.</p>') + "</section>";
     const next = (S.doc.meta || {}).next || "Claude records your decisions in the ledger and answers any loose ends. Wrap-up then exports the decisions, and this session can be discarded.";
     h += '<section class="blk"><h4>What Claude does next</h4>' + (p.length ? "<p>" + esc(st) + ".</p>" : "") + md(next) + "</section>";
-    const u = uState(), unconf = S.doc.restatement && !(u && u.alt === "confirm");
+    const u = uState(), unconf = S.doc.restatement && !(u && u.alt === "confirm"), nOpen = openAssumptions();
     h += '<section class="blk"><div class="arow"><button class="act primary" data-wrapup="1" data-submit="1"' + (S.api >= 2 && !S.busy ? "" : " disabled") + ">Wrap up</button>" +
       (unconf ? '<span class="kbd" id="unconfWarn" style="color:var(--chg)">Understanding not confirmed yet.</span>' : "") +
+      (nOpen ? '<span class="kbd" id="openAssumeWarn" style="color:var(--chg)">' + nOpen + (nOpen === 1 ? " assumption" : " assumptions") + " not confirmed yet.</span>" : "") +
       (S.api < 2 ? '<span class="kbd">' + RESTART + "</span>" : lastWrap ? '<span class="kbd">Wrap-up sent ' + esc(fmt(lastWrap.at)) + "</span>" + receipts(lastWrap.seq) : '<span class="kbd">Tells Claude you are done. Nothing is locked.</span>') + "</div>" +
       '<div class="toast' + (S.toastBad ? " bad" : "") + '">' + esc(S.toast) + "</div></section>";
     setHtml($("sumRest"), h);
@@ -1487,7 +1493,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function confirmCommit(id, i){ // records only this commitment; idempotent
     const q = Q[id]; if (!q || S.busy || !accepted(q) || confirmed(q).has(String(i))) return false;
-    if (await sendFree("confirm", "", {id: q.id, alt: String(i)})) { toast("Confirmed on " + q.id + "."); renderAll(); return true; }
+    if (await sendFree("confirm", "", {id: q.id, alt: String(i), contentRev: q.contentRev || 0})) { toast("Confirmed on " + q.id + "."); renderAll(); return true; }
     return false;
   }
   async function confirmAll(){ // one confirm event per unconfirmed commitment

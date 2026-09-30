@@ -3,6 +3,88 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.1] - 2026-09-30
+
+### Changed
+
+- **`clean` names the hook note as the one primary source for `hook_python` and `data_root`.** The fallback is the probe: when the note is absent, one bare-python probe is denied, names the interpreter, and the rerun probe supplies `data_root`. `safety-model.md` records that the hook is the chosen delivery path and that the denied probe in the no-hook path is an accepted residual.
+
+## [0.32.0] - 2026-09-30
+
+### Added
+
+- **Virtual-disk images are protected by name**
+  ([#5228](https://github.com/melodic-software/claude-code-plugins/issues/5228)). `*.vhd`, `*.vhdx`,
+  `*.avhd`, `*.avhdx` (Hyper-V checkpoint disks), `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img`
+  (WSL's `ext4.vhdx` included) are the baseline `disk_image_name_globs`, matched case-insensitively. A matching file carries the `virtual-disk` size qualifier, so
+  its bytes leave `target_reclaimable_local_bytes` and the child roll-ups, and `hard_protection`
+  reports `virtual-disk`; scan, preview, apply, `handoff-verify`, and the root-children ladder refuse
+  it and any candidate that contains one.
+- **The volume an attached image backs is reported.** Windows asks `Get-DiskImage` (bounded at 20
+  seconds); Linux and WSL read the loop devices' backing files and mounts. An attached image adds
+  `attached-virtual-disk:<drive or mountpoint>`; a probe that errors, times out, or has no route adds
+  `virtual-disk-attach-unverified` and never reads as detached. Under WSL, which never sees the
+  Windows host's attachments, an image with no loop device reads as unverified, not detached.
+
+## [0.31.1] - 2026-09-30
+
+### Fixed
+
+- **The snapshot entry-cap error names the largest top-level children**
+  ([#5517](https://github.com/melodic-software/claude-code-plugins/issues/5517)). The error now lists
+  the top five top-level children by entry count so far, marks the one still being walked as a lower
+  bound, and points at `--sizes-only` and then `--root-children --root-child <name>` or `--max-depth`.
+
+## [0.31.0] - 2026-09-30
+
+### Added
+
+- **Investigated entries are recorded in a catalog**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). The new
+  `catalog` command writes investigated entries, each keyed by scan target, path and identity,
+  from a findings file or an operator answers file. The scan only reads the catalog and annotates
+  a scan entry that matches a record with `prior_disposition`. An operator's keep answer is stored
+  with the record, so a later scan reports the entry's prior conclusion instead of asking again,
+  and the report leads with new or changed entries. The catalog is replaced atomically, so an
+  interrupted write keeps the previous one. A record with any invalid field value or a subtree the
+  scan did not walk is skipped, never treated as a conclusion. The command refuses a snapshot
+  whose entries lack a path. The investigation procedure and research escalation are not part of
+  this slice.
+
+## [0.30.0] - 2026-09-29
+
+### Added
+
+- **Policy overlay version 2: preselect rules, an age threshold, and an elevation opt-in**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A `version: 2`
+  overlay accepts `rules`: each names one or more hint ids and ticks matching candidates in the
+  approval list (`policy_rule` and `preselected` on the candidate). A tick is a default, not
+  approval, and never overrides a blocker or the hint's `confidence_ceiling`. `min_age_days` holds
+  the tick for an entry modified inside the window and reports `in_flight_reason`. The `elevation`
+  field (`never` by default, or `uac-prompt` on Windows from the user-global file or `--policy`
+  only) lets the skill offer an operator-approved elevated re-check for paths contested only for
+  `needs-elevation`. The `scan-complete` output carries the effective `elevation`. Version 1 files
+  load unchanged, and `reference/policy-overlay.schema.json` describes both versions. The elevation
+  lane has not been proven in a Windows UAC pilot.
+
+## [0.29.2] - 2026-09-30
+
+### Fixed
+
+- **Belt lifetime and subagent reach state what a probe showed**
+  ([#3856](https://github.com/melodic-software/claude-code-plugins/issues/3856)). The README said docs
+  scope a skill hook to the component's lifetime. The hooks page says Claude Code keeps a skill's
+  frontmatter hooks for the rest of the session, and a probe on Claude Code 2.1.285 (Linux) confirmed
+  the belt denies on turns after the skill's own turn. The same probe ran a subagent's Bash call
+  without the belt, so the README and `skills/clean/SKILL.md` now record non-inheritance with that
+  basis instead of "inconsistent reach". No behavior changed.
+
+## [0.29.1] - 2026-09-29
+
+### Fixed
+
+- **The PowerShell mutation-word check relieves quoted words only for allow-listed commands.** A deletion word inside a quoted literal (a commit message, a search term, an issue body) no longer prompts when every command head is on the allow-list of commands that never run their string arguments and the line has no comment, subexpression, here-string, backtick, call operator, or member call. Any other line still gets the plain word match. The operator handoff tells operators to pass `gh` bodies with `--body-file` and to prefer single-quoted literals.
+
 ## [0.29.0] - 2026-09-29
 
 ### Added
