@@ -133,7 +133,8 @@
         "title": {"type": "string"},
         "eyebrow": {"type": "string"},
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
-        "next": {"type": "string"}
+        "next": {"type": "string"},
+        "repo": {"type": "string"}
       }
     },
     "meta": {

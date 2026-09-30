@@ -113,6 +113,8 @@ BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
 VERSION_LABEL = re.compile(r"V[0-9]+")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
+BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
+CODE_SPAN = re.compile(r"`[^`\n]+`")
 
 if os.name == "nt":
     import msvcrt
@@ -316,10 +318,34 @@ def add_question(doc, q):
     return touched
 
 
+def strings(v):
+    """Every string inside a JSON value."""
+    if isinstance(v, str):
+        yield v
+    elif isinstance(v, dict):
+        for x in v.values():
+            yield from strings(x)
+    elif isinstance(v, list):
+        for x in v:
+            yield from strings(x)
+
+
+def warn_bare_issue_refs(doc, label, value):
+    """Warn once when any text in value carries a bare #N (outside code spans) and meta.repo is unset, so the page cannot link it."""
+    if not doc["meta"].get("repo") and any(
+        BARE_ISSUE_REF.search(CODE_SPAN.sub("", s)) for s in strings(value)
+    ):
+        warn(
+            f"{label} has a bare #N; the page links it only when meta.repo is set "
+            "(owner/repo), so set it or write owner/repo#N"
+        )
+
+
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget and bare ids (not version labels like V1) that name no question here."""
+    """Warnings, never refusals: R12 length budget, bare ids (not version labels like V1) that name no question here, and bare #N with no meta.repo."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
+        warn_bare_issue_refs(doc, q["id"], q)
         rec = q.get("recommendation") or ""
         m = SENTENCE_BREAK.search(rec)
         first = m.start() + 1 if m else len(rec)
@@ -394,7 +420,7 @@ def put_group(doc, g):
 # The CLI commands and `apply` share them; only the caller loads, locks and saves.
 
 
-META_KEYS = ("title", "eyebrow", "stages", "next")
+META_KEYS = ("title", "eyebrow", "stages", "next", "repo")
 
 
 def set_meta(doc, m):
@@ -1036,6 +1062,9 @@ def cmd_apply(d, a):
                 logged.append((op["op"], msg, t))
         summarize(doc, logged)
         lint_questions(doc, added)
+        for op in spec["ops"]:
+            if op["op"] not in ("add", "add-round", "meta"):
+                warn_bare_issue_refs(doc, f"{op['op']} op", op)
         save(d, doc, touched)
     for line in lines:
         print(line)

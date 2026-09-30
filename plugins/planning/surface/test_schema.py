@@ -123,6 +123,18 @@ class TestShippedSchemas(unittest.TestCase):
         rows["Q1"]["status"] = "pending"
         self.assertIsNotNone(schema.first_error(doc, schema.load("questions")))
 
+    def test_meta_repo_is_a_string_in_the_file_and_in_the_meta_op(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        doc["meta"]["repo"] = "o/r"
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["meta"]["repo"] = 5
+        self.assertIn("$.meta.repo", schema.first_error(doc, schema.load("questions")))
+        ops = schema.load("ops")
+        op = {"op": "meta", "set": {"repo": "o/r"}}
+        self.assertIsNone(schema.first_error(op, ops["$defs"]["meta"], "$", ops))
+        op["set"]["repo"] = 5
+        self.assertIsNotNone(schema.first_error(op, ops["$defs"]["meta"], "$", ops))
+
     def test_activity_is_capped_at_200_entries(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         doc["status"] = {"text": "Researching", "at": "t"}

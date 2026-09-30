@@ -81,6 +81,7 @@
         "eyebrow": {"type": "string"},
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
         "next": {"type": "string"},
+        "repo": {"type": "string"},
         "emojiMarkers": {"type": "boolean"},
         "displayName": {"type": "string"},
         "seededFrom": {"$ref": "#/$defs/seededFrom"}

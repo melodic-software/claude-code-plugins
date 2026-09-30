@@ -476,6 +476,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (i % 2) return "<code>" + esc(part.slice(1, -1)) + "</code>";
       const keep = [];
       let e = esc(part).replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, t, u) => { keep.push('<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + t + '</a>'); return "\u0000" + (keep.length - 1) + "\u0000"; });
+      const link = (t, repo, n) => { keep.push('<a href="https://github.com/' + repo + '/issues/' + n + '" target="_blank" rel="noopener noreferrer">' + t + '</a>'); return "\u0000" + (keep.length - 1) + "\u0000"; };
+      e = e.replace(/(^|[^\w/.&#-])([\w.-]+\/[\w.-]+)#(\d+)\b/g, (m, pre, repo, n) => pre + link(repo + "#" + n, repo, n));
+      const base = /^[\w.-]+\/[\w.-]+$/.test(S.doc.meta.repo || "") ? S.doc.meta.repo : "";
+      if (base) e = e.replace(/(^|[^\w/&#-])#(\d+)\b/g, (m, pre, n) => pre + link("#" + n, base, n));
       e = e.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, "$1<em>$2</em>");
       e = e.replace(/\b([A-Z]{1,3}\d{1,4})\b/g, (m, id) => Q[id] ? refHtml(id) : m);
       return e.replace(/\u0000(\d+)\u0000/g, (m, n) => keep[+n]);

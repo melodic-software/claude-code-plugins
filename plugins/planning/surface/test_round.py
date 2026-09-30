@@ -272,6 +272,31 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
+    def test_bare_issue_ref_warns_without_meta_repo(self):
+        q = question("Q4", title="Does #123 block the release?")
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0)
+        self.assertIn("Q4 has a bare #N", err)
+        self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
+
+    def test_bare_issue_ref_is_quiet_with_repo_code_span_or_owner_repo(self):
+        titles = ("Close `#123` first?", "Does o/r#4 block it?", "Does #123 block it?")
+        for n, title in enumerate(titles, start=4):
+            if n == 6:
+                doc = self.doc()
+                doc["meta"]["repo"] = "o/r"
+                self.write_doc(doc)
+            q = question(f"Q{n}", title=title)
+            rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0)
+            self.assertNotIn("bare #N", err, title)
+
+    def test_bare_issue_ref_in_a_reply_op_warns(self):
+        ops = {"ops": [{"op": "note-reply", "text": "See #77 for the thread."}]}
+        rc, _, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0)
+        self.assertIn("note-reply op has a bare #N", err)
+
     def test_basis_over_three_sentences_warns(self):
         q = question("Q4", basis="One. Two. Three. Four.")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
