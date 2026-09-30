@@ -3,6 +3,18 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1] - 2026-09-30
+
+### Fixed
+
+- **Reports are keyed per project and retention is scoped to the key.** `persist-report.sh` wrote
+  `<data>/reports/<skill>-<stamp>.json` with no project key and kept the newest 20 per skill across
+  every project on the machine, so a run in one repository could delete another's reports. Reports
+  now land in `<data>/reports/<state-key>/`, the key comes from the synced `lib/state-key.sh`, and
+  the newest-20 retention counts only that directory. Reports written before this change stay in
+  place, unkeyed, and a run names them once on stderr. When no key can be derived the run keeps no
+  report and says why.
+
 ## [0.4.0] - 2026-09-29
 
 ### Changed
