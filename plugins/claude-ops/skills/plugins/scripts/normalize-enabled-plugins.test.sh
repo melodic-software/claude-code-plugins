@@ -46,6 +46,22 @@ assert_exit "--help exits 0" 0 "$rc"
 rc=0
 bash "$NORM" --bogus >/dev/null 2>&1 || rc=$?
 assert_exit "unknown argument exits 2" 2 "$rc"
+out="$(bash "$NORM" --bogus 2>&1)" || true
+assert_contains "unknown argument names --help" "$out" "(see --help)"
+
+rc=0
+out="$(bash "$NORM" --help)" || rc=$?
+assert_contains "--help lists the exit codes" "$out" "Exit: 0 already sorted"
+
+# --help works with no jq on PATH.
+NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
+mkdir -p "$NOJQ_BIN"
+for tool in bash cat; do
+  ln -s "$(command -v "$tool")" "$NOJQ_BIN/$tool"
+done
+rc=0
+PATH="$NOJQ_BIN" "$NOJQ_BIN/bash" "$NORM" --help >/dev/null 2>&1 || rc=$?
+assert_exit "--help without jq exits 0" 0 "$rc"
 
 MISSING="$TEST_TMPDIR/no-such.json"
 rc=0
