@@ -6529,13 +6529,17 @@ class HandoffVerifyTests(unittest.TestCase):
         for phrase in (
             "never delete it without a clear `handoff-verify` verdict",
             "run `handoff-verify`, and delete only on a `clear` verdict",
-            "On Linux, run the engine route in §6 (`handoff-apply`): it re-runs "
+            "On Linux, run `handoff-apply` ([command](reference/safety-model.md"
+            "#standalone-git-checkout-evidence)): it re-runs "
             "`handoff-verify` and deletes only on a `clear` verdict",
-            "handoff-apply --execute",
             "tell the operator plainly that unpushed commits and untracked or "
             "ignored files in that checkout will be lost",
         ):
             self.assertIn(phrase, text)
+        safety_model = (SCRIPT_DIR.parent / "reference" / "safety-model.md").read_text(
+            "utf-8"
+        )
+        self.assertIn("handoff-apply --execute", safety_model)
 
     def verify_evidence(self, target: Path, approved: list[str], evidence):
         snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))

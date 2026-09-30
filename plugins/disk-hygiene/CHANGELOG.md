@@ -27,7 +27,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Changed
 
-- **clean docs:** `SKILL.md` section 6 carries the `handoff-apply` command block and names the Linux
+- **clean docs:** `safety-model.md` carries the `handoff-apply` command block and `SKILL.md` names the Linux
   route in the throwaway-checkout bullet, still telling the operator plainly that unpushed commits
   and untracked or ignored files will be lost. `safety-model.md`, `unsupported-platform-handoff.md`
   and the README no longer imply the acknowledgement has no Linux route, that the guard asks only

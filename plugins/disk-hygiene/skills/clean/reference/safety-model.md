@@ -232,6 +232,16 @@ under the same `ask`. It deletes on any `clear` verdict, with or without `accept
 the entry; preview and token apply never evaluate the acknowledgement. The verdict still expires
 immediately.
 
+The Linux command, one approved standalone checkout per call. Any verdict but `clear` removes
+nothing; confirm the guard's `ask` only for that path.
+
+```text
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-apply --execute \
+  --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
+  --vcs-evidence "<run-dir>/vcs-evidence.json" --report "<run-dir>/report-handoff.json" \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
 | Verdict | Meaning | Manual-lane action |
 |---|---|---|
 | `clear` | Every check passed against live state at emission time | Delete this exact path immediately. Verify one path per deletion, never one batch for all (earlier checks age while later paths are probed) |

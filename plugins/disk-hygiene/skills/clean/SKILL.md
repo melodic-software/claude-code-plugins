@@ -86,12 +86,11 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
   remote, untracked files, no commits), never delete it without a clear `handoff-verify` verdict. Record
   `accept_unpublished` with the operator's reason for that exact approved path in
-  `vcs-evidence.json`; every other contest reason must be gone. On Linux, run the engine route in
-  §6 (`handoff-apply`): it re-runs `handoff-verify` and deletes only on a `clear` verdict. On
-  Windows and macOS, run `handoff-verify`, and delete only on a `clear` verdict through the §6
-  manual handoff lane. Preview and token apply keep VCS protection categorical; the
-  acknowledgement exists only in `handoff-verify`. Before deleting, tell the operator plainly that
-  unpushed commits and untracked or ignored files in that checkout will be lost.
+  `vcs-evidence.json`; every other contest reason must be gone. On Linux, run `handoff-apply`
+  ([command](reference/safety-model.md#standalone-git-checkout-evidence)): it re-runs
+  `handoff-verify` and deletes only on a `clear` verdict. On Windows and macOS, run `handoff-verify`,
+  and delete only on a `clear` verdict through the §6 manual handoff lane. Before deleting, tell the
+  operator plainly that unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
@@ -433,21 +432,6 @@ were empty directories, the coverage gaps that remain, and every skip grouped by
 Report `reclaimable_local_bytes_removed` and the observed free-space delta **after** those tidiness
 figures, never as the headline. Do not claim the observed free-space delta is exact: concurrent disk
 activity, sparse files, hard links, compression, and delayed allocation affect it.
-
-### Standalone checkout deletion (Linux)
-
-For one approved standalone checkout, run only the command below. It deletes on any `clear`
-verdict: one whose [evidence entry](reference/safety-model.md#standalone-git-checkout-evidence)
-carries `accept_unpublished`, or one that passes every evidence gate without it.
-
-```text
-"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-apply --execute \
-  --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
-  --vcs-evidence "<run-dir>/vcs-evidence.json" --report "<run-dir>/report-handoff.json" \
-  --data-root "${CLAUDE_PLUGIN_DATA}"
-```
-
-One path per call; any verdict but `clear` removes nothing; confirm the guard's `ask` only for that path.
 
 ### Unsupported-platform handoff (Windows, macOS)
 
