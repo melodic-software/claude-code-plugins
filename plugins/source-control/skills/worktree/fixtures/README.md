@@ -101,9 +101,9 @@ outcome depends on discriminators neither run disclosed, and a null result from 
 differs anywhere is not a refutation. The 2026-08-15 run pinned the discriminators below but could
 not fire the instrument without CLI authentication.
 
-### Pinned discriminators (2026-08-15 run)
+### Pinned discriminators
 
-| Discriminator | Value pinned by this run |
+| Discriminator | Value pinned |
 |---|---|
 | How the worktree was **created** | plain `git worktree add` (not `claude --worktree` / `EnterWorktree`) |
 | How the session was **launched** | `cd <worktree> && claude -p … --settings <file>` (bare cd into a git-worktree-add directory) |
