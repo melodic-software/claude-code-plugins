@@ -30,8 +30,8 @@ example in a home-directory session; the engine then skips the project policy la
 
 Use the hook Python launcher the parent filled in for `<hook-python>`, not a bare `python3` on PATH.
 
-Do not run `apply`, `preview`, `handoff-verify`, `rm`, `del`, moves, or any command that mutates the
-target. Do not wrap the engine in compound shells (`;`, `&&`, `|`).
+Do not run `apply`, `preview`, `handoff-verify`, `catalog`, `rm`, `del`, moves, or any command that
+mutates the target. Do not wrap the engine in compound shells (`;`, `&&`, `|`).
 
 ## Scan invocation templates
 

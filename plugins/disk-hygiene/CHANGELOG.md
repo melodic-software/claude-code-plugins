@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.1] - 2026-09-30
+## [0.31.1] - 2026-09-30
 
 ### Fixed
 
@@ -13,6 +13,22 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
   optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
   tokens, and states that `--project-dir` is optional.
+
+## [0.31.0] - 2026-09-30
+
+### Added
+
+- **Investigated entries are recorded in a catalog**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). The new
+  `catalog` command writes investigated entries, each keyed by scan target, path and identity,
+  from a findings file or an operator answers file. The scan only reads the catalog and annotates
+  a scan entry that matches a record with `prior_disposition`. An operator's keep answer is stored
+  with the record, so a later scan reports the entry's prior conclusion instead of asking again,
+  and the report leads with new or changed entries. The catalog is replaced atomically, so an
+  interrupted write keeps the previous one. A record with any invalid field value or a subtree the
+  scan did not walk is skipped, never treated as a conclusion. The command refuses a snapshot
+  whose entries lack a path. The investigation procedure and research escalation are not part of
+  this slice.
 
 ## [0.30.0] - 2026-09-29
 

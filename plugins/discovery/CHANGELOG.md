@@ -1,5 +1,15 @@
 # Changelog: discovery plugin
 
+## [0.25.14] - 2026-09-30
+
+### Fixed
+
+- **Skill spokes no longer cite bundled files with the literal `${CLAUDE_PLUGIN_ROOT}` token.** The
+  token is substituted in SKILL.md bodies, not in spoke files read on demand, so a spoke path
+  resolved to nothing. Markdown links in the `explore`, `research` and `trace-intent` spokes are now
+  relative to the spoke, and the script and brief paths cite the plugin root as rendered in the
+  SKILL.md body.
+
 ## [0.25.13] - 2026-09-30
 
 ### Changed
