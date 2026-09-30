@@ -18,7 +18,10 @@
 #                          With one indegree-zero deployable whose closure covers
 #                          every project, that deployable is the default. Several
 #                          deployables exit 3 and name the choices. Nothing is
-#                          written in that case.
+#                          written in that case. A stray manifest (a project no
+#                          edge touches, in an ecosystem no linked or .NET
+#                          project shares) is neither a choice nor an outside
+#                          module; it is counted as set aside.
 #   --group-by <strategy>  directory (default), namespace, or layer. directory
 #                          groups by the parent of the project's own directory;
 #                          namespace by the namespace minus its last segment.
@@ -57,7 +60,8 @@
 #
 # A single project with no internal edges is a thin result: components.md says
 # so and names the neighboring rungs, and no one-box diagram is written.
-# ecosystem "unknown" writes the record's message and no diagram.
+# ecosystem "unknown" writes the record's message and no diagram. Any other
+# ecosystem name, including "mixed" (more than one reader ran), is charted.
 #
 # Prints one summary line on stdout:
 #
@@ -561,7 +565,23 @@ END {
     else if (ekind[i] == "package") eclass[i] = "package"
     else if (ekind[i] == "project") eclass[i] = "unresolved"
     else eclass[i] = "other"
+    if (eclass[i] == "project") { linked[efrom[i]] = 1; linked[edge_to[i]] = 1 }
     if (eclass[i] == "project" && !(efrom[i] in is_test)) indegree[edge_to[i]]++
+  }
+
+  # A stray manifest is a project no internal edge touches, in an ecosystem no
+  # linked project and no .NET project shares: a tooling package.json, a
+  # requirements file. It is not a deployable and is never a choice.
+  nanchor = 0
+  for (i = 1; i <= nn; i++) {
+    id = nid[i]
+    if (!(id in is_project) || (id in is_test)) continue
+    if (!(id in linked) && eco[id] != "dotnet") continue
+    if (!(eco[id] in anchor)) { anchor[eco[id]] = 1; nanchor++ }
+  }
+  for (i = 1; i <= nn; i++) {
+    id = nid[i]
+    if ((id in is_project) && !(id in is_test) && !(id in linked) && nanchor > 0 && !(eco[id] in anchor)) stray[id] = 1
   }
 
   nproj = 0
@@ -574,7 +594,7 @@ END {
   nr = 0
   for (i = 1; i <= nn; i++) {
     id = nid[i]
-    if (!(id in is_project) || (id in is_test)) continue
+    if (!(id in is_project) || (id in is_test) || (id in stray)) continue
     if (indegree[id] + 0 == 0) roots[++nr] = id
   }
 
@@ -586,6 +606,7 @@ END {
     id = nid[i]
     if (!(id in is_project)) continue
     if (id in is_test) { tests[++ntest] = id; continue }
+    if (id in stray) continue
     if (!(id in reached)) unreached[++nu_un] = id
   }
 
@@ -647,9 +668,12 @@ END {
   sort_ids(comps, ncomp)
 
   noutside = 0
+  nset = 0
   for (i = 1; i <= nn; i++) {
     id = nid[i]
-    if ((id in is_project) && !(id in reached) && !(id in is_test)) noutside++
+    if (!(id in is_project) || (id in reached) || (id in is_test)) continue
+    if (id in stray) nset++
+    else noutside++
   }
 
   ninternal = 0
@@ -725,6 +749,7 @@ END {
   printf "meta\texternal\t%d\n", nexternal
   printf "meta\tunresolved\t%d\n", nunresolved
   printf "meta\toutside\t%d\n", noutside
+  printf "meta\tset_aside\t%d\n", nset
   printf "meta\tviolations\t%d\n", nviol
   printf "meta\tlayers_declared\t%s\n", (nlayers > 0 ? "yes" : "no")
   printf "meta\tthreshold\t%d\n", threshold + 0
@@ -1030,6 +1055,7 @@ nviol="$(meta_get violations)"
 next="$(meta_get external)"
 nunr="$(meta_get unresolved)"
 noutside="$(meta_get outside)"
+nset="$(meta_get set_aside)"
 layers_declared="$(meta_get layers_declared)"
 
 {
@@ -1068,6 +1094,9 @@ layers_declared="$(meta_get layers_declared)"
   printf 'Unresolved references: %s.\n' "$nunr"
   if [[ "${noutside:-0}" -gt 0 ]]; then
     printf 'Modules outside this container: %s. They belong to other deployables and are not drawn here.\n' "$noutside"
+  fi
+  if [[ "${nset:-0}" -gt 0 ]]; then
+    printf 'Set aside as not deployables: %s. Each is a manifest no reference touches, in an ecosystem no linked or .NET project shares. `--container` charts one anyway.\n' "$nset"
   fi
   printf '\n## Edges\n\n'
   printf 'Every edge below is directed. The evidence cell is the file and the matched declaration.\n\n'

@@ -665,7 +665,7 @@
         "verified": "2026-09-10"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -1115,7 +1115,7 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -1324,7 +1324,7 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -1741,7 +1741,7 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -3076,7 +3076,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "0a8452b902a7c193435b2041100be125",
-        "component": "5af0946f562a1d33c263c41714c1bfe5"
+        "component": "a4762f225fc50c9df77089fd8a46356a"
       }
     },
     {
@@ -3094,7 +3094,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "0a8452b902a7c193435b2041100be125",
-        "component": "da380f79016e7cf6e4c9bb5f33862caf"
+        "component": "e10abc79b4bb422727038ff39e0b834d"
       }
     },
     {
