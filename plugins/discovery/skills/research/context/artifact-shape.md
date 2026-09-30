@@ -28,7 +28,7 @@ three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`)
 also carries `evidence_use:` (see the sidecar header below) and `verification:`.
 
 **`verification:` takes one of the values** defined in
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "The `verification:` values": `pending`, `pass (research-verifier, <date>)`,
 `fail rows <n>[,<n>…] (research-verifier, <date>)`, `skipped (cost)`, `unverified (none, <date>)`.
 The run writes `pending` in its first write, because it may not grade the verifier rows itself; the

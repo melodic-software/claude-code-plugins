@@ -248,6 +248,16 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 - **Does not skip phases for "simple" topics**. Task size does not reduce depth; only the Effort table may skip later phases, at the row caller effort or a `breadth=` token selects
 - **Does not present training-data knowledge as current fact**. Tier 3 recall must be promoted to Tier 0/1 before claim acceptance
 
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference, "Where each variable
+resolves", verified 2026-09-29; recheck when that table adds supporting files to where a `${…}`
+reference resolves.
+
 ## Next
 
 - Findings are ready to act on: `/planning:plan`.
