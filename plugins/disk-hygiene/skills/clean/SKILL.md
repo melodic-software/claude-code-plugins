@@ -241,9 +241,8 @@ rule below. On Windows the engine sizes the temp directory itself (`temp_zone`) 
 `recommendation` when that size reaches the baseline policy's
 `os_temp_recommendation_threshold_bytes`. Quote the engine's recommendation rather than writing your
 own. A `null` recommendation with a `complete` measurement means the zone is below the threshold. On
-Linux, a `null` recommendation means a `tmpfiles.d` directory exists (in `/etc`, `/run` or `/usr/lib`); the
-engine does not check that a rule there covers the temp zone, so confirm one does before treating the
-zone as owned by systemd-tmpfiles.
+Linux it means only that a `tmpfiles.d` directory exists; the engine does not check that a rule there
+covers the temp zone, so confirm one does before treating the zone as systemd-tmpfiles-owned.
 
 ## 2. Establish evidence and ownership
 
