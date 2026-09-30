@@ -95,9 +95,9 @@ tier, so the offer is also gated on Step 3's medium selection: when an explicit
 `terminal`/`file` argument or the configured preference pins delivery on-machine
 ("never published"), do not offer it. Where the medium permits publishing, offer
 it as an explicit alternative, never a silent default: the canvas is a published,
-versioned, persistent Artifact (default-private, shareable with teammates at the
-person's choice; hand-editable where saving is enabled for the account,
-view-plus-PNG/PDF-export otherwise), where this skill's page paths are throwaway or
+persistent Artifact (default-private, shareable with teammates at the person's
+choice; edited in a desktop browser with edits saved automatically, each artboard
+exportable as PNG or PDF), where this skill's page paths are throwaway or
 plain-static. The Boundary section below carries the sentence to offer and its gate
 basis; the canvas surface facts and their verified-on/recheck record live in the
 catalog spoke.
@@ -261,8 +261,8 @@ round-trip controls), never a hand-built imitation of the explorer.
 The **design canvas** is the bundled `design` skill, a native surface this skill overlaps on
 hand-tweakable layouts, so a request for a mockup or a one-pager can mean either:
 
-- **`design` (bundled skill)**: drafts artboards on a persistent, versioned, shareable canvas
-  Artifact that the person edits by hand, published under their account. It is reserved for the
+- **`design` (bundled skill)**: drafts artboards on one canvas, published as a persistent,
+  shareable Claude Design Artifact under the person's account that they edit in a desktop browser. It is reserved for the
   person to run; the model does not invoke it.
 - **This skill (marketplace plugin)**: picks the form and medium and renders a throwaway or
   plain-static page.

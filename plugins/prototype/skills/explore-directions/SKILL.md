@@ -160,12 +160,11 @@ either way:
 
 - **HTML mockup (default)**, the throwaway `file://` page above; nothing persists.
 - **Design canvas**, run by the user as `/design <scope>`: it drafts the variants as artboards on
-  one pan/zoom canvas, published as an Artifact. Name the lifecycle difference in the offer:
-  the canvas is a published, versioned, persistent Artifact. Default-private, shareable with
-  teammates at the user's choice. Unlike the throwaway local mockup, losing variants persist on
-  it unless the user deletes or re-seeds the canvas. Hand-editing (click-to-select, properties
-  panel, inline text) applies where saving is enabled for the user's account; otherwise the
-  canvas is view-plus-PNG/PDF-export.
+  one canvas, published as a Claude Design Artifact. Name the lifecycle difference in the offer:
+  the canvas is a published, persistent Artifact. Default-private, shareable with teammates at
+  the user's choice. Unlike the throwaway local mockup, losing variants persist on it unless the
+  user deletes or re-seeds the canvas. The user edits artboard elements in a desktop browser,
+  edits save automatically, and each artboard exports as PNG or PDF.
 
 The capture discipline is unchanged either way: record the winning-variant key and notes in
 your durable answer; the canvas may live on under the user's account, but nothing tracked in
@@ -259,9 +258,9 @@ Don't leave variant components or the switcher lying around. They rot fast.
 One native Claude Code surface drafts layouts as this skill does, and the two get conflated when
 the intent selector lands on the HTML mockup substrate:
 
-- **`design` (bundled skill)**: drafts artboards on one canvas and publishes the canvas as an
-  artifact running a research preview of Claude Design's editor: persistent, versioned,
-  shareable, hand-editable where saving is enabled for the account. It is reserved for the person
+- **`design` (bundled skill)**: drafts artboards on one canvas and publishes the canvas as a
+  Claude Design Artifact: persistent, shareable, edited in a desktop browser with edits saved
+  automatically. It is reserved for the person
   to run as `/design`; the model does not invoke it.
 - **This skill (marketplace plugin).** Throwaway variants on the real stack or as a local HTML
   mockup, switchable from a control bar; only the winning-variant key survives.

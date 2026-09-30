@@ -152,18 +152,15 @@ delivered per the delivery tiers above (local HTML file or published Artifact).
 
 ### Design canvas (bundled `design` skill, presence-gated preview)
 
-A hand-tweakable visual layout, drafted as `.dc.html` artboards on one pan/zoom
-canvas and published as an Artifact running the Claude Design canvas editor. It
-covers UI mockups and screen flows, landing pages, posters/flyers/one-pagers, and
-memos as one flowing artboard. Where saving is enabled for the viewer's account
-the canvas is hand-editable (click-to-select, properties panel, inline text,
-undo/redo) and Save publishes a new version; otherwise it is
-view-plus-PNG/PDF-export. It rides the published-Artifact surface, so every
-Artifact gate above applies, **plus** the skill's own gates:
+A hand-tweakable visual layout, drafted as artboards on one canvas and published
+as a Claude Design Artifact. It covers UI mockups and screen flows, landing pages,
+and posters. The person edits the artboards in a desktop browser, edits save
+automatically, and each artboard exports as PNG or PDF. It rides the
+published-Artifact surface, so every Artifact gate above applies, **plus** the
+skill's own gates:
 
-- an early **research preview**: enabled by a server-side rollout flag (on by
-  default at v2.1.263), first-party context only, and an Artifact tool that
-  supports `capabilities`, so two same-version clients can differ;
+- Claude Code v2.1.265 or later and an account where the Design template is
+  available; with that template turned off, `/design` doesn't draft designs;
 - removable by settings (`disableBundledSkills`, or `skillOverrides` naming
   `design`) and absent on non-first-party platforms (Bedrock / GCP / Foundry /
   AWS) and in headless SDK/CI/MCP contexts;
@@ -186,8 +183,15 @@ the model-invocation gate.
 > hint `[what to design]`, its prompt creates a new Artifact from the published
 > Artifact type titled "Design", the v2.1.263 canvas strings no longer occur, and
 > the claude.ai/design hub text now belongs to a separate `ClaudeDesign` tool. So
-> `/design` is a user-only design-Artifact creator, not the hub. Recheck when a release makes the `design` registration model-invocable, changes
-> its gating, or splits or merges its registrations.
+> `/design` is a user-only design-Artifact creator, not the hub. The `/design`
+> row on <https://code.claude.com/docs/en/commands> and "Draft a design canvas" on
+> <https://code.claude.com/docs/en/artifacts>, fetched 2026-09-30, describe it as
+> artboards on one canvas published as a Claude Design artifact, edited in a
+> desktop browser with edits saved automatically and each artboard exportable as
+> PNG or PDF, requiring v2.1.265 or later and an account where the Design template
+> is available. Recheck when a release makes the `design` registration
+> model-invocable, changes its gating, or splits or merges its registrations, or
+> either page changes the description, the gate, or the version floor.
 
 > Verified 2026-09-11 against the installed v2.1.263 binary (string search of the
 > registrations) and three pages fetched that day. The `/design` row on
