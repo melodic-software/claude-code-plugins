@@ -6,6 +6,15 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.2.2] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the Boundary sections from the 2026-09-29 triage of every remaining
+  discovered candidate**: `/autofix-pr` in `babysit-prs`, `/commit-push-pr` in `commit`,
+  `/permissions` in `audit-permission-grants`, and new rows for `/bug` in `bugs:write`,
+  `/install-github-app` in `github:advise`, and `/memory` in `claude-memory:stateless`.
+
 ## [3.2.1] - 2026-09-29
 
 Patch: clarification.

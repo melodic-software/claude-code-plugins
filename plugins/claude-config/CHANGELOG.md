@@ -5,6 +5,15 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.53.2] - 2026-09-29
+
+### Added
+
+- **`audit-permission-grants` carries a Boundary section for the built-in command
+  `/permissions`.** The command edits rules interactively; this skill audits grants and writes
+  nothing. The model offers the person-run command when a finding calls for changing a settings
+  rule.
+
 ## [0.53.1] - 2026-09-29
 
 ### Added
