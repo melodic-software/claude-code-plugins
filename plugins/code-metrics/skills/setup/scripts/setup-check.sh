@@ -214,7 +214,7 @@ check_collector() {
 for adapter in "$SCRIPTS"/collectors/*.py; do
   name="${adapter##*/}"
   name="${name%.py}"
-  [[ "$name" == test_* ]] && continue
+  [[ "$name" == test_* || "$name" == adapter_paths ]] && continue
   if version="$("${PY[@]}" "$adapter" probe 2>/dev/null)"; then
     check_collector "$name" "$adapter" "$version"
   else

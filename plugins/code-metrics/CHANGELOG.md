@@ -3,7 +3,7 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.1] - 2026-09-30
+## [0.4.3] - 2026-09-30
 
 ### Fixed
 
@@ -12,6 +12,25 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
   PASS. The row now runs one measure on a bundled fixture: PASS names the version and the measure,
   FAIL reports a tool that probed but did not measure, and WARN `probe only` marks a collector no
   bundled fixture can exercise.
+
+## [0.4.2] - 2026-09-30
+
+### Changed
+
+- **The duplication size limits cite their upstream basis.** `reference/collectors.md` has a
+  `Duplication size limits` table with a basis, verification date and recheck trigger for the jscpd
+  `--max-size` default, the SonarJS file-size limit and the SonarQube duplication rules. `config.md`
+  and the config template point at it instead of restating the figures. The jscpd row records that
+  the documented "no limit" default contradicts the 1mb skip a live run shows.
+
+## [0.4.1] - 2026-09-30
+
+### Fixed
+
+- **The setup check no longer lists `adapter_paths` as a collector.** `adapter_paths.py` is the
+  shared helper the collector adapters import, not a collector, but the check's collector loop
+  reported it as a passing row with no detail. The loop now skips it, and the setup-check test
+  asserts the table has no `adapter_paths` row.
 
 ## [0.4.0] - 2026-09-29
 
