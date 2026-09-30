@@ -189,14 +189,14 @@ check_collector() {
   fi
   local -a fx
   read -ra fx <<<"$files"
-  local work="$LIVE/$name" f rc rows err on="${fx[0]}"
+  local work="$LIVE/$name" proj="$PWD" f rc rows err on="${fx[0]}"
   [[ ${#fx[@]} -gt 1 ]] && on+=" +$((${#fx[@]} - 1))"
   mkdir -p "$work"
   for f in "${fx[@]}"; do
     mkdir -p "$work/$(dirname "$f")"
     cp "$FIXTURES/$f" "$work/$f"
   done
-  (cd "$work" && "${PY[@]}" "$adapter" collect "$lane" "$measure" "${fx[@]}" >"$LIVE/$name.out" 2>"$LIVE/$name.err")
+  (cd "$work" && PATH="$proj/node_modules/.bin:$PATH" "${PY[@]}" "$adapter" collect "$lane" "$measure" "${fx[@]}" >"$LIVE/$name.out" 2>"$LIVE/$name.err")
   rc=$?
   rows="$(grep -c '^{' "$LIVE/$name.out" || true)"
   err="$(head -n 1 "$LIVE/$name.err" | tr -d '\r')"

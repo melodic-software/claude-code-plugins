@@ -120,6 +120,15 @@ rc=$?
 assert_eq "a tool that cannot run here exits 0" 0 "$rc"
 assert_row "exit 4 is WARN probe only" "$out" "WARN  collector line-counter +bundled; probe only: no config"
 
+# 5b. A tool installed only in the project's ./node_modules/.bin still resolves
+#     when the measure runs from the fixture directory.
+mkdir -p "$repo/node_modules/.bin"
+printf '#!/bin/sh\n' >"$repo/node_modules/.bin/projtool"
+chmod +x "$repo/node_modules/.bin/projtool"
+stub_counter 'import shutil; ok = shutil.which("projtool"); print("{}") if ok else sys.exit(1)'
+out="$(cd "$repo" && CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+assert_row "a project-local tool resolves from the fixture directory" "$out" "PASS  collector line-counter"
+
 # 6. A collector whose probe fails is an INFO missing row with its install
 #    hint, and it does not fail the run.
 printf '%s\n' 'import sys' \
