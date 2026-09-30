@@ -58,9 +58,11 @@
 # branch list and tips come from `git ls-remote --heads origin`, the live remote,
 # never from remote-tracking refs, which go stale and miss branches never fetched.
 # Each branch (default and protected-pattern ones are reported PROTECTED without a
-# lookup) is looked up with `gh pr list --state merged --head <branch> --json
-# number,headRefOid`. A tip equal to a merged PR's headRefOid is MERGED; a tip that
-# differs from every merged PR's headRefOid is MERGED-DRIFT (commits landed on the
+# lookup) is looked up with `gh pr list --repo <origin url> --state merged --head
+# <branch> --json number,headRefOid`, so the PRs come from the repository the branch
+# list came from, not from whichever repository gh resolves for the directory (an
+# `upstream` remote can win that). A tip equal to a merged PR's headRefOid is MERGED;
+# a tip that differs from every merged PR's headRefOid is MERGED-DRIFT (commits landed on the
 # branch after the merge, so deleting it loses them) and reports the commits past
 # the PR head when both objects exist locally (the audit never fetches); a branch
 # with no merged PR is NO-MERGED-PR; UNKNOWN when gh or jq is absent or the lookup
@@ -247,13 +249,14 @@ CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d 
 
 # remote_audit: see REMOTE MODE above.
 remote_audit() {
-  local heads tip ref name tier reason pr_line ahead_line raw rows pick pr oid n
+  local heads tip ref name tier reason pr_line ahead_line raw rows pick pr oid n origin_url
   local prot=0 merged=0 drift=0 nomerge=0 unknown=0 why=""
   if ! heads="$(GIT_TERMINAL_PROMPT=0 git -C "$REPO_ROOT" ls-remote --heads origin 2>/dev/null </dev/null)"; then
     printf 'RemoteError: git ls-remote --heads origin failed (no origin remote, unreachable, or unauthenticated)\n'
     return
   fi
   heads="${heads//$'\r'/}"
+  origin_url="$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null | tr -d '\r')"
   command -v gh >/dev/null 2>&1 || why="gh not on PATH"
   if [[ -z "$why" ]] && ! command -v jq >/dev/null 2>&1; then why="jq not on PATH"; fi
   printf 'RemoteBranches: %s\n' "$(grep -c . <<<"$heads")"
@@ -267,7 +270,7 @@ remote_audit() {
       tier=PROTECTED reason="protected pattern"
     elif [[ -n "$why" ]]; then
       tier=UNKNOWN reason="merged-PR lookup unavailable ($why)"
-    elif ! raw="$(gh pr list --state merged --head "$name" --json number,headRefOid --limit 100 2>/dev/null </dev/null)" ||
+    elif ! raw="$(gh pr list --repo "$origin_url" --state merged --head "$name" --json number,headRefOid --limit 100 2>/dev/null </dev/null)" ||
       ! rows="$(printf '%s' "$raw" | jq -r 'if type == "array" then .[] | [.number, .headRefOid] | @tsv else error("not an array") end' 2>/dev/null | tr -d '\r')"; then
       tier=UNKNOWN reason="merged-PR lookup failed (unauthenticated, no GitHub remote, or API error)"
     else

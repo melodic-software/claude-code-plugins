@@ -8,7 +8,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 ### Added
 
 - **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL (the first that is not skip-listed), so a duplicate clone is reported once as `skipped duplicate of <path>`. Only `--fleet` dedupes clones: `--repo` and `--repos-from` never drop a repo, so two clones named there are both cleaned.
-- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. It writes no tip capture. In a multi-repo run, a second clone of one `origin` is reported as a duplicate.
+- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. PRs are looked up in `origin`'s repository (`gh pr list --repo`), not the one gh resolves for the directory. It writes no tip capture. In a multi-repo run, a second clone of one `origin` is reported as a duplicate.
 - **`git-branch-audit.sh --read-only` writes no tip capture (#5234).** It prints `TipCaptureSkipped:` where it would print `TipCapture:`, and `git-branch-delete.sh` refuses without a capture.
 
 ### Changed

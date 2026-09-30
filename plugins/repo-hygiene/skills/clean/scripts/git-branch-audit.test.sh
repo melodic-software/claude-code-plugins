@@ -1549,7 +1549,7 @@ if command -v jq >/dev/null 2>&1; then
 #!/usr/bin/env bash
 [[ "\$*" == *"pr list"* && "\$*" == *"--state merged"* ]] || exit 1
 head="" prev=""
-for a in "\$@"; do [[ "\$prev" == --head ]] && head="\$a"; prev="\$a"; done
+for a in "\$@"; do [[ "\$prev" == --head ]] && head="\$a"; [[ "\$prev" == --repo ]] && echo "\$a" >>"$RM/gh-repos.log"; prev="\$a"; done
 echo "\$head" >>"$RM/gh-heads.log"
 case "\$head" in
   feat/current) printf '[{"number":11,"headRefOid":"$current_tip"}]\n' ;;
@@ -1581,6 +1581,8 @@ GH
   if [[ "$(rec "$rout" feat/nopr RemoteTier)" == NO-MERGED-PR ]]; then pass "remote: no merged PR is NO-MERGED-PR"; else fail "remote: no merged PR is NO-MERGED-PR" NO-MERGED-PR "$(rec "$rout" feat/nopr RemoteTier)"; fi
   if [[ "$(rec "$rout" main RemoteTier)" == PROTECTED && "$(rec "$rout" release/1 RemoteTier)" == PROTECTED && "$(rec "$rout" release/1 RemoteTip)" == "$release_tip" ]]; then pass "remote: default and protected-pattern branches are PROTECTED"; else fail "remote: default and protected-pattern branches are PROTECTED" PROTECTED "$(rec "$rout" main RemoteTier) $(rec "$rout" release/1 RemoteTier)"; fi
   if ! grep -qx 'main\|release/1' "$RM/gh-heads.log"; then pass "remote: protected branches trigger no PR lookup"; else fail "remote: protected branches trigger no PR lookup" none "$(cat "$RM/gh-heads.log")"; fi
+  # The lookup names origin's repository, so an `upstream` remote cannot redirect it.
+  if [[ "$(sort -u "$RM/gh-repos.log")" == "$RM/origin.git" && "$(wc -l <"$RM/gh-repos.log")" -eq "$(wc -l <"$RM/gh-heads.log")" ]]; then pass "remote: every PR lookup targets origin's repository"; else fail "remote: every PR lookup targets origin's repository" "$RM/origin.git on each lookup" "$(sort -u "$RM/gh-repos.log")"; fi
   if [[ "$(capture_state "$RM/work")" == "$before_remote" ]]; then pass "remote: writes no capture"; else fail "remote: writes no capture" "$before_remote" "$(capture_state "$RM/work")"; fi
 
   # gh absent: still listed with the live tip, every checked branch UNKNOWN.
