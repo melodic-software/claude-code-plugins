@@ -3,11 +3,19 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.23] - 2026-09-29
+## [0.16.1] - 2026-09-30
 
 ### Fixed
 
 - **Test suites put every fixture under one trapped temp root.** The `discover`, `render-index`, `detect`, and `glob-tools` tests remove their fixtures on exit, including after an assertion abort.
+
+## [0.16.0] - 2026-09-29
+
+### Added
+
+- **`detect.sh identity` derives a finding's anchor and `finding_id`.** `audit` and `delta` call it instead of computing `anchor/v1` and `finding_id` by hand, so both skills produce the same identity for the same finding
+  ([#5166](https://github.com/melodic-software/claude-code-plugins/issues/5166)).
+  It rejects a `--file` that is not a canonical relative path and fails when neither `sha256sum` nor `shasum` exists, so no alias or unhashed value produces an id.
 
 ## [0.15.22] - 2026-09-29
 

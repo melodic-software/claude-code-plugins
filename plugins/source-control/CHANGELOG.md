@@ -3,11 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.31] - 2026-09-29
+## [0.64.1] - 2026-09-30
 
 ### Fixed
 
-- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** The split-lines file is removed on exit, so the gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** A body under 16000 characters is split through a here-string and writes no file. A longer body goes through one `pr-linkage-lines.<pid>` file that is removed right after the read. The gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three path plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
+
+## [0.63.0] - 2026-09-29
+
+### Added
+
+- **`worktree-claim.sh release <path>` unlocks a worktree lane lock this session armed.** A lock that names another session, or carries no reason, is refused with the reason printed and stays locked; the main worktree and an unresolvable session id are refused too.
+- **`worktree-claim.sh stale <path>` reports whether a lane lock is provably stale,** read-only: the lock names this host, and no session transcript changed within `--idle-minutes` (default 120). Anything it cannot prove exits 1.
+
+### Changed
+
+- **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
+- **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
 
 ## [0.62.30] - 2026-09-29
 

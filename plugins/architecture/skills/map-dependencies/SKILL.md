@@ -52,10 +52,18 @@ line. Do not pretty-print it. A reader given another layout exits 1.
 The message says which manifests were found. That is the answer. Do not draw a diagram,
 and do not fill the arrays by hand. An empty graph is `result` `ok` with project nodes
 and no edges. Read it as a repository that declares no references only when no
-`unread-reference-tags` finding exists; that finding means the collector skipped reference
-tags in a file, and the edge list is short by that count.
+`unread-reference-tags` or `unread-manifest` finding exists. The first means the collector
+skipped reference tags in a file, and the edge list is short by that count. The second
+means a manifest holds a declaration whose shape no reader handles; its evidence is the
+file, a colon, and the declaration skipped, one finding per declaration.
 
-The first adapter is .NET:
+Every shipped adapter whose manifests are present runs, and their nodes, edges and
+findings are one record. `ecosystem` is the adapter's name when one ran, `mixed` when
+more than one ran, and `unknown` when none did. Each node carries its own `ecosystem`.
+The header of `scripts/dependency-graph.sh` records the upstream source, verification date
+and recheck trigger behind each non-.NET adapter's rules below.
+
+The .NET adapter:
 
 - `ProjectReference` is a directed internal edge. The target is the `Include` path
   relative to the project file. A target that is missing, or that resolves outside the
@@ -72,8 +80,94 @@ The first adapter is .NET:
   the root is a finding, not an edge.
 - Source files are not read. A `using` or an import is not an edge.
 
-Other ecosystems stay unread. The message names them. Node, Go, Python, Rust, and JVM
-adapters are not this skill yet.
+The Node adapter:
+
+- Every `package.json` outside `node_modules` is a project node, id its repo-relative path.
+  Workspace members are the package folders that the `workspaces` globs (array or
+  `{"packages": [...]}` form) and a `pnpm-workspace.yaml` `packages` list expand to.
+- A dependency, dev, peer or optional dependency that names a member of the declaring
+  package's workspace, or whose spec is `workspace:`, `file:` or `link:` pointing at a
+  package folder inside the root, is an internal project edge. Every other entry is an
+  external package edge to `pkg:node:<name>`.
+- A spec that names no member, leaves the root, or points at a folder with no `package.json`
+  is `unresolved`. Never match it to a package of the same name elsewhere on disk.
+- A negated glob, a flow-list `packages:`, a `catalog:` spec and a non-string dependency
+  value are `unread-manifest` findings, not edges.
+
+The Go adapter:
+
+- Every `go.mod` is a project node, id its repo-relative path, name its module path.
+- A `replace` whose target is a local path (`./` or `../`) holding a `go.mod` inside the
+  root is an internal project edge, and the evidence cites the `replace` line. A missing
+  or out-of-root target is `unresolved`.
+- A `require` of a module that is another `go.mod` in the repo is internal only when a
+  `replace` or a `go.work` `use` line points it there; otherwise it is an external edge
+  to `pkg:go:<module>`. `go.work` `use` lines are membership.
+- Any other directive the reader cannot parse, a `go.work` `replace`, and a `use` line
+  naming no `go.mod` in the root are `unread-manifest` findings.
+
+The Python adapter:
+
+- Every `pyproject.toml` is a project node, id its repo-relative path. A `setup.py` or
+  `requirements*.txt` with no manifest beside it is a node too; one beside a manifest is
+  read as that project.
+- A path reference is an internal project edge when it names a folder inside the root
+  holding a `pyproject.toml` (else a `setup.py`), and the evidence cites the declaration.
+  Path references are a `name @ file:` dependency string, a poetry or uv `path =` entry,
+  and a `-e`, `./` or `../` requirements line. A missing or out-of-root path is
+  `unresolved`.
+- A `[tool.uv.workspace]` `members` glob, minus `exclude`, is an internal project edge from
+  the workspace root to each `pyproject.toml` it matches; a literal member holding none is
+  `unresolved`.
+- Every other named requirement is an external edge to `pkg:python:<normalized name>`.
+  `-r` includes are followed only inside the root.
+- `setup.py` is never executed or parsed; each one is an `unread-manifest` finding. So
+  are dynamic dependencies, a uv `workspace = true` source, a multi-line inline table, and
+  an include that is missing or outside the root.
+
+The Rust adapter:
+
+- Every `Cargo.toml` is a project node, id its repo-relative path.
+- A `path =` dependency in `[dependencies]`, `[dev-dependencies]` or `[build-dependencies]`
+  is an internal project edge when it names a folder inside the root holding a
+  `Cargo.toml`, and the evidence cites the declaration. A missing or out-of-root path is
+  `unresolved`.
+- A `[workspace]` `members` glob, minus `exclude`, is an internal project edge from the
+  workspace root to each `Cargo.toml` it matches; a literal member holding none is
+  `unresolved`.
+- A dependency written `workspace = true` takes its source from the nearest ancestor
+  `[workspace.dependencies]`: a `path =` entry is an internal edge, any other entry an
+  external one, and the evidence cites both declarations. A workspace entry no member
+  inherits draws no edge.
+- Every other dependency is an external edge to `pkg:rust:<name>`.
+- Any `[target.*]` dependency table, a `path =` under `[patch]` or `[replace]`, a
+  `workspace = true` with no workspace entry to resolve it, a multi-line inline table, and
+  a members glob the reader cannot resolve are `unread-manifest` findings.
+
+The JVM adapter (Gradle and Maven):
+
+- Every `pom.xml`, `build.gradle` and `build.gradle.kts` is a project node, id its
+  repo-relative path. A folder with a `settings.gradle(.kts)` and no build file is a node
+  under the settings file.
+- A `settings.gradle(.kts)` `include` argument is an internal project edge from the settings
+  folder's project to the folder its project path names, when that folder holds a build
+  file. A `project(':x')` or `project(path = ':x')` dependency in a build file resolves from
+  the nearest settings file above it. A `pom.xml` `<modules><module>` entry is an internal
+  project edge to the `pom.xml` in the folder it names. Each edge cites the declaration.
+  A project path or module naming no build file, or leaving the root, is `unresolved`.
+- No external package edge is drawn for JVM.
+- `includeFlat`, `includeBuild`, an include holding a variable, an interpolated string or a
+  spread, anything inside a loop, a `projectDir`, `buildFileName` or `name` assignment,
+  `apply from`, a `projects.x` type-safe accessor, a `project(...)` with a non-literal
+  argument, a module holding a `${property}`, and a module naming a pom file not called
+  `pom.xml` are `unread-manifest` findings.
+
+Read: .NET, Node, Go, Python, Rust, and JVM (Gradle and Maven). Declined: Ruby (`Gemfile`) and
+PHP (`composer.json`) are detected and named in the record's `message`, never parsed. The
+unread rule: a manifest or declaration no reader handles is reported, never guessed at and
+never dropped. A tree holding only declined manifests is `unknown`; in a tree a reader ran on,
+the message still names the declined ecosystems and each skipped declaration is an
+`unread-manifest` finding.
 
 `node_threshold` in the record (40) is the documented count of internal project nodes
 above which the human diagram aggregates to directories. The JSON stays at project
@@ -107,8 +201,9 @@ says it aggregated to directory level.
 - **Counts**: quote the summary line. Do not count nodes by hand.
 - **Unresolved**: how many project references and solution memberships did not resolve,
   and that none of them were matched by file name.
-- **Unread**: the `unread_files` count, and each file and tag count from the
-  `unread-reference-tags` findings.
+- **Unread**: the `unread_files` count, each file and tag count from the
+  `unread-reference-tags` findings, and each skipped declaration from the
+  `unread-manifest` findings.
 - **Cycles**: the cycle lines, or none. Each line is one witness cycle for a group of
   projects that depend on each other, not every cycle in the group.
 - **Aggregation**: `no`, or `yes` with the threshold the artifact states.
@@ -158,7 +253,8 @@ The component view reads dependency-graph.json.
 - **`bin`, `obj`, `node_modules`, `vendor`, and dot-directories** other than the CI and
   devcontainer directories are not walked. A project that lives only there is absent.
 - **A solution folder is not a project.** Only paths ending in `.csproj` or `.fsproj`
-  are membership.
+  are membership. A member with another project extension (`.vbproj`, `.sqlproj`) is an
+  `unread-manifest` finding.
 - **Aggregation is a view.** `dependency-graph.json` stays one node per project. The
   markdown says when the flowchart collapsed to directories.
 - **The flowchart does not follow `landscape_dialect`.** That key is the system landscape.
