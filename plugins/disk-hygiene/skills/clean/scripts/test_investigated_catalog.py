@@ -13,7 +13,7 @@ from unittest import mock
 import hygiene
 import investigated_catalog as catalog
 
-TARGET = "/home/fixture"
+TARGET = "/scan-target"
 
 
 def _entry(

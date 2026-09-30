@@ -8,13 +8,14 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Added
 
 - **Investigated entries are recorded in a catalog**
-  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). The scan reads
-  and updates a catalog of investigated entries, each keyed by path and identity, and annotates a
-  scan entry that matches a record with `prior_disposition`. An operator's keep answer is stored
-  with the record, so a later scan reports the entry's prior conclusion and the report orders
-  those entries after the unresolved ones instead of asking again. A malformed record or a
-  subtree the scan did not walk is skipped, never treated as a conclusion. The investigation
-  procedure and research escalation are not part of this slice.
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). The new
+  `catalog` command writes investigated entries, each keyed by path and identity, from a findings
+  file or an operator answers file. The scan only reads the catalog and annotates a scan entry that
+  matches a record with `prior_disposition`. An operator's keep answer is stored with the record,
+  so a later scan reports the entry's prior conclusion instead of asking again, and the report
+  leads with new or changed entries. A malformed record or a subtree the scan did not walk is
+  skipped, never treated as a conclusion. The investigation procedure and research escalation are
+  not part of this slice.
 
 ## [0.29.0] - 2026-09-29
 

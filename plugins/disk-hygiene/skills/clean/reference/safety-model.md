@@ -689,7 +689,7 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
 `path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence`:
 
 ```text
-"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" catalog \
+"<hook-python>" "<skill-dir>/scripts/hygiene.py" catalog \
   --snapshot "<run-dir>/snapshot.json" --run-id "<run-id>" \
   [--findings "<run-dir>/findings.json"] [--answers "<run-dir>/answers.json"] \
   --data-root "${CLAUDE_PLUGIN_DATA}"
