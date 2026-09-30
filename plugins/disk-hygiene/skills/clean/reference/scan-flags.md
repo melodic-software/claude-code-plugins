@@ -58,8 +58,10 @@ files beneath it. Named categories: `superseded-version` (sibling entries, direc
 under a parent that holds two or more dotted version names), `plugin-cache-version` (cache versions
 no installed plugin references), `tmp-producer` (`/tmp` entries by producer prefix),
 `transcript-dir` (project transcript directories whose source path is gone), `dangling-symlink`,
-and `not-walked` (an unreadable subtree, or a mount point including a bind mount, one `UNKNOWN` row). Every other entry is
-`unclassified`.
+and `not-walked` (an unreadable subtree, or a mount point including a bind mount, one `UNKNOWN`
+row). Every other entry is `unclassified`. Bind mounts come from `/proc/self/mountinfo`; when that
+cannot be read the summary carries the reason in `mount_state_error` (otherwise null) and only a
+mount on another device is skipped.
 
 `superseded-version` keeps the newest version (a release outranks its own prerelease), a version a
 running process executes, and a version a symlink points at, read from the symlinks beside the

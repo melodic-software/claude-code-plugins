@@ -4948,7 +4948,8 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     dispositions: dict[str, int] = {}
     failures: list[str] = []
     partial = rows_path.with_name(f"{rows_path.name}.{secrets.token_hex(4)}.tmp")
-    mounts = frozenset(str(p) for p in linux_mount_points()[0])
+    mount_points, mount_error = linux_mount_points()
+    mounts = frozenset(str(p) for p in mount_points)
     try:
         with partial.open("w", encoding="utf-8") as out:
             for row in deep_inventory.inventory_rows(
@@ -4977,6 +4978,7 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
         "row_count": sum(dispositions.values()),
         "dispositions": dispositions,
         "validation_failures": failures,
+        "mount_state_error": mount_error,
         "note": (
             "Report only: rows are findings, never a deletion plan, and preview "
             "and apply do not accept this report. Removing a candidate goes "

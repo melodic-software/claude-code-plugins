@@ -15495,6 +15495,23 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertNotIn(str(self.target / "bind" / "inside.txt"), rows)
         self.assertIn(str(self.target / "plain" / "file.txt"), rows)
 
+    def test_unreadable_mountinfo_is_reported_not_hidden(self) -> None:
+        self.write("a.txt")
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=(set(), "cannot read mountinfo")
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertEqual("cannot read mountinfo", summary["mount_state_error"])
+
+    def test_readable_mountinfo_reports_no_error(self) -> None:
+        self.write("a.txt")
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=({self.target / "x"}, None)
+        ):
+            _, summary = self.run_inventory("--deep")
+        self.assertIsNone(summary["mount_state_error"])
+
     def test_an_interrupted_walk_leaves_no_partial_report(self) -> None:
         self.write("a.txt")
         with mock.patch.object(
