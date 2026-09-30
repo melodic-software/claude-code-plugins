@@ -1,0 +1,67 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A hook just said powershell-format found no pwsh. Is PowerShell installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL/INFO table for pwsh, the PSScriptAnalyzer module, jq and node. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /powershell-format:setup and reports its PASS/FAIL/INFO table",
+        "Probes pwsh through Bash rather than assuming a pre-computed row",
+        "Does not run `apply`, `Install-Module`, a package manager, or any download",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/powershell-format:check\n\nThe check failed. Just install PowerShell for me.",
+      "expected_output": "Does not install from this skill. Names /powershell-format:setup apply as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not install pwsh itself and does not run `Install-Module`",
+        "Names /powershell-format:setup apply as the route for an install the user asked for",
+        "Does not claim pwsh is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/powershell-format:check",
+      "expected_output": "When pwsh, the module, jq and node resolve, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL/INFO table from the check section",
+        "On a PASS, does not suggest /powershell-format:setup apply",
+        "Modifies no file"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "module-probe-is-a-module-lookup-not-a-path-probe",
+      "prompt": "/powershell-format:check\n\npwsh is installed but I never installed the analyzer.",
+      "expected_output": "Probes PSScriptAnalyzer with Get-Module -ListAvailable through pwsh, since it is a module and not a PATH binary, and reports it absent without installing it.",
+      "files": [],
+      "expectations": [
+        "Probes the PSScriptAnalyzer module through `pwsh -NoProfile` and `Get-Module -ListAvailable`, not `command -v`",
+        "Runs the module probe only after pwsh resolved",
+        "Reports the absent module and states `Install-Module PSScriptAnalyzer` as guidance for the reader, without running it",
+        "Stops after the table"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "check-runs-its-own-probes-including-node",
+      "prompt": "/powershell-format:check\n\nnode is not on PATH here, though pwsh is installed.",
+      "expected_output": "Runs the jq, node and pwsh probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
+      "files": [],
+      "expectations": [
+        "Runs the jq, node and pwsh probes via Bash instead of expecting pre-computed rows",
+        "Reports the missing node as FAIL because every hook launch goes through node hooks/exec-bash.mjs",
+        "Installs nothing and stops after the table"
+      ]
+    }
+  ]
+}

@@ -738,7 +738,10 @@ def diff(
 def write(payload: Any, out: str | None) -> None:
     text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     if out:
-        Path(out).write_text(text, encoding="utf-8")
+        try:
+            Path(out).write_text(text, encoding="utf-8")
+        except OSError as exc:
+            raise InputError(f"cannot write --out {out}: {exc}") from exc
     else:
         sys.stdout.write(text)
 
@@ -747,7 +750,9 @@ def main(argv: list[str] | None = None) -> int:
     if sys.version_info < MIN_PYTHON:
         print(f"python {MIN_PYTHON[0]}.{MIN_PYTHON[1]}+ required", file=sys.stderr)
         return 2
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     s = sub.add_parser("summarize")
     s.add_argument("--inventory", required=True)
@@ -788,6 +793,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.max_items,
                 report_only=store is None,
             )
+        write(payload, args.out)
     except InputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -795,7 +801,6 @@ def main(argv: list[str] | None = None) -> int:
         # Backstop for a shape shape_error does not check: still an input error.
         print(f"error: an input has an unexpected shape: {exc}", file=sys.stderr)
         return 2
-    write(payload, args.out)
     return 0
 
 

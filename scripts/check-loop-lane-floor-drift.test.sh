@@ -82,6 +82,7 @@ floor_block() {
 - **Staleness rule:** a snapshot older than **10 minutes** is stale. Treat the
   windows as **unknown**.
 - **Drain-then-pause:** on a trip, finish in-flight work and pause.
+- **Account switch:** while paused, **MUST** read `.oauthAccount.emailAddress` from `~/.claude.json`; a changed account below 90 drops the latch.
 EOF
 }
 
@@ -98,6 +99,9 @@ floor_block_quoted() {
 >   stale. Treat the windows as **unknown**.
 > - **Drain-then-pause:** on a trip, finish in-flight work and
 >   pause.
+> - **Account switch:** while paused, **MUST** read
+>   `.oauthAccount.emailAddress` from `~/.claude.json`; a changed
+>   account below 90 drops the latch.
 EOF
 }
 
@@ -533,6 +537,47 @@ if ((rc == 0)) && ! grep -q 'UNREGISTERED' <<<"$live"; then
   ok "no unregistered copy of the floor exists in this checkout"
 else
   fail "live repository carries an unregistered floor copy (rc=$rc): $live"
+fi
+
+# --- 29. Weakening the Account switch bullet in one lane body fails --------
+# The newest bullet is the one a lane would silently soften first (MUST to may),
+# so it gets its own drift case rather than riding on the older bullets' cases.
+
+seed_tree
+mutate "$TMP/plugins/source-control/skills/babysit-loop/SKILL.md" 's/\*\*MUST\*\*/**may**/'
+out="$(run --check)"
+rc=$?
+if ((rc == 1)) && grep -q 'DRIFT (exact): plugins/source-control/skills/babysit-loop/SKILL.md' <<<"$out" &&
+  grep -q '1 drifted or unresolvable consumer(s)' <<<"$out"; then
+  ok "a weakened Account switch bullet in one lane body fails as exact drift"
+else
+  fail "Account switch drift should fail exactly one consumer (rc=$rc): $out"
+fi
+
+# --- 30. A changed Account switch value in a values consumer fails ---------
+
+seed_tree
+mutate "$TMP/prompts/loops/loop-lane-profile-claude-code-plugins.md" 's/below 90 drops/below 80 drops/'
+out="$(run --check)"
+rc=$?
+if ((rc == 1)) && grep -q 'DRIFT (values): prompts/loops/loop-lane-profile-claude-code-plugins.md' <<<"$out"; then
+  ok "a changed Account switch value in a values-mode consumer fails"
+else
+  fail "Account switch values drift should fail (rc=$rc): $out"
+fi
+
+# --- 31. A source block missing the Account switch bullet is inconclusive --
+# Proves the bullet is in the gate's label list: a floor that lost it would
+# otherwise compare clean against copies that lost it too.
+
+seed_tree
+mutate "$TMP/$SOURCE_REL" '/\*\*Account switch:\*\*/d'
+out="$(run --check)"
+rc=$?
+if ((rc == 2)) && grep -q "missing the '\*\*Account switch:\*\*' bullet" <<<"$out"; then
+  ok "a source block missing the Account switch bullet exits 2 rather than comparing"
+else
+  fail "source without the Account switch bullet should exit 2 (rc=$rc): $out"
 fi
 
 test_harness::report
