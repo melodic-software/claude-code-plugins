@@ -293,7 +293,10 @@ land within a minute of the final commit and carry a regression the PR itself in
 The hold closes that window and is **dormant unless configured**: with
 `babysit_review_bot_logins` and `babysit_review_settle_minutes` both set, the gate adds a policy
 blocker while a configured reviewer still owes the **live head** a review and that head is younger
-than the window. Its shape, and why each part is that way:
+than the window. The pair resolves per PR repository: a repository that declares both keys on its
+default branch supplies them, its window never shorter than the deprecated `userConfig` window
+(`--review-settle-minutes`) when that is set, and a repository declaring only one half is ignored
+with a note, so the `userConfig` pair applies. Its shape, and why each part is that way:
 
 - **A review of the live head clears it outright**, before the clock is consulted. The common case
   where the reviewer already reviewed this head costs nothing and adds no latency. Evidence is a
@@ -489,7 +492,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   --review-settle-minutes <review-settle-minutes>`. Dropping it from a merge command silently
   merges inside a re-review's latency window, and supplying
   one half without the other is a usage error (exit `2`) rather than a partial hold. Omit the pair
-  only when **both** keys are unset. See §Review-Settle Hold.
+  only when **both** keys are unset; the gate still applies a pair the PR's repository declares on
+  its default branch. See §Review-Settle Hold.
 - **`babysit_review_settle_minutes` set with `babysit_review_bot_logins` unset is a configuration
   error, and it must be refused HERE rather than rendered away.** Omitting both flags because one
   key is missing is the one case the CLI's exit `2` cannot catch: the lone flag never reaches it,

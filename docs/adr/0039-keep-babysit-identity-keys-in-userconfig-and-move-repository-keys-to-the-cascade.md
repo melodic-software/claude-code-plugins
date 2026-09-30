@@ -73,12 +73,15 @@ verdict HYBRID, which this record adopts.
 ## Consequences
 
 - An operator with several identity domains on one machine (for example a work account and a
-  personal account) gets one value per machine for each key in decision 1 and for the ten keys in
-  decision 3 until they move. Such an operator either leaves those keys unset or launches the lane
-  with a per-domain `--settings` file. `--settings` is a documented `pluginConfigs` read source
+  personal account) gets one value per machine for each key in decision 1, and for the ten keys in
+  decision 3 while their deprecated `userConfig` fallback is set. Such an operator either leaves
+  those keys unset or launches the lane with a per-domain `--settings` file. `--settings` is a documented `pluginConfigs` read source
   (fact 5); how its `pluginConfigs` merges with the user settings value is unverified.
 - Repositories can set `branch_issue_pattern` for themselves today; the `userConfig` twin keeps
   working with a deprecation note until its removal release.
 - `plugins/source-control/reference/config-resolution.md` states the split and the multi-domain
   consequence, and cites this record.
-- The ten deferred keys keep today's behavior until #4572 ships.
+- The ten repository-policy keys resolve per target repository from its default branch, with the
+  `userConfig` value as a deprecated fallback, under the merge modes in decision 3.
+  `babysit_skip_downgrade_logins` is remove-only: a repository can narrow the `userConfig` set and
+  never add a login, so additions stay `userConfig`-only.
