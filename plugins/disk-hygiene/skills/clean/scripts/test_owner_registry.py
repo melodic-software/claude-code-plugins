@@ -331,42 +331,171 @@ class RegistryGrantsNoApprovalTest(unittest.TestCase):
             self.assertNotIn(Path(str(argv[0])).name if argv else "", REGISTRY_TOOLS)
 
 
+PLUGIN = Path(__file__).resolve().parents[3]
+TELEMETRY_PATH = PLUGIN / "lib" / "hook_telemetry.py"
+EXECUTORS = {ENGINE_PATH, TELEMETRY_PATH}
+# The engine's apply lane: the only code that may delete or name a registry command.
+APPLY_LANE = {"apply_plan", "anchored_remove"}
+FENCED = ("apply_plan", "anchored_remove")
+CODE_SUFFIXES = {".py", ".sh", ".mjs", ".js", ".ps1"}
+DELETIONS = {"unlink", "rmdir", "rmtree", "removedirs"}
+RUNNERS = (
+    "subprocess",
+    "os.system",
+    "os.popen",
+    "os.exec",
+    "os.spawn",
+    "os.posix_spawn",
+    "pty.spawn",
+    "asyncio.create_subprocess",
+)
+REGISTRY_COMMANDS = tuple(
+    part.strip()
+    for entry in REGISTRY["entries"]
+    for command in (entry["read_only_command"], entry["destructive_native_command"])
+    for part in (command or "").split(";")
+    if part.strip()
+)
+SHIPPED = sorted(
+    path
+    for path in PLUGIN.rglob("*")
+    if path.suffix in CODE_SUFFIXES
+    and "__pycache__" not in path.parts
+    and not path.name.startswith("test_")
+    and ".test." not in path.name
+)
+
+
+def without_apply_lane(tree: ast.Module) -> ast.Module:
+    keep = [
+        node
+        for node in tree.body
+        if not (isinstance(node, ast.FunctionDef) and node.name in APPLY_LANE)
+    ]
+    return ast.Module(body=keep, type_ignores=[])
+
+
+def uses(tree: ast.AST) -> set[str]:
+    """Dotted names a module imports or calls."""
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            names.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            names.update(f"{node.module}.{alias.name}" for alias in node.names)
+        elif isinstance(node, ast.Call):
+            names.add(ast.unparse(node.func))
+    return names
+
+
+def violations(path: Path, source: str) -> list[str]:
+    """What a shipped file does that only the engine's apply lane may do.
+
+    Deleting, running a registry command, naming the registry, and reaching the
+    apply lane without the CLI's gates are all found by name. Outside the engine
+    a process runner is also a violation.
+    """
+    text, found = source, set()
+    if path.suffix == ".py":
+        tree = ast.parse(source)
+        if path == ENGINE_PATH:
+            tree = without_apply_lane(tree)
+        text, found = ast.unparse(tree), uses(tree)
+    hits = {
+        name
+        for name in found
+        if name == "os.remove" or name.rpartition(".")[2] in DELETIONS
+    }
+    if path not in EXECUTORS:
+        hits |= {name for name in found if name.startswith(RUNNERS)}
+    hits |= {name for name in (*REGISTRY_FRAGMENTS, *REGISTRY_COMMANDS) if name in text}
+    if path != ENGINE_PATH:
+        hits |= {name for name in FENCED if name in text}
+    return sorted(hits)
+
+
+class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
+    """Any destructive path is the engine's: its tier, exact-list and token gates.
+
+    The scan is static. It reads every shipped file, test files excepted; a
+    non-Python file is checked by name only. It cannot see `getattr`, `eval`,
+    `importlib` or a command assembled at run time. Widening what a file may do
+    is an edit to the constants above, in review.
+    """
+
+    def test_no_shipped_file_deletes_names_the_registry_or_reaches_the_apply_lane(
+        self,
+    ) -> None:
+        self.assertLessEqual({ENGINE_PATH, TELEMETRY_PATH}, set(SHIPPED))
+        for path in SHIPPED:
+            self.assertEqual(
+                [],
+                violations(path, path.read_text(encoding="utf-8")),
+                str(path.relative_to(PLUGIN)),
+            )
+
+    def test_a_parallel_path_is_flagged(self) -> None:
+        elsewhere = SCRIPTS / "parallel.py"
+        for source in (
+            "import subprocess\nsubprocess.run(entry['destructive_native_command'])\n",
+            "import subprocess as sp\nsp.run(['pulumi'])\n",
+            "from os import unlink\nunlink(path)\n",
+            "import shutil\nshutil.rmtree(path)\n",
+            "import hygiene\nhygiene.apply_plan(snapshot, plan)\n",
+        ):
+            self.assertNotEqual([], violations(elsewhere, source), source)
+        for source in (
+            "jq -r '.entries[].destructive_native_command' owner-registry.json | sh\n",
+            "docker image prune --force\n",
+        ):
+            self.assertNotEqual([], violations(SCRIPTS / "parallel.sh", source), source)
+
+    def test_the_apply_lane_and_the_telemetry_emitter_are_not(self) -> None:
+        lane = (
+            "def apply_plan(snapshot, plan):\n"
+            "    subprocess.run(entry['destructive_native_command'])\n"
+            "    anchored_remove(fd, name)\n"
+            "    os.unlink(name)\n"
+        )
+        self.assertEqual([], violations(ENGINE_PATH, lane))
+        self.assertNotEqual(
+            [], violations(ENGINE_PATH, lane.replace("apply_plan", "preview"))
+        )
+        self.assertEqual(
+            [],
+            violations(TELEMETRY_PATH, "import subprocess\nsubprocess.Popen(['x'])\n"),
+        )
+
+
 class EngineSourceTest(unittest.TestCase):
     tree = ast.parse(ENGINE_PATH.read_text(encoding="utf-8"))
 
-    def test_engine_source_never_names_the_registry_or_its_commands(self) -> None:
-        words = [
-            node.value
+    def references(self, name: str) -> int:
+        return sum(
+            isinstance(node, ast.Name) and node.id == name
             for node in ast.walk(self.tree)
-            if isinstance(node, ast.Constant) and isinstance(node.value, str)
-        ] + [
-            node.id if isinstance(node, ast.Name) else node.attr
-            for node in ast.walk(self.tree)
-            if isinstance(node, (ast.Name, ast.Attribute))
-        ]
-        self.assertTrue(words)
-        for fragment in REGISTRY_FRAGMENTS:
-            self.assertEqual([], [word for word in words if fragment in word], fragment)
+        )
 
-    def test_apply_plan_has_exactly_one_caller_and_it_is_the_cli_apply_lane(
-        self,
-    ) -> None:
-        references = [
-            node
-            for node in ast.walk(self.tree)
-            if isinstance(node, ast.Name) and node.id == "apply_plan"
-        ]
-        callers = [
+    def callers(self, name: str) -> list[str]:
+        return [
             function.name
             for function in ast.walk(self.tree)
             if isinstance(function, ast.FunctionDef)
             for node in ast.walk(function)
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
-            and node.func.id == "apply_plan"
+            and node.func.id == name
         ]
-        self.assertEqual(1, len(references))
-        self.assertEqual(["main"], callers)
+
+    def test_apply_plan_has_exactly_one_caller_and_it_is_the_cli_apply_lane(
+        self,
+    ) -> None:
+        self.assertEqual(1, self.references("apply_plan"))
+        self.assertEqual(["main"], self.callers("apply_plan"))
+
+    def test_the_only_removal_is_reached_from_apply_plan(self) -> None:
+        self.assertEqual(1, self.references("anchored_remove"))
+        self.assertEqual(["apply_plan"], self.callers("anchored_remove"))
 
 
 class BaselinePolicyUnchangedTest(unittest.TestCase):
