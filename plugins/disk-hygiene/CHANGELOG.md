@@ -3,6 +3,15 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.1] - 2026-09-30
+
+### Fixed
+
+- **The snapshot entry-cap error names the largest top-level children**
+  ([#5517](https://github.com/melodic-software/claude-code-plugins/issues/5517)). The error now lists
+  the top five top-level children by entry count so far, marks the one still being walked as a lower
+  bound, and points at `--sizes-only` and then `--root-children --root-child <name>` or `--max-depth`.
+
 ## [0.31.0] - 2026-09-30
 
 ### Added

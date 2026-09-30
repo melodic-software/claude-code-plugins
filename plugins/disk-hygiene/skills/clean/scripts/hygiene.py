@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -2302,9 +2303,19 @@ def scan_tree(
                 unwalked_reasons[relative] = "scan-error"
                 continue
             if not sizes_only and len(entries) >= MAX_SNAPSHOT_ENTRIES:
+                by_child = Counter(e["path"].split("/", 1)[0] for e in entries)
+                in_progress = relative.split("/", 1)[0]
+                largest = ", ".join(
+                    f"{name} ({count}{', walk in progress' if name == in_progress else ''})"
+                    for name, count in by_child.most_common(5)
+                )
                 raise HygieneError(
-                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
-                    "--max-depth or split the audit into bounded subtrees"
+                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; "
+                    f"largest top-level children by entries so far: {largest}. "
+                    "The child still being walked is a lower bound; children not yet "
+                    "reached are not counted. Size candidates with --sizes-only (no "
+                    "entry cap), then rerun with --root-children --root-child <name> "
+                    "on bounded children or with --max-depth"
                 )
             if sizes_only:
                 entries.append({"path": relative, **data})
