@@ -321,6 +321,12 @@ run Edit "$REPO/src/mixed.test.ts" st1 "" st-del "$DEL"
 assert_jq "state: a deletion-only edit records blocks:null" "$(rec st1 st-del)" '.blocks == null'
 run Edit "$REPO/src/mixed.test.ts" st1 "" st-nopatch '{}'
 assert_jq "state: an edit with no patch records blocks:null" "$(rec st1 st-nopatch)" '.blocks == null'
+# A block the lexer loses (a string open at the end of the file) is not
+# listed, so the record says the whole file rather than only the blocks
+# the scanner could read.
+printf '%s\n' '@test "a" {' "  run greet" "  [ \"\$status\" -eq 0 ]" "}" '@test "b" {' '  run greet "x' "}" >"$REPO/src/lost.bats"
+run Write "$REPO/src/lost.bats" st1 "" st-lost
+assert_jq "state: a block the lexer lost makes the record blocks:null" "$(rec st1 st-lost)" '.blocks == null'
 
 # Two writes in parallel leave two files.
 payload Write "$REPO/src/sum.test.ts" st2 "" st-par-1 "$CREATE" | bash "$HOOK" >/dev/null 2>&1 &

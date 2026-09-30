@@ -78,7 +78,8 @@ trap 'rm -f "$out_file"' EXIT
 
 # state_write blocks|null: record this write for the task-end judge, one file
 # per call so parallel writers never share one, renamed into place so a reader
-# never sees half of it. <pkey> is the first 16 hex of the sha256 of the
+# never sees half of it. A block the lexer lost is never listed, so a scan that
+# lost one records null too. <pkey> is the first 16 hex of the sha256 of the
 # project directory, a newline and the transcript directory: a /clear or fork
 # successor gets a new session id but keeps both. The project directory is
 # CLAUDE_PROJECT_DIR, else the payload cwd, which a Bash cd moves.
@@ -96,7 +97,7 @@ state_write() {
         repo: (if $repo == "" then null else $repo end),
         agent_id: (if $agent == "" then null else $agent end),
         create: $create,
-        blocks: (if $mode == "null" then null else [$out | splits("\n")
+        blocks: (if $mode == "null" or ($out | test("lost sync \\(not judged\\): [1-9]")) then null else [$out | splits("\n")
           | capture("^block .*?:(?<start>[0-9]+)-(?<end>[0-9]+) (?<ordinal>[0-9]+) (?<name>.*)$")
           | {name, ordinal: (.ordinal | tonumber), start: (.start | tonumber), end: (.end | tonumber)}] end),
         ok_markers: ([$text | match("cant-fail-ok:"; "g")] | length),
