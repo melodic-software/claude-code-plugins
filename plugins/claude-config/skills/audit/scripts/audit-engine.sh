@@ -1888,13 +1888,13 @@ fi
 # holding a <placeholder>, such as custom:<slug>, matches nonempty text in its
 # place; one followed by a literal character stops before that character.
 value_documented() {
-  local v="$1" a pat rest
+  local v="$1" a pat rest ph='^([^<]*)[<][^>]*[>](.*)$'
   shopt -s extglob
   [[ -n "$v" && "$v" != *$'\n'* ]] || return 1
   while IFS= read -r a; do
     if [[ "$a" == *'<'*'>'* ]]; then
       pat="" rest="$a"
-      while [[ "$rest" =~ ^([^<]*)\<[^\>]*\>(.*)$ ]]; do
+      while [[ "$rest" =~ $ph ]]; do
         pat+="${BASH_REMATCH[1]}"
         rest="${BASH_REMATCH[2]}"
         if [[ -n "$rest" ]]; then pat+="+([!${rest:0:1}])"; else pat+='?*'; fi
