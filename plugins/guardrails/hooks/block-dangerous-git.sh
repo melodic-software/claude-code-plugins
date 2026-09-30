@@ -1406,11 +1406,13 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   _ps_rc=$?
   _ps_sink_attempts=0
   while ((_ps_rc == 2)); do
-    # A confirmed here-string opener line carrying a `#` is refused HERE, ahead of
-    # the allow-list question and without spending an attempt, because no allow
-    # token for it can be safe. Every token-granted round below spends the SHARED
-    # _ps_sink_attempts budget, so a sixth grantable trigger pushes a command that
-    # settles in four rounds past the cap. Measured on the payload
+    # An untrusted reduction (PS_REDUCTION_UNTRUSTED: a `#`, quote or backslash on
+    # a confirmed here-string opener line, a `<#` earlier, an orphan closer, a bare
+    # CR) is refused HERE, ahead of the allow-list question and without spending an
+    # attempt, because no allow token for it can be safe. The `#` case is the one
+    # the rest of this comment measures. Every token-granted round below spends
+    # the SHARED _ps_sink_attempts budget, so a sixth grantable trigger pushes a
+    # command that settles in four rounds past the cap. Measured on the payload
     # `Write-Host {a}; iex 'b'; pwsh -File c.ps1; git reset --hard` over a
     # commented opener and a closer-carried second opener. The cap refuses too
     # (below), and this check stays ahead of it so the refusal names the shape.
@@ -1424,7 +1426,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     # on round one when another trigger fired on the same commented-opener command.
     # PS_SINK_TRIGGER is set here so the trigger line and the telemetry form name
     # the shape actually being refused.
-    if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+    if ((PS_REDUCTION_UNTRUSTED)); then
       PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
       ps::print_unparsable_git_block_message
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"

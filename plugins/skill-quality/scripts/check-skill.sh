@@ -47,6 +47,9 @@
 # file = no skips). Without --require-evals, check 14 WARNs only on
 # action-router-shaped skills — the legacy fleet posture.
 #
+# CHECK_SKILL_SKIP_MARKDOWNLINT=1 skips check 6 (markdownlint) for callers with
+# no Node toolchain.
+#
 # Skills root resolution (first hit wins):
 #   1. CHECK_SKILL_SKILLS_ROOT env var (explicit override)
 #   2. ${CLAUDE_PROJECT_DIR}/.claude/skills (plugin runtime)
@@ -420,7 +423,11 @@ if [[ -n "$BASE_REF_ERR" ]]; then
   exit 2
 fi
 
-SKILL_NAME="${1:?Usage: check-skill.sh [--require-evals] <skill-name> | <root> [<root> ...]}"
+if (($# == 0)); then
+  printf 'Usage: check-skill.sh [--require-evals] <skill-name> | <root> [<root> ...] (run with --help)\n' >&2
+  exit 1
+fi
+SKILL_NAME="$1"
 
 if [[ -z "$SKILLS_ROOT" ]]; then
   printf '%s\n' "$SKILLS_ROOT_ERR" >&2
@@ -1135,11 +1142,17 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     # reason does not apply to the run that just went red.
     test_out=""
     if test_out="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u GIT_COMMON_DIR -u GIT_PREFIX \
-      bash "$test_sh" 2>&1)"; then
+      bash "$test_sh" 2>&1 </dev/null)"; then
       note "script test passed: ${test_sh#"$SKILL_DIR"/}"
     else
       err "script test failed: ${test_sh#"$SKILL_DIR"/}"
-      printf '%s\n' "$test_out" >&2
+      # Replay the tail: a long failing test would otherwise flood the log.
+      if (($(printf '%s\n' "$test_out" | wc -l) > 100)); then
+        printf '... output truncated to the last 100 lines; run bash %s for all of it\n' "$test_sh" >&2
+        printf '%s\n' "$test_out" | tail -n 100 >&2
+      else
+        printf '%s\n' "$test_out" >&2
+      fi
     fi
   done < <(find "$SKILL_DIR/scripts" -name '*.test.sh' -type f 2>/dev/null | sort)
 fi
