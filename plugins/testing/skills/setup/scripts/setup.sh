@@ -8,8 +8,8 @@
 #                 A missing rule is a FINDING; Bash, PowerShell and Go have no
 #                 maintained rule. The reading is textual: a rule named in a
 #                 lint config, or the plugin's recommended set referenced.
-#   instruction   an optional line for CLAUDE.md or AGENTS.md, printed to paste;
-#                 this script never edits either file
+#   instruction   an optional line, printed to paste into the instruction file
+#                 Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
 #   hook-entry    for each consumer glob no shipped hook row matches, a
 #                 .claude/settings.json entry that runs test-scan on it
 # apply writes <root>/.claude/testing.yaml from the answer flags, whole, and
@@ -276,7 +276,20 @@ check() {
   done
 
   printf '\n== instruction ==\n'
-  printf 'Optional. To paste into CLAUDE.md or AGENTS.md yourself; /testing:setup never edits them:\n'
+  # Claude Code reads AGENTS.md only when no CLAUDE.md, .claude/CLAUDE.md or
+  # CLAUDE.local.md exists, so name the file that loads.
+  local file=AGENTS.md note=''
+  if [[ -f "$ROOT/CLAUDE.md" ]]; then
+    file=CLAUDE.md
+  elif [[ -f "$ROOT/.claude/CLAUDE.md" ]]; then
+    file=.claude/CLAUDE.md
+  elif [[ -f "$ROOT/CLAUDE.local.md" ]]; then
+    file=CLAUDE.local.md note=' (it is personal; a CLAUDE.md would share the line with the team)'
+  elif [[ ! -f "$ROOT/AGENTS.md" ]]; then
+    # shellcheck disable=SC2088 # printed for the user, not expanded
+    file="${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md" note=' (this repository has neither; that file applies to every repository)'
+  fi
+  printf 'Optional. CLAUDE.md and AGENTS.md are yours; /testing:setup never edits them. Paste this into %s yourself%s:\n' "$file" "$note"
   printf '  Tests must be able to fail: take every expected value from a spec, a bug report or a hand-computed literal, never from running the code under test; load the testing:test-value skill before writing or reviewing tests.\n'
 
   printf '\n== hook-entry ==\n'

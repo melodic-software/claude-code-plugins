@@ -6,7 +6,7 @@ file carries the header schema and the reasoning behind it.
 **The shared parts are not restated here.** Index-at-every-size rather than past a threshold,
 section-keyed sidecar filenames, the sub-slice rule for a collision, and both placement rules are
 identical across this plugin's three families and are stated once in
-[`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md).
+[`../../research/context/artifact-shape.md`](../../research/context/artifact-shape.md).
 Read them there. What follows is what differs, which is the header and one property of the index.
 
 ## `INTENT.md` is private to this skill

@@ -28,8 +28,12 @@ from typing import Any
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -240,6 +244,8 @@ def scan_complete_payload(
         "os_autoclean": advisory,
         "note": note,
     }
+    if snapshot.get("catalog_unreadable"):
+        payload["catalog_unreadable"] = True
     if snapshot.get("inventory_mode") == "sizes-only":
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = snapshot.get("rollup_precision")
@@ -287,6 +293,42 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise HygieneError(f"JSON root must be an object: {path}")
     return value
+
+
+def catalog_paths() -> tuple[Path, Path]:
+    """``catalog.json`` and ``CATALOG.md`` under the authorized data root."""
+    data_root = Path(DATA_ROOT_OVERRIDE or "")
+    return (
+        state_output_path(data_root / "catalog.json"),
+        state_output_path(data_root / "CATALOG.md"),
+    )
+
+
+def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
+    """Attach ``prior_disposition`` from the data-root catalog, when one exists.
+
+    A hint for the report only: an absent or unreadable catalog leaves the scan
+    unchanged, and nothing here touches the target.
+    """
+    if not DATA_ROOT_OVERRIDE:
+        return
+    catalog_path = catalog_paths()[0]
+    if not catalog_path.is_file():
+        return
+    try:
+        investigated_catalog.annotate_entries(snapshot, load_json(catalog_path))
+    except HygieneError:
+        snapshot["catalog_unreadable"] = True
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    """Replace ``path`` whole or leave it as it was."""
+    temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -4868,6 +4910,7 @@ def main(argv: list[str] | None = None) -> int:
                         2,
                     )
                 snapshot["root_children_skipped"] = skipped
+                annotate_investigated_catalog(snapshot)
                 write_json(output_path, snapshot)
                 skipped_counts = root_children_skipped_reason_counts(skipped)
                 home_note = withheld_home_container_note(skipped)
@@ -4940,6 +4983,7 @@ def main(argv: list[str] | None = None) -> int:
                     },
                     2,
                 )
+            annotate_investigated_catalog(snapshot)
             write_json(output_path, snapshot)
             return emit(
                 scan_stdout_payload(
@@ -4985,6 +5029,61 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         snapshot = load_json(Path(args.snapshot))
+        if args.command == "catalog":
+            entries = snapshot.get("entries")
+            if (
+                not isinstance(snapshot.get("target"), str)
+                or not isinstance(entries, list)
+                or not all(
+                    isinstance(entry, dict) and isinstance(entry.get("path"), str)
+                    for entry in entries
+                )
+            ):
+                raise HygieneError(
+                    "catalog needs a scan snapshot whose entries each have a path"
+                )
+            json_path, markdown_path = catalog_paths()
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            findings = (
+                load_json(Path(args.findings)).get("records", [])
+                if args.findings
+                else []
+            )
+            answers = (
+                load_json(Path(args.answers)).get("answers", [])
+                if args.answers
+                else []
+            )
+            if not isinstance(findings, list) or not isinstance(answers, list):
+                raise HygieneError("catalog findings and answers must be arrays")
+            merged, report = investigated_catalog.sync_catalog(
+                snapshot,
+                load_json(json_path) if json_path.is_file() else None,
+                findings,
+                answers,
+                args.run_id,
+            )
+            write_text_atomic(
+                json_path, json.dumps(merged, indent=2, sort_keys=True) + "\n"
+            )
+            write_text_atomic(
+                markdown_path, investigated_catalog.render_markdown(merged, report)
+            )
+            return emit(
+                {
+                    "status": "catalog-complete",
+                    "catalog": str(json_path),
+                    "rendered": str(markdown_path),
+                    "records": len(merged["records"]),
+                    **report,
+                    "note": (
+                        "A catalog record is a hint. It does not authorize deletion, "
+                        "skip a preview, or shorten approval. Report new_or_changed "
+                        "first, then one line per unchanged entry, and end with the "
+                        "questions."
+                    ),
+                }
+            )
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
                 {"version": SCHEMA_VERSION, "paths": [args.path]}
