@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The interview page badges its title while the tab is hidden.** The title shows a count of new activity and notes that land while the tab is hidden, and the count clears when the tab is shown ([#5473](https://github.com/melodic-software/claude-code-plugins/issues/5473)).
 
+## [0.47.9] - 2026-09-29
+
+### Changed
+
+- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a reviewer return with neither its `### Summary` section nor `No plan gaps found.` as incomplete, whether or not the client marked it partial ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
+
 ## [0.47.8] - 2026-09-29
 
 ### Added
