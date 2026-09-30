@@ -1011,11 +1011,21 @@ cr_match() {
 BIN_SEARCH=not-needed
 BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
 declare -A BIN_HAS=()
-# bin_describe <name>: the first describe("...") string within 300 characters
-# after the name, control characters stripped, capped at 160 characters.
+# bin_describe <name>: the describe("...") string of the schema entry `name:`, control characters
+# stripped, capped at 160 characters. Only a declaration counts: the name is followed by `:`, no
+# statement or block boundary (`;{}`) and no other `key:` lies between it and the describe. An entry
+# without its own describe yields nothing rather than a neighbour's string.
 bin_describe() {
-  LC_ALL=C grep -aoE -m1 -- "(^|[^A-Za-z0-9_\$])$1[^A-Za-z0-9_\$].{0,300}describe\(\"[^\"]{1,400}\"" "$CLAUDE_BIN" 2>/dev/null |
-    head -n1 | sed -E 's/.*describe\("//; s/"$//' | LC_ALL=C tr -d '[:cntrl:]' | cut -c1-160
+  local c body
+  while IFS= read -r c; do
+    c="${c#*"$1":}"
+    [[ "$c" == *'describe("'* ]] || continue
+    body="${c%%describe(\"*}"
+    c="${c#*describe(\"}"
+    [[ ${#body} -le 300 && "$c" == *\"* && ! "$body" =~ ,[A-Za-z_\$][A-Za-z0-9_\$]*: ]] || continue
+    printf '%s' "${c%%\"*}" | LC_ALL=C tr -d '[:cntrl:]' | cut -c1-160
+    return 0
+  done < <(LC_ALL=C grep -aoE -- "(^|[^A-Za-z0-9_\$])$1:[^;{}]{0,800}" "$CLAUDE_BIN" 2>/dev/null | LC_ALL=C tr -d '\000')
 }
 if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   BIN_SEARCH=not-searched

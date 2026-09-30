@@ -801,6 +801,16 @@ printf '%s\n' '{"describedKey":1}' >"$m/project/.claude/settings.local.json"
 make_cli "$m/claude-desc" "2.1.281 (Claude Code)" enabledPlugins permissions 'describedKey:z.boolean().optional().describe("@internal Whether the user has accepted it")'
 out=$(CLI_BIN="$m/claude-desc" run "$m" --json 2>&1) || true
 assert_contains "case 27: the binary's describe string is quoted" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:describedKey") | .detail' <<<"$out")" '"@internal Whether the user has accepted it"'
+printf '%s\n' '{"ownKey":1,"bareKey":1}' >"$m/project/.claude/settings.local.json"
+make_cli "$m/claude-neighbour" "2.1.281 (Claude Code)" enabledPlugins permissions \
+  'paths:[{path:["bareKey"]},{path:["ownKey"]}],other:z.string().describe("Elsewhere text")' \
+  'ownKey:z.boolean().describe("Own text"),bareKey:z.boolean().optional(),neighbourKey:z.string().describe("Neighbour text")'
+out=$(CLI_BIN="$m/claude-neighbour" run "$m" --json 2>&1) || true
+own_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:ownKey") | .detail' <<<"$out")"
+bare_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:bareKey") | .detail' <<<"$out")"
+assert_contains "case 27: a key is described by its own entry" "$own_detail" '"Own text"'
+assert_eq "case 27: a key's describe is not a neighbour's or another site's string" "0" "$(grep -c -e 'Neighbour text' -e 'Elsewhere text' <<<"$own_detail")"
+assert_eq "case 27: a key with no describe of its own is quoted nothing" "0" "$(grep -c -e 'the binary describes it' -e 'Neighbour text' -e 'Elsewhere text' <<<"$bare_detail")"
 make_cli "$m/claude-shim" "2.1.281 (Claude Code)" internalOnlyKey
 out=$(CLI_BIN="$m/claude-shim" run "$m" --json 2>&1) || true
 assert_eq "case 27: a file without the control literals was not searched" "not-searched" "$(jq -r '.claude_version.binary.key_search' <<<"$out")"

@@ -10,7 +10,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 ### Added
 
 - **The audit engine derives more of its criteria from the docs it fetches.** It follows links out of
-  `settings-reference` to the pages a check reads, takes the `fallbackModel` cap and the enum values
+  `settings-reference` to the pages a check reads (today only `hooks`; a page no check reads is not
+  requested), takes the `fallbackModel` cap and the enum values
   of string keys from the documented sections, checks nested keys inside objects the reference
   documents, and quotes the binary's describe string for a key the docs leave undocumented.
 - **`known-issues` fix versions are compared with the installed Claude Code version** in a new
@@ -23,6 +24,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - **The audit's Phase 2 prose matches the engine.** Hook event names are engine-decided in `SKILL.md`
   and `context/validation-categories.md`, and the checklist template sends Phase 2 to the judgment
   column; the model reads the hooks page only for a row the engine left `not-inspectable`.
+- **The audit checklist's hook Timeouts row states the figures `context/validation-categories.md`
+  states** (5-15s for simple formatters, 30s for slow-startup tools) and says they are this skill's
+  judgment, not a documented limit. It previously gave 5-30s and up to 60s.
 
 ### Fixed
 
@@ -30,6 +34,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   a key containing U+0000 stays in one row.
 - **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and a permissions-page
   quotation the page no longer carries is restated from the page's wildcard table.
+- **The binary's describe string quoted for an undocumented key is that key's own.** It is read from
+  the key's schema entry, so a key with no describe of its own gets none instead of the next
+  entry's string.
 
 ## [0.53.4] - 2026-09-29
 
