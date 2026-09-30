@@ -87,13 +87,10 @@ absence claim is not carried forward.
 
 ## `nesting-invariant-probe.sh`: the nesting invariant's disputed arm
 
-**Status: RUN 2026-08-15 on Claude Code 2.1.232, INCONCLUSIVE (fixture failure).**
-All four arms executed the fixture setup. The `InstructionsLoaded` hook produced
-**zero trace events on every arm**. `claude -p` stderr was `Not logged in · Please
-run /login`. Per this section's own trap rule, that is a fixture failure, **not**
-evidence of absence and **not** a null finding about the leak. The dispute remains
-unadjudicable until an authenticated re-run produces a real trace (or a documented
-null from a firing hook).
+**Status: RUN 2026-09-30 on Claude Code 2.1.285, ADJUDICATED. The owning-parent leak does not
+reproduce.** Authenticated CLI (Linux, first-party login), four `claude -p` turns, 5/5/5/6
+`InstructionsLoaded` events per arm, so no fixture failure. An earlier run on 2026-08-15 (2.1.232)
+was inconclusive: the CLI was unauthenticated and every arm produced zero trace events.
 
 **Claim under test.** From a session inside a worktree nested in a checkout, a read matching a
 path-scoped rule's glob also loads the enclosing checkout's copy of that rule.
@@ -116,17 +113,33 @@ not fire the instrument without CLI authentication.
 | Claude Code version | **2.1.232** |
 | Host | Linux (cloud agent); CLI present but unauthenticated |
 
-### Recorded outcome (2026-08-15)
+### Recorded outcome (2026-09-30, Claude Code 2.1.285)
 
-| Arm | Placement | Result |
-|---|---|---|
-| dot-nested | `<parent>/.claude/worktrees/wt` | **fixture failure**: no `InstructionsLoaded` trace events (CLI not logged in) |
-| plain-nested | `<parent>/plainsub/wt` | **fixture failure**, same |
-| external (control) | `<workdir>/external-root/wt` | **fixture failure**, same |
-| unrelated-nested | `<unrelated>/nested/wt` | **fixture failure**, same |
+Same discriminators as above except: Claude Code **2.1.285**, Linux (WSL), authenticated. The workdir
+sat inside another git checkout that has a `CLAUDE.md` and `.claude/rules/`.
 
-No arm may be read as settling the leak claim. Re-run under an authenticated CLI; a real null
-(hook fired, parent rule absent from the trace) *is* a finding. Zero events is not.
+| Arm | Placement | Events | Result |
+|---|---|---|---|
+| dot-nested | `<parent>/.claude/worktrees/wt` | 5 | Owning parent's `scoped.md` **not** loaded: no leak |
+| plain-nested | `<parent>/plainsub/wt` | 5 | Owning parent's `scoped.md` **not** loaded: no leak |
+| external (control) | `<workdir>/external-root/wt` | 5 | Owning parent's `scoped.md` not loaded: control holds |
+| unrelated-nested | `<unrelated>/nested/wt` | 6 | The worktree owner's `scoped.md` not loaded. The **enclosing unrelated repo's** `scoped.md` **was** loaded (glob-match load reason, trigger `nested/wt/src/target.md`) |
+
+So the 2.1.224 leak (a glob-match load naming the owning parent checkout's rule) does not reproduce
+on 2.1.285. The probe's own "PARENT rule loaded?" line checks the worktree's owner, so it prints
+`no` on the unrelated-nested arm; the enclosing repo's load is visible only in the trace.
+
+Caveats. The enclosing checkout's `CLAUDE.md` and unconditional rule loaded at `session_start` on
+all four arms, including the external one, so "external" was not outside every repository; that also
+shows session-start ancestor traversal reaching a repository that is not the worktree's owner. The
+unrelated repo in the fixture had no `CLAUDE.md` or unconditional rule, so `session_start` on that
+arm is not isolated by this run. Whether 2.1.224 leaked stays disputed, not refuted; that version
+cannot be re-run here.
+
+### Recorded outcome (2026-08-15, Claude Code 2.1.232)
+
+Fixture failure on all four arms: no `InstructionsLoaded` trace events (CLI not logged in). It
+settled nothing.
 
 **Why the original dispute was unadjudicable.** The outcome depends on discriminators neither run
 disclosed:
