@@ -606,7 +606,7 @@ _TRUTHY_LITERALS = frozenset({"true", "!0"})
 _FALSY_LITERALS = frozenset({"false", "!1"})
 _NUMBER_RE = re.compile(
     r"[-+]?(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+"
-    r"|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][-+]?\d+)?)n?(?![\w$])"
+    r"|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][-+]?\d[\d_]*)?)n?(?![\w$])"
 )
 
 
