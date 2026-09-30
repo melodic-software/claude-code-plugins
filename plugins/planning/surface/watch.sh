@@ -114,7 +114,7 @@ while :; do
   fails=0
   case "$out" in
     *'"timedOut": false'*)
-      next="bash $(shell_quote "$here/round.sh") --dir $(shell_quote "$dir") apply --file $(shell_quote "$dir/ops.json") && bash $(shell_quote "$here/watch.sh") $(shell_quote "$dir")"
+      next="bash $(shell_quote "$here/wake.sh") $(shell_quote "$dir")"
       printf '%s, "dataDir": "%s", "next": "%s"}\n' "${out%\}}" "$(json_escape "$dir")" "$(json_escape "$next")"
       printf '%s' "$out" | sed -n 's/^{"seq": \([0-9]*\).*/\1/p' >"$dir/.watch-seq"
       case "$out" in

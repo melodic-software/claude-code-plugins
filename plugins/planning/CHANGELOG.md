@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.11] - 2026-09-30
+## [0.47.12] - 2026-09-30
 
 ### Fixed
 
 - **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.47.11] - 2026-09-30
+
+### Added
+
+- **`surface/wake.sh`** wraps the interview wake loop's compound command (`round.sh apply` then `watch.sh`) so each wake sends one short call. `watch.sh` emits it as the `next` command, and `context/surface.md` and the surface README document it ([#5462](https://github.com/melodic-software/claude-code-plugins/issues/5462)).
 
 ## [0.47.10] - 2026-09-30
 

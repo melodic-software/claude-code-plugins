@@ -39,6 +39,11 @@ Default output dir:
   (CLAUDE_PLUGIN_DATA falls back to ~/.claude/plugins/data/claude-ops when the
   harness does not export it; <state-key> comes from lib/state-key.sh and is
   <repo-identity>/<worktree-discriminator>).
+
+Exit  : 0  every row was attempted; a row whose lookup failed is a FETCH_FAILED
+           row in the results file, not a failure of the run
+        1  no snapshot in the output directory
+        2  bad argument, gh or jq missing, or no output directory could be resolved
 EOF
   exit 0
 fi
@@ -49,7 +54,7 @@ if [[ "${1:-}" == "--print-output-dir" ]]; then
   shift
 fi
 if [[ $# -gt 0 ]]; then
-  echo "ERROR: unknown argument: $1" >&2
+  echo "ERROR: unknown argument: $1 (see --help)" >&2
   exit 2
 fi
 
@@ -81,19 +86,31 @@ else
   done
 fi
 
-mkdir -p "$OUT_DIR" || exit 2
+mkdir -p "$OUT_DIR" || {
+  echo "ERROR: could not create the output directory: $OUT_DIR" >&2
+  exit 2
+}
 
 if [[ $PRINT_ONLY -eq 1 ]]; then
   printf '%s\n' "$OUT_DIR"
   exit 0
 fi
 
+# Below --print-output-dir, which is path arithmetic. Without gh every row would
+# come back FETCH_FAILED under exit 0, which reads as a lookup that ran and failed.
+for tool in gh jq; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "ERROR: $tool is required to re-check issues but is not on PATH" >&2
+    exit 2
+  }
+done
+
 SNAPSHOT="$OUT_DIR/registry-snapshot.tsv"
 OUT="$OUT_DIR/check-all-results.tsv"
 LOG="$OUT_DIR/check-all.log"
 
 if [[ ! -f "$SNAPSHOT" ]]; then
-  echo "ERROR: snapshot not found: $SNAPSHOT" >&2
+  echo "ERROR: snapshot not found: $SNAPSHOT (run --print-output-dir, then write registry-snapshot.tsv into the directory it prints)" >&2
   exit 1
 fi
 
