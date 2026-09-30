@@ -104,6 +104,7 @@ sync_cluster::check_bump() {
   sync_cluster::check_manifest_bumps_to stale "$base"
   if [[ "$stale" -ne 0 ]]; then
     echo "Bump the version of every $sync_cluster_carrier plugin so consumers receive the lib change." >&2
+    echo "For a bump that only carries the sync, the CHANGELOG entry is: Shared \`$(basename "$src")\` synced (<link to the lib change>); no change to this plugin's hooks." >&2
     exit 1
   fi
   echo "$sync_cluster_noun changed vs $base and every $sync_cluster_carrier plugin bumped its version."

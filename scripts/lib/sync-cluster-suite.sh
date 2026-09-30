@@ -237,10 +237,15 @@ sync_cluster_suite::_case_check_bump() {
     for extra in ${_scs_extra_copies[@]+"${_scs_extra_copies[@]}"}; do
       sync_cluster_suite::_write "$_scs_fixture/$extra" "$_scs_v2"
     done
-    if sync_cluster_suite::_run_mode --check-bump "$base" >/dev/null 2>&1; then
+    if out="$(sync_cluster_suite::_run_mode --check-bump "$base" 2>&1)"; then
       fail "--check-bump should fail when the canonical changed but no carrier version moved"
     else
       ok "--check-bump fails when the canonical changed but no carrier version moved"
+      if [[ "$out" == *"no change to this plugin"* && "$out" == *"${_scs_canonical##*/}"* ]]; then
+        ok "--check-bump failure prescribes the sync-only CHANGELOG line naming the canonical file"
+      else
+        fail "--check-bump failure should prescribe the sync-only CHANGELOG line, got: $out"
+      fi
     fi
     sync_cluster_suite::_manifest "$_scs_copy_plugin" 0.2.0
     sync_cluster_suite::_manifest "$_scs_src_plugin" 0.2.0
