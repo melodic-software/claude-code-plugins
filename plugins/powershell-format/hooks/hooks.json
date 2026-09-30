@@ -1,5 +1,5 @@
 {
-  "description": "Formats PowerShell scripts, modules and manifests after a write or edit.",
+  "description": "Formats PowerShell scripts, modules and manifests after a write or edit, and reports a missing pwsh at session start.",
   "hooks": {
     "PostToolUse": [
       {
@@ -37,6 +37,24 @@
             "if": "Edit(*.psd1)",
             "timeout": 30,
             "statusMessage": "Formatting PowerShell..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "POWERSHELL_FORMAT_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+            ],
+            "timeout": 10,
+            "statusMessage": "Checking pwsh..."
           }
         ]
       }
