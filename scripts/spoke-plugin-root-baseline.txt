@@ -88,7 +88,7 @@ plugins/overengineering/skills/audit/context/surface-walk.md 3
 plugins/overengineering/skills/delta/context/baseline-model.md 2
 plugins/overengineering/skills/delta/context/recurring-wiring.md 1
 plugins/planning/skills/interview/context/loop.md 4
-plugins/planning/skills/interview/context/surface.md 3
+plugins/planning/skills/interview/context/surface.md 2
 plugins/planning/skills/plan/context/close-out.md 4
 plugins/playbooks/skills/skill-authoring/reference/authoring-checklist.md 1
 plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1

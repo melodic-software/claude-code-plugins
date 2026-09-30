@@ -154,7 +154,7 @@ summary="$(
       if (r == "implicit-many-to-many")
         return "A Prisma schema declares a many-to-many with no foreign-key fields. Cardinality was not guessed. No diagram was drawn."
       if (r == "ef-fluent-unreadable")
-        return "An Entity Framework fluent chain is present but not in the shipped shape (Entity<T>, HasOne<T> or HasMany<T>, HasForeignKey(\"Column\"), IsRequired or IsRequired(false)). No diagram was drawn."
+        return "An Entity Framework fluent chain is outside the readable subset (HasOne or HasMany with a generic or lambda navigation, from Entity<T>() or the one IEntityTypeConfiguration<T> class in a file; one foreign-key column, HasForeignKey(\"Column\") or HasForeignKey(e => e.Column); IsRequired(), IsRequired(true) or IsRequired(false), or a foreign-key property declared as T?, Nullable<T> or a built-in value type). No diagram was drawn."
       if (r == "sql-alter-unreadable")
         return "A SQL migration uses an ALTER TABLE action or foreign-key clause outside the readable subset (ADD COLUMN, DROP COLUMN, ADD FOREIGN KEY, UNIQUE or PRIMARY KEY, and DROP CONSTRAINT of one the migrations declared). Replaying it would leave the schema wrong. No diagram was drawn."
       if (r == "unsupported")

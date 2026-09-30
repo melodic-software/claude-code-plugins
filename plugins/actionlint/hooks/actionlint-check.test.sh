@@ -365,7 +365,9 @@ run_absent_as() {
       CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK" <<<"$payload"
   )
 }
-if jq -e '.systemMessage | contains("/actionlint:check") and contains("docs/install.md")' <<<"$OUT_ABS" >/dev/null 2>&1; then
+MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
+if jq -e --arg check "$MF_CHECK" --arg install "$MF_INSTALL" '.systemMessage | contains($check) and contains($install)' <<<"$OUT_ABS" >/dev/null 2>&1; then
   ok "actionlint-absent -> first notice names /actionlint:check and the install route"
 else
   fail "actionlint-absent first notice lacks the check skill or install route: $OUT_ABS"
@@ -392,9 +394,9 @@ if [[ $RENEW_QUIET -eq 1 ]]; then
 else
   fail "actionlint-absent: a skip between the first notice and the renewal was not silent"
 fi
-if jq -e '
-  (.systemMessage | contains("docs/install.md") and contains("/actionlint:check") and contains("8 skips this session")) and
-  (.hookSpecificOutput.additionalContext | contains("docs/install.md") and contains("8 skips this session"))
+if jq -e --arg check "$MF_CHECK" --arg install "$MF_INSTALL" '
+  (.systemMessage | contains($install) and contains($check) and contains("8 skips this session")) and
+  (.hookSpecificOutput.additionalContext | contains($install) and contains("8 skips this session"))
 ' <<<"$RENEW_OUT" >/dev/null 2>&1; then
   ok "actionlint-absent -> the eighth skip renews the notice and keeps the install route"
 else
@@ -571,7 +573,7 @@ EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's|.*|Edit(**/.github/workflow
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 && "$OFF_SHAPE" == "0" ]]; then
-  HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
+  HANDLERS="$(jq -c '[.hooks | del(.SessionStart) | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
@@ -610,6 +612,107 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
   ok "gitignored + actionlint_lint_gitignored=true: diagnostic reported"
 else
   fail "gitignored + opt-in: no diagnostic: $OUT"
+fi
+
+# --- Notice text is bound to prerequisites.json --------------------------------
+# The hook does not read the manifest at run time (parse cost on the per-edit hot
+# path), so this case is the binding: the manifest has exactly one tool,
+# actionlint, and the hook's missing-binary notice call states that tool's name,
+# check and install, verbatim.
+if jq -e '(.tools | length) == 1 and .tools[0].name == "actionlint"' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: exactly one tool, actionlint"
+else
+  fail "manifest: expected one tool named actionlint: $(cat "$MANIFEST")"
+fi
+NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to AL_NOTICE/,/[^\\]$/p' "$HOOK")"
+# assert_hook_states <field> <needle>
+assert_hook_states() {
+  if [[ -n "$2" ]] && grep -qF -- "$2" <<<"$NOTICE_CALL"; then
+    ok "manifest binding: hook states the manifest's $1 ($2)"
+  else
+    fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
+  fi
+}
+assert_hook_states name "'$MF_NAME'"
+assert_hook_states check "$MF_CHECK"
+assert_hook_states install "$MF_INSTALL"
+
+# --- SessionStart probe honors actionlint_enabled ------------------------------
+# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
+# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
+# holds the system tools and no actionlint. The gate is `--run-if-unset-or-true`
+# in exec-bash.mjs, so a row without it prints the notice for a disabled plugin.
+# A missing node fails the suite instead of skipping the cases: every hook row
+# launches through it.
+PLUGIN_ROOT="${HOOK_DIR%/*}"
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [[ -z "$NODE_BIN" ]]; then
+  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
+else
+  PG_WORK="$(mktemp -d)"
+  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != actionlint && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      ln -s "$exe" "$PG_WORK/sysbin/$base"
+    done
+  done
+  PG_ARGS=()
+  while IFS= read -r pg_arg; do
+    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+
+  # run_probe <value|__unset__> [data-dir] -> run the row with actionlint_enabled set to <value>
+  # (or unset), on a fresh plugin data dir unless one is given.
+  run_probe() {
+    local v="$1" data="${2:-}"
+    [[ -n "$data" ]] || data="$(mktemp -d "$PG_WORK/data.XXXXXX")"
+    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED)
+    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=$v")
+    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$data" \
+        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
+  }
+
+  OUT_PG=$(run_probe false)
+  RC_PG=$?
+  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
+    ok "probe-gate: actionlint_enabled=false -> exit 0 and no notice"
+  else
+    fail "probe-gate: actionlint_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
+  fi
+  for v in __unset__ true; do
+    label="actionlint_enabled=$v"
+    [[ "$v" == "__unset__" ]] && label="actionlint_enabled unset"
+    OUT_PG=$(run_probe "$v")
+    RC_PG=$?
+    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$MF_NAME"* && "$OUT_PG" == *"$MF_CHECK"* && "$OUT_PG" == *"$MF_INSTALL"* ]]; then
+      ok "probe-gate: $label -> notice names $MF_NAME, $MF_CHECK and the install line"
+    else
+      fail "probe-gate: $label should print the missing-actionlint notice (rc=$RC_PG out=$OUT_PG)"
+    fi
+  done
+
+  # The probe and the PostToolUse notice share one latch key, so once the probe has
+  # printed its notice the same session's first missing-binary edit is silent. MINBIN
+  # holds jq and no actionlint, the PATH under which the hook emits its first notice.
+  PG_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")"
+  run_probe true "$PG_DATA" >/dev/null
+  OUT_PG=$(
+    cd "$UNRELATED" || exit 1
+    printf '{"session_id":"s1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' \
+      "$REPO/.github/workflows/clean.yml" |
+      env -u CLAUDE_PROJECT_DIR PATH="$MINBIN" CLAUDE_PLUGIN_DATA="$PG_DATA" \
+        CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+  )
+  if [[ -z "$OUT_PG" ]]; then
+    ok "probe-gate: the probe's notice latches the PostToolUse notice (one key)"
+  else
+    fail "probe-gate: the PostToolUse notice fired after the probe's notice in the same session: $OUT_PG"
+  fi
+  rm -rf "${PG_WORK:?}"
 fi
 
 echo

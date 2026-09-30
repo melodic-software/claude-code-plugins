@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor no-assumptions research discipline; audit and correct the work and pending recommendations. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', or at conversation start. All claims: do-your-research-deep."
+description: "Re-anchor research discipline; audit and correct the work and pending recommendations. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', or at conversation start. All claims: do-your-research-deep."
 user-invocable: true
 disable-model-invocation: false
 metadata:
