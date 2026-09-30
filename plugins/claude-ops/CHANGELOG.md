@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.2] - 2026-09-30
+
+### Changed
+
+- **`observability` and `inventory` descriptions fit the 500-character listing budget.** `observability` keeps its `explain-usage` route phrase and its sibling boundaries ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.77.1] - 2026-09-30
 
 ### Changed
