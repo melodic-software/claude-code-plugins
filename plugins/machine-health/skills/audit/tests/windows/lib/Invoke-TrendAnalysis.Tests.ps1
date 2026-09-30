@@ -376,4 +376,9 @@ Describe 'Format-TrendCell' -Tag 'lib' {
         Format-TrendCell -Result (New-TrendResult -Id 'drivers' -Delta 'unsigned_in_store_count: +0 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑'
         Format-TrendCell -Result (New-TrendResult -Id 'drivers' -Delta 'unsigned_in_store_count: -1 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑'
     }
+
+    It 'reads a delta printed in scientific notation' {
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: -1E-05 vs prior') | Should -Be '↓ -1E-05'
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: +1.5E+03 vs prior') | Should -Be '↑ +1.5E+03'
+    }
 }

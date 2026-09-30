@@ -549,8 +549,8 @@ try {
 # First-run proposal: suggest installing Microsoft.WinGet.Client module when
 # it's absent. The text-parse fallback is localization-fragile. Never auto-
 # install per SKILL.md. The proposal is machine-specific state: queue it in the
-# state-root TODO.md, print a loud banner to stderr, and append a log line.
-# Never write to the repo.
+# state-root proposals file (Get-TodoPath), print a loud banner to stderr, and
+# append a log line. Never write to the repo.
 if ($RunMode -eq 'first-run') {
     try {
         $hasWingetModule = $null -ne (Get-Module -ListAvailable Microsoft.WinGet.Client -ErrorAction SilentlyContinue)

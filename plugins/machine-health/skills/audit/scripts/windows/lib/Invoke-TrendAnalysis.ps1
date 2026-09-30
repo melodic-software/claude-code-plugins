@@ -58,7 +58,7 @@ function Format-TrendCell {
     if (-not $trend -or -not $trend.last_run) { return '·' }
 
     $value = $null
-    if ($trend.delta -match ':\s*([+-]?[\d.]+) vs prior') { $value = $Matches[1] }
+    if ($trend.delta -match ':\s*([+-]?[\d.]+(?:E[+-]?\d+)?) vs prior') { $value = $Matches[1] }
     $worse = $null -ne $value -and ([double]$value * (Get-TrendWorseningSign -CheckId $Result.id)) -gt 0
 
     if ($trend.adjusted_from) { return $worse ? "↑ $value" : '↑' }
