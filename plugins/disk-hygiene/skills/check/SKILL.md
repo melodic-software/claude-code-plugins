@@ -4,8 +4,7 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   - "Bash(command -v *)"
-  - "Bash(git --version*)"
-  - "Bash(grep -m1 *)"
+  - "Bash(grep -m1 '^MIN_PYTHON' *)"
 metadata:
   workflow-stage: anytime
   summary: Report whether node, bash and a supported Python resolve for the disk-hygiene guard. Never installs.
