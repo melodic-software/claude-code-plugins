@@ -35,7 +35,7 @@
 # hooks read theirs from the session environment).
 #
 # --hook-events output (stdout, exactly one line) over the root's
-# sessions/*.jsonl files plus its hook-events.jsonl:
+# sessions/*.jsonl files plus its hook-events.jsonl and the rotated .1 beside it:
 #   <N> events
 #   EMPTY (no hook-event emitter wired, or no hooks fired yet)
 #   INVALID root (<value>): the hooks write nothing
@@ -56,7 +56,7 @@
 #   guard: ok | absent (the first write heals it) | operator-edited (writes refused)
 #        | not needed (not a git checkout) | n/a (root invalid)
 #   sessions: <S> file(s), newest <id> | none
-#   shared: <L> event(s) in hook-events.jsonl | absent
+#   shared: <L> event(s) in hook-events.jsonl (rotated .1 included) | absent
 #   prune-pending: none | <D> dir(s), <O> older than 24 h[ WARN: an archiver is not finishing]
 #   envelope: <E> row(s) from the audit hooks, outside the switch | none;
 #        event log: on|off; categories: all|<v>; keep: <n> sessions or <n> days;
@@ -141,14 +141,14 @@ while (($#)); do
     exit 0
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
 done
 
 if [[ -z "$MODE" ]]; then
-  err "a mode is required: --hook-events, --otel-store or --pipeline"
+  err "a mode is required: --hook-events, --otel-store or --pipeline (see --help)"
   exit 3
 fi
 
@@ -168,7 +168,19 @@ if ! unset_value "$ROOT_ARG"; then
   slog_contained "$ROOT_REL" || ROOT_VALID=0
 fi
 
-# The files the hook log holds: sessions/*.jsonl plus the shared file.
+# The shared file and the .1 the sink rotates it to at its size cap.
+# Populated by shared_files <abs-root> into SHARED_FILES.
+SHARED_FILES=()
+shared_files() {
+  local f
+  SHARED_FILES=()
+  for f in "$1/hook-events.jsonl" "$1/hook-events.jsonl.1"; do
+    [[ -f "$f" ]] && SHARED_FILES+=("$f")
+  done
+  return 0
+}
+
+# The files the hook log holds: sessions/*.jsonl plus the shared files.
 # Populated by hook_files <abs-root> into HOOK_FILES.
 HOOK_FILES=()
 hook_files() {
@@ -177,7 +189,8 @@ hook_files() {
   shopt -s nullglob
   for f in "$1"/sessions/*.jsonl; do HOOK_FILES+=("$f"); done
   shopt -u nullglob
-  [[ -f "$1/hook-events.jsonl" ]] && HOOK_FILES+=("$1/hook-events.jsonl")
+  shared_files "$1"
+  ((${#SHARED_FILES[@]})) && HOOK_FILES+=("${SHARED_FILES[@]}")
   return 0
 }
 
@@ -285,8 +298,12 @@ case "$MODE" in
   else
     printf 'sessions: none\n'
   fi
-  if ((ROOT_VALID)) && [[ -f "$ABS_ROOT/hook-events.jsonl" ]]; then
-    printf 'shared: %s event(s) in hook-events.jsonl\n' "$(wc -l <"$ABS_ROOT/hook-events.jsonl" | tr -d ' ')"
+  SHARED_FILES=()
+  ((ROOT_VALID)) && shared_files "$ABS_ROOT"
+  shared_rows=0
+  if ((${#SHARED_FILES[@]})); then
+    shared_rows="$(cat "${SHARED_FILES[@]}" | wc -l | tr -d ' ')"
+    printf 'shared: %s event(s) in hook-events.jsonl (rotated .1 included)\n' "$shared_rows"
   else
     printf 'shared: absent\n'
   fi
@@ -317,15 +334,13 @@ case "$MODE" in
   # Per-session files mix the sink's envelope rows (`source: "envelope"`) with
   # the event log's, so those are matched by marker; every line of the shared
   # hook-events.jsonl is a sink envelope in the legacy shape (an audit hook whose
-  # payload carried no session id), so that file counts whole.
+  # payload carried no session id), so that file and its rotated .1 count whole.
   envelope="none"
   envelope_rows=0
   if ((ROOT_VALID)) && [[ -d "$ABS_ROOT/sessions" ]]; then
     envelope_rows="$(cat "$ABS_ROOT"/sessions/*.jsonl 2>/dev/null | grep -c '"source":"envelope"')"
   fi
-  if ((ROOT_VALID)) && [[ -f "$ABS_ROOT/hook-events.jsonl" ]]; then
-    envelope_rows=$((envelope_rows + $(wc -l <"$ABS_ROOT/hook-events.jsonl" | tr -d ' ')))
-  fi
+  envelope_rows=$((envelope_rows + shared_rows))
   ((envelope_rows)) && envelope="$envelope_rows row(s) from the audit hooks, outside the switch"
 
   # --observed: the caller has no option values (the skill's pre-compute line,

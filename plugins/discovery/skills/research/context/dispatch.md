@@ -12,10 +12,10 @@
 
 `SKILL.md` carries the routing mandate. This file carries what the **parent** owes around a
 dispatched run **that is specific to research**, and why each obligation exists. The agent's own side
-is [`${CLAUDE_PLUGIN_ROOT}/agents/researcher.md`](${CLAUDE_PLUGIN_ROOT}/agents/researcher.md).
+is [`../../../agents/researcher.md`](../../../agents/researcher.md).
 
 Everything the parent owes that is **identical for exploration and research** is stated once in
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md):
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md):
 the envelope's six shared fields as a literal template, the pre-dispatch baseline in both shell forms,
 what is and is not documented about argument substitution on the preload path, why the gate ships no
 permission grant and what to do when it cannot run, and the resume-before-discard ordering.
@@ -54,7 +54,7 @@ against a run that produced none):
 
 1. **Re-surface `open_questions`.** `AskUserQuestion` is filtered out of every non-fork subagent, so
    the agent returns questions as text. The dated record for that harness behavior is
-   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
    "Harness facts the dispatch design rests on". If the parent does not surface them, the anti-pattern the
    skill guards against, silent downstream resolution, happens anyway, one level up.
 2. **Dispatch the sibling verifier** for the outcome-gate rows the producer may not self-grade.
@@ -94,12 +94,13 @@ against a run that produced none):
    index's outcome-gate result: the frontmatter's `verification: pending` becomes the verifier's
    `verification_line` (its values are in `artifact-shape.md`; the shared write-back shape and
    what to write when no verifier can be dispatched are in
-   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
    "The sibling verifier, stated once"), the verifier
    rows carry pass or the criterion that failed, and project fit is recorded as its own finding
    against the consuming project's conventions. A FAIL on a verifier row sends the run back to the
    phase that row names, the gate's own routing, rather than shipping an artifact annotated with
-   its own failure.
+   its own failure. At `Budget: low` it does not: the bound is stated once, in `SKILL.md`
+   ("Effort, source breadth").
 
    The verifier writes nothing itself. It never saw the run, it holds no envelope, and giving a
    second worker write access to the same slice reintroduces exactly the one-writer-per-slice problem
@@ -109,7 +110,7 @@ against a run that produced none):
 
 A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
 the debug log and starts the agent regardless. The dated record for that harness behavior is
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no disciplines, no phase
 structure, and no gate, and it still writes an artifact, still returns a payload, and still reports
 `coverage: complete`. At every check this design builds, that failure is indistinguishable from
@@ -225,7 +226,7 @@ one thing it just proved it cannot do, and a re-dispatch pays for every phase ag
 same refusal, the most expensive way to learn nothing.
 
 So the parent does the writing, which it can: this is the checkout-not-process boundary
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
+[`../../../reference/topic-docs.md`](../../../reference/topic-docs.md)
 draws:
 
 1. **Check every filename before writing anything.** The payload carries `RESEARCH.md`, every
@@ -266,7 +267,7 @@ It is not an acceptance value. An index body written back must carry
 is a failed dispatch. Letting the gate grade a claim the agent makes about its own research, in
 place of the artifact and the ledger, is the Tier-3 laundering the discipline forbids, arriving
 through the recovery path instead of the front door. Why the mode exists and where its boundary
-sits: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+sits: [`../../../reference/topic-docs.md`](../../../reference/topic-docs.md).
 
 **Exit 1 with the agent still live: resume it; do not re-dispatch it.** A resume costs one message; a
 re-dispatch pays all the phases over again. Address the agent by its **agent ID**, not by name, and ask
@@ -275,7 +276,7 @@ only the payload was malformed, the artifact is the source of truth. Read the in
 and still dispatch the sibling verifier. If the payload comes back naming a refused write, you are on
 the by-value rung above, not this one. What the harness actually guarantees about a resume, verified
 against the official sub-agents page and quoted there, is written down once in
-[`${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/dispatch.md)
+[`../../explore/reference/dispatch.md`](../../explore/reference/dispatch.md)
 ("What the harness actually guarantees about a resume"); it applies unchanged to `discovery:researcher`,
 which is a custom subagent like `discovery:explorer`. It is pointed at rather than restated so the two
 copies cannot drift apart on a harness change.
@@ -301,7 +302,7 @@ instead, one level up, where gate step 1 has already put the payload in the pare
 
 At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
 the parent can resume it. Dated record:
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 
 A partial marking says the run stopped; it does not say what reached disk. Because the ledger and
@@ -327,7 +328,7 @@ happens when the resume is refused, unavailable, or comes back without a usable 
 there it is mandatory, with the clear-the-slice rule above, because that is exactly the state the
 coverage script cannot grade. The ordering, and the harness guarantees it rests on, are stated once
 in
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md)
 ("Resume first, then decide about the slice").
 
 ## What dispatch does and does not buy
@@ -342,7 +343,7 @@ in
 - **Debuggability**: worse, and worth stating plainly. Background is the default execution mode, so
   a failed run's transcript is not in the conversation at all. The dated record for that harness
   behavior is
-  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "Harness facts the dispatch design rests on". The artifact and the payload are the
   evidence; that is why `status`, `coverage`, `preload_token`, and `preload` are mandatory fields
   rather than nice-to-haves. `preload_token` is file-identity; `preload` is provenance.

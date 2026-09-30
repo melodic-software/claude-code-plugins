@@ -33,6 +33,7 @@ import json
 import os
 import re
 import stat
+import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -88,7 +89,12 @@ LINK_PRODUCERS = (
     ("/.npm/", "npm"),
     ("/uv/", "uv"),
 )
-VERSION_RE = re.compile(r"^v?(\d+(?:\.\d+)*)(?:[-+][\w.+-]+)?$")
+# Group 1 is the numeric part, group 2 the "-" of a prerelease or the "+" of build metadata.
+VERSION_RE = re.compile(r"^v?(\d+(?:\.\d+)*)(?:([-+])[\w.+-]+)?$")
+# Days after an update or uninstall that Claude Code removes an orphaned plugin
+# version, counted from its `.orphaned_at` marker. Basis:
+# https://code.claude.com/docs/en/plugins/loading.md ("Cleanup of previous versions").
+ORPHAN_SWEEP_DAYS = 14
 _TOKEN = r"[\w.@/+-]+"
 _CATEGORY_PHRASE = re.compile(
     rf"(?:(?:tool|os|system|app|vendor)[- ]?(?:managed|owned)"
@@ -221,25 +227,46 @@ def _in_use(entry: Path, running: Iterable[str]) -> str | None:
     )
 
 
+def _link_targets(directories: Iterable[Path]) -> dict[str, str]:
+    """Resolved target -> link path for every symlink directly inside ``directories``."""
+    found: dict[str, str] = {}
+    for directory in directories:
+        try:
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    if entry.is_symlink():
+                        found.setdefault(os.path.realpath(entry.path), entry.path)
+        except OSError:
+            pass
+    return found
+
+
 def superseded_versions(
-    parents: Iterable[Path], running: Iterable[str] | None = ()
+    parents: Iterable[Path],
+    running: Iterable[str] | None = (),
+    launcher_dirs: Iterable[Path] = (),
 ) -> list[dict[str, Any]]:
     """Sibling entries under each parent whose names parse as versions.
 
-    Keeps the newest and any version a running process executes; the rest are
-    candidates, or UNKNOWN when ``running`` is None (process table not read). A
+    Keeps the newest (a release outranks its own prerelease), any version a
+    running process executes, and any version a symlink points at, read from the
+    parent, its parent and ``launcher_dirs``. The rest are candidates, or UNKNOWN
+    when ``running`` is None (process table not read). A version chosen through a
+    file rather than a symlink (an nvm alias, ``.tool-versions``) is not seen. A
     parent with fewer than two version entries yields no rows.
     """
     rows: list[dict[str, Any]] = []
     running = None if running is None else set(running)
+    launcher_dirs = tuple(launcher_dirs)
     for parent in parents:
-        versions: list[tuple[tuple[int, ...], str, Path]] = []
+        versions: list[tuple[tuple[tuple[int, ...], int], str, Path]] = []
         try:
             with os.scandir(parent) as entries:
                 for entry in entries:
                     match = VERSION_RE.match(entry.name)
                     if match and not entry.is_symlink():
-                        key = tuple(int(n) for n in match.group(1).split("."))
+                        numbers = tuple(int(n) for n in match.group(1).split("."))
+                        key = (numbers, 0 if match.group(2) == "-" else 1)
                         versions.append((key, entry.name, Path(entry.path)))
         except OSError:
             continue
@@ -252,8 +279,10 @@ def superseded_versions(
             if parent.name in {"versions", "releases", "bin"}
             else parent.name
         )
+        links = _link_targets((parent, parent.parent, *launcher_dirs))
         for _, name, path in versions:
             used = _in_use(path, running or ())
+            target = _in_use(Path(os.path.realpath(path)), links)
             if name == newest:
                 disposition, reason, evidence = (
                     "KEEP",
@@ -266,6 +295,12 @@ def superseded_versions(
                     f"a running process executes {used}",
                     {"running": used},
                 )
+            elif target:
+                disposition, reason, evidence = (
+                    "KEEP",
+                    f"the symlink {links[target]} points at it",
+                    {"symlink": links[target]},
+                )
             elif running is None:
                 disposition, reason, evidence = (
                     "UNKNOWN",
@@ -276,7 +311,8 @@ def superseded_versions(
             else:
                 disposition, reason, evidence = (
                     "CANDIDATE",
-                    f"superseded by {newest}; no running process executes it",
+                    f"superseded by {newest}; no running process executes it and "
+                    "no symlink beside it or in a launcher directory points at it",
                     None,
                 )
             rows.append(
@@ -309,14 +345,52 @@ def _resolve(path: str | Path) -> Path | None:
         return None
 
 
-def plugin_cache_versions(claude_dir: Path) -> list[dict[str, Any]]:
+def _orphan_marker(version: Path, now: float) -> dict[str, Any] | None:
+    """The age of a version's ``.orphaned_at`` marker (epoch milliseconds), or None."""
+    try:
+        epoch = int((version / ".orphaned_at").read_text(encoding="utf-8")) / 1000
+        age = (now - epoch) / DAY
+        return {
+            "orphaned_at": _iso(epoch),
+            "marker_age_days": round(age, 1),
+            "past_sweep_window": age >= ORPHAN_SWEEP_DAYS,
+        }
+    except (OSError, ValueError, OverflowError):
+        return None
+
+
+def _orphan_reason(registry: str, marker: dict[str, Any] | None, sweeping: bool) -> str:
+    base = f"no installPath in {registry} references this version"
+    if not sweeping:
+        return (
+            f"{base}, and {registry} records no install, so Claude Code's "
+            "removal of orphaned versions does not run"
+        )
+    if marker is None:
+        return f"{base}, and it has no readable .orphaned_at marker"
+    age = marker["marker_age_days"]
+    if marker["past_sweep_window"]:
+        return (
+            f"{base}; its .orphaned_at marker is {age} days old, past the "
+            f"{ORPHAN_SWEEP_DAYS}-day window after which Claude Code removes an "
+            "orphaned version, so it has not been swept"
+        )
+    return (
+        f"{base}; its .orphaned_at marker is {age} days old, inside the "
+        f"{ORPHAN_SWEEP_DAYS}-day window, so Claude Code removes it itself"
+    )
+
+
+def plugin_cache_versions(claude_dir: Path, now: float) -> list[dict[str, Any]]:
     """Rows for ``plugins/cache/<marketplace>/<plugin>/<version>`` under ``claude_dir``.
 
     A version some ``installPath`` in ``plugins/installed_plugins.json`` names is
-    KEEP with that registry as evidence; one no path names is a candidate. When
-    the registry cannot vouch for this cache (unreadable, no ``plugins`` object,
-    or no path in it under this cache) every row is UNKNOWN: a missing registry
-    is not evidence that a version is unreferenced.
+    KEEP with that registry as evidence; one no path names is a candidate, whose
+    reason and evidence carry its ``.orphaned_at`` marker age and whether that is
+    past the sweep window. When the registry cannot vouch for this cache
+    (unreadable, no ``plugins`` object, or no path in it under this cache) every
+    row is UNKNOWN: a missing registry is not evidence that a version is
+    unreferenced.
     """
     cache = claude_dir / "plugins" / "cache"
     paths = [
@@ -367,11 +441,13 @@ def plugin_cache_versions(claude_dir: Path) -> list[dict[str, Any]]:
                 )
             )
         else:
+            marker = _orphan_marker(path, now)
             rows.append(
                 make_row(
                     path,
                     disposition="CANDIDATE",
-                    reason=f"no installPath in {registry.name} references this version",
+                    reason=_orphan_reason(registry.name, marker, bool(data["plugins"])),
+                    evidence=marker,
                     **common,
                 )
             )
@@ -564,6 +640,16 @@ def _dotted_versions(names: Iterable[str]) -> bool:
     return sum(1 for m in dotted if m and "." in m.group(1)) >= 2
 
 
+def tmp_root() -> Path:
+    """The directory the ``tmp-producer`` category covers.
+
+    ``/tmp`` on POSIX, not ``$TMPDIR``, which may name a subdirectory of it and
+    would then attribute that subdirectory's children instead of ``/tmp``'s own
+    entries. Elsewhere the OS temp directory.
+    """
+    return Path("/tmp" if os.name == "posix" else tempfile.gettempdir()).resolve()
+
+
 def category_rows(
     target: Path,
     *,
@@ -576,7 +662,7 @@ def category_rows(
     rows: list[dict[str, Any]] = []
     claude_dir = home / ".claude"
     if _within(claude_dir, target):
-        rows += plugin_cache_versions(claude_dir)
+        rows += plugin_cache_versions(claude_dir, now)
         rows += project_transcripts(claude_dir / "projects")
     if _within(tmp_dir, target):
         rows += tmp_entries(tmp_dir, now, running)
@@ -604,6 +690,7 @@ def inventory_rows(
     means it was not read, so rows that rest on it are UNKNOWN.
     """
     running = None if running is None else set(running)
+    launcher_dirs = (home / ".local" / "bin", home / "bin")
     overrides = category_rows(
         target, home=home, tmp_dir=tmp_dir, now=now, running=running
     )
@@ -612,7 +699,7 @@ def inventory_rows(
         with os.scandir(directory) as it:
             entries = sorted(it, key=lambda e: e.name, reverse=True)
         if _dotted_versions(e.name for e in entries):
-            for row in superseded_versions([directory], running):
+            for row in superseded_versions([directory], running, launcher_dirs):
                 overrides.setdefault(row["name"], row)
         found: list[tuple[Path, os.stat_result | None, str]] = []
         for entry in entries:

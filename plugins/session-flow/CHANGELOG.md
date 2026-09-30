@@ -1,5 +1,20 @@
 # Changelog: session-flow plugin
 
+## [0.41.0] - 2026-09-29
+
+### Added
+
+- **`tidy-work` skill and `scripts/tidy_work.py`** ([#5222](https://github.com/melodic-software/claude-code-plugins/issues/5222)). `report` inventories the memory root (resolved from the concern file's `memory_dir`) and `~/.work` by age, size, and kind and marks what is in flight; `normalize` moves misplaced handoffs and running-retro ledgers into the standard layout; `clean` removes a stale known-kind item only when it names at least one issue or PR and every one is closed or merged; an item that names none is kept however old it is, and a slice or checklist, which has no attribution source, is never removed. Both mutating actions are dry runs listing exact paths until `--apply`, refuse paths outside the resolved roots, never modify content git tracks (a memory root without a `*` `.gitignore` is refused), and always keep unknown and in-flight items. Every action, `report` included, rejects a memory root that is the repository root and an existing one outside the repository without a `*` `.gitignore`, so a `memory_dir` pointing at an arbitrary directory is never walked. A handoff or running-retro file is that kind wherever it sits (the root, `handoffs/`, `running-retros/`), so `report` and `normalize` agree on it. A slice is in flight unless its `INDEX.md` status is `done`; an item with a `.git` file or directory under it (a clone or worktree) is in flight; a handoff or running retro that names an issue or PR that is not closed or merged is in flight; a handoff that is itself stale does not keep what it names; other skills' concern dirs are reported and kept. A top-level entry whose name carries exactly one issue or PR number (`lint-5371.log`, `measure-4608`) is `scratch`: `report` and the `clean` dry run show the issue or PR and its state, and `clean` removes it only once the issue is closed or the PR merged. A year-like number (1900 to 2099) counts only with a `pr`, `issue`, or `gh` prefix, so `backup-2026.tar` is not attributed. A name with no number or several is unknown and always kept. Opt-in only.
+
+## [0.40.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native commands no longer assert that the command ships with Claude
+  Code.** The `/subtask`, `/fork` and `/background` bullet in `continue-in-background`, the
+  `/recap` bullet in `orient` and the `/insights` bullet in `retro` keep the provenance class, what
+  the command does and how it is invoked, in the native-references template form.
+
 ## [0.40.2] - 2026-09-29
 
 ### Changed

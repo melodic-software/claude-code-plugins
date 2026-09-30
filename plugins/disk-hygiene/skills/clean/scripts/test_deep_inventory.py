@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -237,6 +238,36 @@ class SupersededVersionsTest(TempTree):
         self.assertEqual(set(rows), {"2.1.283", "2.1.284"})
         self.assertEqual(rows["2.1.283"]["producer"], "claude")
 
+    def test_a_release_outranks_its_own_prerelease(self) -> None:
+        parent = self.mkdir("share/tool/versions")
+        for name in ("1.2.0", "1.2.0-beta", "1.1.0"):
+            (parent / name).mkdir()
+        rows = by_name(di.superseded_versions([parent]))
+        self.assertEqual(rows["1.2.0"]["disposition"], "KEEP")
+        self.assertEqual(rows["1.2.0-beta"]["disposition"], "CANDIDATE")
+        self.assertEqual(rows["1.1.0"]["disposition"], "CANDIDATE")
+
+    def test_a_symlink_beside_the_versions_keeps_the_one_it_names(self) -> None:
+        alias = self.parent / "stable"
+        os.symlink(self.parent / "1.2.0", alias)
+        rows = by_name(di.superseded_versions([self.parent], set()))
+        self.assertEqual(rows["1.2.0"]["disposition"], "KEEP")
+        self.assertEqual(rows["1.2.0"]["evidence"], {"symlink": str(alias)})
+        self.assertEqual(rows["1.9.0"]["disposition"], "CANDIDATE")
+        self.assertIn("no symlink", rows["1.9.0"]["reason"])
+        self.assertEqual(di.validate_report(rows.values()), [])
+
+    def test_a_launcher_symlink_to_a_file_inside_a_version_keeps_it(self) -> None:
+        launchers = self.mkdir("home/.local/bin")
+        link = launchers / "codex"
+        os.symlink(self.parent / "1.9.0" / "bin", link)
+        rows = by_name(di.superseded_versions([self.parent], None, [launchers]))
+        self.assertEqual(rows["1.9.0"]["disposition"], "KEEP")
+        self.assertEqual(rows["1.9.0"]["evidence"], {"symlink": str(link)})
+        self.assertEqual(rows["1.2.0"]["disposition"], "UNKNOWN")
+        unlinked = by_name(di.superseded_versions([self.parent], set()))
+        self.assertEqual(unlinked["1.9.0"]["disposition"], "CANDIDATE")
+
 
 class PluginCacheTest(TempTree):
     def registry(self, install_paths: list[str], plugins: dict | None = None) -> None:
@@ -266,7 +297,7 @@ class PluginCacheTest(TempTree):
                 str(self.root / "plugins/cache/mkt/beta/0.3.0"),
             ]
         )
-        rows = di.plugin_cache_versions(self.root)
+        rows = di.plugin_cache_versions(self.root, NOW)
         by_path = {Path(r["name"]).relative_to(self.root).as_posix(): r for r in rows}
         old = by_path["plugins/cache/mkt/alpha/1.0.0"]
         kept = by_path["plugins/cache/mkt/alpha/1.1.0"]
@@ -294,7 +325,9 @@ class PluginCacheTest(TempTree):
                 ]
             },
         )
-        self.assertEqual(di.plugin_cache_versions(self.root)[0]["disposition"], "KEEP")
+        self.assertEqual(
+            di.plugin_cache_versions(self.root, NOW)[0]["disposition"], "KEEP"
+        )
 
     def test_registry_that_cannot_vouch_leaves_every_version_unknown(self) -> None:
         self.cache("mkt/alpha/1.0.0")
@@ -310,18 +343,60 @@ class PluginCacheTest(TempTree):
         ):
             with self.subTest():
                 prepare()
-                rows = di.plugin_cache_versions(self.root)
+                rows = di.plugin_cache_versions(self.root, NOW)
                 self.assertEqual([r["disposition"] for r in rows], ["UNKNOWN"])
 
     def test_empty_registry_leaves_every_version_a_candidate(self) -> None:
         self.cache("mkt/alpha/1.0.0")
         self.registry([], {})
         self.assertEqual(
-            di.plugin_cache_versions(self.root)[0]["disposition"], "CANDIDATE"
+            di.plugin_cache_versions(self.root, NOW)[0]["disposition"], "CANDIDATE"
         )
 
     def test_no_cache_yields_no_rows(self) -> None:
-        self.assertEqual(di.plugin_cache_versions(self.root), [])
+        self.assertEqual(di.plugin_cache_versions(self.root, NOW), [])
+
+    def orphan(self, version: str, age_days: float) -> None:
+        stamp = int((NOW - age_days * di.DAY) * 1000)
+        (self.root / "plugins" / "cache" / version / ".orphaned_at").write_text(
+            str(stamp), encoding="utf-8"
+        )
+
+    def test_candidate_reports_marker_age_against_the_sweep_window(self) -> None:
+        self.cache(
+            "mkt/alpha/1.0.0", "mkt/alpha/1.1.0", "mkt/alpha/1.2.0", "mkt/alpha/1.3.0"
+        )
+        self.registry([str(self.root / "plugins/cache/mkt/alpha/1.3.0")])
+        self.orphan("mkt/alpha/1.0.0", di.ORPHAN_SWEEP_DAYS + 6)
+        self.orphan("mkt/alpha/1.1.0", 3)
+        rows = by_name(di.plugin_cache_versions(self.root, NOW))
+        stuck, recent, bare = rows["1.0.0"], rows["1.1.0"], rows["1.2.0"]
+        self.assertEqual(stuck["evidence"]["marker_age_days"], di.ORPHAN_SWEEP_DAYS + 6)
+        self.assertTrue(stuck["evidence"]["past_sweep_window"])
+        self.assertIn("has not been swept", stuck["reason"])
+        self.assertEqual(recent["evidence"]["marker_age_days"], 3.0)
+        self.assertFalse(recent["evidence"]["past_sweep_window"])
+        self.assertIn("removes it itself", recent["reason"])
+        self.assertNotIn("evidence", bare)
+        self.assertIn("no readable .orphaned_at marker", bare["reason"])
+        self.assertEqual(rows["1.3.0"]["disposition"], "KEEP")
+        self.assertEqual(di.validate_report(rows.values()), [])
+
+    def test_unparsable_marker_is_the_same_as_none(self) -> None:
+        self.cache("mkt/alpha/1.0.0")
+        self.registry([], {})
+        (self.root / "plugins/cache/mkt/alpha/1.0.0/.orphaned_at").write_text("soon")
+        row = di.plugin_cache_versions(self.root, NOW)[0]
+        self.assertNotIn("evidence", row)
+
+    def test_an_empty_registry_means_the_removal_does_not_run(self) -> None:
+        self.cache("mkt/alpha/1.0.0")
+        self.registry([], {})
+        self.orphan("mkt/alpha/1.0.0", 3)
+        row = di.plugin_cache_versions(self.root, NOW)[0]
+        self.assertEqual(row["disposition"], "CANDIDATE")
+        self.assertIn("records no install", row["reason"])
+        self.assertNotIn("removes it itself", row["reason"])
 
 
 class TmpEntriesTest(TempTree):
@@ -381,6 +456,13 @@ class TmpEntriesTest(TempTree):
 
     def test_missing_tmp_dir_is_empty(self) -> None:
         self.assertEqual(di.tmp_entries(self.root / "absent", NOW), [])
+
+
+class TmpRootTest(unittest.TestCase):
+    @unittest.skipUnless(os.name == "posix", "POSIX names /tmp, not $TMPDIR")
+    def test_posix_covers_tmp_even_when_tmpdir_names_a_subdirectory(self) -> None:
+        with mock.patch.object(tempfile, "tempdir", "/tmp/some-subdirectory"):
+            self.assertEqual(di.tmp_root(), Path("/tmp").resolve())
 
 
 class ProjectTranscriptsTest(TempTree):
@@ -494,7 +576,7 @@ class ReadOnlyTest(TempTree):
         di.tmp_entries(self.root / "tmp", NOW)
         di.superseded_versions([self.root / "v"])
         di.project_transcripts(self.root / "claude" / "projects", self.root)
-        di.plugin_cache_versions(self.root / "claude")
+        di.plugin_cache_versions(self.root / "claude", NOW)
         di.dangling_row(self.root / "tmp" / "dangling")
         self.assertEqual(snapshot(), before)
 

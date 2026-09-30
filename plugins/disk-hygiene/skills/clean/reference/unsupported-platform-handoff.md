@@ -37,10 +37,12 @@ engine plan:
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
-   `--path` takes one path and may not repeat. For the multi-path reporting form, write the
-   approved list to `<run-dir>/handoff-paths.json` as
-   `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
-   `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
+   `--path` is repeatable: pass it once per approved path to report several paths in one call,
+   with no file write. Each path gets its own verdict, and the paths must not overlap. The
+   `--paths` file form reports the same way from
+   `{"version": 1, "paths": ["relative/exact.tmp"]}` written to
+   `<run-dir>/handoff-paths.json` and passed as `--paths "<run-dir>/handoff-paths.json"`. The
+   engine takes exactly one of `--path` and `--paths`, never both.
 
    It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
    against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
@@ -155,6 +157,8 @@ engine plan:
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
    permanent, disclose when a target's volume or policy may turn "reversible" removal permanent.
+   After a recycle, do not empty the Recycle Bin or Trash: emptying it would make any recycled
+   removal permanent and is the container-wide operation step 3 forbids.
 
    **Path length is a different failure, not a silent downgrade but a hard stop.** Those three
    caveats all describe a reversible operation quietly turning permanent. A path longer than the
@@ -178,7 +182,9 @@ engine plan:
    after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
    in the manual lane, where no snapshot token protects execution.
 4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
-   around a lock, or delete under a stale verdict.
+   around a lock, or delete under a stale verdict. The one exception is a `contested` verdict
+   whose only reason is `needs-elevation` while the effective `elevation` is `uac-prompt`: that
+   path may go through the [opt-in elevated script](safety-model.md#opt-in-elevation).
 
 ## The PowerShell guard lane
 

@@ -18,7 +18,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 cd "$here" || exit 1
 files=()
-for f in server.py round.py round.sh watch.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
+for f in server.py round.py round.sh watch.sh wake.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
   [[ -f "$f" ]] && files+=("$f")
 done
 
@@ -141,6 +141,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_c1.js")" >"$tmp/ui_c1.out" 2>&1
   bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --force >/dev/null
   # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
+  bash "$here/round.sh" --dir "$c" revise Q1 --commit "Uses a private cache" --commit "Runs on every commit" --force >/dev/null
   bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
@@ -186,13 +187,13 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
 
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
-  # flow on one page in seven phases; the shell writes as Claude between them.
+  # flow on one page in thirteen phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
   cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
   bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
   bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
   jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')
-  for n in 1 2 3 4 5 6 7; do
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13; do
     sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
   done
   jhandle() {
@@ -251,13 +252,23 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun 6
   japply h '{"ops": [{"op": "wait", "id": "Q3", "clear": true}, {"op": "set-status", "clear": true}]}'
   jrun 7
+  japply i '{"ops": [{"op": "activity", "text": "Checked the cache key while you were looking"}]}'
+  jrun 8
+  japply j '{"ops": [{"op": "activity", "text": "Checked the cache key again while the tab was hidden"}]}'
+  jrun 9
+  jrun 10
+  japply k '{"ops": [{"op": "activity", "text": "Checked the cache key with the panel open"}]}'
+  jrun 11
+  jrun 12
+  japply l '{"ops": [{"op": "activity", "text": "Checked the cache key after the page loaded hidden"}]}'
+  jrun 13
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
-  for n in 1 2 3 4 5 6 7; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 284 browser checks not run, 100 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 284))
+  echo "SKIP: 300 browser checks not run, 116 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + 300))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

@@ -16,7 +16,7 @@ $id = 'reliability'
 $category = 'reliability'
 $commands = @(
     'Get-CimInstance Win32_ReliabilityStabilityMetrics | Sort-Object TimeGenerated -Descending | Select-Object -First 7'
-    "Get-CimInstance Win32_ReliabilityRecords -Filter `"TimeGenerated > '<7d ago>'`""
+    'Get-CimInstance Win32_ReliabilityRecords | Where-Object { $_.TimeGenerated -ge (Get-Date).AddDays(-7) }'
 )
 
 $FailureSummary = 'Reliability check failed.'

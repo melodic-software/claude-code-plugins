@@ -110,7 +110,7 @@ Top recurring (same `<bin>:<sha16>` ≥ 3×):
 root: .observability/claude (default)
 guard: ok
 sessions: 12 file(s), newest <session_id>
-shared: 340 event(s) in hook-events.jsonl
+shared: 340 event(s) in hook-events.jsonl (rotated .1 included)
 prune-pending: none
 envelope: 1210 row(s) from the audit hooks, outside the switch; event log: on; categories: all; keep: 30 sessions or 14 days; pre-prune: none
 ```

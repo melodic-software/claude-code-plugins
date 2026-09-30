@@ -332,3 +332,53 @@ Describe 'Invoke-TrendAnalysis -- drivers CodeIntegrity repeat' -Tag 'lib' {
         $result[0].severity | Should -Be 'CRIT'
     }
 }
+
+Describe 'Format-TrendCell' -Tag 'lib' {
+    BeforeAll {
+        function New-TrendResult {
+            param([string] $Id, $LastRun = 'r', $Delta = $null, $AdjustedFrom = $null)
+            [pscustomobject]@{
+                id    = $Id
+                trend = [pscustomobject]@{ last_run = $LastRun; delta = $Delta; adjusted_from = $AdjustedFrom }
+            }
+        }
+    }
+
+    It 'renders no prior value to compare as the no-data glyph' {
+        Format-TrendCell -Result ([pscustomobject]@{ id = 'x' }) | Should -Be '·'
+        Format-TrendCell -Result ([pscustomobject]@{ id = 'x'; trend = $null }) | Should -Be '·'
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -LastRun $null) | Should -Be '·'
+        Format-TrendCell -Result (New-TrendResult -Id 'my-check') | Should -Be '·'
+    }
+
+    It 'renders a rise in an upward-worsening metric as worsening, raised or not' {
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: +8 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑ +8'
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: +3 vs prior') | Should -Be '↑ +3'
+    }
+
+    It 'renders a fall in an upward-worsening metric as improving' {
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: -4 vs prior') | Should -Be '↓ -4'
+    }
+
+    It 'renders no movement as steady' {
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: +0 vs prior') | Should -Be '→'
+        Format-TrendCell -Result (New-TrendResult -Id 'battery' -Delta 'full_capacity_pct: 0 vs prior') | Should -Be '→'
+    }
+
+    It 'reads the direction of a downward-worsening metric the other way' {
+        Format-TrendCell -Result (New-TrendResult -Id 'battery' -Delta 'full_capacity_pct: -6 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑ -6'
+        Format-TrendCell -Result (New-TrendResult -Id 'battery' -Delta 'full_capacity_pct: +2 vs prior') | Should -Be '↓ +2'
+        Format-TrendCell -Result (New-TrendResult -Id 'reliability' -Delta 'stability_min_7d: -1.5 vs prior') | Should -Be '↑ -1.5'
+    }
+
+    It 'renders a raised row as worsening even when its delta is missing, flat, or improving' {
+        Format-TrendCell -Result (New-TrendResult -Id 'drivers' -AdjustedFrom 'WARN') | Should -Be '↑'
+        Format-TrendCell -Result (New-TrendResult -Id 'drivers' -Delta 'unsigned_in_store_count: +0 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑'
+        Format-TrendCell -Result (New-TrendResult -Id 'drivers' -Delta 'unsigned_in_store_count: -1 vs prior' -AdjustedFrom 'WARN') | Should -Be '↑'
+    }
+
+    It 'reads a delta printed in scientific notation' {
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: -1E-05 vs prior') | Should -Be '↓ -1E-05'
+        Format-TrendCell -Result (New-TrendResult -Id 'disk-space' -Delta 'used_pct: +1.5E+03 vs prior') | Should -Be '↑ +1.5E+03'
+    }
+}

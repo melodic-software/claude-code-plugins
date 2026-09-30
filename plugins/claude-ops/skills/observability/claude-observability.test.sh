@@ -357,6 +357,39 @@ rc=0
 (cd "$clean_test_dir" && bash "$CLEAN" --keep-days notanumber --quiet) >/dev/null 2>&1 || rc=$?
 assert_eq "clean rejects non-integer --keep-days (exit 2)" "2" "$rc"
 
+# 9f2: an empty or missing value is refused, never defaulted. An empty window
+# would otherwise reach `find -mmin +0` and remove every session file.
+guard_dir="$TEST_TMPDIR/clean-guard"
+mkdir -p "$guard_dir/.observability/claude/sessions"
+(cd "$guard_dir" && git init -q)
+printf '{"a":1}\n' >"$guard_dir/.observability/claude/sessions/keep.jsonl"
+for guard_args in "--keep-days=" "--keep-days ''" "--keep-days" "--hook-root" "--skill-usage-scope" "--keep-skill-usage-days"; do
+  rc=0
+  guard_err=$(cd "$guard_dir" && eval "bash '$CLEAN' $guard_args" 2>&1 >/dev/null) || rc=$?
+  assert_eq "clean refuses '$guard_args' (exit 2)" "2" "$rc"
+done
+assert_contains "clean names the flag missing its value" "$guard_err" "--keep-skill-usage-days needs a value (see --help)"
+assert_eq "clean with a refused window leaves the session file" "1" "$(find "$guard_dir/.observability/claude/sessions" -type f | wc -l | tr -d ' ')"
+unknown_err=$(cd "$guard_dir" && bash "$CLEAN" --nonsense 2>&1 >/dev/null || true)
+assert_contains "clean unknown flag names --help" "$unknown_err" "unknown flag: --nonsense (see --help)"
+
+# 9f3: a file jq cannot read to the end is left intact and the run exits 1; the
+# dry run says it would skip rather than predicting a prune.
+bad_dir="$TEST_TMPDIR/clean-badjson"
+mkdir -p "$bad_dir/.claude/observability"
+(cd "$bad_dir" && git init -q)
+BAD_LOG="$bad_dir/.claude/observability/hook-events.jsonl"
+emit_hook_rows "$BAD_LOG" 1 "$OLD_45"
+printf 'this line is not json\n' >>"$BAD_LOG"
+emit_hook_rows "$BAD_LOG" 1 "$TODAY"
+bad_dry=$(cd "$bad_dir" && env -u CC_OTEL_STORE bash "$CLEAN" --keep-days 30 --dry-run --quiet 2>&1)
+assert_contains "clean --dry-run says it would skip a malformed file" "$bad_dry" "would skip (a line is not valid JSON)"
+rc=0
+bad_err=$(cd "$bad_dir" && env -u CC_OTEL_STORE bash "$CLEAN" --keep-days 30 --quiet 2>&1 >/dev/null) || rc=$?
+assert_eq "clean exits 1 when a file could not be pruned" "1" "$rc"
+assert_contains "clean names the file it could not prune, even with --quiet" "$bad_err" "hook-events.jsonl: jq or mv failed"
+assert_eq "clean leaves the malformed file intact" "3" "$(lines_in "$BAD_LOG")"
+
 # 9g: OTEL store wiring — clean delegates to otel/prune-otel-store.sh (dry-run, non-destructive).
 # env -u CC_OTEL_STORE forces the store to resolve to the temp repo regardless of any
 # machine-level CC_OTEL_STORE.

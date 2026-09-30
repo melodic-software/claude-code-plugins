@@ -257,14 +257,14 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
-            # Single-use on purpose: one inline path per call is the
-            # verify-one-delete-one form, with no file write in between.
             Flag(
                 "--path",
+                repeatable=True,
                 metavar="RELATIVE",
                 example="relative/exact.tmp",
                 help=(
-                    "one snapshot-relative approved path, inline; the per-deletion form"
+                    "snapshot-relative approved path, inline; repeatable; "
+                    "one path is the per-deletion form"
                 ),
             ),
             Flag("--vcs-evidence", example="vcs-evidence.json"),
@@ -272,6 +272,22 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         ),
         help="re-verify approved paths for the manual handoff lane (read-only)",
         one_of=(("--paths", "--path"),),
+    ),
+    Subcommand(
+        "catalog",
+        (
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            Flag(
+                "--run-id",
+                required=True,
+                pattern=r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}",
+                example="run-1",
+            ),
+            Flag("--findings", example="findings.json"),
+            Flag("--answers", example="answers.json"),
+            _data_root_flag(),
+        ),
+        help="record investigated entries under the data root (read-only on the target)",
     ),
     Subcommand(
         "apply",
