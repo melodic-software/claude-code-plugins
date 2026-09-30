@@ -7231,10 +7231,17 @@ class HandoffVerifyTests(unittest.TestCase):
         for phrase in (
             "never delete it without a clear `handoff-verify` verdict",
             "run `handoff-verify`, and delete only on a `clear` verdict",
+            "On Linux, run `handoff-apply` ([command](reference/safety-model.md"
+            "#standalone-git-checkout-evidence)): it re-runs "
+            "`handoff-verify` and deletes only on a `clear` verdict",
             "tell the operator plainly that unpushed commits and untracked or "
             "ignored files in that checkout will be lost",
         ):
             self.assertIn(phrase, text)
+        safety_model = (SCRIPT_DIR.parent / "reference" / "safety-model.md").read_text(
+            "utf-8"
+        )
+        self.assertIn("handoff-apply --execute", safety_model)
 
     def verify_evidence(self, target: Path, approved: list[str], evidence):
         snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
@@ -8409,6 +8416,413 @@ class HandoffVerifyTests(unittest.TestCase):
         self.assertEqual("level0", ordered[-1])
 
 
+linux_only = unittest.skipUnless(
+    hygiene.os_key() == "linux", "the in-engine deletion lane is Linux-only"
+)
+needs_git = unittest.skipUnless(
+    shutil.which("git"), "git is required for the VCS evidence fixture"
+)
+
+
+@linux_only
+@needs_git
+class HandoffApplyTests(unittest.TestCase):
+    """handoff-apply: verify one approved path in-process, delete only on `clear`."""
+
+    ACK_REASON = "throwaway test repo"
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.target = self.base / "target"
+        self.target.mkdir()
+        (self.target / "keep.txt").write_text("keep\n", encoding="utf-8")
+        for patcher in (
+            mock.patch.object(hygiene, "standing_policy_paths", return_value=[]),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+        ):
+            self.addCleanup(patcher.stop)
+            patcher.start()
+
+    def checkout(self, name: str = "checkout", *, commit: bool = True) -> Path:
+        return HandoffVerifyTests.create_throwaway(
+            self.target, commit=commit, name=name
+        )
+
+    def evidence(self, name: str = "checkout", *, accept: bool = True):
+        entry: dict[str, Any] = {"path": name, "remote": None, "stash_copies": []}
+        if accept:
+            entry |= {"accept_unpublished": True, "reason": self.ACK_REASON}
+        return {name: entry}
+
+    def snapshot(self) -> dict[str, Any]:
+        return hygiene.scan_tree(self.target.resolve(), hygiene.load_policy(None))
+
+    def apply(self, snapshot, evidence, path: str = "checkout") -> dict[str, Any]:
+        return hygiene.handoff_apply(snapshot, path, evidence)
+
+    def assert_nothing_removed(self, report, checkout: Path) -> None:
+        self.assertEqual("blocked", report["status"])
+        self.assertEqual([], report["removed"])
+        self.assertEqual(0, report["paths_removed"])
+        self.assertTrue((checkout / "tracked.txt").exists())
+        self.assertTrue((checkout / ".git").is_dir())
+        self.assertTrue((self.target / "keep.txt").exists())
+
+    def test_acknowledged_checkout_is_deleted_and_the_report_shows_the_ack(
+        self,
+    ) -> None:
+        for commit in (False, True):
+            name = f"checkout-{'committed' if commit else 'empty'}"
+            with self.subTest(commit=commit):
+                checkout = self.checkout(name, commit=commit)
+                report = self.apply(self.snapshot(), self.evidence(name), name)
+                self.assertEqual("completed", report["status"], report["skipped"])
+                self.assertEqual([], report["skipped"])
+                self.assertFalse(checkout.exists())
+                self.assertTrue((self.target / "keep.txt").exists())
+                self.assertEqual("clear", report["verdict"]["verdict"])
+                self.assertEqual(
+                    [{"repository": name, "reason": self.ACK_REASON}],
+                    report["accept_unpublished"],
+                )
+                removed = [item["path"] for item in report["removed"]]
+                self.assertEqual(name, removed[-1])
+                self.assertEqual(f"{name}/.git", removed[-2])
+                self.assertTrue(report["removed"][-2]["contents_purged"])
+
+    def test_unacknowledged_checkout_stays_contested_and_nothing_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        report = self.apply(self.snapshot(), self.evidence(accept=False))
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertEqual([], report["accept_unpublished"])
+        detail = report["skipped"][0]["detail"]
+        self.assertIn("vcs-evidence-status-not-clean", detail)
+        self.assertIn("vcs-evidence-remote-not-declared", detail)
+
+    def test_a_fully_verified_checkout_is_deleted_without_an_acknowledgement(
+        self,
+    ) -> None:
+        checkout = HandoffVerifyTests.create_checkout(self.target)
+
+        def confirm(_repo: Path, remote: str, sha: str):
+            return True, {"sha": sha, "remote": remote, "repository": "example/project"}
+
+        with mock.patch.object(
+            hygiene, "verify_github_remote_head", side_effect=confirm
+        ):
+            report = self.apply(self.snapshot(), HandoffVerifyTests.vcs_configuration())
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertFalse(checkout.exists())
+        self.assertEqual([], report["accept_unpublished"])
+
+    def test_an_acknowledgement_for_another_path_authorizes_nothing(self) -> None:
+        acked = self.checkout("acked")
+        plain = self.checkout("plain")
+        snapshot = self.snapshot()
+        with self.assertRaisesRegex(hygiene.HygieneError, "outside approved paths"):
+            hygiene.validate_vcs_evidence(
+                {"version": 1, "repositories": list(self.evidence("acked").values())},
+                ["plain"],
+            )
+        report = self.apply(snapshot, self.evidence("plain", accept=False), "plain")
+        self.assert_nothing_removed(report, plain)
+        self.assertTrue(acked.exists())
+
+    def test_an_acknowledged_nested_repository_does_not_authorize_its_parent(
+        self,
+    ) -> None:
+        parent = self.checkout("parent")
+        HandoffVerifyTests.create_throwaway(parent, commit=True, name="sub")
+        evidence = self.evidence("parent", accept=False)
+        evidence |= self.evidence("parent/sub")
+        report = self.apply(self.snapshot(), evidence, "parent")
+        self.assert_nothing_removed(report, parent)
+        self.assertTrue((parent / "sub" / ".git").is_dir())
+
+    def test_an_unduplicated_stash_still_blocks_an_acknowledged_checkout(self) -> None:
+        checkout = self.checkout()
+        (checkout / "tracked.txt").write_text("stashed\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(checkout), "stash", "push", "-qm", "wip"], check=True
+        )
+        report = self.apply(self.snapshot(), self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertIn(
+            "vcs-evidence-stash-not-duplicated", report["skipped"][0]["detail"]
+        )
+
+    def test_a_changed_descendant_set_or_identity_blocks(self) -> None:
+        def add_file(checkout: Path) -> None:
+            (checkout / "late.txt").write_text("added after scan\n", encoding="utf-8")
+
+        def rewrite_file(checkout: Path) -> None:
+            (checkout / "tracked.txt").write_text("rewritten\n" * 3, encoding="utf-8")
+
+        for name, change in (("descendants", add_file), ("identity", rewrite_file)):
+            with self.subTest(change=name):
+                checkout = self.checkout(name)
+                snapshot = self.snapshot()
+                change(checkout)
+                report = self.apply(snapshot, self.evidence(name), name)
+                self.assertEqual("blocked", report["status"])
+                self.assertEqual("drifted", report["verdict"]["verdict"])
+                self.assertEqual([], report["removed"])
+                self.assertTrue((checkout / ".git").is_dir())
+                self.assertTrue((checkout / "tracked.txt").exists())
+
+    def test_the_verdict_is_computed_in_process_for_exactly_the_one_path(self) -> None:
+        self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        with mock.patch.object(
+            hygiene, "handoff_verify", wraps=hygiene.handoff_verify
+        ) as verify:
+            self.apply(snapshot, evidence)
+        verify.assert_called_once_with(snapshot, ["checkout"], evidence)
+
+    def test_preview_never_evaluates_the_acknowledgement(self) -> None:
+        self.checkout()
+        snapshot = self.snapshot()
+        plan = {"version": 1, "tier": "high", "candidates": [candidate("checkout")]}
+        with mock.patch.object(
+            hygiene,
+            "verify_vcs_checkout_evidence",
+            side_effect=AssertionError("preview must not evaluate evidence"),
+        ):
+            preview = hygiene.preview(snapshot, plan)
+        self.assertEqual("blocked", preview["status"])
+        self.assertIn("truncated-not-inventoried", preview["candidates"][0]["blockers"])
+
+    def clear_verdict(self, snapshot, evidence, path: str = "checkout"):
+        return hygiene.handoff_verify(snapshot, [path], evidence)
+
+    def test_every_non_vcs_check_still_runs_after_the_verdict(self) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        self.assertEqual("clear", canned["verdicts"][0]["verdict"])
+        cases = {
+            "live-handle": (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("open", "pid 1")
+                ),
+                "locked",
+            ),
+            "tracked-state-unverified": (
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="vcs-state-unverified"
+                ),
+                "protected",
+            ),
+            "git-not-found": (
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="git-not-found"
+                ),
+                "protected",
+            ),
+        }
+        for name, (patcher, outcome) in cases.items():
+            with (
+                self.subTest(case=name),
+                mock.patch.object(hygiene, "handoff_verify", return_value=canned),
+                patcher,
+            ):
+                report = self.apply(snapshot, evidence)
+            self.assertEqual("blocked", report["status"])
+            self.assertEqual([], report["removed"])
+            self.assertEqual(outcome, report["skipped"][0]["outcome"])
+            self.assertTrue((checkout / ".git").is_dir())
+            self.assertTrue((checkout / "tracked.txt").exists())
+
+    def test_an_entry_that_changes_after_the_verdict_is_skipped(self) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        (checkout / "untracked.txt").write_text("changed after verdict\n" * 2)
+        with mock.patch.object(hygiene, "handoff_verify", return_value=canned):
+            report = self.apply(snapshot, evidence)
+        self.assertEqual("completed-with-skips", report["status"])
+        self.assertEqual(
+            ["checkout/untracked.txt", "checkout"],
+            [item["path"] for item in report["skipped"]],
+        )
+        self.assertTrue((checkout / "untracked.txt").exists())
+        self.assertTrue(checkout.is_dir())
+
+    def test_a_mount_inside_git_metadata_blocks_before_anything_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        mounted = (self.target.resolve() / "checkout" / ".git" / "hooks").absolute()
+        real, _ = hygiene.linux_mount_points()
+        with (
+            mock.patch.object(hygiene, "handoff_verify", return_value=canned),
+            mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(real | {mounted}, None)
+            ),
+        ):
+            report = self.apply(snapshot, evidence)
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("nested-mount-point", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
+
+    def test_a_consumer_glob_inside_git_metadata_blocks_before_anything_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        snapshot["policy"]["additional_protected_path_globs"] = [
+            "checkout/.git/hooks/*"
+        ]
+        report = self.apply(snapshot, self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("consumer-protected-path", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
+
+    @unittest.skipIf(
+        hasattr(os, "geteuid") and os.geteuid() == 0, "root reads every directory"
+    )
+    def test_an_unreadable_directory_inside_git_metadata_blocks_the_purge(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        hooks = checkout / ".git" / "hooks"
+        hooks.chmod(0)
+        self.addCleanup(hooks.chmod, 0o755)
+        report = self.apply(snapshot, self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("needs-elevation", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
+
+    def test_a_link_inside_git_metadata_is_unlinked_not_followed(self) -> None:
+        checkout = self.checkout()
+        outside = self.base / "outside"
+        outside.mkdir()
+        (outside / "precious.txt").write_text("precious\n", encoding="utf-8")
+        (checkout / ".git" / "escape").symlink_to(outside)
+        report = self.apply(self.snapshot(), self.evidence())
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertFalse(checkout.exists())
+        self.assertEqual("precious\n", (outside / "precious.txt").read_text("utf-8"))
+
+    def test_a_protected_path_created_inside_git_metadata_after_the_scan_is_kept(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        snapshot["policy"]["additional_protected_path_globs"] = ["checkout/.git/late/*"]
+        late = checkout / ".git" / "late"
+
+        def create_after_the_scan(*_args: Any) -> None:
+            late.mkdir(exist_ok=True)
+            (late / "kept.txt").write_text("kept\n", encoding="utf-8")
+
+        with mock.patch.object(
+            hygiene, "opaque_contents_blocker", side_effect=create_after_the_scan
+        ):
+            report = self.apply(snapshot, self.evidence())
+        self.assertEqual("completed-with-skips", report["status"], report)
+        self.assertEqual("kept\n", (late / "kept.txt").read_text("utf-8"))
+        self.assertTrue(checkout.is_dir())
+
+    def cli(self, snapshot, evidence, *extra: str) -> tuple[int, dict[str, Any]]:
+        (self.base / "snapshot.json").write_text(json.dumps(snapshot), "utf-8")
+        (self.base / "evidence.json").write_text(
+            json.dumps({"version": 1, "repositories": list(evidence.values())}), "utf-8"
+        )
+        argv = [
+            "handoff-apply",
+            "--snapshot",
+            str(self.base / "snapshot.json"),
+            "--path",
+            "checkout",
+            "--vcs-evidence",
+            str(self.base / "evidence.json"),
+            "--report",
+            str(self.base / "report.json"),
+            "--data-root",
+            str(self.base),
+            *extra,
+        ]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_cli_deletes_an_acknowledged_checkout_and_writes_the_report(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(self.snapshot(), self.evidence(), "--execute")
+        self.assertEqual(0, status)
+        self.assertEqual("completed", payload["status"])
+        self.assertFalse(checkout.exists())
+        written = json.loads((self.base / "report.json").read_text("utf-8"))
+        self.assertEqual(
+            [{"repository": "checkout", "reason": self.ACK_REASON}],
+            written["accept_unpublished"],
+        )
+
+    def test_cli_requires_execute_and_removes_nothing_without_it(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(self.snapshot(), self.evidence())
+        self.assertEqual(2, status)
+        self.assertEqual("invalid-or-blocked", payload["status"])
+        self.assertIn("--execute", payload["error"])
+        self.assertTrue((checkout / ".git").is_dir())
+
+    def test_cli_exits_three_for_an_unacknowledged_checkout(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(
+            self.snapshot(), self.evidence(accept=False), "--execute"
+        )
+        self.assertEqual(3, status)
+        self.assertEqual("blocked", payload["status"])
+        self.assertTrue((checkout / ".git").is_dir())
+
+    def test_cli_rejects_evidence_naming_a_path_other_than_the_approved_one(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        other = self.checkout("other")
+        status, payload = self.cli(self.snapshot(), self.evidence("other"), "--execute")
+        self.assertEqual(2, status)
+        self.assertIn("outside approved paths", payload["error"])
+        self.assertTrue((checkout / ".git").is_dir())
+        self.assertTrue((other / ".git").is_dir())
+
+
+class HandoffApplyPlatformTests(unittest.TestCase):
+    def test_a_non_linux_host_refuses_before_verifying_anything(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(hygiene, "os_key", return_value="macos"),
+                mock.patch.object(hygiene, "handoff_verify") as verify,
+            ):
+                report = hygiene.handoff_apply(snapshot, "junk.tmp", {})
+            verify.assert_not_called()
+            self.assertEqual("blocked", report["status"])
+            self.assertEqual([], report["removed"])
+            self.assertIsNone(report["verdict"])
+            self.assertEqual(hygiene.PLATFORM_BLOCKER, report["skipped"][0]["detail"])
+            self.assertTrue(junk.exists())
+
+
 class _ClosedPipeStderr(io.StringIO):
     """A stderr stand-in whose writes fail the way a lost hook-host pipe does."""
 
@@ -8704,6 +9118,95 @@ class GuardTests(unittest.TestCase):
             "execution is disabled",
             result["hookSpecificOutput"]["permissionDecisionReason"],
         )
+
+    def _handoff_apply_command(self, tail: str | None = None) -> str:
+        script = SCRIPT_DIR / "hygiene.py"
+        if tail is None:
+            tail = (
+                "--execute --snapshot s --path rel/junk --vcs-evidence e "
+                "--report r" + self.authorize_data_root()
+            )
+        return f'"{self.python_command()}" "{script}" handoff-apply {tail}'
+
+    def test_guard_forces_final_prompt_for_exact_handoff_apply(self) -> None:
+        result = self.run_guard(self._handoff_apply_command())
+        output = result["hookSpecificOutput"]
+        self.assertEqual("ask", output["permissionDecision"])
+        self.assertIn("one exact approved path", output["permissionDecisionReason"])
+
+    def test_guard_denies_every_malformed_handoff_apply(self) -> None:
+        data_root = self.authorize_data_root()
+        head = "--execute --snapshot s --path rel/junk"
+        tails = {
+            "no --vcs-evidence": f"{head} --report r{data_root}",
+            "--plan beside --path": f"{head} --vcs-evidence e --report r --plan p{data_root}",
+            "--approval-token beside --path": (
+                f"{head} --vcs-evidence e --report r "
+                f"--approval-token {'a' * 24}{data_root}"
+            ),
+            "repeated --path": f"{head} --path rel/other --vcs-evidence e --report r{data_root}",
+            "flag-shaped value": (
+                f"--execute --snapshot s --path -rf --vcs-evidence e --report r{data_root}"
+            ),
+            "no --data-root": f"{head} --vcs-evidence e --report r",
+            "unauthorized --data-root": (
+                f'{head} --vcs-evidence e --report r --data-root "/somewhere/else"'
+            ),
+            "no --execute": f"--snapshot s --path rel/junk --vcs-evidence e --report r{data_root}",
+        }
+        for label, tail in tails.items():
+            with self.subTest(label):
+                result = self.run_guard(self._handoff_apply_command(tail))
+                self.assertEqual(
+                    "deny", result["hookSpecificOutput"]["permissionDecision"]
+                )
+
+    def test_disabled_guard_denies_exact_handoff_apply(self) -> None:
+        result = self.run_guard_disabled(self._handoff_apply_command())
+        output = result["hookSpecificOutput"]
+        self.assertEqual("deny", output["permissionDecision"])
+        reason = output["permissionDecisionReason"]
+        self.assertIn("execution is disabled", reason)
+        self.assertIn("scan, preview, handoff-verify, and catalog invocations", reason)
+        self.assertNotIn("handoff-apply", reason)
+
+    def test_every_grammar_subcommand_has_exactly_one_verdict_class(self) -> None:
+        readonly = guard._READONLY_ENGINE_SUBCOMMANDS
+        mutating = guard._MUTATING_ENGINE_SUBCOMMANDS
+        self.assertFalse(readonly & mutating)
+        self.assertEqual(set(guard._ALLOWED_ENGINE_SUBCOMMANDS), readonly | mutating)
+        self.assertEqual(set(mutating), set(guard._MUTATION_PROMPTS))
+
+    def test_existing_engine_verdicts_hold_beside_handoff_apply(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        python = self.python_command()
+        data_root = self.authorize_data_root()
+        cases = {
+            "apply": (
+                f"apply --execute --snapshot s --plan p --confirm-tier high "
+                f"--approval-token {'a' * 24} --report r",
+                "ask",
+                "deny",
+            ),
+            "preview": ("preview --snapshot s --plan p", "allow", "allow"),
+            "handoff-verify --path": (
+                "handoff-verify --snapshot s --path rel/junk --vcs-evidence e",
+                "allow",
+                "allow",
+            ),
+            "handoff-verify --paths": (
+                "handoff-verify --snapshot s --paths p.json",
+                "allow",
+                "allow",
+            ),
+        }
+        for label, (tail, when_enabled, when_disabled) in cases.items():
+            command = f'"{python}" "{script}" {tail}{data_root}'
+            with self.subTest(label):
+                enabled = self.run_guard(command)["hookSpecificOutput"]
+                disabled = self.run_guard_disabled(command)["hookSpecificOutput"]
+                self.assertEqual(when_enabled, enabled["permissionDecision"])
+                self.assertEqual(when_disabled, disabled["permissionDecision"])
 
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
         command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
@@ -9102,6 +9605,26 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
         (entry,) = self.decision_records()
         self.assertEqual("kill-switch-disabled-apply", entry["rule"])
+
+    def test_handoff_apply_verdicts_are_recorded_under_their_own_rules(self) -> None:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        root = self._data_root.resolve().as_posix()
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-apply --execute '
+            "--snapshot s --path rel/junk --vcs-evidence e --report r "
+            f'--data-root "{root}"'
+        )
+        for enabled, verdict, rule in (
+            (True, "ask", "exact-engine-handoff-apply"),
+            (False, "deny", "kill-switch-disabled-handoff-apply"),
+        ):
+            with self.subTest(enabled=enabled):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=enabled)
+                assert result is not None
+                self.assertEqual(
+                    verdict, result["hookSpecificOutput"]["permissionDecision"]
+                )
+                self.assertEqual(rule, self.decision_records()[-1]["rule"])
 
     def test_engine_gate_defer_records_nothing(self) -> None:
         """The always-on hot path stays free: no decision, no record, no cost."""

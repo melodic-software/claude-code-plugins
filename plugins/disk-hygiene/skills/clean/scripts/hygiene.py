@@ -22,7 +22,7 @@ import sys
 import tempfile
 import time
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -4598,12 +4598,84 @@ def open_anchored_parent(
         raise
 
 
+MAX_PURGE_DEPTH = 64
+
+
+def purge_directory_contents(
+    directory_fd: int,
+    device: int,
+    directory: Path,
+    protected: Callable[[Path], bool],
+    depth: int = 0,
+) -> None:
+    """Empty an open directory fd-relative: no link is followed, no device crossed.
+
+    For a directory the snapshot recorded without descendants (Git metadata),
+    where ``anchored_remove`` has no inventory to walk. A symlink is unlinked as
+    a link, never entered. Every child is checked with ``protected`` when it is
+    reached, so an entry created after the pre-purge scan is refused, not deleted.
+    """
+    if depth > MAX_PURGE_DEPTH:
+        raise HygieneError("directory contents nest too deeply to purge")
+    with os.scandir(directory_fd) as iterator:
+        children = [
+            (child.name, child.is_dir(follow_symlinks=False)) for child in iterator
+        ]
+    for name, is_directory in children:
+        if protected(directory / name):
+            raise HygieneError("directory contents gained a protected path")
+        if not is_directory:
+            os.unlink(name, dir_fd=directory_fd)
+            continue
+        child_fd = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd
+        )
+        try:
+            if os.fstat(child_fd).st_dev != device:
+                raise HygieneError("directory contents cross a device boundary")
+            purge_directory_contents(
+                child_fd, device, directory / name, protected, depth + 1
+            )
+        finally:
+            os.close(child_fd)
+        os.rmdir(name, dir_fd=directory_fd)
+
+
+def opaque_contents_blocker(
+    path: Path, target: Path, globs: list[str], mounts: set[Path]
+) -> str | None:
+    """The reason a directory's uninventoried contents may not be purged, or None.
+
+    The snapshot names nothing beneath Git metadata, so this checks the live
+    contents for mount points, consumer protection globs and unreadable
+    directories. Hard-protection names are not checked here.
+    """
+    if any(is_within(mount, path) for mount in mounts):
+        return "nested-mount-point"
+
+    def unreadable(error: OSError) -> None:
+        raise error
+
+    try:
+        for root, directories, files in os.walk(path, onerror=unreadable):
+            for name in (*directories, *files):
+                if consumer_protection_matches(Path(root, name), target, globs):
+                    return "consumer-protected-path"
+    except PermissionError:
+        return "needs-elevation"
+    except OSError:
+        return "filesystem-state-unverified"
+    return None
+
+
 def anchored_remove(
     target_fd: int,
     relative: str,
     entry: dict[str, Any],
     entries: dict[str, dict[str, Any]],
     target: Path,
+    *,
+    purge_protected: Callable[[Path], bool] | None = None,
 ) -> None:
     parent_fd, name = open_anchored_parent(target_fd, relative, entries)
     try:
@@ -4628,6 +4700,13 @@ def anchored_remove(
                     current, opened
                 ):
                     raise HygieneError("anchored directory changed since the snapshot")
+                if purge_protected is not None:
+                    purge_directory_contents(
+                        directory_fd,
+                        opened.st_dev,
+                        target.joinpath(*PurePosixPath(relative).parts),
+                        purge_protected,
+                    )
                 with os.scandir(directory_fd) as iterator:
                     if next(iterator, None) is not None:
                         raise HygieneError("anchored directory is not empty")
@@ -4833,6 +4912,263 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         "reclaimable_local_bytes_removed": reclaimable_removed,
         "observed_free_space_delta_bytes": after - before,
     }
+
+
+def handoff_apply_report(
+    target: Path,
+    relative: str,
+    verdict: dict[str, Any] | None,
+    removed: list[dict[str, Any]],
+    skipped: list[dict[str, str]],
+    *,
+    logical_removed: int = 0,
+    reclaimable_removed: int = 0,
+    free_space_delta: int = 0,
+) -> dict[str, Any]:
+    """A handoff-apply report: ``blocked`` when nothing was removed."""
+    status = (
+        "completed" if not skipped else "completed-with-skips" if removed else "blocked"
+    )
+    return {
+        "status": status,
+        "target": str(target),
+        "path": relative,
+        "verdict": verdict,
+        "accept_unpublished": (verdict or {})
+        .get("vcs_evidence", {})
+        .get("accept_unpublished", []),
+        "removed": removed,
+        "skipped": skipped,
+        "paths_removed": len(removed),
+        "empty_directories_removed": sum(
+            1 for item in removed if item["empty_directory"]
+        ),
+        "logical_bytes_removed": logical_removed,
+        "reclaimable_local_bytes_removed": reclaimable_removed,
+        "observed_free_space_delta_bytes": free_space_delta,
+    }
+
+
+def handoff_apply(
+    snapshot: dict[str, Any],
+    relative: str,
+    vcs_evidence: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Verify one approved path as handoff-verify does, then delete it on `clear`.
+
+    The verdict is computed here, in this process, immediately before the
+    deletion: verdicts expire the moment they are emitted, so none is ever read
+    from a file. ``accept_unpublished`` is evaluated only inside
+    ``handoff_verify``; this lane never reads it. The one blocker a clear
+    verdict satisfies is ``vcs-tracked-content`` (and the ``.git`` marker
+    protections through ``evidence_adjusted_protections``), only under this
+    approved path and only when the verdict verified the repository evidence.
+    Every other check ``apply_plan`` runs still applies to each entry, and a
+    repository's Git metadata, which the snapshot records without descendants,
+    is emptied fd-relative before its own removal.
+
+    There is no plan here, so no owner: this lane cannot express managed
+    state and the ``native-managed-report-only`` check has nothing to read.
+    """
+    target = Path(snapshot["target"]).absolute()
+    entries = entry_map(snapshot)
+    platform_blockers = execution_blockers()
+    if platform_blockers:
+        return handoff_apply_report(
+            target,
+            relative,
+            None,
+            [],
+            [
+                {
+                    "path": relative,
+                    "outcome": "protected",
+                    "detail": ", ".join(platform_blockers),
+                }
+            ],
+        )
+    verdict = handoff_verify(snapshot, [relative], vcs_evidence)["verdicts"][0]
+    if verdict["verdict"] != "clear":
+        return handoff_apply_report(
+            target,
+            relative,
+            verdict,
+            [],
+            [
+                {
+                    "path": relative,
+                    "outcome": "protected",
+                    "detail": f"{verdict['verdict']}: {', '.join(verdict['reasons'])}",
+                }
+            ],
+        )
+    evidence = verdict.get("vcs_evidence", {})
+    tracked_waived = evidence.get("status") == "verified"
+    repository_paths = [
+        target.joinpath(*PurePosixPath(value).parts)
+        for value in evidence.get("repositories", [])
+        if tracked_waived
+    ]
+    git_metadata = {repository / GIT_METADATA_NAME for repository in repository_paths}
+    exact_names = baseline_protected_names() | set(
+        snapshot.get("policy", {}).get("protected_exact_names", [])
+    )
+    globs = snapshot_protection_globs(snapshot)
+
+    def consumer_protected(path: Path) -> bool:
+        return bool(consumer_protection_matches(path, target, globs))
+
+    def path_blockers(path: Path, mounts: set[Path]) -> list[str]:
+        reasons = evidence_adjusted_protections(
+            hard_protection(path, target, exact_names, mounts),
+            path,
+            target,
+            repository_paths,
+            exact_names,
+        )
+        if consumer_protection_matches(path, target, globs):
+            reasons.append("consumer-protected-path")
+        # Git metadata holds no tracked content, and tracked_blocker cannot
+        # answer for it: `git rev-parse --show-toplevel` fails inside `.git`.
+        if path not in git_metadata:
+            try:
+                vcs = tracked_blocker(path, target)
+            except (OSError, subprocess.SubprocessError):
+                vcs = "vcs-state-unverified"
+            if vcs and not (tracked_waived and vcs == "vcs-tracked-content"):
+                reasons.append(vcs)
+        return sorted(set(reasons))
+
+    before = shutil.disk_usage(target).free
+    removed: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    logical_removed = 0
+    reclaimable_removed = 0
+    target_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if not same_object_identity(os.fstat(target_fd), snapshot["target_identity"]):
+            raise HygieneError("anchored target was replaced since the snapshot")
+        known_mounts, mount_error = linux_mount_points()
+        if mount_error:
+            raise HygieneError(mount_error)
+        candidate_blockers = path_blockers(
+            target.joinpath(*PurePosixPath(relative).parts), known_mounts
+        )
+        # Git metadata is deleted after the working tree, so what sits inside it
+        # is checked now, before anything is removed.
+        candidate_blockers += [
+            blocker
+            for metadata in sorted(git_metadata)
+            if (
+                blocker := opaque_contents_blocker(
+                    metadata, target, globs, known_mounts
+                )
+            )
+        ]
+        if candidate_blockers:
+            return handoff_apply_report(
+                target,
+                relative,
+                verdict,
+                [],
+                [
+                    {
+                        "path": relative,
+                        "outcome": "protected",
+                        "detail": ", ".join(candidate_blockers),
+                    }
+                ],
+            )
+        for name in removal_entries(relative, entries):
+            entry = entries[name]
+            path = target.joinpath(*PurePosixPath(name).parts)
+            if not same_removal_identity(path, entry) or is_linkish(path):
+                skipped.append({"path": name, "outcome": "changed-or-link"})
+                continue
+            fresh_mounts, fresh_mount_error = linux_mount_points()
+            if fresh_mount_error:
+                skipped.append(
+                    {
+                        "path": name,
+                        "outcome": "protected",
+                        "detail": "mount-state-unverified",
+                    }
+                )
+                continue
+            purge = entry["kind"] == "directory" and path in git_metadata
+            fresh_blockers = path_blockers(path, fresh_mounts)
+            if purge and not fresh_blockers:
+                contents_blocker = opaque_contents_blocker(
+                    path, target, globs, fresh_mounts
+                )
+                fresh_blockers = [contents_blocker] if contents_blocker else []
+            if fresh_blockers:
+                skipped.append(
+                    {
+                        "path": name,
+                        "outcome": "protected",
+                        "detail": ", ".join(fresh_blockers),
+                    }
+                )
+                continue
+            state, detail = handle_state(path)
+            if state != "clear":
+                outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
+                    state, "handle-state-unverified"
+                )
+                skipped.append(
+                    {"path": name, "outcome": outcome, "detail": detail or ""}
+                )
+                continue
+            try:
+                anchored_remove(
+                    target_fd,
+                    name,
+                    entry,
+                    entries,
+                    target,
+                    purge_protected=consumer_protected if purge else None,
+                )
+            except HygieneError as exc:
+                skipped.append(
+                    {"path": name, "outcome": "changed-or-link", "detail": str(exc)}
+                )
+                continue
+            except PermissionError as exc:
+                skipped.append(
+                    {"path": name, "outcome": "needs-elevation", "detail": str(exc)}
+                )
+                continue
+            except OSError as exc:
+                skipped.append(
+                    {"path": name, "outcome": "delete-failed", "detail": str(exc)}
+                )
+                continue
+            logical = entry_logical_file_bytes(entry)
+            reclaimable = entry_reclaimable_local_bytes(entry) or 0
+            logical_removed += logical
+            reclaimable_removed += reclaimable
+            removed.append(
+                {
+                    "path": name,
+                    "empty_directory": entry_is_empty_directory(entry, entries),
+                    "logical_bytes": logical,
+                    "reclaimable_local_bytes": reclaimable,
+                    **({"contents_purged": True} if purge else {}),
+                }
+            )
+    finally:
+        os.close(target_fd)
+    return handoff_apply_report(
+        target,
+        relative,
+        verdict,
+        removed,
+        skipped,
+        logical_removed=logical_removed,
+        reclaimable_removed=reclaimable_removed,
+        free_space_delta=shutil.disk_usage(target).free - before,
+    )
 
 
 _PARSER_VALUE_TYPES = {"int": int}
@@ -5230,6 +5566,22 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = handoff_verify(snapshot, approved, vcs_evidence)
             return emit(result, 3 if handoff_verify_blocks(result) else 0)
+        if args.command == "handoff-apply":
+            if not args.execute:
+                raise HygieneError("handoff-apply requires the explicit --execute flag")
+            (approved,) = validate_handoff_paths(
+                {"version": SCHEMA_VERSION, "paths": [args.path]}, entry_map(snapshot)
+            )
+            vcs_evidence = validate_vcs_evidence(
+                load_json(Path(args.vcs_evidence)), [approved]
+            )
+            report_path = state_output_path(Path(args.report))
+            report = handoff_apply(snapshot, approved, vcs_evidence)
+            write_json(report_path, report)
+            return emit(
+                report,
+                {"completed": 0, "completed-with-skips": 4}.get(report["status"], 3),
+            )
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":

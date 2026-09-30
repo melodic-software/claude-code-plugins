@@ -3,14 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.5] - 2026-09-30
+## [0.35.1] - 2026-09-30
 
 ### Fixed
 
 - **The engine gate probes half as many files on commands that do not name the engine**
   ([#3527](https://github.com/melodic-software/claude-code-plugins/issues/3527)). Without the
   `hygiene.py` marker, `_engine_gate_relevant` now deduplicates its candidates, so each distinct
-  word is probed once as written and once joined to the engine's own directory, so
+  word is probed once as written and once joined to the engine's own directory:
   `git log --oneline --graph --decorate origin/main` drops from 24 probes to 12. The
   engine-directory reading skips a word qualified with a drive other than the engine's, such as
   `D:foo`: Windows joins it onto that drive and drops the engine's directory, so the reading only
@@ -20,6 +20,36 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   filter would have stopped gating it. Flags and other non-path words are therefore still probed
   against the working directory, so an unreachable path given as a word can still stall the hook,
   and the accepted residuals are unchanged.
+
+## [0.35.0] - 2026-09-30
+
+### Added
+
+- **`handoff-apply`, a Linux route for a standalone Git checkout**
+  ([#5178](https://github.com/melodic-software/claude-code-plugins/issues/5178)). For one exact
+  approved path, `handoff-apply --execute` re-runs `handoff-verify` in the same process and deletes
+  on any `clear` verdict: one that passes every evidence gate, or one where `accept_unpublished` with
+  the operator's reason in `vcs-evidence.json` waives the first two, so a contested throwaway
+  checkout no longer has to be removed outside the engine. Preview and token apply keep VCS
+  protection categorical; the acknowledgement is evaluated only in the handoff verification path.
+  The Bash guard asks for the exact `handoff-apply` shape. Windows and macOS keep `handoff-verify`
+  and the manual handoff lane.
+- **`handoff-apply` is the one lane that removes entries outside the snapshot.** The snapshot
+  records a repository's `.git` directory without its descendants, so the engine empties that
+  uninventoried metadata fd-relative before removing it. The purge refuses on a mount point at or
+  under the metadata directory, on any consumer protection glob match over a live `os.walk`, and on
+  a directory it cannot read (fail closed); it requires every directory to stay on the metadata
+  directory's device and unlinks links rather than following them. Each child is matched against
+  the consumer protection globs again as the purge reaches it. The hard-protection name check
+  is not applied to those contents.
+
+### Changed
+
+- **clean docs:** `safety-model.md` carries the `handoff-apply` command block and `SKILL.md` names the Linux
+  route in the throwaway-checkout bullet, still telling the operator plainly that unpushed commits
+  and untracked or ignored files will be lost. `safety-model.md`, `unsupported-platform-handoff.md`
+  and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
+  for `apply`, or that the engine removes only snapshot entries.
 
 ## [0.34.4] - 2026-09-30
 
