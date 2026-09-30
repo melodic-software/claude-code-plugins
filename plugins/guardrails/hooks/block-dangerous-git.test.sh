@@ -1224,6 +1224,14 @@ pwsh_stderr() {
   printf '%s' "$GUARD_ERR"
   return "$GUARD_RC"
 }
+# The commit-form paragraph is commit advice, and the special-construct line names
+# the PowerShell rewrite before the Bash-tool escape.
+# shellcheck disable=SC2016  # literal PowerShell variables
+grp_out="$(pwsh_stderr 'foreach ($b in $x) { git reset --hard $b }')"
+assert_absent "PS msg: blocked grouping with no commit token omits the commit form" \
+  "$grp_out" "canonical PowerShell commit form"
+assert_contains "PS msg: unroll comes before the Bash tool option" \
+  "${grp_out%%Bash tool*}" "unroll"
 # shellcheck disable=SC2016
 iex_rc=0
 # shellcheck disable=SC2016  # intentional literal $cmd in the PowerShell payload

@@ -623,7 +623,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # another construct (a `{`, say) reported that trigger and was deferred.
   if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
     PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
-    ps::print_unparsable_block_message
+    ps::print_unparsable_block_message "$COMMAND"
     emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
     exit 2
   fi

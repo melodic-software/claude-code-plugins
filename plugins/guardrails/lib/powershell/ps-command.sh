@@ -2340,7 +2340,7 @@ ps::print_sink_trigger_line() {
     echo "Trigger: an unbalanced here-string — its extent cannot be determined, so a trailing pipeline could be hidden inside it. Close the here-string ($closer must start at column 0)." >&2
     ;;
   special-construct)
-    echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Remove it, or run the command via the Bash tool." >&2
+    echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Rewrite it in PowerShell as flat statements: unroll the loop or grouping into one command per line. Or run the command via the Bash tool." >&2
     ;;
   dynamic-invocation)
     # The INVOCATION FORM is what routes here, not the decidability of the
@@ -2350,7 +2350,7 @@ ps::print_sink_trigger_line() {
     # literal name" describes the form they already used, so the advice has to
     # be to drop the invocation operator instead. A call/dot-source of a bare
     # variable (`& $tool`) never reaches this branch.
-    echo "Trigger: a dynamic invocation — iex/Invoke-Expression, or a call '&' / dot-source '.' whose target is a quoted string. The form itself routes here, a constant literal target included; a target that cannot reach git is then allowed, and this one could. Drop the iex/'&'/'.' and write the program as a plain command word, or run the command via the Bash tool." >&2
+    echo "Trigger: a dynamic invocation — iex/Invoke-Expression, or a call '&' / dot-source '.' whose target is a quoted string. The form itself routes here, a constant literal target included; a target that cannot reach git is then allowed, and this one could. Drop the iex/'&'/'.' and write the program as a plain command word. Or run the command via the Bash tool." >&2
     ;;
   launcher)
     echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the launched command directly in this session instead: 'git status', not \"pwsh -Command 'git status'\"; for a repo script, 'Set-Location <dir>; & ./<script>.ps1'. Or run the launched command itself via the Bash tool." >&2
@@ -2359,7 +2359,7 @@ ps::print_sink_trigger_line() {
     # What is true of EVERY command that reaches here: an expandable body was
     # removed and it carried `$(`. The advice has to work for a body that never
     # named git, because the trigger is the command position, not its content.
-    echo "Trigger: an expandable here-string (@\" … \"@) whose body carries a '\$( … )' subexpression. PowerShell evaluates that subexpression where the here-string is written, so the body is a command position, and the body is removed before the guard's git probe runs, which makes a 'no git here' answer a statement about text the command does not have. Use a verbatim here-string (@' … '@), or compute the value into a variable before the here-string, or run the command via the Bash tool." >&2
+    echo "Trigger: an expandable here-string (@\" … \"@) whose body carries a '\$( … )' subexpression. PowerShell evaluates that subexpression where the here-string is written, so the body is a command position, and the body is removed before the guard's git probe runs, which makes a 'no git here' answer a statement about text the command does not have. Use a verbatim here-string (@' … '@), or compute the value into a variable before the here-string. Or run the command via the Bash tool." >&2
     ;;
   herestring-comment-char)
     echo "Trigger: a here-string opener (@' or @\") on a line that also contains a '#'. PowerShell may read that '#' as the start of a line comment, in which case the opener is comment text and the lines under it are live commands, not here-string body. The guard does not decide between the two readings and refuses the shape. Drop the comment, or move the here-string opener to a line of its own with no '#' on it, or run the command via the Bash tool." >&2
@@ -2388,13 +2388,18 @@ ps::print_sink_trigger_line() {
 # / a computed launcher can reach here with no git token at all (#2662).
 # Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_block_message() {
+  local lc="${1,,}"
   echo "BLOCKED: this PowerShell command cannot be parsed with confidence — blocked (fail-closed)." >&2
   ps::print_sink_trigger_line
-  echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
-  echo "  @'" >&2
-  echo "  <subject>" >&2
-  echo "  '@ | git commit -F -" >&2
-  echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
+  # The commit form is advice for a commit: print it only when `commit` follows
+  # `git` (options between them allowed). Called with no argument, it prints.
+  if (($# == 0)) || [[ "$lc" =~ (^|[^a-z0-9_-])git[[:space:]]([^\;\|\&]*[[:space:]])?commit([^a-z0-9_-]|$) ]]; then
+    echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
+    echo "  @'" >&2
+    echo "  <subject>" >&2
+    echo "  '@ | git commit -F -" >&2
+    echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
+  fi
   # The no-token family has no allow token (same reason as the git twin).
   if [[ "$PS_SINK_TRIGGER" == herestring-comment-char ||
         "$PS_SINK_TRIGGER" == herestring-opener-untrusted ||

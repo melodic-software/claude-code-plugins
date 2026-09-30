@@ -687,6 +687,22 @@ stop_nov_out="$(pwsh_stderr 'git --% commit --no-verify')"
 assert_contains "PS msg #2662: unparsable-git path still cannot-parse" \
   "$stop_nov_out" "cannot be parsed with confidence"
 
+# The canonical-commit-form advice belongs to a commit: a grouped push must not
+# get it, and the special-construct line names the PowerShell rewrite before the
+# Bash-tool escape.
+# shellcheck disable=SC2016  # literal PowerShell variables
+grp_out="$(pwsh_stderr 'foreach ($b in $x) { git push origin $b }')"
+assert_absent "PS msg: blocked grouping with no commit token omits the commit form" \
+  "$grp_out" "canonical PowerShell commit form"
+assert_contains "PS msg: special-construct line names the unroll rewrite" \
+  "$grp_out" "unroll"
+assert_contains "PS msg: unroll comes before the Bash tool option" \
+  "${grp_out%%Bash tool*}" "unroll"
+# shellcheck disable=SC2016
+assert_contains "PS msg: blocked grouping with git commit keeps the commit form" \
+  "$(pwsh_stderr 'foreach ($b in $x) { git commit --no-verify -m $b }')" \
+  "canonical PowerShell commit form"
+
 malformed_rc=0
 bash "$HOOK" <<<'not json at all' >/dev/null 2>&1 || malformed_rc=$?
 assert_exit "malformed JSON payload (blocked)" 2 "$malformed_rc"
