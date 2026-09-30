@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.40.0] - 2026-09-30
+## [0.41.0] - 2026-09-30
 
 ### Added
 
@@ -14,6 +14,21 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `{"references":[{"path","reason"}]}` and leaves a path (and its ancestors) referenced by open
   work unticked, with the reason shown in the preview. The policy overlay schema,
   `skills/clean/SKILL.md` and `skills/clean/reference/scan-flags.md` document all three.
+
+## [0.40.0] - 2026-09-30
+
+### Added
+
+- **A read-only managed-state owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
+  them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
+  registry match is reported. A match grants no approval and adds no delete path; the engine is
+  unchanged. The report neither shows nor runs a product-native destructive command; the registry
+  keeps each as data. Its presence check and read-only command run through the PowerShell tool or
+  the operator, because the skill's Bash guard denies them, and by the resolved application
+  executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
+  manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
 
 ## [0.39.0] - 2026-09-30
 
