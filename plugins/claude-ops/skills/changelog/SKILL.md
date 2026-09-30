@@ -170,7 +170,7 @@ finish and verify. Show the sort with the rows and let the user move a row acros
    entry. The upstream ledger update is the last PR and references the others. Every commit subject
    reads `chore(<plugin>): address Claude Code v<A>..<B> changelog`, the ledger's taking the
    ledger owner's scope. The ledger PR moves the read marker only once every row in the range is
-   applied in a merged PR, recorded as declined or deferred, or filed, and stops below the first
+   applied in a merged PR, nominated, recorded as declined or deferred, or filed, and stops below the first
    release that still has a row outside those states, so no unfinished row drops out of the next
    default range. `status` reports it from the ledger and, until the ledger exists, from that subject
 
