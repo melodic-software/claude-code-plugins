@@ -1,6 +1,6 @@
 # changelog: native-surface drift after an apply
 
-Phase 7 of `apply`. After the release is integrated, re-read what Claude Code itself ships, say
+Phase 5 of `apply`. After the release is integrated, re-read what Claude Code itself ships, say
 what moved since the last run, and file a work item for each drift that needs a human. Every name
 comes from the extraction and the overlap store; this file names no surface.
 
