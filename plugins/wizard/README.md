@@ -63,9 +63,11 @@ it never fires for steps the agent can perform itself.
 
 A script `/wizard:unattended` authors resolves each secret in this order, first hit wins:
 environment variable, a file the author names, a `Microsoft.PowerShell.SecretManagement` vault,
-then a hidden prompt. The vault rung is skipped silently when the module or the name is absent,
-and it uses only a string secret. It reads every registered vault, so a locked vault can prompt
-during a dry run. There is no native macOS Keychain or `pass` rung yet. Names declared with
+then the native store (macOS Keychain through `security find-generic-password -s <name> -w`, Linux
+`pass show <name>` first line), then a hidden prompt. A store rung is skipped silently when its
+module, command or the name is absent, and the vault uses only a string secret. The vault reads
+every registered vault, so a locked vault, Keychain or `pass` can prompt during a dry run, and an
+unattended run needs an unlocked keychain or a `gpg-agent` with a cached passphrase. Names declared with
 `-Secrets` on `Invoke-UnattendedRun` resolve once, before the first stage, so every hidden prompt
 comes up front. An undeclared name falls back to the same ladder at first use. The result JSON
 lists declared names, never values.

@@ -69,9 +69,11 @@ these helpers:
   host.
 - `Resolve-UnattendedSecret -Name <ENV> -FilePath <optional>`. First hit wins:
   environment variable, then the file, then a `Microsoft.PowerShell.SecretManagement`
-  vault, then one hidden prompt. The store rung is skipped silently when the
-  module or the name is absent, and it uses only a string secret (see the store
-  gotcha). There is no native macOS Keychain or `pass` rung. A name declared in
+  vault, then the native store (macOS Keychain through `security
+  find-generic-password -s <name> -w`; Linux `pass show <name>`, first line
+  only), then one hidden prompt. Each store rung is skipped silently when its
+  module, command or the name is absent. The vault uses only a string secret
+  (see the store gotchas). A name declared in
   `-Secrets` returns the value resolved before the first stage; declaring a name
   twice fails the run. An undeclared name runs the ladder at this call, with its
   own prompt. The value is redacted out of the transcript.
@@ -156,16 +158,16 @@ Read-only helpers run in every mode, so a missing prerequisite fails a dry run
 with no side effects: `Assert-Elevation`, `Assert-NotInside`,
 `Assert-PriorResult`, `Add-Preflight`, `Assert-ParsedState`,
 `Invoke-NativeUtf8`, the `-Done` probe of `Invoke-IdempotentStep`, and the
-environment, file and store rungs of secret resolution. Each
-probe, preflight test and wrapped read must only read. The store rung reads
-every registered vault, and a locked vault can ask the human for its password
-during a dry run (see the store gotcha).
+environment, file and store rungs of secret resolution (vault, Keychain, `pass`). Each
+probe, preflight test and wrapped read must only read. The vault rung reads
+every registered vault, and a locked vault, Keychain or `pass` can ask the human
+for a password during a dry run (see the store gotchas).
 
 Mutating helpers skip their blocks and record a `would-run` step, or `skipped`
 when `-Done` is already true: `Invoke-IdempotentStep -Action`,
 `Use-GuardedResource` (Take, Prove and Release), `Confirm-Irreversible` (no
 prompt), `Wait-ForState` (no polling), and secret resolution, declared or not (no
-hidden prompt for a secret; each name that the environment, the file and the store all
+hidden prompt for a secret; each name that the environment, the file and every store
 miss records a `would prompt` step and yields the placeholder `<NAME>`).
 
 A dry run does not exercise success detection inside a step: no Prove block or
@@ -252,6 +254,21 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   (`-Interaction`). Recheck when the PowerShell Gallery lists a release of either
   module after those versions, or the overview page drops its "feature complete"
   notice.
+- The native store rungs can block an unattended run. The Keychain can raise an
+  access dialog for an item the calling app is not trusted for or in a locked
+  keychain, and `pass` runs `gpg`, which asks for a passphrase through pinentry
+  when the agent has none cached. Before an unattended run, unlock the keychain
+  (`security unlock-keychain`) or add the calling app to the item's trusted
+  applications, and start `gpg-agent` with the passphrase cached (for example by
+  running `pass show <name>` once). `pass show` prints the whole file; the rung
+  takes the first line. Verified 2026-09-30 against the Apple
+  [`security` man page](https://keith.github.io/xcode-man-pages/security.1.html)
+  (`find-generic-password`: `-s` matches the service string, `-w` displays the
+  password only; `unlock-keychain`) and the passwordstore.org
+  [pass man page](https://git.zx2c4.com/password-store/plain/man/pass.1) (`show`
+  decrypts and prints the named password; `gpg-agent` is recommended so batch
+  decryption needs less intervention). Recheck when either man page changes
+  those flags or commands.
 - A secret resolved at runtime stays in the human's process. Do not ask for
   the value in chat.
 - `Confirm-Irreversible` is the consent prompt. Do not skip it because the
