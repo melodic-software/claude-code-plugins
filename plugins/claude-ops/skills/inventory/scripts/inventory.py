@@ -1247,8 +1247,10 @@ def _array_join(
                 out.extend(elements(start + 3, inner - 1))
                 continue
             value = _sub_value(src, braces, start, stop + 1, acc, **kw)
-            out.append(list(value) if value else [_ELLIPSIS])
-            if not value:
+            # A partial element keeps a runtime alternative ahead of its values.
+            partial = not value or value.partial
+            out.append(([_ELLIPSIS] if partial else []) + list(value or []))
+            if partial:
                 acc.via.add("template")
         return out
 
@@ -1510,7 +1512,8 @@ def _bound_arguments(
             shadow=shadow,
         )
         if value:
-            out[name] = value
+            # A partial argument keeps a runtime alternative ahead of its values.
+            out[name] = ([_ELLIPSIS] if value.partial else []) + list(value)
     return out
 
 

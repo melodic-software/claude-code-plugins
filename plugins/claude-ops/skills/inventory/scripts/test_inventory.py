@@ -1313,6 +1313,19 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(rec["description_variants"], ["Use …", "Use X"])
         self.assertEqual(rec["description_source"], "template")
 
+    def test_a_partial_element_or_argument_keeps_a_runtime_alternative(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Bound";function ff(x){return`Use ${x}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:["Use",f?"X":u.v].join(" ")});'
+            '$t({name:Rz,maxResultSizeChars:1,description:ff(f?"REAL":u.v)});'
+        )
+        self.assertEqual(
+            _tool(src, "Probe")["description_variants"], ["Use …", "Use X"]
+        )
+        self.assertEqual(
+            _tool(src, "Bound")["description_variants"], ["Use …", "Use REAL"]
+        )
+
     def test_a_nested_helper_sees_its_callers_bound_parameter(self) -> None:
         src = (
             'var x="WRONG",Qz="Probe";'
