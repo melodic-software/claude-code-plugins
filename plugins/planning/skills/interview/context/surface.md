@@ -64,7 +64,7 @@ When the first wake prompts for permission, offer the user one allow rule, `Bash
 |---|---|---|
 | `handle` | `seqs` | Plain accepts (no new note text), `reopen`, `confirm`, `confirm-understanding` with `confirm`, `undo`, `wrapup`: no reply (R9) |
 | `reply` | `id`, `text`, `seq`, `kind` (`reply`, `rephrase`, `note`), `rec` + `why` + `affects`, `handled`, `force` | Answer an ask or rephrase; `rec` revises the recommendation |
-| `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `seq`, `affects`, `force` | Reword a question |
+| `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `commits`, `seq`, `affects`, `force` | Reword a question; `commits` replaces the list and resets its confirmations |
 | `note-reply` | `text`, `seq` | Answer a note in Notes to Claude; with no `seq`, post a closing probe there |
 | `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups; writing a `summary` records the group's current question ids as `summaryOf`, and the page marks the summary Stale once the members differ, so rewrite the summary after adding questions |
 | `meta` | `set` (`title`, `eyebrow`, `stages`, `next`) | Merge into `meta`; other meta keys stay |
@@ -151,7 +151,7 @@ The event stream sends a `ping` every 15 seconds while idle. The page re-fetches
 
 On the page surface, SKILL.md Step 3's confirmation gate runs through the page:
 
-1. Restate the shared understanding with a `restate` op: `goal`, `constraints`, `decisions`, `acceptance`, `deferred`, and `planningOwned` (the decisions the interview hands to `/planning:plan` to make). The page's summary screen shows it with Confirm and Something's off.
+1. Restate the shared understanding with a `restate` op: `goal`, `constraints`, `decisions`, `acceptance`, `deferred`, and `planningOwned` (the decisions the interview hands to `/planning:plan` to make). The page's summary screen shows it with Confirm and Something's off. The restatement carries the same register-sourced recap as Step 3: one line per `Q<N>` (`Q<N> <status>: <question text> (<resolution>)`), in `decisions`, generated from `round.sh export-ledger --out '<data_dir>/ledger-export.md'`, never from the transcript. The ledger's register lags the page until wrap-up writes the export into it, so replace its rows with the export first, as Wrap-up step 1 does, then run the Step 3 procedure check and cite its exit code.
 2. Wait for a `confirm-understanding` event. `alt: confirm` whose `contentRev` equals the current restatement `rev` passes the gate: `handle` it. The server refuses a Confirm on an older `rev` as stale, so a passing event always names the current restatement.
 3. `alt: off` means the gate has not passed. `note-reply` to its `text` with its `seq`, fix the understanding (re-ask or revise questions as needed), and post a new `restate`; the page shows the new one unconfirmed.
 

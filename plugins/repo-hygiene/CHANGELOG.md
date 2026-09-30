@@ -3,6 +3,16 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-09-30
+
+### Added
+
+- **`git-branch-audit.sh --remote-families` reports `refs/remotes/origin/*` by branch family (#5220).**
+  Each family (pre-wipe, claude, plan, stranded, agent-`<hex>` and the rest) gets a count, an owner,
+  a stated retention rule and a per-branch verdict. A remote branch is landed when its tip equals
+  or is an ancestor of the `headRefOid` of a merged PR, which covers squash merges. The mode is
+  read-only and deletes nothing; a branch that is unlanded and on no other ref is KEEP-UNIQUE.
+
 ## [0.15.0] - 2026-09-30
 
 ### Added
