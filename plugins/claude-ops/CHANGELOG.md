@@ -23,6 +23,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`context/repo-surfaces.md` is an examples spoke**: per-class examples of what an item changes,
   not a checklist. A class the script does not print does not exist in the repo.
 
+## [0.71.3] - 2026-09-29
+
+### Changed
+
+- The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
+
 ## [0.71.2] - 2026-09-29
 
 ### Changed

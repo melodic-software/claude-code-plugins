@@ -120,6 +120,79 @@ else
 fi
 rm -f "$log"
 
+# --- declared flag modes --------------------------------------------------
+
+rc=0
+out="$(child 'source "$1"; GE_FLAGS=(--check --check-bump:ref); gate_entry::classify --check-bump HEAD; printf "%s %s" "$GE_MODE" "$GE_REF"')" || rc=$?
+if [[ "$rc" -eq 0 && "$out" == "--check-bump HEAD" ]]; then
+  ok "a declared ref mode sets the flag and the ref"
+else
+  fail "declared ref mode rc=$rc out=$out"
+fi
+rc=0
+out="$(child 'source "$1"; GE_FLAGS=(--check-bump:ref); GE_BAD_REF_MSG="gate: bad ref"; gate_entry::classify --check-bump definitely-not-a-ref' 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 && "$out" == "gate: bad ref" ]]; then
+  ok "a declared ref mode exits 2 with the gate's own diagnostic on a bad ref"
+else
+  fail "declared ref mode bad ref rc=$rc out=$out"
+fi
+rc=0
+out="$(child 'source "$1"; GE_FLAGS=(--check --check-bump:ref); gate_entry::classify --check; printf "%s|%s" "$GE_MODE" "$GE_REF"')" || rc=$?
+if [[ "$rc" -eq 0 && "$out" == "--check|" ]]; then
+  ok "a declared no-ref mode sets the flag and no ref"
+else
+  fail "declared no-ref mode rc=$rc out=$out"
+fi
+rc=0
+child 'source "$1"; GE_FLAGS=(--check); gate_entry::classify --check extra' || rc=$?
+if [[ "$rc" -eq 2 ]]; then
+  ok "a declared no-ref mode rejects extra arguments"
+else
+  fail "declared no-ref mode with extra exited $rc"
+fi
+rc=0
+out="$(child 'source "$1"; GE_FLAGS=(--check); gate_entry::classify --check-bump HEAD' 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 && -z "$out" ]]; then
+  ok "an undeclared flag returns 2 without printing"
+else
+  fail "undeclared flag rc=$rc out=$out"
+fi
+rc=0
+out="$(child 'source "$1"; GE_FLAGS=(--check); gate_entry::classify --all || gate_entry::classify HEAD' 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 && -z "$out" ]]; then
+  ok "declared flags replace the legacy modes"
+else
+  fail "legacy mode under declared flags rc=$rc out=$out"
+fi
+rc=0
+out="$(child 'source "$1"; GE_FLAGS=(--check-bump:ref); gate_entry::classify --check-bump' 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 && -z "$out" ]]; then
+  ok "a declared ref mode with no ref returns 2 without printing"
+else
+  fail "missing ref rc=$rc out=$out"
+fi
+rc=0
+child 'source "$1"; GE_FLAGS=(--check-bump:ref); gate_entry::classify --check-bump HEAD extra' || rc=$?
+if [[ "$rc" -eq 2 ]]; then
+  ok "a declared ref mode rejects extra arguments"
+else
+  fail "declared ref mode with extra exited $rc"
+fi
+rc=0
+out="$(child 'source "$1"; gate_entry::classify --check' 2>&1)" || rc=$?
+if [[ "$rc" -eq 2 && -z "$out" ]]; then
+  ok "a gate that declares nothing still rejects a flag"
+else
+  fail "legacy flag rejection rc=$rc out=$out"
+fi
+rc=0
+out="$(child 'source "$1"; gate_entry::classify HEAD; printf "%s %s" "$GE_MODE" "$GE_REF"')" || rc=$?
+if [[ "$rc" -eq 0 && "$out" == "base HEAD" ]]; then
+  ok "classify of a resolvable base ref still sets the base mode"
+else
+  fail "legacy base mode rc=$rc out=$out"
+fi
+
 # --- unresolvable base exits 2, including from a subshell -----------------
 
 rc=0

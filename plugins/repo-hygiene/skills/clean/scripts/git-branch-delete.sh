@@ -25,8 +25,9 @@
 # ledger). The batch-wide precondition check (capture present, every branch
 # captured, every tip unmoved, no protected/worktree/unforced-LOSSY/unforced-REVIEW branch, a
 # SAFE-by-ancestry tip actually merged, and no captured non-LOSSY row whose
-# commits now exist on no remote ref and no tag) runs before the first deletion, so a
-# refused batch deletes nothing at all.
+# commits now exist on no remote ref and no tag, unless it carries a landed proof
+# that holds now) runs before the first deletion, so a refused batch deletes
+# nothing at all.
 #
 # Tier gate. SAFE and LIKELY-SAFE need no flag. LOSSY (deletable, but its
 # commits exist on no remote ref and no tag, so the deletion loses them) needs
@@ -39,7 +40,10 @@
 # can make a REVIEW-with-Loss-none or LIKELY-SAFE row lose work without moving
 # the local tip, so the delete path recomputes live remote/tag reachability and
 # refuses when that count is now positive and the capture is not already LOSSY
-# (OPEN and MERGED PR rows stay REVIEW, matching the audit's refinement). Re-run
+# (OPEN and MERGED PR rows stay REVIEW, matching the audit's refinement). A
+# LIKELY-SAFE row whose capture records a landed proof (its work is on
+# origin/<default> under other SHAs, so no remote ref reaches its commits) passes
+# instead when clean_landed_proof, run again now, still finds the proof. Re-run
 # the audit for a capture that names the new acknowledgement.
 #
 # Usage:
@@ -175,6 +179,7 @@ fi
 declare -A CAP_TIP=()
 declare -A CAP_TIER=()
 declare -A CAP_PR=()
+declare -A CAP_LANDED=()
 CAP_COMMON=""
 CAP_ROWS=0
 if [[ $REFUSED -eq 0 ]]; then
@@ -189,11 +194,12 @@ if [[ $REFUSED -eq 0 ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
       line="${line%$'\r'}"
       [[ -z "$line" ]] && continue
-      IFS=$'\t' read -r c_branch c_tip c_tier c_pr _rest <<<"$line"
+      IFS=$'\t' read -r c_branch c_tip c_tier c_pr _up _ahead _behind _not_on_default c_landed _rest <<<"$line"
       if [[ -n "$c_branch" && "$c_tip" =~ ^[0-9a-f]{40,64}$ ]]; then
         CAP_TIP["$c_branch"]="$c_tip"
         CAP_TIER["$c_branch"]="${c_tier:-}"
         CAP_PR["$c_branch"]="${c_pr:-none}"
+        CAP_LANDED["$c_branch"]="${c_landed:-}"
         CAP_ROWS=$((CAP_ROWS + 1))
       elif [[ "$line" == '# common_dir: '* ]]; then
         CAP_COMMON="${line#\# common_dir: }"
@@ -224,6 +230,16 @@ if [[ $REFUSED -eq 0 ]]; then
   fi
 fi
 
+# A merge, rebase, cherry-pick, revert or bisect in progress: the audit offers no
+# deletable tier then, so refuse.
+for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
+  op_file="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path "$op_name" 2>/dev/null | tr -d '\r')"
+  if [[ -n "$op_file" && -e "$op_file" ]]; then
+    refuse "operation in progress: $op_file; finish or abort it, then re-run git-branch-audit.sh"
+    break
+  fi
+done
+
 # ---- Batch-wide precondition: every branch --------------------------------------
 
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
@@ -240,6 +256,9 @@ live_tip() {
 # capture) must satisfy neither.
 PR_MERGED_RE='^#[0-9]+ MERGED( \(tip drift\))?$'
 PR_OPEN_RE='^#[0-9]+ OPEN$'
+# Every proof clean_landed_proof prints starts `landed `; `-` (none) and an older
+# capture's timestamp in the same column do not.
+LANDED_RE='^landed '
 
 # delete_mode <tier> <pr> -> safe or force. Mirrors §4.7: SAFE by ancestry is a
 # safe delete, admitted only when its tip is merged into MERGE_TARGET (the check
@@ -348,7 +367,11 @@ for branch in "${BRANCHES[@]}"; do
 
   # A prune or a deleted tag can turn a captured REVIEW-with-Loss-none or
   # LIKELY-SAFE row into LOSSY without moving the local tip. OPEN and MERGED PR
-  # rows stay REVIEW under a positive count, matching the audit.
+  # rows stay REVIEW under a positive count, matching the audit. A LIKELY-SAFE row
+  # with a captured landed proof is the exception: its work sits on origin/<default>
+  # under other SHAs, so no remote ref reaches its commits by design, and the
+  # proof, run again live, stands in for that check. The captured text only says
+  # which check to run; it is never taken as the answer.
   if [[ "$tier" != "LOSSY" ]]; then
     live_lost=""
     if ! live_lost="$(clean_loss_count "$REPO_ROOT" "$branch")"; then
@@ -358,8 +381,16 @@ for branch in "${BRANCHES[@]}"; do
     if [[ "$live_lost" -gt 0 ]]; then
       pr="${CAP_PR[$branch]:-none}"
       if [[ ! "$pr" =~ $PR_OPEN_RE && ! "$pr" =~ $PR_MERGED_RE ]]; then
-        refuse "$branch (live reachability now loses $live_lost commits that exist on no remote ref and no tag; captured as $tier; re-run git-branch-audit.sh before deleting)"
-        continue
+        has_proof=0
+        [[ "$tier" == LIKELY-SAFE && "${CAP_LANDED[$branch]:-}" =~ $LANDED_RE ]] && has_proof=1
+        if [[ $has_proof -eq 1 ]] && clean_landed_proof "$REPO_ROOT" "$DEFAULT_BRANCH" "$branch" >/dev/null; then
+          :
+        else
+          captured_as="$tier"
+          [[ $has_proof -eq 1 ]] && captured_as+=" with a Landed proof that no longer holds"
+          refuse "$branch (live reachability now loses $live_lost commits that exist on no remote ref and no tag; captured as $captured_as; re-run git-branch-audit.sh before deleting)"
+          continue
+        fi
       fi
     fi
   fi

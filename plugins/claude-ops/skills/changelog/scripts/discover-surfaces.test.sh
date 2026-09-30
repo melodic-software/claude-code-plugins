@@ -115,6 +115,21 @@ assert_contains "plugin: shape line" "$OUT" "repo-shape: plugin"
 assert_contains "plugin: skills counted by SKILL.md" "$OUT" "plugin skills (excl. vendor)              1  skills/*/SKILL.md"
 assert_contains "plugin: agents" "$OUT" "agents/*.md"
 
+# --- Case 5c: eval fixtures under a plugin skill are not plugin surfaces -------------------
+MKT="$TMP/mkt"
+FX="$MKT/plugins/p/skills/s/evals/fixtures/f/.claude"
+mkdir -p "$MKT/.claude-plugin" "$MKT/plugins/p/skills/s" "$MKT/plugins/p/agents" "$FX/skills/d" "$FX/agents"
+: >"$MKT/.claude-plugin/marketplace.json"
+: >"$MKT/plugins/p/skills/s/SKILL.md"
+: >"$MKT/plugins/p/agents/a.md"
+: >"$FX/skills/d/SKILL.md"
+: >"$FX/agents/d.md"
+: >"$FX/skills/d/spoke.md"
+run "$MKT"
+assert_contains "fixtures: plugin skills count ignores nested SKILL.md" "$OUT" "plugin skills (excl. vendor)              1  "
+assert_not_contains "fixtures: plugin skill spokes ignore evals" "$OUT" "plugin skill spokes"
+assert_contains "fixtures: plugin agents ignore nested agents" "$OUT" "plugin agents                             1  "
+
 # --- Case 6: argument errors -------------------------------------------------------------
 run "$TMP/does-not-exist"
 assert_eq "args: missing root exits 2" 2 "$RC"
