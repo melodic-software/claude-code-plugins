@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.20] - 2026-09-29
+
+### Fixed
+
+- **PowerShell lane allows engine names in string data.** A here-string body or a quoted argument that only mentions an engine script name (for example a `gh issue create --body` text) no longer trips the engine-invocation deny. Only an invocation position (the command or an interpreter's script argument) counts.
+
 ## [0.28.19] - 2026-09-29
 
 ### Changed
