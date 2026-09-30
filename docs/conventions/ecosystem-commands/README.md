@@ -160,7 +160,7 @@ running a verb:
 
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `.claude/ecosystems/<lane>.yaml` and
 no other ecosystem-commands key. It diverges from the tolerant-reader paragraph above: a malformed
-ecosystem file stops the run with exit 2 (`plugins/code-metrics/scripts/resolve-config.py:436-441`)
+ecosystem file stops the run with exit 2 (`plugins/code-metrics/scripts/resolve-config.py:450-455`)
 instead of failing soft. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
 merge form", the paragraph on consumer ecosystems files. **As of:** 2026-09-29. **Recheck:** when
 that paragraph names another key, or an audit skill starts running a verb from the ecosystem file.
