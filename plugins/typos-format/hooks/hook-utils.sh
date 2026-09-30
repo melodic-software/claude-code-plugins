@@ -794,10 +794,10 @@ hook::_temp_root_candidates() {
   done
 }
 
-# hook::_split_lines_to <text> <count>: <text> split on newlines into the
+# hook::_split_lines <text> <count>: <text> split on newlines into the
 # caller's __hu_lines array. Returns 1 unless it held exactly <count> non-empty
 # lines.
-hook::_split_lines_to() {
+hook::_split_lines() {
   local __hu_glob=0 IFS=$'\n'
   [[ $- == *f* ]] || __hu_glob=1
   set -f
@@ -818,7 +818,7 @@ hook::_temp_win_spellings() {
     [[ "$__hu_out" == *$'\n'* ]] && return 1
   done
   __hu_out=$(cygpath -m -- "$@" 2>/dev/null) || return 1
-  hook::_split_lines_to "$__hu_out" "$#" || return 1
+  hook::_split_lines "$__hu_out" "$#" || return 1
   __hu_mixed=("${__hu_lines[@]}")
   _HOOK_TEMP_WIN=()
   for __hu_out in "${__hu_mixed[@]}"; do
@@ -826,7 +826,7 @@ hook::_temp_win_spellings() {
   done
   if ((${#__hu_tilde[@]})) &&
     __hu_out=$(cygpath -l -m -- "${__hu_tilde[@]}" 2>/dev/null) &&
-    hook::_split_lines_to "$__hu_out" "${#__hu_tilde[@]}"; then
+    hook::_split_lines "$__hu_out" "${#__hu_tilde[@]}"; then
     for ((__hu_i = 0; __hu_i < ${#__hu_tilde[@]}; __hu_i++)); do
       if [[ "${__hu_lines[__hu_i]}" != "${__hu_tilde[__hu_i]}" ]]; then
         _HOOK_TEMP_WIN+=("${__hu_lines[__hu_i]}")

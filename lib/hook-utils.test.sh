@@ -864,12 +864,15 @@ TWEOF
         _HOOK_UTR_TARGET_PHYSICAL=0
         if hook::under_temp_root "$3"; then echo in; else echo out; fi
       ' _ "$ostype" "$HOOK_DIR/hook-utils.sh" "$TW_DIR/long/f"
-    grep -c '' "$TW_DIR/log"
+    local calls=0 line
+    while IFS= read -r line; do calls=$((calls + 1)); done <"$TW_DIR/log"
+    printf '%s\n' "$calls"
   }
   tw_case() {
     local label="$1" want="$2" got
     shift 2
-    got=$(tw_run "$@" | paste -sd ' ' -)
+    got=$(tw_run "$@")
+    got=${got//$'\n'/ }
     if [[ "$got" == "$want" ]]; then
       ok "temp_root_candidates: $label"
     else
