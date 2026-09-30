@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.77.0] - 2026-09-30
+## [0.78.0] - 2026-09-30
 
 ### Added
 
@@ -29,6 +29,21 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   (`ClaudeDesign`, `EnterWorktree`) is scored as its words, and `user_facing_name` is scored
   beside the description (it does not join the dismissal fingerprint), so a surface without a
   resolvable description is still paired on its name, user-facing name and search hint.
+
+## [0.77.1] - 2026-09-30
+
+### Changed
+
+- **The `hook-failure-audit` Stop row runs in shell form.** The detector that reports unsurfaced hook failures no longer depends on `node`, the launcher whose absence it must report. The README and `/claude-ops:setup` name the exception.
+
+## [0.77.0] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` caps `unreferenced_versions` in the JSON report.** The report lists at
+  most 25 entries and adds `unreferenced_versions_total` and `unreferenced_versions_truncated`;
+  `--versions-out <file>` writes the full list. The schema is `claude-install-state/4`, and
+  `SKILL.md` documents the capped contract.
 
 ## [0.76.0] - 2026-09-30
 

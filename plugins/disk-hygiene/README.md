@@ -65,9 +65,15 @@ at preview. Backups remain the recovery boundary for user data.
 
 ## Requirements and platform support
 
-- Node.js on `PATH`. Every hook registration runs `node hooks/exec-bash.mjs`, and Claude Code's
+- Node.js on `PATH`. Every guard and detector registration runs `node hooks/exec-bash.mjs`, and Claude Code's
   native binary neither ships nor uses Node ([Setup](https://code.claude.com/docs/en/setup)), so
-  without `node` no hook launches and no guard is enforced.
+  without `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
+  (`"shell": "bash"`, no `args`) runs `command -v node` and needs no node itself. When node is
+  absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
+  tells the model that the destructive-delete guard cannot launch and enforces nothing. It prints
+  nothing when node is present. Basis: https://code.claude.com/docs/en/hooks, "SessionStart"
+  (plain stdout reaches Claude only, and exit-2 stderr reaches the user only) and "JSON output"
+  (`systemMessage` is a warning shown to the user).
 - Bash that `hooks/exec-bash.mjs` can find. The file's header comment lists the candidates in
   order for each platform: on Windows, `CLAUDE_CODE_GIT_BASH_PATH`, the Git for Windows install
   roots, then `PATH`; elsewhere, `PATH` first. The WSL relay (`System32\bash.exe`) is never used.
@@ -164,7 +170,7 @@ the call itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
-| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure. The Stop detector launches the same way and reports neither |
+| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user and the model at each session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
 
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
