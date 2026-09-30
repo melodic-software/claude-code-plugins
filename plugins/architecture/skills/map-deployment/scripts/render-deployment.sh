@@ -103,6 +103,7 @@ summary="$(
     }
     function jget(line, key,    s) { s = field(line, key); gsub(/\\"/, "\"", s); gsub(/\\\\/, "\\", s); return s }
     function safe(s) { s = clean(s); gsub(/"/, "'\''", s); gsub(/\|/, "/", s); gsub(/`/, "'\''", s); gsub(/[\r\n]/, " ", s); return s }
+    function hostof(p) { return (p in host) ? host[p] : "" }
     function alias(prefix, i, s,    a) { a = clean(s); gsub(/[^A-Za-z0-9_]/, "_", a); return prefix i "_" a }
     function take_array(first, key, prefix,    line, item) {
       line = trim(first)
@@ -146,6 +147,7 @@ summary="$(
         else if (t ~ /^"environments":/) take_array(t, "environments", "{\"environment\":")
         else if (t ~ /^"nodes":/) take_array(t, "nodes", "{\"id\":")
         else if (t ~ /^"placements":/) take_array(t, "placements", "{\"container\":")
+        else if (t ~ /^"relationships":/) take_array(t, "relationships", "{\"from\":")
         else if (t ~ /^"parameters":/) take_array(t, "parameters", "{\"parameter\":")
         else if (t ~ /^"diffs":/) take_array(t, "diffs", "{\"change\":")
         else if (t ~ /^"catalog":/) take_array(t, "catalog", "{\"catalog\":")
@@ -236,7 +238,15 @@ summary="$(
         print "" > md
         np = count["placements"] + 0
         nn = count["nodes"] + 0
+        nr = count["relationships"] + 0
         drawn_p = 0
+        for (n = 1; n <= nn; n++)
+          if (jget(held["nodes", n], "kind") == "compute") cnode[jget(held["nodes", n], "env") SUBSEP jget(held["nodes", n], "id")] = 1
+        for (p = 1; p <= np; p++) {
+          pit = held["placements", p]
+          cid = jget(pit, "compute")
+          if (cid != "" && ((jget(pit, "env") SUBSEP cid) in cnode)) { host[p] = cid; hosts[jget(pit, "env") SUBSEP cid] = 1 }
+        }
         if (dialect == "c4-plantuml") {
           print "```plantuml" > md
           print "@startuml" > md
@@ -249,15 +259,37 @@ summary="$(
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
               net_alias[e SUBSEP jget(item, "name")] = alias("n", n, jget(item, "name"))
+              node_alias[e SUBSEP jget(item, "id")] = alias("n", n, jget(item, "name"))
               print "  Deployment_Node(" alias("n", n, jget(item, "name")) ", \"" lab(jget(item, "name")) "\", \"" lab(jget(item, "kind")) "\", \"" lab(jget(item, "detail")) "\")" > md
+            }
+            for (n = 1; n <= nn; n++) {
+              item = held["nodes", n]
+              if (jget(item, "env") != e || jget(item, "kind") != "compute" || !((e SUBSEP jget(item, "id")) in hosts)) continue
+              print "  Deployment_Node(" alias("cn", n, jget(item, "name")) ", \"" lab(jget(item, "name")) "\", \"compute\", \"" lab(jget(item, "detail")) "\") {" > md
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") != e || hostof(p) != jget(item, "id")) continue
+                drawn_p++
+                print "    Container(" alias("c", p, jget(pit, "container")) ", \"" lab(jget(pit, "container")) "\", \"" lab(jget(pit, "image")) "\", \"replicas " lab(jget(pit, "replicas")) "\")" > md
+              }
+              print "  }" > md
             }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
-              if (jget(item, "env") != e) continue
+              if (jget(item, "env") != e || hostof(p) != "") continue
               drawn_p++
               print "  Container(" alias("c", p, jget(item, "container")) ", \"" lab(jget(item, "container")) "\", \"" lab(jget(item, "image")) "\", \"replicas " lab(jget(item, "replicas")) "\")" > md
             }
             print "}" > md
+            for (r = 1; r <= nr; r++) {
+              item = held["relationships", r]
+              if (jget(item, "env") != e || !((e SUBSEP jget(item, "from")) in node_alias)) continue
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") == e && jget(pit, "container") == jget(item, "to") && hostof(p) == jget(item, "to_compute"))
+                  print "Rel(" node_alias[e SUBSEP jget(item, "from")] ", " alias("c", p, jget(pit, "container")) ", \"" lab(jget(item, "label")) "\")" > md
+              }
+            }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
               if (jget(item, "env") != e) continue
@@ -295,15 +327,39 @@ summary="$(
             for (n = 1; n <= nn; n++) {
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
+              node_alias[e SUBSEP jget(item, "id")] = alias("n", n, jget(item, "name"))
               print "    " alias("n", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" lab(jget(item, "kind")) " " lab(jget(item, "detail")) "\047" > md
+            }
+            for (n = 1; n <= nn; n++) {
+              item = held["nodes", n]
+              if (jget(item, "env") != e || jget(item, "kind") != "compute" || !((e SUBSEP jget(item, "id")) in hosts)) continue
+              print "    " alias("cn", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047compute " lab(jget(item, "detail")) "\047 {" > md
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") != e || hostof(p) != jget(item, "id")) continue
+                drawn_p++
+                cpath[p] = alias("env", i, e) "." alias("cn", n, jget(item, "name")) "." alias("c", p, jget(pit, "container"))
+                print "      instanceOf " alias("c", p, jget(pit, "container")) > md
+              }
+              print "    }" > md
             }
             for (p = 1; p <= np; p++) {
               item = held["placements", p]
-              if (jget(item, "env") != e) continue
+              if (jget(item, "env") != e || hostof(p) != "") continue
               drawn_p++
+              cpath[p] = alias("env", i, e) "." alias("c", p, jget(item, "container"))
               print "    instanceOf " alias("c", p, jget(item, "container")) > md
             }
             print "  }" > md
+            for (r = 1; r <= nr; r++) {
+              item = held["relationships", r]
+              if (jget(item, "env") != e || !((e SUBSEP jget(item, "from")) in node_alias)) continue
+              for (p = 1; p <= np; p++) {
+                pit = held["placements", p]
+                if (jget(pit, "env") == e && jget(pit, "container") == jget(item, "to") && hostof(p) == jget(item, "to_compute"))
+                  print "  " alias("env", i, e) "." node_alias[e SUBSEP jget(item, "from")] " -> " cpath[p] " \047" lab(jget(item, "label")) "\047" > md
+              }
+            }
           }
           print "}" > md
           print "views {" > md

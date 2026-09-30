@@ -11,9 +11,14 @@ model {
 }
 deployment {
   env2_prod = environment 'prod' {
-    n3_api = node 'api' 'ingress api.example.com'
-    instanceOf c2_api
+    n2_api = node 'api' 'ingress api.example.com'
+    n3_api_svc = node 'api-svc' 'network '
+    cn4_api = node 'api' 'compute Deployment' {
+      instanceOf c2_api
+    }
   }
+  env2_prod.n2_api -> env2_prod.cn4_api.c2_api 'routes api.example.com'
+  env2_prod.n3_api_svc -> env2_prod.cn4_api.c2_api 'selects app=api'
 }
 views {
   deployment view view2_prod {

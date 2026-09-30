@@ -19,6 +19,11 @@
 # directory is refused as layered-compose: the layers merge into one
 # environment and this reader does not merge them.
 #
+# A placement names the compute node it runs on (`compute`): a Compose service,
+# or a Kubernetes workload shared by its containers. `relationships` holds the
+# Service selector and Ingress backend links from a network or ingress node to
+# a container.
+#
 # Output: deployment.json, schema_version 1, one object per line. Every value
 # written passes through plugins/architecture/lib/redact-connection.awk; a
 # value or key that carries a credential is dropped.
@@ -112,6 +117,7 @@ TOOLS="$TMP/tools.jsonl"
 ENVS="$TMP/envs.jsonl"
 NODES="$TMP/nodes.jsonl"
 PLACES="$TMP/places.jsonl"
+EDGES="$TMP/edges.jsonl"
 PARAMS="$TMP/params.jsonl"
 DIFFS="$TMP/diffs.jsonl"
 CATALOG="$TMP/catalog.jsonl"
@@ -119,6 +125,7 @@ CATALOG="$TMP/catalog.jsonl"
 : >"$ENVS"
 : >"$NODES"
 : >"$PLACES"
+: >"$EDGES"
 : >"$PARAMS"
 : >"$DIFFS"
 : >"$CATALOG"
@@ -160,6 +167,8 @@ write_record() {
       printf ',\n'
       emit_array placements "$PLACES"
       printf ',\n'
+      emit_array relationships "$EDGES"
+      printf ',\n'
       emit_array parameters "$PARAMS"
       printf ',\n'
       emit_array diffs "$DIFFS"
@@ -180,6 +189,7 @@ refuse() {
   : >"$ENVS"
   : >"$NODES"
   : >"$PLACES"
+  : >"$EDGES"
   : >"$PARAMS"
   : >"$DIFFS"
   : >"$CATALOG"
@@ -378,8 +388,8 @@ if [[ -s "$TMP/compose.txt" ]]; then
       if (reps == "") reps = "undeclared"
       ports = portjoin[env SUBSEP svc]
       placed[env SUBSEP svc] = 1
-      printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"node\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
-        jesc(svc), jesc(env), jesc(nets), jesc(img), jesc(reps), jesc(ports), jesc(nets), jesc(evidence[env]) >> places
+      printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"node\":\"%s\",\"compute\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
+        jesc(svc), jesc(env), jesc(nets), jesc(env "/" svc), jesc(img), jesc(reps), jesc(ports), jesc(nets), jesc(evidence[env]) >> places
       printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
         jesc(env "/" svc), jesc(env), jesc(svc), jesc(img), jesc(evidence[env]) >> nodes
     }
@@ -558,7 +568,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       printf '\n'
     } >>"$TMP/k8s-replay.txt"
   done <"$TMP/k8s.txt"
-  awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/k8s-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/k8s-replay.txt" <<<'
+  awk -v places="$PLACES" -v edges="$EDGES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/k8s-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/k8s-replay.txt" <<<'
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
     function remember_env(e) { if (e != "" && !(e in seen_env)) { seen_env[e] = 1; env_list[++env_n] = e } }
@@ -568,43 +578,97 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       if (n >= 2) return parts[n - 1]
       return "default"
     }
+    function ind(s) { match(s, /^ */); return RLENGTH }
     function is_workload() { return kind == "Deployment" || kind == "StatefulSet" || kind == "DaemonSet" }
-    # One workload can hold several containers (a sidecar); each is its own placement.
-    function flush(    e) {
+    function add_line(list, item) { return (list == "" ? item : list "\n" item) }
+    # One workload can hold several containers (a sidecar); each is its own placement,
+    # and all of them run on the workload node.
+    function flush(    e, key, n, pairs, i) {
       if (kind == "" || meta == "") return
       e = env_for(ns, path)
       remember_env(e)
       evidence[e] = path
+      key = e SUBSEP meta
       if (is_workload()) {
         if (cname == "" && emitted == 0) cname = meta
         if (cname != "") emit_container(e)
+        wl_list[++wl_cnt] = key
+        n = split(pod_pairs, pairs, "\n")
+        for (i = 1; i <= n; i++) if (pairs[i] != "") pod_has[key SUBSEP pairs[i]] = 1
       } else if (kind == "Service") {
         printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"network\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(e "/svc-" meta), jesc(e), jesc(meta), jesc(sport), jesc(path) >> nodes
-        svc_port[e SUBSEP meta] = sport
+        svc_port[key] = sport
+        svc_list[++svc_cnt] = key
+        svc_sel[key] = sel
+        svc_path[key] = path
       } else if (kind == "Ingress") {
         printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"ingress\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
           jesc(e "/ing-" meta), jesc(e), jesc(meta), jesc(host), jesc(path) >> nodes
-        ing_host[e SUBSEP meta] = host
+        ing_host[key] = host
+        ing_list[++ing_cnt] = key
+        ing_be[key] = backends
+        ing_path[key] = path
       }
     }
-    function emit_container(e,    img, reps) {
+    function emit_container(e,    img, reps, wl) {
         emitted++
         img = cimage
         reps = replicas
         if (reps == "") reps = "undeclared"
-        printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"node\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
-          jesc(cname), jesc(e), jesc(e), jesc(img), jesc(reps), jesc(cports), jesc(e), jesc(path) >> places
+        wl = (meta != "" ? meta : cname)
+        if (emitted == 1)
+          printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
+            jesc(e "/wl-" wl), jesc(e), jesc(wl), jesc(kind), jesc(path) >> nodes
+        printf "{\"container\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"node\":\"%s\",\"compute\":\"%s\",\"image\":\"%s\",\"replicas\":\"%s\",\"ports\":\"%s\",\"networks\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(cname), jesc(e), jesc(e), jesc(e "/wl-" wl), jesc(img), jesc(reps), jesc(cports), jesc(e), jesc(path) >> places
         placed[e SUBSEP cname] = 1
         if (cports != "") portjoin[e SUBSEP cname] = cports
         image[e SUBSEP cname] = img
         replica_of[e SUBSEP cname] = reps
-        printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
-          jesc(e "/" cname), jesc(e), jesc(cname), jesc(img), jesc(path) >> nodes
+        wl_c[e, wl, ++wl_cn[e, wl]] = cname
+    }
+    function selects(skey, wkey,    n, pairs, i) {
+      if (svc_sel[skey] == "") return 0
+      n = split(svc_sel[skey], pairs, "\n")
+      for (i = 1; i <= n; i++) if (!((wkey SUBSEP pairs[i]) in pod_has)) return 0
+      return 1
+    }
+    function emit_edge(from, label, evid, wkey,    wp, i) {
+      split(wkey, wp, SUBSEP)
+      for (i = 1; i <= wl_cn[wp[1], wp[2]]; i++)
+        printf "{\"from\":\"%s\",\"to\":\"%s\",\"to_compute\":\"%s\",\"env\":\"%s\",\"tool\":\"kubernetes\",\"label\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(from), jesc(wl_c[wp[1], wp[2], i]), jesc(wp[1] "/wl-" wp[2]), jesc(wp[1]), jesc(label), jesc(evid) >> edges
+    }
+    # A Service selects the containers of every workload whose pod labels hold its whole
+    # selector; an Ingress routes to the containers of the Services its backends name.
+    function emit_edges(    s, w, g, b, n, be, sp, ip, wp, skey, disp) {
+      for (s = 1; s <= svc_cnt; s++) for (w = 1; w <= wl_cnt; w++) {
+        split(svc_list[s], sp, SUBSEP); split(wl_list[w], wp, SUBSEP)
+        if (sp[1] != wp[1] || !selects(svc_list[s], wl_list[w])) continue
+        disp = svc_sel[svc_list[s]]; gsub(/\n/, ",", disp)
+        emit_edge(sp[1] "/svc-" sp[2], "selects " disp, svc_path[svc_list[s]], wl_list[w])
+      }
+      for (g = 1; g <= ing_cnt; g++) {
+        split(ing_list[g], ip, SUBSEP)
+        n = split(ing_be[ing_list[g]], be, "\n")
+        for (b = 1; b <= n; b++) {
+          if (be[b] == "" || (g SUBSEP be[b]) in be_done) continue
+          be_done[g SUBSEP be[b]] = 1
+          skey = ip[1] SUBSEP be[b]
+          if (!(skey in svc_sel)) continue
+          for (w = 1; w <= wl_cnt; w++) {
+            split(wl_list[w], wp, SUBSEP)
+            if (wp[1] == ip[1] && selects(skey, wl_list[w]))
+              emit_edge(ip[1] "/ing-" ip[2], "routes " (ing_host[ing_list[g]] != "" ? ing_host[ing_list[g]] : be[b]), ing_path[ing_list[g]], wl_list[w])
+          }
+        }
+      }
     }
     function reset_resource() {
       kind = ""; meta = ""; ns = ""; replicas = ""; cname = ""; cimage = ""; cports = ""; sport = ""; host = ""
       in_meta = 0; in_c = 0; in_env = 0; ek = ""; cind = -1; emitted = 0
+      blk = ""; blk_ind = 0; in_isvc = 0; no_pod = 0; pod_pairs = ""; sel = ""; backends = ""
     }
     BEGIN { reset_resource(); path = "" }
     {
@@ -618,6 +682,31 @@ if [[ -s "$TMP/k8s.txt" ]]; then
       }
       if (raw ~ /^---[[:space:]]*$/) { flush(); reset_resource(); next }
       if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { bad = 1; next }
+      # A key: value block (pod labels, a Service selector) runs until the indent falls back.
+      if (blk != "") {
+        if (raw ~ /^[[:space:]]*(#.*)?$/) next
+        if (ind(raw) > blk_ind) {
+          if (blk != "skip" && raw ~ /:/) {
+            v = trim(raw)
+            k = v; sub(/:.*/, "", k)
+            sub(/^[^:]*:[[:space:]]*/, "", v); gsub(/^["'\'']|["'\'']$/, "", v)
+            if (blk == "pod") pod_pairs = add_line(pod_pairs, k "=" v)
+            else sel = add_line(sel, k "=" v)
+          }
+          next
+        }
+        blk = ""
+      }
+      if (raw ~ /^[[:space:]]+labels:[[:space:]]*$/) { blk = (!in_meta && !no_pod) ? "pod" : "skip"; blk_ind = ind(raw); next }
+      if (raw ~ /^[[:space:]]+selector:[[:space:]]*$/) { blk = "sel"; blk_ind = ind(raw); next }
+      if (raw ~ /volumeClaimTemplates:/) { no_pod = 1; next }
+      if (raw ~ /^[[:space:]]+service:[[:space:]]*$/) { in_isvc = 1; next }
+      if (in_isvc && raw ~ /^[[:space:]]+name:[[:space:]]*/) {
+        backends = add_line(backends, trim(substr(raw, index(raw, ":") + 1))); in_isvc = 0; next
+      }
+      if (raw ~ /^[[:space:]]+serviceName:[[:space:]]*/) {
+        backends = add_line(backends, trim(substr(raw, index(raw, ":") + 1))); next
+      }
       if (raw ~ /^kind:[[:space:]]*/) { kind = trim(substr(raw, 6)); next }
       if (raw ~ /^metadata:[[:space:]]*$/) { in_meta = 1; next }
       if (raw ~ /^spec:[[:space:]]*$/) { in_meta = 0; next }
@@ -685,6 +774,7 @@ if [[ -s "$TMP/k8s.txt" ]]; then
     END {
       if (bad) { printf "kubernetes-unreadable\n" > flag; exit 0 }
       flush()
+      emit_edges()
       for (e in seen_env)
         printf "{\"environment\":\"%s\",\"tool\":\"kubernetes\",\"evidence\":\"%s\"}\n", jesc(e), jesc(evidence[e]) >> envs
       for (i = 1; i <= env_n; i++) for (j = i + 1; j <= env_n; j++) {
@@ -738,6 +828,7 @@ sort -u -o "$TOOLS" "$TOOLS"
 sort -u -o "$ENVS" "$ENVS"
 sort -u -o "$NODES" "$NODES"
 sort -u -o "$PLACES" "$PLACES"
+sort -u -o "$EDGES" "$EDGES"
 sort -u -o "$PARAMS" "$PARAMS"
 sort -u -o "$DIFFS" "$DIFFS"
 sort -u -o "$CATALOG" "$CATALOG"

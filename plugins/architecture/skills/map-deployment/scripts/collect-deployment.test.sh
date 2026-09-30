@@ -124,6 +124,8 @@ assert_contains "plantuml fence" "$md" '```plantuml'
 assert_contains "plantuml include" "$md" "!include <C4/C4_Deployment>"
 assert_contains "plantuml environment node" "$md" 'Deployment_Node(env1_prod, "prod", "environment") {'
 assert_contains "plantuml container" "$md" '"api", "ghcr.io/acme/api:1.4.0", "replicas 3")'
+assert_contains "plantuml runs the container inside its compute node" "$md" $'"compute", "ghcr.io/acme/api:1.4.0") {\n    Container(c1_api, "api", "ghcr.io/acme/api:1.4.0", "replicas 3")\n  }'
+assert_contains "the compose placement names its compute node" "$rec" '"node":"app","compute":"prod/api"'
 assert_contains "plantuml network relationship" "$md" '"joins")'
 assert_contains "plantuml ends" "$md" "@enduml"
 assert_not_contains "no mermaid" "$md" "C4Deployment"
@@ -140,6 +142,7 @@ assert_contains "likec4 fence" "$lmd" '```likec4'
 assert_contains "likec4 deployment node kind" "$lmd" "deploymentNode environment"
 assert_contains "likec4 environment" "$lmd" "= environment 'prod' {"
 assert_contains "likec4 instance" "$lmd" "instanceOf c"
+assert_contains "likec4 runs the container inside its compute node" "$lmd" $'= node \'api\' \'compute ghcr.io/acme/api:1.4.0\' {\n      instanceOf c1_api\n    }'
 assert_contains "likec4 deployment view" "$lmd" "deployment view view"
 assert_equals "likec4 writes one fenced block" "$(grep -c '^```' "$TEST_TMPDIR/dep-l/deployment.md")" "2"
 assert_likec4_golden "deployment-compose.c4" "$TEST_TMPDIR/dep-l/deployment.md"
@@ -320,7 +323,13 @@ metadata:
   namespace: prod
 spec:
   replicas: 2
+  selector:
+    matchLabels:
+      app: api
   template:
+    metadata:
+      labels:
+        app: api
     spec:
       containers:
         - name: api
@@ -328,6 +337,17 @@ spec:
           env:
             - name: PASSWORD
               value: SuperSecret123
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-svc
+  namespace: prod
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 80
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -337,6 +357,15 @@ metadata:
 spec:
   rules:
     - host: api.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-svc
+                port:
+                  number: 80
 EOF
 commit_all "$repo4"
 bash "$COLLECT" --repo "$repo4" --out "$TEST_TMPDIR/k8s.json" --generated-on 2026-09-28
@@ -351,6 +380,121 @@ kl="$(cat "$TEST_TMPDIR/k8s-l/deployment.md")"
 assert_contains "likec4 ingress node" "$kl" "= node 'api' 'ingress api.example.com'"
 assert_contains "likec4 view includes the environment" "$kl" ".**"
 assert_likec4_golden "deployment-kubernetes.c4" "$TEST_TMPDIR/k8s-l/deployment.md"
+assert_contains "likec4 runs the container inside its workload node" "$kl" $'compute Deployment\' {\n      instanceOf c2_api\n    }'
+assert_contains "likec4 draws the Service selector as a relationship" "$kl" "-> env2_prod.cn4_api.c2_api 'selects app=api'"
+assert_contains "likec4 draws the Ingress backend as a relationship" "$kl" "-> env2_prod.cn4_api.c2_api 'routes api.example.com'"
+assert_contains "the placement names its compute node" "$k8s" '"compute":"prod/wl-api"'
+assert_contains "the Service edge is in the record" "$k8s" '{"from":"prod/svc-api-svc","to":"api","to_compute":"prod/wl-api","env":"prod","tool":"kubernetes","label":"selects app=api"'
+assert_contains "the Ingress edge is in the record" "$k8s" '{"from":"prod/ing-api","to":"api","to_compute":"prod/wl-api","env":"prod","tool":"kubernetes","label":"routes api.example.com"'
+bash "$RENDER" --record "$TEST_TMPDIR/k8s.json" --out "$TEST_TMPDIR/k8s-p" --dialect c4-plantuml --env prod >/dev/null
+kp="$(cat "$TEST_TMPDIR/k8s-p/deployment.md")"
+assert_contains "plantuml runs the container inside its workload node" "$kp" $'"compute", "Deployment") {\n    Container(c2_api, "api", "ghcr.io/acme/api:2", "replicas 2")\n  }'
+assert_contains "plantuml draws the Service selector as Rel" "$kp" 'Rel(n3_api_svc, c2_api, "selects app=api")'
+assert_contains "plantuml draws the Ingress backend as Rel" "$kp" 'Rel(n2_api, c2_api, "routes api.example.com")'
+
+# A workload's containers share one node, a Service needs its whole selector to match, an Ingress
+# reaches the containers behind each backend once, and nothing crosses a namespace.
+repoE="$TEST_TMPDIR/edges"
+init_repo "$repoE"
+mkdir -p "$repoE/deploy/k8s"
+cat >"$repoE/deploy/k8s/web.yaml" <<'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: stage
+  labels:
+    name: ignored
+spec:
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+        tier: front
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/acme/app:1
+        - name: sidecar
+          image: ghcr.io/acme/proxy:1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: stage
+spec:
+  selector:
+    app: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: partial
+  namespace: stage
+spec:
+  selector:
+    app: web
+    tier: back
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: elsewhere
+spec:
+  selector:
+    app: web
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  namespace: stage
+spec:
+  rules:
+    - host: web.example.com
+      http:
+        paths:
+          - path: /a
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+          - path: /b
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+          - path: /c
+            backend:
+              service:
+                name: partial
+                port:
+                  number: 80
+EOF
+commit_all "$repoE"
+bash "$COLLECT" --repo "$repoE" --out "$TEST_TMPDIR/edges.json" --generated-on 2026-09-28
+erec="$(cat "$TEST_TMPDIR/edges.json")"
+assert_equals "both containers of a workload run on the one workload node" "$(grep -c '"compute":"stage/wl-web"' <<<"$erec")" "2"
+assert_equals "a workload is one compute node" "$(grep -c '"kind":"compute"' <<<"$erec")" "1"
+assert_equals "edges: the Service and the Ingress each reach both containers, once" "$(grep -c '^    {"from":' <<<"$erec")" "4"
+assert_contains "edges: the Service selects the sidecar" "$erec" '{"from":"stage/svc-web","to":"sidecar"'
+assert_contains "edges: the Ingress routes to the app container" "$erec" '{"from":"stage/ing-web","to":"app"'
+assert_not_contains "edges: a partial selector match draws nothing" "$erec" '"from":"stage/svc-partial"'
+assert_not_contains "edges: a Service in another namespace draws nothing" "$erec" '"from":"elsewhere/'
+for d in likec4 c4-plantuml; do
+  bash "$RENDER" --record "$TEST_TMPDIR/edges.json" --out "$TEST_TMPDIR/edges-$d" --dialect "$d" >/dev/null
+done
+assert_contains "likec4: the workload node holds both instances" "$(cat "$TEST_TMPDIR/edges-likec4/deployment.md")" $'{\n      instanceOf c1_app\n      instanceOf c2_sidecar\n    }'
+assert_equals "likec4: four relationships" "$(grep -c -- '^  env[0-9]*_stage\.' "$TEST_TMPDIR/edges-likec4/deployment.md")" "4"
+assert_equals "plantuml: four Rel lines" "$(grep -c '^Rel(' "$TEST_TMPDIR/edges-c4-plantuml/deployment.md")" "4"
+assert_contains "plantuml: both containers sit in the workload node" "$(cat "$TEST_TMPDIR/edges-c4-plantuml/deployment.md")" $'"compute", "Deployment") {\n    Container(c1_app,'
 
 # flat record
 printf '%s\n' '{"schema_version":1}' >"$TEST_TMPDIR/flat.json"
@@ -383,7 +527,7 @@ bash "$COLLECT" --repo "$repo6" --out "$TEST_TMPDIR/sidecar.json" --generated-on
 side="$(cat "$TEST_TMPDIR/sidecar.json")"
 assert_contains "sidecar: the app container is placed" "$side" '{"container":"app","env":"prod"'
 assert_contains "sidecar: the sidecar container is placed" "$side" '{"container":"sidecar","env":"prod"'
-assert_contains "sidecar: the sidecar keeps its own image" "$side" '"name":"sidecar","detail":"ghcr.io/acme/proxy:1"'
+assert_contains "sidecar: the sidecar keeps its own image" "$side" '{"container":"sidecar","env":"prod","tool":"kubernetes","node":"prod","compute":"prod/wl-web","image":"ghcr.io/acme/proxy:1"'
 for needle in PASS6 MAPS6 JSON6; do
   assert_not_contains "sidecar: $needle is redacted in the record" "$side" "$needle"
 done

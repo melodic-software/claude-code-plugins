@@ -95,10 +95,16 @@ Shipped readers, both when both are present:
   (`deploy/<env>/compose.yaml`), and `default` for a file at the repository root.
   A base file with an override or variant file in the same directory (`compose.override.yaml`,
   `compose.<x>.yaml`) is one merged stack, not two environments. It is refused as `layered-compose`.
-  Environment-per-directory layouts are unaffected.
+  Environment-per-directory layouts are unaffected. Each service is a compute node, and its
+  placement names it in `compute`.
 - Kubernetes manifests whose `kind` is Deployment, StatefulSet, DaemonSet, Service, or Ingress.
-  Each container of a workload, a sidecar included, is its own placement.
+  Each container of a workload, a sidecar included, is its own placement, and every container of a
+  workload runs on that workload's one compute node.
   The environment is the namespace, otherwise the parent directory.
+  A Service selects the containers of each workload in its namespace whose pod template labels hold
+  the whole selector. An Ingress routes to the containers behind each Service its backends name.
+  Each is a `relationships` entry from the Service or Ingress node to a container. A selector that
+  matches no pod template labels draws nothing.
 
 Terraform (any `.tf`, `.tfvars`, or `.tf.json`), ARM templates (JSON whose `$schema` names
 `deploymentTemplate`), Pulumi, Bicep, CloudFormation, Helm (a `Chart.yaml`), and Kustomize are
@@ -195,12 +201,15 @@ End every run with this block, in this order:
   the stdlib include only for `C4_Container` and says the released `C4_...` files ship in the
   stdlib, so the `C4_Deployment` stdlib name is inferred. As of: 2026-09-29. Recheck when that
   README changes those signatures or the include path, or when a host with Java can run PlantUML
-  over a rendered block. No PlantUML run has parsed this output. `Rel` is drawn only from a
-  container to a network node its placement names; the record has no other edges.
+  over a rendered block. No PlantUML run has parsed this output. `Rel` is drawn from a
+  container to a network node its placement names, and from a Kubernetes Service or Ingress node to
+  a container in the record's `relationships`.
 - **LikeC4 deployment syntax: parsed by the CLI.** Claim: deployment node kinds are declared as
   `deploymentNode <kind>` in `specification`, nodes nest in `deployment { ... }`, a model element
-  is placed with `instanceOf`, and `deployment view <name> { include <env>.** }` draws one
-  environment. Basis: <https://likec4.dev/dsl/deployment/model/>,
+  is placed with `instanceOf` inside its compute node, a relationship is written
+  `<env>.<node> -> <env>.<node>.<instance> '<label>'`, and `deployment view <name> { include
+  <env>.** }` draws one environment. Basis: <https://likec4.dev/dsl/deployment/model/>
+  (its Deployment relationships section),
   <https://likec4.dev/dsl/deployment/views/>, plus `likec4@1.59.4 validate` exiting 0 on the
   golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`deployment-compose.c4`,
   `deployment-kubernetes.c4`), which `collect-deployment.test.sh` diffs against. As of:
