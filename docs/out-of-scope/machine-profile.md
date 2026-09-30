@@ -4,8 +4,10 @@ Record for
 [#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666),
 a proposed host-fact store that would drive every plugin `setup` skill.
 
-Status: unratified agent proposal. The owner has not ruled on this park; #4666 is open for that
-decision. Until then it is not a settled rejection.
+Status: unratified agent proposal. The placement is accepted under
+[ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md); the owner has not ruled
+on whether to build it or on any setup-contract change, and #4666 is open for that decision. Until
+then it is not a settled rejection.
 
 ## Decision
 
