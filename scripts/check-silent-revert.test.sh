@@ -18,6 +18,11 @@
 # shipped default cannot hide behind an override in every single test.
 set -uo pipefail
 
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+# The detector under test mktemps scratch files of its own and removes them only on its normal paths.
+export TMPDIR="$TMP"
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-silent-revert.sh"
 # shellcheck source=test-git-helpers.sh
@@ -132,7 +137,7 @@ run_canary() {
     return 0
   fi
   local tmp
-  tmp="$(mktemp)"
+  tmp="$(mktemp "$TMP/x.XXXX")"
   (cd "$repo" && bash "$script" "$@") >"$tmp" 2>&1
   RC=$?
   OUT="$(cat "$tmp")"
@@ -284,8 +289,8 @@ t_counts_are_immune_to_ambient_git_config() {
   add_block "$repo" feature.txt 30 beta
   drop_block "$repo" feature.txt alpha "feat: unrelated feature (#99)"
 
-  clean_sink="$(mktemp)"
-  hostile_sink="$(mktemp)"
+  clean_sink="$(mktemp "$TMP/x.XXXX")"
+  hostile_sink="$(mktemp "$TMP/x.XXXX")"
   cfg="$repo/hostile-gitconfig"
   revs="$repo/ignore-revs.txt"
   printf '%s\n' "$culprit" >"$revs"
@@ -353,8 +358,8 @@ strip_pin() {
     return 1
   }
   sed "$expr" "$src" >"$dst" 2>/dev/null
-  src_code="$(mktemp)"
-  dst_code="$(mktemp)"
+  src_code="$(mktemp "$TMP/x.XXXX")"
+  dst_code="$(mktemp "$TMP/x.XXXX")"
   grep -v '^[[:space:]]*#' "$src" >"$src_code"
   grep -v '^[[:space:]]*#' "$dst" >"$dst_code"
   if cmp -s "$src_code" "$dst_code"; then
@@ -473,7 +478,7 @@ t_minus_diff_lock_file_is_attributed() {
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
 
-  sink="$(mktemp)"
+  sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=20 run_canary "$repo" --commit HEAD
   sort -o "$sink" "$sink"
 
@@ -504,8 +509,8 @@ t_minus_diff_recovery_is_load_bearing() {
 
   strip_pin "$repo" no-attr-recover '/grep -q/ s/\^Binary files /^Binary files NEVER /' || return 0
 
-  intact_sink="$(mktemp)"
-  stripped_sink="$(mktemp)"
+  intact_sink="$(mktemp "$TMP/x.XXXX")"
+  stripped_sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
     run_canary "$repo" --commit HEAD
   intact_rc="$RC"
@@ -528,7 +533,7 @@ t_minus_diff_recovery_is_load_bearing() {
 # pass it. Comments may name it; a CODE line must not.
 t_detector_does_not_pass_text() {
   local code
-  code="$(mktemp)"
+  code="$(mktemp "$TMP/x.XXXX")"
   grep -v '^[[:space:]]*#' "$SCRIPT" >"$code"
   if grep -Eq -- '(^|[[:space:]])--text([[:space:]]|$)' "$code"; then
     fail "the detector's code passes --text, which #2883 forbids: $(grep -E -- '--text' "$code")"
@@ -552,7 +557,7 @@ t_minus_diff_whole_file_deletion_is_attributed() {
   git_test_config "$repo" rm -q foo.lock >/dev/null
   git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
 
-  sink="$(mktemp)"
+  sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 1 ]] && grep -qx "${culprit} 320" "$sink"; then
     ok "a wholly deleted -diff lock file is attributed (320 lines)"
@@ -583,7 +588,7 @@ t_explicit_binary_ascii_is_not_attributed() {
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "feat: unrelated feature (#99)"
 
-  sink="$(mktemp)"
+  sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]]; then
     ok "an ASCII file marked binary is not attributed"
@@ -611,7 +616,7 @@ t_binary_asset_churn_is_not_a_finding() {
   git_test_config "$repo" add -A >/dev/null
   git_test_config "$repo" commit -qm "chore: re-export the image"
 
-  sink="$(mktemp)"
+  sink="$(mktemp "$TMP/x.XXXX")"
   FINDINGS_SINK="$sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
   if [[ "$RC" -eq 0 ]] && [[ ! -s "$sink" ]]; then
     ok "a binary png re-export is not a finding (no --text)"
@@ -651,8 +656,8 @@ t_rename_limit_flag_is_load_bearing() {
 
   strip_pin "$repo" no-l0-pin '/--name-only/ s/ -l0 / /' || return 0
 
-  intact_sink="$(mktemp)"
-  stripped_sink="$(mktemp)"
+  intact_sink="$(mktemp "$TMP/x.XXXX")"
+  stripped_sink="$(mktemp "$TMP/x.XXXX")"
   GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
     run_canary "$repo" --commit HEAD
   intact_rc="$RC"
@@ -694,8 +699,8 @@ t_ext_diff_pin_is_load_bearing() {
 
   strip_pin "$repo" no-ext-pin 's/ --no-ext-diff//' || return 0
 
-  intact_sink="$(mktemp)"
-  stripped_sink="$(mktemp)"
+  intact_sink="$(mktemp "$TMP/x.XXXX")"
+  stripped_sink="$(mktemp "$TMP/x.XXXX")"
   GIT_CONFIG_GLOBAL="$cfg" FINDINGS_SINK="$intact_sink" SILENT_REVERT_THRESHOLD=200 \
     run_canary "$repo" --commit HEAD
   intact_rc="$RC"
@@ -811,11 +816,11 @@ t_textconv_pin_is_load_bearing() {
   strip_pin "$repo" blame-textconv-unpinned '/blame --no-ignore-revs-file/ s/ --no-textconv//' || return 0
   strip_pin "$repo" diff-textconv-unpinned '/diff --no-ext-diff/ s/ --no-textconv//' || return 0
 
-  clean_sink="$(mktemp)"
-  intact_sink="$(mktemp)"
-  both_sink="$(mktemp)"
-  blame_sink="$(mktemp)"
-  diff_sink="$(mktemp)"
+  clean_sink="$(mktemp "$TMP/x.XXXX")"
+  intact_sink="$(mktemp "$TMP/x.XXXX")"
+  both_sink="$(mktemp "$TMP/x.XXXX")"
+  blame_sink="$(mktemp "$TMP/x.XXXX")"
+  diff_sink="$(mktemp "$TMP/x.XXXX")"
 
   FINDINGS_SINK="$clean_sink" SILENT_REVERT_THRESHOLD=200 run_canary "$repo" --commit HEAD
   clean_rc="$RC"
