@@ -257,7 +257,10 @@ fail closed with a message naming the floor and the installed version.
 
 `scripts/worktree-claim.sh report` lists unclaimed linked worktrees;
 `check-enter <path> --session-id <id>` surfaces a foreign live claim and
-stops. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
+stops; `release <path> --session-id <id>` unlocks a claim this session armed
+and refuses a foreign one; `stale <path>` is a read-only test (exit 0) that a
+claim's session has no live transcript on this host, which `cleanup` combines
+with a merged or landed branch before offering to remove a locked worktree. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
 off; the script remains the documented gate.
 
 This hook and its `PreToolUse` sibling `worktree-add-containment-gate` are registered
