@@ -5,6 +5,14 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.15.6] - 2026-09-29
+
+### Changed
+
+- **`do-your-research`: listing description trimmed to 500 characters or fewer.** Quoted triggers
+  and the `do-your-research-deep` boundary are kept; the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.15.5] - 2026-09-29
 
 ### Fixed

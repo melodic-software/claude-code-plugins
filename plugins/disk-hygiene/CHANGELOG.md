@@ -3,14 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.29.3] - 2026-09-30
+## [0.30.1] - 2026-09-30
 
 ### Fixed
 
 - **The manual-lane handoff says not to empty the bin after a recycle**
   ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Step 2 of the
-  gated manual lane now states that a recycled path stays in the Recycle Bin or Trash and the
-  container is not emptied, so a recycle no longer turns into a second per-item bin delete.
+  gated manual lane now says not to empty the Recycle Bin or Trash after a recycle: emptying it
+  would make any recycled removal permanent and is the container-wide operation step 3 forbids.
+
+## [0.30.0] - 2026-09-29
+
+### Added
+
+- **Policy overlay version 2: preselect rules, an age threshold, and an elevation opt-in**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A `version: 2`
+  overlay accepts `rules`: each names one or more hint ids and ticks matching candidates in the
+  approval list (`policy_rule` and `preselected` on the candidate). A tick is a default, not
+  approval, and never overrides a blocker or the hint's `confidence_ceiling`. `min_age_days` holds
+  the tick for an entry modified inside the window and reports `in_flight_reason`. The `elevation`
+  field (`never` by default, or `uac-prompt` on Windows from the user-global file or `--policy`
+  only) lets the skill offer an operator-approved elevated re-check for paths contested only for
+  `needs-elevation`. The `scan-complete` output carries the effective `elevation`. Version 1 files
+  load unchanged, and `reference/policy-overlay.schema.json` describes both versions. The elevation
+  lane has not been proven in a Windows UAC pilot.
 
 ## [0.29.2] - 2026-09-30
 
