@@ -158,7 +158,8 @@ no `installPath` in `plugins/installed_plugins.json` references, largest first, 
 `.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true at 14
 days or more). A directory with no marker has `orphaned_at: null` and is never past the window: the
 sweep is documented as starting from the marker, so it has no removal date. The report keeps only
-the 25 largest, so this field stays under 10 KiB of JSON however many versions accumulate.
+the 25 largest, so the field stops growing with the version count (each row repeats its path, so
+very long directory names still make rows large).
 `unreferenced_versions_total` is the full count and `unreferenced_versions_truncated` is true when
 the list was cut; never report the list length as the total. `--versions-out` writes the complete
 list as a JSON file, and `unreferenced_versions_file` then records its `path` and `count`. When the

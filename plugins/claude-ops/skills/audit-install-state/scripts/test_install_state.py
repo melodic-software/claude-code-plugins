@@ -1353,6 +1353,29 @@ class TestUnreferencedVersions(unittest.TestCase):
         self.assertEqual(report["unreferenced_versions_total"], 300)
 
 
+class TestVersionsOutWriteFailure(unittest.TestCase):
+    def test_unwritable_versions_out_is_a_clean_usage_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = engine.main(
+                    [
+                        "--root",
+                        str(root),
+                        "--samples",
+                        "1",
+                        "--sample-interval",
+                        "0",
+                        "--versions-out",
+                        str(root / "missing" / "out.json"),
+                    ]
+                )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot write --versions-out", err.getvalue())
+
+
 class TestCsvWriteFailure(unittest.TestCase):
     def test_unwritable_csv_is_a_clean_usage_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
