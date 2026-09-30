@@ -17,9 +17,10 @@ subcommand and nothing else, and it changes nothing in the target. A filename pa
 discovery hint, never proof that an entry is junk.
 
 This skill carries no hooks of its own. Safety rests on the plugin-level engine-gate in
-`hooks/hooks.json`, which checks every Bash or PowerShell call that names `hygiene.py`, in the main
-session and in subagents alike. Run no engine subcommand other than `scan`, no shell command that
-writes, moves, or deletes under the target, and no compound shell around an engine call.
+`hooks/hooks.json`, which checks every Bash or PowerShell call that names `hygiene.py`. Run no
+engine subcommand other than `scan`, no shell command that writes, moves, or deletes under the
+target, and no compound shell around an engine call. A subagent follows that contract itself, from
+the worker brief in step 2.
 
 ## 1. Bootstrap
 
@@ -31,11 +32,13 @@ Run the argument-free probe first, before any engine call:
 
 Take `hook_python` and `data_root` from its one-line JSON. Every engine call needs the absolute
 `<hook-python>` and `--data-root`; a bare `python3` is rejected. When `hook_python` is not yet
-known, submit the probe once with bare `python`: the guard names its interpreter in the denial, so
-rerun the probe with that value. Never submit a scan to learn either value.
+known, submit the probe once with bare `python`. The probe reports `hook_python` as the interpreter
+it ran under, so that value is the guard's only if the guard's own interpreter ran it. The scan is
+admitted only under the guard's interpreter: if it is denied for that reason, the denial names the
+interpreter and ran nothing, so rerun the scan with the interpreter it names.
 
 - `data_root` is `null`: the install layout proved no data root and the guard denies every engine
-  call. Report the audit as not run, relay the recovery the guard's denial names, and stop.
+  call. Report the audit as not run, submit no engine call, and stop.
 - The probe call is denied or left waiting for a person: report the audit as not run and stop. Do
   not scan without it.
 - `hook_python` is older than `MIN_PYTHON` in
