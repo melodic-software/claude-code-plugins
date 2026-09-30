@@ -11,8 +11,8 @@ Three subcommands over one committed store:
   self-check  Deterministic freshness gate over the store, the view, and the
               baked lines in components.
   dismiss     Record a human's ruling that a candidate pair is not an overlap,
-              fingerprinting both sides' descriptions so `detect` suppresses
-              the pair until either description changes.
+              fingerprinting both sides' scored text so `detect` suppresses
+              the pair until either side's text changes.
 
 Requires Python 3.11+ and nothing else - stdlib only, matching the sibling
 inventory extractor's no-third-party discipline.
@@ -208,8 +208,9 @@ SEGMENT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 # A dismissed native surface name, rendered into a generated markdown table.
 NATIVE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._: -]*")
 REASON_MAX = 300
-# A description fingerprint: the first 32 hex chars of the SHA-256 of the
-# whitespace-collapsed description, so a reflowed line never resurfaces a pair.
+# A fingerprint: the first 32 hex chars of the SHA-256 of the whitespace-collapsed
+# text, so a reflowed line never resurfaces a pair. The native side hashes the
+# text detection scores (discover.scored_text); the component side, its description.
 # Shorter digests trip the typos spell check on word-like hex fragments.
 FINGERPRINT_LEN = 32
 FINGERPRINT_RE = re.compile(rf"[0-9a-f]{{{FINGERPRINT_LEN}}}")
@@ -256,11 +257,6 @@ def fingerprint(text: str | None) -> str | None:
         return None
     normalized = " ".join(text.split())
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:FINGERPRINT_LEN]
-
-
-def native_description(registrations: list[dict[str, Any]]) -> str:
-    """A native surface's description text, every registration's in order."""
-    return "\n".join(str(r.get("description") or "") for r in registrations)
 
 
 def pair_key(name: Any, component: dict[str, Any]) -> tuple[str, str, str, str]:
@@ -553,7 +549,7 @@ def _store_dismissals(store_path: Path) -> dict[tuple[str, str, str, str], Any]:
 def dismissal_drift(
     dismissal: dict[str, Any], native_text: str | None, component_text: str | None
 ) -> list[str]:
-    """The sides whose description fingerprint moved since the dismissal.
+    """The sides whose fingerprint moved since the dismissal.
 
     A side this run did not observe (None) is not comparable and never counts
     as drift: absence from an extraction proves nothing about the product.
@@ -1093,7 +1089,7 @@ def render_dismissals(dismissals: list[dict[str, Any]]) -> list[str]:
         "## Dismissed",
         "",
         "Pairs a human ruled are not an overlap. `detect` suppresses each one until either "
-        "side's description fingerprint changes, then lists it again flagged "
+        "side's fingerprint changes, then lists it again flagged "
         f'"{RESURFACED}".',
         "",
     ]
@@ -1529,7 +1525,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         key: tuple[str, str, str, str], registrations: list[dict[str, Any]] | None
     ) -> dict[str, str | None]:
         native_text = (
-            native_description(registrations) if registrations is not None else None
+            discover.scored_text(registrations) if registrations is not None else None
         )
         return {
             "native": fingerprint(native_text),
@@ -1548,7 +1544,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
             return False, None
         examined.add(key)
         native_text = (
-            native_description(registrations) if registrations is not None else None
+            discover.scored_text(registrations) if registrations is not None else None
         )
         drift = dismissal_drift(entry, native_text, component_text.get(key[1:]))
         dismissed = {
@@ -2106,7 +2102,7 @@ def cmd_dismiss(args: argparse.Namespace) -> int:
     if seen is None:
         _fail(
             f"`{args.native}` is absent from this extraction; a dismissal fingerprints "
-            "the native description, so the surface must be observed"
+            "the native registration text, so the surface must be observed"
         )
         return 1
     if not NATIVE_NAME_RE.fullmatch(args.native):
@@ -2152,7 +2148,9 @@ def cmd_dismiss(args: argparse.Namespace) -> int:
         "as_of": as_of,
         "date": (args.date or datetime.date.today().isoformat()).strip(),
         "fingerprint": {
-            "native": fingerprint(native_description(registrations_of(seen["entry"]))),
+            "native": fingerprint(
+                discover.scored_text(registrations_of(seen["entry"]))
+            ),
             "component": fingerprint(frontmatter_description(frontmatter)),
         },
     }
