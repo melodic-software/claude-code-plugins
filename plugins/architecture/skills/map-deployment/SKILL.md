@@ -213,10 +213,11 @@ A diff compares two environments of one tool over these kinds, for every shipped
 present in one environment only, image, replicas, ports, a parameter present in one environment
 only, a plain parameter value, a secret parameter that differs, a network (a Compose network or a
 Kubernetes Service) or an Ingress present in one environment only, and a network exposure or port
-or an Ingress host that differs. A Kubernetes container port
-(`containerPort`) is the placement's ports. A Kubernetes `valueFrom` reference counts as a secret
-parameter whose presence is compared; `envFrom` is not read. The
-report's diff section lists these kinds, and an empty diff reads `No differences of these kinds:
+or an Ingress host that differs. A compute node (a cluster, service plan or node pool) of the
+Terraform, Bicep, ARM, CloudFormation and Pulumi readers is not compared. A Kubernetes container
+port (`containerPort`) is the placement's ports. A Kubernetes `valueFrom` reference counts as a
+secret parameter whose presence is compared; `envFrom` is not read. The report's diff section lists
+these kinds, and an empty diff reads `No differences of these kinds:
 ...` so a clean diff is never mistaken for a full comparison.
 
 When `<architecture_dir>/containers.json` exists, container names that the IaC does not place are
