@@ -97,6 +97,11 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    `--enabled`, the entry says so on stderr and exits 0. Show it; the user merges it into their
    settings.
 
+Then probe the hook launcher, which the script does not: run `command -v node` via Bash and report
+`node` as a FAIL row when it is absent. Every hook row launches through `node hooks/exec-bash.mjs`,
+so a missing `node` is a hook launch error, not a skip notice, and a hook cannot report its own
+missing launcher.
+
 ## `apply`
 
 1. Run `check` and summarize the effective config before proposing a change. Nothing already
