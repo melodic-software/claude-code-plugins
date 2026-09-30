@@ -168,7 +168,7 @@ function redact_server(raw, kind, db,    port, host) {
   redact_emit(kind, host, port, db, "")
 }
 
-function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db, semi) {
+function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db, semi, query) {
   rest = value
   guard = 0
   while (match(rest, /[A-Za-z][A-Za-z0-9+.-]*:\/\//)) {
@@ -185,6 +185,11 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     }
     auth = substr(rest, 1, cut - 1)
     rest = substr(rest, cut)
+    if ((redact_local_http + 0) && substr(rest, 1, 1) ~ /[?#]/) {
+      query = rest
+      if (match(query, /[\/ \t\r\n]/)) query = substr(query, 1, RSTART - 1)
+      if (index(query, "@") > 0) continue
+    }
     if (index(auth, "@") > 0) sub(/^.*@/, "", auth)
     if ((redact_local_http + 0) && (semi = index(auth, ";")) > 0) {
       rest = substr(auth, semi + 1) rest

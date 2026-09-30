@@ -580,7 +580,8 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       fi
     done <"$deploy"
     if [[ "$match_n" -eq 1 ]]; then
-      printf '%s\034%s\034%s\034%s\n' "$svc" "$matched" "$ports" "$rel: service $svc build $context" >>"$svcmap"
+      svc_host="$(printf '%s' "$svc" | tr '[:upper:]' '[:lower:]')"
+      printf '%s\034%s\034%s\034%s\n' "$svc_host" "$matched" "$ports" "$rel: service $svc build $context" >>"$svcmap"
       awk -F'\t' -v id="$matched" -v extra="$rel: service $svc" 'BEGIN { OFS="\t" }
         $1 == id { $5 = $5 "; " extra }
         { print }

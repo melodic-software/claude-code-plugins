@@ -19,10 +19,12 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 - `redact-connection.awk` takes an opt-in `redact_local_http` for the local HTTP
   endpoint values the new edges read: an http shape may name a bare service name
-  or a loopback host and carries its URL scheme in the scheme column, and a `;` after the userinfo ends a URL authority for every
-  URL shape, so `map-containers` now reads a store URL such as
-  `redis://cache.example.com:6379;x`. A caller that does not set it is unchanged.
-  No-leak fixtures cover userinfo, query tokens, and a `;` inside userinfo.
+  or a loopback host and carries its URL scheme in the scheme column, and a `;`
+  after the userinfo ends a URL authority for every URL shape, so
+  `map-containers` now reads a store URL such as
+  `redis://cache.example.com:6379;x`. With it set, a URL whose authority ends at
+  an unencoded `?` or `#` with an `@` after it yields no row. A caller that does
+  not set it is unchanged. No-leak fixtures cover userinfo, query tokens, and a `;` inside userinfo.
 
 ## [0.13.0] - 2026-09-29
 

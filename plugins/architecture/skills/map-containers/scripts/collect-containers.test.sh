@@ -763,6 +763,32 @@ assert_contains "unresolved: a name that only resembles a project is not matched
 assert_contains "unresolved: a host naming two deployables is not guessed" "$utext" "Services.Both.BaseUrl names host shared:8080; matches more than one deployable"
 assert_contains "unresolved: the findings table lists them" "$(cat "$TEST_TMPDIR/unknown-endpoint-out/containers.md")" "| external-endpoint | 1 |"
 
+# A compose service name resolves whatever its case, and a bare host under a search-named key is no store.
+CASE="$TEST_TMPDIR/case-endpoint-repo"
+web_project "$CASE/src/Web" Web
+web_project "$CASE/src/OrdersApi" OrdersApi
+cat >"$CASE/compose.yml" <<'EOC'
+services:
+  Orders-Api:
+    build: ./src/OrdersApi
+    ports:
+      - "8081:8080"
+  elasticsearch:
+    image: elasticsearch:8.14.0
+EOC
+cat >"$CASE/src/Web/appsettings.json" <<'EOC'
+{
+  "Services": { "Orders": { "BaseUrl": "http://Orders-Api:8080" } },
+  "Indexing": { "ElasticsearchUrl": "http://elasticsearch:9200" }
+}
+EOC
+commit_repo "$CASE"
+collect_render "$CASE" "$TEST_TMPDIR/case-endpoint-out"
+CREC="$TEST_TMPDIR/case-endpoint-out/containers.json"
+assert_equals "case: a mixed-case compose service name draws its edge" "$(grep -c '"kind":"uses"' "$CREC" || true)" "1"
+assert_equals "case: a bare host under a search-named key draws no finding" "$(grep -c '"kind":"external-endpoint"' "$CREC" || true)" "0"
+assert_not_contains "case: a bare host under a search-named key is not a store" "$(cat "$CREC")" '"store:search:'
+
 # Only an http or https URL is an endpoint, and an omitted port is the scheme's own default.
 SCH="$TEST_TMPDIR/scheme-endpoint-repo"
 web_project "$SCH/src/Web" Web
