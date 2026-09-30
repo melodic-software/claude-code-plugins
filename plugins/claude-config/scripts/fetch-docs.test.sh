@@ -309,6 +309,17 @@ rc=0
 bash "$SCRIPT" --out "$TEST_TMPDIR/out18" --index-url http://docs.test/docs/llms.txt skills >/dev/null 2>&1 || rc=$?
 assert_eq "case 18: a non-https index URL" 2 "$rc"
 
+# --- Case 19: a slug resolves to its own index link, not to a nested page with the same last segment
+fx="$TEST_TMPDIR/fx19"
+mkdir -p "$fx"
+printf '%s\n' '# Docs' \
+  '- [Plugin CLI](https://docs.test/docs/en/plugins/cli-reference.md): plugin shell commands' \
+  '- [CLI](https://docs.test/docs/en/cli-reference.md): flags' >"$fx/llms.txt"
+printf '%s\n' '# CLI' >"$fx/cli-reference.md"
+rc=0
+fixture_run "$fx" "$TEST_TMPDIR/out19" cli-reference || rc=$?
+assert_eq "case 19: the top-level page's url" "https://docs.test/docs/en/cli-reference.md" "$(page "$TEST_TMPDIR/out19/manifest.json" cli-reference .url)"
+
 # --- Case: the claude version probe runs under a timeout ---
 mkdir -p "$TEST_TMPDIR/tbin"
 # shellcheck disable=SC2016 # the stub script expands its own arguments

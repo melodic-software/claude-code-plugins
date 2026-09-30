@@ -208,9 +208,19 @@ link_urls() {
   }' "$OUT/llms.txt"
 }
 
-# index_link <slug>: the first link URL in the index that ends in /<slug>.md.
+# index_link <slug>: the index link URL whose slug is exactly <slug>. A suffix
+# match would resolve `cli-reference` to `plugins/cli-reference`.
 index_link() {
-  link_urls | awk -v suf="/$1.md" 'length($0) >= length(suf) && substr($0, length($0) - length(suf) + 1) == suf { print; exit }'
+  local u s
+  link_urls | while IFS= read -r u; do
+    s="${u#*://}"
+    s="${s#*/docs/}"
+    s="${s#en/}"
+    [[ "${s%.md}" == "$1" ]] && {
+      printf '%s\n' "$u"
+      break
+    }
+  done
 }
 
 # slug_of <url>: the slug an index link names: its path under /docs/, without a
