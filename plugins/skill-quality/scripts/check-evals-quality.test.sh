@@ -438,6 +438,50 @@ else
   fail "Q7 must not flag verifiable criteria (rc=$rc): $out"
 fi
 
+# Q10: an undefined evaluative qualifier WARNs; technical uses and
+#      precise items stay silent; an item Q7 flags is not reported twice.
+f="$(make_evals q10 '{
+  "skill_name": "q10",
+  "evals": [
+    {"id": 1, "prompt": "a", "expectations": ["Routes repair to the appropriate lane"]}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'leaves "appropriate" undefined.*(Q10)' <<<"$out"; then
+  pass "Q10: an undefined evaluative qualifier WARNs"
+else
+  fail "Q10 should warn on 'appropriate' (rc=$rc): $out"
+fi
+
+f="$(make_evals q10-silent '{
+  "skill_name": "q10-silent",
+  "evals": [
+    {"id": 1, "prompt": "a", "expectations": ["Reports the effective value", "Routes the repair to the docs-hygiene lane"]}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '(Q10)' <<<"$out"; then
+  pass "Q10: technical and precise items stay silent"
+else
+  fail "Q10 must not flag precise items (rc=$rc): $out"
+fi
+
+f="$(make_evals q10-q7 '{
+  "skill_name": "q10-q7",
+  "evals": [
+    {"id": 1, "prompt": "a", "expectations": ["works as expected", "Behaves correctly"]}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q '(Q7)' <<<"$out" && ! grep -q '(Q10)' <<<"$out"; then
+  pass "Q10: an item Q7 already flags is not reported twice"
+else
+  fail "Q10 must skip Q7-flagged items (rc=$rc): $out"
+fi
+
 # 13. Q8: a thin sole-criterion expected_output WARNs; the same string with
 #     expectations alongside does not.
 f="$(make_evals thin '{

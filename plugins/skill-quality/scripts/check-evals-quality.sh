@@ -17,7 +17,7 @@
 #   bash check-evals-quality.sh <evals.json> [<evals.json> ...]
 #   bash check-evals-quality.sh --help
 #
-# Checks (Q1-Q4 FAIL; Q5-Q9 WARN — quality heuristics stay advisory so the
+# Checks (Q1-Q4 FAIL; Q5-Q10 WARN — quality heuristics stay advisory so the
 # gate never blocks on a judgment call):
 #   Q1. Duplicate case `id` within a set (FAIL — ids must be stable and
 #       unique for a grader to address a case)
@@ -60,6 +60,11 @@
 #       set to aim for at least one refusal/guardrail and one anti-pattern
 #       case; detection is lexical, so treat as a prompt to check, not
 #       proof of absence)
+#   Q10. A criterion that leans on a strongly evaluative word (good,
+#       appropriate, reasonable, properly, correctly, useful, helpful,
+#       adequate, sensible) without saying what a grader must find (WARN —
+#       the word leaves the standard undefined; skips an item Q7 already
+#       flags. Lexical, so read the item before rewording it)
 #
 # Deliberately NOT checked: case count. The marketplace's low case volume
 # is a RECORDED divergence from the guidance's volume-over-polish principle
@@ -112,6 +117,10 @@ EXPECTED_OUTPUT_MIN=40
 # Q7: whole-item hedges only — a substring match would flag verifiable
 # criteria that merely contain a hedge word ("Touches no files" is fine).
 VAGUE_RE='^(the )?(output|response|result|it) (is|looks|seems) (good|correct|right|fine|reasonable|appropriate|as expected)[.]?$|^(works( as expected| correctly| well)?|correct( behavior)?|looks good|handles it( gracefully| well)?|good (output|behavior|response)|behaves (correctly|properly|well|as expected)|responds appropriately)[.]?$'
+# Q10: strongly evaluative words that leave a criterion's standard undefined.
+# Whole-word, case-insensitive. "well", "clear", "relevant", "quality" and
+# "effective" are left out: they are mostly technical terms in this corpus.
+EVALUATIVE_RE='\b(good|appropriate|reasonable|properly|correctly|useful|helpful|adequate|sensible)\b'
 # Q9: lexical signal that a case pins behavior the skill must NOT exhibit.
 # Deliberately lenient (matches inside longer words/phrases): under-warning
 # beats noise for an advisory check.
@@ -192,6 +201,12 @@ JQ_PROG='
     ((items[]? | select(type == "string")), (.expected_output // empty))
     | select(test($vague; "i"))
     | "WARN" + $u + "\($f): \($c): vague criterion \"\(.)\" — state what a grader must find, not that the output is good (Q7)"),
+  # Q10: undefined evaluative qualifier (items Q7 already flags are skipped).
+  ($cases[] | caseref as $c |
+    ((items[]? | select(type == "string")), (.expected_output // empty))
+    | select(test($vague; "i") | not)
+    | select(test($evaluative; "i"))
+    | "WARN" + $u + "\($f): \($c): criterion leaves \"\(match($evaluative; "i").string | ascii_downcase)\" undefined, so name what a grader must find (Q10)"),
   # Q8: thin sole-criterion expected_output. Length is measured after
   # trimming, so padding cannot clear the floor; whitespace-only strings are
   # Q3 FAILs and excluded here to avoid a double report.
@@ -211,7 +226,7 @@ JQ_PROG='
 # US (0x1f) delimits lint-line fields — it cannot appear in jq -r output of
 # JSON string content, so fields with spaces/tabs survive the bash read.
 US=$'\x1f'
-LINT_OUT="$(jq -r --arg u "$US" --arg vague "$VAGUE_RE" --arg neg "$NEGATIVE_RE" \
+LINT_OUT="$(jq -r --arg u "$US" --arg vague "$VAGUE_RE" --arg evaluative "$EVALUATIVE_RE" --arg neg "$NEGATIVE_RE" \
   --arg prose_path "$PROSE_PATH_RE" --argjson min "$EXPECTED_OUTPUT_MIN" \
   "$JQ_PROG" "$@" 2>&1)"
 JQ_RC=$?
