@@ -1,6 +1,6 @@
 ---
 description: "Cite which project depends on which from build manifests, with the file and declaration on every edge. Use when: 'map dependencies', 'project reference graph', 'dependency graph', 'what references what', 'internal dependencies', 'package references', 'which projects depend on which'. Skip when: the question is which repositories exist, which is /architecture:map-landscape, shallow modules, which is /architecture:improve, or source imports and call graphs."
-argument-hint: "[path] [--include-external] [--external-only] [--cycles-only]"
+argument-hint: "[path] [--include-external] [--external-only] [--cycles-only] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -39,16 +39,21 @@ never writes the topic doc.
 ## Build the graph
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/dependency-graph.sh" "<repo-path>"
+"${CLAUDE_SKILL_DIR}/scripts/dependency-graph.sh" \
+  --out "<architecture_dir>/dependency-graph.json" "<repo-path>"
 ```
 
-Write stdout to `<architecture_dir>/dependency-graph.json` unchanged. The document is
-one object per line. Do not pretty-print it. A reader given another layout exits 1.
+The script writes the record itself and exits 1 when it cannot. `generated_on` is the
+HEAD commit date (`unknown` with no commit), so a second run on the same commit is
+byte-identical; `--generated-on <date>` overrides it. The document is one object per
+line. Do not pretty-print it. A reader given another layout exits 1.
 
 `result` is `ok` or `unknown`. `unknown` means no shipped adapter could read the tree.
 The message says which manifests were found. That is the answer. Do not draw a diagram,
 and do not fill the arrays by hand. An empty graph is `result` `ok` with project nodes
-and no edges, which is a real repository that declares no references.
+and no edges. Read it as a repository that declares no references only when no
+`unread-reference-tags` finding exists; that finding means the collector skipped reference
+tags in a file, and the edge list is short by that count.
 
 The first adapter is .NET:
 
@@ -57,6 +62,12 @@ The first adapter is .NET:
   repository root, is `status` `unresolved`. Never match it to a project of the same
   name somewhere else on disk.
 - `PackageReference` is an external package edge. The node id is `pkg:` plus the Include.
+- A `ProjectReference` or `PackageReference` in a `Directory.Build.props` or
+  `Directory.Build.targets` is an edge from every project under that file's folder whose
+  nearest such file it is, and the evidence cites the props file. A project never gets an
+  edge to itself that way. Any other `.props` or `.targets` file, and
+  `Directory.Packages.props`, has no known importer, so its references are counted in an
+  `unread-reference-tags` finding and not drawn.
 - `*.sln` and `*.slnx` contribute membership. A project path that does not resolve inside
   the root is a finding, not an edge.
 - Source files are not read. A `using` or an import is not an edge.
@@ -96,7 +107,10 @@ says it aggregated to directory level.
 - **Counts**: quote the summary line. Do not count nodes by hand.
 - **Unresolved**: how many project references and solution memberships did not resolve,
   and that none of them were matched by file name.
-- **Cycles**: the cycle lines, or none.
+- **Unread**: the `unread_files` count, and each file and tag count from the
+  `unread-reference-tags` findings.
+- **Cycles**: the cycle lines, or none. Each line is one witness cycle for a group of
+  projects that depend on each other, not every cycle in the group.
 - **Aggregation**: `no`, or `yes` with the threshold the artifact states.
 - **Diagram**: mermaid flowchart, or no diagram because the result is unknown or a filter
   left nothing to draw.
@@ -121,10 +135,24 @@ The component view reads dependency-graph.json.
 
 ## Gotchas
 
-- **The shared .NET reader is the one portfolio-facts uses.** An `Include` on the next
-  line, a single-quoted `Include`, and an `Update` version override are not edges. A
-  reference inside an XML comment is still cited, because the reader matches the tag
-  text rather than the XML structure.
+- **The shared .NET reader is the one portfolio-facts uses.** It reads each reference tag
+  as a whole, so an `Include` on a later line and a single-quoted `Include` are edges. A
+  reference inside an XML comment is not, and an `Update` or `Remove` override is not a
+  reference. A reference-like tag it cannot turn into an edge (`FrameworkReference`,
+  `GlobalPackageReference`, an empty or missing `Include`) is counted in the
+  `unread-reference-tags` finding.
+- **Directory.Build.props edges follow MSBuild's lookup.** MSBuild imports the nearest
+  `Directory.Build.props` above a project and stops there, and a relative `Include` in an
+  imported file is relative to the importing project's folder. This collector does not
+  evaluate `Condition` or `$(...)` properties, so a props reference that a condition
+  would exclude is still drawn, and one built from a property is `unresolved`.
+  - Claim: MSBuild walks up from the project to the first `Directory.Build.props` and
+    imports that one; an imported file's relative `Include` resolves from the project's
+    folder.
+  - Basis: https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory
+    and https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items
+  - As of: 2026-09-29.
+  - Recheck: when either page changes the lookup rule or the base of a relative `Include`.
 - **Evidence stops at the end of the tag.** A `Version` child element on the following
   lines is not part of the citation. A `Version` attribute on the same tag is.
 - **`bin`, `obj`, `node_modules`, `vendor`, and dot-directories** other than the CI and

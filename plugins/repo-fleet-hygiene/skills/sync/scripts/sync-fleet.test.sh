@@ -47,14 +47,15 @@ clone="$TMP/clone"
 git clone -q "$bare" "$clone"
 git_identity "$clone"
 
-if ( cd "$TMP" && REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --project-dir "$TMP" >"$TMP/noscope.out" 2>"$TMP/noscope.err" ); then
+mkdir -p "$TMP/bare-cwd/1/2/3/4"
+if ( cd "$TMP/bare-cwd/1/2/3/4" && REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --project-dir "$TMP" >"$TMP/noscope.out" 2>"$TMP/noscope.err" ); then
   fail "no scope exits 3" "exit 0"
 else
   code=$?
   if [[ "$code" -eq 3 ]]; then pass "no scope exits 3"; else fail "no scope exits 3" "exit $code"; fi
 fi
 noscope_err="$(cat "$TMP/noscope.err")"
-for want in "--repo/--root: none given" "ghq not installed" "is not a Git checkout" "/repo-fleet-hygiene:setup apply --root <dir>" "remedy: cd into a checkout"; do
+for want in "--repo/--root: none given" "ghq not installed" "ghq root --all" "5. ancestor" "6. working directory" "is not in a Git checkout" "remedy: cd into or beside your checkouts" "/repo-fleet-hygiene:setup apply --root <dir>" "remedy: cd into a checkout"; do
   expect "the no-scope message carries: $want" "$noscope_err" has "$noscope_err" "$want"
 done
 
@@ -68,6 +69,12 @@ if [[ "$dry" == *$'ff-only\t'"$clone"* && "$(git -C "$clone" rev-parse HEAD)" ==
 else
   fail "dry-run plans ff-only and does not move HEAD" "$dry"
 fi
+
+explicit_dry="$(bash "$SCRIPT" --repo "$clone" --dry-run)"
+expect "--dry-run is accepted and plans the same as the default" "$explicit_dry" is "$explicit_dry" "$dry"
+bash "$SCRIPT" --repo "$clone" --dry-run --apply --yes >"$TMP/dryapply.out" 2>"$TMP/dryapply.err"
+code=$?
+expect "--dry-run with --apply exits 2 and changes nothing" "code=$code" is "$code|$(git -C "$clone" rev-parse HEAD)" "2|$before"
 
 if bash "$SCRIPT" --repo "$clone" --apply >"$TMP/noyes.out" 2>"$TMP/noyes.err"; then
   fail "apply without --yes exits 3" "exit 0"
@@ -111,12 +118,62 @@ pruned="$(bash "$SCRIPT" --root "$TMP/drive")"
 expect "a --root walk does not descend into a .git directory" "$pruned" \
   is "$([[ "$pruned" == *"/.git/inner"* ]] && echo found)" ""
 
-# Sync keeps its own copy of audit's default skip list; the two must not drift.
-sync_skips="$(sed -n 's/^SKIP_NAMES=(\(.*\))$/\1/p' "$SCRIPT")"
-audit_skips="$(sed -n '/-eq 0 \]\]; then$/,/^fi$/{/^  SKIP_NAMES=(/,/)$/p}' "$SCRIPT_DIR/../../audit/scripts/audit-fleet.sh" |
-  sed 's/^  SKIP_NAMES=(//; s/)$//' | tr '\n' ' ' | tr -s ' ' | sed 's/ $//')"
-expect "sync's skip list matches audit's default skip list" "sync=[$sync_skips] audit=[$audit_skips]" \
-  is "$sync_skips" "$audit_skips"
+mkdir -p "$TMP/skipdrive/vendor" "$TMP/skipdrive/foo"
+git clone -q "$bare" "$TMP/skipdrive/vendor/dep"
+git clone -q "$bare" "$TMP/skipdrive/foo/dep"
+git clone -q "$bare" "$TMP/skipdrive/app"
+printf '[fleet]\n\tskip = foo\n' >"$TMP/skip-replace.conf"
+replaced="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/skip-replace.conf")"
+expect "fleet.skip stops discovery descending into the named directory" "$replaced" \
+  is "$([[ "$replaced" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+expect "fleet.skip replaces the default set, so a repo under vendor/ is found" "$replaced" \
+  has "$replaced" "$TMP/skipdrive/vendor/dep"
+printf '[fleet]\n\tskipAppend = foo\n' >"$TMP/skip-append.conf"
+appended="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/skip-append.conf")"
+expect "fleet.skipAppend prunes the appended directory" "$appended" \
+  is "$([[ "$appended" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+expect "fleet.skipAppend keeps the defaults, so vendor/ is still pruned" "$appended" \
+  is "$([[ "$appended" == *"$TMP/skipdrive/vendor/dep"* ]] && echo found)" ""
+expect "fleet.skipAppend keeps ordinary repos" "$appended" has "$appended" "$TMP/skipdrive/app"
+printf '[fleet]\n\tskip = a/b\n' >"$TMP/skip-bad.conf"
+bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/skip-bad.conf" >/dev/null 2>&1
+expect "a path-shaped fleet.skip entry is refused with exit 2" "code=$?" is "$?" 2
+
+skipped="$(bash "$SCRIPT" --root "$TMP/skipdrive" --skip foo)"
+expect "--skip prunes the named directory" "$skipped" \
+  is "$([[ "$skipped" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+expect "--skip replaces the default set, so a repo under vendor/ is found" "$skipped" \
+  has "$skipped" "$TMP/skipdrive/vendor/dep"
+extended="$(bash "$SCRIPT" --root "$TMP/skipdrive" --extend-skip foo)"
+expect "--extend-skip prunes the named directory and keeps the defaults" "$extended" \
+  is "$([[ "$extended" == *"$TMP/skipdrive/foo/dep"* || "$extended" == *"$TMP/skipdrive/vendor/dep"* ]] && echo found)" ""
+
+mkdir -p "$TMP/skipdrive/bar"
+git clone -q "$bare" "$TMP/skipdrive/bar/dep"
+printf 'foo\n\nbar\r\n' >"$TMP/skip.list"
+listed="$(bash "$SCRIPT" --root "$TMP/skipdrive" --skip-from "$TMP/skip.list")"
+expect "--skip-from prunes every listed name, blank and CRLF lines included" "$listed" \
+  is "$([[ "$listed" == *"$TMP/skipdrive/foo/dep"* || "$listed" == *"$TMP/skipdrive/bar/dep"* ]] && echo found)" ""
+expect "--skip-from keeps ordinary repos" "$listed" has "$listed" "$TMP/skipdrive/app"
+
+bash "$SCRIPT" --root "$TMP/skipdrive" --skip-from "$TMP/no-such.list" >/dev/null 2>&1
+expect "--skip-from on a missing file exits 2" "code=$?" is "$?" 2
+bash "$SCRIPT" --root "$TMP/skipdrive" --skip '' >/dev/null 2>&1
+expect "--skip '' exits 2" "code=$?" is "$?" 2
+
+printf '%s\n\n%s\r\n' "$clone" "$TMP/skipdrive/app" >"$TMP/repos.list"
+fromfile="$(cd / && bash "$SCRIPT" --repos-from "$TMP/repos.list" --project-dir "$TMP/cfg")"
+expect "--repos-from FILE plans exactly the listed repos" "$fromfile" \
+  is "$(printf '%s\n' "$fromfile" | grep -c "^ff-only")" 2
+expect "--repos-from FILE reports the listed repo count" "$fromfile" has "$fromfile" "repos: 2"
+fromstdin="$(printf '%s\n' "$clone" | bash "$SCRIPT" --repos-from -)"
+expect "--repos-from - reads stdin" "$fromstdin" has "$fromstdin" "repos: 1"
+bash "$SCRIPT" --repos-from "$TMP/no-such.list" >/dev/null 2>&1
+expect "--repos-from on a missing file exits 2" "code=$?" is "$?" 2
+printf '[fleet]\n\trepo = %s\n' "$TMP/seed" >"$TMP/scoped.conf"
+scoped="$(bash "$SCRIPT" --repos-from "$TMP/repos.list" --config "$TMP/scoped.conf")"
+expect "--repos-from skips the config scope rung" "$scoped" \
+  is "$([[ "$scoped" == *"$TMP/seed"* ]] && echo found)" ""
 
 git clone -q --bare "$bare" "$TMP/evil.git"
 git -C "$TMP/evil.git" update-ref refs/heads/-evil refs/heads/main
@@ -437,6 +494,72 @@ fi
 expect "a non-fast-forward skip exits 1" "code=$code" is "$code" 1
 expect "a non-fast-forward skip line carries git-exit and a remedy" "$skipped" \
   has "$skipped" $'skipped\t'"$diverge"$'\tnon-fast-forward\tgit-exit=128\tremedy='
+
+# The plan names the scope rung that produced each repository, on plan and skipped lines alike.
+rung_home="$TMP/rung-home"
+mkdir -p "$rung_home"
+rung_of() { printf '%s\n' "$1" | awk -F'\t' -v r="$2" '$2 == r { print $NF }'; }
+r_repo="$(HOME="$rung_home" bash "$SCRIPT" --repo "$clone")"
+expect "--repo plans rung=repo" "$r_repo" is "$(rung_of "$r_repo" "$clone")" "rung=repo"
+r_from="$(HOME="$rung_home" bash "$SCRIPT" --repos-from "$TMP/repos.list")"
+expect "--repos-from plans rung=repos-from" "$r_from" is "$(rung_of "$r_from" "$clone")" "rung=repos-from"
+r_root="$(HOME="$rung_home" bash "$SCRIPT" --root "$TMP/skipdrive")"
+expect "--root plans rung=root for a discovered repo" "$r_root" is "$(rung_of "$r_root" "$TMP/skipdrive/app")" "rung=root"
+r_bare="$(HOME="$rung_home" bash "$SCRIPT" "$TMP/skipdrive")"
+expect "a bare path plans rung=root" "$r_bare" is "$(rung_of "$r_bare" "$TMP/skipdrive/app")" "rung=root"
+printf '[fleet]\n\trepo = %s\n' "$clone" >"$TMP/rung.conf"
+r_conf="$(HOME="$rung_home" bash "$SCRIPT" --config "$TMP/rung.conf")"
+expect "fleet config plans rung=config" "$r_conf" is "$(rung_of "$r_conf" "$clone")" "rung=config"
+r_named="$(HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --named "$clone")"
+expect "--named plans rung=named" "$r_named" is "$(rung_of "$r_named" "$clone")" "rung=named"
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s"\n' "$TMP/skipdrive" >"$TMP/ghq-stub"
+chmod +x "$TMP/ghq-stub"
+r_ghq="$(cd "$TMP/bare-cwd" && HOME="$rung_home" REPO_FLEET_GHQ_BIN="$TMP/ghq-stub" bash "$SCRIPT")"
+expect "ghq root --all plans rung=ghq" "$r_ghq" is "$(rung_of "$r_ghq" "$TMP/skipdrive/app")" "rung=ghq"
+# Four directories above solo hold no other repository, so the ancestor probe finds nothing.
+solo="$TMP/iso/a/b/c/solo"
+mkdir -p "$TMP/iso/a/b/c"
+git clone -q "$bare" "$solo"
+r_cwd="$(cd "$solo" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
+expect "the working directory plans rung=cwd" "$r_cwd" is "$(rung_of "$r_cwd" "$solo")" "rung=cwd"
+expect "a lone checkout plans only itself" "$r_cwd" has "$r_cwd" $'repos: 1\n'
+
+# A bare run inside one checkout plans the checkout's sibling fleet, from the checkout root or below it.
+mkdir -p "$TMP/fleet"
+for name in one two three; do git clone -q "$bare" "$TMP/fleet/$name"; done
+mkdir -p "$TMP/fleet/one/sub/dir"
+for from in "$TMP/fleet/one" "$TMP/fleet/one/sub/dir"; do
+  r_sib="$(cd "$from" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
+  expect "a bare run in ${from#"$TMP"/} plans every sibling checkout" "$r_sib" \
+    is "$(printf '%s\n' "$r_sib" | awk -F'\t' '/^[a-z-]+\t/ { printf "%s:%s ", $2, $NF }')" \
+    "$TMP/fleet/one:rung=ancestor $TMP/fleet/three:rung=ancestor $TMP/fleet/two:rung=ancestor "
+  expect "a bare run in ${from#"$TMP"/} reports 3 repos" "$r_sib" has "$r_sib" $'repos: 3\n'
+done
+
+# Discovery is the walker audit uses: it honors fleet.maxDepth and stops at a checkout.
+printf '[fleet]\n\tmaxDepth = 1\n' >"$TMP/depth1.conf"
+depth1="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/depth1.conf")"
+expect "fleet.maxDepth 1 finds a repository one level down" "$depth1" has "$depth1" "$TMP/skipdrive/app"
+expect "fleet.maxDepth 1 does not descend two levels" "$depth1" \
+  is "$([[ "$depth1" == *"$TMP/skipdrive/foo/dep"* ]] && echo found)" ""
+printf '[fleet]\n\tmaxDepth = 13\n' >"$TMP/depth-bad.conf"
+bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/depth-bad.conf" >/dev/null 2>&1
+expect "fleet.maxDepth outside 1 through 12 exits 2" "code=$?" is "$?" 2
+mkdir -p "$TMP/nest"
+git clone -q "$bare" "$TMP/nest/outer"
+git clone -q "$bare" "$TMP/nest/outer/inner"
+nested="$(bash "$SCRIPT" --root "$TMP/nest")"
+expect "discovery stops at a checkout, so a repository nested in one is not planned" "$nested" \
+  is "$(printf '%s\n' "$nested" | awk -F'\t' '/^[a-z-]+\t/ { printf "%s ", $2 }')" "$TMP/nest/outer "
+mkdir -p "$TMP/ancdir/one" "$TMP/ancdir/two" "$TMP/ancdir/plain/deep"
+git -C "$TMP/ancdir/one" init -q
+git -C "$TMP/ancdir/two" init -q
+r_ancdir="$(cd "$TMP/ancdir/plain/deep" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" 2>&1)"
+expect "an ancestor holding repositories plans rung=ancestor" "$r_ancdir" is "$(rung_of "$r_ancdir" "$TMP/ancdir/one")" "rung=ancestor"
+r_skip="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir")"
+expect "a skipped plan line carries the rung" "$r_skip" has "$r_skip" $'skip\t'"$TMP/no-such-dir"$'\t\tnot-a-directory\trung=repo'
+r_skipped="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir" --apply --yes)"
+expect "a skipped result line ends with the rung" "$r_skipped" has "$r_skipped" $'\tremedy=check the path, then fix or remove it in the fleet config or the --repo and --root arguments\trung=repo'
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'

@@ -97,9 +97,10 @@ The shipped adapter is C# in the MassTransit shape. Orphan publishers and
 consumers are findings. The picture is a mermaid flowchart and reads no dialect
 key.
 
-`/architecture:map-flow` traces one C# route or method. Every hop cites a tracked
-call site. An interface, service locator, or reflection hop stays unresolved.
-The picture is a mermaid sequence diagram and reads no dialect key.
+`/architecture:map-flow` traces one C# route, `Type.Method` or method name. Every
+hop cites a tracked call site, and a call is followed only through its receiver's
+declared type. An interface, service locator, reflection, or outside-the-tree call
+stays unresolved. The picture is a mermaid sequence diagram and reads no dialect key.
 
 `/architecture:map-containers` charts the deployables in one repository and the
 stores they bind. Kind comes from the project output, a host builder, a
@@ -122,11 +123,6 @@ Compose and Kubernetes manifests, one diagram per environment. `--diff` lists
 declared differences. Every emitted value passes the shared connection
 redactor. The picture is `diagram_dialect.system`. Terraform, Pulumi, Bicep, CloudFormation, Helm, and
 Kustomize are named and then the run stops. `--live` is refused.
-
-`/architecture:map-states` draws one entity from an explicit XState `createMachine`
-block or a Stateless `Configure`/`Permit` table. Unreachable and dead-end states
-are findings. Ad hoc status assignments are a refusal. The picture is a mermaid
-`stateDiagram-v2`. It reads no dialect key.
 
 ## Record a decision
 
@@ -157,7 +153,6 @@ your records.
 /architecture:map-context
 /architecture:map-data
 /architecture:map-deployment --diff staging prod
-/architecture:map-states <entity>
 
 /architecture:setup check        # read-only: report the declaration state
 /architecture:setup apply architecture_dir=docs/architecture
@@ -169,8 +164,7 @@ scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
 portfolio", "who owns which repo", "chart our repositories", "map
 dependencies", "component diagram", "map events", "trace this route", "map
-containers", "system context", "entity relationship", "deployment diagram",
-"state diagram".
+containers", "system context", "entity relationship", "deployment diagram".
 
 ## Consumer configuration
 
@@ -180,7 +174,7 @@ topic doc at your repository's convention home, `<home>/architecture/README.md`.
 landscape picture alone. The components, context, containers, and deployment
 views read `diagram_dialect.system` (`likec4` or `c4-plantuml`, no default: unset
 draws no C4 view) and `map-data` reads `diagram_dialect.data`, both from the
-authoring-formats topic doc. Flow, events, dependencies, and states are mermaid
+authoring-formats topic doc. Flow, events, and dependencies are mermaid
 and read no dialect key.
 Optional `component_layers` is the outside-to-inside list
 `/architecture:map-components --group-by layer` reads. The contract, including

@@ -29,6 +29,9 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
   audits do take this repo selection: `git-branch-audit.sh` and
   `git-stash-audit.sh` accept `--repo`, `--repos-from`, `--skip`, `--skip-from`
   and print a `Repo: <path>` block per repo; delete from inside the audited repo.
+  A branch or worktree audit across many repositories, including one outside the ghq
+  root, is `/repo-fleet-hygiene:audit` (`--root`, `--repo`), which hands per-repo
+  cleanup back here.
 - The actual removal / prune: delegated to the unchanged single-repo child. The
   batch layer runs no destructive command itself.
 
@@ -43,7 +46,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   [--batch-plan FILE]
 ```
 
-Default: `--dry-run`. Output labels and full flag help: script `--help`.
+Default: `--dry-run`. `--batch-plan FILE` is also accepted with `--dry-run`, to write the
+plan to a stable path instead of a mktemp dir. Output labels and full flag help: script `--help`.
 
 ### Tiers
 
@@ -104,7 +108,8 @@ fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply. Pass the plan back.
 
-Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
+`RUNTIME_PROCS` and `RECENT_BUILD` are scoped to the batch repositories and `IDE_OPEN` is
+machine-wide. Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
 `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run
 `preflight.sh` again before confirming. `planned=` bytes can exceed `removed=`
 bytes when entries vanished between the runs; both numbers are correct.
@@ -135,9 +140,11 @@ reported as a store that vanished after the dry-run.
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`
-(dry-run) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
+(dry-run) / `nothing-to-do` (dry-run: a repo with no paths to
+remove and no new shared object store; its plan record still applies as a no-op) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
 `skipped` (skip-list, or vanished after the dry-run) / `blocked` (non-git input) /
-`failed` (a child `rm` failed). A closing `Summary:` totals the batch and exits
+`failed` (a child `rm` failed). A dry-run also prints a `Repo | Outcome | Paths | Bytes` table, one row per repo
+(skipped and blocked repos show 0 and 0), before `BatchPlan:`. A closing `Summary:` totals the batch and exits
 non-zero when any repo failed. After apply, report the `failed`, `blocked`, and
 `skipped` repos with their reasons before the totals: those need the user.
 

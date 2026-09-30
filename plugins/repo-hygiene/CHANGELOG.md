@@ -3,6 +3,42 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-09-29
+
+### Fixed
+
+- **`clean` preflight `RUNTIME_PROCS` lists only processes in the repositories being cleaned (#5217).** A `dotnet`, `aspire`, or MCP-server process counts when its working directory or command line is under a passed ROOT (the invoking repository when none), and each line is tagged `[repo: <ROOT>]`. Matches elsewhere on the machine are counted in the new `RUNTIME_PROCS_UNATTRIBUTED` line instead of being reported as risks. Without `/proc` (Windows, macOS) `RUNTIME_PROCS` is machine-wide and marked `(unscoped)`; the invoking process chain is never listed.
+
+## [0.13.0] - 2026-09-29
+
+### Added
+
+- **`git-branch-audit.sh` reports a merged-PR tip that is an ancestor of the merged head as `SAFE` (5a)**
+  ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)). When a branch's PR merged
+  but the local tip differs from `headRefOid`, and the head commit exists locally and contains the tip,
+  every local commit was in the merged PR. One batched ancestry pass answers it for all such branches; a
+  head commit absent from the clone stays `REVIEW`.
+- **Each branch record carries a `Family:` line** (`agent`, `claude`, `plan`, `stranded`, `pre-wipe`, or
+  `none`), read from the branch name. It is information only and changes no tier.
+
+## [0.12.0] - 2026-09-29
+
+### Added
+
+- **`clean-batch.sh` dry-run reports `Outcome: nothing-to-do` for a repo with nothing to reclaim.**
+  A repo that plans no paths and adds no new git object store no longer
+  reads as `would-clean`. `Summary:` counts are unchanged.
+- **`clean-batch.sh` dry-run prints a `Repo | Outcome | Paths | Bytes` table** before `BatchPlan:`
+  and `Summary:`, one row per repo including skipped and blocked ones.
+
+### Changed
+
+- **`--batch-plan FILE` is documented for `--dry-run` as well as `--apply`.** It picks a stable
+  plan path; the default is a temporary directory.
+- **Fleet branch audits route to `/repo-fleet-hygiene:audit`.** `clean-batch.md` and `SKILL.md`
+  say so, and the `allowed-tools` comment notes the `TipCapture` file `git-branch-audit.sh`
+  writes under the git common dir.
+
 ## [0.11.2] - 2026-09-29
 
 ### Fixed
