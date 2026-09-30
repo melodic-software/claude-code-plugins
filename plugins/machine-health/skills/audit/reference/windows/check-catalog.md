@@ -505,7 +505,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
   ```powershell
   Resolve-DnsName microsoft.com -Type A -DnsOnly -QuickTimeout
-  Get-NetRoute -DestinationPrefix 0.0.0.0/0 | ForEach-Object { Test-Connection -TargetName $_.NextHop -Count 1 -TimeoutSeconds 1 }
+  Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1 | Where-Object NextHop -NE 0.0.0.0 | ForEach-Object { Test-Connection -TargetName $_.NextHop -Count 1 -TimeoutSeconds 1 }
   ```
 
 - **Severity rubric:** the first matching row wins.

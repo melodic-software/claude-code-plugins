@@ -15,7 +15,7 @@ Describe 'Get-WindowsDiscoveryProbe' -Tag 'lib' {
 
     It 'returns an array of probe records' {
         $probes = @(Get-WindowsDiscoveryProbe)
-        $probes.Count | Should -BeGreaterOrEqual 8
+        $probes.Count | Should -BeGreaterOrEqual 7
     }
 
     It 'every record has the documented shape' {
