@@ -1309,6 +1309,9 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(desc('!false||"FALLBACK"'), "")
         self.assertEqual(desc('!true??"FALLBACK"'), "")
         self.assertEqual(desc('!true||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('!!1||"FALLBACK"'), "")
+        self.assertEqual(desc('!!0??"FALLBACK"'), "")
+        self.assertEqual(desc('!!0||"FALLBACK"'), "FALLBACK")
 
     def test_a_local_alias_of_a_parameter_keeps_its_bound_value(self) -> None:
         src = (
@@ -1336,6 +1339,13 @@ class TestToolDescriptionShapes(unittest.TestCase):
                     '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
                 )
                 self.assertEqual(_tool(src, "Probe")["description"], "Use …")
+
+    def test_a_local_object_member_keeps_the_bound_parameter(self) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe";function ff(x){let obj={p:x};return obj.p}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
 
     def test_a_partial_argument_leaves_its_fallback_reachable(self) -> None:
         src = (

@@ -1045,7 +1045,11 @@ def _operand(
             i = number.end()
             parts.append(_NONSTRING)
         elif c == "!":
-            i = _ident_end(src, i + 1)
+            j = i
+            while src.startswith("!", j):
+                j += 1
+            number = _NUMBER_RE.match(src, j, n)
+            i = number.end() if number else _ident_end(src, j)
             parts.append(_NONSTRING)
         else:
             break
@@ -1695,7 +1699,15 @@ def _resolve_chain(
         if obj is None:
             return None
         found = _eval_field(
-            src, braces, obj[0], chain[1][1], sub, hops=hops - 1, anchor=None
+            src,
+            braces,
+            obj[0],
+            chain[1][1],
+            sub,
+            hops=hops - 1,
+            anchor=None,
+            # A local object literal reads the enclosing function's scope.
+            shadow=shadow if braces.enclosing(obj[0] - 1) is not None else NO_SCOPE,
         )
         if found is None:
             return None
@@ -1716,6 +1728,7 @@ def _eval_field(
     hops: int = _MAX_HOPS,
     anchor: int | None = None,
     methods: bool = False,
+    shadow: Scope = NO_SCOPE,
 ) -> str | None:
     """Evaluate one top-level field into `acc`; returns its form, or None when absent."""
     entry = _object_fields(src, braces, open_i, methods=methods).get(key)
@@ -1742,7 +1755,17 @@ def _eval_field(
         )
         return kind
     close = braces.pairs.get(open_i, len(src))
-    _scan(src, braces, pos, close, acc, block=False, hops=hops, anchor=anchor)
+    _scan(
+        src,
+        braces,
+        pos,
+        close,
+        acc,
+        block=False,
+        hops=hops,
+        anchor=anchor,
+        shadow=shadow,
+    )
     return "value"
 
 
