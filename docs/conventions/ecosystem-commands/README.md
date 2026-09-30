@@ -156,15 +156,15 @@ running a verb:
 
 | Plugin | Keys | Use |
 |---|---|---|
-| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. |
+| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset stops the run with exit 2 and `/code-metrics:setup check` shows FAIL, where this contract says plugins should fail soft. |
 
 **Claim:** `code-metrics` consumes `globs` and `enabled` from `.claude/ecosystems/<lane>.yaml` and
-no other ecosystem-commands key. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
-merge form", the paragraph on consumer ecosystems files. **As of:** 2026-09-28. **Recheck:** when
+no other ecosystem-commands key. It diverges from the tolerant-reader paragraph above: an ecosystem
+file outside the supported YAML subset stops the run with exit 2
+(`plugins/code-metrics/scripts/resolve-config.py:450-455`) instead of failing soft. Parseable but
+schema-invalid content is not validated. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
+merge form", the paragraph on consumer ecosystems files. **As of:** 2026-09-29. **Recheck:** when
 that paragraph names another key, or an audit skill starts running a verb from the ecosystem file.
-
-A plugin that starts reading a verb, or a membership key other than those two, updates this table
-in the same change.
 
 ## Task-runner deferral (recorded decision)
 

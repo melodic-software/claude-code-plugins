@@ -23,9 +23,10 @@ SSOT for which Windows capabilities the skill can and cannot exercise when the p
 From an elevated Windows Terminal or PowerShell session:
 
 ```powershell
-pwsh -NoProfile -File '<skill-root>\scripts\windows\Invoke-MachineHealthCheck.ps1' `
-     -OutputBase '<OutputBase>'
+pwsh -NoProfile -Command "Start-Transcript -Path '<StateBase>\logs\elevated-run-<yyyy-MM-dd>.log' -Force | Out-Null; & '<skill-root>\scripts\windows\Invoke-MachineHealthCheck.ps1' -OutputBase '<OutputBase>' -StateBase '<StateBase>'; Stop-Transcript | Out-Null"
 ```
+
+The pre-run banner prints this command with the paths filled in. Output from an elevated console is not readable by the Claude session that suggested the run, so the transcript is how the calling session reads the results back. Check the file's timestamp before trusting it: a transcript left by an earlier run reads as fresh output.
 
 Or schedule the weekly task to run as `SYSTEM` / an admin account. That is out of scope for this skill (see SKILL.md "Not in scope for this skill"), but it is the conventional long-term answer for recurring coverage.
 
