@@ -3,6 +3,12 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.17]
+
+### Changed
+
+- **`find`: listing description trimmed to 500 characters or fewer.** Seven of the nine quoted triggers, the `instrument this` behavior, the unattended-mode mention and every Skip-when route are kept. `find improvements` and `highest-impact improvement` are dropped; `improvement sweep` and `where is the highest-value work` carry the same intent. The body and options are unchanged ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.1.16]
 
 ### Changed
