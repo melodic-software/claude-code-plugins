@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.75.0] - 2026-09-30
+
+### Changed
+
+- **`changelog-status` fetches the Claude Code changelog through `scripts/fetch-docs.sh`** (a synced
+  copy of the shared fetcher) instead of calling `curl` on the changelog URL directly, so the fetch
+  is verified against the publisher's index and recorded in a manifest like every other docs read.
+
+## [0.74.1] - 2026-09-30
+
+### Fixed
+
+- **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
 ## [0.74.0] - 2026-09-30
 
 ### Added

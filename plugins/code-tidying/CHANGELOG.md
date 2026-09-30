@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2] - 2026-09-30
+
+### Fixed
+
+- **`batch-simplify` eval names its verification route.** The expectation says verification runs through `/toolchain:check` when installed, else the project's own commands ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
 ## [0.25.1] - 2026-09-30
 
 ### Changed
