@@ -1927,7 +1927,80 @@ def _bash_allowlist_disclosure(authority: str | None) -> str:
     )
 
 
-def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str:
+def _engine_mismatch_reason(command: str, authority: str | None) -> str:
+    """One sentence naming the first stage at which ``classify_exact_engine_command`` refuses.
+
+    Deny path only. It walks the classifier's stages in the classifier's order
+    and never decides anything: the caller has already denied.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None:
+        return (
+            "The command is not one plain literal invocation: a pipe, redirect, "
+            ";, &, substitution, glob, or backslash, or a quote that does not "
+            "wrap a whole word, makes it unparsable."
+        )
+    if len(tokens) < 3:
+        return (
+            f"The command has {len(tokens)} word(s); an engine call is "
+            "<hook python> <engine script> <subcommand> <flags>."
+        )
+    if not _is_current_python(tokens[0]):
+        return (
+            f"{engine_grammar.clip_token(tokens[0])} is not this hook's Python; "
+            f'the interpreter must be "{_display_python()}".'
+        )
+    if _script_path_key(tokens[1]) != _script_path_key(str(_engine_script_path())):
+        return (
+            f"{engine_grammar.clip_token(tokens[1])} is not the bundled engine "
+            f'"{_display_path(_engine_script_path())}".'
+        )
+    subcommand = tokens[2]
+    if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
+        return (
+            f"{engine_grammar.clip_token(subcommand)} is not an engine "
+            f"subcommand; use one of {', '.join(_ALLOWED_ENGINE_SUBCOMMANDS)}."
+        )
+    words = tokens[3:]
+    if engine_grammar.DATA_ROOT_FLAG not in words:
+        return (
+            f"{engine_grammar.DATA_ROOT_FLAG} is missing; every engine call "
+            f"passes {engine_grammar.DATA_ROOT_FLAG} with the authorized root."
+        )
+    external_checks = {
+        engine_grammar.AUTHORIZED_DATA_ROOT: (
+            lambda value: _is_authorized_data_root(value, authority)
+        ),
+    }
+    return (
+        engine_grammar.explain_mismatch(subcommand, words, external_checks)
+        or "The arguments do not match the engine grammar."
+    )
+
+
+def _engine_flag_order_rule() -> str:
+    heads = "; ".join(
+        f"{spec.name}: {engine_grammar.required_order(spec)}"
+        for spec in engine_grammar.SUBCOMMANDS
+        if spec.required
+    )
+    return (
+        "Flag order: required flags come first, in declared order "
+        f"({heads}), then optional flags in any order."
+    )
+
+
+_ENGINE_GATE_SCOPE = (
+    "Any command that contains the engine filename together with a pipe, "
+    "redirect, ;, substitution, or an absolute engine-path operand is gated. "
+    "The read-only forms that work name the engine by a relative path or bare "
+    "name in a plain git show, git grep, grep or rg with no pipe, redirect or ;."
+)
+
+
+def _bash_denial_guidance(
+    authority: str | None, mode: str | None = None, command: str | None = None
+) -> str:
     """Explain a Bash deny in the words of the surface that issued it.
 
     ``engine-gate`` (the plugin-level always-on hook) gates this engine
@@ -1937,16 +2010,25 @@ def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str
     that skill is invoked, and names how it clears. Both bodies disclose the
     same classifier allow-list so the denial cannot teach a grammar the
     classifier does not implement. Unrecognized ``mode`` values fall back to
-    ``belt``, matching ``resolve_mode``.
+    ``belt``, matching ``resolve_mode``. ``command`` is read only by the
+    ``engine-gate`` body, to name what failed in the denied command.
     """
     resolved = resolve_mode() if mode is None else mode
     grammar = _bash_allowlist_disclosure(authority)
     if resolved == _MODE_ENGINE_GATE:
+        reason = (
+            f"{_engine_mismatch_reason(command, authority)} "
+            if command is not None
+            else ""
+        )
         return (
             "Disk-hygiene engine gate: this specific engine invocation is "
-            "gated. The rest of the Bash lane is unaffected, and "
+            "gated. " + reason + "The rest of the Bash lane is unaffected, and "
             "/disk-hygiene:clean need not have been invoked for this to fire. "
-            "Allowed shapes for this invocation are "
+            + _engine_flag_order_rule()
+            + " "
+            + _ENGINE_GATE_SCOPE
+            + " Allowed shapes for this invocation are "
             + grammar
             + " Supporting inspection of this invocation may use that small "
             "Bash allowlist or non-Bash read-only tools; any other shape of "
@@ -2539,7 +2621,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         else "not-exact-engine-command",
         "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
         if denied_by_kill_switch
-        else _bash_denial_guidance(authority),
+        else _bash_denial_guidance(authority, command=command),
     )
 
 
