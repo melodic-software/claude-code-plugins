@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.3] - 2026-09-30
+
+### Added
+
+- **The interview page badges its title while the tab is hidden.** The title shows a count of new activity and notes that land while the tab is hidden, and the count clears when the tab is shown ([#5473](https://github.com/melodic-software/claude-code-plugins/issues/5473)).
+
+## [0.49.2] - 2026-09-30
+
+### Changed
+
+- **The `/goal` Boundary bullet in `draft-goal-condition` and the `/plan` bullet in `plan` no
+  longer assert that the command ships with Claude Code.** Each keeps the provenance class, what
+  the command does and how it is invoked, in the native-references template form.
+
+## [0.49.1] - 2026-09-30
+
+### Fixed
+
+- **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
 ## [0.49.0] - 2026-09-30
 
 ### Added

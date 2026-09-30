@@ -128,9 +128,10 @@ was 18 creations and 6 execs before #3512. Counts are measured with `strace -ff
 whose command carries its own redirection forks a subshell that xtrace cannot
 see, and those forks were most of the cost. `hook-failure-audit.test.sh`
 asserts both ceilings. Windows Git Bash, the host the convention binds to,
-measured S (the bash spawn floor) at 26 ms on 2026-09-30, but the
-hook-failure-audit wall there is still unmeasured for this row, so its
-spawn-equivalents (hook wall divided by the same-run S) are still owed.
+measured S (the bash spawn floor) at 29 ms on 2026-09-30, through the bash the
+launcher spawns (17 ms on the PATH bash), but the hook-failure-audit wall
+there is still unmeasured for this row, so its spawn-equivalents (hook wall
+divided by the same-run S) are still owed.
 
 `skill-usage-audit` is captured by two disjoint producers so both invocation
 paths are measured: the model-invoked `Skill` tool (`PostToolUse`) and the
@@ -224,8 +225,10 @@ the hook log root, `<project-root>/.observability/claude` by default (the
 `session_event_log_dir` option moves it). An envelope carrying
 `data.session_id` lands in `sessions/<session_id>.jsonl`, beside the
 per-session event log; one without lands in the shared `hook-events.jsonl`
-in the legacy shape. Both are what the `observability` skill reads. The root
-carries a self-ignoring `.gitignore`, created on the first write (or by
+in the legacy shape; that file rotates to `hook-events.jsonl.1` at
+`hook_events_max_bytes` whatever the session-log switch is set to. Both are
+what the `observability` skill reads. The root carries a self-ignoring
+`.gitignore`, created on the first write (or by
 `/claude-ops:setup apply`); rows left at the old
 `.claude/observability/hook-events.jsonl` location are detected by setup as
 retirement `claude-ops-r001` and migrated on request.
@@ -282,11 +285,11 @@ late-EOF stall, all through the launcher, are measured by
 [`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
 recorded in
 [`reference/hook-log-budget.md`](reference/hook-log-budget.md). On Windows Git
-Bash (2026-09-30), the kill-switch-off median is 71 ms against a 26 ms bash
-spawn floor (59 ms node floor). Thirty parallel events take 454 ms wall off and
-622 ms on. The 4 KB and 16 KB appends leave 0 corrupt lines out of 33. `ls -t`
-ties at one-second resolution there, so no ordering is claimed. Late-EOF costs
-389 ms. The switch stays off by default.
+Bash (2026-09-30), the kill-switch-off median is 60 ms against a 29 ms bash
+spawn floor through the launcher's bash (46 ms node floor). Thirty parallel
+events take 365 ms wall off and 453 ms on. The 4 KB and 16 KB appends leave 0
+corrupt lines out of 33. `ls -t` ties at one-second resolution there, so no
+ordering is claimed. Late-EOF costs 352 ms. The switch stays off by default.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
 hook, gated by the same switch, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
@@ -314,8 +317,8 @@ your own repository's context:
   the hook log root (`<project-root>/.observability/claude` by default, the
   `session_event_log_dir` option moves it): `sessions/<session_id>.jsonl`
   when the per-session event log is on or the sink is wired, and the shared
-  `hook-events.jsonl` for envelopes without a session id; every source
-  degrades gracefully when absent.
+  `hook-events.jsonl` (rotated to `.1` at the size cap) for envelopes without
+  a session id; every source degrades gracefully when absent.
 - **Persistent state** defaults to the plugin's own per-machine data directory
   (`${CLAUDE_PLUGIN_DATA}`): the known-issues registry
   (`registry.json`), `check-all` output, `--write` observability reports, and
@@ -441,6 +444,7 @@ reads it from.
 | `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty records every category the registry marks observable. |
 | `session_log_keep_sessions` | number<br>*min 1* | `30` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS` | At SessionEnd, keep the newest N session files regardless of age (a file is kept when it is among the newest N OR younger than session_log_keep_days). |
 | `session_log_keep_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS` | At SessionEnd, keep every session file younger than N days regardless of count (a file is kept when it is younger than N days OR among the newest session_log_keep_sessions). |
+| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | The telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1 (replacing any older .1) when it exceeds this many bytes, so the pair stays near twice this value. Applies whether or not the per-session event log is enabled. Read only when a claude-ops hook emits the envelope: an emitter in another plugin that runs the sink keeps the 10485760 default. A value above 999999999999999999 is ignored and the default applies. |
 | `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Optional command run detached at SessionEnd with one argument, a directory the session files about to be pruned were moved into; the physical delete of that directory happens on the next retention run after 24 hours, so an archiver has a stable set to read. Executed through `bash -c`, so it is trusted configuration: on current releases project and local pluginConfigs are ignored and only the user's own settings supply it (recheck: the plugins reference's user-configuration section). Leave unset to delete directly. |
 
 ### How to set these

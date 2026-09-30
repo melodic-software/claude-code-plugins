@@ -44,6 +44,14 @@ assert_contains "16 KB append" "$OUT" "append_16kb_corrupt: "
 assert_contains "ls -t order" "$OUT" "ls_t_order: "
 assert_contains "late-EOF" "$OUT" "late_eof_ms: "
 assert_contains "record file matches stdout" "$(cat "$TEST_TMPDIR/capture.txt")" "bash_spawn_floor_median_ms: "
+assert_contains "launcher bash path" "$OUT" "launcher_bash_path: "
+assert_contains "invoking bash path" "$OUT" "invoking_bash_path: "
+launcher_bash="$(sed -n 's/^launcher_bash_path: //p' <<<"$OUT")"
+if [[ -n "$launcher_bash" && "$launcher_bash" != unresolved ]]; then
+  pass "launcher resolved a bash ($launcher_bash)"
+else
+  fail "launcher resolved no bash" "launcher_bash_path=$launcher_bash"
+fi
 
 case "${OSTYPE:-}" in
 msys* | cygwin*)
