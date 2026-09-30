@@ -17,9 +17,12 @@
 # Adoption: classify and finish are used by check-shell-portability,
 # check-skill-portability, check-skill-precompute-compose, check-changed-skills,
 # check-stale-base-overlap, check-vendor-version-bump, check-contract-slice-prune,
-# and check-changelog-parity. Only require_base is used by
-# check-guardrails-ps-differential. affected-tests, check-docs-only, and
-# check-skill-description-voice still dispatch modes and map exits themselves.
+# and check-changelog-parity. check-guardrails-ps-differential uses only
+# require_base. Three gates stay outside:
+#   check-docs-only                exits 0 on every fail-closed path, an
+#                                  unresolvable ref included, so the full suite runs
+#   affected-tests                 exits 0, 1, 2, or 3, not the 0/1/2 map above
+#   check-skill-description-voice  keeps its own dispatch and exit mapping
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/gate-entry.sh is sourced-only\n' >&2
