@@ -562,11 +562,11 @@ function map_scope(sc,    f, i, rp, type, lt, id, nm, n, k, gs, eg, cp, c, img, 
     } else if (lt == "microsoft.web/sites") {
       fx = "properties.siteConfig.linuxFxVersion"
       if (!field(f, rp fx)) fx = "properties.siteConfig.windowsFxVersion"
-      if (!field(f, rp fx)) { note_unmapped(tool, RTYPE[f, rp] " without a container image", f); continue }
+      if (!field(f, rp fx)) { note_unmapped(tool, RTYPE[f, rp], f); continue }
       raw = FV
       img = get(sc, rp fx, "")
       if (img ~ /^DOCKER[|]/) img = substr(img, 8)
-      else if (index(toupper(raw), "DOCKER|") == 0) { note_unmapped(tool, RTYPE[f, rp] " without a container image", f); continue }
+      else if (index(toupper(raw), "DOCKER|") == 0) { note_unmapped(tool, RTYPE[f, rp], f); continue }
       if (RES_SEC) img = "[redacted]"
       c = show(sc, rp "name", RSYM[f, rp])
       cl = compute_ref(sc, rp "properties.serverFarmId", "microsoft.web/serverfarms")

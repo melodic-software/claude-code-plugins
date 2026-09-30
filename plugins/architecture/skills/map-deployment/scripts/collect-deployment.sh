@@ -367,7 +367,8 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     add_tool terraform yes "$rel"
     shipped=1
     # A Helm release declared in Terraform is Helm, which this skill does not read.
-    if grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:' "$repo/$rel"; then
+    if awk 'BEGIN { RS = "\001" } { gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, ""); print }' "$repo/$rel" |
+      grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:'; then
       add_tool helm no "$rel (helm_release)"
       unshipped=1
     fi
@@ -452,7 +453,10 @@ env_of_compose() {
 # environment named for the directory. Any other file beside them has no
 # declared place in the merge, so the record is refused naming it.
 in_dir() {
-  if [[ "$1" == "." ]]; then printf '%s' "$2"; else printf '%s/%s' "$1" "$2"; fi
+  local name="$2"
+  while [[ "$name" == ./* ]]; do name="${name#./}"; done
+  name="${name//\/.\//\/}"
+  if [[ "$1" == "." ]]; then printf '%s' "$name"; else printf '%s/%s' "$1" "$name"; fi
 }
 : >"$TMP/compose-layers.txt"
 while IFS= read -r dir || [[ -n "$dir" ]]; do

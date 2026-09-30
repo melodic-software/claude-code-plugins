@@ -169,8 +169,11 @@ summary="$(
         else if (t ~ /^"[a-z_]+": \[$/) die("unknown array " t)
       }
       if (status != "drawn" && status != "refused") die("status is missing")
-      ne = count["environments"] + 0
-      for (i = 1; i <= ne; i++) env_name[i] = jget(held["environments", i], "environment")
+      ne = 0
+      for (i = 1; i <= count["environments"] + 0; i++) {
+        e = jget(held["environments", i], "environment")
+        if (!(e in env_seen)) { env_seen[e] = 1; env_name[++ne] = e }
+      }
       exit_code = 0
       if (status == "drawn") {
         nreq = split(env_filter "\n" diff_a "\n" diff_b, req, "\n")

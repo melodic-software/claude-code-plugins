@@ -1276,7 +1276,7 @@ bash "$COLLECT" --repo "$repoB" --out "$TEST_TMPDIR/bicep.json" --generated-on 2
 assert_equals "bicep collect exits 0" "$?" "0"
 brec="$(cat "$TEST_TMPDIR/bicep.json")"
 assert_contains "bicep record is drawn" "$brec" '"status": "drawn"'
-assert_contains "a site with no container image is listed as unmapped" "$brec" '{"tool":"bicep","type":"Microsoft.Web/sites without a container image","evidence":"infra/modules/web.bicep"}'
+assert_contains "a site with no container image is listed as unmapped" "$brec" '{"tool":"bicep","type":"Microsoft.Web/sites","evidence":"infra/modules/web.bicep"}'
 assert_equals "only the site that reads no image is unmapped" "$(grep -c '{"tool":"bicep","type"' "$TEST_TMPDIR/bicep.json")" "1"
 assert_contains "a bicepparam file is an environment" "$brec" '"environment":"prod","tool":"bicep","evidence":"infra/main.bicep, infra/main.prod.bicepparam"'
 assert_contains "the other bicepparam file is an environment" "$brec" '"environment":"staging","tool":"bicep"'
@@ -2272,6 +2272,25 @@ assert_contains "a Pulumi Helm release names helm as declined" "$unm_rec" '"name
 
 unm_check "$repo"
 assert_contains "a Compose record reports no unmapped resource" "$unm_sum" "unmapped=0"
+
+# A helm_release inside a Terraform block comment is not a Helm release.
+unm_fixture tf-helm-comment main.tf $'/*\nresource "helm_release" "old" {\n  name = "old"\n}\n*/\nresource "azurerm_container_app" "api" {\n  name = "api"\n  template {\n    container {\n      name  = "api"\n      image = "ghcr.io/acme/api:1"\n    }\n  }\n}'
+unm_check "$TEST_TMPDIR/unm-tf-helm-comment"
+assert_contains "a commented helm_release leaves the Terraform root drawn" "$unm_rec" '"status": "drawn"'
+assert_not_contains "a commented helm_release names no helm tool" "$unm_rec" '"name":"helm"'
+
+# COMPOSE_FILE entries spelled with a leading ./ name the tracked files.
+unm_fixture compose-dot-slash compose.yaml $'services:\n  web:\n    image: nginx:1' compose.prod.yaml $'services:\n  web:\n    image: nginx:2' .env $'COMPOSE_FILE=./compose.yaml:./compose.prod.yaml'
+unm_check "$TEST_TMPDIR/unm-compose-dot-slash"
+assert_contains "COMPOSE_FILE entries with a leading ./ merge" "$unm_rec" '"status": "drawn"'
+assert_contains "the later ./ layer overrides the image" "$unm_rec" 'nginx:2'
+
+# Two tools that name the same environment draw one environment with each container once.
+unm_fixture same-env compose.yaml $'services:\n  web:\n    image: nginx:1' main.tf $'resource "azurerm_container_app" "api" {\n  name = "api"\n  template {\n    container {\n      name  = "api"\n      image = "ghcr.io/acme/api:1"\n    }\n  }\n}'
+unm_check "$TEST_TMPDIR/unm-same-env"
+assert_contains "two tools in one environment place each container once" "$unm_sum" "placements=2"
+assert_equals "one default environment is drawn" "$(grep -c "= environment 'default'" <<<"$unm_md")" "1"
+assert_equals "each container is an instanceOf once" "$(grep -c 'instanceOf' <<<"$unm_md")" "2"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
