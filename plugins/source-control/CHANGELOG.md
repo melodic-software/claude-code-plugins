@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.1] - 2026-09-29
+
+### Changed
+
+- **README moves the Node.js requirement into a Requirements section.** The statement is unchanged: without `node` on `PATH` the hooks do not launch.
+
 ## [0.63.0] - 2026-09-29
 
 ### Added

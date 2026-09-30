@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.4] - 2026-09-29
+
+### Changed
+
+- **README declares the Node.js requirement.** A Requirements section states that every hook row launches through `node`, and that a missing `node` is a hook launch error. `/testing:setup` checks it.
+
 ## [0.11.3] - 2026-09-29
 
 ### Fixed

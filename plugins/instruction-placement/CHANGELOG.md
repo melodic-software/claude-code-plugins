@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-09-29
+
+### Changed
+
+- **README declares the Node.js requirement.** A Requirements section states that every hook row launches through `node`, and that a missing `node` is a hook launch error. `/instruction-placement:setup` checks it.
+
 ## [0.16.0] - 2026-09-29
 
 ### Added
