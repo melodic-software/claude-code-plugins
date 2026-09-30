@@ -345,6 +345,17 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
   }
+  if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
+    await page.addInitScript(() => { for (const [k, v] of [["hidden", true], ["visibilityState", "hidden"]]) Object.defineProperty(document, k, {configurable: true, get: () => v}); });
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(900);
+    ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());
+  }
+  if (PHASE === 13) { // the shell added one activity entry after the page loaded hidden
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+  }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }
