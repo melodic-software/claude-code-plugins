@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
+## [0.47.4] - 2026-09-29
+
+### Fixed
+
+- **Interview surface question cards keep their badge row in column 2** when a question has several `dependsOn` entries. `.qid` spanned a fixed three rows while the card emitted a variable number of needs lines, so the badges landed in the emptied left column and squeezed the title ([#5191](https://github.com/melodic-software/claude-code-plugins/issues/5191)).
+
 ## [0.47.3] - 2026-09-29
 
 ### Added
