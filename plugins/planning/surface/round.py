@@ -350,7 +350,7 @@ def warn_stale_summaries(doc, qs):
         if added:
             warn(
                 f"group {gid} summary predates {len(added)} questions; refresh it with: "
-                f"round.py group --id {gid} --summary ..."
+                f"round.py group {gid} --summary ..."
             )
 
 
