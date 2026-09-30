@@ -187,7 +187,10 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     rest = substr(rest, cut)
     if ((redact_local_http + 0) && rest != "" && substr(rest, 1, 1) != "/") {
       query = substr(rest, 2)
-      if (match(query, /^[A-Za-z][A-Za-z0-9+.-]*:\/\//)) query = substr(query, 1, RSTART - 1)
+      if (substr(rest, 1, 1) ~ /[ \t\r\n]/) {
+        sub(/^[ \t\r\n]+/, "", query)
+        if (match(query, /^[A-Za-z][A-Za-z0-9+.-]*:\/\//)) query = ""
+      }
       if (index(query, "@") > 0) continue
     }
     if (index(auth, "@") > 0) sub(/^.*@/, "", auth)
