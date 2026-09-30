@@ -23,7 +23,8 @@ Subcommands (standard library only; every input is a file the caller produced):
       missing previous summary is a baseline run: no surface diff, no new
       candidates, triggers on state still evaluated. More than --max-items
       items (default 10) adds an `overflow` item that stands for the batch.
-      Every fact is clipped to FACT_CHARS. When `--store` names no file, the
+      Every fact is one backtick-free line clipped to FACT_CHARS, and each item's
+      `quote` is the facts block a filed body carries. When `--store` names no file, the
       run is report-only (`report_only: true`), the same condition under which
       `overlap.py self-check` declares report-only mode: `items` is empty, the
       would-be items are in `unfiled`, and there is no `overflow`.
@@ -76,9 +77,27 @@ def _objects(value: Any) -> bool:
     return isinstance(value, list) and all(isinstance(v, dict) for v in value)
 
 
+def _str_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(v, str) for v in value)
+
+
+def _strs(value: Any) -> bool:
+    return value is None or _str_list(value)
+
+
+def _record_ok(rec: Any) -> bool:
+    """A summary's surface record: the diff reads these without a guard."""
+    return (
+        isinstance(rec, dict)
+        and _str_list(rec.get("aliases", []))
+        and _str_list(rec.get("markers", []))
+        and isinstance(rec.get("description", ""), str)
+    )
+
+
 def shape_error(kind: str, data: Any) -> str | None:
-    """Why a parsed input lacks the shape its kind needs, or None. Checks only
-    what the code below reads without a type guard."""
+    """Why a parsed input lacks the shape its kind needs, or None. Checks
+    containers and the leaf types the code below reads without a type guard."""
     if not isinstance(data, dict):
         return f"top level is {type(data).__name__}, not an object"
     bad: list[str] = []
@@ -93,6 +112,14 @@ def shape_error(kind: str, data: Any) -> str | None:
             _opt(v, dict) for v in (lanes or {}).values()
         ):
             bad.append("integrity.lanes")
+        for lane in ("builtin_commands", "bundled_skills", "bundled_workflows"):
+            entries = data.get(lane) if isinstance(data.get(lane), dict) else {}
+            if not all(
+                _strs(r.get("aliases"))
+                for e in entries.values()
+                for r in registrations(e)
+            ):
+                bad.append(f"{lane} registrations")
     elif kind == "summary":
         if data.get("schema") != SCHEMA:
             return f"not a schema-{SCHEMA} native_drift summary"
@@ -108,20 +135,25 @@ def shape_error(kind: str, data: Any) -> str | None:
         ):
             bad.append("integrity.advisories")
         if not isinstance(surfaces, dict) or not all(
-            isinstance(names, dict) and all(isinstance(r, dict) for r in names.values())
+            isinstance(names, dict) and all(_record_ok(r) for r in names.values())
             for names in surfaces.values()
         ):
             bad.append("surfaces")
         if not _opt(docs, dict) or not _opt((docs or {}).get("names"), dict):
             bad.append("docs")
-        bad += [
-            k
-            for k, t in (("detect", dict), ("candidates", list))
-            if not _opt(data.get(k), t)
-        ]
+        if not _opt(data.get("detect"), dict):
+            bad.append("detect")
+        if not _strs(data.get("candidates")):
+            bad.append("candidates")
     elif kind == "detect":
-        bad = [k for k in ("discovery", "integrity") if not _opt(data.get(k), dict)]
-        candidates = data.get("candidates") or []
+        # Required, not optional: a summary with a detect block becomes the
+        # candidate baseline, so `{}` would mark every later candidate new.
+        if data.get("schema") != 1:
+            return "not a schema-1 overlap.py detect report"
+        bad = [
+            k for k in ("discovery", "integrity") if not isinstance(data.get(k), dict)
+        ]
+        candidates = data.get("candidates")
         if not _objects(candidates) or not all(
             _opt(c.get("native"), dict)
             and _opt(c.get("component"), dict)
@@ -130,6 +162,8 @@ def shape_error(kind: str, data: Any) -> str | None:
         ):
             bad.append("candidates")
     elif kind == "store":
+        if data.get("schema") != 1:
+            return "not a schema-1 overlap store"
         rows = data.get("rows")
         if not _objects(rows) or not all(
             _opt(r.get(k), dict)
@@ -137,6 +171,13 @@ def shape_error(kind: str, data: Any) -> str | None:
             for k in ("native", "component", "observation", "recheck")
         ):
             bad.append("rows")
+        elif not all(
+            _opt(n.get("name"), str)
+            and _opt(n.get("class"), str)
+            and _strs(n.get("markers"))
+            for n in (r.get("native") or {} for r in rows)
+        ):
+            bad.append("rows[].native")
     return f"wrong shape: {', '.join(bad)}" if bad else None
 
 
@@ -149,7 +190,9 @@ def load(path: str | None, kind: str, *, required: bool = True) -> Any:
         return None
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
+        # ValueError covers JSONDecodeError, UnicodeDecodeError and an integer
+        # literal past the interpreter's digit limit.
         raise InputError(f"unreadable input {path}: {exc}") from exc
     error = shape_error(kind, data)
     if error:
@@ -309,8 +352,17 @@ def candidate_key(candidate: dict[str, Any]) -> str:
 
 
 def clip(text: Any) -> str:
-    text = str(text)
+    """A fact as one line with no backticks, at most FACT_CHARS: facts are
+    upstream data a filed body quotes, so none may start a line of its own
+    (a forged `Drift key:` line) or close the code span that holds it."""
+    text = " ".join(str(text).split()).replace("`", "'")
     return text if len(text) <= FACT_CHARS else text[: FACT_CHARS - 3] + "..."
+
+
+def quote(facts: list[str]) -> str:
+    """The body's facts block: each clipped fact in a code span on a quoted
+    line, so a mention (`@name`) or reference (`#12`) inside it stays inert."""
+    return "\n".join(f"> `{fact}`" for fact in facts)
 
 
 def has_key(body: str, key: str) -> bool:
@@ -523,7 +575,8 @@ def diff(
     detect: Any,
     self_check_exit: int,
     max_items: int = MAX_ITEMS,
-    report_only: bool = False,
+    *,
+    report_only: bool,
 ) -> dict[str, Any]:
     surface = diff_surfaces(prev, cur) if prev else None
     renames = {r["from"]: r["to"] for r in (surface or {}).get("renamed", [])}
@@ -652,6 +705,8 @@ def diff(
             ]
             + [clip(f"{i['kind']}: {i['key']}") for i in items],
         }
+    for item in [*items, *unfiled, *([overflow] if overflow else [])]:
+        item["quote"] = quote(item["facts"])
 
     return {
         "schema": SCHEMA,
@@ -713,30 +768,29 @@ def main(argv: list[str] | None = None) -> int:
                 raise InputError(f"unreadable input {args.body}: {exc}") from exc
             return 0 if has_key(body, args.key) else 1
         if args.command == "summarize":
-            write(
-                summarize(
-                    load(args.inventory, "inventory"),
-                    load(args.detect, "detect", required=False),
-                ),
-                args.out,
+            payload = summarize(
+                load(args.inventory, "inventory"),
+                load(args.detect, "detect", required=False),
             )
         else:
             store = load(args.store, "store", required=False)
-            write(
-                diff(
-                    load(args.current, "summary"),
-                    load(args.previous, "summary", required=False),
-                    store,
-                    load(args.detect, "detect", required=False),
-                    args.self_check_exit,
-                    args.max_items,
-                    report_only=store is None,
-                ),
-                args.out,
+            payload = diff(
+                load(args.current, "summary"),
+                load(args.previous, "summary", required=False),
+                store,
+                load(args.detect, "detect", required=False),
+                args.self_check_exit,
+                args.max_items,
+                report_only=store is None,
             )
     except InputError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except (TypeError, AttributeError) as exc:
+        # Backstop for a shape shape_error does not check: still an input error.
+        print(f"error: an input has an unexpected shape: {exc}", file=sys.stderr)
+        return 2
+    write(payload, args.out)
     return 0
 
 

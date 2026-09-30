@@ -14,6 +14,13 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`native_drift.py` rejects wrong-shaped JSON with exit `2`**: a summary, detect report, store
   or inventory that parsed but lacked its shape (a top-level `[]`, a string where an object
   belongs) raised a traceback with exit `1`.
+- **`native_drift.py` hardens its inputs and the facts it hands a filed body**: leaf types
+  (aliases, markers, descriptions, store row names and classes, candidate keys), the store's and
+  the detect report's schema and required fields, deeply nested JSON and oversized integer
+  literals all exit `2`, and any type error left over exits `2` rather than a traceback. Each fact
+  is one line without backticks, and each item carries a `quote` block that sets every fact in a
+  code span, so upstream text cannot forge a `Drift key:` line and suppress a filing. `diff` has
+  no default for `report_only`.
 - **`inventory --docs` stops reading the tools table at the next heading**: when the table's rows
   stopped matching (tool names without backticks), the parser read on through the page and took a
   later backticked row as the table, reporting every tool `undocumented` instead of the block
