@@ -1477,6 +1477,46 @@ class TestRebuild(unittest.TestCase):
         self.assertEqual(history["Q1"][1]["alt"], "0")
 
 
+class TestGroupSummaryOf(DirCase):
+    """A group summary records the questions it was written for and warns when they change."""
+
+    def add_group(self, summary):
+        rc, out, err = self.rp("group", "g3", "--title", "T", "--summary", summary)
+        self.assertEqual(rc, 0, out + err)
+
+    def add(self, qid):
+        return self.rp("add", "--file", self.file("q.json", question(qid, group="g3")))
+
+    def test_a_summary_rewrite_records_the_members(self):
+        self.add_group("First take.")
+        self.assertEqual(self.add("Q4")[0], 0)
+        self.assertEqual(self.add("Q5")[0], 0)
+        self.add_group("Second take.")
+        g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
+        self.assertEqual(g3["summaryOf"], ["Q4", "Q5"])
+
+    def test_a_question_added_after_the_summary_warns_and_keeps_summary_of(self):
+        self.add_group("Take.")
+        self.add("Q4")
+        self.add_group("Take.")
+        rc, out, err = self.add("Q5")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("group g3 summary predates 1 questions", err)
+        g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
+        self.assertEqual(g3["summaryOf"], ["Q4"])
+
+    def test_add_round_with_summary_and_questions_records_them_without_warning(self):
+        spec = {
+            "groups": [{"id": "g3", "title": "T", "summary": "Take."}],
+            "questions": [question("Q4", group="g3"), question("Q5", group="g3")],
+        }
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("summary predates", err)
+        g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
+        self.assertEqual(g3["summaryOf"], ["Q4", "Q5"])
+
+
 class TestMeta(DirCase):
     """`add-round` meta and the `meta` op: title, eyebrow, stages, next; nothing else."""
 

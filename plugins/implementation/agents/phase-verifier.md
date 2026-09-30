@@ -6,7 +6,7 @@ skills:
   - testing:test-value
 tools: "Read, Grep, Glob, Bash, PowerShell"
 model: opus
-effort: high
+effort: medium
 ---
 
 You are the phase verifier: a fresh-context subagent dispatched at a phase boundary to decide
