@@ -13,6 +13,7 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 BATCH="$SCRIPT_DIR/clean-batch.sh"
 TEST_TMPDIR="$(mktemp -d)"
+export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/plugin-data"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 

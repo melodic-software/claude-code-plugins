@@ -26,9 +26,10 @@
 #   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
 #                  [--repo DIR...]... [--repos-from FILE|-]...
 #                  [--skip ENTRY]... [--skip-from FILE]...
-#                  [--batch-plan FILE] [--help]
+#                  [--batch-plan FILE] [--list-paths-max N] [--help]
 # --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
-# mktemp dir). Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
+# durable per-repo-set dir under ${CLAUDE_PLUGIN_DATA:-~/.claude/plugins/data/repo-hygiene}).
+# Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
 # plan, and --apply / --batch-plan with it are usage errors.
 #
 # Exit: 0 ran to completion (skips/blocks are normal outcomes);
@@ -51,7 +52,7 @@ Usage:
   clean-batch.sh --tier <scan|caches|build|git|all> [--dry-run|--apply]
                  [--repo DIR...]... [--repos-from FILE|-]...
                  [--skip ENTRY]... [--skip-from FILE]...
-                 [--batch-plan FILE] [--help]
+                 [--batch-plan FILE] [--list-paths-max N] [--help]
 
 Default: --dry-run (inventory only; writes a batch plan, no mutations).
 
@@ -81,11 +82,19 @@ Skip list (separator-agnostic; entry = absolute path, owner/repo, or repo):
 Gate:
   --dry-run          write a batch plan; print per-repo Outcome/Reason (a repo
                      with nothing to remove reports `nothing-to-do`), a
-                     `Repo | Outcome | Paths | Bytes` table, a `BatchPlan: <path>`
-                     line, and `Summary: repos=N planned=P
-                     bytes=K` (gitdirs=G for git/all). NEVER mutates.
+                     `Repo | Outcome | Paths | Bytes` table, the planned paths
+                     per repo (largest first, read from the same manifests
+                     apply consumes; capped, with an `N more, see plan file:
+                     <path>` tail), a `BatchPlan: <path>` line, and `Summary:
+                     repos=N planned=P bytes=K` (gitdirs=G for git/all). NEVER
+                     mutates.
   --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
-                     instead of a mktemp dir.
+                     instead of the default. The default is one directory per
+                     tier and repo set under ${CLAUDE_PLUGIN_DATA} (else
+                     ~/.claude/plugins/data/repo-hygiene): a repeat dry-run of
+                     the same set replaces its previous plan and manifests.
+  --list-paths-max N per-repo cap on the dry-run path listing (default 20;
+                     0 lists none).
   --apply --batch-plan P
                      apply the gated plan P from a prior dry-run. Required: apply
                      without --batch-plan is a usage error (the gate is mandatory).
@@ -109,6 +118,7 @@ TIER=""
 DRY_RUN=1
 APPLY_GIVEN=0
 BATCH_PLAN_ARG=""
+LIST_MAX=20
 REPO_INPUTS=()
 
 while [[ $# -gt 0 ]]; do
@@ -126,6 +136,11 @@ while [[ $# -gt 0 ]]; do
   --batch-plan)
     [[ $# -ge 2 ]] || fail_usage "--batch-plan requires a file"
     BATCH_PLAN_ARG="$2"
+    shift
+    ;;
+  --list-paths-max)
+    [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || fail_usage "--list-paths-max requires a non-negative integer"
+    LIST_MAX="$2"
     shift
     ;;
   --repo)
@@ -454,12 +469,22 @@ batch_reset_gitdirs
 
 # Batch plan + per-repo manifests live in one dir so they bundle and clean up
 # together; honor an explicit --batch-plan location for a stable, resumable path.
+# The default dir is keyed to the tier and the sorted repo set, so a repeat dry-run
+# of the same set lands on the same path and replaces its stale plan and manifests.
 if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
 else
-  PLAN_DIR="$(mktemp -d 2>/dev/null)" || PLAN_DIR="${TMPDIR:-/tmp}/clean-batch.$$"
+  DATA_DIR="${CLAUDE_PLUGIN_DATA:-}"
+  if [[ -z "$DATA_DIR" ]]; then
+    [[ -n "${HOME:-}" ]] || fail_usage "cannot place the batch plan: neither CLAUDE_PLUGIN_DATA nor HOME is set (use --batch-plan FILE)"
+    DATA_DIR="$HOME/.claude/plugins/data/repo-hygiene"
+  fi
+  SET_KEY="$(printf '%s\n' "${BATCH_TOPS[@]}" | LC_ALL=C sort | cksum | cut -d' ' -f1)"
+  PLAN_DIR="$DATA_DIR/clean-batch/$TIER-$SET_KEY"
   PLAN="$PLAN_DIR/plan"
+  mkdir -p "$PLAN_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_DIR"
+  rm -f "$PLAN" "$PLAN_DIR"/*.manifest
 fi
 # Refuse to truncate an unrelated file: a typo'd --batch-plan path must not
 # silently destroy user data. An existing target is overwritten only when it is
@@ -489,6 +514,8 @@ ROW_TOPS=()
 ROW_OUTCOMES=()
 ROW_PATHS=()
 ROW_BYTES=()
+LIST_TOPS=()
+LIST_MANIFESTS=()
 # add_row <top> <outcome> <paths> <bytes>: one summary-table row per repo.
 add_row() {
   ROW_TOPS+=("$1")
@@ -570,6 +597,10 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     PLANNED=$((PLANNED + planned))
     PLAN_BYTES=$((PLAN_BYTES + bytes))
     printf 'REPO\t%s\t%s\t%s\n' "$top" "$tok" "$manifest" >>"$PLAN"
+    if [[ "$planned" -gt 0 && -s "$manifest" ]]; then
+      LIST_TOPS+=("$top")
+      LIST_MANIFESTS+=("$manifest")
+    fi
     reason_parts+=("$tok: $planned path(s), $(clean_human_size "$bytes")")
   fi
 
@@ -617,6 +648,22 @@ printf 'Repo | Outcome | Paths | Bytes\n'
 for ((i = 0; i < ${#ROW_TOPS[@]}; i++)); do
   printf '%s | %s | %s | %s\n' "${ROW_TOPS[$i]}" "${ROW_OUTCOMES[$i]}" "${ROW_PATHS[$i]}" "$(clean_human_size "${ROW_BYTES[$i]}")"
 done
+
+# Planned paths per repo, read from the manifests apply consumes, so the gate
+# names exactly the set shown. Largest first; manifest lines are class<TAB>bytes<TAB>rel.
+if [[ "$LIST_MAX" -gt 0 ]]; then
+  for ((i = 0; i < ${#LIST_TOPS[@]}; i++)); do
+    total="$(grep -c . "${LIST_MANIFESTS[$i]}")"
+    printf 'Paths: %s\n' "${LIST_TOPS[$i]}"
+    LC_ALL=C sort -t$'\t' -k2,2nr "${LIST_MANIFESTS[$i]}" | head -n "$LIST_MAX" |
+      while IFS=$'\t' read -r cls bytes rel; do
+        printf '  %s | %s | %s\n' "$rel" "$cls" "$(clean_human_size "${bytes:-0}")"
+      done
+    if [[ "$total" -gt "$LIST_MAX" ]]; then
+      printf '  %s more, see plan file: %s\n' "$((total - LIST_MAX))" "$PLAN"
+    fi
+  done
+fi
 
 printf 'BatchPlan: %s\n' "$PLAN"
 if tier_has_git; then
