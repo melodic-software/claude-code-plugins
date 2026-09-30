@@ -1174,6 +1174,51 @@ def children_rollup(
     unknown with no more specific cause falls back to the bare ``not-walked``,
     the same qualifier the flat entry carries.
     """
+    totals: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        accumulate_child_rollup(totals, entry)
+    return child_rollup_rows(totals, unknown_paths, unwalked_reasons)
+
+
+def accumulate_child_rollup(
+    totals: dict[str, dict[str, Any]], entry: dict[str, Any]
+) -> None:
+    """Fold one inventory record into its immediate child's accumulator.
+
+    Keeps only the child's own kind and logical size, never the record, so a
+    caller that feeds records one at a time need not retain them.
+    """
+    relative = entry.get("path")
+    # `.` is the target itself, never one of its children: `scan_tree` keeps
+    # the target's record out of the inventory, and the same skip in the gap
+    # loop keeps a target-level truncation from inventing a `.` child row.
+    if not isinstance(relative, str) or not relative or relative == ".":
+        return
+    name = child_rollup_name(relative)
+    bucket = totals.setdefault(name, empty_child_rollup_bucket())
+    if relative == name:
+        bucket["self"] = {
+            "kind": entry.get("kind"),
+            "logical_size": entry.get("logical_size"),
+        }
+    else:
+        bucket["descendants"] = bucket["descendants"] + 1
+    mtime = entry.get("mtime_ns")
+    if isinstance(mtime, int):
+        newest = bucket["newest"]
+        bucket["newest"] = mtime if newest is None else max(newest, mtime)
+    bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
+    local = entry_reclaimable_local_bytes(entry)
+    if local is not None:
+        bucket["reclaimable"] = bucket["reclaimable"] + local
+
+
+def child_rollup_rows(
+    totals: dict[str, dict[str, Any]],
+    unknown_paths: Iterable[str] = (),
+    unwalked_reasons: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """The per-child rows ``children_rollup`` documents, from accumulated totals."""
     reasons = unwalked_reasons or {}
     gaps: dict[str, set[str]] = {}
     for path in unknown_paths:
@@ -1183,28 +1228,6 @@ def children_rollup(
         gaps.setdefault(name, set()).add(
             reasons.get(path, "not-walked") if path == name else "descendant-not-walked"
         )
-    totals: dict[str, dict[str, Any]] = {}
-    for entry in entries:
-        relative = entry.get("path")
-        # `.` is the target itself, never one of its children: `scan_tree` keeps
-        # the target's record out of `entries`, and the same skip in the gap loop
-        # above keeps a target-level truncation from inventing a `.` child row.
-        if not isinstance(relative, str) or not relative or relative == ".":
-            continue
-        name = child_rollup_name(relative)
-        bucket = totals.setdefault(name, empty_child_rollup_bucket())
-        if relative == name:
-            bucket["self"] = entry
-        else:
-            bucket["descendants"] = bucket["descendants"] + 1
-        mtime = entry.get("mtime_ns")
-        if isinstance(mtime, int):
-            newest = bucket["newest"]
-            bucket["newest"] = mtime if newest is None else max(newest, mtime)
-        bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
-        local = entry_reclaimable_local_bytes(entry)
-        if local is not None:
-            bucket["reclaimable"] = bucket["reclaimable"] + local
     rows: list[dict[str, Any]] = []
     for name in sorted(set(totals) | set(gaps)):
         bucket = totals.get(name) or empty_child_rollup_bucket()
@@ -1941,6 +1964,15 @@ def scan_tree(
     sizes_only: bool = False,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
+    # A sizes-only walk keeps no per-path record: each path folds straight into
+    # these running totals, so memory follows the immediate children rather than
+    # the tree.
+    child_totals: dict[str, dict[str, Any]] = {}
+    empty_directories: set[str] = set()
+    inventoried = 0
+    reclaimable_total = 0
+    empty_files = 0
+    not_walked_paths: set[str] = set()
     errors: list[dict[str, str]] = []
     truncated: list[str] = []
     # Why each uninventoried path is uninventoried, so the per-child roll-up can
@@ -1960,6 +1992,7 @@ def scan_tree(
         allowed_root_children = {name.casefold() for name in root_children}
 
     def visit(directory: Path, depth: int = 1) -> int | None:
+        nonlocal inventoried, reclaimable_total, empty_files
         total = 0
         try:
             with os.scandir(directory) as iterator:
@@ -1992,6 +2025,7 @@ def scan_tree(
             )
             if consumer_matches:
                 protections.append("consumer-protected-path")
+            descendants = 0
             try:
                 if is_linkish(path):
                     kind = "link"
@@ -2032,7 +2066,9 @@ def scan_tree(
                         else:
                             subtotal = 0
                     else:
+                        before = inventoried
                         subtotal = visit(path, depth + 1)
+                        descendants = inventoried - before
                         if subtotal is None:
                             # scandir failed inside this child: unknown, not empty.
                             walked = False
@@ -2058,8 +2094,21 @@ def scan_tree(
                     f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
                     "--max-depth or split the audit into bounded subtrees"
                 )
+            inventoried += 1
+            if "not-walked" in data["size_qualifiers"]:
+                not_walked_paths.add(relative)
             if sizes_only:
-                entries.append({"path": relative, **data})
+                record = {"path": relative, **data}
+                accumulate_child_rollup(child_totals, record)
+                reclaimable_total += entry_reclaimable_local_bytes(record) or 0
+                if kind == "file" and data["logical_size"] == 0:
+                    empty_files += 1
+                if (
+                    descendants == 0
+                    and kind == "directory"
+                    and entry_is_empty_directory(record, parents_with_children=set())
+                ):
+                    empty_directories.add(relative)
             else:
                 entries.append(
                     {
@@ -2070,8 +2119,8 @@ def scan_tree(
                         **protection_matches_field(consumer_matches),
                     }
                 )
-            if len(entries) % 25_000 == 0:
-                print(f"scanned {len(entries)} entries...", file=sys.stderr)
+            if inventoried % 25_000 == 0:
+                print(f"scanned {inventoried} entries...", file=sys.stderr)
         return total
 
     total_size = visit(target)
@@ -2083,7 +2132,6 @@ def scan_tree(
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
-    reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -2100,15 +2148,21 @@ def scan_tree(
     # Everything the walk could not fully account for, from all three places it
     # can be recorded: an explicit truncation, a scan error (which never adds a
     # truncation and can leave no entry at all), and a `not-walked` record.
-    unknown_paths = (
-        set(truncated)
-        | error_paths
-        | {
-            entry["path"]
-            for entry in entries
-            if "not-walked" in (entry.get("size_qualifiers") or [])
-        }
-    )
+    unknown_paths = set(truncated) | error_paths | not_walked_paths
+    if sizes_only:
+        reclaimable = reclaimable_total
+        empty_directories_total = len(empty_directories - error_paths)
+        empty_files_total = empty_files
+        rollup_rows = child_rollup_rows(child_totals, unknown_paths, unwalked_reasons)
+    else:
+        reclaimable = reclaimable_local_bytes(entries)
+        empty_directories_total = empty_directory_count(
+            entries, error_paths=error_paths
+        )
+        empty_files_total = empty_file_count(entries)
+        rollup_rows = children_rollup(
+            entries, unknown_paths=unknown_paths, unwalked_reasons=unwalked_reasons
+        )
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -2119,10 +2173,8 @@ def scan_tree(
         "target_identity": target_identity,
         "target_logical_bytes": total_size,
         "target_reclaimable_local_bytes": reclaimable,
-        "empty_directory_count": empty_directory_count(
-            entries, error_paths=error_paths
-        ),
-        "empty_file_count": empty_file_count(entries),
+        "empty_directory_count": empty_directories_total,
+        "empty_file_count": empty_files_total,
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
@@ -2130,14 +2182,8 @@ def scan_tree(
         "max_depth": max_depth,
         "truncated_paths": sorted(truncated),
         "stdlib_shadowing": stdlib_shadowing,
-        "children_rollup": children_rollup(
-            entries,
-            unknown_paths=unknown_paths,
-            unwalked_reasons=unwalked_reasons,
-        ),
-        "entries": []
-        if sizes_only
-        else sorted(entries, key=lambda entry: entry["path"]),
+        "children_rollup": rollup_rows,
+        "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
@@ -4440,7 +4486,6 @@ def main(argv: list[str] | None = None) -> int:
                     child_large_reasons
                     and args.max_depth is None
                     and not args.confirmed_large_scan
-                    and not sizes_only
                 ):
                     return emit(
                         {
@@ -4514,7 +4559,6 @@ def main(argv: list[str] | None = None) -> int:
                 large_reasons
                 and args.max_depth is None
                 and not args.confirmed_large_scan
-                and not sizes_only
             ):
                 immediate_entries, probe_error = top_level_entry_count(target)
                 return emit(
