@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
+## [0.49.3] - 2026-09-30
+
+### Added
+
+- **The interview page badges its title while the tab is hidden.** The title shows a count of new activity and notes that land while the tab is hidden, and the count clears when the tab is shown ([#5473](https://github.com/melodic-software/claude-code-plugins/issues/5473)).
+
 ## [0.49.2] - 2026-09-30
 
 ### Changed

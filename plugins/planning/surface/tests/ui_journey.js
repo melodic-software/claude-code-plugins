@@ -322,6 +322,47 @@ async page => { // the user journey in order on one page, no reload after phase 
     const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
     ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
   }
+  const setHidden = h => page.evaluate(h => {
+    for (const [k, v] of [["hidden", h], ["visibilityState", h ? "hidden" : "visible"]]) Object.defineProperty(document, k, {configurable: true, get: () => v});
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, h);
+  if (PHASE === 8) { // the shell added activity while the tab was visible
+    await page.waitForTimeout(900);
+    const base = await text("#title");
+    ok("on a visible tab new activity leaves the title unchanged", (await badge()) > 0 && await page.title() === base, await page.title());
+    await setHidden(true); await page.waitForTimeout(200);
+    ok("hiding the tab adds no badge for activity already waiting", await page.title() === base, await page.title());
+  }
+  if (PHASE === 9) { // the shell added one activity entry while the tab was hidden
+    await page.waitForTimeout(900);
+    const base = await text("#title");
+    ok("activity that lands while the tab is hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+    ok("showing the tab again restores the plain title", await page.title() === base, await page.title());
+  }
+  if (PHASE === 10) { // Activity panel left open, then the tab is hidden
+    await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300);
+    const base = await text("#title");
+    await setHidden(true); await page.waitForTimeout(200);
+    ok("hiding the tab with the Activity panel open adds no badge", await page.title() === base && await page.$eval("#fly", el => el.classList.contains("open")), await page.title());
+  }
+  if (PHASE === 11) { // the shell added activity while the tab was hidden and the panel open
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+  }
+  if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
+    await page.addInitScript(() => { for (const [k, v] of [["hidden", true], ["visibilityState", "hidden"]]) Object.defineProperty(document, k, {configurable: true, get: () => v}); });
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(900);
+    ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());
+  }
+  if (PHASE === 13) { // the shell added one activity entry after the page loaded hidden
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+  }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }
