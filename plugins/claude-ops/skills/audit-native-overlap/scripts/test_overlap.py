@@ -322,14 +322,22 @@ class GenerateTests(unittest.TestCase):
         self.assertIn("`doctor`", text)
         self.assertIn("Never hand-edit", text)
 
-    def test_an_evidence_line_with_an_em_dash_is_marked_verbatim(self):
+    def test_only_a_native_description_with_an_em_dash_is_marked_verbatim(self):
         row = deep_copy(BASE_ROW)
-        row["evidence"] = ["native description: a — b", "a plain line"]
+        row["evidence"] = [
+            "native description: a — b",
+            "[2] native description: c — d",
+            "native description: no dash",
+            "seeded rationale: e — f",
+        ]
         self.repo.write_store(make_store([row]))
         self.repo.generate()
         lines = self.repo.view_path.read_text(encoding="utf-8").splitlines()
-        self.assertIn(f"  - native description: a — b{overlap.VERBATIM_MARKER}", lines)
-        self.assertIn("  - a plain line", lines)
+        marker = overlap.VERBATIM_MARKER
+        self.assertIn(f"  - native description: a — b{marker}", lines)
+        self.assertIn(f"  - [2] native description: c — d{marker}", lines)
+        self.assertIn("  - native description: no dash", lines)
+        self.assertIn("  - seeded rationale: e — f", lines)
 
     def test_generate_is_idempotent(self):
         self.repo.generate()

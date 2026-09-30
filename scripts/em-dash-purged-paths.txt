@@ -36,7 +36,6 @@
 #
 # WHAT IS NOT HERE. Plugin surfaces still carrying em dashes are absent by
 # definition, and are the campaign's remaining work. Also absent on purpose:
-# docs/adr/** (decision records are a historical account, not prose to restyle),
 # plugins/*/skills/*/vendor/** (vendored third-party text is upstream content,
 # not this repository's prose), and the eval fixtures under
 # plugins/ai-slop/skills/audit/evals/, which contain the tells they exist to
@@ -55,6 +54,9 @@
 
 # Root README, purged in #3265.
 README.md
+
+# The decision records were purged whole.
+docs/adr/*.md
 
 # Convention documents, declared directory by directory.
 docs/conventions/authoring-formats/*.md

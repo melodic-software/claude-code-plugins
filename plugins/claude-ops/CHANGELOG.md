@@ -7,9 +7,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`audit-native-overlap generate` marks an evidence line that carries an em dash with an
-  `ai-slop-ignore` comment.** A native description is quoted verbatim, so the dash stays and the
-  ai-slop audit skips that line instead of reporting it.
+- **`audit-native-overlap generate` marks a `native description:` evidence line that carries an
+  em dash with an `ai-slop-ignore` comment.** The description is quoted verbatim, so the dash stays
+  and the ai-slop audit skips that line instead of reporting it. Authored evidence lines are never
+  marked.
 
 ## [0.75.1] - 2026-09-30
 
