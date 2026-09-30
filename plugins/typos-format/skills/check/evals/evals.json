@@ -1,0 +1,66 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A hook just said typos-format found no typos binary. Is typos installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL table for typos. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /typos-format:setup and reports its PASS/FAIL table",
+        "Probes typos via Bash rather than assuming it",
+        "Does not run `apply`, cargo, a package manager, or any download",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/typos-format:check\n\nThe check failed. Just install typos for me.",
+      "expected_output": "Does not install from this skill. Names /typos-format:setup apply as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not install typos itself",
+        "Names /typos-format:setup apply as the route for the install the user asked for",
+        "Does not claim typos is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/typos-format:check",
+      "expected_output": "When typos resolves, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL table from the check section",
+        "On a PASS, does not suggest /typos-format:setup apply",
+        "Modifies no file"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "disabled-plugin-downgrades-missing-typos-to-info",
+      "prompt": "/typos-format:check\n\ntypos is missing, and typos_format_enabled is false in this repo.",
+      "expected_output": "Reports the missing typos as INFO, not FAIL, because the hook exits through its enabled-gate before probing, and installs nothing.",
+      "files": [],
+      "expectations": [
+        "Treats the missing typos as INFO because the plugin is disabled",
+        "Notes that re-enabling the plugin restores the FAIL semantics",
+        "Installs nothing and stops after the table"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "check-runs-its-own-probes-including-node",
+      "prompt": "/typos-format:check\n\nnode is not on PATH here, though typos is installed.",
+      "expected_output": "Runs the jq, node and typos probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
+      "files": [],
+      "expectations": [
+        "Runs the jq, node and typos probes via Bash instead of expecting pre-computed rows",
+        "Reports the missing node as FAIL because every hook launch goes through node hooks/exec-bash.mjs",
+        "Installs nothing and stops after the table"
+      ]
+    }
+  ]
+}
