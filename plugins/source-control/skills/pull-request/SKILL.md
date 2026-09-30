@@ -1,5 +1,5 @@
 ---
-description: "Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
+description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args]"
@@ -237,6 +237,48 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 - **Docs-only changes skip the review/simplify work**, no code review needed for markdown/config-only PRs; the verify gate reduces to lint. Any extra project-specific prep-evidence requirements come from the consuming project's own hooks
 
 ---
+
+## Boundary, native Claude Code surfaces
+
+Three native surfaces cover parts of this lifecycle, and they get conflated with it whenever a PR
+is opened or watched.
+
+- **`pr` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Creates one
+  GitHub pull request generically: gathers branch context and applies Claude Code's own title,
+  body, and attribution through `gh`. The model and the person can both invoke it.
+- **`/commit-push-pr` (built-in command).** Ships with Claude Code. Commits, pushes, and opens a PR
+  in one prompt-driven step. The model and the person can both invoke it.
+- **`/autofix-pr` (built-in command).** Ships with Claude Code. Spawns a cloud session that watches
+  the current branch's PR and pushes fixes when CI fails or reviewers comment. Reserved for the
+  person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** The whole lifecycle: prep with verified findings, a draft
+  under this repository's PR title and body contract, the ready flip after merging the base,
+  research-gated local monitoring with per-finding classification and replies, and merge.
+
+**Routing.** Where no draft discipline, body contract, or later lifecycle step applies: when the
+bundled `pr` skill resolves in this session, prefer it to open a PR from work already committed;
+when `/commit-push-pr` resolves, prefer it only when the whole working tree belongs in the commit,
+since it commits, pushes and opens the PR in one step. With unrelated uncommitted changes, `pr`
+is the native route, never `/commit-push-pr`. Prefer
+this skill whenever the repository declares a PR convention or the work continues into ready,
+monitor, or merge.
+
+**Offer `/autofix-pr` at monitor entry.** Offer it to the person: "you can run `/autofix-pr`
+instead of or alongside this monitor loop". It fits a PR the person wants watched after this
+session ends. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** `pr` and `/commit-push-pr` commit, push, and open a PR; `/autofix-pr` pushes
+fixes to the PR branch from a cloud session. This skill never chains into any of them on its own
+behalf. When `/autofix-pr` runs alongside this loop, both push to one branch. Before each fix
+commit, fetch the PR head and merge it into the checked-out branch (`git merge --ff-only` when there
+are no local commits, else `git merge`), then re-check the pending edit against the merged tree and
+drop it when the cloud session already fixed that finding. A fetch alone leaves the local branch on
+the old tip, and the push that follows is rejected as non-fast-forward.
+
+**Availability is never assumed.** `pr` and `/autofix-pr` register gated, and `/autofix-pr` also
+needs `gh` and cloud-session access; this section states what to do when a surface resolves, never
+that it is present. The four-part records live in
+[reference/native-surfaces.md](reference/native-surfaces.md).
 
 ## Gotchas
 

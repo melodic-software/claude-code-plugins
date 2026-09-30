@@ -3,11 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.1] - 2026-09-29
+## [0.47.4] - 2026-09-29
 
 ### Fixed
 
 - **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
+
+## [0.47.2] - 2026-09-29
+
+### Added
+
+- **`draft-goal-condition` carries a Boundary section for the built-in `/goal` command.** The skill drafts the condition; the person runs `/goal <condition>` with it, and the model never sets a goal.
+- **`plan` carries a Boundary section for the built-in `/plan` command.** Plan mode stays the person's permission-mode switch, offered where Plan Mode Integration already suggests it; the skill keeps the persisted, approval-gated plan.
+
+## [0.47.1] - 2026-09-29
+
+### Fixed
+
+- **`goal-condition-length.sh` exits 2 with a usage hint when stdin is a terminal** and no `--file` is given, instead of blocking on input. Piped and `--file` use are unchanged ([#5291](https://github.com/melodic-software/claude-code-plugins/issues/5291)).
 
 ## [0.47.0] - 2026-09-29
 
