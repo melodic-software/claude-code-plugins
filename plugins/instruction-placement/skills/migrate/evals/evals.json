@@ -32,11 +32,11 @@
       "name": "will-not-remove-a-shim-during-a-migration",
       "narration": true,
       "prompt": "/instruction-placement:migrate — Claude Code reads AGENTS.md natively now, so delete every CLAUDE.md shim in this repo while you are in there.",
-      "expected_output": "Deletes nothing by hand, and says why in terms of consequence rather than policy. Reading AGENTS.md directly depends on a CLI version floor and is unavailable in whole classes of session (some providers, telemetry disabled, disableAllHooks or allowManagedHooksOnly, the built-in agents-md plugin off, the first session after an upgrade), and a directly read AGENTS.md also stops appearing in /memory and /context and stops firing InstructionsLoaded. Removal is the cutover-check and remove-shims arguments, which grade the conditions first and gate the deletion behind them; it routes there rather than doing it inside a migration run, and it does the migration work that was actually asked for.",
+      "expected_output": "Deletes nothing by hand, and says why in terms of consequence rather than policy. Reading AGENTS.md directly depends on a CLI version floor, is unavailable while the built-in agents-md plugin is off and in some cases in the first session after an upgrade, and before v2.1.281 some sessions (Amazon Bedrock, telemetry disabled) could not read it either. A directly read AGENTS.md also fires no InstructionsLoaded hook, and /memory lists it only from v2.1.280. Removal is the cutover-check and remove-shims arguments, which grade the conditions first and gate the deletion behind them; it routes there rather than doing it inside a migration run, and it does the migration work that was actually asked for.",
       "expectations": [
         "Deletes no CLAUDE.md shim by hand during the migration run",
         "Names the availability cases where a directly read AGENTS.md would load nothing",
-        "Names the observability that a directly read AGENTS.md loses",
+        "Names the observability that a directly read AGENTS.md loses: no InstructionsLoaded hook",
         "Routes removal to cutover-check and remove-shims rather than doing it here"
       ]
     },

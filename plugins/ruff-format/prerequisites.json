@@ -1,0 +1,10 @@
+{
+  "tools": [
+    {
+      "name": "ruff",
+      "local_bin": ".venv/bin/ruff",
+      "check": "/ruff-format:check",
+      "install": "pip install ruff in the project .venv, https://docs.astral.sh/ruff/installation/"
+    }
+  ]
+}
