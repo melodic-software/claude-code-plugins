@@ -70,7 +70,7 @@ these helpers:
 - `Resolve-UnattendedSecret -Name <ENV> -FilePath <optional>`. First hit wins:
   environment variable, then the file, then a `Microsoft.PowerShell.SecretManagement`
   vault, then the native store (macOS Keychain through `security
-  find-generic-password -s <name> -w`; Linux `pass show <name>`, first line
+  find-generic-password -s <name> -w`; Linux `pass show <name>` for an entry file `<name>.gpg`, first line
   only), then one hidden prompt. Each store rung is skipped silently when its
   module, command or the name is absent. The vault uses only a string secret
   (see the store gotchas). A name declared in

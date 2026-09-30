@@ -9,7 +9,7 @@ All notable changes to the `wizard` plugin are documented here. Format follows
 
 - **macOS Keychain and Linux `pass` rungs in `Resolve-UnattendedSecret`** ([#5315](https://github.com/melodic-software/claude-code-plugins/issues/5315)).
   The ladder is now environment, file, SecretManagement vault, the platform store (`security` on
-  macOS, `pass` on Linux; skipped silently when the tool is absent or has no entry), then a hidden
+  macOS, `pass` on Linux; skipped silently when the tool is absent, has no entry, or the name is a `pass` directory), then a hidden
   prompt. Tests cover each rung's presence, absence and precedence.
 
 ## [0.4.0] - 2026-09-29

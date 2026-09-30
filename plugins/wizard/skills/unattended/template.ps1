@@ -95,9 +95,11 @@ function Assert-NotInside {
 
 # The native store for the platform, asked by name only; the value never rides on argv.
 # WIZARD_PLATFORM (macos, linux) replaces platform detection: the test seam for template.test.sh.
-# An absent command, a nonzero exit or empty output is a miss, skipped silently.
+# An absent command, a nonzero exit or empty output is a miss, skipped silently. `pass show` lists a
+# directory instead of failing, so pass is asked only for a name that is an entry file in the store.
 function Get-UnattendedNativeSecret {
     param([Parameter(Mandatory = $true)][string] $Name)
+    $PSNativeCommandUseErrorActionPreference = $false
     $platform = $env:WIZARD_PLATFORM
     if (-not $platform) {
         $platform = if ($IsMacOS) { 'macos' } elseif ($IsLinux) { 'linux' }
@@ -106,7 +108,11 @@ function Get-UnattendedNativeSecret {
     if ($platform -eq 'macos' -and (Get-Command security -CommandType Application -ErrorAction SilentlyContinue)) {
         $lines = & security find-generic-password -s $Name -w 2>$null
     } elseif ($platform -eq 'linux' -and (Get-Command pass -CommandType Application -ErrorAction SilentlyContinue)) {
-        $lines = & pass show $Name 2>$null
+        $store = if ($env:PASSWORD_STORE_DIR) { $env:PASSWORD_STORE_DIR } else { Join-Path $HOME '.password-store' }
+        if (-not (Test-Path -LiteralPath (Join-Path $store "$Name.gpg") -PathType Leaf)) {
+            return $null
+        }
+        $lines = & pass show -- $Name 2>$null
     } else {
         return $null
     }

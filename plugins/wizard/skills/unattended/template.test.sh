@@ -885,8 +885,15 @@ ln -s "$(command -v pwsh)" "$NOSTUBS/pwsh"
 # shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
 printf '%s\n' '#!/bin/sh' 'echo security >>"$STUB_LOG"' 'case "$3" in NATIVE_* | ALL_*) echo "native-$3" ;; *) exit 1 ;; esac' >"$STUBS/security"
 # shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
-printf '%s\n' '#!/bin/sh' 'echo pass >>"$STUB_LOG"' 'case "$2" in NATIVE_* | ALL_*) echo "native-$2" ;; *) exit 1 ;; esac' >"$STUBS/pass"
+printf '%s\n' '#!/bin/sh' 'echo pass >>"$STUB_LOG"' 'case "$3" in NATIVE_* | ALL_*) echo "native-$3" ;; DIR_*) printf "%s\n" "$3" "|-- child" ;; *) exit 1 ;; esac' >"$STUBS/pass"
 chmod +x "$STUBS/security" "$STUBS/pass"
+# pass is asked only for names that are entry files in the store; DIR_A is a directory there, as pass itself lists it.
+PASS_STORE="$TEST_TMPDIR/pass-store"
+mkdir -p "$PASS_STORE/DIR_A"
+for entry in NATIVE_A NATIVE_ONLY NATIVE_LEAK UNKNOWN_A DIR_A/child; do
+  : >"$PASS_STORE/$entry.gpg"
+done
+export PASSWORD_STORE_DIR="$PASS_STORE"
 
 for spec in macos:security:pass linux:pass:security; do
   IFS=: read -r plat cmd other <<<"$spec"
@@ -928,6 +935,7 @@ for spec in macos:security:pass linux:pass:security; do
   : >"$log"
   code="$(STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$STUBS:$PATH" run_pwsh "$tag-miss" "
     $SECRET_MOCKS
+    \$PSNativeCommandUseErrorActionPreference = \$true
     Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-miss' -Secrets @(@{ Name = 'UNKNOWN_A' }) -Stages {
       \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'UNKNOWN_A'))
     }
@@ -940,6 +948,23 @@ for spec in macos:security:pass linux:pass:security; do
     pass "$plat: a name the native store does not know is skipped silently and the prompt answers"
   else
     fail "$plat: a name the native store does not know is skipped silently and the prompt answers" "code=$code msg=$msg consulted=$consulted err=$(head -c 300 "$TEST_TMPDIR/$tag-miss.err")"
+  fi
+
+  if [[ "$plat" == linux ]]; then
+    : >"$log"
+    code="$(STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$STUBS:$PATH" run_pwsh "$tag-dir" "
+      $SECRET_MOCKS
+      Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-dir' -Secrets @(@{ Name = 'DIR_A' }) -Stages {
+        \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'DIR_A'))
+      }
+      \$global:Log -join '|'
+    ")"
+    msg="$(tail -n 1 "$TEST_TMPDIR/$tag-dir.out")"
+    if [[ "$code" == 0 && "$msg" == 'prompt:Secret DIR_A|got:typed-DIR_A' && ! -s "$log" ]]; then
+      pass "$plat: a name that is a pass directory, not an entry, is never read and the prompt answers"
+    else
+      fail "$plat: a name that is a pass directory, not an entry, is never read and the prompt answers" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/$tag-dir.err")"
+    fi
   fi
 
   printf 'file-loses' >"$TEST_TMPDIR/$tag-file-vs-env"
