@@ -109,7 +109,9 @@ choice. A stray manifest is not a deployable either: a project no internal edge
 touches, in an ecosystem that no linked project and no .NET project shares (a
 tooling `package.json`, a requirements file beside a .NET tree). It is not a
 choice, it is not counted as outside the container, and the report says how many
-were set aside. `--container` charts one anyway. When exactly one deployable
+were set aside. `--container` charts one anyway. A Node workspace root draws no
+edge to its members and shares their ecosystem, so it is not set aside: a plain Node
+workspace lists the root beside its top member, and `--container` picks the member. When exactly one deployable
 covers every project, that is the subject.
 When the renderer exits 3, it lists the choices and writes nothing. It also
 exits 3 when every project is a test project, and says so; `--container` still

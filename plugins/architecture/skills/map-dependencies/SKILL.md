@@ -60,6 +60,8 @@ file, a colon, and the declaration skipped, one finding per declaration.
 Every shipped adapter whose manifests are present runs, and their nodes, edges and
 findings are one record. `ecosystem` is the adapter's name when one ran, `mixed` when
 more than one ran, and `unknown` when none did. Each node carries its own `ecosystem`.
+The header of `scripts/dependency-graph.sh` records the upstream source, verification date
+and recheck trigger behind each non-.NET adapter's rules below.
 
 The .NET adapter:
 
@@ -90,8 +92,7 @@ The Node adapter:
 - A spec that names no member, leaves the root, or points at a folder with no `package.json`
   is `unresolved`. Never match it to a package of the same name elsewhere on disk.
 - A negated glob, a flow-list `packages:`, a `catalog:` spec and a non-string dependency
-  value are `unread-manifest` findings, not edges. The script header carries the sources
-  for the workspace rules.
+  value are `unread-manifest` findings, not edges.
 
 The Go adapter:
 

@@ -556,6 +556,20 @@ assert_equals "stray: a linked Node package beside a .NET host exits 3" "$?" "3"
 assert_contains "stray: the list names the .NET host" "$choice" 'Api'
 assert_contains "stray: the list names the Node package" "$choice" 'web/app/package.json'
 
+# A Node workspace root draws no edge to its members and shares their ecosystem,
+# so it is listed beside the top member.
+ws_root="$TEST_TMPDIR/ws-root-repo"
+write_proj "$ws_root/package.json" '{ "name": "root", "private": true, "workspaces": ["a", "b"], "devDependencies": { "typescript": "5.0.0" } }'
+write_proj "$ws_root/a/package.json" '{ "name": "@w/a", "dependencies": { "@w/b": "*" } }'
+write_proj "$ws_root/b/package.json" '{ "name": "@w/b" }'
+collect "$ws_root" "$TEST_TMPDIR/ws-root.json"
+mkdir -p "$TEST_TMPDIR/ws-root"
+choice="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/ws-root.json" --out "$TEST_TMPDIR/ws-root" 2>&1)"
+assert_equals "workspace root: a plain Node workspace exits 3" "$?" "3"
+assert_contains "workspace root: the list names the top member" "$choice" $'@w/a\ta/package.json'
+assert_contains "workspace root: the list names the root" "$choice" $'root\tpackage.json'
+assert_not_contains "workspace root: the list omits the member nothing tops" "$choice" '@w/b'
+
 # Test projects are not deployables. The layered fixture is the one the
 # grouping cases below use: Api <- Application <- Domain, Domain.Events beside
 # Domain, and two test projects that reference the host and the library.
