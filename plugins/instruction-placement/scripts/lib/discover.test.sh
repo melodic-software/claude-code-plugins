@@ -12,6 +12,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 # shellcheck source=./discover.sh
 . "$SCRIPT_DIR/discover.sh"
 
@@ -34,13 +37,12 @@ skip() {
 # where a link POINTS has no subject. Probe the round trip, not the OS name.
 host_makes_symlinks() {
   local d rc=1
-  d="$(mktemp -d)"
+  d="$(mktemp -d "$TMP/x.XXXX")"
   printf 'x\n' >"$d/target"
   if ln -s target "$d/link" 2>/dev/null &&
     [[ -L "$d/link" ]] && [[ "$(readlink "$d/link" 2>/dev/null)" == "target" ]]; then
     rc=0
   fi
-  rm -rf "$d"
   return "$rc"
 }
 fail() {
@@ -90,7 +92,7 @@ rule_file() {
 # ==========================================================================
 # BUG (a) — rules in a NESTED .claude/rules tree
 # ==========================================================================
-repo="$(mktemp -d)"
+repo="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$repo" init -q .
 rule_file "$repo/.claude/rules/root.md" '**/*.cs' 'Root rule'
 rule_file "$repo/packages/web/.claude/rules/web.md" 'packages/web/**/*.ts' 'Web rule'
@@ -107,7 +109,7 @@ assert_has "a subdirectory inside a nested rules tree is discovered" "$out" "pac
 # Documented upstream: ".claude/rules/ supports symlinks, so you can maintain
 # a shared set of rules and link them into multiple projects."
 # ==========================================================================
-sym="$(mktemp -d)"
+sym="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$sym" init -q .
 rule_file "$sym/.claude/rules/local.md" '**/*.cs' 'Local rule'
 rule_file "$sym/external/security.md" '**/*.cs' 'Shared security rule'
@@ -124,7 +126,7 @@ assert_has "a rule inside a SYMLINKED directory is discovered" "$out" ".claude/r
 
 # The rules ROOT itself being a symlink is the documented way to share one whole
 # rule set across projects; missing it loses every shared rule rather than one.
-symroot="$(mktemp -d)"
+symroot="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$symroot" init -q .
 mkdir -p "$symroot/.claude" "$symroot/shared"
 rule_file "$symroot/shared/security.md" '**/*.cs' 'Shared security rule'
@@ -137,7 +139,7 @@ assert_has "a SYMLINKED rules root is traversed" "$out" ".claude/rules/security.
 assert_has "every rule under a symlinked root is found" "$out" ".claude/rules/style.md"
 
 # A `.claude` directory that is itself a symlink is the same shape one level up.
-symclaude="$(mktemp -d)"
+symclaude="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$symclaude" init -q .
 mkdir -p "$symclaude/external/rules"
 rule_file "$symclaude/external/rules/x.md" '**/*.cs' 'External rule'
@@ -149,7 +151,7 @@ assert_has "a symlinked .claude directory is traversed" "$out" ".claude/rules/x.
 # --------------------------------------------------------------------------
 # `paths:` parsing — one parser, and brace commas are not list separators
 # --------------------------------------------------------------------------
-pp="$(mktemp -d)"
+pp="$(mktemp -d "$TMP/x.XXXX")"
 rule_file "$pp/block.md" 'src/**/*.ts' 'Block'
 cat >"$pp/flow-brace.md" <<'EOF'
 ---
@@ -189,7 +191,7 @@ out="$(ip_parse_paths "$pp/block.md")"
 assert_lists "the block-sequence form still parses" 'src/**/*.ts' "$out"
 
 # A circular symlink must not hang or explode the listing.
-circ="$(mktemp -d)"
+circ="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$circ" init -q .
 mkdir -p "$circ/.claude/rules"
 rule_file "$circ/.claude/rules/ok.md" '**/*.cs' 'Fine'
@@ -206,7 +208,7 @@ assert_eq "discovery emits no duplicate paths under a symlink loop" "0" "$dupes"
 # BUG (c) — untracked and gitignored nested instruction files
 # corpus.md: untracked files are not swept; vendor trees are never swept.
 # ==========================================================================
-track="$(mktemp -d)"
+track="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$track" init -q .
 mkdir -p "$track/pkg" "$track/vendor/thirdparty" "$track/node_modules/dep" "$track/svc"
 printf 'vendor/\nnode_modules/\n' >"$track/.gitignore"
@@ -225,7 +227,7 @@ assert_lacks "a GITIGNORED vendor tree is excluded" "$out" "vendor/thirdparty/AG
 assert_lacks "node_modules is excluded" "$out" "node_modules/dep/CLAUDE.md"
 
 # Root-level instruction files already load at session start — never "nested".
-root_files="$(mktemp -d)"
+root_files="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$root_files" init -q .
 printf '@AGENTS.md\n' >"$root_files/CLAUDE.md"
 printf '# Root\n' >"$root_files/AGENTS.md"
@@ -241,7 +243,7 @@ assert_has "a subdirectory instruction file is a nested surface" "$out" "sub/AGE
 # and the wiring gate alike, so a `.cursor/AGENTS.md` appearing here would both
 # advertise a Cursor file as a Claude on-demand surface and demand a Claude
 # shim beside it.
-tools="$(mktemp -d)"
+tools="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$tools" init -q .
 mkdir -p "$tools/.cursor/rules" "$tools/.codex" "$tools/.github/workflows" "$tools/src"
 printf '@AGENTS.md\n' >"$tools/CLAUDE.md"
@@ -263,7 +265,7 @@ assert_has "an ordinary subtree still is" "$out" "src/AGENTS.md"
 # ==========================================================================
 # BUG (d) — index target must actually be reachable by Claude Code
 # ==========================================================================
-chain="$(mktemp -d)"
+chain="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$chain" init -q .
 printf '# Claude instructions\n\nNothing imported here.\n' >"$chain/CLAUDE.md"
 printf '# Shared agent instructions\n' >"$chain/AGENTS.md"
@@ -286,7 +288,7 @@ assert_eq "a root CLAUDE.md target is reachable" "0" "$?"
 # With no root CLAUDE.md at all, the import is not what decides whether the
 # target is read: nothing blocks Claude Code's own AGENTS.md walk. The verdict
 # is a third one, because availability is not observable from the repository.
-nativeroot="$(mktemp -d)"
+nativeroot="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$nativeroot" init -q .
 printf '# Shared agent instructions\n' >"$nativeroot/AGENTS.md"
 commit_all "$nativeroot"
@@ -298,7 +300,7 @@ assert_eq "and the verdict is NATIVE, not LOADED" "NATIVE" "$(printf '%s' "$reas
 # A CLAUDE.md on a NESTED target's own path blocks it exactly as a root one
 # does, so the verdict must agree with what the wiring gate says about the same
 # tree.
-nestedblock="$(mktemp -d)"
+nestedblock="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$nestedblock" init -q .
 mkdir -p "$nestedblock/svc" "$nestedblock/free"
 printf '# Service\n' >"$nestedblock/svc/AGENTS.md"
@@ -320,7 +322,7 @@ assert_eq "and an importing sibling makes it LOADED" "LOADED" "$(printf '%s' "$r
 
 # A Claude-owned file inside another tool's directory is still Claude's. Only
 # an AGENTS.md there belongs to that tool.
-ownedin="$(mktemp -d)"
+ownedin="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$ownedin" init -q .
 mkdir -p "$ownedin/.github" "$ownedin/.cursor" "$ownedin/.codex"
 printf '@AGENTS.md\n' >"$ownedin/CLAUDE.md"
@@ -369,7 +371,7 @@ fi
 # CLAUDE.md points, so a host that copies instead of linking has no fixture.
 # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_makes_symlinks; then
-  symlinked="$(mktemp -d)"
+  symlinked="$(mktemp -d "$TMP/x.XXXX")"
   git -C "$symlinked" init -q .
   printf '# Shared agent instructions\n' >"$symlinked/AGENTS.md"
   ln -s AGENTS.md "$symlinked/CLAUDE.md"
@@ -382,7 +384,7 @@ else
 fi
 
 # An import inside a fenced code block is not a real import.
-fenced="$(mktemp -d)"
+fenced="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$fenced" init -q .
 {
   printf '# Claude instructions\n\n'
@@ -395,7 +397,7 @@ ip_index_target_loaded "$fenced" "AGENTS.md" >/dev/null 2>&1
 assert_eq "an @import inside a code fence does not count as an import" "1" "$?"
 
 # The `.claude/CLAUDE.md` project location is equally valid.
-alt="$(mktemp -d)"
+alt="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$alt" init -q .
 mkdir -p "$alt/.claude"
 printf '@../AGENTS.md\n' >"$alt/.claude/CLAUDE.md"
@@ -412,7 +414,6 @@ b="$(ip_discover_rules "$repo")"
 assert_lists "rules discovery is byte-identical across runs" "$a" "$b"
 
 # ==========================================================================
-rm -rf "$repo" "$sym" "$symroot" "$symclaude" "$pp" "$circ" "$track" "$root_files" "$chain" "${symlinked:-}" "$fenced" "$alt"
 
 printf '\n%d case(s), %d failure(s), %d host skip(s)\n' "$CASE_NUM" "$FAILED" "$SKIPPED"
 [[ $FAILED -eq 0 ]] || exit 1

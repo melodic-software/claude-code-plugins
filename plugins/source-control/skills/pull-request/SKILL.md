@@ -243,13 +243,13 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 Three native surfaces cover parts of this lifecycle, and they get conflated with it whenever a PR
 is opened or watched.
 
-- **`pr` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Creates one
-  GitHub pull request generically: gathers branch context and applies Claude Code's own title,
-  body, and attribution through `gh`. The model and the person can both invoke it.
-- **`/commit-push-pr` (built-in command).** Ships with Claude Code. Commits, pushes, and opens a PR
-  in one prompt-driven step. The model and the person can both invoke it.
-- **`/autofix-pr` (built-in command).** Ships with Claude Code. Spawns a cloud session that watches
-  the current branch's PR and pushes fixes when CI fails or reviewers comment. Reserved for the
+- **`pr` (bundled skill)**: creates one GitHub pull request generically; it gathers branch
+  context and applies Claude Code's own title, body, and attribution through `gh`. The model and
+  the person can both invoke it.
+- **`/commit-push-pr` (built-in command)**: commits, pushes, and opens a PR in one prompt-driven
+  step. The model and the person can both invoke it.
+- **`/autofix-pr` (built-in command)**: spawns a cloud session that watches the current branch's
+  PR and pushes fixes when CI fails or reviewers comment. Reserved for the
   person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The whole lifecycle: prep with verified findings, a draft
   under this repository's PR title and body contract, the ready flip after merging the base,

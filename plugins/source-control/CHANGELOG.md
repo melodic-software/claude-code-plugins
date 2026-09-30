@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `commit` and `/commit-push-pr` bullets in `commit`, the `pr`, `/commit-push-pr` and
+  `/autofix-pr` bullets in `pull-request`, and the `/autofix-pr` bullet in `babysit-prs` keep the
+  provenance class, what the surface does and how it is invoked, in the native-references template
+  form.
+
+## [0.65.2] - 2026-09-30
+
+### Fixed
+
+- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** A body under 16000 characters is split through a here-string, so the validator creates no file it must remove. A longer body goes through one `pr-linkage-lines.<pid>` file that is removed right after the read. The gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
 ## [0.65.1] - 2026-09-30
 
 ### Changed

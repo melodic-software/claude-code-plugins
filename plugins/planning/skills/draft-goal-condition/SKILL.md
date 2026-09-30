@@ -97,10 +97,9 @@ Note for the user: `/goal` holds for the current session only. A goal survives `
 
 This skill exists to feed `/goal`, so the two are easy to mistake for one step.
 
-- **`/goal` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
-  `/goal <condition>` sets a completion condition that a fresh evaluator checks before the
-  session stops; `/goal clear` removes it, and bare `/goal` shows the current one. It is
-  reserved for the person to run; the model does not invoke it.
+- **`/goal` (built-in command)**: `/goal <condition>` sets a completion condition that a fresh
+  evaluator checks before the session stops; `/goal clear` removes it, and bare `/goal` shows the
+  current one. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Picks the right repetition lever and, when `/goal` fits,
   drafts a transcript-demonstrable condition sourced from the live docs and passed through the
   deterministic length counter. It sets nothing.

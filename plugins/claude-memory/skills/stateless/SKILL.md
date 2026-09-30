@@ -86,10 +86,9 @@ variable resolves", verified 2026-09-27; recheck when that table adds supporting
 
 "Turn off auto memory" and "what has Claude saved" can land on either.
 
-- **`/memory` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
-  An interactive dialog to edit CLAUDE.md files, turn auto memory on or off, and view auto memory
-  entries in the running session. It is reserved for the person to run; the model does not invoke
-  it.
+- **`/memory` (built-in command)**: an interactive dialog to edit CLAUDE.md files, turn auto memory
+  on or off, and view auto memory entries in the running session. It is reserved for the person to
+  run; the model does not invoke it.
 - **This skill (marketplace plugin).** Reports the effective auto-memory state across every
   settings scope and the env var that overrides them, disables it durably through both levers,
   and purges the store behind a manifest and a confirmation gate.
