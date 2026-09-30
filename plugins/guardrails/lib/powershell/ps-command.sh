@@ -1508,10 +1508,17 @@ ps::might_invoke_git() {
 # the write-side guards, not to a git-subcommand classifier. Recorded so a future
 # reader does not mistake the omission for an oversight.
 #
-# DUAL-MODE SUBCOMMANDS ARE BLOCKED WHOLE. `tag` and `notes` were already listed
-# despite having read-only list forms (`git tag`, `git notes list`), so the
-# established policy is "a subcommand with any mutating mode is not read-only".
-# `branch`, `config`, `remote`, `bisect`, `reflog`, `rerere`, `submodule`,
+# DUAL-MODE SUBCOMMANDS ARE BLOCKED WHOLE, EXCEPT `remote` AND `stash`. `tag` and
+# `notes` are listed despite having read-only list forms (`git tag`, `git notes
+# list`), so the policy is "a subcommand with any mutating mode is not read-only".
+# `remote` and `stash` are judged by their arguments instead, because their
+# read-only spellings are routine: bare `git remote`, `remote -v`/`--verbose`
+# ending the statement, `remote show`, `remote get-url`, `stash list` and `stash
+# show` are cut from the text before the stem tests run. Every other spelling
+# (`remote add`/`rename`/`set-url`/`prune`, `stash push`/`pop`/`drop`, bare
+# `git stash`, which means push) keeps its stem and blocks, and a mutating form
+# anywhere in the command blocks the whole command.
+# `branch`, `config`, `bisect`, `reflog`, `rerere`, `submodule`,
 # `sparse-checkout`, `commit-graph`, `multi-pack-index`, `worktree`, `subtree`,
 # `credential`, `interpret-trailers` (mutating only under `--in-place`), the
 # foreign-SCM bridges `svn`/`p4`/`cvsexportcommit`, and the widely-installed
@@ -1588,6 +1595,13 @@ ps::git_command_is_readonly() {
   lc="${recovered,,}"
   # Same command-position git probe as ps::might_invoke_git (#2592).
   [[ "$lc" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]] || return 1
+  # Cut the read-only spellings of `remote` and `stash` before the stem tests
+  # below. `-v` may also sit BEFORE a subcommand (`git remote -v rename a b`), so
+  # it is cut only when the statement ends after it. Only the verb is cut, never
+  # its operands, so `git remote show prune` keeps `prune` for the tests below.
+  while [[ "$lc" =~ (^|[^[:alnum:]_.-])(remote([[:space:]]+(-v|--verbose))?[[:space:]]*([\;\|\}\)]|$)|remote[[:space:]]+(show|get-url)|stash[[:space:]]+(list|show))([^[:alnum:]_.-]|$) ]]; do
+    lc="${lc/"${BASH_REMATCH[0]}"/ }"
+  done
   # Mutating subcommands, alphabetical, split across six tests purely for
   # reviewability. Each alternation stays a LITERAL in pattern position — never a
   # variable spliced into the pattern (see the call-target note above for why a
