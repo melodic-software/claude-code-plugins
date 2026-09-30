@@ -6,10 +6,12 @@
 # Prints a PASS/FAIL/WARN/INFO table: the interpreter, each configuration
 # layer (present or absent; parseable in the YAML subset; the team file's
 # tracked-file guard), the resolved references with the layer that supplied
-# each, every collector adapter's probe (a version, or `missing` with its
-# install hint), and any resolver warnings. Exit 0 when no row is FAIL, 1
-# when one is; 2 on a usage or environment error. Nothing is installed and
-# nothing is written.
+# each, every collector adapter (a probe, then one measure run on a bundled
+# fixture: PASS with the version and the measure, FAIL when the probe passes
+# and the measure does not run, WARN when no fixture can exercise it, or
+# `missing` with its install hint), and any resolver warnings. Exit 0 when no
+# row is FAIL, 1 when one is; 2 on a usage or environment error. Nothing is
+# installed and nothing is written outside a temporary directory.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -116,7 +118,8 @@ done
 
 # ---- resolved references -----------------------------------------------------
 RESOLVED="$(mktemp)"
-trap 'rm -f "$RESOLVED" "$RESOLVED.err"' EXIT
+LIVE="$(mktemp -d)"
+trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
 if "${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" >"$RESOLVED" 2>"$RESOLVED.err"; then
   while IFS=$'\t' read -r measure reference provenance layer; do
     row INFO "reference $measure" "$reference (layer: $layer) $provenance"
@@ -137,12 +140,82 @@ fi
 rm -f "$RESOLVED.err"
 
 # ---- collectors --------------------------------------------------------------
+# A probe that passes says the binary resolves, not that it measures, so a
+# collector row also runs one measure from the ladder on a bundled fixture.
+FIXTURES="$SCRIPTS/fixtures/sources"
+# Tools that resolve from the project's ./node_modules and need its own
+# configuration; a temporary directory carries neither.
+PROJECT_BOUND=" eslint-complexity sonarjs type-coverage "
+
+fixture_files() {
+  # fixture_files <lane> <measure>: the bundled sources, relative to $FIXTURES.
+  if [[ "$2" == duplication ]]; then
+    [[ "$1" == bash ]] && echo "cluster/alpha/shared/shared-utils.sh cluster/beta/shared/shared-utils.sh"
+    return 0
+  fi
+  case "$1" in
+  typescript) echo cm-sample.ts ;;
+  python) echo cm_sample.py ;;
+  bash) echo cm-sample.sh ;;
+  go) echo cm-sample.go ;;
+  dotnet) echo CmSample.cs ;;
+  other) echo cm-notes.md ;;
+  esac
+}
+
+check_collector() {
+  # check_collector <name> <adapter> <version>
+  local name="$1" adapter="$2" version="$3" lane measure files="" first_lane="" first_measure=""
+  while IFS=$'\t' read -r lane measure; do
+    [[ -n "$first_lane" ]] || {
+      first_lane="$lane"
+      first_measure="$measure"
+    }
+    files="$(fixture_files "$lane" "$measure")"
+    [[ -n "$files" ]] && break
+  done < <(awk -F'\t' -v t="$name" '!/^#/ && $3 == t { print $1 "\t" $2 }' "$SCRIPTS/collector-ladder.tsv")
+  if [[ -z "$first_lane" ]]; then
+    row PASS "collector $name" "$version"
+    return
+  fi
+  if [[ "$PROJECT_BOUND" == *" $name "* ]]; then
+    row WARN "collector $name" "$version; probe only: resolves from the project's node_modules and needs its configuration, which a bundled fixture cannot supply"
+    return
+  fi
+  if [[ -z "$files" ]]; then
+    row WARN "collector $name" "$version; probe only: no bundled fixture for $first_lane/$first_measure"
+    return
+  fi
+  local -a fx
+  read -ra fx <<<"$files"
+  local work="$LIVE/$name" f rc rows err on="${fx[0]}"
+  [[ ${#fx[@]} -gt 1 ]] && on+=" +$((${#fx[@]} - 1))"
+  mkdir -p "$work"
+  for f in "${fx[@]}"; do
+    mkdir -p "$work/$(dirname "$f")"
+    cp "$FIXTURES/$f" "$work/$f"
+  done
+  (cd "$work" && "${PY[@]}" "$adapter" collect "$lane" "$measure" "${fx[@]}" >"$LIVE/$name.out" 2>"$LIVE/$name.err")
+  rc=$?
+  rows="$(grep -c '^{' "$LIVE/$name.out" || true)"
+  err="$(head -n 1 "$LIVE/$name.err" | tr -d '\r')"
+  if [[ $rc -eq 4 ]]; then
+    row WARN "collector $name" "$version; probe only: ${err:-the tool cannot run on a lone fixture}"
+  elif [[ $rc -eq 0 && "$rows" -gt 0 ]]; then
+    row PASS "collector $name" "$version; measured $measure on $on"
+  elif [[ $rc -eq 0 ]]; then
+    row FAIL "collector $name" "$version; probe passed but collect $lane $measure on $on returned no rows${err:+: $err}"
+  else
+    row FAIL "collector $name" "$version; probe passed but collect $lane $measure on $on failed (exit $rc)${err:+: $err}"
+  fi
+}
+
 for adapter in "$SCRIPTS"/collectors/*.py; do
   name="${adapter##*/}"
   name="${name%.py}"
   [[ "$name" == test_* ]] && continue
   if version="$("${PY[@]}" "$adapter" probe 2>/dev/null)"; then
-    row PASS "collector $name" "$version"
+    check_collector "$name" "$adapter" "$version"
   else
     hint="$("${PY[@]}" "$adapter" install_hint 2>/dev/null || true)"
     row INFO "collector $name" "missing; ${hint:-no install hint} (optional: the lane reports unavailable without it)"
