@@ -9001,8 +9001,10 @@ class GuardTests(unittest.TestCase):
         # engine-directory reading probed drive D. Windows drive parsing is
         # patched in so the check runs on every host.
         with mock.patch.object(guard.os.path, "splitdrive", ntpath.splitdrive):
-            self.assertEqual([], probes(real, "D:foo"))
-            self.assertIn(os.path.join(engine_dir, "D:foo"), probes(old, "D:foo"))
+            engine_drive = ntpath.splitdrive(engine_dir)[0].casefold()
+            other = "Z:foo" if engine_drive == "d:" else "D:foo"
+            self.assertEqual([], probes(real, other))
+            self.assertIn(os.path.join(engine_dir, other), probes(old, other))
 
     def test_engine_gate_reads_a_same_drive_word_against_the_engine_dir(self) -> None:
         """`alias` and `C:alias` beside an engine on `C:` gate; `D:alias` is not read.
