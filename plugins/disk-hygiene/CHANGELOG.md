@@ -3,6 +3,27 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0] - 2026-09-30
+
+### Added
+
+- **Catalog scope and an `uncatalogued` report**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). `catalog` now
+  accounts for every immediate child of the target, every hinted or empty entry at any depth, and,
+  at a user-home or `--root-children` target, every out-of-place immediate child. Entries with no
+  record and no owner-level ancestor are listed under `uncatalogued`; a record marked
+  `owner_level` covers everything below its path while its identity holds.
+- **Required ownership investigation** (`reference/ownership-investigation.md`). Each entry is
+  checked against nine local sources, each evidence item names its source, `/discovery:research`
+  is used only when no owner is found and only when it resolves, and the report ends with one
+  question per entry whose owner is unknown, which stays `keep` until answered.
+
+### Changed
+
+- **Operator answers follow the entry, not the scan target.** A `source: human` record whose identity
+  and descendant set still hold is reused when another scan target reaches the same entry, so it is
+  not asked again. The scan sets `target_prior_disposition` when the scan target itself was answered.
+
 ## [0.39.0] - 2026-09-30
 
 ### Added
