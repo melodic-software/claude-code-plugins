@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.10] - 2026-09-29
+## [0.47.11] - 2026-09-30
 
 ### Fixed
 
 - **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.47.10] - 2026-09-30
+
+### Changed
+
+- **`interview-defenses.test.sh` states that recomputing a digest or pin is attended-only.** An unattended run that hits a failing digest reports the pin and the git diff, then stops; the digest and pin failure messages say so too ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
 
 ## [0.47.9] - 2026-09-29
 
