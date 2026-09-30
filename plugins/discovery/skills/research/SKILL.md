@@ -178,7 +178,7 @@ The one obligation the acceptance gate does not grade (the memory root's `.gitig
 - **Cost**, a dispatched run pays full depth every time, including for a one-line version lookup whose doc you can already name. Inline moves that cost into this context without reducing it; `breadth=low` (see "Effort, source breadth") is what reduces it.
 - **The invoking context is already a subagent**. Dispatch-by-default is scoped to the main-conversation boundary, so a subagent invoking this skill runs it inline. The outer dispatch already supplied the fresh context. Hoisting, not nesting.
 
-**Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker, the coverage checker, and the source-applicability checker, chained in one call so an unconfigured session sees one prompt; before an **inline** research run, probe the coverage and source-applicability checkers (criteria 11 and 13 still apply inline). A denied or errored probe **halts**. The allow rules `/discovery:setup apply` offers cover the probes and the gates alike. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+**Not an escape-hatch reason:** an un-runnable research gate. Before **dispatching**, probe `--help` on the artifact checker, the coverage checker, and the source-applicability checker, chained in one call so an unconfigured session sees one prompt; before an **inline** research run, probe the coverage and source-applicability checkers (criteria 11 and 13 still apply inline). A denied or errored probe **halts**. The allow rules `/discovery:setup check` prints cover the probes and the gates alike. Do not take inline to dodge an un-runnable post-dispatch gate, and do not self-grade the coverage ledger by reading the table. Invocation forms (shebang path, `bash`, PowerShell / Python twin) and the halt rule: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
 ## Reconciling sources at the gate
 
@@ -247,6 +247,16 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 - **Does not write code**. Researches only; execution is a separate step
 - **Does not skip phases for "simple" topics**. Task size does not reduce depth; only the Effort table may skip later phases, at the row caller effort or a `breadth=` token selects
 - **Does not present training-data knowledge as current fact**. Tier 3 recall must be promoted to Tier 0/1 before claim acceptance
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-29; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

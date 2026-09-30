@@ -12,14 +12,14 @@ BeforeAll {
     # [Console]::Error.WriteLine bypasses the error stream, so `2>&1` captures nothing;
     # swap in a StringWriter to capture real stderr text.
     function Invoke-BannerCapture {
-        param([Parameter(Mandatory)] [bool] $Elevated, [switch] $Quiet)
+        param([Parameter(Mandatory)] [bool] $Elevated, [switch] $Quiet, [string] $StateBase)
         $writer = [System.IO.StringWriter]::new()
         $saved = [Console]::Error
         try {
             [Console]::SetError($writer)
             Write-ElevationBanner -Elevated $Elevated -HostName 'HOST' `
                 -UserName 'DOMAIN\user' -OutputBase 'C:\out' `
-                -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) -Quiet:$Quiet
+                -StateBase $StateBase -SkillRoot 'C:\skill' -Matrix @(Get-ElevationMatrix) -Quiet:$Quiet
         } finally {
             [Console]::SetError($saved)
         }
@@ -33,6 +33,13 @@ Describe 'Write-ElevationBanner' -Tag 'lib' {
         $err | Should -Match 'NON-ELEVATED'
         $err | Should -Match ([regex]::Escape('Running as DOMAIN\user'))
         $err | Should -Match 'Suppress this banner with -SkipBanner'
+    }
+
+    It 'captures the elevated rerun to a transcript under the state root' {
+        $err = Invoke-BannerCapture -Elevated $false -StateBase 'C:\state'
+        $err | Should -Match ([regex]::Escape("Start-Transcript -Path 'C:\state\logs\elevated-run-"))
+        $err | Should -Match 'elevated-run-\d{4}-\d{2}-\d{2}\.log'
+        $err | Should -Match ([regex]::Escape("-StateBase 'C:\state'"))
     }
 
     It 'emits nothing when elevated' {
