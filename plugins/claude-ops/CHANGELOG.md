@@ -28,6 +28,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `native_drift.py` report an unwritable or unreadable path or a malformed `--now` as one stderr
   line and exit 2 (1 for `overlap.py`), and the visibility churn probe has a 15 s timeout.
 
+## [0.71.3] - 2026-09-29
+
+### Changed
+
+- The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
+
 ## [0.71.2] - 2026-09-29
 
 ### Changed
