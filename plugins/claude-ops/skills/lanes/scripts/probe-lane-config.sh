@@ -56,7 +56,7 @@ if (($#)); then
     exit 0
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac

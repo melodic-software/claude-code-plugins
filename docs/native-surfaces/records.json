@@ -515,7 +515,8 @@
         "name": "design",
         "class": "bundled-skill",
         "markers": [
-          "gated"
+          "gated",
+          "model-invocation-disabled"
         ]
       },
       "component": {
@@ -524,11 +525,11 @@
         "kind": "skill"
       },
       "verdict": "complementary",
-      "integration": "route",
-      "reason": "visualize's form matrix routes hand-tweakable visual layouts (UI mockups, posters, one-pagers) to the bundled design canvas when it is listed with the canvas description, offered as an explicit alternative and invoked only on the user's choice, with the shadowing check and never-mention-when-absent rule its catalog spoke documents. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section states the split, the mutation gate, and the presence check; the catalog spoke carries the surface facts.",
+      "integration": "suggest",
+      "reason": "The bundled design skill is model-invocation-disabled, so visualize does not route the model to it. For a hand-tweakable visual layout (UI mockup, poster, one-pager) it renders its own rich page and, where the medium permits publishing, tells the person they can run /design instead of or alongside it. The canvas is a persistent, shareable Artifact whose edits save automatically; this skill's page paths are throwaway or plain-static. The Boundary section carries the suggest sentence, the split, and the mutation gate; the catalog spoke carries the surface facts. Switched from route to suggest by operator ruling at the 2026-09-29 interview.",
       "evidence": [
-        "our SKILL.md description: 'When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for choosing the form and medium'; the plugin.json description carries the same gate",
-        "our SKILL.md step 2: 'a design canvas. Route to a design-canvas capability (the bundled design skill), when available'; the Boundary section states the split and the presence check",
+        "binary extraction of Claude Code 2.1.285 (2026-09-29): one bundled registration named `design`, model_invocable false (disable_model_invocation true, so the model invocation mode is user-only), user_invocable true, gated true, description unresolved; a targeted string search of the same 2.1.285 binary (2026-09-30) resolves its identity: the `design` config carries description 'Make a new Design artifact from a brief' and argument hint '[what to design]', its prompt has the model create a new Artifact from the published Artifact type titled 'Design', its `slides` sibling registers with disableModelInvocation true, the 2.1.263 canvas strings ('Draft a design on a canvas', 'Create a design canvas') no longer occur, and the claude.ai/design hub text now belongs to a separate ClaudeDesign tool, so the name answers to a user-only design-Artifact creator, not the hub",
+        "our SKILL.md Boundary: 'If /design is available in your session (gate basis: the verification record below), you can run it instead of or alongside this skill for a hand-editable design canvas'; the description and plugin.json no longer carry a design clause",
         "catalog spoke plugins/visualization/skills/visualize/context/decision-matrix.md carries the canvas surface facts with their own verified-on line",
         "string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable (menu line 'Draft a design on a canvas Artifact, editable where saving is enabled (Claude Design preview)'; description 'Create a design canvas...'; argument hint '[what to design]'; no disableModelInvocation; enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities); it is listed to the model with the canvas description in a first-party session on that build",
         "string search of the same binary: a second bundled registration named design is a Claude Design hub (menu line 'Work with Claude Design (claude.ai/design): create, import, export, sync, login') with disableModelInvocation true, enabled only behind an allow_design_sync setting, a policy gate, and a feature flag; a local design consent|revoke command beside it; so the listed description is the presence check",
@@ -538,27 +539,28 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction",
-        "date": "2026-09-11"
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
+        "date": "2026-09-29"
       },
       "recheck": {
-        "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas; or which registrar wins `isEnabled` for the name `design` (canvas skill, claude.ai/design hub, or the `local` access command)",
-        "verified": "2026-09-11"
+        "trigger": "a Claude Code release makes the `design` registration model-invocable, changes its description (the identity string both Boundary offers quote), changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas",
+        "verified": "2026-09-30"
       },
       "baked": {
-        "description_phrase": true,
+        "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
-      "budget_caveat": true
+      "budget_caveat": false
     },
     {
       "native": {
         "name": "design",
         "class": "bundled-skill",
         "markers": [
-          "gated"
+          "gated",
+          "model-invocation-disabled"
         ]
       },
       "component": {
@@ -567,10 +569,11 @@
         "kind": "skill"
       },
       "verdict": "complementary",
-      "integration": "route",
-      "reason": "explore-directions offers the editable design-canvas Artifact as an explicit alternative to its HTML mockup substrate when the bundled skill is listed with the canvas description, invoking it only on the user's choice and keeping the mockup as the default. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section states the split and the presence check, and the description carries the gated routing phrase.",
+      "integration": "suggest",
+      "reason": "The bundled design skill is model-invocation-disabled, so explore-directions does not route the model to it. When the intent selector lands on the HTML mockup substrate, it builds the mockup by default and tells the person they can run /design instead of or alongside it. The canvas persists under the user's account; the mockup is thrown away once the winning-variant key is captured. Same surface as the visualize row, sibling component; the Boundary section carries the suggest sentence, the split, and the mutation gate. Switched from route to suggest by operator ruling at the 2026-09-29 interview.",
       "evidence": [
-        "our description: 'When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for switchable variations of your own UI'; the body's design-canvas subsection offers the canvas before building and the Boundary section states the split, the mutation gate, and the presence check",
+        "binary extraction of Claude Code 2.1.285 (2026-09-29): one bundled registration named `design`, model_invocable false (disable_model_invocation true, so the model invocation mode is user-only), user_invocable true, gated true, description unresolved; a targeted string search of the same 2.1.285 binary (2026-09-30) resolves its identity: the `design` config carries description 'Make a new Design artifact from a brief' and argument hint '[what to design]', its prompt has the model create a new Artifact from the published Artifact type titled 'Design', its `slides` sibling registers with disableModelInvocation true, the 2.1.263 canvas strings ('Draft a design on a canvas', 'Create a design canvas') no longer occur, and the claude.ai/design hub text now belongs to a separate ClaudeDesign tool, so the name answers to a user-only design-Artifact creator, not the hub",
+        "our Boundary: 'If /design is available in your session (gate basis: the verification record below), you can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas'; the description no longer carries a design clause",
         "string search of the installed binary v2.1.263 (2026-09-11): the canvas skill registers model-invocable and user-invocable with no disableModelInvocation, enabled by a first-party-context check, a rollout flag that defaults on, and an Artifact tool whose schema carries capabilities; a second same-named Claude Design hub registration carries disableModelInvocation true behind an allow_design_sync setting (detail in the sibling visualize row and plugins/prototype/skills/explore-directions/reference/bundled-design.md)",
         "commands page (2026-09-11) carries a /design row labeled Skill describing the canvas and its gates (artifacts availability, v2.1.234+); the changelog names no design-family surface through v2.1.268",
         "prior: binary extraction v2.1.251 (2026-08-31) registered the canvas skill research-preview gated with no model-invocation gate; the 2.1.263 registration matches except that the rollout flag now defaults on",
@@ -578,20 +581,20 @@
       ],
       "observation": {
         "class": "extraction",
-        "detail": "targeted string search of the installed binary v2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (both design registrations read from the bundle strings), refreshing the v2.1.251 extraction",
-        "date": "2026-09-11"
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search",
+        "date": "2026-09-29"
       },
       "recheck": {
-        "trigger": "a Claude Code release adds a model-invocation gate to the canvas skill, changes either design registration's enablement or subcommand set, merges the two registrations, a release note first names a design-family surface, or the commands-page row stops describing the canvas; or which registrar wins `isEnabled` for the name `design` (canvas skill, claude.ai/design hub, or the `local` access command)",
-        "verified": "2026-09-11"
+        "trigger": "a Claude Code release makes the `design` registration model-invocable, changes its description (the identity string both Boundary offers quote), changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas",
+        "verified": "2026-09-30"
       },
       "baked": {
-        "description_phrase": true,
+        "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
-      "budget_caveat": true
+      "budget_caveat": false
     },
     {
       "native": {
@@ -704,7 +707,7 @@
         "verified": "2026-09-11"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -743,7 +746,7 @@
         "verified": "2026-09-11"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
@@ -1365,12 +1368,55 @@
         "verified": "2026-09-29"
       },
       "baked": {
-        "description_phrase": false,
+        "description_phrase": true,
         "boundary_section": true,
         "native_step": false,
         "suggest_sentence": false
       },
       "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "context",
+        "class": "builtin-command",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "context-budget",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command visualizes the current session's context usage as a colored grid with optimization suggestions; ours measures a fresh headless session's startup payload per item, splitting the built-in tool pools /context reports as lump sums, and ledgers before/after deltas. User-only, so ours offers it to the person for a live look at the current window. Ruled 2026-09-30 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`context` present in the 2.1.285 extraction as builtin-command",
+        "markers: gated",
+        "native description: Visualize current context usage as a colored grid; argument hint `[all]`",
+        "invocation mode (2026-09-30, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.3859 from shared tokens context, usage",
+        "docs cross-check (commands reference, 2026-09-30): the `/context [all]` row documents the grid, optimization suggestions for context-heavy tools, memory bloat and capacity warnings, and `all` to expand the per-item breakdown",
+        "our Boundary: 'If /context is available in your session (gate basis: the verification record below), you can run `/context` to see what fills the current window'; the description carries no /context clause"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_commands lane integrity ok)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/context`, makes it model-invocable, or widens it to a fresh session's startup payload or a before/after comparison",
+        "verified": "2026-09-30"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": true
+      },
+      "budget_caveat": false
     },
     {
       "native": {
@@ -2600,6 +2646,24 @@
       },
       "component": {
         "plugin": "bash-format",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-09-30",
+      "fingerprint": {
+        "native": "d7e2debdf01879cf8606b9ebfd12eb3e",
+        "component": "3f55bc9bc552095ce98645fab43fdec4"
+      }
+    },
+    {
+      "native": {
+        "name": "Bash",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "bash-format",
         "skill": "setup",
         "kind": "skill"
       },
@@ -2626,7 +2690,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "5fac9fea053bdbf76984411e6472edb1",
-        "component": "b5d35110af24ea23c683993810ca8811"
+        "component": "dd0f9ca146f0d3564e6a2eef2568b57a"
       }
     },
     {
@@ -2663,6 +2727,24 @@
       "fingerprint": {
         "native": "6bbfd7f717bc99f360fd31b2d78ad20d",
         "component": "0d0c9124d766430cdac185203828a762"
+      }
+    },
+    {
+      "native": {
+        "name": "PowerShell",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "powershell-format",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-09-30",
+      "fingerprint": {
+        "native": "b8d973375b3761790cd1d387dd34aed7",
+        "component": "f108c4244ee4f411177cd9f8cc0b9b9e"
       }
     },
     {
@@ -3833,6 +3915,24 @@
       "fingerprint": {
         "native": "cbc1f297a2e2195d9616355d9371b597",
         "component": "b30c829b801f29dd87dbba3477fc0f60"
+      }
+    },
+    {
+      "native": {
+        "name": "worker",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "tidy-work",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only ('work'): tidy-work is a user-only skill that tidies the gitignored .work memory tiers; the built-in worker agent executes delegated tasks. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-09-30",
+      "fingerprint": {
+        "native": "cbc1f297a2e2195d9616355d9371b597",
+        "component": "2b87d7d4252ceb57225021542be8bc5c"
       }
     },
     {

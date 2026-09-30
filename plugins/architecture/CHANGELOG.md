@@ -3,6 +3,39 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-09-30
+
+### Added
+
+- `map-containers` reads search-index stores (Elasticsearch, OpenSearch, Azure AI
+  Search) from connection configuration and labels them with their technology.
+- `map-containers` draws a cited `uses` edge from a deployable to another
+  deployable in the same system when a configured base URL or endpoint resolves to
+  it. An endpoint that resolves to nothing stays an external reference. Only an
+  `http` or `https` URL is an endpoint, and a URL with no port matches a compose
+  service declaring 80 for `http` and 443 for `https`.
+
+### Changed
+
+- `redact-connection.awk` takes an opt-in `redact_local_http` for the local HTTP
+  endpoint values the new edges read: an http shape may name a bare service name
+  or a loopback host and carries its URL scheme in the scheme column, and a `;`
+  after the userinfo ends a URL authority for every URL shape, so
+  `map-containers` now reads a store URL such as
+  `redis://cache.example.com:6379;x`. With it set, a URL whose authority ends at
+  an unencoded `?`, `#`, or whitespace with an `@` after it yields no row. A
+  caller that does not set it is unchanged. No-leak fixtures cover userinfo,
+  query tokens, and a `;` inside userinfo.
+
+## [0.16.1] - 2026-09-29
+
+### Changed
+
+- **`map-landscape` description** fits the 500-character listing target. The trigger `chart our
+  repositories` is dropped (`map our landscape` carries the same intent); the other triggers and
+  the Skip-when route are kept, and the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.16.0] - 2026-09-29
 
 ### Added

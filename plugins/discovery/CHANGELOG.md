@@ -1,6 +1,6 @@
 # Changelog: discovery plugin
 
-## [0.25.14] - 2026-09-30
+## [0.25.17] - 2026-09-30
 
 ### Added
 
@@ -17,6 +17,32 @@
   now names that shape. A re-run on the tightened rule counted 0 rereads and 0 scan-then-read
   pairs, with the handback at turn 20 of a 30-turn budget
   ([#4258](https://github.com/melodic-software/claude-code-plugins/issues/4258)).
+
+## [0.25.16] - 2026-09-30
+
+### Changed
+
+- **The `deep-research` Boundary bullet in `research-deep` no longer asserts that the workflow
+  ships with Claude Code.** It keeps the provenance class, what the workflow does and how it is
+  invoked, in the native-references template form.
+
+## [0.25.15] - 2026-09-30
+
+### Fixed
+
+- **`research` at `breadth=low` is bounded.** Phase 1 is capped at 6 web queries and fetches
+  combined, the researcher runs with `Turn budget: 15`, and a verifier-owned FAIL is presented with
+  a caveat instead of resuming the researcher.
+
+## [0.25.14] - 2026-09-30
+
+### Fixed
+
+- **Skill spokes no longer cite bundled files with the literal `${CLAUDE_PLUGIN_ROOT}` token.** The
+  token is substituted in SKILL.md bodies, not in spoke files read on demand, so a spoke path
+  resolved to nothing. Markdown links in the `explore`, `research` and `trace-intent` spokes are now
+  relative to the spoke, and the script and brief paths cite the plugin root as rendered in the
+  SKILL.md body.
 
 ## [0.25.13] - 2026-09-30
 

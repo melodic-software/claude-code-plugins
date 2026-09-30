@@ -34,6 +34,15 @@ unset CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT
 : "${SKIP_CASES:=0}"
 : "${DISCRIMINATING_SKIP_CASES:=0}"
 
+# native_mktemp_dir — mktemp -d as a path native git and bash both resolve. On
+# Windows Git Bash a bare /tmp/... is MSYS-only: native git rewrites it to
+# C:/... on write and cannot follow it when read from a config include path.
+native_mktemp_dir() {
+  local d
+  d="$(mktemp -d)"
+  if command -v cygpath >/dev/null 2>&1; then cygpath -m "$d"; else printf '%s' "$d"; fi
+}
+
 # pass <label>
 pass() {
   CASE_NUM=$((CASE_NUM + 1))

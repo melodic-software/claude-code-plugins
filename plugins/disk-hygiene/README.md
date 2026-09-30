@@ -15,6 +15,9 @@ unvalidated tree.
 
 - The side-effecting skill is manual-only (`disable-model-invocation: true`). Automated, scheduled,
   remote, or otherwise unattended sessions audit and stop.
+- The investigated-entry catalog under the plugin data root records what a run or the operator
+  concluded about an entry. `prior_disposition` is a hint on the next scan. It never authorizes
+  deletion or skips approval, preview, or revalidation.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
@@ -233,9 +236,9 @@ walking the rest of the home. Every volume root, OS-managed or a Windows Dev Dri
 strict child ladder described under Volume-root coverage; only a target that is not a volume root
 gets the relaxed directory listing.
 
-`--sizes-only` writes per-child byte totals and no entries. As implemented it skips the
-large-scan confirmation, sums through VCS and protected directories read-only, and has no entry
-cap.
+`--sizes-only` writes per-child byte totals and no entries. It goes through the same large-scan
+confirmation as an unbounded walk, sums through VCS and protected directories read-only, and has no
+entry cap.
 
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
@@ -263,6 +266,29 @@ Policy files all share one shape:
   ]
 }
 ```
+
+Version 2 adds preselect `rules`, an age threshold, and an elevation opt-in
+([schema](skills/clean/reference/policy-overlay.schema.json)). A version 1 file keeps working.
+
+```json
+{
+  "version": 2,
+  "rules": [
+    {"match": {"hint_ids": ["common-lock-file"]}, "preselect": true, "min_age_days": 7}
+  ],
+  "elevation": "never"
+}
+```
+
+A rule ticks matching candidates in the approval list; it never approves. The approval question still
+names one tier and its path list, and a tick never raises a candidate above its hint's
+`confidence_ceiling` or past a blocker. With `min_age_days`, an entry modified inside the window (or
+a directory whose newest descendant is, or whose coverage is incomplete) stays unticked and is
+labeled in-flight. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
+project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
+that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
+elevation lane has not been proven in a Windows UAC pilot; see the
+[safety model](skills/clean/reference/safety-model.md#opt-in-elevation).
 
 Without `--policy`, standing policy files layer over the baseline when present:
 `~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's
@@ -317,6 +343,7 @@ use the same admission ladder as directories.
 | OS-owned file names (`pagefile.sys`, `/swapfile`, `/swap.img`, `vmlinuz*`, `.file`, …) | Per-platform file set |
 | Hidden, System, `$`-prefixed, or dot-prefixed names | Fail closed on concealment |
 | Symlinks, reparse points, cloud placeholders | Ambiguous identity |
+| Virtual-disk image files (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`) | A whole guest disk; the name proves nothing about it being disposable |
 | Nested mounts and baseline-protected shell-folder names | Existing hard stops |
 | Fifos, sockets, devices, and other non-regular types | `not-regular-file-or-directory` |
 

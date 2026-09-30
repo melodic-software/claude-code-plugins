@@ -7,19 +7,39 @@ capture lands.
 
 ## Decision
 
-- **Claim:** Windows Git Bash figures are produced only by `hooks/measure-hook-log-budget.sh` on that host. Until a capture here contains `host: windows-git-bash`, the Windows column is unmeasured. A Linux run of the harness is a Linux capture. It is not copied into the Windows column. The per-session event log stays off by default until that Windows capture is pasted over the placeholder.
+- **Claim:** The Windows Git Bash capture is recorded below, and the per-session event log stays off by default: no figure argues against it. Windows figures come only from `hooks/measure-hook-log-budget.sh` run on that host. A Linux run of the harness is a Linux capture and is not copied into the Windows column.
 - **Basis:** `hooks/hooks.json` registers every event-log row as `node exec-bash.mjs --require-true SESSION_EVENT_LOG_ENABLED session-event-log.sh`, and the harness runs that command. The [hook-budget convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-budget/README.md) counts the unit S (`bash -c :`) on the host running the hook, and the Windows measurements there put S between 18 ms and 80 ms. #3757 names the four probes.
-- **As of:** 2026-09-29.
-- **Recheck:** a Windows Git Bash run of the harness (`OSTYPE` `msys` or `cygwin`) whose capture begins `host: windows-git-bash`, pasted into the table below in place of `windows-git-bash: unmeasured`; or a change to the event-log rows' `command` or `args` in `hooks/hooks.json`.
+- **As of:** 2026-09-30.
+- **Recheck:** a new Windows Git Bash run of the harness (the stamp accepts `OSTYPE` `msys` and `cygwin`; Git for Windows 2.55.0's bash 5.3.15 reports `cygwin`) whose capture begins `host: windows-git-bash`, pasted over the capture below; or a change to the event-log rows' `command` or `args` in `hooks/hooks.json`, or to the bash `hooks/exec-bash.mjs` resolves.
 
-## Placeholder
+## Windows Git Bash figures
 
 | Probe | Windows Git Bash |
 |---|---|
-| kill-switch off, median ms, and the parallel wall of 30 events with logging off and on | windows-git-bash: unmeasured |
-| append of 33 lines at 4 KB and at 16 KB, corrupt line count | windows-git-bash: unmeasured |
-| `ls -t` order of two files touched in the same second | windows-git-bash: unmeasured |
-| late-EOF held-open pipe, elapsed ms | windows-git-bash: unmeasured |
+| kill-switch off, median ms, and the parallel wall of 30 events with logging off and on | kill-switch off median 60 ms (bash spawn floor S 33 ms through the launcher's bash, 20 ms on the PATH bash; node spawn floor 49 ms); parallel wall of 30 events 406 ms off, 466 ms on |
+| append of 33 lines at 4 KB and at 16 KB, corrupt line count | 33 lines at 4 KB, 0 corrupt; 33 lines at 16 KB, 0 corrupt |
+| `ls -t` order of two files touched in the same second | listed `first second` at same-second resolution: mtime resolution ties at one second, so the order is not guaranteed |
+| late-EOF held-open pipe, elapsed ms | 358 ms |
+
+## Which bash
+
+Captured 2026-09-30 on melo-desk-001 from Git for Windows 2.55.0's own bash (`MSYSTEM=MINGW64`,
+`uname -s` `MINGW64_NT-10.0-26200`), which reports `OSTYPE=cygwin`. The host has no Cygwin install
+(`C:\cygwin64` and `C:\cygwin` are absent), so `cygwin` here is what Git Bash reports, not a second
+shell.
+
+Two Git binaries are involved, and the capture records both paths:
+
+- The `bash` on PATH inside Git Bash is `C:/Program Files/Git/usr/bin/bash.exe`
+  (`invoking_bash_*`). The harness, the append probe and the `ls -t` probe run in it.
+- `exec-bash.mjs` resolves `C:/Program Files/Git/bin/bash.exe` first (`launcher_bash_path`), a 47 KB
+  wrapper that starts the real bash. Every enabled hook row spawns it, so S is timed through it: 33 ms,
+  against 20 ms for the PATH bash. Only the enabled parallel wall and late-EOF spawn bash; the
+  kill-switch-off row and the off wall exit in node before bash is resolved.
+
+With `CLAUDE_CODE_GIT_BASH_PATH` set to `C:/Program Files/Git/usr/bin/bash.exe`, a second run gave S
+20 ms, kill-switch off 60 ms, parallel wall 391 ms off and 441 ms on, late-EOF 350 ms. The wrapper is
+about 13 ms of S. The table above is the default resolution, which is what a hook runs.
 
 ## How to capture
 
@@ -29,6 +49,30 @@ On the host, with `node` on PATH:
 bash plugins/claude-ops/hooks/measure-hook-log-budget.sh --samples 10 --record /tmp/hook-log-budget.txt
 ```
 
-Paste that capture under this heading. Replace the four `windows-git-bash: unmeasured` cells only when the capture's `host:` line is `windows-git-bash`.
+Paste that capture under this heading.
 
-`measure-hook-log-budget.sh --check-doc plugins/claude-ops/reference/hook-log-budget.md` exits 0 while the placeholder remains, and exits 0 after a stamped Windows capture replaces it. It exits 1 when the placeholder is gone and no `host: windows-git-bash` line is present.
+```text
+host: windows-git-bash
+ostype: cygwin
+uname_s: MINGW64_NT-10.0-26200
+date: 2026-09-30T16:32:40Z
+samples: 10
+invoking_bash_path: /usr/bin/bash
+invoking_bash_native_path: C:/Program Files/Git/usr/bin/bash.exe
+launcher_bash_path: C:/Program Files/Git/bin/bash.exe
+node_spawn_floor_median_ms: 49
+bash_spawn_floor_median_ms: 33
+invoking_bash_spawn_floor_median_ms: 20
+kill_switch_off_median_ms: 60
+parallel_wall_off_ms: 406
+parallel_wall_on_ms: 466
+append_4kb_lines: 33
+append_4kb_corrupt: 0
+append_16kb_lines: 33
+append_16kb_corrupt: 0
+ls_t_order: first second
+ls_t_resolution: same-second
+late_eof_ms: 358
+```
+
+`measure-hook-log-budget.sh --check-doc plugins/claude-ops/reference/hook-log-budget.md` exits 0 when a `host: windows-git-bash` line is present. It also exits 0 for a doc whose Windows cells still hold the unmeasured placeholder, and exits 1 when neither is present.

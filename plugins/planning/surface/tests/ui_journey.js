@@ -80,6 +80,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the ask's toast clears when the view changes", /reply lands in the thread/.test(askToast) && (await text("#toast")) === "", askToast + " / " + await text("#toast"));
     await page.fill("#note", "Should we pin the version?"); await arm("o");
     ok("an Own answer ending in ? shows the Ask Claude nudge before save", /This reads as a question\. Ask Claude instead\?/.test(await text("#askNudge")) && !!(await page.$('#askNudge [data-act="ask"]')), await text("#decideRow"));
+    await page.fill("#note", "We should pin the version because");
+    ok("an Own note that ends mid-sentence shows the cut-off nudge and Save stays enabled", /looks cut off/.test(await text("#cutNudge")) && !(await page.$("#askNudge")) && !(await page.$("[data-save][disabled]")), await text("#decideRow"));
+    await page.fill("#note", "This is complete.");
+    ok("a finished Own note shows no cut-off nudge", !(await page.$("#cutNudge")), await text("#decideRow"));
+    await page.fill("#note", "Should we pin the version?");
     await page.keyboard.press("Escape"); await tap("[data-save]", 700);
     const own = await last();
     ok("saving as own stays possible", own.kind === "own" && own.id === "Q5" && own.text === "Should we pin the version?", JSON.stringify(own));
@@ -197,10 +202,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     // Claude-side confirmation and Confirm all
     ok("Claude's confirmation leaves Q2's list, shows its reason and lowers the count", !(await page.$('#toConfirm [data-cq="Q2"]')) && /Q2 \(Confirmed in the terminal\)/.test(await text("#byClaude")) && (await text("#assumeCount")) === "3 to confirm", (await text("#assumeCount")) + " / " + await text("#byClaude"));
     ok("a terminal accept mirrored with record-terminal, then confirmed by Claude, leaves no part of Q4 to confirm", !(await page.$('#toConfirm [data-cq="Q4"]')) && /Q4 \(Said yes in the terminal\)/.test(await text("#byClaude")), await text("#toConfirm"));
+    ok("Wrap up warns while assumptions are open and stays enabled", /^3 assumptions not confirmed yet\.$/.test(await text("#openAssumeWarn")) && !(await page.$eval('[data-wrapup="1"]', el => el.disabled)), await text("#openAssumeWarn"));
     const n1 = (await events()).length;
     await tap("[data-confirmall]", 1500);
     const added = (await events()).slice(n1);
     ok("Confirm all posts one confirm per unconfirmed commitment", added.length === 3 && added.every(e => e.kind === "confirm") && await page.$eval("#assumeCount", el => el.hidden), added.map(e => e.id + ":" + e.alt).join(","));
+    ok("the open-assumptions warning is gone after Confirm all", !(await page.$("#openAssumeWarn")));
 
     // confirm understanding
     ok("the summary shows the restatement with Confirm and Something's off", /Ship green builds to staging/.test(await text("#restate")) && /Left to the plan stage/.test(await text("#restate")) && !!(await page.$('[data-understand="confirm"]')) && !!(await page.$('[data-understand="off"]')), (await text("#restate")).slice(0, 160));
@@ -314,6 +321,64 @@ async page => { // the user journey in order on one page, no reload after phase 
     await post({kind: "note", text: "Anything else?"});
     const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
     ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
+  }
+  if (PHASE === 14) { // the shell added Q9; the user answers it with their own text
+    await page.waitForSelector('.qbtn[data-q="Q9"]', {state: "attached", timeout: 5000});
+    if (await page.$eval("#fly", el => el.classList.contains("open"))) { await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300); }
+    await pick("Q9"); await page.fill("#note", "what are the patterns?"); await arm("o"); await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const own = await last();
+    ok("the own answer on Q9 is saved from the page with the note still focused", own.id === "Q9" && own.kind === "own" && own.text === "what are the patterns?", JSON.stringify(own));
+  }
+  if (PHASE === 15) { // the shell revised Q9's recommendation in response to that own text
+    await page.waitForTimeout(900);
+    await pick("Q9");
+    ok("the revision sets the own answer aside: the rail reads Open and the card says the answer no longer counts", (await text('.qbtn[data-q="Q9"] .chip')) === "Open" && /Own answer: .*aside\. It no longer counts\./.test(await text("#cur")) && !(await page.$('[data-act="reopen"]')), (await text('.qbtn[data-q="Q9"] .chip')) + " / " + await text("#cur"));
+    ok("the note no longer shows the set-aside own text", (await page.inputValue("#note")) === "", await page.inputValue("#note"));
+    await tap("[data-again]", 300);
+    await arm("a"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const acc = await last();
+    ok("Ctrl+Enter accepts the revised recommendation, not the old own text", acc.id === "Q9" && acc.kind === "accept" && acc.text === "", JSON.stringify(acc));
+  }
+  const setHidden = h => page.evaluate(h => {
+    for (const [k, v] of [["hidden", h], ["visibilityState", h ? "hidden" : "visible"]]) Object.defineProperty(document, k, {configurable: true, get: () => v});
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, h);
+  if (PHASE === 8) { // the shell added activity while the tab was visible
+    await page.waitForTimeout(900);
+    const base = await text("#title");
+    ok("on a visible tab new activity leaves the title unchanged", (await badge()) > 0 && await page.title() === base, await page.title());
+    await setHidden(true); await page.waitForTimeout(200);
+    ok("hiding the tab adds no badge for activity already waiting", await page.title() === base, await page.title());
+  }
+  if (PHASE === 9) { // the shell added one activity entry while the tab was hidden
+    await page.waitForTimeout(900);
+    const base = await text("#title");
+    ok("activity that lands while the tab is hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+    ok("showing the tab again restores the plain title", await page.title() === base, await page.title());
+  }
+  if (PHASE === 10) { // Activity panel left open, then the tab is hidden
+    await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300);
+    const base = await text("#title");
+    await setHidden(true); await page.waitForTimeout(200);
+    ok("hiding the tab with the Activity panel open adds no badge", await page.title() === base && await page.$eval("#fly", el => el.classList.contains("open")), await page.title());
+  }
+  if (PHASE === 11) { // the shell added activity while the tab was hidden and the panel open
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+  }
+  if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
+    await page.addInitScript(() => { for (const [k, v] of [["hidden", true], ["visibilityState", "hidden"]]) Object.defineProperty(document, k, {configurable: true, get: () => v}); });
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(900);
+    ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());
+  }
+  if (PHASE === 13) { // the shell added one activity entry after the page loaded hidden
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));

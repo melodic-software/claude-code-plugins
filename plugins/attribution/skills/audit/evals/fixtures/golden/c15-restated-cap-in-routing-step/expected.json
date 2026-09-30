@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 3, "end_line": 4 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "notes": {
+    "shape": "One clause inside a local decision step: the cost argument for a new skill rests on the listing entry's fields and the cap that truncates it. The rest of the step is local routing judgment.",
+    "carve_outs": "None apply. Owned content covers the routing rule, not the cap, and the clause is not a pointer or a record.",
+    "rubric": "R1 holds: the product owns the entry fields and the cap. R2 holds: a character count. R3 holds: stated as current, and the local saving is computed from it. R4 holds: no basis, date or trigger. The surrounding sentences state this repository's own routing decisions and are outside the span.",
+    "carries": "This case is the counterpart of c20: the same clause, with the source URL, an as-of date and a recheck trigger added, is a conforming record and must not be flagged.",
+    "tier_reason": "A source was supplied, so source-fetched-similar. Report-only."
+  }
+}

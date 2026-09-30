@@ -25,9 +25,9 @@
 #      not an apply, and reading bodies reported applies that never happened.
 #   3. none.
 #
-# Changelog source: --changelog <file>; else a curl of
-# https://code.claude.com/docs/en/changelog.md (the raw-markdown channel, rung 1 of
-# the upstream-drift fetch route) into a temp file; --no-fetch skips the fetch.
+# Changelog source: --changelog <file>; else the plugin's scripts/fetch-docs.sh
+# fetches the `changelog` page (raw markdown, resolved through the docs index) into a
+# temp dir, and its manifest says whether the page was read; --no-fetch skips the fetch.
 # Whichever source is used, the body's first heading must read
 # "# Claude Code changelog": a retired slug can serve another page's bytes under a
 # 200, so identity is checked before any count is trusted. A body with the heading
@@ -63,7 +63,6 @@
 
 set -uo pipefail
 
-CHANGELOG_URL="https://code.claude.com/docs/en/changelog.md"
 CHANGELOG_HEADING="# Claude Code changelog"
 VERSION_RE='[0-9]+\.[0-9]+\.[0-9]+'
 
@@ -120,7 +119,7 @@ while (($#)); do
     shift 2
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
@@ -218,8 +217,8 @@ printf 'ledger: %s (%s)\n' "$ledger" "$ledger_state"
 printf 'installed: %s\n' "$installed"
 
 # --- Changelog source ------------------------------------------------------------
-tmp_changelog=""
-trap '[[ -n "$tmp_changelog" ]] && rm -f "$tmp_changelog"' EXIT
+tmp_dir=""
+trap '[[ -n "$tmp_dir" ]] && rm -rf "$tmp_dir"' EXIT
 
 changelog=""
 not_computed=""
@@ -227,14 +226,18 @@ if [[ -n "$changelog_arg" ]]; then
   changelog="$changelog_arg"
 elif ((no_fetch)); then
   not_computed="no changelog source: --no-fetch and no --changelog"
-elif ! command -v curl >/dev/null 2>&1; then
-  not_computed="curl is not installed; pass --changelog <file>"
+elif ! command -v jq >/dev/null 2>&1; then
+  not_computed="jq is not installed; pass --changelog <file>"
 else
-  tmp_changelog="$(mktemp)"
-  if curl -fsSL --max-time 60 "$CHANGELOG_URL" -o "$tmp_changelog" 2>/dev/null; then
-    changelog="$tmp_changelog"
+  plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+  tmp_dir="$(mktemp -d)"
+  # The status script never reads the manifest's claude_version, so the fetcher runs no claude.
+  if FETCH_DOCS_CLAUDE_BIN='' bash "$plugin_root/scripts/fetch-docs.sh" --out "$tmp_dir" changelog >/dev/null 2>&1 &&
+    [[ "$(jq -r '.pages[0].state' "$tmp_dir/manifest.json" 2>/dev/null)" == "read" ]]; then
+    changelog="$tmp_dir/changelog.md"
   else
-    not_computed="fetch of $CHANGELOG_URL failed; pass --changelog <file> or retry"
+    reason="$(jq -r '.pages[0].reason // empty' "$tmp_dir/manifest.json" 2>/dev/null)"
+    not_computed="fetch of the changelog page failed (${reason:-no manifest}); pass --changelog <file> or retry"
   fi
 fi
 

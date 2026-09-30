@@ -177,14 +177,14 @@
       "id": 14,
       "name": "register-gate-halts-before-the-contract-locks",
       "prompt": "/planning:interview — we've covered enough, write the brief for the audit-log retention work.",
-      "expected_output": "The skill runs scripts/check-open-questions.sh twice. At Step 3, before the contract is persisted, it passes --ledger ONLY — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
+      "expected_output": "The skill runs scripts/check-open-questions.sh twice, citing the exit code each time. At Step 3, before the contract is persisted, it passes --ledger and --procedure but no --brief — PLAN.md does not exist yet, and the gate exits 2 on a named-but-missing --brief. Then, immediately after Step 4 writes the Brief, it re-runs with --procedure --brief to prove every deferred/blocked row reached `### Deferred questions`, matched on the leading Q<N> id, and that the Brief carries all seven template headings. A non-zero exit halts either time: exit 1 means a question is still `open`, exit 2 means the register could not be graded (missing register, malformed row, gapped or leading-zero Q numbering, a retired row the Brief never records). Neither is a pass — the skill resolves or explicitly retires the row, or fixes the Brief, and re-runs rather than locking the contract over a failing check. A run that asked no question wrote no register and skips the gate entirely.",
       "files": [],
       "expectations": [
-        "The Step 3 run passes --ledger only; --brief is NOT named before Step 4 has written PLAN.md",
-        "The gate re-runs with --brief immediately after the Brief is written, in an engineering session",
+        "The Step 3 run passes --ledger and --procedure; --brief is NOT named before Step 4 has written PLAN.md",
+        "The gate re-runs with --procedure --brief immediately after the Brief is written, in an engineering session",
         "Exit 1 halts the lock and the still-open question is resolved or explicitly retired first",
-        "Exit 2 (ungradeable) is treated as a halt, never as a pass; on the Step 4 run a missing question means the Brief is fixed, not the register row retired",
-        "A general session writing no Brief runs only the ledger-only form, and a run that asked no question skips the gate rather than failing it"
+        "Exit 2 (ungradeable) is treated as a halt, never as a pass; on the Step 4 run a missing question or a missing Brief template heading means the Brief is fixed, not the register row retired",
+        "A general session writing no Brief runs only the Step 3 form (no --brief), and a run that asked no question skips the gate rather than failing it"
       ]
     },
     {
