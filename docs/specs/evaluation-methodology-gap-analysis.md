@@ -54,7 +54,7 @@ Item numbers follow the operator-gate list in the issue. Rejected: none.
 | Item | Gap-analysis row | Decision | Condition | Work item |
 |---|---|---|---|---|
 | 1. No-skill arm documentation | With-skill vs without-skill baseline runs | Adopted | Docs only, now | #5393 |
-| 2. Script graders for mechanical expectations | Script-based grading for mechanical checks | Adopted, piloted on `source-control:commit`, `source-control:pull-request`, `source-control:worktree` | After item 1; pilot on a few high-traffic skills | #5397 |
+| 2. Script graders for mechanical expectations | Script-based grading for mechanical checks | Adopted, pilot cases added for `source-control:commit`, `source-control:pull-request`, `source-control:worktree` | After item 1; pilot on a few high-traffic skills | #5397 |
 | 3. Cost metadata on suites | Benchmark deltas weighing pass-rate against token/time cost | Deferred | Until item 1 lands | none yet |
 | 4. Cost-capped CI rerun on skill edits | Closed propose, apply, rerun, review loop | Deferred | Until items 2 and 3 land | none yet |
 | 5. Assertion-discipline enforcement | Assertion discipline | Adopted | After the "Assertion discipline measurement" section of PR #5288 lands on main | #5394 |
