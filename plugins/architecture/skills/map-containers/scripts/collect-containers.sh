@@ -36,6 +36,14 @@
 # cites the config keys of both. A sql store is one host, port, and database; with
 # no database named the id says "database unknown" and an edge between its
 # owners says "same server, database unknown".
+# Edge kind uses between two deployables is one edge per pair: from the deployable
+# whose own config names an http endpoint, to the deployable it resolves to. It
+# cites the config key and the fact that resolved it: a compose service whose
+# build context is the target's directory (the endpoint host is the service name,
+# and a declared port equals the endpoint's), or a launchSettings.json
+# applicationUrl on the target (localhost or 127.0.0.1 and the same port). An
+# endpoint that resolves to no deployable or to several draws no edge and is an
+# external-endpoint finding with its redacted host. A self-reference draws none.
 # technology is a runtime, framework, or image, or the literal unknown. A sql
 # store's is its URL scheme (mongodb, postgres, mysql), Azure SQL for a
 # database.windows.net host, or unknown.
@@ -164,7 +172,10 @@ module_body="$(mktemp)"
 edge_body="$(mktemp)"
 excluded="$(mktemp)"
 finding_body="$(mktemp)"
-trap 'rm -f "$files_list" "$all_proj" "$deploy" "$refs" "$modules" "$extras" "$edges" "$hits" "$container_body" "$module_body" "$edge_body" "$excluded" "$finding_body"' EXIT
+endpoints="$(mktemp)"
+listen="$(mktemp)"
+svcmap="$(mktemp)"
+trap 'rm -f "$files_list" "$all_proj" "$deploy" "$refs" "$modules" "$extras" "$edges" "$hits" "$container_body" "$module_body" "$edge_body" "$excluded" "$finding_body" "$endpoints" "$listen" "$svcmap"' EXIT
 
 git -C "$root" ls-tree -r --name-only -z HEAD | tr '\0' '\n' | LC_ALL=C sort >"$files_list"
 dirty_n="$(git -C "$root" --no-optional-locks status --porcelain --untracked-files=no 2>/dev/null | awk 'END { print NR }')"
@@ -498,7 +509,14 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       gsub(/"/, "", image)
       gsub(/\047/, "", build)
       gsub(/"/, "", build)
-      printf "%s\t%s\t%s\n", name, image, build
+      printf "%s\034%s\034%s\034%s\n", name, image, build, ports
+    }
+    function add_port(p) {
+      gsub(/\r/, "", p)
+      gsub(/["\047[:space:]]/, "", p)
+      sub(/\/[A-Za-z]+$/, "", p)
+      sub(/^.*:/, "", p)
+      if (p ~ /^[0-9]+$/) ports = ports (ports == "" ? "" : ",") p
     }
     /^services:[[:space:]]*$/ { in_s = 1; next }
     in_s && /^[^ \t#]/ { flush(); exit }
@@ -509,7 +527,26 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       sub(/:[[:space:]]*$/, "", name)
       image = ""
       build = ""
+      ports = ""
+      in_ports = 0
       next
+    }
+    in_s && /^    [A-Za-z_]+:/ {
+      key = $0
+      sub(/^    /, "", key)
+      sub(/:.*$/, "", key)
+      in_ports = (key == "ports" || key == "expose")
+    }
+    in_s && in_ports && /^      -[[:space:]]+[^[:space:]#]/ {
+      item = $0
+      sub(/^      -[[:space:]]+/, "", item)
+      sub(/[[:space:]]+#.*$/, "", item)
+      if (item !~ /^[A-Za-z_]+:[[:space:]]/ || item ~ /^target:/) add_port(item)
+    }
+    in_s && in_ports && /^        target:[[:space:]]*[0-9]/ {
+      item = $0
+      sub(/^        target:[[:space:]]*/, "", item)
+      add_port(item)
     }
     in_s && /^    image:[[:space:]]*/ {
       image = $0
@@ -528,7 +565,9 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     }
     END { flush() }
   ' "$abs" >"$parsed"
-  while IFS=$'\t' read -r svc image build; do
+  # Unit separator, not tab: bash read collapses empty tab fields, and a service
+  # with a build and no image would slide the build into the image.
+  while IFS=$'\034' read -r svc image build ports; do
     [[ -n "$svc" ]] || continue
     context="${build#./}"
     context="${context%/}"
@@ -541,6 +580,8 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       fi
     done <"$deploy"
     if [[ "$match_n" -eq 1 ]]; then
+      svc_host="$(printf '%s' "$svc" | tr '[:upper:]' '[:lower:]')"
+      printf '%s\034%s\034%s\034%s\n' "$svc_host" "$matched" "$ports" "$rel: service $svc build $context" >>"$svcmap"
       awk -F'\t' -v id="$matched" -v extra="$rel: service $svc" 'BEGIN { OFS="\t" }
         $1 == id { $5 = $5 "; " extra }
         { print }
@@ -558,6 +599,9 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       ;;
     redis)
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "cache" "$rel: image ${image:-unknown}" >>"$extras"
+      ;;
+    elasticsearch | opensearch)
+      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "search" "$rel: image ${image:-unknown}" >>"$extras"
       ;;
     rabbitmq | nats | kafka)
       printf '%s\t%s\t%s\t%s\t%s\t%s\n' "store:image:$rel:$svc" "$svc" "store" "${image:-unknown}" "broker" "$rel: image ${image:-unknown}" >>"$extras"
@@ -602,17 +646,34 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     mode="env"
   fi
   [[ -n "$mode" ]] || continue
-  ASSIGN_MODE="$mode" awk -f "$REDACT_AWK" -f "$ASSIGN_AWK" "$abs" |
-    awk -F'\t' -v rel="$rel" '
+  ASSIGN_MODE="$mode" awk -v redact_local_http=1 -f "$REDACT_AWK" -f "$ASSIGN_AWK" "$abs" |
+    awk -F'\t' -v rel="$rel" -v endpoints="$endpoints" -v listen="$listen" '
       $1 != "" && $2 != "" && $4 != "" {
-        if ($1 !~ /^(sql|storage|broker|cache)$/) next
+        kind = $1
+        if (kind == "http") {
+          if ($6 != "http" && $6 != "https") next
+          leaf = tolower($4)
+          n = split(leaf, seg, /[.:]/)
+          leaf = seg[n]
+          gsub(/[^a-z0-9]/, "", leaf)
+          if ($2 ~ /\.search\.windows\.net$|\.es\.amazonaws\.com$|\.aoss\.amazonaws\.com$|\.elastic-cloud\.com$|\.found\.io$/ ||
+              leaf ~ /elasticsearch|opensearch|searchendpoint|searchservice/) kind = "search"
+        }
+        if (kind == "http") {
+          if ($3 !~ /^[0-9]*$/) next
+          if (rel ~ /(^|\/)Properties\/launchSettings\.json$/ && tolower($4) ~ /(^|\.)applicationurl$/) {
+            if ($3 != "" && ($2 == "localhost" || $2 == "127.0.0.1")) printf "%s\t%s\t%s\t%s\n", $2, $3, rel, $4 >> listen
+          } else printf "%s\t%s\t%s\t%s\t%s\n", $2, $3, rel, $4, $6 >> endpoints
+          next
+        }
+        if (kind !~ /^(sql|storage|broker|cache|search)$/) next
         if ($2 ~ /[^a-z0-9.-]/ || index($2, ".") == 0 || index($2, "..") > 0) next
         if ($3 != "" && $3 !~ /^[0-9]+$/) next
         db = $5
         scheme = $6
-        if ($1 != "sql" || db !~ /^[a-z0-9_.-]+$/) db = ""
-        if ($1 != "sql" || scheme !~ /^[a-z][a-z0-9]*$/) scheme = ""
-        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", $1, $2, $3, rel, $4, db, scheme
+        if (kind != "sql" || db !~ /^[a-z0-9_.-]+$/) db = ""
+        if (kind != "sql" || scheme !~ /^[a-z][a-z0-9]*$/) scheme = ""
+        printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", kind, $2, $3, rel, $4, db, scheme
       }
     ' >>"$hits"
 done <"$files_list"
@@ -663,6 +724,14 @@ store_technology() {
     esac
     ;;
   storage) printf 'Azure Blob Storage' ;;
+  search)
+    case "$host" in
+    *.search.windows.net) printf 'Azure AI Search' ;;
+    *.es.amazonaws.com | *.aoss.amazonaws.com) printf 'OpenSearch' ;;
+    *.elastic-cloud.com | *.found.io) printf 'Elasticsearch' ;;
+    *) printf 'unknown' ;;
+    esac
+    ;;
   *) printf 'unknown' ;;
   esac
 }
@@ -724,6 +793,70 @@ if [[ -s "$hits.grouped" ]]; then
   done < <(awk -F'\036' '{ print $1 }' "$hits.grouped" | LC_ALL=C sort -u)
 fi
 rm -f "$hits.grouped"
+
+# An endpoint a deployable's own config names is an edge to another deployable
+# only through a cited fact: a compose service whose build context is that
+# deployable's directory (host equals the service name, and a declared port equals
+# the endpoint's), or a launchSettings applicationUrl on that deployable (loopback
+# host and the same port). Nothing is matched by a name's resemblance. An endpoint
+# that resolves to no deployable or to several draws no edge and is a finding.
+if [[ -s "$listen" ]]; then
+  while IFS=$'\t' read -r _host lport lfile lkey; do
+    parent="${lfile%Properties/launchSettings.json}"
+    parent="${parent%/}"
+    while IFS=$'\t' read -r id _name _kind _tech _ev dir; do
+      [[ -n "$id" && "$dir" == "$parent" ]] || continue
+      printf '%s\t%s\t%s: %s\n' "$id" "$lport" "$lfile" "$lkey" >>"$listen.map"
+    done <"$deploy"
+  done <"$listen"
+fi
+if [[ -s "$endpoints" ]]; then
+  ep_edges="$(mktemp)"
+  while IFS=$'\034' read -r host port file key scheme; do
+    owner="$(bind_deployable "$file")"
+    [[ -n "$owner" ]] || continue
+    targets="$(
+      awk -F'\034' -v host="$host" -v port="$port" -v scheme="$scheme" '
+        $1 == host {
+          ok = ($3 == "")
+          n = split($3, p, ",")
+          for (i = 1; i <= n; i++) if (p[i] == (port == "" ? (scheme == "https" ? 443 : 80) : port)) ok = 1
+          if (ok) printf "%s\t%s\n", $2, $4
+        }' "$svcmap"
+      if [[ ( "$host" == localhost || "$host" == 127.0.0.1 ) && -s "$listen.map" ]]; then
+        awk -F'\t' -v port="$port" 'port != "" && $2 == port { printf "%s\t%s\n", $1, $3 }' "$listen.map"
+      fi
+    )"
+    target_n="$(printf '%s\n' "$targets" | awk -F'\t' 'NF && !($1 in seen) { seen[$1] = 1; n++ } END { print n + 0 }')"
+    if [[ "$target_n" -eq 1 ]]; then
+      target="${targets%%$'\t'*}"
+      [[ "$target" == "$owner" ]] && continue
+      printf '%s\n' "$targets" | awk -F'\t' -v owner="$owner" -v cite="$file: $key" 'NF { printf "%s\t%s\t%s\t%s\n", owner, $1, cite, $2 }' >>"$ep_edges"
+      continue
+    fi
+    shown="$host"
+    [[ -z "$port" ]] || shown="$host:$port"
+    why="resolves to no deployable in this repository"
+    [[ "$target_n" -gt 1 ]] && why="matches more than one deployable"
+    json_escape "$file: $key names host $shown; $why"
+    printf '{"kind":"external-endpoint","count":1,"evidence":"%s"}\n' "$JSON_ESC" >>"$finding_body"
+  done < <(LC_ALL=C sort -u "$endpoints" | awk -F'\t' '{ printf "%s\034%s\034%s\034%s\034%s\n", $1, $2, $3, $4, $5 }')
+  if [[ -s "$ep_edges" ]]; then
+    LC_ALL=C sort -u "$ep_edges" | LC_ALL=C awk -F'\t' '
+      {
+        k = $1 SUBSEP $2
+        if (!(k in from)) { order[++n] = k; from[k] = $1; to[k] = $2 }
+        if (!((k SUBSEP $3) in seen_cfg)) { seen_cfg[k SUBSEP $3] = 1; cfg[k] = cfg[k] (cfg[k] == "" ? "" : "; ") $3 }
+        if (!((k SUBSEP $4) in seen_res)) { seen_res[k SUBSEP $4] = 1; res[k] = res[k] (res[k] == "" ? "" : "; ") $4 }
+      }
+      END {
+        for (i = 1; i <= n; i++) printf "%s\t%s\tuses\t-\t%s; %s\n", from[order[i]], to[order[i]], cfg[order[i]], res[order[i]]
+      }
+    ' >>"$edges"
+  fi
+  rm -f "$ep_edges"
+fi
+rm -f "$listen.map"
 
 emit_container() {
   local id="$1" name="$2" kind="$3" technology="$4" store_kind="$5" evidence="$6" summary="$7"
