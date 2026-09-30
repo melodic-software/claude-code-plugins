@@ -10,6 +10,19 @@ is.
    reports the path unignored, append `/.claude/lane-escalations/` to the clone's untracked
    `$(git rev-parse --git-common-dir)/info/exclude`. Skipped outside a git checkout, which the
    neutral-directory launch mode allows.
+   **Bootstrap check (once per lane, report-only).** Skipped at `human-only`. When the resolved
+   rung is merge-capable, read the options `promotion_evidence_binding`,
+   `promotion_evidence_root`, and `promotion_evidence_source` from the substituted block in
+   [`../SKILL.md`](../SKILL.md) ("Promotion-evidence bootstrap options"; the `CLAUDE_PLUGIN_OPTION_*`
+   mirror is never read) and record, by option name, each one that is unset, holds a relative path,
+   or resolves (after symlinks) inside the target checkout or beneath a worktree root
+   (`babysit_worktree_root`, `worktree_root`, the plugin data directory's `worktrees/`), whether or
+   not a worktree exists there yet, with the compliant fix [the contract](promotion-evidence-bootstrap.md)
+   gives. Whether the lane can write a surface is a
+   host property this check cannot see, so it never reports one compliant on that ground. The
+   check changes no rung, gate, or withholding, reads no repo-local file, and does not invoke
+   `check-security-binding.mjs`: every promotable cell stays effective-unpromoted whatever it
+   finds, and step 3 reports the result each cycle.
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
    context is compaction-lossy, the comment is the source of truth for the counters); classify
    guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot: open PRs with head SHAs,
@@ -48,7 +61,9 @@ is.
    `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy` (never C4/C5). Before
    work-class comparison resolve each cell through the trusted seam; unqualified evidence fail-closes
    to effective-unpromoted, operators keep `--merge human-only` on launch lines; report each
-   bound→effective pair at cycle start. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor, see "Explicit-`autopilot` widening" above. A PR with no
+   bound→effective pair at cycle start, followed by one line naming the step 0 bootstrap check's
+   findings (each option and its problem), or that the bootstrap is complete as far as that check
+   can see; a complete bootstrap does not change any pair. Effective rung: tracked rung, C3 raise when `autopilot` + `--merge c3-this-run` typed (other `--merge` floors), C4/C5 floor, see "Explicit-`autopilot` widening" above. A PR with no
    close-linked item, or an item with no recorded classification, is NOT eligible, no
    classification = no merge, at any rung, including the explicit-`autopilot` widening. A PR still
    carrying the do-not-merge label at partition time is NOT eligible at any rung or class, the
