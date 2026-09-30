@@ -382,7 +382,7 @@ run_guards::counted_text() { # <command> -> _rg_counted
       m=${BASH_REMATCH[1]}
       rest=${rest:$((${#m} + 2))}
       # Its last path component stays when it could name a command, so a
-      # shell spelled in quotes (`'/bin/bash'`, `ba'sh'`) is still caught below.
+      # shell spelled in quotes (`'/bin/bash'`, `b'ash'`) is still caught below.
       [[ $m =~ $re_base ]] && m=${BASH_REMATCH[1]}
       if [[ $m =~ $re_name ]]; then out+=$m; else out+=' '; fi
       ws=0

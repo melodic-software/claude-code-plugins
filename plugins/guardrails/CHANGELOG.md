@@ -7,7 +7,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **The substitution cap no longer counts text inside single-quoted spans ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).** A Bash command whose issue or PR body quotes `$(`, `<(`, `>(` or backticks in single quotes is no longer refused at 256, because bash substitutes nothing there. Unquoted, double-quoted and heredoc-body substitutions still count. A command naming a shell, `eval`, `su`, `env` or `alias`, or with quoting the scan does not model, counts whole. PowerShell is unchanged. The Windows timing runs stay open on the issue.
+- **The substitution cap no longer counts text inside single-quoted spans ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).** A Bash command whose issue or PR body quotes `$(`, `<(`, `>(` or backticks in single quotes is no longer refused at 256, because bash substitutes nothing there. Unquoted, double-quoted and heredoc-body substitutions still count. A command naming a shell, `eval`, `su`, `env` or `alias`, or with quoting the scan does not model, counts whole. PowerShell is unchanged.
 
 ## [0.42.0] - 2026-09-29
 
