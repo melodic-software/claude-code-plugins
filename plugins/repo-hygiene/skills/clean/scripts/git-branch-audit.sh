@@ -4,7 +4,7 @@
 #
 # Output: PR-map status (PRCount, or PRDataUnavailable; PRDataTruncated when the
 # lookup hit its cap); then per branch Branch, Tip, Tier, Age days, PR, Unpushed,
-# Loss, Reason, Family (plus Landed, the proof, on a landed branch, and Worktree, the
+# Loss, Reason, Landed (the proof, on a landed branch only), Family (plus Worktree, the
 # checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
 # LossBlockEnd); then TipCapture (or TipCaptureError); Summary line. A missing
 # map is NOT the same as a repo with no PRs, and the two are distinguishable
@@ -150,8 +150,8 @@ bisect in progress; any of those prints `OperationInProgress: <path>` and demote
 SAFE, LIKELY-SAFE and LOSSY to REVIEW. These describe the checkout the audit runs
 from (a linked worktree when it runs from one); an operation in another
 worktree is not detected.
-Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason, Family; a landed
-branch adds `Landed: <proof>`; a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out.
+Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason, Landed (a
+landed branch only, `Landed: <proof>`), Family; a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out.
 Family: agent (agent-<hex>), claude (claude/*), plan (plan/*), stranded
 (stranded/*), pre-wipe (pre-wipe/*), or none. Information only; never a tier input.
 Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. A branch whose work
