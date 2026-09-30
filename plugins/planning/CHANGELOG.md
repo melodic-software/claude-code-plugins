@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
+## [0.47.5] - 2026-09-29
+
+### Fixed
+
+- **The interview wording lint no longer flags a release label such as `V1` as a bare question id.** `round.py` skips `V` followed by digits, so a coined id such as `AC21` still warns, and the rule in `context/surface.md` states the exception ([#5458](https://github.com/melodic-software/claude-code-plugins/issues/5458)).
+
 ## [0.47.4] - 2026-09-29
 
 ### Fixed
