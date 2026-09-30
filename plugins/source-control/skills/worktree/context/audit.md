@@ -148,7 +148,7 @@ Report each row (`<path>`, `<class>`, `<proposed>`) by class:
 | `foreign` | content and no `.git` | reported only |
 | `live` | inside a live work tree, usually another repository's | reported only |
 | `symlink` | a symlink | reported only |
-| `unknown` | any other `.git` entry: its gitdir exists but `rev-parse` fails, or `<common>` is gone (main clone moved, deleted or unmounted: a live worktree, recoverable with `git worktree repair` from the recovered clone) | reported only |
+| `unknown` | a directory that cannot be listed (no read permission), or any other `.git` entry: its gitdir exists but `rev-parse` fails, or `<common>` is gone (main clone moved, deleted or unmounted: a live worktree, recoverable with `git worktree repair` from the recovered clone) | reported only |
 
 Read-only: neither the scan nor this step removes anything.
 

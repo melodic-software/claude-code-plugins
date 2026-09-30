@@ -20,7 +20,8 @@
 #             other content too (possibly uncommitted work)       proposed no
 #   empty     no entries at all                                  proposed yes
 #   foreign   content and no .git                                proposed no
-#   unknown   any other .git entry: its gitdir exists but rev-parse fails, its
+#   unknown   a directory that cannot be listed (no read permission), or any
+#             other .git entry: its gitdir exists but rev-parse fails, its
 #             <common> is gone (main clone moved, deleted or unmounted, which
 #             `git worktree repair` can recover), or it is no worktree pointer
 #                                                                proposed no
@@ -123,9 +124,11 @@ inside_work_tree() {
 }
 
 classify() {
-  local d="$1" gitfile target common
+  local d="$1" gitfile target common entries
   if [[ -L "$d" ]]; then
     printf 'symlink\tno'
+  elif ! entries="$(ls -A "$d" 2>/dev/null)"; then
+    printf 'unknown\tno'
   elif [[ -e "$d/.git" || -L "$d/.git" ]]; then
     # shellcheck disable=SC2310  # pure predicate; both branches are handled
     if inside_work_tree "$d"; then
@@ -136,14 +139,14 @@ classify() {
       [[ "$target" == /* || "$target" =~ ^[A-Za-z]:[/\\] ]] || target="$d/$target"
       common="${target%/worktrees/*}"
       if [[ ! -e "$target" && "$target" == */worktrees/* && -f "$common/HEAD" && -d "$common/objects" ]]; then
-        if [[ "$(ls -A "$d")" == .git ]]; then printf 'husk\tyes'; else printf 'husk\tno'; fi
+        if [[ "$entries" == .git ]]; then printf 'husk\tyes'; else printf 'husk\tno'; fi
       else
         printf 'unknown\tno'
       fi
     else
       printf 'unknown\tno'
     fi
-  elif [[ -z "$(ls -A "$d")" ]]; then
+  elif [[ -z "$entries" ]]; then
     printf 'empty\tyes'
   else
     printf 'foreign\tno'

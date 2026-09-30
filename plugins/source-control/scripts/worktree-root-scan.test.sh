@@ -127,6 +127,21 @@ assert_file_exists "moved-main worktree content survives the scan" "$ROOT/moved-
 assert_file_exists "foreign content survives the scan" "$ROOT/foreign/notes.txt"
 assert_eq "empty dir survives the scan" yes "$([[ -d "$ROOT/empty-dir" ]] && echo yes || echo no)"
 
+# A directory that cannot be listed may hold work: unknown, never empty.
+UNREADABLE_ROOT="$TEST_TMPDIR/unreadable-root"
+mkdir -p "$UNREADABLE_ROOT/unreadable"
+printf 'x\n' >"$UNREADABLE_ROOT/unreadable/precious.txt"
+chmod 000 "$UNREADABLE_ROOT/unreadable"
+if ls -A "$UNREADABLE_ROOT/unreadable" >/dev/null 2>&1; then
+  skip_case "directory permissions are not enforced on this host"
+else
+  run_scan --root "$UNREADABLE_ROOT" --repo-dir "$REPO_A"
+  assert_eq "a directory that cannot be listed is unknown, not proposed" $'unreadable\tunknown\tno' \
+    "$(row_for unreadable | sed 's#^.*/##')"
+fi
+chmod 755 "$UNREADABLE_ROOT/unreadable"
+assert_file_exists "unreadable directory content survives the scan" "$UNREADABLE_ROOT/unreadable/precious.txt"
+
 # A root inside a repository must not turn a plain child into a live one.
 NESTED_REPO="$(mkrepo)"
 mkdir -p "$NESTED_REPO/wt-root/inner"
