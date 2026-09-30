@@ -16,9 +16,9 @@
 #
 # Adoption: classify and finish are used by check-shell-portability,
 # check-skill-portability, check-skill-precompute-compose, check-changed-skills,
-# check-stale-base-overlap, and check-vendor-version-bump. Only require_base
-# is used by check-guardrails-ps-differential. affected-tests, check-docs-only,
-# check-changelog-parity, check-contract-slice-prune, and
+# check-stale-base-overlap, check-vendor-version-bump, check-contract-slice-prune,
+# and check-changelog-parity. Only require_base is used by
+# check-guardrails-ps-differential. affected-tests, check-docs-only, and
 # check-skill-description-voice still dispatch modes and map exits themselves.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
