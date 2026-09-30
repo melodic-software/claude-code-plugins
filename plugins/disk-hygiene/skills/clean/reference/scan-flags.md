@@ -39,6 +39,11 @@ everything" is not selection.
 without `--max-depth` or `--confirmed-large-scan`. It does not stop at VCS or protected
 directories: it sums through them, read-only, and writes no entries. It has no entry cap.
 
+When an inventory scan hits the entry cap, the error lists the top five top-level children by entry
+count so far. The child still being walked is a lower bound, and children not yet reached are not
+counted. Size candidates with `--sizes-only`, then rerun with `--root-children --root-child <name>`
+on bounded children or with `--max-depth`.
+
 ## Coverage and hint fields
 
 `truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`,

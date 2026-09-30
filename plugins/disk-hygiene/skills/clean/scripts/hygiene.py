@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import ctypes
 import datetime as dt
 import fnmatch
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -27,8 +29,12 @@ from typing import Any
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -251,6 +257,8 @@ def scan_complete_payload(
         "os_autoclean": advisory,
         "note": note,
     }
+    if snapshot.get("catalog_unreadable"):
+        payload["catalog_unreadable"] = True
     if snapshot.get("inventory_mode") == "sizes-only":
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = snapshot.get("rollup_precision")
@@ -304,6 +312,42 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise HygieneError(f"JSON root must be an object: {path}")
     return value
+
+
+def catalog_paths() -> tuple[Path, Path]:
+    """``catalog.json`` and ``CATALOG.md`` under the authorized data root."""
+    data_root = Path(DATA_ROOT_OVERRIDE or "")
+    return (
+        state_output_path(data_root / "catalog.json"),
+        state_output_path(data_root / "CATALOG.md"),
+    )
+
+
+def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
+    """Attach ``prior_disposition`` from the data-root catalog, when one exists.
+
+    A hint for the report only: an absent or unreadable catalog leaves the scan
+    unchanged, and nothing here touches the target.
+    """
+    if not DATA_ROOT_OVERRIDE:
+        return
+    catalog_path = catalog_paths()[0]
+    if not catalog_path.is_file():
+        return
+    try:
+        investigated_catalog.annotate_entries(snapshot, load_json(catalog_path))
+    except HygieneError:
+        snapshot["catalog_unreadable"] = True
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    """Replace ``path`` whole or leave it as it was."""
+    temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -736,6 +780,111 @@ def is_os_managed_target(
     return False
 
 
+# The device path, not DiskImage.Number, tells a VHD (a physical drive with
+# partitions) from an optical image (.iso/.img, a CD-ROM device with one volume).
+WINDOWS_DISK_IMAGE_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$image = Get-DiskImage -ImagePath $env:DISK_HYGIENE_IMAGE
+if (-not $image.Attached) { 'detached'; exit 0 }
+'attached'
+if ($image.DevicePath -match '^\\\\\.\\PHYSICALDRIVE(\d+)$') {
+  Get-Partition -DiskNumber $Matches[1] -ErrorAction SilentlyContinue |
+    ForEach-Object AccessPaths
+} else {
+  Get-Volume -DiskImage $image -ErrorAction SilentlyContinue |
+    Where-Object DriveLetter | ForEach-Object { "$($_.DriveLetter):" }
+}
+"""
+
+
+def windows_disk_image_mounts(path: Path) -> list[str] | None:
+    powershell = shutil.which("powershell")
+    if not powershell:
+        raise OSError("powershell not found")
+    encoded = base64.b64encode(WINDOWS_DISK_IMAGE_PROBE.encode("utf-16-le")).decode()
+    # ponytail: one PowerShell spawn per image per engine call; batch one
+    # Get-DiskImage per scan if image-heavy targets make scans slow.
+    run = subprocess.run(
+        [powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=20,
+        check=False,
+        env={**os.environ, "DISK_HYGIENE_IMAGE": str(path)},
+    )
+    # Exit code and sentinel only: Windows PowerShell writes CLIXML progress
+    # records to a redirected stderr even on success.
+    lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
+    if run.returncode != 0 or not lines or lines[0] not in {"attached", "detached"}:
+        raise ValueError(
+            f"Get-DiskImage exit {run.returncode}: {run.stderr.strip()[:200]}"
+        )
+    if lines[0] == "detached":
+        return None
+    return sorted(
+        {line.rstrip("\\") for line in lines[1:] if not line.startswith("\\\\?\\")}
+    )
+
+
+def linux_loop_mounts(
+    path: Path,
+    sys_block: Path = Path("/sys/block"),
+    mountinfo: Path = Path("/proc/self/mountinfo"),
+) -> list[str] | None:
+    if not sys_block.is_dir():
+        raise OSError(f"{sys_block} is not readable")
+    image = os.path.realpath(path)
+    devices = {
+        backing.parent.parent.name
+        for backing in sys_block.glob("loop*/loop/backing_file")
+        if backing.read_text(encoding="utf-8").strip() == image
+    }
+    if not devices:
+        return None
+    mounts: set[str] = set()
+    for line in mountinfo.read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if "-" not in fields[6:]:
+            continue
+        separator = fields.index("-", 6)
+        if len(fields) < separator + 3:
+            raise ValueError(f"malformed mountinfo line: {line[:200]}")
+        source = fields[separator + 2].removeprefix("/dev/")
+        if re.sub(r"p\d+$", "", source) in devices:
+            mounts.add(_decode_mountinfo_path(fields[4]))
+    return sorted(mounts)
+
+
+def is_wsl() -> bool:
+    return (
+        "microsoft" in platform.release().lower()
+        or Path("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+    )
+
+
+def virtual_disk_attachment(path: Path) -> list[str] | None:
+    """Where an attached disk image is mounted, or None when it is detached.
+
+    An attached image with no mounted volume returns an empty list. Raises
+    OSError, subprocess.SubprocessError, or ValueError when the host cannot
+    tell, including on a platform with no probe. Windows asks Get-DiskImage;
+    Linux reads the loop devices' backing files. Under WSL a loop-device miss
+    cannot prove the image detached, because WSL sees only its own loop
+    devices, never the Windows host's attachments, so it raises instead.
+    """
+    if os.name == "nt":
+        return windows_disk_image_mounts(path)
+    if os_key() == "linux":
+        mounts = linux_loop_mounts(path)
+        if mounts is None and is_wsl():
+            raise OSError("WSL cannot see the Windows host's disk attachments")
+        return mounts
+    raise OSError("no virtual-disk attach probe on this platform")
+
+
 def hard_protection(
     path: Path,
     target: Path,
@@ -747,6 +896,22 @@ def hard_protection(
         reasons.append("target-root")
     if is_volume_root(path) and is_os_managed_target(path):
         reasons.append("os-managed-root")
+    # Only the entry itself: a directory that merely carries an image-style name
+    # holds no image, and its contents are judged entry by entry. A path that
+    # cannot be stat'ed reads as not-a-directory, which fails closed.
+    if is_virtual_disk_name(path.name) and not path.is_dir():
+        reasons.append("virtual-disk")
+        try:
+            mounts = virtual_disk_attachment(path)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            # Never read an unanswered probe as detached.
+            reasons.append("virtual-disk-attach-unverified")
+        else:
+            if mounts is not None:
+                reasons.extend(
+                    [f"attached-virtual-disk:{mount}" for mount in mounts]
+                    or ["attached-virtual-disk"]
+                )
     current = path
     while is_within(current, target):
         linkish, cloud_placeholder = link_and_cloud_state(current)
@@ -818,6 +983,7 @@ def baseline_policy() -> dict[str, Any]:
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "protected_name_globs": list(baseline.get("protected_name_globs", [])),
+        "disk_image_name_globs": list(baseline.get("disk_image_name_globs", [])),
         "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
@@ -860,6 +1026,23 @@ def baseline_protected_name_globs() -> tuple[str, ...]:
     a build-time constant.
     """
     return tuple(baseline_policy()["protected_name_globs"])
+
+
+@functools.lru_cache(maxsize=1)
+def baseline_disk_image_name_globs() -> tuple[str, ...]:
+    """Bundled disk-image name patterns, read from the baseline like the protected globs."""
+    return tuple(baseline_policy()["disk_image_name_globs"])
+
+
+def is_virtual_disk_name(name: str) -> bool:
+    """True when a file name is a virtual-disk image (``*.vhdx``, ``*.vmdk``, ...).
+
+    A disk image holds a whole machine or volume: it is sparse or dynamically
+    sized, is usually held open by a hypervisor or WSL, and its name says
+    nothing about whether the guest inside is disposable. Matched casefolded
+    through ``glob_matches``, so ``DISK.VMDK`` and ``ext4.vhdx`` both hit.
+    """
+    return any(glob_matches(name, glob) for glob in baseline_disk_image_name_globs())
 
 
 def load_policy(
@@ -1235,6 +1418,10 @@ def metadata(
         qualifiers.append("not-walked")
     if is_cloud_placeholder_stat(info):
         qualifiers.append("cloud-placeholder")
+    # An image's size is a guest disk's capacity or growth ceiling, and the file
+    # is never deletable by name, so its bytes are not reclaimable.
+    if kind == "file" and is_virtual_disk_name(path.name):
+        qualifiers.append("virtual-disk")
     # Directories carry st_nlink >= 2 for "." / ".." (and higher for each
     # subdirectory) on POSIX; that is not multi-name hard-linking of content.
     # Only regular files with more than one directory entry share one object.
@@ -2051,6 +2238,8 @@ def root_child_skip_reason(
             return "hidden"
         if attributes & FILE_ATTRIBUTE_SYSTEM:
             return "system"
+    if is_reg and is_virtual_disk_name(name):
+        return "virtual-disk"
     if has_protected_name(path, exact_names):
         return "baseline-protected-name"
     mounted, mount_error = mount_state(path, known_linux_mounts)
@@ -2309,9 +2498,19 @@ def scan_tree(
                 unwalked_reasons[relative] = "scan-error"
                 continue
             if not sizes_only and len(entries) >= MAX_SNAPSHOT_ENTRIES:
+                by_child = Counter(e["path"].split("/", 1)[0] for e in entries)
+                in_progress = relative.split("/", 1)[0]
+                largest = ", ".join(
+                    f"{name} ({count}{', walk in progress' if name == in_progress else ''})"
+                    for name, count in by_child.most_common(5)
+                )
                 raise HygieneError(
-                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
-                    "--max-depth or split the audit into bounded subtrees"
+                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; "
+                    f"largest top-level children by entries so far: {largest}. "
+                    "The child still being walked is a lower bound; children not yet "
+                    "reached are not counted. Size candidates with --sizes-only (no "
+                    "entry cap), then rerun with --root-children --root-child <name> "
+                    "on bounded children or with --max-depth"
                 )
             if sizes_only:
                 entries.append({"path": relative, **data})
@@ -3737,7 +3936,12 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             current = target.joinpath(*PurePosixPath(name).parts)
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
-            blockers.extend(hard_protection(current, target, exact_names, known_mounts))
+            # The candidate itself is in expected_paths and was judged above; a
+            # second call would spawn the attach probe again for an image.
+            if name != relative:
+                blockers.extend(
+                    hard_protection(current, target, exact_names, known_mounts)
+                )
             matches = consumer_protection_matches(current, target, globs)
             if matches:
                 blockers.append("consumer-protected-path")
@@ -4199,18 +4403,22 @@ def handoff_verify(
                     )
                     if not identity_matches:
                         drifted.add("changed-since-scan")
-                current_protections = hard_protection(
-                    current, target, exact_names, known_mounts
-                )
-                if evidence_verified:
-                    current_protections = evidence_adjusted_protections(
-                        current_protections,
-                        current,
-                        target,
-                        repository_paths,
-                        exact_names,
+                # The candidate itself is in expected_paths and its protections
+                # were added above; a second call would spawn the attach probe
+                # again for an image.
+                if name != relative:
+                    current_protections = hard_protection(
+                        current, target, exact_names, known_mounts
                     )
-                contested.update(current_protections)
+                    if evidence_verified:
+                        current_protections = evidence_adjusted_protections(
+                            current_protections,
+                            current,
+                            target,
+                            repository_paths,
+                            exact_names,
+                        )
+                    contested.update(current_protections)
                 matches = consumer_protection_matches(current, target, globs)
                 if matches:
                     contested.add("consumer-protected-path")
@@ -4776,6 +4984,7 @@ def main(argv: list[str] | None = None) -> int:
                         2,
                     )
                 snapshot["root_children_skipped"] = skipped
+                annotate_investigated_catalog(snapshot)
                 write_json(output_path, snapshot)
                 skipped_counts = root_children_skipped_reason_counts(skipped)
                 home_note = withheld_home_container_note(skipped)
@@ -4848,6 +5057,7 @@ def main(argv: list[str] | None = None) -> int:
                     },
                     2,
                 )
+            annotate_investigated_catalog(snapshot)
             write_json(output_path, snapshot)
             return emit(
                 scan_stdout_payload(
@@ -4884,13 +5094,13 @@ def main(argv: list[str] | None = None) -> int:
                                 "target_reclaimable_local_bytes excludes every "
                                 "entry whose size_qualifiers is non-empty "
                                 "(cloud-placeholder, hardlinked, sparse, "
-                                "not-walked). Both totals count walked "
-                                "subtrees only: when totals_are_lower_bounds is "
-                                "true, some subtree was not walked, so read them "
-                                "as lower bounds; truncation_reasons maps each "
-                                "unwalked path to its cause (vcs-boundary, "
-                                "protected, depth-cut, scan-error, "
-                                "root-child-unselected)."
+                                "virtual-disk, not-walked). Both totals count "
+                                "walked subtrees only: when "
+                                "totals_are_lower_bounds is true, some subtree "
+                                "was not walked, so read them as lower bounds; "
+                                "truncation_reasons maps each unwalked path to "
+                                "its cause (vcs-boundary, protected, depth-cut, "
+                                "scan-error, root-child-unselected)."
                             )
                         ),
                     ),
@@ -4898,6 +5108,61 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         snapshot = load_json(Path(args.snapshot))
+        if args.command == "catalog":
+            entries = snapshot.get("entries")
+            if (
+                not isinstance(snapshot.get("target"), str)
+                or not isinstance(entries, list)
+                or not all(
+                    isinstance(entry, dict) and isinstance(entry.get("path"), str)
+                    for entry in entries
+                )
+            ):
+                raise HygieneError(
+                    "catalog needs a scan snapshot whose entries each have a path"
+                )
+            json_path, markdown_path = catalog_paths()
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            findings = (
+                load_json(Path(args.findings)).get("records", [])
+                if args.findings
+                else []
+            )
+            answers = (
+                load_json(Path(args.answers)).get("answers", [])
+                if args.answers
+                else []
+            )
+            if not isinstance(findings, list) or not isinstance(answers, list):
+                raise HygieneError("catalog findings and answers must be arrays")
+            merged, report = investigated_catalog.sync_catalog(
+                snapshot,
+                load_json(json_path) if json_path.is_file() else None,
+                findings,
+                answers,
+                args.run_id,
+            )
+            write_text_atomic(
+                json_path, json.dumps(merged, indent=2, sort_keys=True) + "\n"
+            )
+            write_text_atomic(
+                markdown_path, investigated_catalog.render_markdown(merged, report)
+            )
+            return emit(
+                {
+                    "status": "catalog-complete",
+                    "catalog": str(json_path),
+                    "rendered": str(markdown_path),
+                    "records": len(merged["records"]),
+                    **report,
+                    "note": (
+                        "A catalog record is a hint. It does not authorize deletion, "
+                        "skip a preview, or shorten approval. Report new_or_changed "
+                        "first, then one line per unchanged entry, and end with the "
+                        "questions."
+                    ),
+                }
+            )
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
                 {"version": SCHEMA_VERSION, "paths": [args.path]}

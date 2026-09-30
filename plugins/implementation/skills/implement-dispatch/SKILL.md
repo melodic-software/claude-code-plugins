@@ -37,11 +37,10 @@ Structural variant of `/implementation:implement` for orchestrated execution: th
 Both fan work out to parallel agents in isolated worktrees, so "run this in parallel" can reach for
 either.
 
-- **`/batch` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Takes an
-  `<instruction>`, researches the codebase, decomposes the change into 5 to 30 independent units,
-  and presents a plan; once approved, it spawns one background agent per unit in its own worktree,
-  and each implements, tests, and opens its own PR. Reserved for the person to run; the model does
-  not invoke it.
+- **`/batch` (bundled skill)**: takes an `<instruction>`, researches the codebase, decomposes the
+  change into 5 to 30 independent units, and presents a plan; once approved, it spawns one
+  background agent per unit in its own worktree, and each implements, tests, and opens its own PR.
+  Reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Executes an already-approved plan's phases: scope-fenced
   briefs, capped waves, return verification against direct evidence, the main-side build gate, the
   phase-verifier, and divergence routing.
