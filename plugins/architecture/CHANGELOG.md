@@ -21,7 +21,9 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   of the repository.
 - Secret markers, including sensitive Terraform variables and values nested in
   unresolved CloudFormation and Pulumi expressions, are redacted in every
-  printed field.
+  printed field. So is a value resolved from a Terraform variable, a Bicep, ARM
+  or CloudFormation parameter, or a Pulumi config key whose name names a
+  credential, with or without a secret marker.
 
 ### Changed
 

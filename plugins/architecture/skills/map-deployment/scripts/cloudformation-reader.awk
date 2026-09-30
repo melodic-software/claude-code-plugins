@@ -12,7 +12,8 @@
 # template. Only a Ref to a template parameter and a Sub over parameters are
 # resolved, from the parameter file then the parameter Default; every other
 # intrinsic is recorded as unresolved:<text>, never evaluated. A NoEcho
-# parameter, a dynamic reference and a container secret are redacted. A
+# parameter, a parameter whose name names a credential, a dynamic reference
+# and a container secret are redacted. A
 # Transform, a nested AWS::CloudFormation::Stack, and a parameter file with no
 # template to pair refuse the record by file name.
 
@@ -20,7 +21,7 @@ BEGIN { CAP = 1; PN_CLUSTER = "ClusterName"; PN_SERVICE = "ServiceName" }
 
 function resolve_param(sc, name, depth,    f, pf, r, sec) {
   f = S_file[sc]; pf = S_pf[sc]
-  sec = ((f SUBSEP name) in SECP)
+  sec = (((f SUBSEP name) in SECP) || redact_secret_key(name))
   RES_OK = 1
   if (fld(f, "Parameters." name ".Type") && tolower(FV) ~ /^aws::ssm::parameter::value/) { r = unresolved("{Ref:" name "}"); RES_SEC = sec; return r }
   if (pf != "" && ((pf SUBSEP name) in PFV)) r = PFV[pf, name]

@@ -395,7 +395,7 @@ function resolve(sc, kind, v, depth,    f, out, rest, p, q, inner, r, ok, sec, e
 
 function resolve_param(sc, name, depth,    f, cf, pf, r, sec) {
   f = S_file[sc]
-  sec = ((f SUBSEP name) in SEC)
+  sec = (((f SUBSEP name) in SEC) || redact_secret_key(name))
   pf = S_pf[sc]
   if (S_caller[sc] != "") {
     cf = S_file[S_caller[sc]]

@@ -11,7 +11,8 @@
 # project's config default; ${resource.attr} links a service to its cluster and
 # task definition. Everything else, fn::join, variables, invokes, is recorded
 # as unresolved:<text>, never evaluated. A secret: true config key, a secure:
-# stack value and fn::secret are redacted. A stack file with no project beside
+# stack value, fn::secret and a config key whose name names a credential are
+# redacted. A stack file with no project beside
 # it is not read.
 
 BEGIN { CAP = 0; PN_CLUSTER = "name"; PN_SERVICE = "name" }
@@ -20,7 +21,7 @@ function cfg_secret(f, name) { return fld(f, "config." name ".secret") && tolowe
 
 function resolve_cfg(sc, name,    f, sf, sec, keys, i, p, r) {
   f = S_file[sc]; sf = S_sf[sc]
-  sec = cfg_secret(f, name)
+  sec = (cfg_secret(f, name) || redact_secret_key(name))
   RES_OK = 1
   if (sf != "") {
     keys[1] = S_proj[sc] ":" name; keys[2] = name

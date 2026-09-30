@@ -1119,11 +1119,13 @@ tf_refusal "an unterminated heredoc" "terraform-unreadable:main.tf" main.tf "$(p
 tf_refusal "a tfvars file with no configuration" "terraform-orphan-tfvars:infra/prod.tfvars" infra/prod.tfvars 'region = "westeurope"'
 
 # Terraform no-leak: a secret in a tfvars file that a container env references, a sensitive
-# variable, and literal secrets in container_definitions.
+# variable, a secret-named variable with no sensitive marker feeding a plainly named env var, and
+# literal secrets in container_definitions.
 repoTL="$TEST_TMPDIR/tf-leaks"
 init_repo "$repoTL"
 cat >"$repoTL/main.tf" <<EOF
 variable "upstream" {}
+variable "api_token" {}
 variable "cs_sql" {}
 variable "opaque" {
   sensitive = true
@@ -1138,6 +1140,7 @@ resource "aws_ecs_task_definition" "api" {
       { name = "PREFIXED", value = "prefix-\${var.upstream}" },
       { name = "CHOSEN", value = var.on ? "$(gh_tok C)" : "" },
       { name = "UPSTREAM_A", value = var.upstream },
+      { name = "FEED", value = var.api_token },
       { name = "CS_SQL", value = var.cs_sql },
       { name = "OPAQUE", value = var.opaque },
       { name = "UPSTREAM_B", value = "$(gh_pat L)" },
@@ -1152,11 +1155,12 @@ resource "aws_ecs_task_definition" "hidden" {
   container_definitions = jsonencode([{ name = "hidden", image = var.opaque }])
 }
 EOF
-leak_needles+=("$(gh_pat L)" "$(gh_tok C)")
+leak_needles+=("$(gh_pat L)" "$(gh_tok C)" "plainvalueXYZ")
 for s in S P; do
   [[ "$s" == S ]] && d=staging || d=prod
   {
     printf 'upstream = "%s"\n' "$(gh_tok "$s")"
+    printf 'api_token = "plainvalueXYZ%s"\n' "$s"
     printf 'cs_sql   = "Server=db.example.com;User ID=app;Password=%s-TFSQL%s"\n' "$fake" "$s"
     printf 'opaque   = "%s-OPQ%s"\n' "$fake" "$s"
   } >"$repoTL/$d.tfvars"
@@ -1166,11 +1170,12 @@ bash "$COLLECT" --repo "$repoTL" --out "$TEST_TMPDIR/tf-leaks.json" --generated-
 tlrec="$(cat "$TEST_TMPDIR/tf-leaks.json")"
 assert_contains "terraform leak fixture is drawn" "$tlrec" '"status": "drawn"'
 assert_contains "a sensitive variable in an image prints as redacted" "$tlrec" '"container":"hidden","env":"prod","tool":"terraform","node":"prod","compute":"","image":"[redacted]"'
-for k in UPSTREAM_A CS_SQL OPAQUE UPSTREAM_B CS_BUS API_KEY PREFIXED CHOSEN; do
+for k in UPSTREAM_A FEED CS_SQL OPAQUE UPSTREAM_B CS_BUS API_KEY PREFIXED CHOSEN; do
   assert_contains "terraform leak fixture redacts $k" "$tlrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"terraform\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "a tfvars secret that differs is reported without its value" "$tlrec" "secret parameter UPSTREAM_A differs"
 assert_contains "a sensitive variable that differs is reported without its value" "$tlrec" "secret parameter OPAQUE differs"
+assert_contains "a secret-named unmarked variable that differs is reported without its value" "$tlrec" "secret parameter FEED differs"
 assert_no_leak "terraform record" "$tlrec"
 tlsum="$(bash "$RENDER" --record "$TEST_TMPDIR/tf-leaks.json" --out "$TEST_TMPDIR/tf-leaks-out" --dialect c4-plantuml --diff staging prod)"
 assert_no_leak "terraform render" "$(cat "$TEST_TMPDIR/tf-leaks-out/deployment.md")$tlsum"
@@ -1424,6 +1429,7 @@ param dbPassword string = '${fake}-BSEC'
 @secure()
 param token string
 param upstream string
+param apiToken string
 resource app 'Microsoft.App/containerApps@2024-03-01' = {
   name: 'api'
   properties: {
@@ -1436,6 +1442,7 @@ resource app 'Microsoft.App/containerApps@2024-03-01' = {
             { name: 'OPAQUE', value: dbPassword }
             { name: 'PREFIXED', value: 'x-\${token}' }
             { name: 'UPSTREAM_A', value: upstream }
+            { name: 'FEED', value: apiToken }
             { name: 'CHOSEN', value: upstream == 'x' ? '$(gh_tok C)' : '' }
             { name: 'CS_SQL', value: 'Server=db.example.com;User ID=app;Password=${fake}-BSQL' }
             { name: 'CS_BUS', value: 'Endpoint=sb://fakebus.servicebus.windows.net/;SharedAccessKey=${fake}-BSAK' }
@@ -1457,17 +1464,18 @@ EOF
 printf "param image string\nresource g 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {\n  name: 'g'\n  properties: {\n    containers: [\n      {\n        name: 'hidden'\n        properties: {\n          image: image\n        }\n      }\n    ]\n  }\n}\n" >"$repoBL/hidden.bicep"
 for s in S P; do
   [[ "$s" == S ]] && d=staging || d=prod
-  printf "using 'main.bicep'\nparam token = '%s-BTOK%s'\nparam upstream = '%s'\n" "$fake" "$s" "$(gh_tok "$s")" >"$repoBL/main.$d.bicepparam"
+  printf "using 'main.bicep'\nparam token = '%s-BTOK%s'\nparam upstream = '%s'\nparam apiToken = 'plainvalueXYZ%s'\n" "$fake" "$s" "$(gh_tok "$s")" "$s" >"$repoBL/main.$d.bicepparam"
 done
 commit_all "$repoBL"
 bash "$COLLECT" --repo "$repoBL" --out "$TEST_TMPDIR/bicep-leaks.json" --generated-on 2026-09-28
 blrec="$(cat "$TEST_TMPDIR/bicep-leaks.json")"
 assert_contains "bicep leak fixture is drawn" "$blrec" '"status": "drawn"'
-for k in OPAQUE PREFIXED UPSTREAM_A CS_SQL CS_BUS DB_URL CHOSEN; do
+for k in OPAQUE PREFIXED UPSTREAM_A FEED CS_SQL CS_BUS DB_URL CHOSEN; do
   assert_contains "bicep leak fixture redacts $k" "$blrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"bicep\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "a secure parameter passed through a module prints as redacted" "$blrec" '"container":"hidden","env":"prod","tool":"bicep","node":"prod/module.hidden.g","compute":"prod/module.hidden.g","image":"[redacted]"'
 assert_contains "a bicepparam secret that differs is reported without its value" "$blrec" "secret parameter PREFIXED differs"
+assert_contains "a secret-named unmarked bicep parameter that differs is reported without its value" "$blrec" "secret parameter FEED differs"
 assert_no_leak "bicep record" "$blrec"
 blsum="$(bash "$RENDER" --record "$TEST_TMPDIR/bicep-leaks.json" --out "$TEST_TMPDIR/bicep-leaks-out" --dialect c4-plantuml --diff staging prod)"
 assert_no_leak "bicep render" "$(cat "$TEST_TMPDIR/bicep-leaks-out/deployment.md")$blsum"
@@ -1484,6 +1492,7 @@ cat >"$repoAL/app.json" <<EOF
   "parameters": {
     "dbPassword": { "type": "securestring", "defaultValue": "${fake}-ASEC" },
     "upstream": { "type": "string" },
+    "apiToken": { "type": "string" },
     "vaulted": { "type": "string" }
   },
   "resources": [
@@ -1499,6 +1508,7 @@ cat >"$repoAL/app.json" <<EOF
               "environmentVariables": [
                 { "name": "OPAQUE", "value": "[parameters('dbPassword')]" },
                 { "name": "UPSTREAM_A", "value": "[parameters('upstream')]" },
+                { "name": "FEED", "value": "[parameters('apiToken')]" },
                 { "name": "CHOSEN", "value": "[if(equals(parameters('upstream'), 'x'), '$(gh_tok C)', '')]" },
                 { "name": "VAULTED", "value": "[parameters('vaulted')]" },
                 { "name": "CS_SQL", "value": "Server=db.example.com;User ID=app;Password=${fake}-ASQL" },
@@ -1516,17 +1526,19 @@ EOF
 for s in S P; do
   [[ "$s" == S ]] && d=staging || d=prod
   arm_params "    \"upstream\": { \"value\": \"$(gh_tok "$s")\" },
+    \"apiToken\": { \"value\": \"plainvalueXYZ$s\" },
     \"vaulted\": { \"reference\": { \"keyVault\": { \"id\": \"/subscriptions/0/vaults/kv\" }, \"secretName\": \"db-$s\" } }" >"$repoAL/app.parameters.$d.json"
 done
 commit_all "$repoAL"
 bash "$COLLECT" --repo "$repoAL" --out "$TEST_TMPDIR/arm-leaks.json" --generated-on 2026-09-28
 alrec="$(cat "$TEST_TMPDIR/arm-leaks.json")"
 assert_contains "arm leak fixture is drawn" "$alrec" '"status": "drawn"'
-for k in OPAQUE UPSTREAM_A VAULTED CS_SQL SIGNING CHOSEN; do
+for k in OPAQUE UPSTREAM_A FEED VAULTED CS_SQL SIGNING CHOSEN; do
   assert_contains "arm leak fixture redacts $k" "$alrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"arm\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "arm leak fixture keeps a plain value" "$alrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"arm","container":"api","value":"info","redacted":"no"'
 assert_contains "an ARM parameters secret that differs is reported without its value" "$alrec" "secret parameter UPSTREAM_A differs"
+assert_contains "a secret-named unmarked ARM parameter that differs is reported without its value" "$alrec" "secret parameter FEED differs"
 assert_no_leak "arm record" "$alrec"
 alsum="$(bash "$RENDER" --record "$TEST_TMPDIR/arm-leaks.json" --out "$TEST_TMPDIR/arm-leaks-out" --dialect c4-plantuml --diff staging prod)"
 assert_no_leak "arm render" "$(cat "$TEST_TMPDIR/arm-leaks-out/deployment.md")$alsum"
@@ -1675,7 +1687,7 @@ assert_contains "a parameter file with no template is not IaC" "$(cat "$TEST_TMP
 
 # CloudFormation no-leak: NoEcho parameters (a Default, a param-file value, through Sub, in an
 # image), dynamic references, container Secrets, and literal credentials in Environment values.
-cfn_needles=("$(gh_tok Q)" "$(gh_tok R)" "$(gh_tok C)" "${fake}-CFN" "resolve:" "secretsmanager:prod")
+cfn_needles=("$(gh_tok Q)" "$(gh_tok R)" "$(gh_tok C)" "${fake}-CFN" "resolve:" "secretsmanager:prod" "plainvalueXYZ")
 repoCL="$TEST_TMPDIR/cfn-leaks"
 init_repo "$repoCL"
 cat >"$repoCL/app.yaml" <<EOF
@@ -1686,6 +1698,8 @@ Parameters:
     NoEcho: true
     Default: ${fake}-CFNDEFAULT
   Upstream:
+    Type: String
+  ApiToken:
     Type: String
 Resources:
   TaskDef:
@@ -1702,6 +1716,8 @@ Resources:
               Value: $(gh_tok C)
             - Name: FROM_PARAM
               Value: !Ref Upstream
+            - Name: FEED
+              Value: !Ref ApiToken
             - Name: DYN_SM
               Value: "{{resolve:secretsmanager:prod/db:SecretString:password}}"
             - Name: DYN_SSM
@@ -1724,19 +1740,20 @@ Resources:
 EOF
 for s in Q R; do
   [[ "$s" == Q ]] && d=staging || d=prod
-  printf '[{"ParameterKey":"Opaque","ParameterValue":"%s-CFNOPQ%s"},{"ParameterKey":"Upstream","ParameterValue":"%s"}]\n' "$fake" "$s" "$(gh_tok "$s")" >"$repoCL/app.$d.json"
+  printf '[{"ParameterKey":"Opaque","ParameterValue":"%s-CFNOPQ%s"},{"ParameterKey":"Upstream","ParameterValue":"%s"},{"ParameterKey":"ApiToken","ParameterValue":"plainvalueXYZ%s"}]\n' "$fake" "$s" "$(gh_tok "$s")" "$s" >"$repoCL/app.$d.json"
 done
 commit_all "$repoCL"
 bash "$COLLECT" --repo "$repoCL" --out "$TEST_TMPDIR/cfn-leaks.json" --generated-on 2026-09-28
 clrec="$(cat "$TEST_TMPDIR/cfn-leaks.json")"
 assert_contains "cloudformation leak fixture is drawn" "$clrec" '"status": "drawn"'
-for k in OPAQUE PREFIXED LITERAL_GH FROM_PARAM DYN_SM DYN_SSM NESTED_DYN CS_SQL API_KEY; do
+for k in OPAQUE PREFIXED LITERAL_GH FROM_PARAM FEED DYN_SM DYN_SSM NESTED_DYN CS_SQL API_KEY; do
   assert_contains "cloudformation leak fixture redacts $k" "$clrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"cloudformation\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "cloudformation leak fixture keeps a plain value" "$clrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"cloudformation","container":"api","value":"info","redacted":"no"'
 assert_contains "a NoEcho parameter in an image prints as redacted" "$clrec" '"container":"hidden","env":"prod","tool":"cloudformation","node":"prod","compute":"","image":"[redacted]"'
 assert_contains "a NoEcho parameter that differs is reported without its value" "$clrec" "secret parameter OPAQUE differs"
 assert_contains "a secret-shaped parameter file value that differs is reported without its value" "$clrec" "secret parameter FROM_PARAM differs"
+assert_contains "a secret-named parameter with no NoEcho that differs is reported without its value" "$clrec" "secret parameter FEED differs"
 cl_all="$clrec"
 clsum="$(bash "$RENDER" --record "$TEST_TMPDIR/cfn-leaks.json" --out "$TEST_TMPDIR/cfn-leaks-out" --dialect c4-plantuml --diff prod staging)"
 cl_all="$cl_all$(cat "$TEST_TMPDIR/cfn-leaks-out/deployment.md")$clsum"
@@ -1871,7 +1888,7 @@ assert_contains "pulumi summary" "$psum" 'status=drawn reason=none tools=pulumi-
 
 # Pulumi no-leak: a secret: true default, a secure: value that differs by stack, fn::secret,
 # a secret-shaped stack value, and literal credentials.
-pul_needles=("$(gh_tok U)" "$(gh_tok V)" "$(gh_tok C)" "${fake}-PUL")
+pul_needles=("$(gh_tok U)" "$(gh_tok V)" "$(gh_tok C)" "${fake}-PUL" "plainvalueXYZ")
 repoPL="$TEST_TMPDIR/pulumi-leaks"
 init_repo "$repoPL"
 cat >"$repoPL/Pulumi.yaml" <<EOF
@@ -1886,6 +1903,8 @@ config:
     type: string
     secret: true
   upstream:
+    type: string
+  feedToken:
     type: string
 resources:
   taskdef:
@@ -1907,6 +1926,8 @@ resources:
                 value: $(gh_tok C)
               - name: FROM_STACK
                 value: \${upstream}
+              - name: FEED
+                value: \${feedToken}
               - name: NESTED
                 value:
                   fn::join:
@@ -1928,19 +1949,20 @@ resources:
 EOF
 for s in U V; do
   [[ "$s" == U ]] && d=staging || d=prod
-  printf 'config:\n  web:dbPassword:\n    secure: v1:%s-PUL%s:cipher\n  web:upstream: %s\n  web:db:\n    user: app\n    token:\n      secure: v1:%s-PULDB%s:cipher\n' "$fake" "$s" "$(gh_tok "$s")" "$fake" "$s" >"$repoPL/Pulumi.$d.yaml"
+  printf 'config:\n  web:dbPassword:\n    secure: v1:%s-PUL%s:cipher\n  web:upstream: %s\n  web:feedToken: plainvalueXYZ%s\n  web:db:\n    user: app\n    token:\n      secure: v1:%s-PULDB%s:cipher\n' "$fake" "$s" "$(gh_tok "$s")" "$s" "$fake" "$s" >"$repoPL/Pulumi.$d.yaml"
 done
 commit_all "$repoPL"
 bash "$COLLECT" --repo "$repoPL" --out "$TEST_TMPDIR/pulumi-leaks.json" --generated-on 2026-09-28
 plrec="$(cat "$TEST_TMPDIR/pulumi-leaks.json")"
 assert_contains "pulumi leak fixture is drawn" "$plrec" '"status": "drawn"'
-for k in TOKEN PREFIXED WRAPPED LITERAL_GH FROM_STACK NESTED STRUCT CS_SQL; do
+for k in TOKEN PREFIXED WRAPPED LITERAL_GH FROM_STACK FEED NESTED STRUCT CS_SQL; do
   assert_contains "pulumi leak fixture redacts $k" "$plrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"pulumi-yaml\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "pulumi leak fixture keeps a plain value" "$plrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"pulumi-yaml","container":"api","value":"info","redacted":"no"'
 assert_contains "a secret config key in an image prints as redacted" "$plrec" '"container":"hidden","env":"prod","tool":"pulumi-yaml","node":"prod","compute":"","image":"[redacted]"'
 assert_contains "a secure stack value that differs is reported without its value" "$plrec" "secret parameter PREFIXED differs"
 assert_contains "a secret-shaped stack value that differs is reported without its value" "$plrec" "secret parameter FROM_STACK differs"
+assert_contains "a secret-named config key with no secret marker that differs is reported without its value" "$plrec" "secret parameter FEED differs"
 pl_all="$plrec"
 plsum="$(bash "$RENDER" --record "$TEST_TMPDIR/pulumi-leaks.json" --out "$TEST_TMPDIR/pulumi-leaks-out" --dialect c4-plantuml --diff prod staging)"
 pl_all="$pl_all$(cat "$TEST_TMPDIR/pulumi-leaks-out/deployment.md")$plsum"

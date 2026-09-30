@@ -202,9 +202,12 @@ Every value the collector writes and the renderer prints passes through
 `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.awk`. A parameter whose key names a credential, or
 whose value carries one (a connection-string password or key, a SAS signature, a GitHub token, a
 cloud access key, a private key, URL userinfo, or an HTTP Basic or Bearer credential), is recorded
-with an empty value and `"redacted":"yes"`. Any other emitted field that carries one prints as
-`[redacted]`. A secret must not appear in the record, the diagram, the diff, or stdout. A diff of
-two secret values says that the parameter differs and does not print either value.
+with an empty value and `"redacted":"yes"`. So is a value resolved from a Terraform variable, a
+Bicep, ARM or CloudFormation parameter, or a Pulumi config key whose name names a credential,
+whatever the name of the env var it lands in and with or without a native secret marker. Any other
+emitted field that carries one prints as `[redacted]`. A secret must not appear in the record, the
+diagram, the diff, or stdout. A diff of two secret values says that the parameter differs and does
+not print either value.
 
 A diff compares two environments of one tool over these kinds, for every shipped reader: a container
 present in one environment only, image, replicas, ports, a parameter present in one environment
@@ -328,8 +331,9 @@ End every run with this block, in this order:
   are not read.
 - **CloudFormation and Pulumi secrets.** A parameter with `NoEcho: true`, any value holding a
   `{{resolve:...}}` dynamic reference, every container `Secrets` entry, a Pulumi `config` key with
-  `secret: true`, a `secure:` stack value, and a `fn::secret` wrapper are redacted wherever they
-  land, including in a name, image or port. A secret that differs between two environments is
+  `secret: true`, a `secure:` stack value, a `fn::secret` wrapper, and a parameter or config key
+  whose name names a credential are redacted wherever they land, including in a name, image or
+  port. A secret that differs between two environments is
   reported as differing, and neither value is printed.
 - **CloudFormation template shape.** Claim: the YAML short form `!Ref name` equals
   `Ref: name`, and JSON writes `{ "Ref": "name" }`. Basis:
@@ -369,8 +373,8 @@ End every run with this block, in this order:
   `params` argument, then the environment's parameters file, then its default, and `${name}` inside
   a Bicep string the same way. An ARM value resolves only when it is exactly
   `[parameters('<name>')]`; `[[` opens a literal. A parameter marked `@secure()`, typed
-  `securestring` or `secureobject`, or given a Key Vault `reference` is redacted wherever it lands,
-  as is a `secretRef` or `secureValue` env entry. Every var, function, and conditional is recorded
+  `securestring` or `secureobject`, given a Key Vault `reference`, or named for a credential is
+  redacted wherever it lands, as is a `secretRef` or `secureValue` env entry. Every var, function, and conditional is recorded
   as `unresolved:<expression>`. A `for` or `copy` loop is placed once, an `if` or `condition` is
   ignored, child resources are not read, a `resourceId` with scope arguments matches nothing, and
   `Microsoft.App/jobs` is not mapped. Every other resource type, and a site whose fx version does
@@ -389,11 +393,11 @@ End every run with this block, in this order:
   2026-09-29. Recheck when that page changes the escape rule.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
-  same way. A variable declared `sensitive = true` is redacted wherever it lands. Everything else,
-  such as locals, functions other than `jsonencode`, conditionals, for-expressions, `file()`, and
-  `templatefile()`, is recorded as `unresolved:<expression>`. `count` and `for_each` are not
-  expanded (the resource is placed once), a `dynamic` block is not read, and an env list built by
-  an expression records no parameters.
+  same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
+  it lands. Everything else, such as locals, functions other than `jsonencode`, conditionals,
+  for-expressions, `file()`, and `templatefile()`, is recorded as `unresolved:<expression>`. `count`
+  and `for_each` are not expanded (the resource is placed once), a `dynamic` block is not read, and
+  an env list built by an expression records no parameters.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:

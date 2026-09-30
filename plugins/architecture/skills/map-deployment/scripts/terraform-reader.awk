@@ -293,7 +293,7 @@ function resolve(sc, kind, v, depth,    out, rest, p, q, inner, r, ok, sec) {
 
 function resolve_var(sc, name, depth,    d, cd, key, i, f, r, sec) {
   d = S_dir[sc]
-  sec = (field(d, "variable." name ".", "sensitive") && FV == "true")
+  sec = ((field(d, "variable." name ".", "sensitive") && FV == "true") || redact_secret_key(name))
   if (S_caller[sc] != "") {
     cd = S_dir[S_caller[sc]]
     if (field(cd, S_argpre[sc], name)) { r = resolve(S_caller[sc], FK, FV, depth + 1); if (sec) RES_SEC = 1; return r }
