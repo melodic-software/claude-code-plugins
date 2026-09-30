@@ -423,6 +423,21 @@ assert_exit "--marketplace with no name: exit 2, and does not spin" 2 "$rc"
 out=$(run_check "$case_dir" --nonsense)
 rc=$?
 assert_exit "unknown argument: exit 2" 2 "$rc"
+assert_contains "unknown argument: names --help" "$out" "(see --help)"
+
+# --help must work with neither jq nor git on PATH, and a run without them
+# must still name the missing tool.
+nojq_bin="$case_dir/nojq-bin"
+mkdir -p "$nojq_bin"
+ln -s "$(command -v bash)" "$nojq_bin/bash"
+out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
+rc=$?
+assert_exit "--help without jq or git: exit 0" 0 "$rc"
+assert_contains "--help lists the exit codes" "$out" "Exit: 0 ran to completion"
+out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --all 2>&1)
+rc=$?
+assert_exit "run without jq: exit 2" 2 "$rc"
+assert_contains "run without jq: actionable notice" "$out" "jq required"
 
 # ============================================================================
 # Case: --all sweeps every marketplace, and a per-marketplace failure is
