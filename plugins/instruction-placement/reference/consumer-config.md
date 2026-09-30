@@ -83,7 +83,8 @@ reported as malformed and does not suppress.
 anchor over the enclosing heading paths `## C# naming` and `## Deployment` → `### Release checklist`;
 their keys are the finding-suppression contract's `finding_id` over the same constituents. The
 derivation of both is owned by `context/findings-artifact.md` under "Finding ids and their
-constituents". Anyone editing an example re-derives the anchor and then the key, in that order:
+constituents". Anyone editing an example re-derives the anchor and then the key with `scripts/detect.sh identity`,
+never by hand, in that order:
 editing an anchor changes the key that hashes it, and an entry whose constituents no longer hash to
 its own key is reported as malformed and suppresses nothing. A hand-written example would be an
 example nobody can copy.

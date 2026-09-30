@@ -13,6 +13,12 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 - The SessionStart probe uses the same latch key as the PostToolUse missing-`typos` notice (`typos-format-typos`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The notice also names `/typos-format:check`.
 
+## [0.7.9] - 2026-09-29
+
+### Changed
+
+- The setup skill's install refusal cites the shared refusal reasons in `docs/plugin-philosophy.md` instead of a plugin-specific rationale.
+
 ## [0.7.8] - 2026-09-29
 
 ### Changed
