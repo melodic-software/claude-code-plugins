@@ -8961,6 +8961,44 @@ class GuardTests(unittest.TestCase):
                     command,
                 )
 
+    def test_engine_gate_bare_link_outside_engine_dir_defers(self) -> None:
+        """A bare-name link outside the engine directory no longer gates.
+
+        The as-written probe now needs a separator, so a link in the working
+        directory invoked as `cleanup` is the accepted residual. The old
+        predicate gated it; the differential pins where the two diverge.
+        """
+        real = guard._engine_gate_relevant
+        old = self._old_marker_free_engine_gate(real)
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            self._hard_link_or_skip(Path(tmp) / "cleanup")
+            self.addCleanup(os.chdir, os.getcwd())
+            os.chdir(tmp)
+            command = "cleanup apply test_hygiene.py"
+            self.assertTrue(old(command, "Bash"))
+            self.assertFalse(real(command, "Bash"))
+            self.assertTrue(real(f"./cleanup {command}", "Bash"))
+
+    def test_engine_gate_backslash_word_is_probed_as_written_on_nt(self) -> None:
+        """Under `os.name == "nt"` a backslash counts as a separator for Bash."""
+        probed: list[str] = []
+
+        def samefile(word: object, other: object) -> bool:
+            probed.append(os.fspath(word))
+            return False
+
+        command = "'sub\\alias' apply"
+        engine = guard._engine_script_path()
+        for name, expected in (("nt", True), ("posix", False)):
+            probed.clear()
+            with (
+                mock.patch.object(guard.os, "name", name),
+                mock.patch.object(guard, "_engine_script_path", return_value=engine),
+                mock.patch.object(guard.os.path, "samefile", samefile),
+            ):
+                guard._engine_gate_relevant(command, "Bash")
+            self.assertEqual(expected, "sub\\alias" in probed, name)
+
     def test_engine_gate_marker_free_probes_stay_inside_the_engine_dir(self) -> None:
         """Counted `os.path.samefile` calls for marker-free commands.
 
