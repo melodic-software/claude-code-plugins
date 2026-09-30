@@ -9,10 +9,10 @@
 <style>
 :root{
   color-scheme:light;
-  --ground:#f3f4f6; --panel:#ffffff; --ink:#1a2130; --muted:#5d6678; --faint:#8a93a3;
+  --ground:#f3f4f6; --panel:#ffffff; --ink:#1a2130; --muted:#5d6678; --faint:#657082;
   --line:#dde1e8; --line-strong:#c6ccd6; --accent:#2f5d8a; --accent-soft:#e6eef7;
   --ok:#2d7a4b; --ok-soft:#e3f2e8; --chg:#9a5b00; --chg-soft:#fbefd9;
-  --def:#62489a; --def-soft:#eee8f8; --wait:#6b7280; --wait-soft:#eceef1;
+  --def:#62489a; --def-soft:#eee8f8; --wait:#5f6878; --wait-soft:#eceef1;
   --warn:#a3382b; --warn-soft:#fbe7e4; --res:#0f766e; --res-soft:#dcf2ef;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
@@ -23,7 +23,7 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
-    --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#78808f;
+    --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#8b93a2;
     --line:#2a313c; --line-strong:#3a4250; --accent:#8fb6e0; --accent-soft:#1f2c3b;
     --ok:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
     --def:#b9a3ec; --def-soft:#2a2240; --wait:#9aa1ad; --wait-soft:#232830;
@@ -32,7 +32,7 @@
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#78808f;
+  --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#8b93a2;
   --line:#2a313c; --line-strong:#3a4250; --accent:#8fb6e0; --accent-soft:#1f2c3b;
   --ok:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
   --def:#b9a3ec; --def-soft:#2a2240; --wait:#9aa1ad; --wait-soft:#232830;
@@ -116,7 +116,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .qbtn:hover{border-color:var(--line-strong)}
 .qbtn[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
 .qbtn.dim{opacity:.55}
-.qbtn.archived{opacity:.45;filter:grayscale(1)}
+.qbtn.archived{filter:grayscale(1)}
 .qid{font:600 13px var(--mono);grid-row:1;align-self:start;padding-top:1px;max-width:8ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qbody{min-width:0;display:flex;flex-direction:column;gap:2px}
 .qtitle{font-size:13.5px;line-height:1.35}
