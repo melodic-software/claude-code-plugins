@@ -2115,7 +2115,7 @@ assert_not_contains "a fully mapped root has no unmapped section" "$unm_md" 'Unm
 # container, its image unresolved, so it never disappears from a drawing that names the rest.
 tf_env=$'resource "azurerm_container_app_environment" "env" {\n  name = "env"\n}'
 tf_dyn_app=$'resource "azurerm_container_app" "dyn" {\n  name                         = "dynapp"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    dynamic "container" {\n      for_each = var.containers\n      content {\n        name  = container.value.name\n        image = container.value.image\n      }\n    }\n  }\n}'
-tf_static_app=$'resource "azurerm_container_app" "stat" {\n  name                         = "statapp"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    container {\n      name  = "statapp"\n      image = "acme/stat:1"\n    }\n  }\n}'
+tf_static_app=$'resource "azurerm_container_app" "plain" {\n  name                         = "plainapp"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    container {\n      name  = "plainapp"\n      image = "acme/plain:1"\n    }\n  }\n}'
 tf_env_node='"node":"default/azurerm_container_app_environment.env","compute":"default/azurerm_container_app_environment.env"'
 
 unm_fixture tf-dyn-only main.tf "$tf_env"$'\n'"$tf_dyn_app"
@@ -2127,7 +2127,7 @@ assert_contains "the rendered view carries the unresolved image" "$unm_md" "unre
 
 unm_fixture tf-dyn-mixed main.tf "$tf_env"$'\n'"$tf_dyn_app"$'\n'"$tf_static_app"
 unm_check "$TEST_TMPDIR/unm-tf-dyn-mixed"
-assert_contains "a mixed root places the static app" "$unm_rec" '"container":"statapp","env":"default","tool":"terraform",'"$tf_env_node"',"image":"acme/stat:1"'
+assert_contains "a mixed root places the plain app" "$unm_rec" '"container":"plainapp","env":"default","tool":"terraform",'"$tf_env_node"',"image":"acme/plain:1"'
 assert_contains "a mixed root keeps the dynamic app" "$unm_rec" '"container":"dyn","env":"default","tool":"terraform",'"$tf_env_node"',"image":"unresolved:dynamic container"'
 assert_contains "a mixed root counts both" "$unm_sum" "placements=2"
 
