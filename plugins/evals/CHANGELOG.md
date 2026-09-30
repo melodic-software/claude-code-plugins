@@ -1,5 +1,34 @@
 # Changelog: evals
 
+## [0.3.8] - 2026-09-30
+
+### Changed
+
+- **`methodology`'s description opens with a presence-gated routing clause for the bundled
+  `claude-api` skill's `hillclimb`.** It routes sweeping model and effort against an eval suite
+  that already exists to `hillclimb` and keeps the case where the suite does not exist yet or its
+  criteria are not yet measurable, the split its Boundary section states. `plugin-eval` gets no
+  phrase: `plugin eval` is a CLI subcommand, which never enters the model's skill listing the gate
+  reads.
+- **The `claude-api` Boundary bullet in `methodology` no longer asserts that the subcommands ship
+  with Claude Code.** It keeps the provenance class, what the subcommands do and how they are
+  invoked, in the native-references template form.
+
+## [0.3.7] - 2026-09-30
+
+### Changed
+
+- **`plugin-eval`: `case-authoring.md` splits graders by expectation.** A mechanical expectation gets a
+  deterministic grader; a holistic one gets an `llm` judge.
+
+## [0.3.6] - 2026-09-29
+
+### Changed
+
+- **`design`: says when a skill eval needs a no-skill baseline arm.** An `evals/evals.json` case grades
+  the skill's output only. A comparative or whole-plugin claim routes to `/evals:plugin-eval`, whose
+  with/without delta answers it.
+
 ## [0.3.5] - 2026-09-29
 
 ### Fixed

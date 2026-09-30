@@ -61,7 +61,7 @@ class SessionCase(unittest.TestCase):
         self.dir = self.tmp / "data"
         self.dir.mkdir()
 
-    def session(self, questions, events, meta=None):
+    def session(self, questions, events, meta=None, restatement=None):
         doc = {
             "meta": meta or {"title": "Export test", "eyebrow": "surface eyebrow text"},
             "rev": 1,
@@ -69,6 +69,8 @@ class SessionCase(unittest.TestCase):
             "questions": questions,
             "visuals": [],
         }
+        if restatement:
+            doc["restatement"] = restatement
         (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
         responses, history = rebuild_responses(events)
         (self.dir / "responses.json").write_text(
@@ -296,6 +298,68 @@ class TestExportBrief(SessionCase):
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
 
+    def acceptance_section(self, acceptance, verdicts=("confirm",)):
+        self.session(
+            [question("Q1")],
+            [event(1, "Q1", "accept")]
+            + [
+                {**event(2 + i, None, "confirm-understanding", alt), "contentRev": 1}
+                for i, alt in enumerate(verdicts)
+            ],
+            restatement={"rev": 1, "at": AT, "sections": {"acceptance": acceptance}},
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        return text, text.split("### Acceptance criteria")[1].split("###")[0]
+
+    def test_restated_acceptance_criteria_become_plain_bullets(self):
+        text, section = self.acceptance_section(
+            "- AC one is testable\n\n- [ ] AC two\n[x] AC three"
+        )
+        self.assertEqual(
+            [x for x in section.splitlines() if x],
+            ["- AC one is testable", "- AC two", "- AC three"],
+        )
+        self.assertNotIn("none recorded in the interview surface", text)
+
+    def test_unconfirmed_or_rejected_restatement_exports_no_criteria(self):
+        for verdicts in ((), ("off",), ("confirm", "off")):
+            with self.subTest(verdicts=verdicts):
+                text, section = self.acceptance_section("- AC one", verdicts)
+                self.assertNotIn("AC one", text)
+                self.assertIn("- none recorded in the interview surface", section)
+
+    def test_later_confirm_after_off_exports_criteria(self):
+        _, section = self.acceptance_section("- AC one", ("off", "confirm"))
+        self.assertIn("- AC one", section)
+
+    def test_no_restatement_keeps_the_none_line(self):
+        self.deferred_session()
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- none recorded in the interview surface", text)
+
+    def test_restated_acceptance_cannot_add_a_heading_or_fence(self):
+        text, section = self.acceptance_section("# Sneaky\n```\n~~~")
+        headings = [x for x in text.splitlines() if x.startswith("#")]
+        self.assertEqual(
+            headings[:5],
+            [
+                "## Brief",
+                "### TLDR",
+                "### Goal",
+                "### Constraints",
+                "### Acceptance criteria",
+            ],
+        )
+        self.assertNotIn("# Sneaky", headings)
+        self.assertFalse(
+            any(x.startswith(("- `", "- ~")) for x in section.splitlines())
+        )
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
     def test_confirmed_commitment_is_an_assumption_and_archived_is_out_of_scope(self):
         self.decided()
         text = self.export("brief").read_text(encoding="utf-8")
@@ -304,6 +368,15 @@ class TestExportBrief(SessionCase):
         self.assertIn("risk: No network (unconfirmed)", assumptions)
         scope = text.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn("Off the chosen path.", scope)
+
+
+class TestConfirmsAgainstAnEarlierList(unittest.TestCase):
+    def test_a_confirm_at_or_below_commits_since_seq_does_not_tick(self):
+        q = question("Q1", commits=["A", "B"], commitsSinceSeq=5)
+        old = [event(4, "Q1", "confirm", alt="0"), event(5, "Q1", "confirm", alt="1")]
+        self.assertEqual(exporters.commitments(q, old), ([], ["A", "B"]))
+        later = [*old, event(6, "Q1", "confirm", alt="1")]
+        self.assertEqual(exporters.commitments(q, later), (["B"], ["A"]))
 
 
 class TestConfirmedInTheTerminal(SessionCase):
@@ -321,6 +394,76 @@ class TestConfirmedInTheTerminal(SessionCase):
         self.assertIn("- No network: confirmed on Q1", brief)
         [row] = register_rows(self.export("ledger"))
         self.assertIn("confirmed:: One writer only; No network", row)
+
+
+PENDING = "pending agent validation"
+
+
+class TestAcceptAuditExport(SessionCase):
+    """An accept an accept-audit made exports as accepted pending agent validation."""
+
+    def audited(self, extra=(), terminal=None):
+        items = [{"id": "Q1", "contentRev": 0}, {"id": "Q2", "contentRev": 0}]
+        qs = [
+            question("Q1", commits=["One writer only"], **(terminal or {})),
+            question("Q2"),
+            question("Q3"),
+        ]
+        events = [
+            {**event(1, None, "accept-audit", alt="1"), "items": items},
+            {**event(2, "Q1", "accept"), "auditSeq": 1},
+            {**event(3, "Q2", "accept"), "auditSeq": 1},
+            event(4, "Q3", "accept"),
+            *extra,
+        ]
+        self.session(qs, events)
+
+    def test_audit_accepts_carry_the_note_and_a_hand_accept_does_not(self):
+        self.audited()
+        ledger = self.export("ledger")
+        q1, q2, q3 = register_rows(ledger)
+        self.assertIn(
+            f"answer:: accepted: Recommended answer for Q1.; note: {PENDING}", q1
+        )
+        self.assertIn(f"note: {PENDING}", q2)
+        self.assertRegex(q3, r"\| accepted: Recommended answer for Q3\.$")
+        rc, out = self.check("--ledger", ledger)
+        self.assertEqual(rc, 0, out)
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn(
+            f"- Q1 Short Q1: accepted: Recommended answer for Q1.; note: {PENDING}\n",
+            brief,
+        )
+        self.assertIn("- Q3 Short Q3: accepted: Recommended answer for Q3.\n", brief)
+
+    def test_commitments_stay_unconfirmed(self):
+        self.audited()
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- 0 commitments confirmed; 1 unconfirmed", brief)
+        self.assertIn("- risk: One writer only (unconfirmed); from Q1", brief)
+
+    def test_a_later_decision_or_terminal_answer_reads_as_its_own(self):
+        later = "2099-01-01T00:00:00Z"
+        self.audited(
+            extra=[event(5, "Q2", "alt", alt="a")],
+            terminal={
+                "terminal": {"decision": "accept", "text": "", "updatedAt": later}
+            },
+        )
+        q1, q2, _ = register_rows(self.export("ledger"))
+        self.assertNotIn(PENDING, q1)
+        self.assertIn("alt a: Alt a of Q2", q2)
+        self.assertNotIn(PENDING, q2)
+
+    def test_the_note_survives_import_and_re_export(self):
+        self.audited()
+        ledger = self.export("ledger")
+        rows = register_rows(ledger)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
 
 
 class TestCommitmentsCarriedByAnswerKind(SessionCase):
@@ -544,6 +687,20 @@ class TestReportFileVisuals(SessionCase):
             [question("Q1", visuals=list(visuals))], [event(1, "Q1", "accept")]
         )
         return self.export("report").read_text(encoding="utf-8")
+
+    def test_archived_visuals_are_left_out(self):
+        gone = {"why": "old", "at": "2026-01-01T00:00:00Z"}
+        text = self.report(
+            {"id": "v1", "format": "markdown", "content": "kept-body"},
+            {
+                "id": "v2",
+                "format": "markdown",
+                "content": "gone-body",
+                "archived": gone,
+            },
+        )
+        self.assertIn("kept-body", text)
+        self.assertNotIn("gone-body", text)
 
     def iframes(self, text):
         class Walk(html.parser.HTMLParser):

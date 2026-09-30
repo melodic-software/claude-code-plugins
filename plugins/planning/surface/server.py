@@ -16,6 +16,7 @@ until the lease expires or POST /api/lease {"action": "release"} clears it.
 import argparse
 import ctypes
 import hashlib
+import html
 import json
 import os
 import secrets
@@ -27,7 +28,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PureWindowsPath
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 HERE = Path(__file__).resolve().parent
 SCHEMA_VERSION = "1.0"
@@ -40,11 +41,12 @@ EMPTY_RESPONSES = {
 }
 DECISIONS = {"accept", "alt", "own", "defer", "reopen"}
 REQUESTS = {"ask", "rephrase"}
-# Events not tied to a question; `confirm-understanding` answers the restatement.
-FREE = {"note", "wrapup", "confirm-understanding"}
-# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision, and
-# `confirm-understanding` carries `confirm` or `off`.
-WITH_ALT = {"alt", "confirm", "confirm-understanding"}
+# Events not tied to a question; `confirm-understanding` answers the restatement, and
+# `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
+FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}
+# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision,
+# `confirm-understanding` carries `confirm` or `off`, and `accept-audit` the round id.
+WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit"}
 UNDERSTANDING = ("confirm", "off")
 API = 2
 MAX_BODY = 64 * 1024
@@ -52,6 +54,22 @@ MAX_STREAMS = 8  # concurrent /events streams; one more gets 503
 # A file visual larger than this is neither served nor inlined.
 MAX_VISUAL_FILE = 4 * 1024 * 1024
 OCTET = "application/octet-stream"
+IMAGE_TYPES = {
+    ".png": "png",
+    ".jpg": "jpeg",
+    ".jpeg": "jpeg",
+    ".gif": "gif",
+    ".webp": "webp",
+    ".svg": "svg+xml",
+}
+# A new-tab link (/api/visual-open) works once, within this many seconds of its mint.
+OPEN_SECONDS = 10
+PAGE_CSP = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
+    "form-action 'none'; base-uri 'none'"
+)
 # A visual may never name a runtime file: the session files and their transient temp copies
 # hold the token, so every dotfile path component, lock and temp file is refused.
 RUNTIME_SUFFIXES = (".lock", ".tmp")
@@ -364,6 +382,47 @@ def find_visual(doc, vid):
     return None
 
 
+def visual_format(v):
+    """The visual's format, with `kind` as its alias; the page reads a missing one as html."""
+    return v.get("format") or v.get("kind") or "html"
+
+
+def open_body(data_dir, v):
+    """(status, body, content type) for visual v opened in a tab of its own.
+
+    Content comes inline or through read_visual_file, under its rules. The type follows the
+    format, never the file name: html is text/html, svg is image/svg+xml, and markdown, mermaid
+    and chart are text/plain. An image file needs an image extension (415 otherwise); inline
+    image content that is a data:image/ or http(s) URL is wrapped in an <img> page, as the panel
+    shows it, and anything else is text.
+    """
+    f, c = visual_format(v), v.get("content")
+    if c is None:
+        c = read_visual_file(data_dir, v.get("file"))
+        if c is None:
+            return 404, {"error": "not found"}, None
+        if len(c) > MAX_VISUAL_FILE:
+            limit = f"file is over the {MAX_VISUAL_FILE // 2**20} MB limit"
+            return 413, {"error": limit}, None
+        if f == "image":
+            t = IMAGE_TYPES.get(Path(v["file"]).suffix.lower())
+            if not t:
+                return (
+                    415,
+                    {"error": "not an image type (png, jpg, gif, webp or svg)"},
+                    None,
+                )
+            return 200, c, "image/" + t
+    elif f == "image" and str(c).lower().startswith(
+        ("data:image/", "http://", "https://")
+    ):
+        return 200, f'<img alt="" src="{html.escape(c)}">'.encode("utf-8"), "text/html"
+    if not isinstance(c, bytes):
+        c = c if isinstance(c, str) else json.dumps(c, ensure_ascii=False)
+        c = c.encode("utf-8")
+    return 200, c, {"html": "text/html", "svg": "image/svg+xml"}.get(f, "text/plain")
+
+
 def read_visual_file(data_dir, file):
     """Bytes of the regular file `file` names inside data_dir (at most MAX_VISUAL_FILE + 1 of them).
 
@@ -521,6 +580,67 @@ def rebuild_responses(events):
     return responses, history
 
 
+def check_accept_audit(msg):
+    """ValueError (400) unless msg is a well-formed accept-audit: a round id in `alt` and a
+    non-empty `items` list of {id, contentRev} pairs with no repeated id. Returns the items."""
+    if not (isinstance(msg.get("alt"), str) and msg["alt"].strip()):
+        raise ValueError("accept-audit needs alt: the round id")
+    items = msg.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError(
+            "accept-audit needs items: a non-empty list of {id, contentRev}"
+        )
+    seen = set()
+    for it in items:
+        if not (
+            isinstance(it, dict)
+            and set(it) == {"id", "contentRev"}
+            and isinstance(it["id"], str)
+            and isinstance(it["contentRev"], int)
+            and not isinstance(it["contentRev"], bool)
+        ):
+            raise ValueError("each item must be {id: string, contentRev: integer}")
+        if it["id"] in seen:
+            raise ValueError(f"items repeats {it['id']}")
+        seen.add(it["id"])
+    return items
+
+
+def split_accept_audit(doc, r, items):
+    """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
+    {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
+    `ineligible` is an unknown, closed, held or recommendation-less question, or one whose
+    prerequisite has no decision yet."""
+    qs = {q.get("id"): q for q in doc.get("questions") or []}
+    states = question_states(doc, r)
+    seeded = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
+
+    def decided(qid):
+        return (r["responses"].get(qid) or {}).get("decision") or (
+            (qs.get(qid) or {}).get("terminal") or {}
+        ).get("decision")
+
+    accepted, skipped = [], []
+    for it in items:
+        q = qs.get(it["id"])
+        if q and it["contentRev"] != content_rev(q, r["events"]):
+            reason = "changed"
+        elif (
+            not q
+            or states.get(it["id"], ("",))[0] != "open"
+            or not q.get("recommendation")
+            or q.get("waiting")
+            or (seeded.get(it["id"]) or {}).get("status") == "superseded-by-plan"
+            or not all(decided(p) for p in q.get("dependsOn") or [])
+        ):
+            reason = "ineligible"
+        else:
+            accepted.append(it)
+            continue
+        skipped.append({"id": it["id"], "reason": reason})
+    return accepted, skipped
+
+
 def check_alt(q, kind, alt):
     """ValueError (400) unless `alt` names one of q's alternative keys (alt) or commitments (confirm)."""
     if kind == "alt":
@@ -552,16 +672,18 @@ def check_understanding(doc, alt, text, rev):
         raise Conflict({"error": "stale", "contentRev": current})
 
 
-def repeat_of(events, event):
+def repeat_of(events, event, since_seq=None):
     """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
-    event's seq. A commitment's confirm repeats any live confirm of it; an understanding Confirm
-    repeats only when the newest answer to that restatement rev is a Confirm."""
+    event's seq. A commitment's confirm repeats any live confirm of it after `since_seq` (the
+    question's commitsSinceSeq: a commitments revise retires earlier confirms); an understanding
+    Confirm repeats only when the newest answer to that restatement rev is a Confirm."""
     kind = event["kind"]
     if kind == "confirm":
         same = [
             e
             for e in events
             if not e.get("withdrawn")
+            and (e.get("seq") or 0) > (since_seq or 0)
             and (e.get("kind"), e.get("id"), e.get("alt"))
             == (kind, event["id"], event["alt"])
         ]
@@ -609,6 +731,21 @@ class Hub:
         self._last_state = None
         # The one watcher allowed: {watcher, since, last, inflight}. In memory, so a restart frees it.
         self.lease = None
+        self.opens = {}  # new-tab nonce: (visual id, monotonic expiry)
+
+    def mint_open(self, vid):
+        """A one-time nonce that opens visual vid for OPEN_SECONDS; expired ones are dropped."""
+        now, nonce = time.monotonic(), secrets.token_urlsafe(16)
+        with self.cond:
+            self.opens = {k: o for k, o in self.opens.items() if o[1] > now}
+            self.opens[nonce] = (vid, now + OPEN_SECONDS)
+        return nonce
+
+    def take_open(self, nonce, vid):
+        """True when nonce was minted for vid and is still live; any use spends it."""
+        with self.cond:
+            got = self.opens.pop(nonce, None)
+        return got is not None and got[0] == vid and time.monotonic() < got[1]
 
     def lease_timeout(self):
         return self.layers.resolve(self.dir, self.user_settings())[0]["leaseTimeout"][
@@ -732,9 +869,17 @@ class Hub:
             r = load_json(self.responses, EMPTY_RESPONSES)
             settings, theme = self.layers.resolve(self.dir, self.user_settings())
             derived = question_states(q, r)
+            # exporters imports server at module top
+            from exporters import latest_decision
+
             for x in q.get("questions") or []:
                 if isinstance(x, dict) and x.get("id") in derived:
                     x["state"], x["revising"] = derived[x["id"]]
+                    x["answered"] = bool(
+                        (latest_decision(x, r.get("responses", {})) or {}).get(
+                            "decision"
+                        )
+                    )
             self._last_state = {
                 "questions": q,
                 "responses": r,
@@ -753,7 +898,9 @@ class Hub:
         }
 
     def record(self, msg):
-        """Append one page event. Returns (seq, contentRev or None). Raises ValueError (400) or Conflict (409)."""
+        """Append one page event. Returns (seq, contentRev or None, extra), where extra is the
+        `accepted` and `skipped` an accept-audit adds to its response and {} for any other kind.
+        Raises ValueError (400) or Conflict (409)."""
         qid, kind = msg.get("id"), msg.get("kind")
         if not isinstance(kind, str) or not isinstance(qid, (str, type(None))):
             raise ValueError("id and kind must be strings")
@@ -775,7 +922,9 @@ class Hub:
             raise ValueError("unknown question")
         if kind in ("own", "ask", "note") and not text.strip():
             raise ValueError("text required")
+        items = check_accept_audit(msg) if kind == "accept-audit" else None
         now = now_iso()
+        extra = {}
         with self.cond:
             if kind == "confirm-understanding":
                 check_understanding(
@@ -797,6 +946,22 @@ class Hub:
                 qid = event["id"]
             elif kind == "confirm-understanding":
                 event["contentRev"] = msg["contentRev"]
+            elif kind == "accept-audit":
+                accepted, skipped = split_accept_audit(doc, r, items)
+                if not accepted:
+                    raise Conflict({"error": "nothing accepted", "skipped": skipped})
+                event["items"] = accepted
+                extra = {"accepted": [i["id"] for i in accepted], "skipped": skipped}
+            elif (
+                kind == "confirm"
+                and qid in qs
+                and msg.get("contentRev") is not None
+                and msg["contentRev"] != (qs[qid].get("contentRev") or 0)
+            ):
+                # A tab holding an old commitments list would otherwise confirm the new one by index.
+                raise Conflict(
+                    {"error": "stale", "contentRev": qs[qid].get("contentRev") or 0}
+                )
             elif kind in DECISIONS and msg.get("contentRev") is not None:
                 current = content_rev(qs[qid], r["events"])
                 if msg.get("contentRev") != current:
@@ -821,9 +986,15 @@ class Hub:
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
             if kind in WITH_ALT and qid:
                 check_alt(qs[qid], kind, alt)
-            dup = repeat_of(r["events"], event)
+            dup = repeat_of(
+                r["events"], event, (qs.get(qid) or {}).get("commitsSinceSeq")
+            )
             if dup:
-                return dup["seq"], content_rev(qs[qid], r["events"]) if qid else None
+                return (
+                    dup["seq"],
+                    content_rev(qs[qid], r["events"]) if qid else None,
+                    {},
+                )
             r["seq"] = seq = event["seq"]
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:
@@ -849,10 +1020,33 @@ class Hub:
                 if kind == "undo":
                     line["undoSeq"] = event["undoSeq"]
                 r["history"].setdefault(qid, []).append(line)
+            for it in event["items"] if kind == "accept-audit" else []:
+                r["seq"] += 1
+                accept = {
+                    "seq": r["seq"],
+                    "id": it["id"],
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": now,
+                    "auditSeq": seq,
+                }
+                r["events"].append(accept)
+                r["responses"][it["id"]] = decision_view(accept)
+                r["history"].setdefault(it["id"], []).append(
+                    {
+                        "at": now,
+                        "by": "user",
+                        "kind": "accept",
+                        "alt": None,
+                        "text": "",
+                        "seq": accept["seq"],
+                    }
+                )
             save_json(self.responses, r)
             self.cond.notify_all()
             crev = content_rev(qs[qid], r["events"]) if qid in qs else None
-        return seq, crev
+        return seq, crev, extra
 
     def _undo(self, r, doc, msg, event):
         """Withdraw a decision Claude has not handled yet, restoring the decision before it."""
@@ -1001,7 +1195,7 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):  # noqa: A002  # matches the base signature
         pass
 
-    def send(self, code, body, ctype="application/json"):
+    def send(self, code, body, ctype="application/json", csp=None):
         raw = (
             body
             if isinstance(body, bytes)
@@ -1012,22 +1206,16 @@ class Handler(BaseHTTPRequestHandler):
                 True  # an unread request body must not become the next request
             )
         self.send_response(code)
-        self.send_header(
-            "Content-Type", ctype if ctype == OCTET else ctype + "; charset=utf-8"
-        )
+        text = ctype.startswith("text/") or ctype == "application/json"
+        self.send_header("Content-Type", ctype + "; charset=utf-8" if text else ctype)
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        if ctype == "text/html":
-            self.send_header(
-                "Content-Security-Policy",
-                "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-                "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-                "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
-                "form-action 'none'; base-uri 'none'",
-            )
+        csp = csp or (PAGE_CSP if ctype == "text/html" else None)
+        if csp:
+            self.send_header("Content-Security-Policy", csp)
         self.end_headers()
         try:
             self.wfile.write(raw)
@@ -1119,6 +1307,20 @@ class Handler(BaseHTTPRequestHandler):
                     {"error": f"file is over the {MAX_VISUAL_FILE // 2**20} MB limit"},
                 )
             return self.send(200, raw, OCTET)
+        if url.path == "/api/visual-open":
+            # A tab navigation cannot send the token header, so a one-time nonce stands in; the
+            # sandbox CSP makes the document an opaque origin that cannot reach the page's token.
+            vid = (query.get("id") or [""])[0]
+            if not hub.take_open((query.get("t") or [""])[0], vid):
+                return self.send(403, {"error": "open link expired or already used"})
+            v = find_visual(load_json(hub.questions, {}), vid)
+            if not v or v.get("archived"):
+                return self.send(404, {"error": "not found"})
+            code, body, ctype = open_body(hub.dir, v)
+            if code != 200:
+                return self.send(code, body)
+            flags = " allow-scripts" if visual_format(v) == "html" else ""
+            return self.send(200, body, ctype, f"sandbox{flags}; {PAGE_CSP}")
         if url.path == "/api/ping":
             return self.send(
                 200,
@@ -1204,7 +1406,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(400, {"error": "JSON object required"})
         if url.path == "/api/answer":
             try:
-                seq, crev = self.hub.record(msg)
+                seq, crev, extra = self.hub.record(msg)
             except (ValueError, TypeError) as e:
                 return self.send(400, {"error": str(e)})
             except Conflict as e:
@@ -1216,7 +1418,17 @@ class Handler(BaseHTTPRequestHandler):
                     "seq": seq,
                     "contentRev": crev,
                     "listener": self.hub.listener(),
+                    **extra,
                 },
+            )
+        if url.path == "/api/visual-open":
+            vid = msg.get("id")
+            v = find_visual(load_json(self.hub.questions, {}), vid)
+            if not isinstance(vid, str) or not v or v.get("archived"):
+                return self.send(404, {"error": "not found"})
+            t = self.hub.mint_open(vid)
+            return self.send(
+                200, {"url": f"/api/visual-open?id={quote(vid, safe='')}&t={t}"}
             )
         if url.path == "/api/lease":
             if msg.get("action") != "release":

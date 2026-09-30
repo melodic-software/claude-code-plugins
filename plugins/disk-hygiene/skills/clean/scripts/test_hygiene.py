@@ -26,7 +26,7 @@ from contextlib import (
     redirect_stderr,
     redirect_stdout,
 )
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, cast
 from unittest import mock
 
@@ -189,6 +189,92 @@ class HygieneTests(unittest.TestCase):
             }
             self.assertIn(expected, matched, name)
 
+    def test_file_only_hints_skip_directories(self) -> None:
+        policy = hygiene.load_policy(None)
+        for name, hint_id in (("x.tmp", "common-temp-file"), ("x.lock", "common-lock-file")):
+            as_dir = {h["id"] for h in hygiene.matching_hints(name, name, policy, "directory")}
+            as_file = {h["id"] for h in hygiene.matching_hints(name, name, policy, "file")}
+            self.assertNotIn(hint_id, as_dir, name)
+            self.assertIn(hint_id, as_file, name)
+
+    def test_invalid_entry_types_is_rejected(self) -> None:
+        hint = {
+            "id": "h",
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": "*.x",
+            "confidence_ceiling": "low",
+            "reason": "fixture",
+        }
+        hygiene.validate_hint({**hint, "entry_types": ["file"]})
+        for bad in (["symlink"], [], "file"):
+            with self.assertRaisesRegex(hygiene.HygieneError, "entry_types"):
+                hygiene.validate_hint({**hint, "entry_types": bad})
+
+    def test_overlay_schema_hint_lists_entry_types_as_the_engine_accepts_them(self) -> None:
+        schema = json.loads(
+            (SCRIPT_DIR.parent / "reference" / "policy-overlay.schema.json").read_text("utf-8")
+        )
+        hint = schema["$defs"]["hint"]
+        self.assertIn("entry_types", hint["properties"])
+        self.assertNotIn("entry_types", hint["required"])
+        entry_types = hint["properties"]["entry_types"]
+        self.assertEqual(entry_types["minItems"], 1)
+        self.assertEqual(tuple(entry_types["items"]["enum"]), hygiene.HINT_ENTRY_TYPES)
+
+    def test_links_match_hints_without_entry_types_and_hints_listing_link(self) -> None:
+        policy = hygiene.load_policy(None)
+
+        def ids(name: str, kind: str) -> set[str]:
+            return {h["id"] for h in hygiene.matching_hints(name, name, policy, kind)}
+
+        self.assertIn("common-temp-directory", ids("tmp-x", "link"))
+        self.assertIn("common-temp-file", ids("x.tmp", "link"))
+        self.assertIn("common-lock-file", ids("x.lock", "link"))
+        link_only = {
+            "id": "link-only",
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": "*.x",
+            "entry_types": ["link"],
+            "confidence_ceiling": "low",
+            "reason": "fixture",
+        }
+        hygiene.validate_hint(link_only)
+        only = {**policy, "hints": [link_only]}
+        for kind, expected in (("link", ["link-only"]), ("file", []), ("directory", [])):
+            matched = hygiene.matching_hints("a.x", "a.x", only, kind)
+            self.assertEqual(expected, [h["id"] for h in matched], kind)
+
+    def test_scan_hints_a_symlink_by_its_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "real").mkdir(parents=True)
+            try:
+                (root / "tmp-link").symlink_to(root / "real", target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        row = next(e for e in snapshot["entries"] if e["path"] == "tmp-link")
+        self.assertEqual("link", row["kind"])
+        self.assertEqual(["common-temp-directory"], [h["id"] for h in row["hints"]])
+
+    def test_empty_directory_paths_are_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for i in range(hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5):
+                (root / f"d{i:04d}").mkdir()
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(
+                hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5, snapshot["empty_directory_count"]
+            )
+            self.assertEqual(
+                hygiene.MAX_EMPTY_DIRECTORY_PATHS, len(snapshot["empty_directory_paths"])
+            )
+            self.assertEqual(sorted(snapshot["empty_directory_paths"]), snapshot["empty_directory_paths"])
+            self.assertTrue(snapshot["empty_directory_paths_truncated"])
+
     def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
         # Separated from the OS-agnostic rows and run under a pinned os_key:
         # `matching_hints` filters by the current OS BEFORE matching, so asserting
@@ -207,6 +293,48 @@ class HygieneTests(unittest.TestCase):
                     hint["id"] for hint in hygiene.matching_hints(name, name, policy)
                 }
                 self.assertIn("macos-finder-metadata", matched, name)
+
+    def test_windows_device_names_are_hinted_on_linux_only(self) -> None:
+        policy = hygiene.load_policy(None)
+
+        def device_hints(name: str, kind: str = "file") -> set[str]:
+            return {
+                hint["id"]
+                for hint in hygiene.matching_hints(name, name, policy, kind)
+                if hint["id"].startswith("windows-device-name-")
+            }
+
+        with mock.patch.object(hygiene, "os_key", return_value="linux"):
+            for name in (
+                "nul", "NUL", "nul.txt", "Con", "prn", "aux.log", "COM1", "com9.dat", "lpt3",
+            ):
+                self.assertTrue(device_hints(name), name)
+            for name in ("notes.txt", "console", "com10", "null", "auxiliary"):
+                self.assertFalse(device_hints(name), name)
+            self.assertFalse(device_hints("nul", "directory"))
+        for other in ("windows", "macos"):
+            with mock.patch.object(hygiene, "os_key", return_value=other):
+                self.assertFalse(device_hints("nul"), other)
+
+    def test_windows_junk_class_hints_match_on_windows_only(self) -> None:
+        policy = hygiene.load_policy(None)
+        rows = (
+            ("f3uooyhj.wep", "directory", "windows-vs-background-download-layout"),
+            ("Update-1.2.3.bsdiff", "file", "windows-docker-desktop-update-bsdiff"),
+            ("myapp-updater", "directory", "windows-electron-updater-cache"),
+        )
+        for os_name, expect in (("windows", True), ("linux", False)):
+            with mock.patch.object(hygiene, "os_key", return_value=os_name):
+                for name, kind, hint_id in rows:
+                    matched = {
+                        h["id"] for h in hygiene.matching_hints(name, name, policy, kind)
+                    }
+                    self.assertEqual(expect, hint_id in matched, (os_name, name))
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            as_file = {
+                h["id"] for h in hygiene.matching_hints("myapp-updater", "myapp-updater", policy, "file")
+            }
+            self.assertNotIn("windows-electron-updater-cache", as_file)
 
     def test_atomic_write_staging_remnants_are_hinted_as_a_class(self) -> None:
         # The producer-specific hint encodes one filename while its own reason
@@ -286,6 +414,618 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "must be arrays"):
                 hygiene.load_policy(policy_path)
 
+    def _overlay(self, directory: str, name: str, **fields: Any) -> Path:
+        path = Path(directory) / name
+        path.write_text(json.dumps({"version": 2, **fields}), encoding="utf-8")
+        return path
+
+    def test_version_1_overlay_loads_without_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v1.json", version=1, disabled_hint_ids=[])
+            self.assertEqual([], hygiene.load_policy(path)["rules"])
+
+    def test_version_1_overlay_rejects_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v1.json", version=1, rules=[])
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_unsupported_overlay_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for version in (0, 3, True, "2", None):
+                path = self._overlay(temporary, "bad.json", version=version)
+                with self.subTest(version=version), self.assertRaisesRegex(
+                    hygiene.HygieneError, "version must be 1 or 2"
+                ):
+                    hygiene.load_policy(path)
+
+    def test_version_2_overlay_loads_rules_normalized_to_hint_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[
+                    {"match": {"hint_id": "common-temp-file"}, "preselect": True},
+                    {
+                        "match": {"hint_ids": ["common-temp-file"]},
+                        "preselect": False,
+                        "min_age_days": 0,
+                        "min_age_basis": "mtime",
+                    },
+                ],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "hint_ids": ["common-temp-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                    },
+                    {
+                        "hint_ids": ["common-temp-file"],
+                        "preselect": False,
+                        "source": str(path),
+                        "index": 1,
+                        "min_age_days": 0,
+                        "min_age_basis": "mtime",
+                    },
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_rules_may_name_a_hint_the_same_overlay_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[
+                    {
+                        "id": "staging-file",
+                        "os": ["all"],
+                        "kind": "name_glob",
+                        "pattern": "*.stage",
+                        "confidence_ceiling": "low",
+                        "reason": "Staging leftovers",
+                    }
+                ],
+                rules=[{"match": {"hint_id": "staging-file"}, "preselect": True}],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "hint_ids": ["staging-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                    }
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_policy_rejects_unknown_fields_at_overlay_and_rule_level(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            top = self._overlay(temporary, "top.json", surprise=[])
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(top)
+            rule = self._overlay(
+                temporary,
+                "rule.json",
+                rules=[
+                    {
+                        "match": {"hint_id": "common-temp-file"},
+                        "preselect": True,
+                        "surprise": 1,
+                    }
+                ],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown rule fields"):
+                hygiene.load_policy(rule)
+
+    def test_policy_rejects_malformed_rules(self) -> None:
+        good = {"hint_id": "common-temp-file"}
+        malformed = {
+            "not-an-array": {},
+            "not-an-object": ["common-temp-file"],
+            "no-match": [{"preselect": True}],
+            "both-match-forms": [
+                {
+                    "match": {"hint_id": "common-temp-file", "hint_ids": ["a"]},
+                    "preselect": True,
+                }
+            ],
+            "unknown-match-key": [{"match": {"class": "temp"}, "preselect": True}],
+            "empty-hint-ids": [{"match": {"hint_ids": []}, "preselect": True}],
+            "non-string-hint-id": [{"match": {"hint_id": 3}, "preselect": True}],
+            "missing-preselect": [{"match": good}],
+            "non-bool-preselect": [{"match": good, "preselect": "yes"}],
+            "negative-age": [{"match": good, "preselect": True, "min_age_days": -1}],
+            "bool-age": [{"match": good, "preselect": True, "min_age_days": True}],
+            "float-age": [{"match": good, "preselect": True, "min_age_days": 1.5}],
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            for label, rules in malformed.items():
+                path = self._overlay(temporary, "bad.json", rules=rules)
+                with self.subTest(label), self.assertRaises(hygiene.HygieneError):
+                    hygiene.load_policy(path)
+
+    def test_policy_rejects_a_rule_naming_an_unknown_hint_id(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[
+                    {
+                        "match": {"hint_ids": ["common-temp-file", "nope"]},
+                        "preselect": True,
+                    }
+                ],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown hint ID.*nope"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_a_rule_naming_a_hint_the_overlay_disables(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                disabled_hint_ids=["common-temp-file"],
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown hint ID"):
+                hygiene.load_policy(path)
+
+    def test_policy_rejects_an_unsupported_min_age_basis(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for basis in ("atime", "ctime", "", None):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[
+                        {
+                            "match": {"hint_id": "common-temp-file"},
+                            "preselect": True,
+                            "min_age_days": 7,
+                            "min_age_basis": basis,
+                        }
+                    ],
+                )
+                with self.subTest(basis=basis), self.assertRaisesRegex(
+                    hygiene.HygieneError, "min_age_basis"
+                ):
+                    hygiene.load_policy(path)
+
+    def test_rules_layer_in_order_and_the_failing_layer_changes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            user = self._overlay(
+                temporary,
+                "user.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": False}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            broken = self._overlay(
+                temporary,
+                "broken.json",
+                rules=[{"match": {"hint_id": "nope"}, "preselect": True}],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                layered = hygiene.load_policy(None)
+            self.assertEqual(
+                [False, True], [rule["preselect"] for rule in layered["rules"]]
+            )
+            self.assertEqual(
+                ["baseline", str(user), str(project)], layered["policy_sources"]
+            )
+            explicit = hygiene.load_policy(project)
+            self.assertEqual([True], [rule["preselect"] for rule in explicit["rules"]])
+            result = hygiene.baseline_policy()
+            with self.assertRaises(hygiene.HygieneError):
+                hygiene.apply_policy_overlay(result, broken)
+            self.assertEqual([], result["rules"])
+            self.assertEqual(["baseline"], result["policy_sources"])
+
+    def test_elevation_defaults_to_never(self) -> None:
+        self.assertEqual("never", hygiene.baseline_policy()["elevation"])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v2.json", rules=[])
+            self.assertEqual("never", hygiene.load_policy(path)["elevation"])
+
+    def test_elevation_accepts_uac_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v2.json", elevation="uac-prompt")
+            self.assertEqual("uac-prompt", hygiene.load_policy(path)["elevation"])
+
+    def test_elevation_rejects_every_other_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for value in ("always", "UAC-PROMPT", "sudo", "", True, None, 1, []):
+                path = self._overlay(temporary, "bad.json", elevation=value)
+                result = hygiene.baseline_policy()
+                with self.subTest(value=value), self.assertRaisesRegex(
+                    hygiene.HygieneError, "elevation must be one of"
+                ):
+                    hygiene.apply_policy_overlay(result, path)
+                self.assertEqual("never", result["elevation"])
+            v1 = self._overlay(temporary, "v1.json", version=1, elevation="never")
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(v1)
+
+    def test_only_user_global_or_explicit_policy_may_opt_into_elevation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            (project / ".claude").mkdir(parents=True)
+            user_file = Path(temporary) / "user.json"
+            project_file = project / ".claude" / "disk-hygiene.json"
+            user_file.write_text(
+                json.dumps({"version": 2, "elevation": "uac-prompt"}), encoding="utf-8"
+            )
+            project_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user_file, project_file]
+            ):
+                self.assertEqual(
+                    "uac-prompt", hygiene.load_policy(None, project)["elevation"]
+                )
+                project_file.write_text(
+                    json.dumps({"version": 2, "elevation": "never"}), encoding="utf-8"
+                )
+                self.assertEqual(
+                    "never", hygiene.load_policy(None, project)["elevation"]
+                )
+                user_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
+                project_file.write_text(
+                    json.dumps({"version": 2, "elevation": "uac-prompt"}),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    hygiene.HygieneError, "not a project policy"
+                ):
+                    hygiene.load_policy(None, project)
+            self.assertEqual(
+                "uac-prompt", hygiene.load_policy(project_file)["elevation"]
+            )
+
+    def _preselect_fixture(
+        self, directory: str, ceiling: str = "low"
+    ) -> tuple[Path, dict[str, Any], Path]:
+        """A target with a `.stage` file, a protected name, and a protected glob,
+        every one matched by a preselect rule."""
+        root = Path(directory) / "target"
+        (root / "guarded").mkdir(parents=True)
+        (root / "Documents").mkdir()
+        (root / "old.stage").write_text("stale", encoding="utf-8")
+        (root / "guarded" / "keep.stage").write_text("stale", encoding="utf-8")
+        (root / "plain.txt").write_text("keep", encoding="utf-8")
+        overlay = self._overlay(
+            directory,
+            "rules.json",
+            additional_hints=[
+                {
+                    "id": "stage-file",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "*.stage",
+                    "confidence_ceiling": ceiling,
+                    "reason": "Staging leftovers",
+                },
+                {
+                    "id": "documents-folder",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "Documents",
+                    "confidence_ceiling": "high",
+                    "reason": "Fixture hint on a protected name",
+                },
+            ],
+            additional_protected_path_globs=["guarded/**"],
+            rules=[
+                {
+                    "match": {"hint_ids": ["stage-file", "documents-folder"]},
+                    "preselect": True,
+                }
+            ],
+        )
+        return root.resolve(), hygiene.load_policy(overlay), overlay
+
+    def _preview_ready(self, snapshot: dict[str, Any], plan: dict[str, Any]):
+        with (
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+        ):
+            return hygiene.preview(snapshot, plan)
+
+    def test_preselect_rule_marks_the_matching_entry_and_names_the_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, overlay = self._preselect_fixture(temporary)
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertEqual(
+                {"source": str(overlay), "index": 0, "hint_id": "stage-file"},
+                entries["old.stage"]["policy_rule"],
+            )
+            self.assertNotIn("preselected", entries["plain.txt"])
+            self.assertNotIn("policy_rule", entries["plain.txt"])
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            result = self._preview_ready(hygiene.scan_tree(root, policy), plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertIs(True, result["candidates"][0]["preselected"])
+            self.assertEqual(
+                entries["old.stage"]["policy_rule"],
+                result["candidates"][0]["policy_rule"],
+            )
+
+    def test_preselect_never_ticks_an_entry_with_a_protected_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            for path, reason in (
+                ("Documents", "baseline-protected-name"),
+                ("guarded/keep.stage", "consumer-protected-path"),
+            ):
+                with self.subTest(path):
+                    self.assertIn(reason, entries[path]["protected_reasons"])
+                    self.assertIn("policy_rule", entries[path])
+                    self.assertIs(False, entries[path]["preselected"])
+
+    def test_preview_unticks_a_forged_preselect_on_a_protected_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            for entry in snapshot["entries"]:
+                if entry["path"] == "guarded/keep.stage":
+                    entry["protected_reasons"] = []
+                    entry["preselected"] = True
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("guarded/keep.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)
+            self.assertIn("consumer-protected-path", result["candidates"][0]["blockers"])
+            self.assertIs(False, result["candidates"][0]["preselected"])
+            self.assertIsNone(result["approval_token"])
+
+    def test_preselect_stays_capped_at_the_hint_confidence_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary, ceiling="low")
+            snapshot = hygiene.scan_tree(root, policy)
+            entry = hygiene.entry_map(snapshot)["old.stage"]
+            self.assertEqual(["low"], [h["confidence_ceiling"] for h in entry["hints"]])
+            self.assertNotIn("tier", entry)
+            ticked = {}
+            for tier in ("low", "medium", "high"):
+                plan = {
+                    "version": 1,
+                    "tier": tier,
+                    "candidates": [candidate("old.stage", tier)],
+                }
+                ticked[tier] = self._preview_ready(snapshot, plan)["candidates"][0][
+                    "preselected"
+                ]
+            self.assertEqual({"low": True, "medium": False, "high": False}, ticked)
+
+    def test_preselect_survives_the_platform_only_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            with (
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(
+                    hygiene, "execution_blockers", return_value=[hygiene.PLATFORM_BLOCKER]
+                ),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("manual-handoff-lane", result["outcome"])
+            self.assertIs(True, result["candidates"][0]["preselected"])
+
+    def test_last_matching_rule_wins_across_layers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            user = self._overlay(
+                temporary,
+                "user.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": False}],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                policy = hygiene.load_policy(None)
+            entry = hygiene.entry_map(hygiene.scan_tree(root.resolve(), policy))[
+                "orphan.tmp"
+            ]
+            self.assertIs(False, entry["preselected"])
+            self.assertEqual(str(project), entry["policy_rule"]["source"])
+
+    def _aged_fixture(
+        self, directory: str, days: int = 7
+    ) -> tuple[Path, dict[str, Any]]:
+        """`old.stage` (file), `fresh.stage` (file), and `dir.stage` (directory
+        holding one child), all matched by a preselect rule with min_age_days."""
+        root = Path(directory) / "target"
+        (root / "dir.stage").mkdir(parents=True)
+        for name in ("old.stage", "fresh.stage", "dir.stage/child.txt"):
+            (root / name).write_text("stale", encoding="utf-8")
+        overlay = self._overlay(
+            directory,
+            "aged.json",
+            additional_hints=[
+                {
+                    "id": "stage-file",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "*.stage",
+                    "confidence_ceiling": "low",
+                    "reason": "Staging leftovers",
+                }
+            ],
+            rules=[
+                {
+                    "match": {"hint_id": "stage-file"},
+                    "preselect": True,
+                    "min_age_days": days,
+                }
+            ],
+        )
+        return root.resolve(), hygiene.load_policy(overlay)
+
+    @staticmethod
+    def _age(path: Path, days: float) -> None:
+        stamp = time.time_ns() - int(days * 86_400 * 10**9)
+        os.utime(path, ns=(stamp, stamp))
+
+    def test_min_age_preselects_an_old_entry_and_flags_a_new_one_in_flight(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            self._age(root / "old.stage", 30)
+            self._age(root / "fresh.stage", 1)
+            snapshot = hygiene.scan_tree(root, policy)
+            entries = hygiene.entry_map(snapshot)
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertNotIn("in_flight_reason", entries["old.stage"])
+            self.assertIs(False, entries["fresh.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: modified within 7 days",
+                entries["fresh.stage"]["in_flight_reason"],
+            )
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("fresh.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)
+            self.assertEqual("low", result["candidates"][0]["tier"])
+            self.assertEqual([], result["candidates"][0]["blockers"])
+            self.assertIs(False, result["candidates"][0]["preselected"])
+            self.assertEqual(
+                "in-flight: modified within 7 days",
+                result["candidates"][0]["in_flight_reason"],
+            )
+
+    def test_min_age_directory_is_as_new_as_its_freshest_descendant(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            self._age(root / "dir.stage" / "child.txt", 1)
+            self._age(root / "dir.stage", 30)
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
+            self.assertIs(False, entry["preselected"])
+            self.assertIn("in-flight: modified within 7 days", entry["in_flight_reason"])
+            self._age(root / "dir.stage" / "child.txt", 30)
+            self._age(root / "dir.stage", 30)
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
+            self.assertIs(True, entry["preselected"])
+
+    def test_min_age_treats_incomplete_coverage_as_in_flight(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("dir.stage/child.txt", "dir.stage"):
+                self._age(root / name, 30)
+            # A depth cut leaves dir.stage's child uninventoried: age unknown.
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy, max_depth=1))[
+                "dir.stage"
+            ]
+            self.assertIn("not-walked", entry["size_qualifiers"])
+            self.assertIs(False, entry["preselected"])
+            self.assertIn("coverage incomplete", entry["in_flight_reason"])
+
+    def test_min_age_ancestor_of_a_scan_error_is_in_flight(self) -> None:
+        old = time.time_ns() - 30 * 86_400 * 10**9
+        base = {
+            "kind": "directory",
+            "mtime_ns": old,
+            "hints": [{"id": "h"}],
+            "protected_reasons": [],
+        }
+        entries = [
+            {"path": "dir.stage", **base},
+            {**base, "path": "dir.stage/a", "kind": "file", "hints": []},
+        ]
+        rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
+                  "source": "s", "index": 0}]
+        hygiene.apply_rules(entries, rules)
+        self.assertIs(True, entries[0]["preselected"])
+        entries[0].pop("preselected")
+        hygiene.apply_rules(entries, rules, unknown_paths={"dir.stage/unreadable"})
+        self.assertIs(False, entries[0]["preselected"])
+
+    def test_min_age_never_overrides_a_protected_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            (root / "guarded").mkdir()
+            (root / "guarded" / "old.stage").write_text("x", encoding="utf-8")
+            self._age(root / "guarded" / "old.stage", 30)
+            policy["additional_protected_path_globs"].append("guarded/**")
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))[
+                "guarded/old.stage"
+            ]
+            self.assertIs(False, entry["preselected"])
+            self.assertNotIn("in_flight_reason", entry)
+
+    def test_apply_refuses_a_preselected_entry_without_tier_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            self.assertIs(True, hygiene.entry_map(snapshot)["old.stage"]["preselected"])
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            snapshot_path = base / "snapshot.json"
+            plan_path = base / "plan.json"
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            token = hygiene.approval_token(snapshot, plan)
+            refusals = {
+                "--confirm-tier must match": ("medium", token),
+                "approval token does not match": ("low", "0" * 24),
+            }
+            for message, (tier, supplied) in refusals.items():
+                output = io.StringIO()
+                with (
+                    self.subTest(message),
+                    mock.patch.object(
+                        hygiene, "handle_state", return_value=("clear", None)
+                    ),
+                    mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                    mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                    mock.patch.object(hygiene, "apply_plan") as apply_plan,
+                    redirect_stdout(output),
+                ):
+                    code = hygiene.main(
+                        [
+                            "apply",
+                            "--execute",
+                            "--snapshot",
+                            str(snapshot_path),
+                            "--plan",
+                            str(plan_path),
+                            "--confirm-tier",
+                            tier,
+                            "--approval-token",
+                            supplied,
+                            "--report",
+                            str(base / "report.json"),
+                        ]
+                    )
+                    self.assertEqual(2, code)
+                    self.assertIn(message, output.getvalue())
+                    apply_plan.assert_not_called()
+                    self.assertTrue((root / "old.stage").exists())
+
     def test_absolute_protection_glob_covers_when_relative_would_miss(self) -> None:
         # Relative `tree/**` matches only when the scan target is the parent.
         # An absolute glob matches the file under `tree` even when `tree` itself
@@ -323,7 +1063,7 @@ class HygieneTests(unittest.TestCase):
                 entries["a.tmp"]["protected_reasons"],
             )
             self.assertEqual(
-                [abs_glob],
+                [{"glob": abs_glob, "reason": "counsel hold"}],
                 hygiene.snapshot_protection_globs(snapshot),
             )
             self.assertEqual(
@@ -380,10 +1120,14 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "protection globs"):
                 hygiene.load_policy(policy_path)
 
-    def test_protection_glob_is_absolute_accepts_posix_and_drive_letter(self) -> None:
+    def test_protection_glob_is_absolute_accepts_posix_drive_letter_and_unc(
+        self,
+    ) -> None:
         self.assertTrue(hygiene.protection_glob_is_absolute("/srv/shared/keep/**"))
         self.assertTrue(hygiene.protection_glob_is_absolute("C:/eSupport"))
         self.assertTrue(hygiene.protection_glob_is_absolute("C:\\eSupport"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("\\\\srv\\share\\keep"))
+        self.assertTrue(hygiene.protection_glob_is_absolute("//srv/share/keep"))
         self.assertFalse(hygiene.protection_glob_is_absolute("eSupport"))
         self.assertFalse(hygiene.protection_glob_is_absolute("client-deliverables/**"))
 
@@ -391,16 +1135,231 @@ class HygieneTests(unittest.TestCase):
         path = PurePosixPath("C:/Legal/contract.docx")
         target = PurePosixPath("C:/Legal")
         self.assertTrue(
-            hygiene.consumer_path_protected(path, target, ["C:\\Legal\\**"])
+            hygiene.consumer_protection_matches(path, target, ["C:\\Legal\\**"])
         )
         self.assertTrue(
-            hygiene.consumer_path_protected(
+            hygiene.consumer_protection_matches(
                 path, target, [{"glob": "c:\\legal\\*", "reason": "hold"}]
             )
         )
         self.assertFalse(
-            hygiene.consumer_path_protected(path, target, ["C:\\Other\\**"])
+            hygiene.consumer_protection_matches(path, target, ["C:\\Other\\**"])
         )
+
+    def test_unc_glob_covers_unc_path_and_not_a_sibling_share(self) -> None:
+        target = PureWindowsPath("\\\\srv\\legal")
+        path = PureWindowsPath("\\\\srv\\legal\\hold\\contract.docx")
+        for glob in ("\\\\srv\\legal\\**", "//srv/legal/**", "\\\\SRV\\Legal\\**"):
+            self.assertTrue(
+                hygiene.consumer_protection_matches(path, target, [glob]), glob
+            )
+        for sibling in ("\\\\srv\\legal2\\a.docx", "\\\\srv\\other\\a.docx"):
+            self.assertFalse(
+                hygiene.consumer_protection_matches(
+                    PureWindowsPath(sibling), target, ["\\\\srv\\legal\\**"]
+                ),
+                sibling,
+            )
+        self.assertFalse(
+            hygiene.consumer_protection_matches(
+                PureWindowsPath("\\\\other\\legal\\a.docx"),
+                target,
+                ["\\\\srv\\legal\\**"],
+            )
+        )
+
+    def test_unc_glob_covers_a_backslash_spelled_subject(self) -> None:
+        # A subject that reaches the matcher with backslashes intact is read
+        # with them as separators too, on the same footing as the glob.
+        path = PurePosixPath("\\\\srv\\legal\\hold\\contract.docx")
+        target = PurePosixPath("\\\\srv\\legal")
+        self.assertTrue(
+            hygiene.consumer_protection_matches(path, target, ["//srv/legal/**"])
+        )
+        self.assertTrue(
+            hygiene.consumer_protection_matches(path, target, ["\\\\srv\\legal\\**"])
+        )
+
+    def test_relative_glob_still_matches_relative_to_a_unc_target(self) -> None:
+        target = PureWindowsPath("\\\\srv\\legal")
+        path = PureWindowsPath("\\\\srv\\legal\\hold\\contract.docx")
+        self.assertTrue(hygiene.consumer_protection_matches(path, target, ["hold/**"]))
+        self.assertFalse(
+            hygiene.consumer_protection_matches(path, target, ["other/**"])
+        )
+
+    def test_protection_matches_carry_the_glob_and_its_reason(self) -> None:
+        path = PurePosixPath("/srv/keep/a.txt")
+        target = PurePosixPath("/srv")
+        globs: list[object] = [
+            "keep/**",
+            {"glob": "/srv/keep/**", "reason": "counsel hold"},
+            {"glob": "**/a.txt"},
+            {"glob": "/srv/keep/**", "reason": "counsel hold"},
+            {"glob": "keep/**", "reason": 7},
+            "other/**",
+        ]
+        self.assertEqual(
+            [
+                {"glob": "**/a.txt"},
+                {"glob": "/srv/keep/**", "reason": "counsel hold"},
+                {"glob": "keep/**"},
+            ],
+            hygiene.consumer_protection_matches(path, target, globs),
+        )
+        self.assertEqual(
+            [], hygiene.consumer_protection_matches(path, target, ["other/**"])
+        )
+
+    def scan_with_protection_globs(
+        self, root: Path, globs: list[object]
+    ) -> dict[str, Any]:
+        policy = hygiene.load_policy(None)
+        policy["additional_protected_path_globs"] = globs
+        return hygiene.scan_tree(root.resolve(), policy)
+
+    def test_scan_entries_report_the_matched_glob_and_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            for name in ("plain", "reasoned", "bare", "free"):
+                (root / name).mkdir(parents=True)
+                (root / name / "a.txt").write_text("x", encoding="utf-8")
+            snapshot = self.scan_with_protection_globs(
+                root,
+                [
+                    "plain/**",
+                    {"glob": "reasoned/**", "reason": "counsel hold"},
+                    {"glob": "bare/**"},
+                ],
+            )
+            entries = hygiene.entry_map(snapshot)
+            self.assertEqual(
+                [{"glob": "plain/**"}], entries["plain/a.txt"]["protection_matches"]
+            )
+            self.assertEqual(
+                [{"glob": "reasoned/**", "reason": "counsel hold"}],
+                entries["reasoned/a.txt"]["protection_matches"],
+            )
+            self.assertEqual(
+                [{"glob": "bare/**"}], entries["bare/a.txt"]["protection_matches"]
+            )
+            for name in ("plain", "reasoned", "bare"):
+                self.assertIn(
+                    "consumer-protected-path",
+                    entries[f"{name}/a.txt"]["protected_reasons"],
+                )
+            self.assertNotIn("protection_matches", entries["free/a.txt"])
+            self.assertNotIn("protection_matches", entries["free"])
+
+    def preview_protected_file(self, root: Path) -> dict[str, Any]:
+        (root / "hold").mkdir(parents=True)
+        (root / "hold" / "orphan.tmp").write_text("stale", encoding="utf-8")
+        snapshot = self.scan_with_protection_globs(
+            root,
+            [
+                {"glob": "hold/**", "reason": "counsel hold"},
+                {"glob": "hold/*.tmp"},
+                "hold/**",
+            ],
+        )
+        plan = {
+            "version": 1,
+            "tier": "high",
+            "candidates": [candidate("hold/orphan.tmp")],
+        }
+        with (
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+        ):
+            return hygiene.preview(snapshot, plan)
+
+    def test_preview_reports_the_matched_glob_beside_the_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            result = self.preview_protected_file(Path(temporary) / "target")
+            self.assertEqual("blocked", result["status"])
+            item = result["candidates"][0]
+            self.assertIn("consumer-protected-path", item["blockers"])
+            self.assertEqual(
+                [
+                    {"glob": "hold/**"},
+                    {"glob": "hold/**", "reason": "counsel hold"},
+                    {"glob": "hold/*.tmp"},
+                ],
+                item["protection_matches"],
+            )
+
+    def test_preview_omits_protection_matches_when_nothing_matched(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            snapshot = self.scan_with_protection_globs(root, ["hold/**"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertNotIn("protection_matches", result["candidates"][0])
+            self.assertEqual([], result["candidates"][0]["blockers"])
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux",
+        "apply removes through the anchored POSIX lane",
+    )
+    def test_apply_skips_a_protected_path_and_reports_the_matched_glob(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "hold").mkdir(parents=True)
+            kept = root / "hold" / "orphan.tmp"
+            kept.write_text("stale", encoding="utf-8")
+            snapshot = self.scan_with_protection_globs(
+                root, [{"glob": "hold/**", "reason": "counsel hold"}]
+            )
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("hold/orphan.tmp")],
+            }
+            expected = [{"glob": "hold/**", "reason": "counsel hold"}]
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                blocked = hygiene.apply_plan(snapshot, plan)
+                # The apply lane re-checks on its own, so it also holds when the
+                # preview it consulted reported nothing.
+                with mock.patch.object(
+                    hygiene,
+                    "preview",
+                    return_value={"status": "ready-for-explicit-approval"},
+                ):
+                    rechecked = hygiene.apply_plan(snapshot, plan)
+            for report in (blocked, rechecked):
+                self.assertEqual([], report["removed"])
+                self.assertEqual(
+                    [
+                        {
+                            "path": "hold/orphan.tmp",
+                            "outcome": "protected",
+                            "detail": "consumer-protected-path",
+                            "protection_matches": expected,
+                        }
+                    ],
+                    report["skipped"],
+                )
+            self.assertTrue(kept.exists())
 
     def test_managed_candidate_rejects_non_text_native_command(self) -> None:
         managed = candidate("managed.tmp")
@@ -527,6 +1486,244 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertEqual([], entries["notes.txt"]["protected_reasons"])
             self.assertEqual([], entries["notes.txt"]["size_qualifiers"])
+
+    def test_disk_image_names_match_case_insensitively(self) -> None:
+        for name in (
+            "Dev.vhdx",
+            "DISK.VMDK",
+            "ext4.vhdx",
+            "a.vhd",
+            "snap.avhdx",
+            "old.AVHD",
+            "b.vdi",
+            "c.qcow2",
+            "boot.IMG",
+        ):
+            self.assertTrue(hygiene.is_virtual_disk_name(name), name)
+        for name in ("vhdx", "notes.txt", "disk.img.bak", "initrd.img-6.1.0"):
+            self.assertFalse(hygiene.is_virtual_disk_name(name), name)
+
+    def test_scan_qualifies_and_protects_a_disk_image_but_not_a_plain_file(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            (root / "DISK.VMDK").write_bytes(b"x" * 4096)
+            (root / "plain.dat").write_bytes(b"x" * 4096)
+            (root / "images.img").mkdir()
+            (root / "images.img" / "inner.dat").write_bytes(b"x" * 10)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+
+            for name in ("Dev.vhdx", "DISK.VMDK"):
+                self.assertEqual(["virtual-disk"], entries[name]["size_qualifiers"])
+                self.assertIn("virtual-disk", entries[name]["protected_reasons"])
+                self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entries[name]))
+            self.assertEqual([], entries["plain.dat"]["size_qualifiers"])
+            self.assertEqual([], entries["plain.dat"]["protected_reasons"])
+            self.assertEqual(
+                4096, hygiene.entry_reclaimable_local_bytes(entries["plain.dat"])
+            )
+            # A directory that only carries an image-style name holds no image.
+            self.assertEqual([], entries["images.img"]["size_qualifiers"])
+            self.assertEqual([], entries["images.img"]["protected_reasons"])
+            self.assertEqual(4096 + 10, snapshot["target_reclaimable_local_bytes"])
+
+    def test_disk_image_bytes_leave_the_child_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "vm").mkdir(parents=True)
+            (root / "vm" / "ext4.vhdx").write_bytes(b"x" * 4096)
+            (root / "vm" / "note.txt").write_bytes(b"x" * 7)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            rollup = {row["name"]: row for row in snapshot["children_rollup"]}
+            self.assertEqual(7, snapshot["target_reclaimable_local_bytes"])
+            self.assertEqual(7, rollup["vm"]["reclaimable_local_bytes"])
+            self.assertEqual(4096 + 7, rollup["vm"]["logical_bytes"])
+            self.assertIn("virtual-disk", rollup["vm"]["size_qualifiers"])
+
+    def scan_image_with_probe(self, **probe: Any) -> dict[str, Any]:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            (root / "plain.dat").write_bytes(b"x" * 7)
+            with mock.patch.object(hygiene, "virtual_disk_attachment", **probe):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        self.assertEqual(7, snapshot["target_reclaimable_local_bytes"])
+        return hygiene.entry_map(snapshot)["Dev.vhdx"]
+
+    def test_attached_disk_image_names_the_volume_it_backs(self) -> None:
+        entry = self.scan_image_with_probe(return_value=["D:"])
+        self.assertIn("attached-virtual-disk:D:", entry["protected_reasons"])
+        self.assertIn("virtual-disk", entry["protected_reasons"])
+        self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entry))
+
+    def test_attached_disk_image_with_no_volume_still_reads_attached(self) -> None:
+        entry = self.scan_image_with_probe(return_value=[])
+        self.assertIn("attached-virtual-disk", entry["protected_reasons"])
+
+    def test_detached_disk_image_keeps_only_the_virtual_disk_reason(self) -> None:
+        entry = self.scan_image_with_probe(return_value=None)
+        self.assertEqual(["virtual-disk"], entry["protected_reasons"])
+        self.assertEqual(["virtual-disk"], entry["size_qualifiers"])
+        self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entry))
+
+    def test_failed_attach_probe_is_unverified_never_detached(self) -> None:
+        for error in (
+            OSError("no probe"),
+            subprocess.TimeoutExpired("powershell", 20),
+            ValueError("bad output"),
+        ):
+            entry = self.scan_image_with_probe(side_effect=error)
+            self.assertEqual(
+                ["virtual-disk", "virtual-disk-attach-unverified"],
+                entry["protected_reasons"],
+                error,
+            )
+            self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entry))
+
+    def test_preview_blocks_an_image_whose_attach_probe_timed_out(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            timeout = subprocess.TimeoutExpired("powershell", 20)
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("Dev.vhdx")]}
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", side_effect=timeout
+                ),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                result = hygiene.preview(snapshot, plan)
+            self.assertIn(
+                "virtual-disk-attach-unverified", result["candidates"][0]["blockers"]
+            )
+            self.assertIsNone(result["approval_token"])
+
+    def test_preview_probes_a_disk_image_candidate_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("Dev.vhdx")]}
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", return_value=None
+                ) as probe,
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                probe.reset_mock()
+                result = hygiene.preview(snapshot, plan)
+            probe.assert_called_once()
+            self.assertIn("virtual-disk", result["candidates"][0]["blockers"])
+
+    def test_linux_loop_probe_reads_backing_files_and_mountinfo(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            image = base / "disk.img"
+            image.write_bytes(b"x")
+            sys_block = base / "block"
+            for device, backing in (
+                ("loop0", str(image.resolve())),
+                ("loop1", "/elsewhere.img"),
+            ):
+                (sys_block / device / "loop").mkdir(parents=True)
+                (sys_block / device / "loop" / "backing_file").write_text(
+                    backing + "\n", encoding="utf-8"
+                )
+            mountinfo = base / "mountinfo"
+            mountinfo.write_text(
+                "36 25 7:0 / /mnt/my\\040disk rw shared:1 - ext4 /dev/loop0p1 rw\n"
+                "37 25 7:1 / /mnt/other rw - ext4 /dev/loop1 rw\n"
+                "38 25 7:10 / /mnt/ten rw - ext4 /dev/loop10 rw\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                ["/mnt/my disk"],
+                hygiene.linux_loop_mounts(image, sys_block, mountinfo),
+            )
+            self.assertIsNone(
+                hygiene.linux_loop_mounts(base / "detached.vhdx", sys_block, mountinfo)
+            )
+            mountinfo.write_text("", encoding="utf-8")
+            self.assertEqual([], hygiene.linux_loop_mounts(image, sys_block, mountinfo))
+            with self.assertRaises(OSError):
+                hygiene.linux_loop_mounts(image, base / "missing", mountinfo)
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux", "the Linux route is not taken elsewhere"
+    )
+    def test_wsl_loop_miss_reads_unverified_never_detached(self) -> None:
+        for wsl, reasons in (
+            (True, ["virtual-disk", "virtual-disk-attach-unverified"]),
+            (False, ["virtual-disk"]),
+        ):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "target"
+                root.mkdir()
+                (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+                with (
+                    mock.patch.object(hygiene, "is_wsl", return_value=wsl),
+                    mock.patch.object(hygiene, "linux_loop_mounts", return_value=None),
+                ):
+                    snapshot = hygiene.scan_tree(
+                        root.resolve(), hygiene.load_policy(None)
+                    )
+            entry = hygiene.entry_map(snapshot)["Dev.vhdx"]
+            self.assertEqual(reasons, entry["protected_reasons"], wsl)
+
+    def test_wsl_is_read_from_the_kernel_release(self) -> None:
+        with mock.patch.object(
+            hygiene.platform, "release", return_value="6.6.0-microsoft-standard-WSL2"
+        ):
+            self.assertTrue(hygiene.is_wsl())
+
+    def test_windows_probe_parses_output_and_fails_closed(self) -> None:
+        def run(stdout: str, returncode: int = 0) -> mock.Mock:
+            return mock.Mock(stdout=stdout, stderr="#< CLIXML", returncode=returncode)
+
+        image = Path("C:/vm/Dev.vhdx")
+        with mock.patch.object(hygiene.shutil, "which", return_value="powershell"):
+            for stdout, expected in (
+                ("detached\n", None),
+                ("attached\n", []),
+                (
+                    "attached\nD:\\\n\\\\?\\Volume{abc}\\\nC:\\mnt\\vm\\\n",
+                    ["C:\\mnt\\vm", "D:"],
+                ),
+            ):
+                with mock.patch.object(
+                    hygiene.subprocess, "run", return_value=run(stdout)
+                ) as called:
+                    self.assertEqual(expected, hygiene.windows_disk_image_mounts(image))
+                self.assertEqual(
+                    str(image), called.call_args.kwargs["env"]["DISK_HYGIENE_IMAGE"]
+                )
+            for bad in (run("", 0), run("detached\n", 1), run("oops\n", 0)):
+                with (
+                    mock.patch.object(hygiene.subprocess, "run", return_value=bad),
+                    self.assertRaises(ValueError),
+                ):
+                    hygiene.windows_disk_image_mounts(image)
+        with (
+            mock.patch.object(hygiene.shutil, "which", return_value=None),
+            self.assertRaises(OSError),
+        ):
+            hygiene.windows_disk_image_mounts(image)
 
     def test_tenant_cloud_sync_root_name_is_protected(self) -> None:
         # The OneDrive for Business sync root embeds the organization name, so
@@ -1068,15 +2265,56 @@ class HygieneTests(unittest.TestCase):
             )
         return code, json.loads(output.getvalue())
 
-    def _non_os_volume_root_patches(self) -> list[object]:
+    def _non_os_volume_root_patches(self, target: Path | None = None) -> list[object]:
         # A drive-letter root is always os.path.ismount True; it holds no
         # OS-managed content (a Windows Dev Drive), so it is a valid non-OS
-        # volume root rather than a rejected OS root.
-        return [
-            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+        # volume root rather than a rejected OS root. Given a target, the
+        # volume-root and mount answers hold for that path alone, so its
+        # children reach the root-children ladder as ordinary directories, and
+        # the Windows name set stands in for the host's.
+        def is_target(path: Path) -> bool:
+            if target is None:
+                return True
+            try:
+                return Path(path).resolve() == target.resolve()
+            except OSError:
+                return False
+
+        patches = [
+            mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
             mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
-            mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+            mock.patch.object(
+                hygiene,
+                "mount_state",
+                side_effect=lambda path, *args, **kwargs: (is_target(path), None),
+            ),
         ]
+        if target is not None:
+            patches += [
+                mock.patch.object(hygiene, "system_roots", return_value=[]),
+                self._windows_volume_owned_names_patch(),
+            ]
+        return patches
+
+    def _windows_volume_owned_names_patch(self) -> object:
+        return mock.patch.object(
+            hygiene,
+            "volume_root_os_owned_names",
+            return_value={
+                name.casefold()
+                for name in (
+                    "Windows",
+                    "Program Files",
+                    "Program Files (x86)",
+                    "ProgramData",
+                    "Recovery",
+                    "$Recycle.Bin",
+                    "System Volume Information",
+                    "Users",
+                    "PerfLogs",
+                )
+            },
+        )
 
     def test_non_os_volume_root_without_bound_requires_large_confirmation(self) -> None:
         # A non-OS volume root is accepted, but an unbounded whole-volume walk
@@ -1174,24 +2412,7 @@ class HygieneTests(unittest.TestCase):
             ),
             mock.patch.object(hygiene, "mount_state", side_effect=mount_state),
             mock.patch.object(hygiene, "system_roots", return_value=[]),
-            mock.patch.object(
-                hygiene,
-                "volume_root_os_owned_names",
-                return_value={
-                    name.casefold()
-                    for name in (
-                        "Windows",
-                        "Program Files",
-                        "Program Files (x86)",
-                        "ProgramData",
-                        "Recovery",
-                        "$Recycle.Bin",
-                        "System Volume Information",
-                        "Users",
-                        "PerfLogs",
-                    )
-                },
-            ),
+            self._windows_volume_owned_names_patch(),
         ]
 
     def test_root_children_without_selection_lists_admitted_only(self) -> None:
@@ -1252,6 +2473,228 @@ class HygieneTests(unittest.TestCase):
             self.assertIsInstance(orphan["mtime"], int)
             self.assertIn("current user's home", payload["note"])
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def _make_root_children_ladder_fixture(self, target: Path) -> None:
+        target.mkdir()
+        for name in (
+            "System Volume Information",
+            "$Recycle.Bin",
+            ".devcache",
+            "Windows",
+            "builds",
+        ):
+            (target / name).mkdir()
+        (target / "orphan.tmp").write_text("x", encoding="utf-8")
+
+    def _assert_strict_volume_root_listing(self, payload: dict[str, object]) -> None:
+        self.assertEqual("root-children-selection-required", payload["status"])
+        admitted = {item["name"] for item in payload["admitted_children"]}
+        self.assertEqual({"builds", "orphan.tmp"}, admitted)
+        skipped = {item["name"]: item["reason"] for item in payload["skipped_children"]}
+        self.assertEqual(
+            {
+                "System Volume Information": "os-owned",
+                "$Recycle.Bin": "os-owned",
+                ".devcache": "hidden",
+                "Windows": "os-owned",
+            },
+            skipped,
+        )
+
+    def test_root_children_on_non_os_volume_root_keeps_the_strict_ladder(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(target),
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self._assert_strict_volume_root_listing(payload)
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_child_naming_withheld_entry_on_non_os_volume_root_is_refused(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(target),
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    "System Volume Information",
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("withheld (os-owned)", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_root_children_on_os_managed_volume_root_lists_the_same_strict_ladder(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._os_managed_volume_root_patches(target),
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self._assert_strict_volume_root_listing(payload)
+
+    def test_root_children_on_non_volume_target_keeps_the_relaxed_listing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            self._make_root_children_ladder_fixture(target)
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                    self._windows_volume_owned_names_patch(),
+                ],
+                extra_args=["--root-children"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("root-children-selection-required", payload["status"])
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual(
+                {
+                    "System Volume Information",
+                    "$Recycle.Bin",
+                    ".devcache",
+                    "Windows",
+                    "builds",
+                },
+                admitted,
+            )
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual({"orphan.tmp": "not-a-directory"}, skipped)
+
+    def test_handoff_verify_clears_directory_from_root_children_snapshot(self) -> None:
+        # Patches: is_os_managed_target only because a macOS temp dir sits under
+        # /private, and handle_state because it shells out to lsof (or the
+        # Windows CreateFile probe). execution_blockers and os_key stay real
+        # (handoff-verify never consults them), and root_children_skipped is
+        # whatever the scan wrote to disk.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            (target / "scratch" / "deep").mkdir(parents=True)
+            (target / "scratch" / "deep" / "orphan.tmp").write_text(
+                "x", encoding="utf-8"
+            )
+            (target / "other").mkdir()
+            (target / "loose.tmp").write_text("x", encoding="utf-8")
+            self.enterContext(
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False)
+            )
+            self.enterContext(
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None))
+            )
+            bounded = hygiene.scan_tree(
+                target.resolve(), hygiene.load_policy(None), max_depth=1
+            )
+            truncated = hygiene.handoff_verify(bounded, ["scratch"])["verdicts"][0]
+            self.assertEqual("contested", truncated["verdict"])
+            self.assertIn("truncated-not-inventoried", truncated["reasons"])
+            code, _payload = self._scan_target(
+                target,
+                data_root,
+                [],
+                extra_args=["--root-children", "--root-child", "scratch"],
+            )
+            self.assertEqual(0, code)
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                [("loose.tmp", "not-a-directory")],
+                [
+                    (item["name"], item["reason"])
+                    for item in snapshot["root_children_skipped"]
+                ],
+            )
+            result = hygiene.handoff_verify(
+                snapshot, ["scratch", "scratch/deep/orphan.tmp"]
+            )
+            self.assertEqual(
+                [
+                    {"path": "scratch", "verdict": "clear", "reasons": []},
+                    {
+                        "path": "scratch/deep/orphan.tmp",
+                        "verdict": "clear",
+                        "reasons": [],
+                    },
+                ],
+                result["verdicts"],
+            )
+            self.assertEqual(2, result["clear"])
+
+    def test_root_children_entry_cap_counts_only_the_selected_children(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "home"
+            for name, files in (("AppData", 8), ("Projects", 2), ("Scratch", 2)):
+                (target / name).mkdir(parents=True)
+                for index in range(files):
+                    (target / name / f"file-{index}.tmp").write_text(
+                        "x", encoding="utf-8"
+                    )
+            policy = hygiene.load_policy(None)
+            root = target.resolve()
+            with mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 6):
+                with self.assertRaisesRegex(hygiene.HygieneError, "exceeds 6 entries"):
+                    hygiene.scan_tree(root, policy)
+                snapshot = hygiene.scan_tree(
+                    root, policy, root_children=["Projects", "Scratch"]
+                )
+                # The cap is still per snapshot: it bounds the selection's own
+                # entries, so selecting the large sibling too still fails.
+                with self.assertRaisesRegex(hygiene.HygieneError, "exceeds 6 entries"):
+                    hygiene.scan_tree(
+                        root, policy, root_children=["AppData", "Projects"]
+                    )
+            self.assertEqual(
+                {
+                    "Projects",
+                    "Projects/file-0.tmp",
+                    "Projects/file-1.tmp",
+                    "Scratch",
+                    "Scratch/file-0.tmp",
+                    "Scratch/file-1.tmp",
+                },
+                {entry["path"] for entry in snapshot["entries"]},
+            )
 
     def _root_child_lstat_with_attributes(self, names: dict[str, int]):
         real_lstat = Path.lstat
@@ -1320,6 +2763,15 @@ class HygieneTests(unittest.TestCase):
                     hygiene.root_child_skip_reason(path, exact_names=set()),
                 )
 
+    def test_root_child_disk_image_file_is_withheld(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "docker_data.VHDX"
+            path.write_bytes(b"x")
+            self.assertEqual(
+                "virtual-disk",
+                hygiene.root_child_skip_reason(path, exact_names=set()),
+            )
+
     def test_linux_swapfile_is_os_owned_by_name(self) -> None:
         self.assertTrue(
             hygiene.volume_root_os_owned_file_name_matches("swapfile", "linux")
@@ -1332,6 +2784,22 @@ class HygieneTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "swapfile"
+            path.write_text("x", encoding="utf-8")
+            with mock.patch.object(hygiene, "os_key", return_value="linux"):
+                self.assertEqual(
+                    "os-owned",
+                    hygiene.root_child_skip_reason(path, exact_names=set()),
+                )
+
+    def test_linux_swap_img_is_os_owned_by_name(self) -> None:
+        self.assertTrue(
+            hygiene.volume_root_os_owned_file_name_matches("swap.img", "linux")
+        )
+        self.assertTrue(
+            hygiene.volume_root_os_owned_file_name_matches("Swap.IMG", "linux")
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "swap.img"
             path.write_text("x", encoding="utf-8")
             with mock.patch.object(hygiene, "os_key", return_value="linux"):
                 self.assertEqual(
@@ -1414,105 +2882,79 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("withheld (hidden)", payload["error"])
             self.assertNotIn("not-a-directory", payload["error"])
 
+    def _selected_root_file_case(
+        self, root: Path
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Snapshot and plan for a selected root file `log.txt` under `root`.
+
+        Declares `root` an OS-managed volume root, the one property a temp
+        directory cannot have. Nothing else is stubbed: the platform gate,
+        mount state, system roots and handle probe run for real.
+        """
+        root.mkdir()
+        (root / "log.txt").write_text("x", encoding="utf-8")
+        target = root.resolve()
+
+        def is_target(path: Path) -> bool:
+            try:
+                return Path(path).resolve() == target
+            except OSError:
+                return False
+
+        self.enterContext(
+            mock.patch.object(hygiene, "is_volume_root", side_effect=is_target)
+        )
+        self.enterContext(
+            mock.patch.object(
+                hygiene,
+                "is_os_managed_target",
+                side_effect=lambda path, roots=None, markers=None: is_target(path),
+            )
+        )
+        snapshot = hygiene.scan_tree(
+            target, hygiene.load_policy(None), root_children=["log.txt"]
+        )
+        plan = {"version": 1, "tier": "high", "candidates": [candidate("log.txt")]}
+        return snapshot, plan
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux" and shutil.which("lsof"),
+        "the real Linux execution gate and the lsof handle probe are required",
+    )
     def test_preview_of_selected_root_file_clears_on_linux(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "os-root"
-            root.mkdir()
-            (root / "log.txt").write_text("x", encoding="utf-8")
-            snapshot = hygiene.scan_tree(
-                root.resolve(),
-                hygiene.load_policy(None),
-                root_children=["log.txt"],
-            )
-            snapshot["root_children_skipped"] = []
-            plan = {
-                "version": 1,
-                "tier": "high",
-                "candidates": [candidate("log.txt")],
-            }
-            target = root.resolve()
-
-            def is_target(path: Path) -> bool:
-                try:
-                    return Path(path).resolve() == target
-                except OSError:
-                    return False
-
-            with (
-                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
-                mock.patch.object(
-                    hygiene,
-                    "is_os_managed_target",
-                    side_effect=lambda path, roots=None, markers=None: is_target(path),
-                ),
-                mock.patch.object(
-                    hygiene,
-                    "mount_state",
-                    side_effect=lambda path, *a, **k: (is_target(path), None),
-                ),
-                mock.patch.object(hygiene, "system_roots", return_value=[]),
-                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
-                mock.patch.object(
-                    hygiene, "handle_state", return_value=("clear", None)
-                ),
-            ):
-                result = hygiene.preview(snapshot, plan)
+            snapshot, plan = self._selected_root_file_case(Path(temporary) / "os-root")
+            result = hygiene.preview(snapshot, plan)
             self.assertEqual("ready-for-explicit-approval", result["status"])
             self.assertEqual(
                 ["log.txt"], [item["path"] for item in result["candidates"]]
             )
+            self.assertEqual([], result["candidates"][0]["blockers"])
 
     def test_preview_of_selected_root_file_is_unsupported_on_windows(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "os-root"
-            root.mkdir()
-            (root / "log.txt").write_text("x", encoding="utf-8")
-            snapshot = hygiene.scan_tree(
-                root.resolve(),
-                hygiene.load_policy(None),
-                root_children=["log.txt"],
-            )
-            snapshot["root_children_skipped"] = []
-            plan = {
-                "version": 1,
-                "tier": "high",
-                "candidates": [candidate("log.txt")],
-            }
-            target = root.resolve()
-
-            def is_target(path: Path) -> bool:
-                try:
-                    return Path(path).resolve() == target
-                except OSError:
-                    return False
-
-            with (
-                mock.patch.object(hygiene, "is_volume_root", side_effect=is_target),
-                mock.patch.object(
-                    hygiene,
-                    "is_os_managed_target",
-                    side_effect=lambda path, roots=None, markers=None: is_target(path),
-                ),
-                mock.patch.object(
-                    hygiene,
-                    "mount_state",
-                    side_effect=lambda path, *a, **k: (is_target(path), None),
-                ),
-                mock.patch.object(hygiene, "system_roots", return_value=[]),
-                mock.patch.object(
-                    hygiene,
-                    "execution_blockers",
-                    return_value=["execution-platform-unsupported"],
-                ),
-                mock.patch.object(
-                    hygiene, "handle_state", return_value=("clear", None)
-                ),
-            ):
+            snapshot, plan = self._selected_root_file_case(Path(temporary) / "os-root")
+            with mock.patch.object(hygiene, "os_key", return_value="windows"):
                 result = hygiene.preview(snapshot, plan)
+            self.assertEqual("blocked", result["status"])
             self.assertIn(
                 "execution-platform-unsupported",
                 result["candidates"][0]["blockers"],
             )
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux" and shutil.which("lsof"),
+        "the real Linux execution gate and the lsof handle probe are required",
+    )
+    def test_apply_of_selected_root_file_removes_it_on_linux(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "os-root"
+            snapshot, plan = self._selected_root_file_case(root)
+            result = hygiene.apply_plan(snapshot, plan)
+            self.assertEqual("completed", result["status"])
+            self.assertEqual(["log.txt"], [item["path"] for item in result["removed"]])
+            self.assertEqual([], result["skipped"])
+            self.assertFalse((root / "log.txt").exists())
 
     def test_preview_blocks_selected_root_file_with_open_handle(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1614,6 +3056,16 @@ class HygieneTests(unittest.TestCase):
             self.assertNotIn("root-only.tmp", paths)
             self.assertTrue(snapshot["root_children_mode"])
             self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
+            # The unselected siblings are not truncated paths, yet the byte
+            # totals leave them out, so the flag is set and each is named.
+            self.assertEqual([], snapshot["truncated_paths"])
+            for unselected in ("ccxp", "Windows", "root-only.tmp"):
+                self.assertEqual(
+                    "root-child-unselected", snapshot["truncation_reasons"][unselected]
+                )
+            self.assertNotIn("builds", snapshot["truncation_reasons"])
+            self.assertIs(True, payload["totals_are_lower_bounds"])
+            self.assertIs(True, snapshot["totals_are_lower_bounds"])
 
     def test_root_children_scan_honours_quiet_without_losing_the_snapshot(  # identifier, not prose # spellchecker:disable-line
         self,
@@ -1718,6 +3170,66 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual("large-target-confirmation-required", payload["status"])
             self.assertEqual(["builds:user-home"], payload["large_target_reasons"])
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_sizes_only_plain_target_goes_through_the_large_scan_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(),
+                extra_args=["--sizes-only"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [],
+                extra_args=["--sizes-only", "--confirmed-large-scan"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual("sizes-only", payload["inventory_mode"])
+            self.assertTrue((data_root / "snapshot.json").exists())
+
+    def test_sizes_only_root_children_goes_through_the_large_scan_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "builds" / "out.bin").write_text("x", encoding="utf-8")
+            patches = [
+                *self._os_managed_volume_root_patches(target),
+                mock.patch.object(
+                    hygiene,
+                    "large_scan_reasons",
+                    side_effect=lambda path: (
+                        ["user-home"] if Path(path).name == "builds" else []
+                    ),
+                ),
+            ]
+            args = ["--sizes-only", "--root-children", "--root-child", "builds"]
+            code, payload = self._scan_target(target, data_root, patches, args)
+            self.assertEqual(0, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+            code, payload = self._scan_target(
+                target, data_root, [], [*args, "--confirmed-large-scan"]
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual("sizes-only", payload["inventory_mode"])
+            self.assertTrue((data_root / "snapshot.json").exists())
 
     def test_linux_volume_root_os_owned_includes_conventional_roots(self) -> None:
         owned = hygiene.volume_root_os_owned_names("linux")
@@ -2073,6 +3585,31 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("mount points are not valid audit targets", payload["error"])
             self.assertFalse((data_root / "snapshot.json").exists())
 
+    def test_scan_refusal_of_shell_folder_descendant_carries_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "Documents" / "child"
+            data_root = base / "plugin-data"
+            target.mkdir(parents=True)
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("profile-hive roots are not valid", payload["error"])
+            self.assertIn("child directory of Documents", payload["hint"])
+            self.assertIn("no protected name anywhere in their path", payload["hint"])
+
     def test_preview_denies_os_managed_root_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -2241,6 +3778,36 @@ class HygieneTests(unittest.TestCase):
                 "baseline-protected-name", result["candidates"][0]["blockers"]
             )
             self.assertIsNone(result["approval_token"])
+
+    def test_preview_and_apply_refuse_a_disk_image_even_from_a_forged_snapshot(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "vm").mkdir(parents=True)
+            image = root / "vm" / "Dev.vhdx"
+            image.write_bytes(b"x" * 4096)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            for entry in snapshot["entries"]:
+                entry["protected_reasons"] = []
+                entry["size_qualifiers"] = []
+            for path in ("vm/Dev.vhdx", "vm"):
+                plan = {"version": 1, "tier": "high", "candidates": [candidate(path)]}
+                with (
+                    mock.patch.object(
+                        hygiene, "handle_state", return_value=("clear", None)
+                    ),
+                    mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                    mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                ):
+                    result = hygiene.preview(snapshot, plan)
+                    report = hygiene.apply_plan(snapshot, plan)
+                self.assertIn("virtual-disk", result["candidates"][0]["blockers"])
+                self.assertIsNone(result["approval_token"])
+                self.assertEqual("protected", report["skipped"][0]["outcome"])
+                self.assertIn("virtual-disk", report["skipped"][0]["detail"])
+                self.assertEqual(0, report["paths_removed"])
+                self.assertTrue(image.exists())
 
     def test_preview_accepts_a_snapshot_lacking_the_new_entry_fields(self) -> None:
         # A previous engine's snapshot carries no size_qualifiers or
@@ -2854,6 +4421,39 @@ class HygieneTests(unittest.TestCase):
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
 
+    def test_entry_cap_error_names_the_child_being_walked(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "small").mkdir(parents=True)
+            (root / "big").mkdir()
+            for index in range(6):
+                (root / "big" / f"file-{index}.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 3),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 3 entries") as raised,
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            message = str(raised.exception)
+            self.assertRegex(message, r"big \(\d+, walk in progress\)")
+            self.assertNotRegex(message, r"small \(\d+, walk in progress\)")
+            self.assertIn("--sizes-only", message)
+            self.assertIn("--root-children --root-child <name>", message)
+
+    def test_entry_cap_error_does_not_mark_a_finished_child_as_in_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "aaa").mkdir(parents=True)
+            (root / "aaa" / "one.txt").write_text("x", encoding="utf-8")
+            (root / "bbb.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries") as raised,
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            message = str(raised.exception)
+            self.assertIn("aaa (2)", message)
+            self.assertNotIn("aaa (2, walk in progress)", message)
+
     def test_sizes_only_bypasses_inventory_entry_cap(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -2872,6 +4472,72 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertTrue(child["walked"])
 
+    def test_sizes_only_totals_match_an_ordinary_scan_without_retaining_entries(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "tree" / "nested" / "hollow").mkdir(parents=True)
+            (root / "tree" / "nested" / "data.bin").write_bytes(b"x" * 7)
+            (root / "tree" / "zero.txt").write_bytes(b"")
+            (root / "tree" / "linked-a.txt").write_bytes(b"abc")
+            os.link(root / "tree" / "linked-a.txt", root / "tree" / "linked-b.txt")
+            (root / "empty").mkdir()
+            (root / "top.txt").write_bytes(b"yy")
+            target = root.resolve()
+            policy = hygiene.load_policy(None)
+            with mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(set(), None)
+            ):
+                ordinary = hygiene.scan_tree(target, policy)
+                # Each of these consumes a retained entry list, so none may run
+                # on the sizes-only walk.
+                for name in (
+                    "matching_hints",
+                    "annotate_tracked",
+                    "children_rollup",
+                    "reclaimable_local_bytes",
+                    "empty_directory_paths",
+                    "empty_file_count",
+                ):
+                    self.enterContext(
+                        mock.patch.object(hygiene, name, side_effect=AssertionError)
+                    )
+                sizes = hygiene.scan_tree(target, policy, sizes_only=True)
+            self.assertNotEqual([], ordinary["entries"])
+            self.assertEqual([], sizes["entries"])
+            self.assertEqual("exact", sizes["rollup_precision"])
+            for field in (
+                "children_rollup",
+                "target_logical_bytes",
+                "target_reclaimable_local_bytes",
+                "empty_directory_count",
+                "empty_directory_paths",
+                "empty_directory_paths_truncated",
+                "empty_file_count",
+            ):
+                self.assertEqual(ordinary[field], sizes[field], field)
+            self.assertEqual(7 + 3 + 3 + 2, sizes["target_logical_bytes"])
+            self.assertEqual(2, sizes["empty_directory_count"])
+            self.assertEqual(1, sizes["empty_file_count"])
+
+    def test_sizes_only_keeps_a_bounded_sample_of_empty_directories(self) -> None:
+        many = 2 * hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for i in range(many):
+                (root / f"d{i:04d}").mkdir()
+            target = root.resolve()
+            policy = hygiene.load_policy(None)
+            ordinary = hygiene.scan_tree(target, policy)
+            sizes = hygiene.scan_tree(target, policy, sizes_only=True)
+            self.assertEqual(many, sizes["empty_directory_count"])
+            self.assertTrue(sizes["empty_directory_paths_truncated"])
+            self.assertEqual(
+                ordinary["empty_directory_paths"], sizes["empty_directory_paths"]
+            )
+
     def test_sizes_only_depth_cut_marks_partial_rollup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -2887,6 +4553,127 @@ class HygieneTests(unittest.TestCase):
                 row for row in snapshot["children_rollup"] if row["name"] == "child"
             )
             self.assertFalse(child_row["walked"])
+
+    def test_sizes_only_differs_from_ordinary_scan_on_a_truncated_tree(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "child").mkdir(parents=True)
+            (root / "child" / "deep.txt").write_text("x", encoding="utf-8")
+            target = root.resolve()
+            policy = hygiene.load_policy(None)
+            with mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(set(), None)
+            ):
+                ordinary = hygiene.scan_tree(target, policy, max_depth=1)
+                cut = hygiene.scan_tree(target, policy, max_depth=1, sizes_only=True)
+                uncut = hygiene.scan_tree(target, policy, sizes_only=True)
+            self.assertNotEqual([], ordinary["entries"])
+            self.assertNotIn("inventory_mode", ordinary)
+            self.assertNotIn("rollup_precision", ordinary)
+            self.assertEqual([], cut["entries"])
+            self.assertEqual("sizes-only", cut["inventory_mode"])
+            self.assertEqual("partial", cut["rollup_precision"])
+            self.assertEqual("exact", uncut["rollup_precision"])
+
+    def test_sizes_only_unreadable_directory_marks_partial_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "locked").mkdir(parents=True)
+            (root / "locked" / "hidden.txt").write_text("x", encoding="utf-8")
+            (root / "open.txt").write_text("x", encoding="utf-8")
+            target = root.resolve()
+            locked = target / "locked"
+            real_scandir = os.scandir
+
+            def scandir(path: Any = ".") -> Any:
+                if Path(path) == locked:
+                    raise PermissionError(13, "denied", str(path))
+                return real_scandir(path)
+
+            with (
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(hygiene.os, "scandir", scandir),
+            ):
+                snapshot = hygiene.scan_tree(
+                    target, hygiene.load_policy(None), sizes_only=True
+                )
+            self.assertEqual("partial", snapshot["rollup_precision"])
+            row = next(
+                item for item in snapshot["children_rollup"] if item["name"] == "locked"
+            )
+            self.assertFalse(row["walked"])
+            self.assertEqual(["scan-error"], row["unwalked_reasons"])
+            self.assertEqual(["locked"], [e["path"] for e in snapshot["errors"]])
+
+    def test_scan_error_child_has_a_reason_not_a_truncated_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "locked").mkdir(parents=True)
+            target = root.resolve()
+            real_scandir = os.scandir
+
+            def scandir(path: Any = ".") -> Any:
+                if Path(path) == target / "locked":
+                    raise PermissionError(13, "denied", str(path))
+                return real_scandir(path)
+
+            with (
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(hygiene.os, "scandir", scandir),
+            ):
+                snapshot = hygiene.scan_tree(target, hygiene.load_policy(None))
+        self.assertEqual([], snapshot["truncated_paths"])
+        self.assertEqual({"locked": "scan-error"}, snapshot["truncation_reasons"])
+        self.assertIs(True, snapshot["totals_are_lower_bounds"])
+
+    def test_sizes_only_mount_state_error_marks_partial_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "file.txt").write_text("x", encoding="utf-8")
+            with mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(set(), "mountinfo failed")
+            ):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None), sizes_only=True
+                )
+            self.assertEqual("partial", snapshot["rollup_precision"])
+
+    def test_scan_sizes_only_stdout_carries_mode_and_precision(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "target"
+            root.mkdir()
+            (root / "file.txt").write_text("x", encoding="utf-8")
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            stdout_io = io.StringIO()
+            with (
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                redirect_stdout(stdout_io),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--sizes-only",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(data_root / "snapshot.json"),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            self.assertEqual(0, code)
+            payload = json.loads(stdout_io.getvalue())
+            self.assertEqual("sizes-only", payload["inventory_mode"])
+            self.assertEqual("exact", payload["rollup_precision"])
 
     def test_scan_data_root_flag_substitutes_for_environment(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3540,10 +5327,13 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
                 "truncated_paths",
+                "truncation_reasons",
+                "totals_are_lower_bounds",
                 "stdlib_shadowing",
                 "children_rollup",
                 "errors",
                 "policy_sources",
+                "elevation",
                 "os_autoclean",
                 "note",
             },
@@ -3560,7 +5350,8 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertEqual(set(default) - {"children_rollup"}, set(quiet))
         # Every field the caller decides on survives, with the same value the
         # default run reported: quiet is a projection, never a recomputation.
-        for field in set(quiet) - {"note", "target", "snapshot", "truncated_paths"}:
+        shaped = {"note", "target", "snapshot", "truncated_paths", "truncation_reasons"}
+        for field in set(quiet) - shaped:
             self.assertEqual(default[field], quiet[field], field)
         self.assertEqual(
             len(cast("list[object]", default["truncated_paths"])),
@@ -3640,6 +5431,49 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertGreater(default_growth, 5000)
         self.assertLess(quiet_growth * 10, default_growth)
         self.assertLess(len(large_quiet_raw) * 4, len(large_raw))
+
+    def test_depth_cut_scan_reports_lower_bound_and_reason(self) -> None:
+        (default, _, snapshot), _ = self._both_modes(2)
+        self.assertIs(True, default["totals_are_lower_bounds"])
+        self.assertIs(True, snapshot["totals_are_lower_bounds"])
+        expected = {"child_000": "depth-cut", "child_001": "depth-cut"}
+        self.assertEqual(expected, default["truncation_reasons"])
+        self.assertEqual(expected, snapshot["truncation_reasons"])
+
+    def test_full_scan_reports_exact_totals(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            self._fixture(root, 2)
+            data_root = Path(temporary) / "data"
+            data_root.mkdir()
+            output = data_root / "runs" / "snapshot.json"
+            stdout_io = io.StringIO()
+            with redirect_stdout(stdout_io):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                        "--confirmed-large-scan",
+                    ]
+                )
+            payload = json.loads(stdout_io.getvalue())
+        self.assertEqual(0, code)
+        self.assertIs(False, payload["totals_are_lower_bounds"])
+        self.assertEqual({}, payload["truncation_reasons"])
+        self.assertEqual([], payload["truncated_paths"])
+
+    def test_quiet_reasons_are_a_tally_with_no_per_path_list(self) -> None:
+        _, (quiet, raw, snapshot) = self._both_modes(3)
+        self.assertEqual({"depth-cut": 3}, quiet["truncation_reasons"])
+        self.assertIs(True, quiet["totals_are_lower_bounds"])
+        for name in snapshot["truncated_paths"]:
+            self.assertNotIn(name, raw)
+        self.assertEqual(3, len(snapshot["truncation_reasons"]))
 
     def test_shaping_without_quiet_returns_the_payload_untouched(self) -> None:
         payload = {
@@ -3745,6 +5579,18 @@ class StandingPolicyTests(unittest.TestCase):
                 ["baseline", str(user_path), str(project_path)],
                 policy["policy_sources"],
             )
+
+    def test_project_dir_equal_to_home_applies_overlay_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            overlay = self.write_policy(
+                home, {"additional_hints": [self.hint("user-hint", "user-*")]}
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(None, home)
+            self.assertEqual(["baseline", str(overlay)], policy["policy_sources"])
+            ids = [hint["id"] for hint in policy["hints"]]
+            self.assertEqual(1, ids.count("user-hint"))
 
     def test_explicit_policy_replaces_standing_layers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -3978,13 +5824,14 @@ class StdlibShadowingTests(unittest.TestCase):
                 home,
                 home / "snapshot.json",
                 snapshot,
-                {"policy_sources": ["baseline"]},
+                {"policy_sources": ["baseline"], "elevation": "uac-prompt"},
                 None,
                 "note",
             ),
             True,
         )
         self.assertEqual(snapshot["stdlib_shadowing"], payload["stdlib_shadowing"])
+        self.assertEqual("uac-prompt", payload["elevation"])
 
 
 class OsAutocleanAdvisoryTests(unittest.TestCase):
@@ -4758,6 +6605,26 @@ class HandoffVerifyTests(unittest.TestCase):
             mock.patch.object(hygiene, "tracked_blocker", return_value=None),
         )
 
+    def test_disk_image_candidate_is_probed_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", return_value=None
+                ) as probe,
+                handle,
+                vcs,
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                probe.reset_mock()
+                result = hygiene.handoff_verify(snapshot, ["Dev.vhdx"])
+            probe.assert_called_once()
+            self.assertEqual("contested", result["verdicts"][0]["verdict"])
+            self.assertIn("virtual-disk", result["verdicts"][0]["reasons"])
+
     @staticmethod
     def create_checkout(root: Path) -> Path:
         checkout = root / "checkout"
@@ -5360,12 +7227,19 @@ class HandoffVerifyTests(unittest.TestCase):
     def test_skill_requires_handoff_verify_and_loss_warning(self) -> None:
         text = " ".join((SCRIPT_DIR.parent / "SKILL.md").read_text("utf-8").split())
         for phrase in (
-            "never delete it outside the engine",
+            "never delete it without a clear `handoff-verify` verdict",
             "run `handoff-verify`, and delete only on a `clear` verdict",
+            "On Linux, run `handoff-apply` ([command](reference/safety-model.md"
+            "#standalone-git-checkout-evidence)): it re-runs "
+            "`handoff-verify` and deletes only on a `clear` verdict",
             "tell the operator plainly that unpushed commits and untracked or "
             "ignored files in that checkout will be lost",
         ):
             self.assertIn(phrase, text)
+        safety_model = (SCRIPT_DIR.parent / "reference" / "safety-model.md").read_text(
+            "utf-8"
+        )
+        self.assertIn("handoff-apply --execute", safety_model)
 
     def verify_evidence(self, target: Path, approved: list[str], evidence):
         snapshot = hygiene.scan_tree(target.resolve(), hygiene.load_policy(None))
@@ -5932,6 +7806,82 @@ class HandoffVerifyTests(unittest.TestCase):
                         "approved path", json.loads(output.getvalue())["error"]
                     )
 
+    def handoff_verify_inline_all(
+        self, temporary: str, relatives: list[str]
+    ) -> tuple[int, dict[str, Any]]:
+        argv = ["handoff-verify", "--snapshot", str(Path(temporary) / "snapshot.json")]
+        for relative in relatives:
+            argv += ["--path", relative]
+        handle, vcs = self.clear_probe_mocks()
+        output = io.StringIO()
+        with handle, vcs, redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_handoff_verify_repeated_inline_path_matches_the_paths_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, names = self.five_file_snapshot(temporary)
+            self.assertEqual(
+                self.handoff_verify_cli(temporary, names[:2]),
+                self.handoff_verify_inline_all(temporary, names[:2]),
+            )
+            status, payload = self.handoff_verify_inline_all(temporary, names[:2])
+            self.assertEqual(0, status)
+            self.assertEqual(names[:2], [item["path"] for item in payload["verdicts"]])
+            (root / names[1]).write_text("changed after approval", encoding="utf-8")
+            status, payload = self.handoff_verify_inline_all(temporary, names[:2])
+            self.assertEqual(3, status)
+            self.assertEqual(
+                ["clear", "drifted"], [item["verdict"] for item in payload["verdicts"]]
+            )
+
+    def test_handoff_verify_repeated_inline_path_keeps_the_file_form_validation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            cases = [
+                ([names[0], "../junk1.tmp"], "approved path"),
+                ([names[0], "absent.tmp"], "approved path"),
+                ([names[0], "/junk1.tmp"], "approved path"),
+                ([names[0], names[0]], "overlap"),
+            ]
+            for relatives, message in cases:
+                with self.subTest(paths=relatives):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        argv = [
+                            "handoff-verify",
+                            "--snapshot",
+                            str(Path(temporary) / "snapshot.json"),
+                        ]
+                        for relative in relatives:
+                            argv += ["--path", relative]
+                        status = hygiene.main(argv)
+                    self.assertEqual(2, status)
+                    self.assertIn(message, json.loads(output.getvalue())["error"])
+
+    def test_handoff_verify_path_and_paths_are_mutually_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            paths_path = Path(temporary) / "handoff-paths.json"
+            paths_path.write_text(
+                json.dumps({"version": 1, "paths": names[:1]}), encoding="utf-8"
+            )
+            argv = [
+                "handoff-verify",
+                "--snapshot",
+                str(Path(temporary) / "snapshot.json"),
+                "--path",
+                names[1],
+                "--path",
+                names[2],
+                "--paths",
+                str(paths_path),
+            ]
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                hygiene.build_parser().parse_args(argv)
+
     def five_file_snapshot(self, temporary: str) -> tuple[Path, list[str]]:
         root = Path(temporary) / "target"
         root.mkdir()
@@ -6052,6 +8002,58 @@ class HandoffVerifyTests(unittest.TestCase):
                 result = hygiene.preview(snapshot, plan)
             self.assertEqual("ready-for-explicit-approval", result["status"])
             self.assertEqual([], result["candidates"][0]["blockers"])
+
+    def test_changed_regular_file_drifts_through_the_shared_comparator(self) -> None:
+        def resize(item: Path) -> None:
+            item.write_text("longer than before", encoding="utf-8")
+
+        def touch(item: Path) -> None:
+            info = item.stat()
+            os.utime(item, ns=(info.st_atime_ns, info.st_mtime_ns + 2_000_000_000))
+
+        for change_name, change in (("size", resize), ("mtime-only", touch)):
+            for surface in ("preview", "handoff-verify"):
+                with self.subTest(change=change_name, surface=surface):
+                    with tempfile.TemporaryDirectory() as temporary:
+                        root = Path(temporary) / "target"
+                        root.mkdir()
+                        item = root / "junk.tmp"
+                        item.write_text("stale", encoding="utf-8")
+                        snapshot = hygiene.scan_tree(
+                            root.resolve(), hygiene.load_policy(None)
+                        )
+                        change(item)
+                        plan = {
+                            "version": 1,
+                            "tier": "high",
+                            "candidates": [candidate("junk.tmp")],
+                        }
+                        with (
+                            mock.patch.object(
+                                hygiene,
+                                "same_stat_identity",
+                                wraps=hygiene.same_stat_identity,
+                            ) as comparator,
+                            mock.patch.object(
+                                hygiene, "handle_state", return_value=("clear", None)
+                            ),
+                            mock.patch.object(
+                                hygiene, "tracked_blocker", return_value=None
+                            ),
+                            mock.patch.object(
+                                hygiene, "execution_blockers", return_value=[]
+                            ),
+                        ):
+                            if surface == "preview":
+                                result = hygiene.preview(snapshot, plan)
+                                reported = result["candidates"][0]["blockers"]
+                            else:
+                                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+                                verdict = result["verdicts"][0]
+                                reported = verdict["reasons"]
+                                self.assertEqual("drifted", verdict["verdict"])
+                        self.assertIn("changed-since-scan", reported)
+                        comparator.assert_called()
 
     @staticmethod
     def nested_residue(root: Path) -> Path:
@@ -6175,6 +8177,68 @@ class HandoffVerifyTests(unittest.TestCase):
             container_verdict = result["emptied_containers"][0]
             self.assertEqual("contested", container_verdict["verdict"])
             self.assertIn("consumer-protected-path", container_verdict["reasons"])
+
+    def test_container_verdict_reports_the_matched_glob_and_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "junk.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot["policy"]["additional_protected_path_globs"] = [
+                {"glob": "outer", "reason": "keep the folder"}
+            ]
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["outer/junk.tmp"])
+            self.assertEqual("clear", result["verdicts"][0]["verdict"])
+            self.assertNotIn("protection_matches", result["verdicts"][0])
+            self.assertEqual(
+                [
+                    {
+                        "path": "outer",
+                        "verdict": "contested",
+                        "reasons": ["consumer-protected-path"],
+                        "protection_matches": [
+                            {"glob": "outer", "reason": "keep the folder"}
+                        ],
+                    }
+                ],
+                result["emptied_containers"],
+            )
+
+    def test_verify_reports_the_matched_glob_beside_the_contested_reason(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            container = root / "outer"
+            container.mkdir(parents=True)
+            (container / "held.tmp").write_text("stale", encoding="utf-8")
+            (container / "free.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot["policy"]["additional_protected_path_globs"] = [
+                {"glob": "outer/held.tmp", "reason": "counsel hold"},
+                "outer/held*",
+                {"glob": "outer/held.tmp", "reason": "counsel hold"},
+            ]
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(
+                    snapshot, ["outer/held.tmp", "outer/free.tmp"]
+                )
+            held, free = result["verdicts"]
+            self.assertEqual("contested", held["verdict"])
+            self.assertEqual(["consumer-protected-path"], held["reasons"])
+            self.assertEqual(
+                [
+                    {"glob": "outer/held*"},
+                    {"glob": "outer/held.tmp", "reason": "counsel hold"},
+                ],
+                held["protection_matches"],
+            )
+            self.assertEqual("clear", free["verdict"])
+            self.assertNotIn("protection_matches", free)
 
     def test_container_survives_the_verify_one_delete_one_sequence(self) -> None:
         # The manual lane deletes one approved path at a time, so a later
@@ -6350,6 +8414,413 @@ class HandoffVerifyTests(unittest.TestCase):
         self.assertEqual("level0", ordered[-1])
 
 
+linux_only = unittest.skipUnless(
+    hygiene.os_key() == "linux", "the in-engine deletion lane is Linux-only"
+)
+needs_git = unittest.skipUnless(
+    shutil.which("git"), "git is required for the VCS evidence fixture"
+)
+
+
+@linux_only
+@needs_git
+class HandoffApplyTests(unittest.TestCase):
+    """handoff-apply: verify one approved path in-process, delete only on `clear`."""
+
+    ACK_REASON = "throwaway test repo"
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.target = self.base / "target"
+        self.target.mkdir()
+        (self.target / "keep.txt").write_text("keep\n", encoding="utf-8")
+        for patcher in (
+            mock.patch.object(hygiene, "standing_policy_paths", return_value=[]),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+        ):
+            self.addCleanup(patcher.stop)
+            patcher.start()
+
+    def checkout(self, name: str = "checkout", *, commit: bool = True) -> Path:
+        return HandoffVerifyTests.create_throwaway(
+            self.target, commit=commit, name=name
+        )
+
+    def evidence(self, name: str = "checkout", *, accept: bool = True):
+        entry: dict[str, Any] = {"path": name, "remote": None, "stash_copies": []}
+        if accept:
+            entry |= {"accept_unpublished": True, "reason": self.ACK_REASON}
+        return {name: entry}
+
+    def snapshot(self) -> dict[str, Any]:
+        return hygiene.scan_tree(self.target.resolve(), hygiene.load_policy(None))
+
+    def apply(self, snapshot, evidence, path: str = "checkout") -> dict[str, Any]:
+        return hygiene.handoff_apply(snapshot, path, evidence)
+
+    def assert_nothing_removed(self, report, checkout: Path) -> None:
+        self.assertEqual("blocked", report["status"])
+        self.assertEqual([], report["removed"])
+        self.assertEqual(0, report["paths_removed"])
+        self.assertTrue((checkout / "tracked.txt").exists())
+        self.assertTrue((checkout / ".git").is_dir())
+        self.assertTrue((self.target / "keep.txt").exists())
+
+    def test_acknowledged_checkout_is_deleted_and_the_report_shows_the_ack(
+        self,
+    ) -> None:
+        for commit in (False, True):
+            name = f"checkout-{'committed' if commit else 'empty'}"
+            with self.subTest(commit=commit):
+                checkout = self.checkout(name, commit=commit)
+                report = self.apply(self.snapshot(), self.evidence(name), name)
+                self.assertEqual("completed", report["status"], report["skipped"])
+                self.assertEqual([], report["skipped"])
+                self.assertFalse(checkout.exists())
+                self.assertTrue((self.target / "keep.txt").exists())
+                self.assertEqual("clear", report["verdict"]["verdict"])
+                self.assertEqual(
+                    [{"repository": name, "reason": self.ACK_REASON}],
+                    report["accept_unpublished"],
+                )
+                removed = [item["path"] for item in report["removed"]]
+                self.assertEqual(name, removed[-1])
+                self.assertEqual(f"{name}/.git", removed[-2])
+                self.assertTrue(report["removed"][-2]["contents_purged"])
+
+    def test_unacknowledged_checkout_stays_contested_and_nothing_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        report = self.apply(self.snapshot(), self.evidence(accept=False))
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertEqual([], report["accept_unpublished"])
+        detail = report["skipped"][0]["detail"]
+        self.assertIn("vcs-evidence-status-not-clean", detail)
+        self.assertIn("vcs-evidence-remote-not-declared", detail)
+
+    def test_a_fully_verified_checkout_is_deleted_without_an_acknowledgement(
+        self,
+    ) -> None:
+        checkout = HandoffVerifyTests.create_checkout(self.target)
+
+        def confirm(_repo: Path, remote: str, sha: str):
+            return True, {"sha": sha, "remote": remote, "repository": "example/project"}
+
+        with mock.patch.object(
+            hygiene, "verify_github_remote_head", side_effect=confirm
+        ):
+            report = self.apply(self.snapshot(), HandoffVerifyTests.vcs_configuration())
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertFalse(checkout.exists())
+        self.assertEqual([], report["accept_unpublished"])
+
+    def test_an_acknowledgement_for_another_path_authorizes_nothing(self) -> None:
+        acked = self.checkout("acked")
+        plain = self.checkout("plain")
+        snapshot = self.snapshot()
+        with self.assertRaisesRegex(hygiene.HygieneError, "outside approved paths"):
+            hygiene.validate_vcs_evidence(
+                {"version": 1, "repositories": list(self.evidence("acked").values())},
+                ["plain"],
+            )
+        report = self.apply(snapshot, self.evidence("plain", accept=False), "plain")
+        self.assert_nothing_removed(report, plain)
+        self.assertTrue(acked.exists())
+
+    def test_an_acknowledged_nested_repository_does_not_authorize_its_parent(
+        self,
+    ) -> None:
+        parent = self.checkout("parent")
+        HandoffVerifyTests.create_throwaway(parent, commit=True, name="sub")
+        evidence = self.evidence("parent", accept=False)
+        evidence |= self.evidence("parent/sub")
+        report = self.apply(self.snapshot(), evidence, "parent")
+        self.assert_nothing_removed(report, parent)
+        self.assertTrue((parent / "sub" / ".git").is_dir())
+
+    def test_an_unduplicated_stash_still_blocks_an_acknowledged_checkout(self) -> None:
+        checkout = self.checkout()
+        (checkout / "tracked.txt").write_text("stashed\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(checkout), "stash", "push", "-qm", "wip"], check=True
+        )
+        report = self.apply(self.snapshot(), self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertIn(
+            "vcs-evidence-stash-not-duplicated", report["skipped"][0]["detail"]
+        )
+
+    def test_a_changed_descendant_set_or_identity_blocks(self) -> None:
+        def add_file(checkout: Path) -> None:
+            (checkout / "late.txt").write_text("added after scan\n", encoding="utf-8")
+
+        def rewrite_file(checkout: Path) -> None:
+            (checkout / "tracked.txt").write_text("rewritten\n" * 3, encoding="utf-8")
+
+        for name, change in (("descendants", add_file), ("identity", rewrite_file)):
+            with self.subTest(change=name):
+                checkout = self.checkout(name)
+                snapshot = self.snapshot()
+                change(checkout)
+                report = self.apply(snapshot, self.evidence(name), name)
+                self.assertEqual("blocked", report["status"])
+                self.assertEqual("drifted", report["verdict"]["verdict"])
+                self.assertEqual([], report["removed"])
+                self.assertTrue((checkout / ".git").is_dir())
+                self.assertTrue((checkout / "tracked.txt").exists())
+
+    def test_the_verdict_is_computed_in_process_for_exactly_the_one_path(self) -> None:
+        self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        with mock.patch.object(
+            hygiene, "handoff_verify", wraps=hygiene.handoff_verify
+        ) as verify:
+            self.apply(snapshot, evidence)
+        verify.assert_called_once_with(snapshot, ["checkout"], evidence)
+
+    def test_preview_never_evaluates_the_acknowledgement(self) -> None:
+        self.checkout()
+        snapshot = self.snapshot()
+        plan = {"version": 1, "tier": "high", "candidates": [candidate("checkout")]}
+        with mock.patch.object(
+            hygiene,
+            "verify_vcs_checkout_evidence",
+            side_effect=AssertionError("preview must not evaluate evidence"),
+        ):
+            preview = hygiene.preview(snapshot, plan)
+        self.assertEqual("blocked", preview["status"])
+        self.assertIn("truncated-not-inventoried", preview["candidates"][0]["blockers"])
+
+    def clear_verdict(self, snapshot, evidence, path: str = "checkout"):
+        return hygiene.handoff_verify(snapshot, [path], evidence)
+
+    def test_every_non_vcs_check_still_runs_after_the_verdict(self) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        self.assertEqual("clear", canned["verdicts"][0]["verdict"])
+        cases = {
+            "live-handle": (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("open", "pid 1")
+                ),
+                "locked",
+            ),
+            "tracked-state-unverified": (
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="vcs-state-unverified"
+                ),
+                "protected",
+            ),
+            "git-not-found": (
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="git-not-found"
+                ),
+                "protected",
+            ),
+        }
+        for name, (patcher, outcome) in cases.items():
+            with (
+                self.subTest(case=name),
+                mock.patch.object(hygiene, "handoff_verify", return_value=canned),
+                patcher,
+            ):
+                report = self.apply(snapshot, evidence)
+            self.assertEqual("blocked", report["status"])
+            self.assertEqual([], report["removed"])
+            self.assertEqual(outcome, report["skipped"][0]["outcome"])
+            self.assertTrue((checkout / ".git").is_dir())
+            self.assertTrue((checkout / "tracked.txt").exists())
+
+    def test_an_entry_that_changes_after_the_verdict_is_skipped(self) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        (checkout / "untracked.txt").write_text("changed after verdict\n" * 2)
+        with mock.patch.object(hygiene, "handoff_verify", return_value=canned):
+            report = self.apply(snapshot, evidence)
+        self.assertEqual("completed-with-skips", report["status"])
+        self.assertEqual(
+            ["checkout/untracked.txt", "checkout"],
+            [item["path"] for item in report["skipped"]],
+        )
+        self.assertTrue((checkout / "untracked.txt").exists())
+        self.assertTrue(checkout.is_dir())
+
+    def test_a_mount_inside_git_metadata_blocks_before_anything_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        mounted = (self.target.resolve() / "checkout" / ".git" / "hooks").absolute()
+        real, _ = hygiene.linux_mount_points()
+        with (
+            mock.patch.object(hygiene, "handoff_verify", return_value=canned),
+            mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(real | {mounted}, None)
+            ),
+        ):
+            report = self.apply(snapshot, evidence)
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("nested-mount-point", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
+
+    def test_a_consumer_glob_inside_git_metadata_blocks_before_anything_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        snapshot["policy"]["additional_protected_path_globs"] = [
+            "checkout/.git/hooks/*"
+        ]
+        report = self.apply(snapshot, self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("consumer-protected-path", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
+
+    @unittest.skipIf(
+        hasattr(os, "geteuid") and os.geteuid() == 0, "root reads every directory"
+    )
+    def test_an_unreadable_directory_inside_git_metadata_blocks_the_purge(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        hooks = checkout / ".git" / "hooks"
+        hooks.chmod(0)
+        self.addCleanup(hooks.chmod, 0o755)
+        report = self.apply(snapshot, self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("needs-elevation", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
+
+    def test_a_link_inside_git_metadata_is_unlinked_not_followed(self) -> None:
+        checkout = self.checkout()
+        outside = self.base / "outside"
+        outside.mkdir()
+        (outside / "precious.txt").write_text("precious\n", encoding="utf-8")
+        (checkout / ".git" / "escape").symlink_to(outside)
+        report = self.apply(self.snapshot(), self.evidence())
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertFalse(checkout.exists())
+        self.assertEqual("precious\n", (outside / "precious.txt").read_text("utf-8"))
+
+    def test_a_protected_path_created_inside_git_metadata_after_the_scan_is_kept(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        snapshot["policy"]["additional_protected_path_globs"] = ["checkout/.git/late/*"]
+        late = checkout / ".git" / "late"
+
+        def create_after_the_scan(*_args: Any) -> None:
+            late.mkdir(exist_ok=True)
+            (late / "kept.txt").write_text("kept\n", encoding="utf-8")
+
+        with mock.patch.object(
+            hygiene, "opaque_contents_blocker", side_effect=create_after_the_scan
+        ):
+            report = self.apply(snapshot, self.evidence())
+        self.assertEqual("completed-with-skips", report["status"], report)
+        self.assertEqual("kept\n", (late / "kept.txt").read_text("utf-8"))
+        self.assertTrue(checkout.is_dir())
+
+    def cli(self, snapshot, evidence, *extra: str) -> tuple[int, dict[str, Any]]:
+        (self.base / "snapshot.json").write_text(json.dumps(snapshot), "utf-8")
+        (self.base / "evidence.json").write_text(
+            json.dumps({"version": 1, "repositories": list(evidence.values())}), "utf-8"
+        )
+        argv = [
+            "handoff-apply",
+            "--snapshot",
+            str(self.base / "snapshot.json"),
+            "--path",
+            "checkout",
+            "--vcs-evidence",
+            str(self.base / "evidence.json"),
+            "--report",
+            str(self.base / "report.json"),
+            "--data-root",
+            str(self.base),
+            *extra,
+        ]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_cli_deletes_an_acknowledged_checkout_and_writes_the_report(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(self.snapshot(), self.evidence(), "--execute")
+        self.assertEqual(0, status)
+        self.assertEqual("completed", payload["status"])
+        self.assertFalse(checkout.exists())
+        written = json.loads((self.base / "report.json").read_text("utf-8"))
+        self.assertEqual(
+            [{"repository": "checkout", "reason": self.ACK_REASON}],
+            written["accept_unpublished"],
+        )
+
+    def test_cli_requires_execute_and_removes_nothing_without_it(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(self.snapshot(), self.evidence())
+        self.assertEqual(2, status)
+        self.assertEqual("invalid-or-blocked", payload["status"])
+        self.assertIn("--execute", payload["error"])
+        self.assertTrue((checkout / ".git").is_dir())
+
+    def test_cli_exits_three_for_an_unacknowledged_checkout(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(
+            self.snapshot(), self.evidence(accept=False), "--execute"
+        )
+        self.assertEqual(3, status)
+        self.assertEqual("blocked", payload["status"])
+        self.assertTrue((checkout / ".git").is_dir())
+
+    def test_cli_rejects_evidence_naming_a_path_other_than_the_approved_one(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        other = self.checkout("other")
+        status, payload = self.cli(self.snapshot(), self.evidence("other"), "--execute")
+        self.assertEqual(2, status)
+        self.assertIn("outside approved paths", payload["error"])
+        self.assertTrue((checkout / ".git").is_dir())
+        self.assertTrue((other / ".git").is_dir())
+
+
+class HandoffApplyPlatformTests(unittest.TestCase):
+    def test_a_non_linux_host_refuses_before_verifying_anything(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(hygiene, "os_key", return_value="macos"),
+                mock.patch.object(hygiene, "handoff_verify") as verify,
+            ):
+                report = hygiene.handoff_apply(snapshot, "junk.tmp", {})
+            verify.assert_not_called()
+            self.assertEqual("blocked", report["status"])
+            self.assertEqual([], report["removed"])
+            self.assertIsNone(report["verdict"])
+            self.assertEqual(hygiene.PLATFORM_BLOCKER, report["skipped"][0]["detail"])
+            self.assertTrue(junk.exists())
+
+
 class _ClosedPipeStderr(io.StringIO):
     """A stderr stand-in whose writes fail the way a lost hook-host pipe does."""
 
@@ -6361,6 +8832,20 @@ class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
         return guard._display_python()
+
+    # Here because this class is the only one the Windows lane runs: it drives
+    # the real Get-DiskImage probe end to end on a file that is no disk image.
+    @unittest.skipUnless(os.name == "nt", "Windows Get-DiskImage probe")
+    def test_windows_attach_probe_never_calls_a_non_image_attached(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary).resolve()
+            image = target / "garbage.vhdx"
+            image.write_bytes(b"not a disk image")
+            reasons = hygiene.hard_protection(image, target, set())
+        self.assertIn("virtual-disk", reasons)
+        self.assertFalse(
+            [reason for reason in reasons if reason.startswith("attached-virtual-disk")]
+        )
 
     def setUp(self) -> None:
         # Hermetic kill switch: the guard resolves disk_hygiene_enabled by reading
@@ -6534,6 +9019,93 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
+    def _apply_command(self, snapshot: Path, plan: Path) -> str:
+        script = SCRIPT_DIR / "hygiene.py"
+        return (
+            f'"{self.python_command()}" "{script}" apply --execute '
+            f'--snapshot "{snapshot.as_posix()}" --plan "{plan.as_posix()}" '
+            f'--confirm-tier high --approval-token {"a" * 24} --report r'
+            + self.authorize_data_root()
+        )
+
+    def _apply_reason(self, snapshot: Path, plan: Path) -> str:
+        result = self.run_guard(self._apply_command(snapshot, plan))
+        self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+        return result["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def test_apply_ask_reason_lists_tier_count_and_every_plan_path(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        paths = ["cache/one.tmp", "build/two", "logs/three.log"]
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps(
+                {"tier": "high", "candidates": [{"path": path} for path in paths]}
+            ),
+            encoding="utf-8",
+        )
+        snapshot = base / "snapshot.json"
+        snapshot.write_text(json.dumps({"target": "/work/target"}), encoding="utf-8")
+        reason = self._apply_reason(snapshot, plan)
+        self.assertIn("high", reason)
+        self.assertIn("3 path(s)", reason)
+        self.assertIn("/work/target", reason)
+        for path in paths:
+            self.assertIn(path, reason)
+
+    def test_apply_ask_reason_escapes_control_characters_in_plan_strings(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "tier": "high",
+                    "candidates": [{"path": "cache\nConfirm this\x1b[2J"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        snapshot = base / "snapshot.json"
+        snapshot.write_text(json.dumps({"target": "/t\rgt"}), encoding="utf-8")
+        reason = self._apply_reason(snapshot, plan)
+        self.assertIn("- cache\\nConfirm this\\x1b[2J", reason)
+        self.assertIn("under /t\\rgt", reason)
+        self.assertNotIn("\x1b", reason)
+        self.assertNotIn("\r", reason)
+        self.assertEqual(3, len(reason.splitlines()))
+
+    def test_apply_ask_reason_falls_back_when_the_plan_is_unusable(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        snapshot = base / "snapshot.json"
+        snapshot.write_text("{}", encoding="utf-8")
+        malformed = base / "malformed.json"
+        malformed.write_text("not json", encoding="utf-8")
+        wrong_shape = base / "wrong-shape.json"
+        wrong_shape.write_text(
+            json.dumps({"tier": "high", "candidates": [{"path": 3}]}), encoding="utf-8"
+        )
+        oversized = base / "oversized.json"
+        oversized.write_bytes(b" " * (guard._APPLY_PLAN_READ_LIMIT + 1))
+        for plan in (base / "missing.json", malformed, wrong_shape, oversized, base):
+            with self.subTest(plan=plan.name):
+                self.assertEqual(
+                    guard._APPLY_ASK_GENERIC_REASON,
+                    self._apply_reason(snapshot, plan),
+                )
+
+    def test_apply_ask_reason_without_a_snapshot_still_lists_the_plan_paths(
+        self,
+    ) -> None:
+        base = Path(self._cfg.name).resolve()
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps({"tier": "low", "candidates": [{"path": "only/one"}]}),
+            encoding="utf-8",
+        )
+        reason = self._apply_reason(base / "missing-snapshot.json", plan)
+        self.assertIn("low", reason)
+        self.assertIn("1 path(s)", reason)
+        self.assertIn("only/one", reason)
+
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
@@ -6544,6 +9116,95 @@ class GuardTests(unittest.TestCase):
             "execution is disabled",
             result["hookSpecificOutput"]["permissionDecisionReason"],
         )
+
+    def _handoff_apply_command(self, tail: str | None = None) -> str:
+        script = SCRIPT_DIR / "hygiene.py"
+        if tail is None:
+            tail = (
+                "--execute --snapshot s --path rel/junk --vcs-evidence e "
+                "--report r" + self.authorize_data_root()
+            )
+        return f'"{self.python_command()}" "{script}" handoff-apply {tail}'
+
+    def test_guard_forces_final_prompt_for_exact_handoff_apply(self) -> None:
+        result = self.run_guard(self._handoff_apply_command())
+        output = result["hookSpecificOutput"]
+        self.assertEqual("ask", output["permissionDecision"])
+        self.assertIn("one exact approved path", output["permissionDecisionReason"])
+
+    def test_guard_denies_every_malformed_handoff_apply(self) -> None:
+        data_root = self.authorize_data_root()
+        head = "--execute --snapshot s --path rel/junk"
+        tails = {
+            "no --vcs-evidence": f"{head} --report r{data_root}",
+            "--plan beside --path": f"{head} --vcs-evidence e --report r --plan p{data_root}",
+            "--approval-token beside --path": (
+                f"{head} --vcs-evidence e --report r "
+                f"--approval-token {'a' * 24}{data_root}"
+            ),
+            "repeated --path": f"{head} --path rel/other --vcs-evidence e --report r{data_root}",
+            "flag-shaped value": (
+                f"--execute --snapshot s --path -rf --vcs-evidence e --report r{data_root}"
+            ),
+            "no --data-root": f"{head} --vcs-evidence e --report r",
+            "unauthorized --data-root": (
+                f'{head} --vcs-evidence e --report r --data-root "/somewhere/else"'
+            ),
+            "no --execute": f"--snapshot s --path rel/junk --vcs-evidence e --report r{data_root}",
+        }
+        for label, tail in tails.items():
+            with self.subTest(label):
+                result = self.run_guard(self._handoff_apply_command(tail))
+                self.assertEqual(
+                    "deny", result["hookSpecificOutput"]["permissionDecision"]
+                )
+
+    def test_disabled_guard_denies_exact_handoff_apply(self) -> None:
+        result = self.run_guard_disabled(self._handoff_apply_command())
+        output = result["hookSpecificOutput"]
+        self.assertEqual("deny", output["permissionDecision"])
+        reason = output["permissionDecisionReason"]
+        self.assertIn("execution is disabled", reason)
+        self.assertIn("scan, preview, handoff-verify, and catalog invocations", reason)
+        self.assertNotIn("handoff-apply", reason)
+
+    def test_every_grammar_subcommand_has_exactly_one_verdict_class(self) -> None:
+        readonly = guard._READONLY_ENGINE_SUBCOMMANDS
+        mutating = guard._MUTATING_ENGINE_SUBCOMMANDS
+        self.assertFalse(readonly & mutating)
+        self.assertEqual(set(guard._ALLOWED_ENGINE_SUBCOMMANDS), readonly | mutating)
+        self.assertEqual(set(mutating), set(guard._MUTATION_PROMPTS))
+
+    def test_existing_engine_verdicts_hold_beside_handoff_apply(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        python = self.python_command()
+        data_root = self.authorize_data_root()
+        cases = {
+            "apply": (
+                f"apply --execute --snapshot s --plan p --confirm-tier high "
+                f"--approval-token {'a' * 24} --report r",
+                "ask",
+                "deny",
+            ),
+            "preview": ("preview --snapshot s --plan p", "allow", "allow"),
+            "handoff-verify --path": (
+                "handoff-verify --snapshot s --path rel/junk --vcs-evidence e",
+                "allow",
+                "allow",
+            ),
+            "handoff-verify --paths": (
+                "handoff-verify --snapshot s --paths p.json",
+                "allow",
+                "allow",
+            ),
+        }
+        for label, (tail, when_enabled, when_disabled) in cases.items():
+            command = f'"{python}" "{script}" {tail}{data_root}'
+            with self.subTest(label):
+                enabled = self.run_guard(command)["hookSpecificOutput"]
+                disabled = self.run_guard_disabled(command)["hookSpecificOutput"]
+                self.assertEqual(when_enabled, enabled["permissionDecision"])
+                self.assertEqual(when_disabled, disabled["permissionDecision"])
 
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
         command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
@@ -6942,6 +9603,26 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
         (entry,) = self.decision_records()
         self.assertEqual("kill-switch-disabled-apply", entry["rule"])
+
+    def test_handoff_apply_verdicts_are_recorded_under_their_own_rules(self) -> None:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        root = self._data_root.resolve().as_posix()
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-apply --execute '
+            "--snapshot s --path rel/junk --vcs-evidence e --report r "
+            f'--data-root "{root}"'
+        )
+        for enabled, verdict, rule in (
+            (True, "ask", "exact-engine-handoff-apply"),
+            (False, "deny", "kill-switch-disabled-handoff-apply"),
+        ):
+            with self.subTest(enabled=enabled):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=enabled)
+                assert result is not None
+                self.assertEqual(
+                    verdict, result["hookSpecificOutput"]["permissionDecision"]
+                )
+                self.assertEqual(rule, self.decision_records()[-1]["rule"])
 
     def test_engine_gate_defer_records_nothing(self) -> None:
         """The always-on hot path stays free: no decision, no record, no cost."""
@@ -9145,6 +11826,50 @@ class GuardTests(unittest.TestCase):
             with self.subTest(command_node=command_node):
                 self.assertTrue(self._powershell_if_admits(command_node), command_node)
 
+    def test_powershell_engine_name_in_string_data_defers(self) -> None:
+        """A name inside string data an ordinary command receives is a mention.
+
+        Runs from a neutral cwd: a bare `hygiene.py` resolving to the bundled
+        engine gates by identity, deliberately, even inside a string.
+        """
+        mentions = [
+            "gh issue create --title x --body @'\n"
+            "The engine hygiene.py and kill_switch_probe.py deny.\n'@",
+            'gh issue create --title x --body @"\n'
+            'The engine hygiene.py and kill_switch_probe.py deny.\n"@',
+            'gh search issues "hygiene.py deny"',
+            "git commit -m 'fix hygiene.py gate'",
+            "gh issue create --title x --body 'The Python hygiene.py engine denies this'",
+        ]
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in mentions:
+                with self.subTest(command=command):
+                    self.assertFalse(guard._engine_gate_relevant(command, "PowerShell"))
+                    self.assertIsNone(guard.powershell_decision(command, True))
+
+    def test_powershell_executable_string_naming_engine_still_denies(self) -> None:
+        """A string something can run stays an invocation, as does identity."""
+        engine = (SCRIPT_DIR / "hygiene.py").as_posix()
+        executable = [
+            "pwsh -Command 'python hygiene.py scan'",
+            "iex 'python hygiene.py scan'",
+            "& 'hygiene.py' scan",
+            "sudo 'hygiene.py' scan",
+            'env "hygiene.py" apply --plan p --token t',
+            "timeout 5 'hygiene.py' scan",
+            "exec 'hygiene.py' scan",
+            'gh issue create --title x --body @"\n$(python hygiene.py scan)\n"@',
+            "$s='hygiene.py'; python $s scan",
+            f"gh issue create --title x --body '{engine}'",
+        ]
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in executable:
+                with self.subTest(command=command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
+                    verdict = guard.powershell_decision(command, True)
+                    self.assertIsNotNone(verdict)
+                    self.assertEqual("deny", verdict[0])
+
     def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
         self,
     ) -> None:
@@ -9514,6 +12239,122 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
+    def test_powershell_mutation_words_in_string_data_defer(self) -> None:
+        """#4226: a mutation word inside a quoted literal of an allow-listed command."""
+        for command in (
+            'git log --oneline --grep "move"',
+            "git log --grep 'move'",
+            "gh issue list --search 'rename flag'",
+            "Write-Output 'rm is a word'",
+            "Get-ChildItem | Where-Object { $_.Name -eq 'rd' }",
+            "gh issue comment 1 --body 'the move to a batched lane'",
+            'gh issue list --search "rename flag"',
+            'git commit -m "del stale entry"',
+            'Write-Output "rm is a word"',
+            'Get-ChildItem | Where-Object { $_.Name -match "rd" }',
+            'gh issue comment 3347 --body "the move to a batched lane"',
+            "git commit -m 'del stale entry'",
+            "git commit -m 'it''s the rm step'",
+            'git commit -m "a ""del"" b"',
+            'git commit -m "fix #12: move it"',
+            'git log --grep "move" 2>&1 | Select-Object -First 5',
+        ):
+            self.assertIsNone(guard.powershell_decision(command, True), command)
+
+    def test_powershell_mutation_words_that_can_run_still_prompt(self) -> None:
+        """#4226: relief must not hide a word PowerShell can run."""
+        for command in (
+            # Live subexpressions inside expandable strings run.
+            '"$(Remove-Item x)"',
+            'Write-Output "a $(rm x) b"',
+            'Write-Output @"\n$(Remove-Item x)\n"@',
+            'git log --grep "$($item.Name) move"',
+            # Command position, and unquoted arguments.
+            'Write-Output "$(Remove-Item x)"',
+            "iex 'rm x'",
+            "& 'rm' x",
+            "git log; rm x",
+            "git status | Remove-Item x",
+            "Remove-Item x",
+            "Move-Item a b",
+            "Rename-Item a b",
+            "rm x",
+            "git commit -m 'x'; del y",
+            "Get-Item x | Remove-Item",
+            "git rm x",
+            # A quote pair split across comments hides a live command.
+            "# '\nrm x\n# '",
+            "<# ' #>\nrm x\n<# ' #>",
+            # Commands that run a file or string are not on the allow-list.
+            "Invoke-Item 'rm.bat'",
+            "ii 'rm.bat'",
+            "Import-Module 'rm.psm1'",
+            "$rs.CreatePipeline('rm x').Invoke()",
+            "$rs=[runspacefactory]::CreateRunspace(); $rs.Open(); "
+            "$rs.CreatePipeline('rm x').Invoke()",
+            "& 'Remove-Item' x",
+            '$c = "Remove-Item"; & $c x',
+            ". 'rm.ps1'",
+            "iex 'Remove-Item x'",
+            'Invoke-Expression "rm x"',
+            "powershell -c 'rm x'",
+            'pwsh -Command "Remove-Item x"',
+            "cmd /c 'del x'",
+            "ssh host 'rm -rf x'",
+            'Start-Process pwsh -ArgumentList "-c", "rm x"',
+            "Get-ChildItem | ForEach-Object { 'rm' }",
+            "[scriptblock]::Create('rm x').Invoke()",
+            "Set-Alias z 'Remove-Item'; z x",
+            "$f.'DeleteFile'('C:\\x')",
+            "$m = 'DeleteFile'; $f.$m('C:\\x')",
+            "$c = Get-Command 'Remove-Item'; $c.Invoke('x')",
+            "$fso | % 'DeleteFile'",
+            'python -c "import os; os.system(\'del x\')"',
+            "node -e \"require('child_process').execSync('rm x')\"",
+            "([type]'Management.Automation.ScriptBlock')::Create('rm x').Invoke()",
+            '"$(rm x"',
+            # git and gh arguments that run strings.
+            "git -c core.pager='rm x' log",
+            "git grep -O'rm x' foo",
+            "gh alias set --shell z 'rm x'",
+            # The pipeline variable cannot carry a call or an assignment.
+            "Get-ChildItem 'rm.bat' | Where-Object { & $_ }",
+            "Get-ChildItem | Where-Object { $_ = Invoke-Item 'rm.bat' }",
+            # Constructs that change quote pairing keep the raw-text match.
+            "git log ${a'} ; rm x ; ${'}",
+            "git log --% '\nrm x\ngit log --% '",
+            "git log 'a\u2019; rm x; git log '\u2019",
+            "git log 'x' `\n'rm y'",
+            "git log\rInvoke-Item 'rm.bat'",
+            # An unterminated string is not masked.
+            "git log 'unterminated rm",
+            "git log 'a'' rm",
+        ):
+            verdict = guard.powershell_decision(command, True)
+            assert verdict is not None, command
+            self.assertEqual("ask", verdict[0], command)
+
+    def test_powershell_bare_mutation_cmdlets_prompt_or_deny(self) -> None:
+        """#4226: a bare mutation cmdlet or alias keeps its ask, and its audit-only deny."""
+        for command in (
+            "Remove-Item x",
+            "rm x",
+            "del x",
+            "Move-Item a b",
+            "mv a b",
+            "Rename-Item a b",
+            "ren a b",
+            "Set-Content x y",
+            "Out-File x",
+        ):
+            with self.subTest(command=command):
+                verdict = guard.powershell_decision(command, True)
+                assert verdict is not None, command
+                self.assertEqual("ask", verdict[0], command)
+                verdict = guard.powershell_decision(command, False)
+                assert verdict is not None, command
+                self.assertEqual("deny", verdict[0], command)
+
     def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
         """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
         for command in (
@@ -9573,6 +12414,48 @@ class GuardTests(unittest.TestCase):
                 r"(FileSystem|Recycle Bin|NameSpace\(10\))",
                 command,
             )
+
+    def test_powershell_ask_reason_lists_the_literal_paths_it_names(self) -> None:
+        cases = (
+            (
+                "Add-Type -AssemblyName Microsoft.VisualBasic; "
+                "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("
+                "'C:\\work\\victim.tmp','OnlyErrorDialogs','SendToRecycleBin')",
+                ["C:\\work\\victim.tmp"],
+            ),
+            (
+                'Remove-Item -LiteralPath "D:\\a\\one" ; Remove-Item C:\\b\\two',
+                ["D:\\a\\one", "C:\\b\\two"],
+            ),
+        )
+        for command, paths in cases:
+            with self.subTest(command=command):
+                result = self.run_guard_powershell(command)
+                assert result is not None
+                self.assertEqual(
+                    "ask", result["hookSpecificOutput"]["permissionDecision"]
+                )
+                reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+                self.assertIn(f"{len(paths)} path-shaped literal(s)", reason)
+                for path in paths:
+                    self.assertIn(path, reason)
+
+    def test_powershell_ask_reason_skips_paths_it_cannot_read_literally(self) -> None:
+        for command in (
+            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("
+            "$path,'OnlyErrorDialogs','SendToRecycleBin')",
+            'Remove-Item "C:\\work\\$name"',
+        ):
+            with self.subTest(command=command):
+                result = self.run_guard_powershell(command)
+                assert result is not None
+                self.assertEqual(
+                    "ask", result["hookSpecificOutput"]["permissionDecision"]
+                )
+                self.assertNotIn(
+                    "path-shaped literal(s)",
+                    result["hookSpecificOutput"]["permissionDecisionReason"],
+                )
 
     def test_powershell_shell_app_send_to_bin_via_parent_folder_prompts(self) -> None:
         """#2850: the send-to-the-bin spelling names the PARENT folder, not the bin.
@@ -10131,6 +13014,7 @@ class GuardTests(unittest.TestCase):
                     return 2
 
             guard._discard_stream(_ClosedFdStream())
+            # cant-fail-ok: the probe raises OSError when fd 2 was left closed
             os.write(2, b"")
         finally:
             os.dup2(saved, 2)
@@ -11194,6 +14078,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "catalog": "catalog --snapshot s --run-id run-1",
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
@@ -11615,6 +14500,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "catalog": "allow",
             "apply": "ask",
         }
         for subcommand, verdict in verdicts.items():
@@ -11852,7 +14738,11 @@ class EngineGrammarTests(unittest.TestCase):
                     for flag in spec.flags:
                         if not flag.takes_value and (flag.required or optionals):
                             self.assertTrue(getattr(namespace, flag.dest), flag.name)
-                        if flag.repeatable and optionals:
+                        if (
+                            flag.repeatable
+                            and optionals
+                            and flag.name not in self.grouped(spec)
+                        ):
                             self.assertEqual(
                                 [self.value(flag), self.value(flag)],
                                 getattr(namespace, flag.dest),
@@ -12008,12 +14898,16 @@ class EngineGrammarTests(unittest.TestCase):
                     with self.subTest(subcommand=spec.name, flag=name):
                         namespace = self.parse(spec.name, words)
                         self.assertEqual(
-                            self.value(flag), getattr(namespace, flag.dest)
+                            [self.value(flag)] if flag.repeatable else self.value(flag),
+                            getattr(namespace, flag.dest),
                         )
                         for other in group:
                             if other != name:
                                 other_flag = spec.flag(other)
-                                self.assertIsNone(getattr(namespace, other_flag.dest))
+                                self.assertEqual(
+                                    [] if other_flag.repeatable else None,
+                                    getattr(namespace, other_flag.dest),
+                                )
                         self.assertEqual(spec.name, self.classify(spec.name, words))
 
     def test_neither_consumer_takes_two_members_of_one_group(self) -> None:
@@ -12040,6 +14934,42 @@ class EngineGrammarTests(unittest.TestCase):
             with self.subTest(subcommand=spec.name):
                 self.assertIsNone(self.classify(spec.name, words))
                 self.refuse_parse(spec.name, words)
+
+    def handoff_words(self, *members: list[str]) -> list[str]:
+        spec = self.grammar.subcommand("handoff-verify")
+        return [
+            *(word for chunk in self.required_chunks(spec) for word in chunk),
+            *(word for member in members for word in member),
+            *self.data_root_chunk(spec),
+        ]
+
+    def test_guard_and_parser_admit_a_repeated_handoff_verify_path(self) -> None:
+        words = self.handoff_words(
+            ["--path", "a/one.tmp"], ["--path", "b/two.tmp"], ["--path", "c/three.tmp"]
+        )
+        self.assertEqual(
+            ["a/one.tmp", "b/two.tmp", "c/three.tmp"],
+            self.parse("handoff-verify", words).path,
+        )
+        self.assertEqual("handoff-verify", self.classify("handoff-verify", words))
+
+    def test_guard_and_parser_refuse_a_handoff_verify_path_beside_paths(self) -> None:
+        for members in (
+            (["--path", "a/one.tmp"], ["--path", "b/two.tmp"], ["--paths", "p.json"]),
+            (["--paths", "p.json"], ["--path", "a/one.tmp"], ["--path", "b/two.tmp"]),
+        ):
+            words = self.handoff_words(*members)
+            with self.subTest(members=members):
+                self.assertIsNone(self.classify("handoff-verify", words))
+                self.refuse_parse("handoff-verify", words)
+
+    def test_guard_refuses_a_repeated_handoff_verify_path_that_is_not_literal(
+        self,
+    ) -> None:
+        for bad in ("", "--paths", "-x"):
+            words = self.handoff_words(["--path", "a/one.tmp"], ["--path", bad])
+            with self.subTest(value=bad):
+                self.assertIsNone(self.classify("handoff-verify", words))
 
     def test_grammar_rejects_a_malformed_one_of_group(self) -> None:
         flags = (

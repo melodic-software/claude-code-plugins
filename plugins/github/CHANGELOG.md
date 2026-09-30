@@ -3,6 +3,23 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.22] - 2026-09-30
+
+### Changed
+
+- **The `/install-github-app` Boundary bullet in `advise` no longer asserts that the command ships
+  with Claude Code.** It keeps the provenance class, what the command does and how it is invoked,
+  in the native-references template form.
+
+## [0.3.21] - 2026-09-29
+
+### Added
+
+- **`advise` carries a Boundary section for the built-in command `/install-github-app`.** The
+  command installs the Claude GitHub App and its Actions workflow on one repository; this skill
+  advises on the surrounding policy. The model offers the person-run command when the ask is that
+  installation.
+
 ## [0.3.20] - 2026-09-28
 
 ### Fixed

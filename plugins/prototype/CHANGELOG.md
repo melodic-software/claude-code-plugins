@@ -3,6 +3,30 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.5] - 2026-09-29
+
+### Changed
+
+- **`explore-directions` offers `/design` to the person instead of routing the model to it.** A
+  binary extraction of Claude Code 2.1.285 reads the bundled `design` skill as
+  model-invocation-disabled, so a route phrase naming it was dead text. The description drops the
+  design clause. On the HTML mockup substrate the skill builds the mockup by default and the
+  Boundary section's sentence tells the person they can run `/design <scope>` instead of or
+  alongside it, with a same-file verification record. The design-canvas subsection, the `design`
+  reference record, the prototype discipline's persistence exception and the README follow, and
+  the listed-description presence check, which the model can no longer perform, is gone.
+- **The `design` Boundary bullet no longer asserts that the skill ships with Claude Code** or that
+  it is model-invocable. It keeps the provenance class, what the skill does and how it is invoked,
+  in the native-references template form.
+
+## [0.13.4] - 2026-09-29
+
+### Added
+
+- **`explore-directions` carries a Boundary section for the marketplace plugin `playground`.** An
+  interactive parameter explorer whose output returns as a prompt routes to the `playground` skill;
+  switchable variants of the user's own UI stay here.
+
 ## [0.13.3] - 2026-09-29
 
 ### Changed

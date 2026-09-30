@@ -3,6 +3,28 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the hook suites assert the telemetry envelope through the schema-driven `check_envelope` in the shared test helper `hooks/hook-test-sink.sh` instead of a transcribed field list. No behavior change.
+
+## [0.8.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.8.0] - 2026-09-29
+
+### Added
+
+- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/ruff-format:check` reports whether the binaries resolve without installing.
+
+### Changed
+
+- The missing `ruff` notice latches once per session, shared by all agents, instead of once per session and agent, and keeps the install route when it renews every eighth skip. The SessionStart probe uses the same latch key as the PostToolUse notice (`ruff-format-ruff`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The `jq` notice is unchanged.
+
 ## [0.7.8] - 2026-09-29
 
 ### Changed

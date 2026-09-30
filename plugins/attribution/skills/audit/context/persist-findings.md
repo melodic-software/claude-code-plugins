@@ -6,6 +6,12 @@ and what a minimal producer may omit. This file adds only what an attribution ru
 itself and cites the contract for the rest. Where the two disagree, the contract wins and this
 file is the defect.
 
+Contents: [where the file goes](#where-the-file-goes),
+[compose by script](#compose-by-script-not-by-hand),
+[relay boundary](#the-relay-boundary-and-why-the-script-enforces-it),
+[cells](#what-each-cell-says),
+[surfaces](#surfaces-and-when-the-file-is-written-at-all), [re-running](#re-running).
+
 Resolve it in this order:
 
 1. **The `review` plugin's bundled copy, when that plugin is installed.** It ships
@@ -64,11 +70,40 @@ says" below.
 
 ## The relay boundary, and why the script enforces it
 
-**Only fingerprint-confirmed copy findings and the two deterministic stamp rules enter the
-file.** Judgment verdicts go to the human report only: `source-fetched-similar`,
-`llm-suspected`, and the neutral outcome `not-found`. They have no crosswalk row to look a tier up
-from, and a relay row is an instruction to a remediation surface, not a place to record a
-suspicion.
+**Only fingerprint-confirmed copy findings, the two deterministic stamp rules, and one judged rule
+under a declared outcome enter the file.** Copy-class judgment verdicts go to the human report
+only: `vendored-snapshot`, `source-fetched-similar`, `llm-suspected`, and the neutral outcome `not-found`. They have no
+crosswalk row to look a tier up from, and a relay row is an instruction to a remediation surface,
+not a place to record a suspicion. The judged rule is
+`attribution/audit/rule-restated-upstream-fact`, covered next.
+
+**The judged rule relays on a declared outcome, never on a tier.** A restated-fact finding maps by
+fixed rule to `source-fetched-similar`, `llm-suspected` or `not-found` and is never
+`fingerprint-confirmed`, so a test on the tier would either withhold every one or relay every
+judgment verdict. The script decides it before the tier is consulted, by rule and class, from four
+fields it reads strictly: `class` is `restated-fact`, `rubric.unanimous` is the boolean `true`,
+`rubric.verdict` is `STANDS`, and `review.verdict` is `SURVIVES`. The last is the refutation pass
+(`reference/nomination.md` "Refutation"), which is present on every restated-fact finding whatever
+`accuracy.review_agents` says. The keys are exact and each verdict is matched by name after the tier
+reader's folding, so a differently cased key, a string where the boolean belongs, or a block that is
+not an object declares nothing. That reads the opposite way from the tier: a missed tier verdict is a
+leak, but a missed outcome is a record withheld and counted, and a generous read of it is a relay
+nobody authorized.
+
+- **Every other restated-fact record is withheld and counted.** A split panel, a refutation, a
+  missing or unreadable block, or no tier at all is counted under "Withheld from the relay" as a
+  judgment finding, which it is: it is on the human report. None falls through to `## Unparsed`,
+  which would print its rubric and review payload into the apply relay's input.
+- **The class routes the record, not the rule id alone.** A restated-fact class under the copy rule
+  id is withheld and never becomes a copy row, because a copy row's Action names the fix flow this
+  class is never eligible for. The rule id must be the fully qualified one, and a copy record
+  carrying the same outcome relays nothing new.
+- **The tier a record declares plays no part in either direction.** The searched-surfaces refusal
+  is the one place the tier is still read for this class, and it is unchanged: a restated-fact
+  finding at `not-found` names its searched surfaces like any other, or the sidecar is refused.
+- **The script reads the declaration, not the run's arithmetic.** It cannot check that the panel
+  had three judges or that the refutation adversary was fresh. The run owns that, and the row
+  prints the panel size the run declared.
 
 `not-found` is the single name every prose surface of this skill publishes for the neutral
 outcome. The reader also recognizes `source-not-identified`, the name `SKILL.md` published before
@@ -90,10 +125,10 @@ knowing before you read a written file:
 
 Those two clauses meet on one record: a judgment verdict carrying no rule id. They are ordered,
 not opposed. **Withholding is decided on the declared tier, ahead of any rule lookup**, so that
-record is withheld, and `## Unparsed` covers only what is unmappable for some OTHER reason: an
-unknown rule id, a record that is not an object, a row too malformed to read. Keeping a
-withheld verdict out of the
-appendix does not drop it: `## Surfaces` carries it in the "Withheld from the relay: N judgment
+record is withheld (the restated-fact class alone is decided ahead of the tier, above, and is
+withheld and counted the same way), and `## Unparsed` covers only what is unmappable for some
+OTHER reason: an unknown rule id, a record that is not an object, a row too malformed to read.
+Keeping a withheld verdict out of the appendix does not drop it: `## Surfaces` carries it in the "Withheld from the relay: N judgment
 findings" count, which is where the no-silent-drop guarantee is discharged for these records.
 Routing one back into `## Unparsed` would print its tier name and its whole payload into the
 apply relay's input, which is exactly what the clause above forbids. That is a leak, not a
@@ -204,9 +239,9 @@ already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier`
 llm-suspected nomination was overruled" is a review note, and withholding the
 fingerprint-confirmed copy that carries it is the same drop as reading a `tier` key at any depth.
 
-**Five names, and one reader for every question about a WELL-FORMED record.** The three withheld
-verdicts, counting both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier
-a copy finding may be relayed on. The searched-surfaces refusal, the withhold predicate and the
+**One reader for every question about a WELL-FORMED record.** It knows the withheld verdicts,
+counting both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier a copy
+finding may be relayed on. The searched-surfaces refusal, the withhold predicate and the
 eligibility test all ask that one reader. A record that is not an object is the stated exception:
 it has no declared tier for any of them to read, so the boundary withholds it on a verdict name
 appearing anywhere inside it and the schema check never runs on it. Refusing a whole sidecar
@@ -249,17 +284,22 @@ and never carry a row forward from a previous run.
 - **`Surface(s)`** is `attribution:audit`.
 - **`Finding`** leads with the qualified rule id, then the fired condition in this run's own
   values: matched span words, containment and the source URL for a copy; the stamp date, the
-  window and days over for an expired stamp. No rubric reasoning in the cell.
-- **`Action`** states the remediation shape the crosswalk row implies. None of the three rules
+  window and days over for an expired stamp; the panel size, the refutation outcome and the source
+  URL when one was fetched for a restated fact. No rubric reasoning and no tier name in the cell.
+- **`Action`** states the remediation shape the crosswalk row implies. None of the four rules
   is auto-applicable: a copy is remediated through `/attribution:audit fix`, whose disposition
   choice, semantic-diff guard and pointer-liveness checks are producer-owned; an expired stamp
   is repaired by re-deriving the record against its live basis; a trigger-less stamp is
-  repaired by writing the observable event that obliges re-derivation.
+  repaired by writing the observable event that obliges re-derivation; a restated fact is
+  report-only, so its row names the two dispositions (a pointer at the point of use, or a
+  four-part record when the surface must work offline) and never a fix invocation, because `fix`
+  and `sweep` never reach the class.
 - **`Tier`** is LOOKED UP from the rule's crosswalk row, never chosen per finding, then mapped
   to the consuming project's severity vocabulary when it defines one.
-- **`Confidence`** is `high` on every emitted row: each is a deterministic rule that fired.
-  Confidence is confidence-of-realness, never confidence in the fix; the fix judgment is said in
-  `Tier` and in the `Action` wording, never by downgrading this field.
+- **`Confidence`** is `high` on the three deterministic rules that fired and omitted on
+  `rule-restated-upstream-fact`, whose row a panel's judgment selected: the contract allows `high`
+  or omitted, never `low`. Confidence is confidence-of-realness, never confidence in the fix; the
+  fix judgment is said in `Tier` and in the `Action` wording, never by downgrading this field.
 
 ## Surfaces, and when the file is written at all
 

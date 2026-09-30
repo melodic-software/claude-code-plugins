@@ -22,7 +22,7 @@ async page => {
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
       if (!["accept", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
-      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
+      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && e.seq <= q.commitsSinceSeq)).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
       n += q.commits.filter((c, i) => !cf.has(String(i))).length;
     }
     return n;
@@ -234,6 +234,18 @@ async page => {
       return {built: !!document.getElementById("scriptmark"), parentDom: probe(() => parent.document.title), storage: probe(() => localStorage.length), cookie: probe(() => document.cookie)};
     });
     ok("an html visual's script runs, in an opaque origin that cannot reach the page", hs.built && hs.parentDom === "blocked" && hs.storage === "blocked" && hs.cookie === "blocked", JSON.stringify(hs));
+    // Open in new tab: a one-time link that never carries the token, served as an opaque origin
+    const newTab = async sel => { const [p] = await Promise.all([page.context().waitForEvent("page", {timeout: 5000}), page.click(sel)]); await p.waitForURL(/\/api\/visual-open\?/, {timeout: 5000}).catch(() => {}); return p; };
+    const pop = await newTab('#fbody [data-vopen="vh"]'), pu = pop.url(), tok = await token();
+    await pop.waitForSelector("#scriptmark", {state: "attached", timeout: 3000}).catch(() => {});
+    const pv = await pop.evaluate(() => { const probe = f => { try { f(); return "reached"; } catch (e) { return "blocked"; } }; return {built: !!document.getElementById("scriptmark"), origin: self.origin, storage: probe(() => localStorage.length), opener: window.opener}; }).catch(e => ({err: e.message}));
+    ok("Open in new tab opens the html visual in a new page whose scripts run in an opaque origin", /\/api\/visual-open\?id=vh&t=/.test(pu) && !pu.includes(tok) && pv.built && pv.origin === "null" && pv.storage === "blocked" && pv.opener === null, pu.replace(/t=.*/, "t=...") + " " + JSON.stringify(pv));
+    ok("a used new-tab link is refused", (await page.request.get(pu)).status() === 403);
+    await pop.close();
+    await page.click("#fbody [data-full]"); await page.waitForTimeout(200);
+    const fpop = await newTab("#fsTab");
+    ok("full screen opens its visual in a new tab too", /\/api\/visual-open\?id=vh&t=/.test(fpop.url()), fpop.url().replace(/t=.*/, "t=..."));
+    await fpop.close(); await page.bringToFront(); await page.click("#fsClose");
     await page.click('[data-vtab="v:vm"]'); await page.waitForTimeout(150);
     const mm = await page.evaluate(() => ({code: (document.querySelector("#fbody pre code") || {}).textContent, text: document.getElementById("fbody").innerText, frame: !!document.querySelector("#fbody iframe")}));
     ok("AC32: mermaid shows its source and the not-available line", mm.code === "graph TD\n  A-->B" && /Mermaid rendering is not available in this version/.test(mm.text) && !mm.frame, JSON.stringify(mm).slice(0, 160));
@@ -263,6 +275,53 @@ async page => {
     const vpSrc = (await state()).questions.questions.find(q => q.id === "Q2").visuals.find(v => v.id === "vp").content;
     const img = await page.evaluate(() => { const i = document.querySelector("#fbody img"); return i ? i.getAttribute("src") : null; });
     ok("inline image renders its content as the img src", img === vpSrc, String(img).slice(0, 60));
+
+    // gallery: two or more images offer a thumbnail strip, arrow flip and side-by-side compare
+    const gcur = () => page.evaluate(() => (document.querySelector("#fbody [data-gthumb][aria-current=true]") || {}).dataset?.gthumb || null);
+    const gimgs = sel => page.evaluate(s => document.querySelectorAll(s + " img").length, sel);
+    await page.click('[data-vtab="gallery:*"]'); await page.waitForFunction(() => document.querySelectorAll("#fbody .gstrip img").length === 2, null, {timeout: 5000}).catch(() => {});
+    const gs = await page.evaluate(() => ({thumbs: [...document.querySelectorAll("#fbody [data-gthumb]")].map(b => b.dataset.gthumb), shown: document.querySelectorAll("#fbody .gpair img").length}));
+    ok("gallery: one thumbnail per image, in order, and one image shown", gs.thumbs.join() === "vi,vp" && gs.shown === 1, JSON.stringify(gs));
+    await page.click('[data-gthumb="vi"]'); await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150);
+    ok("gallery: a right arrow key advances the selection and keeps focus on it", await gcur() === "vp" && await page.evaluate(() => document.activeElement.dataset.gthumb) === "vp");
+    await page.keyboard.press("ArrowRight"); await page.waitForTimeout(100);
+    ok("gallery: the selection wraps", await gcur() === "vi");
+    await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(100);
+    ok("gallery: a left arrow key steps back", await gcur() === "vp");
+    await page.evaluate(() => document.activeElement.blur()); await page.keyboard.press("ArrowLeft"); await page.waitForTimeout(100);
+    ok("gallery: arrows do nothing while focus is outside the visuals panel", await gcur() === "vp");
+    await page.click('[data-gthumb="vi"]'); await page.click("[data-gcompare]"); await page.waitForTimeout(200);
+    ok("gallery: compare shows two images side by side", await gimgs("#fbody .gpair") === 2 && await page.evaluate(() => document.querySelectorAll("#fbody .gpair .gfig").length) === 2);
+    await page.click("[data-full]"); await page.waitForTimeout(200);
+    const gf = await page.evaluate(() => ({imgs: document.querySelectorAll("#fsStage .gpair img").length, cmp: !document.getElementById("fsCmp").hidden, first: (document.querySelector("#fsStage figcaption") || {}).textContent}));
+    ok("gallery: full screen compares two images and offers the compare toggle", gf.imgs === 2 && gf.cmp && gf.first === "Image", JSON.stringify(gf));
+    await page.keyboard.press("ArrowRight"); await page.waitForTimeout(150);
+    ok("gallery: an arrow key flips inside full screen", await page.evaluate(() => (document.querySelector("#fsStage figcaption") || {}).textContent) === "Inline image");
+    await page.click("#fsCmp"); await page.waitForTimeout(150);
+    ok("gallery: the full-screen toggle returns to one image", await gimgs("#fsStage .gpair") === 1);
+    await page.click("#fsClose");
+    await page.click("[data-gcompare]"); await page.click('[data-vtab="v:vk"]'); await page.waitForTimeout(150);
+    ok("a plain visual hides the full-screen compare toggle", await page.evaluate(() => { document.querySelector("[data-full]").click(); const h = document.getElementById("fsCmp").hidden; document.getElementById("fsClose").click(); return h; }));
+
+    // grouped visual tabs: group headers, order, primary default, archived hidden, distinct labels
+    await pick("Q3"); await page.waitForTimeout(150);
+    const gt = await page.evaluate(() => ({
+      heads: [...document.querySelectorAll("#fbody .tgh")].map(e => e.textContent),
+      tabs: [...document.querySelectorAll("#fbody [data-vtab]")].map(e => ({id: e.dataset.vtab, text: e.textContent, tip: e.title, sel: e.getAttribute("aria-selected") === "true"})),
+      body: document.getElementById("fbody").innerText}));
+    ok("grouped tabs: one header per group, in order", JSON.stringify(gt.heads) === '["Checkout","Timeline"]', JSON.stringify(gt.heads));
+    ok("grouped tabs: sorted by order, ungrouped last, Map after them, archived hidden", gt.tabs.map(t => t.id).join() === "v:ga,v:gb,v:gt,v:gl,map", gt.tabs.map(t => t.id).join());
+    ok("grouped tabs: the primary opens by default", gt.tabs.filter(t => t.sel).map(t => t.id).join() === "v:gb" && /bodymark-b/.test(gt.body) && !/bodymark-a/.test(gt.body));
+    const lab = gt.tabs.slice(0, 2);
+    ok("grouped tabs: long similar titles get distinct labels without the shared prefix, full title in the tooltip", lab[0].text !== lab[1].text && lab.every(t => !/^Checkout flow/.test(t.text) && t.text.length <= 28) && lab[0].tip === "Checkout flow, option A: single page with inline payment form" && lab[1].tip === "Checkout flow, option B: two steps with a review page", JSON.stringify(lab));
+    ok("grouped tabs: no raw id shows while a title exists", gt.tabs.every(t => !/^(ga|gb|gt|gl)$/.test(t.text)));
+    await page.click('[data-vtab="v:gl"]'); await page.waitForTimeout(150);
+    ok("Replay stays on a frame visual in a grouped set", !!(await page.$("#fbody [data-replay]")));
+    await page.click('[data-vtab="v:ga"]'); await page.click("[data-full]"); await page.waitForTimeout(200);
+    ok("full screen opens the selected grouped visual", await page.evaluate(() => !document.getElementById("fs").hidden && /bodymark-a/.test(document.getElementById("fsStage").innerText)));
+    await page.click("#fsClose");
+    await pick("Q2"); await page.waitForTimeout(150);
+    ok("a question without a primary opens its first tab", await page.evaluate(() => document.querySelector("#fbody [data-vtab][aria-selected=true]").dataset.vtab) === "v:vk");
     await page.click("#flyClose");
 
     // SPEC 4.1: mobile stacks, no horizontal scroll at 800 px
@@ -300,6 +359,13 @@ async page => {
     await page.click("#dlgOk"); await page.waitForTimeout(900);
     const acc3 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
     ok("once A2 is opened again, Accept all accepts it", acc3 === 1, String(acc3));
+    { // the shell revised Q1's commitments after phase 1 ticked one: that tick belongs to the old list
+      const s2 = await state(), q1 = s2.questions.questions.find(q => q.id === "Q1");
+      await pick("Q1");
+      const rows = await page.$$eval("#dscroll [data-confirm]", els => els.map(e => e.checked));
+      ok("a revise of the commitments drops the old confirm tick", q1.commitsSinceSeq > 0 && rows.length === 2 && rows.every(c => !c), JSON.stringify(rows) + " since " + q1.commitsSinceSeq);
+      ok("counter agrees after the commitments were replaced", (await counter()) === (openAssumptions(s2) ? open(openAssumptions(s2)) : ""), (await counter()) + " vs " + openAssumptions(s2));
+    }
     // SPEC 5.6: wrap-up freeze
     await page.keyboard.press("w"); await page.waitForTimeout(300);
     const n0 = (await events()).length;

@@ -72,8 +72,9 @@ EVIDENCE_VOCABULARY = frozenset(
 
 # Bumped whenever a section is added or a field's meaning changes. /2 added the
 # environment block, size attribution, the report header, shaped unknown samples,
-# grouped PID rows, the content_read flags and the sentinels block.
-SCHEMA = "claude-install-state/2"
+# grouped PID rows, the content_read flags and the sentinels block. /3 added
+# unreferenced_versions and its note.
+SCHEMA = "claude-install-state/3"
 
 # --------------------------------------------------------------------------
 # Secrets: paths whose CONTENTS are never opened by this engine.
@@ -103,7 +104,16 @@ CONTENT_READ_ALLOWLIST = (
     "settings.json",
     ".last-cleanup",
     "plugins/.last_inuse_sweep",
+    "plugins/installed_plugins.json",
 )
+# Same rule for paths that repeat per plugin version: each marker holds one epoch-ms timestamp.
+CONTENT_READ_GLOBS = ("plugins/cache/*/*/*/.orphaned_at",)
+
+
+def may_read_content(relpath: str) -> bool:
+    return relpath in CONTENT_READ_ALLOWLIST or any(
+        fnmatch.fnmatchcase(relpath, pat) for pat in CONTENT_READ_GLOBS
+    )
 
 
 class SecretReadRefused(RuntimeError):
@@ -129,9 +139,16 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
     The guard lives in the reader, not in each call site, so a future check
     cannot reach a secret by forgetting to consult the list.
     """
-    if is_never_read(relpath) or relpath not in CONTENT_READ_ALLOWLIST:
+    if is_never_read(relpath) or not may_read_content(relpath):
         raise SecretReadRefused(relpath)
-    return (root / relpath).read_text(encoding="utf-8", errors="replace")[:limit]
+    path = root / relpath
+    if relpath not in CONTENT_READ_ALLOWLIST and (
+        path.is_symlink() or not path.is_file()
+    ):
+        # A cached plugin controls these paths; never follow a link out of the audited root.
+        raise OSError(f"{relpath} is not a regular file")
+    with path.open(encoding="utf-8", errors="replace") as fh:
+        return fh.read(limit)
 
 
 # --------------------------------------------------------------------------
@@ -141,6 +158,9 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
 # ("Application data" -> "Cleaned up automatically" / "Kept until you delete
 # them"), read as raw markdown, verified 2026-08-11. See reference/surfaces.md.
 # --------------------------------------------------------------------------
+
+# Days after update or uninstall that Claude Code removes an orphaned plugin version directory.
+ORPHAN_SWEEP_DAYS = 14
 
 SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
 KEPT = "product-managed-kept"  # documented as never age-swept
@@ -221,9 +241,9 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     "plugins": (
         AUTHORED,
         "Marketplaces, installed versions, per-plugin data. Upstream: do not delete. "
-        "Orphaned versions are removed 14 days after update/uninstall; a removed marketplace's "
-        "cache tree keeps its .orphaned_at markers and is swept on the same clock while any "
-        "plugin stays installed. A version directory with no marker is never swept",
+        f"Orphaned versions are removed {ORPHAN_SWEEP_DAYS} days after update/uninstall; a removed "
+        "marketplace's cache tree keeps its .orphaned_at markers and is swept on the same clock "
+        "while any plugin stays installed. A version directory with no marker is never swept",
     ),
     # Secrets
     ".credentials.json": (SECRET, "OAuth/API credentials -- never opened"),
@@ -939,8 +959,13 @@ def rollup(
     rows: list[FileRow],
     retention_days: int,
     authored_threshold: int,
+    opened: frozenset[str] = frozenset(),
 ) -> list[dict]:
-    """Group per top-level entry, splitting listed surfaces from rolled-up bulk."""
+    """Group per top-level entry, splitting listed surfaces from rolled-up bulk.
+
+    `opened` holds the relpaths a later read step actually opened; the registry and
+    the per-version markers count as read only when they are in it.
+    """
     groups: dict[str, list[FileRow]] = {}
     for row in rows:
         groups.setdefault(top_level_name(row.relpath), []).append(row)
@@ -981,7 +1006,10 @@ def rollup(
         # unclassified; the flag records the engine's own behavior, so the
         # retention section and this table agree about what was read.
         read_paths = sorted(
-            m.relpath for m in members if m.relpath in CONTENT_READ_ALLOWLIST
+            m.relpath
+            for m in members
+            if m.relpath in opened
+            or (m.relpath in CONTENT_READ_ALLOWLIST and m.relpath != INSTALLED_PLUGINS)
         )
         entry = {
             "entry": name,
@@ -1595,6 +1623,100 @@ def node_modules_bucket(rows: list[FileRow]) -> dict:
     }
 
 
+INSTALLED_PLUGINS = "plugins/installed_plugins.json"
+
+
+def _install_paths(data: object) -> list[str]:
+    """Every `installPath` in the parsed registry, whatever scope or project entry holds it."""
+    if isinstance(data, dict):
+        own = data.get("installPath")
+        found = [own] if isinstance(own, str) else []
+        return found + [p for v in data.values() for p in _install_paths(v)]
+    if isinstance(data, list):
+        return [p for v in data for p in _install_paths(v)]
+    return []
+
+
+def _resolved(path: str | Path) -> Path | None:
+    try:
+        return Path(path).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return None
+
+
+def unreferenced_versions(
+    root: Path,
+    rows: list[FileRow],
+    now: float | None = None,
+    opened: set[str] | None = None,
+) -> tuple[list[dict], str | None]:
+    """Plugin cache version directories that no `installPath` references, largest first.
+
+    Reuses the bytes already measured in `rows`. Reads only the registry and each
+    candidate's `.orphaned_at` marker, and never writes. When the registry cannot
+    vouch for the cache (missing, unparsable, or no path in it lands under this
+    root's cache), the result is an empty list and a note: a missing registry is
+    not evidence that every directory is unreferenced. Each file it opens is added
+    to `opened` when given.
+    """
+    opened = set() if opened is None else opened
+    sizes: dict[tuple[str, str, str], int] = {}
+    for row in rows:
+        parts = row.relpath.split("/")
+        if len(parts) >= 6 and parts[:2] == ["plugins", "cache"]:
+            key = (parts[2], parts[3], parts[4])
+            sizes[key] = sizes.get(key, 0) + row.bytes
+    if not sizes:
+        return [], None
+    try:
+        text = read_text_guarded(root, INSTALLED_PLUGINS)
+        opened.add(INSTALLED_PLUGINS)
+        data = json.loads(text)
+    except (OSError, ValueError) as exc:
+        return (
+            [],
+            f"{INSTALLED_PLUGINS} unreadable ({type(exc).__name__}); nothing reported",
+        )
+    if not isinstance(data, dict) or not isinstance(data.get("plugins"), dict):
+        return [], f"{INSTALLED_PLUGINS} has no `plugins` object; nothing reported"
+    cache = root / "plugins" / "cache"
+    cache_resolved = _resolved(cache)
+    referenced = {p for p in map(_resolved, _install_paths(data)) if p is not None}
+    if data["plugins"] and not any(cache_resolved in p.parents for p in referenced):
+        return [], (
+            f"no installPath in {INSTALLED_PLUGINS} lies under {cache}; the registry may belong "
+            "to another root, so nothing is reported"
+        )
+    now = time.time() if now is None else now
+    found: list[dict] = []
+    for (marketplace, plugin, version), size in sizes.items():
+        if _resolved(cache / marketplace / plugin / version) in referenced:
+            continue
+        rel = f"plugins/cache/{marketplace}/{plugin}/{version}"
+        try:
+            marker = read_text_guarded(root, f"{rel}/.orphaned_at")
+            opened.add(f"{rel}/.orphaned_at")
+            epoch_ms = int(marker.strip())
+            orphaned_at, age = iso(epoch_ms / 1000), (now - epoch_ms / 1000) / 86400
+        except (OSError, ValueError, OverflowError):
+            orphaned_at, age = None, None
+        found.append(
+            {
+                "marketplace": marketplace,
+                "plugin": plugin,
+                "version": version,
+                "path": rel,
+                "bytes": size,
+                "orphaned_at": orphaned_at,
+                "marker_age_days": None if age is None else round(age, 1),
+                "past_sweep_window": age is not None and age >= ORPHAN_SWEEP_DAYS,
+                "evidence": MEASURED,
+            }
+        )
+    found.sort(key=lambda v: (-v["bytes"], v["path"]))
+    return found, None
+
+
 def engine_version() -> str:
     """The owning plugin's manifest version, or `unknown` outside a plugin layout."""
     try:
@@ -1699,7 +1821,9 @@ def scan(
         for name in counts:
             counts[name].add(resample.get(name, 0))
 
-    entries = rollup(rows, days, authored_threshold)
+    opened: set[str] = set()
+    versions, versions_note = unreferenced_versions(root, rows, opened=opened)
+    entries = rollup(rows, days, authored_threshold, frozenset(opened))
     for entry in entries:
         entry["file_count_sampled"] = counts[entry["entry"]].as_dict(
             entry["entry"] in VOLATILE_DIRS
@@ -1731,13 +1855,15 @@ def scan(
         "entries": entries,
         "largest_subtrees": largest_subtrees(rows, entries),
         "node_modules": node_modules_bucket(rows),
+        "unreferenced_versions": versions,
+        "unreferenced_versions_note": versions_note,
         "sentinels": sentinels_block(root),
         "numeric_names": numeric,
         "recent_writers": recent_writers(rows, recent_hours),
         "home_root_state": home_root_state(root),
         "never_read": list(NEVER_READ_GLOBS),
         "content_reads": {
-            "paths": list(CONTENT_READ_ALLOWLIST),
+            "paths": [*CONTENT_READ_ALLOWLIST, *CONTENT_READ_GLOBS],
             "note": (
                 "The ONLY files whose bytes this engine opens. Everything else in the tree is "
                 "stat-only: name, size, mtime. Sibling-plugin state under this root is inventoried "
@@ -1894,7 +2020,11 @@ def main(argv: list[str] | None = None) -> int:
 
     rows: list[FileRow] = report.pop("_rows")
     if args.csv:
-        count = write_csv(rows, Path(args.csv))
+        try:
+            count = write_csv(rows, Path(args.csv))
+        except OSError as exc:
+            print(f"error: cannot write --csv {args.csv}: {exc}", file=sys.stderr)
+            return 2
         report["csv"] = {
             "path": args.csv,
             "rows": count,

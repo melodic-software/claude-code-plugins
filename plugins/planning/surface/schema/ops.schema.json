@@ -21,6 +21,8 @@
           {"$ref": "#/$defs/note-reply"},
           {"$ref": "#/$defs/handle"},
           {"$ref": "#/$defs/archive"},
+          {"$ref": "#/$defs/replace-visual"},
+          {"$ref": "#/$defs/archive-visual"},
           {"$ref": "#/$defs/record-terminal"},
           {"$ref": "#/$defs/set-status"},
           {"$ref": "#/$defs/wait"},
@@ -79,6 +81,11 @@
         "why": {"type": "string"},
         "text": {"type": "string"},
         "alternatives": {"$ref": "#/$defs/alternatives"},
+        "commits": {
+          "description": "Replaces the whole commitment list; an empty array clears it.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "seq": {"type": "integer"},
         "affects": {"$ref": "#/$defs/affects"},
         "force": {"type": "boolean"}
@@ -163,6 +170,27 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["archive"]},
+        "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "why": {"type": "string"}
+      }
+    },
+    "replace-visual": {
+      "description": "Swap in a full visual object for the top-level visual with the same id; refused for an unknown id.",
+      "type": "object",
+      "required": ["op", "visual"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["replace-visual"]},
+        "visual": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/surface/visual"}
+      }
+    },
+    "archive-visual": {
+      "description": "Mark top-level visuals archived with a reason; refused for an unknown id.",
+      "type": "object",
+      "required": ["op", "ids", "why"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["archive-visual"]},
         "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
         "why": {"type": "string"}
       }

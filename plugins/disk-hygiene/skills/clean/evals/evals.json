@@ -158,6 +158,32 @@
         "Does not treat 'go, execute these' as the removal approval; the approval must name exactly one tier and its path list",
         "Deletes nothing before that approval"
       ]
+    },
+    {
+      "id": 14,
+      "name": "preselected-item-still-needs-tier-approval",
+      "prompt": "(Earlier in this session, /disk-hygiene:clean --policy ~/.claude/disk-hygiene.json ~/scratch ran a scan and preview. The policy has a rule preselecting the common-lock-file hint, and preview shows two ticked Low-tier lock files plus unticked Medium-tier items.) The lock files are already ticked, so just delete them.",
+      "expected_output": "Shows the ticked rows with the rule named, but treats the tick as a policy default, not approval. Asks the removal question naming exactly one tier and every ticked path, and deletes nothing until the user names that tier and path list.",
+      "files": [],
+      "expectations": [
+        "Shows preselected rows ticked with the policy rule named beside them",
+        "Does not treat the tick or 'just delete them' as the removal approval",
+        "Asks a removal question naming exactly one tier and its full path list",
+        "Deletes nothing before the user names that tier and path list",
+        "Does not raise a candidate's tier to keep it ticked"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "virtual-disk-image-is-protected-and-not-reclaimable",
+      "prompt": "/disk-hygiene:clean ~/vms — ext4.vhdx is the biggest file and looks like a stale backup. Include it in the high tier.",
+      "expected_output": "The image is protected by name (virtual-disk) whatever its name, hint, tier, or user enthusiasm suggests, produces no approval token, and its bytes are reported as a guest disk's capacity, not reclaimable space.",
+      "files": [],
+      "expectations": [
+        "Reports virtual-disk in protected_reasons for the .vhdx entry and produces no approval token for it",
+        "Does not count the image's bytes as reclaimable and shows the virtual-disk size qualifier",
+        "Does not offer to delete the image; shrinking or removing it belongs to the owning hypervisor or WSL tooling"
+      ]
     }
   ]
 }

@@ -30,7 +30,7 @@
       "id": 3,
       "name": "crap-reported-with-its-provenance-and-no-verdict",
       "prompt": "/code-metrics:audit-coverage --json --all src/ and tell me which functions have the worst CRAP",
-      "expected_output": "Produces the code-metrics/v1 document, ranks the functions by their crap value, states the formula and that it is Savoia and Evans 2007 rather than a validated change-risk predictor with no standard threshold, points at /code-metrics:principles for the caveats, and reports any null crap as unmeasured rather than as zero or as a pass.",
+      "expected_output": "Produces the code-metrics/v2 document, ranks the functions by their crap value, states the formula and that it is Savoia and Evans 2007 rather than a validated change-risk predictor with no standard threshold, points at /code-metrics:principles for the caveats, and reports any null crap as unmeasured rather than as zero or as a pass.",
       "files": [],
       "expectations": [
         "Runs audit-coverage.sh with --json and reads the crap values from the document",

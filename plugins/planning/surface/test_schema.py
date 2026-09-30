@@ -77,6 +77,36 @@ class TestKeywords(unittest.TestCase):
             self.err({"id": "v", "content": "x"}, schema.load("visual"))
         )
 
+    def test_visual_grouping_fields(self):
+        base = {"id": "v", "format": "svg", "content": "x"}
+        vis = schema.load("visual")
+        fields = {"group": "g", "order": 1.5, "primary": True, "label": "A"}
+        self.assertIsNone(self.err({**base, **fields}, vis))
+        for key, bad in (
+            ("group", 1),
+            ("order", "1"),
+            ("primary", "yes"),
+            ("label", 2),
+        ):
+            self.assertIn(key, self.err({**base, key: bad}, vis))
+
+    def test_visual_ops_need_their_fields(self):
+        ops = schema.load("ops")
+        visual = {"id": "v", "format": "svg", "content": "x"}
+        ok = [
+            {"op": "replace-visual", "visual": visual},
+            {"op": "archive-visual", "ids": ["v"], "why": "old"},
+        ]
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        for op in ok:
+            self.assertIsNone(check(op))
+        self.assertIsNotNone(check({"op": "replace-visual"}))
+        self.assertIsNotNone(check({"op": "archive-visual", "ids": [], "why": "x"}))
+        self.assertIsNotNone(check({"op": "archive-visual", "ids": ["v"]}))
+
 
 class TestShippedSchemas(unittest.TestCase):
     def test_v21_sample_files_without_schema_version_validate(self):
@@ -116,6 +146,25 @@ class TestShippedSchemas(unittest.TestCase):
             "contentRev": 2,
         }
         self.assertIsNone(schema.first_error(e, schema.load("event")))
+
+    def test_accept_audit_event_and_the_accept_it_fans_out(self):
+        s = schema.load("event")
+        audit = {
+            "seq": 1,
+            "id": None,
+            "kind": "accept-audit",
+            "alt": "1",
+            "text": "",
+            "at": "t",
+            "items": [{"id": "Q1", "contentRev": 0}],
+        }
+        self.assertIsNone(schema.first_error(audit, s))
+        accept = {"seq": 2, "id": "Q1", "kind": "accept", "at": "t", "auditSeq": 1}
+        self.assertIsNone(schema.first_error(accept, s))
+        extra = {**audit, "items": [{"id": "Q1", "contentRev": 0, "note": "x"}]}
+        self.assertIn("unexpected property 'note'", schema.first_error(extra, s))
+        missing = {**audit, "items": [{"id": "Q1"}]}
+        self.assertIn("missing required 'contentRev'", schema.first_error(missing, s))
 
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))

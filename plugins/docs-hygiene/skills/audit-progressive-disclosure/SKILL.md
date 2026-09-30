@@ -48,7 +48,7 @@ threshold, routing rule, or citation posture (Anthropic-prescribed vs corroborat
 |---|---|---|---|---|
 | split | `oversize` | File at/approaching its tier's size guidance (SKILL.md approaching 500 lines; CLAUDE.md above ~200; references per the TOC bands). Ceilings, not targets. Size alone below the cap is no finding | 2 | Add a hierarchy layer: name the sections to push into spokes, each behind a conditioned pointer |
 | split | `mixed-concerns` | Mutually-exclusive contexts co-resident (content that never co-executes), category straddle, multi-topic rules file, cross-file contradiction | 2 | Split by concern. One topic per file; name the proposed split seams |
-| split | `tier-mismatch` | Content at the wrong tier: a procedure grown inside CLAUDE.md (→ skill), path-local rules in a global file (→ scoped rule), reference detail inline in a hub (→ spoke), always-loaded content not needed every session (→ demote behind a pointer) | 1 when an official routing rule decides it; else 2 | Route down-tier per the rule; the finding names source section and destination surface |
+| split | `tier-mismatch` | Content at the wrong tier: a procedure grown inside CLAUDE.md (→ skill), path-local rules in a global file (→ scoped rule), reference detail inline in a hub (→ spoke), always-loaded content not needed every session (→ demote behind a pointer) | 1 when an official routing rule decides it; else 2 | Route down-tier per the rule, unless owned upstream (see Hard rules); the finding names source section and destination surface |
 | structure | `blind-pointer` | Pointer with no when-to-read clause, unmarked execute-vs-read intent, or a vague target name (`doc2.md`, `utils`) | 2 | Attach the condition and intent; rename the target descriptively. On skill descriptions, a missing when-NOT-to-use clause is advisory color (community-sourced), never a violation |
 | structure | `orphan-spoke` | Bundled spoke no hub references. Unreachable by pointer | 2 | 3-way: add the missing pointer, merge the content up, or delete the spoke |
 | structure | `deep-nesting` | Spoke-to-spoke chain, required reading more than one level from the hub (documented partial-read failure) | 2; 1 when the chain is the only path to required content | Re-link the deep target directly from the hub, or flatten |
@@ -109,6 +109,14 @@ sibling divergences it owns.
   fits comfortably at its tier; splitting a 60-line file buys nothing.
 - **Skip surfaces.** `CHANGELOG.md`, `evals/fixtures/`, `vendor/` trees, YAML frontmatter, and
   fenced code blocks are never findings surfaces.
+- **Ownership check.** Before proposing any treatment, grep the repo for the target path near
+  `synced|sync-managed|vendored|generated|upstream`, and check `docs/adr/` and `docs/decisions/`
+  for a decision recording the file's tier or owner. Search beyond the targets: the ownership
+  statement usually lives in a README inventory, a tool-config comment, or a sync manifest. When
+  the hit names an upstream owner, keep the finding, set Treatment to `file with the owner, citing
+  the decision`, and mark disposition `upstream`. Never propose a local move or edit for an
+  upstream-owned file. When the hit is a decision recording only the tier of a locally owned file,
+  cite it as the recorded reason to stay at that tier; no owner exists, so do not use `upstream`.
 - **Output deterministic.** Files sort lexically; per-file rows sort by line; no timestamps.
 - **Default action is the audit action**. `/docs-hygiene:audit-progressive-disclosure <file>` ==
   `… audit <file>`.
@@ -123,7 +131,12 @@ sibling divergences it owns.
 | 1    | split | tier-mismatch | 41 | "## Deploy procedure" (multi-step) in always-loaded CLAUDE.md | Move to a skill; leave a one-line pointer |
 | 2    | structure | blind-pointer | 12 | "[details](context/tier-model.md)" — no when-clause | Attach the read condition and intent |
 | 3    | structure | missing-toc | — | reference file, 180 lines, no TOC (official guidance conflicts: 100 vs 300) | awareness only |
+| 1    | split | tier-mismatch | 41 | "## Deploy procedure" in always-loaded file listed as synced in `sync/README.md` | upstream: file with the owner, citing the decision |
 ```
+
+`upstream` is a disposition shown in the Treatment cell, not a tier: a Tier 1/2 finding on an
+upstream-owned file keeps its tier. A Tier 3 row's Treatment cell is only `awareness only` and
+never carries a treatment.
 
 Batch aggregate at end:
 
@@ -143,6 +156,8 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 
 ## Gotchas
 
+- Ownership is usually stated outside the audited targets. A file that looks local may be synced
+  or vendored; grep the repo, not just the target.
 - The 500/200 numbers are **ceilings, not targets**; the official split trigger is *approaching*
   the cap, and the internal-practice hub figure (~30 lines) is far below it. Size alone under the
   cap never fires `oversize`.

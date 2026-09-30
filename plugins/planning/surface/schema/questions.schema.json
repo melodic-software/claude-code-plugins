@@ -122,6 +122,11 @@
         "id": {"type": "string"},
         "title": {"type": "string"},
         "summary": {"type": "string"},
+        "summaryOf": {
+          "description": "Ids of the questions in the group when its summary was last written; the surface compares it with the current members.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "dependsOn": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -190,6 +195,10 @@
         "recommendation": {"type": "string"},
         "basis": {"type": "string"},
         "commits": {"type": "array", "items": {"type": "string"}},
+        "commitsSinceSeq": {
+          "description": "Confirm events with a seq at or below this were made against an earlier commitment list and do not count.",
+          "type": "integer"
+        },
         "commitsConfirmed": {
           "description": "Commitments confirmed outside the page, written by the confirm-commitments op, one entry per commitment index.",
           "type": "array",
@@ -246,6 +255,10 @@
         "state": {
           "enum": ["open", "stale", "upstream-pending", "archived"],
           "description": "Derived by the server from dependsOn, decision events and archived; never written by Claude"
+        },
+        "answered": {
+          "type": "boolean",
+          "description": "Derived by the server: true when a page or terminal decision counts; never written"
         }
       }
     }

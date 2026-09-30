@@ -593,6 +593,13 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(reach["value"], "hidden")
         self.assertEqual(reach["evidence"], paths["local"])
 
+    def test_a_bare_bash_name_not_on_path_is_unreadable_naming_path(self):
+        managed = engine.enumerate_managed_scope(
+            engine.managed_scope_lib_path(), bash="no-such-bash-xyz"
+        )
+        self.assertEqual(managed["status"], "unreadable", managed)
+        self.assertIn("PATH", managed["reason"])
+
     @unittest.skipIf(shutil.which("bash") is None, "bash not on PATH")
     def test_managed_policy_false_outranks_local_true(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2868,6 +2875,55 @@ class CollectInstalledTest(unittest.TestCase):
 
         self.assertEqual(denominator, [])
         self.assertEqual(resolution["not_applicable"][0]["plugin"], "beta")
+
+
+class CliInputErrorTest(unittest.TestCase):
+    """A bad path or instant is an operator mistake: one stderr line, exit 2, no traceback."""
+
+    def _run(self, argv):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            try:
+                rc = engine.main(argv)
+            except SystemExit as exc:
+                rc = exc.code
+        return rc, err.getvalue()
+
+    def test_missing_fixture(self):
+        rc, err = self._run(["--fixture", "/nonexistent/bundle.json"])
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot read --fixture", err)
+
+    def test_malformed_now(self):
+        rc, err = self._run(["--now", "garbage"])
+        self.assertEqual(rc, 2)
+        self.assertIn("--now must be an RFC3339 instant", err)
+
+    def test_unwritable_write_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = os.path.join(tmp, "bundle.json")
+            _write_json(
+                bundle,
+                {
+                    "now": "2026-01-01T00:00:00+00:00",
+                    "denominator": [_skill("p:one")],
+                },
+            )
+            blocker = os.path.join(tmp, "file")
+            with open(blocker, "w", encoding="utf-8") as handle:
+                handle.write("x")
+            rc, err = self._run(
+                [
+                    "--fixture",
+                    bundle,
+                    "--write",
+                    os.path.join(blocker, "sub"),
+                    "--state-key",
+                    "k",
+                ]
+            )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot write under --write", err)
 
 
 if __name__ == "__main__":

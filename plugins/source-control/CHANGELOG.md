@@ -3,6 +3,142 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.0] - 2026-09-30
+
+### Added
+
+- **`worktree` proposes already-safe worktrees for cleanup after `worktree_reap_after_hours` (default 48).** The setting applies only to worktrees whose Work axis is `safe`; stranded and unknown worktrees are never proposed. A locked worktree past the age is proposed only when `worktree-claim.sh stale` proves its lane's lock stale, behind the existing confirmation gate; any other lock, this session's included, keeps it out of the proposal. `worktree_stale_days` keeps its `status` meaning.
+- **`worktree audit` scans the worktree root for unregistered directories** with the new `scripts/worktree-root-scan.sh`, classifying each as empty, husk (a `.git` file whose worktree registration git dropped while its main clone is intact), or foreign (content, no `.git`). Empty directories and husks holding only their `.git` file are proposed for removal by `cleanup`; a husk with other content, a worktree whose main clone was moved or deleted or a directory that cannot be listed (`unknown`), and foreign directories are reported only. `reference/worktree-root-convention.md` documents the classes.
+
+## [0.66.0] - 2026-09-30
+
+### Added
+
+- **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, each case has a `skill-fired` grader, and each case seeds a repository through `--scaffold`.
+
+## [0.65.5] - 2026-09-30
+
+### Fixed
+
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites run on Windows Git Bash instead of skipping.** Their fixtures now build temp dirs with `native_mktemp_dir` in `scripts/test-helpers.sh`, which returns the `cygpath -m` form native git stores, so an `includeIf` path resolves. The gate suite skips, with a reason, when the temp root contains whitespace. The scripts under test are unchanged.
+
+## [0.65.4] - 2026-09-30
+
+### Changed
+
+- **`worktree` refreshes the nesting-invariant stamp from an authenticated probe run** on Claude Code 2.1.285
+  ([#5318](https://github.com/melodic-software/claude-code-plugins/issues/5318)). The owning-parent leak seen on 2.1.224 does not reproduce on dot-nested, plain-nested or external placement; an unrelated enclosing repo's scoped rule still loads. The expired-stamp marker is gone and the expiry moves to 2.1.305 or 2026-12-29.
+
+## [0.65.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `commit` and `/commit-push-pr` bullets in `commit`, the `pr`, `/commit-push-pr` and
+  `/autofix-pr` bullets in `pull-request`, and the `/autofix-pr` bullet in `babysit-prs` keep the
+  provenance class, what the surface does and how it is invoked, in the native-references template
+  form.
+
+## [0.65.2] - 2026-09-30
+
+### Fixed
+
+- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** A body under 16000 characters is split through a here-string, so the validator creates no file it must remove. A longer body goes through one `pr-linkage-lines.<pid>` file that is removed right after the read. The gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
+## [0.65.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.65.0] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` drops a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet, and the lane latches the account of the snapshot that tripped the pause, not the account `.claude.json` names at pause entry. The paused wait (`reference/paused-wait.md`) reads `.oauthAccount.emailAddress` at pause entry and on each wake and Monitor tick. On a change it clears the latch when the new account is below the pause threshold, re-latches at or above it, and drops the latch and runs reactive-only when no fresh snapshot attributes the new account. It records the event in cycle telemetry. The account read falls back to `shasum -a 256` where `sha256sum` is absent and rejects a value that is not email-shaped, and the tee file is read once so the fingerprint and the windows come from the same snapshot. A fresh snapshot with one plausible window resumes when that window is below the threshold. Four evals cover the unknown-windows drop on a wake, a switch found at pause entry, an unattributed trip that stays paused, and a switch with one plausible window.
+
+## [0.64.1] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` states the isolated-worktree launch recommendation for background lanes** instead of saying a background launch loses the escalation record
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three path plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
+
+## [0.63.0] - 2026-09-29
+
+### Added
+
+- **`worktree-claim.sh release <path>` unlocks a worktree lane lock this session armed.** A lock that names another session, or carries no reason, is refused with the reason printed and stays locked; the main worktree and an unresolvable session id are refused too.
+- **`worktree-claim.sh stale <path>` reports whether a lane lock is provably stale,** read-only: the lock names this host, and no session transcript changed within `--idle-minutes` (default 120). Anything it cannot prove exits 1.
+
+### Changed
+
+- **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
+- **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
+
+## [0.62.30] - 2026-09-29
+
+### Changed
+
+- **`commit` and `pull-request` descriptions open with a presence-gated routing clause for the
+  native surfaces their Boundary sections cover.** `commit` routes to the bundled `commit` skill
+  only when none of its contract (convention, trailer, surgical staging, pre-checks) is wanted, and
+  a commit-push-PR request to the built-in `/commit-push-pr` command, when either resolves in the
+  session; it keeps every other commit. `pull-request` routes a one-shot PR with no draft, body
+  contract, or later ready, monitor or merge step to the bundled `pr` skill when the work is
+  committed, to `/commit-push-pr` only when the whole working tree belongs in the commit, and
+  keeps everything else. Its Boundary section says the same, so unrelated uncommitted changes never reach a
+  native commit.
+
+## [0.62.29] - 2026-09-29
+
+### Added
+
+- **`babysit-prs` carries a Boundary section for the built-in command `/autofix-pr`.** The
+  command watches one PR from a cloud session; this skill runs the fleet pass under its gates. The
+  model offers the person-run command for a PR to be watched after the session ends.
+- **`commit`'s Boundary section also covers the built-in command `/commit-push-pr`.** That command
+  also pushes and opens a PR, so a request to commit and nothing more stays with this skill.
+
+## [0.62.28] - 2026-09-29
+
+### Added
+
+- **`commit` carries a Boundary section for the bundled `commit` skill.** Prefer this skill when
+  the repository carries a commit convention or a `source-control.md` layer; the bundled skill fits
+  a plain commit where this skill's contract is not wanted, and one commit never runs both.
+- **`pull-request` carries a Boundary section for the bundled `pr` skill and the built-in
+  `/commit-push-pr` and `/autofix-pr` commands.** The one-shot native PR surfaces fit a PR with no
+  lifecycle or body contract; at monitor entry the model offers the person-run `/autofix-pr` as an
+  alternative or addition rather than invoking it. When both run, the local loop merges the
+  fetched PR head into its branch before each fix commit, so its push is never rejected as
+  non-fast-forward.
+
+## [0.62.27] - 2026-09-29
+
+### Fixed
+
+- **`lib/config-root.sh` runs on Bash 3.2 and dedups symlinked config files.** Case folding no longer uses `${x,,}` (a `bad substitution` on stock macOS), and two paths with one inode, such as a repo config file that is a symlink to the user-global file, now compare equal. The synced copies in `ai-slop`, `attribution` and `docs-hygiene` carry the same change.
+
+## [0.62.26] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` merge from a linked worktree omits `--delete-branch`.** `reference/merge.md` 4.2 keeps `gh pr merge --squash --delete-branch` for a regular checkout. In a linked worktree it runs `gh pr merge --squash` and, once the PR reads `MERGED`, deletes the head branch with `git push <push-remote> --delete <branch>` through `resolve-remote.sh --push`, because older gh fails its local checkout of the default branch while another worktree holds it and exits 1 after the merge has already succeeded. `templates/checklist.md` describes both paths.
+
+## [0.62.25] - 2026-09-29
+
+### Fixed
+
+- **`worktree` context files no longer pass a literal `${CLAUDE_PLUGIN_ROOT}` to Bash.** The token expands in `SKILL.md` but stays literal in a `context/` file, and the Bash tool has no such variable, so the helper calls exited 127. `SKILL.md` now states the resolved scripts directory, the context files call it `<scripts-dir>`, and each says to substitute it before a command reaches Bash.
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites skip on Windows Git Bash** (9 and 2 known failures). Real Windows support is tracked in #5350.
+
 ## [0.62.24] - 2026-09-29
 
 ### Fixed

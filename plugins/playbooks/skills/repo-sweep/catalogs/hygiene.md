@@ -244,7 +244,19 @@ migrations in the working tree for the step commit.
 
 #### Notes
 
-One step: audit, then realign the accepted findings, then check.
+One step: audit, then realign, then check.
+
+Run realign whenever the audit reported a finding the user decided, accepted or declined, so it can
+offer the `.claude/instruction-placement.md` suppression entry for each decline. When realign writes
+that file, the change is the step commit even if every finding was declined. When there are no
+findings, realign is skipped: the checklist done line and the `Playbook-Step` trailers list only
+the skills that ran (audit and check), because `history.sh` reads each listed `skill@version` as run.
+
+Claim: `instruction-placement:realign` writes a declined finding to the tracked
+`${CLAUDE_PROJECT_DIR}/.claude/instruction-placement.md`, on an explicit yes. Basis:
+`instruction-placement` 0.15.22 `skills/realign/SKILL.md` (`Recording a decline so it survives the
+checkout`). As of: 2026-09-29. Recheck: realign changes the decline write or the suppression
+file path.
 
 ### progressive-disclosure
 
@@ -298,20 +310,40 @@ Name each human-facing file explicitly. Never pass agent-instruction files.
 ### compress
 
 - skill: docs-hygiene:compress
-- args: <markdown files>
+- args: audit <markdown files>
 - applies-when: repo has prose markdown the be-concise step did not cover
 - checked: false
 
 #### Notes
 
+Exclude always-loaded instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/rules/**`, `**/SKILL.md`) from the file list.
 Run only on files the be-concise step did not edit.
+When no files remain, tick `not-applicable` during `next` instead of running the step.
+The audit scan classifies each file; only COMPRESS-classified targets go on to compression.
+
+Claim: `docs-hygiene:compress` has a read-only `audit` action that classifies each file SKIP,
+COMPRESS, or UNCERTAIN, and compression of the COMPRESS targets is a separate, confirmed step.
+Basis: `docs-hygiene` 0.23.16 `skills/compress/SKILL.md` (action table `audit [target]` row and the
+audit-first step). As of: 2026-09-29. Recheck: compress renames or removes `audit`, changes its
+classes, or lets `audit` write files; prefer the classes `audit` prints over this note when they
+differ.
 
 ### ai-slop
 
 - skill: ai-slop:audit
-- args: audit fix .
+- args: audit .
 - applies-when: repo has tracked markdown
 - checked: true
+
+#### Notes
+
+Run the audit, then `fix` on the findings the user approves. `audit fix` chains both in one
+invocation and would rewrite prose before the review.
+
+Claim: ai-slop:audit `audit fix` chains audit then fix in one invocation while `audit` is
+read-only and `fix` is an explicit separate action. Basis: `ai-slop` 0.11.4 `skills/audit/SKILL.md`
+(Action Router `fix [target]` row and the `Does not fix on bare invocation` line). As of:
+2026-09-29. Recheck: `audit` starts applying fixes, or `audit fix` stops chaining.
 
 ## Phase 6: checks
 

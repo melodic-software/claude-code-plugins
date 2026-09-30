@@ -3,6 +3,334 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.75.1] - 2026-09-30
+
+### Changed
+
+- **Hook event log budget records Windows Git Bash figures.** `reference/hook-log-budget.md` and
+  the README replace the unmeasured Windows placeholder with the captured spawn floor, parallel
+  wall time, append integrity and `ls -t` tie. The switch stays off by default.
+- **`measure-hook-log-budget.sh` times S through the bash the launcher spawns** and records
+  `invoking_bash_path`, `invoking_bash_native_path`, `launcher_bash_path`, `uname_s` and the PATH
+  bash's own floor. On Windows the launcher resolves Git's `bin\bash.exe` wrapper, not the
+  `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S. The two native
+  paths print in `cygpath -m` form (`C:/Program Files/Git/bin/bash.exe`), which the
+  shell-portability gate does not read as a GNU `\b` regex escape.
+
+## [0.75.0] - 2026-09-30
+
+### Changed
+
+- **`changelog-status` fetches the Claude Code changelog through `scripts/fetch-docs.sh`** (a synced
+  copy of the shared fetcher) instead of calling `curl` on the changelog URL directly, so the fetch
+  is verified against the publisher's index and recorded in a manifest like every other docs read.
+
+## [0.74.1] - 2026-09-30
+
+### Fixed
+
+- **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
+## [0.74.0] - 2026-09-30
+
+### Added
+
+- **`changelog` has a surface-discovery script**, `scripts/discover-surfaces.sh [root]`. It prints
+  `repo-shape: marketplace|consumer`, then one line per surface class present with its count and
+  glob, and reports how many vendored skill files it excluded. It recognizes marketplace,
+  standalone-plugin and consumer repos, and counts skills and conventions by their `SKILL.md` and
+  `README.md` files. Covered by
+  `scripts/discover-surfaces.test.sh` and a consumer fixture.
+- **`changelog` has an eval that runs discovery on both repo shapes**: the marketplace shape on this
+  repo and the consumer shape on the fixture.
+
+### Changed
+
+- **`changelog` explore runs the discovery script** and greps only the classes it prints, where it
+  read a fixed surface list.
+- **`context/repo-surfaces.md` is an examples spoke**: per-class examples of what an item changes,
+  not a checklist. A class the script does not print does not exist in the repo.
+
+## [0.73.1] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` files native-drift items without a `native-drift` label.** The body's
+  `native-drift:<kind>:<surface>:<component>` key already finds every item (on GitHub,
+  `gh issue list --state all --limit 1000 --search '"native-drift:" in:body'`), so the label step and its two recorded facts
+  are gone.
+
+## [0.73.0] - 2026-09-30
+
+### Added
+
+- **`hook_events_max_bytes` option** (default 10 MiB) sets the size at which the telemetry sink
+  rotates the shared `hook-events.jsonl`. It reaches the sink only when a claude-ops hook emits the
+  envelope; an emitter in another plugin that runs the sink keeps the default.
+
+### Fixed
+
+- **The shared `hook-events.jsonl` no longer grows without bound.** The telemetry sink now rotates
+  it to `hook-events.jsonl.1` (replacing any older `.1`) under its existing append lock once it
+  passes `hook_events_max_bytes`, so the pair stays near twice that. Rotation runs whether or not
+  the per-session event log is enabled, which the SessionEnd retention sweep never covered for this
+  file. `observability` clean and its state probe treat the rotated file like the live one, and the
+  README and observability references describe the cap. `clean` prunes the rotated file under the
+  live file's lock, so a concurrent rotation cannot be overwritten by the pruned copy.
+
+## [0.72.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.72.0] - 2026-09-30
+
+### Changed
+
+- **Bundled scripts follow the using-scripts checklist.** Failures now surface as one stderr line
+  and a specific exit code instead of a traceback or a silent exit 0, `--help` no longer depends on
+  `jq`, `gh` or `git`, and unknown-argument errors end with `(see --help)`.
+- **`clean.sh` exits 1** when a file could not be pruned or the OTEL delegate failed, and exits 2 on
+  an empty or missing value flag. An empty `--keep-days` used to remove every session file.
+  `--dry-run` reports a file it would skip because a line is not valid JSON.
+- **`check-all.sh` exits 2 without `gh` or `jq`**; it used to exit 0 with every row `FETCH_FAILED`.
+- **`check-prerequisites.sh --help` writes to stdout**, and a missing `python3` exits 2 with a named
+  message.
+- **`overlap.py detect --out` writes its `wrote <path>` line to stderr**; stdout is empty.
+- **`registry_manager.py`** gains an opt-in top-level `--dry-run` and no longer creates the data
+  directory on a read; a non-object `registry.json` or a failed write exits 2 with a message.
+- **`machine-behavior.sh` caps the `worktrees:` list at 50** and gains `--max-worktrees N` (`0`
+  lists all); `worktree-count` is unchanged.
+- **`sync-run.sh` runs the `claude` CLI with stdin closed**, so a marketplace-declared-command
+  confirmation fails and is journaled instead of waiting for input.
+- **`fleet-state.sh` and `cache-content-check.sh` accept `--help`**; it used to exit 2.
+- `inventory.py`, `install_state.py`, `audit_skill_visibility.py`, `overlap.py` and
+  `native_drift.py` report an unwritable or unreadable path or a malformed `--now` as one stderr
+  line and exit 2 (1 for `overlap.py`), and the visibility churn probe has a 15 s timeout.
+
+## [0.71.3] - 2026-09-29
+
+### Changed
+
+- The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
+
+## [0.71.2] - 2026-09-29
+
+### Changed
+
+- **`observability`'s description opens with a presence-gated routing clause for the bundled
+  `explain-usage` skill.** It routes a quick plain-language breakdown of this session's tokens to
+  `explain-usage` and keeps cross-session trends, cost, hooks, and anything the local telemetry
+  stores hold, the split its Boundary section states.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `doctor` bullets in `audit-install-state`, `audit-performance` and
+  `audit-skill-visibility`, and the `explain-usage` bullet in `observability`, keep the provenance
+  class, what the surface does and how it is invoked, in the native-references template form.
+
+## [0.71.1] - 2026-09-29
+
+### Fixed
+
+- **`changelog apply` Phase 7 files nothing in a repository with no overlap store**: `overlap.py
+  self-check` exits `3` there in report-only mode, which the phase read as a passing run, so it
+  filed tracker items and replaced the baseline. `native_drift.py diff` now marks such a run
+  `report_only`, moves its items to `unfiled`, and the phase keeps the previous baseline.
+- **`native_drift.py` rejects wrong-shaped JSON with exit `2`**: a summary, detect report, store
+  or inventory that parsed but lacked its shape (a top-level `[]`, a string where an object
+  belongs) raised a traceback with exit `1`.
+- **`native_drift.py` hardens its inputs and the facts it hands a filed body**: leaf types
+  (aliases, markers, descriptions, store row names and classes, candidate keys), the store's and
+  the detect report's schema and required fields, deeply nested JSON and oversized integer
+  literals all exit `2`, and any type error left over exits `2` rather than a traceback. Each fact
+  is one line without backticks, and each item carries a `quote` block that sets every fact in a
+  code span, so upstream text cannot forge a `Drift key:` line and suppress a filing. `diff` has
+  no default for `report_only`.
+- **`inventory --docs` stops reading the tools table at the next heading**: when the table's rows
+  stopped matching (tool names without backticks), the parser read on through the page and took a
+  later backticked row as the table, reporting every tool `undocumented` instead of the block
+  `broken`.
+
+## [0.71.0] - 2026-09-29
+
+### Added
+
+- **`CC_OTEL_HOT_MAX_MB` caps each hot OTEL store file.** `prune-otel-store.sh` applies the size cap
+  as a fallback when age-based pruning alone leaves a hot file over the limit, because the
+  collector's file exporter appends and cannot rotate.
+- **`probe-observability-state.sh --otel-store` reports cold size and last-prune age**, beside the
+  per-file hot sizes it already printed.
+
+### Changed
+
+- **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
+  exporter's append-only limit, replacing the earlier cold-store estimate.
+
+## [0.70.0] - 2026-09-29
+
+### Changed
+
+- **`audit-native-overlap` fingerprints the native side on the text detection scores**: each
+  registration's `description`, `argument_hint`, and `search_hint`, whitespace-collapsed. It hashed
+  the description alone, so a built-in tool with no description fingerprinted as an empty string
+  and a hint change never resurfaced its dismissal. Surfaces with no hints keep their fingerprint;
+  the stored dismissals were recomputed.
+
+## [0.69.0] - 2026-09-29
+
+### Added
+
+- **`inventory` has built-in subagent and tool lanes** (`builtin_agents`, `builtin_tools`), each
+  with its own integrity status and canaries (`general-purpose`, `Explore`, `Plan`,
+  `statusline-setup`; `Bash`, `Read`, `Edit`, `Write`, `WebFetch`). Agent types and tool names
+  resolve from their constants at runtime. Agents carry the roster status (`default`,
+  `conditional`, `absent`), tool lists and model; tools carry deferral, gating and search hints,
+  and factory-built tools are counted, not guessed.
+- **`inventory --docs` cross-checks tools** against the tools reference in a nested block with its
+  own status; `--tools-docs-file` reads the page from a file.
+- **`audit-native-overlap detect` scores built-in subagents and tools** as the `builtin-agent` and
+  `builtin-tool` classes when the inventory carries those lanes. The store accepts `route` only for
+  both.
+
+### Fixed
+
+- **`inventory --docs` parses table rows in linear time.** The tools and commands row regexes
+  backtracked super-linearly on long whitespace runs (seconds per row well under the 8,000-character
+  row cap); both now match only the first cell and split the rest with string methods, with the
+  same rows parsed from the live pages.
+
+## [0.68.0] - 2026-09-29
+
+### Added
+
+- **`changelog apply` files native-surface drift.** A new Phase 7 runs the inventory self-check, a
+  `--binary-only --docs` extraction, and overlap `detect` and `self-check`, then
+  `scripts/native_drift.py` diffs the result against the previous run's summary (kept at
+  `<memory_dir>/claude-code-changelog/native-surface-summary.json`): surfaces added, removed,
+  renamed or reclassified, invocability and marker changes, docs cross-check changes, and new
+  overlap candidates. It files one work item through `/work-items:track` per new candidate with no
+  store row or dismissal, per store row whose recheck trigger fired, and per degraded or broken
+  self-check; a self-check degraded only by a newer CLI proposes revalidation. Each item carries a
+  `native-drift:<kind>:<surface>:<component>` key that dedupes against open items. Unattended runs
+  file without asking; interactive runs list the items and file on one confirmation.
+- **Native-drift filing is bounded.** A summary written without a `detect` report records
+  `detect: null` and never becomes the candidate baseline, so it cannot make every candidate look
+  new. More than 10 items (`--max-items`) needs a person's confirmation; unattended runs file one
+  `batch-overflow` item instead. Dedupe matches the exact `Drift key: <key>` line (`has-key`), so a
+  key never matches its prefix siblings. Each fact is clipped to 300 characters and treated as
+  quoted data, and an optional input path that is not a file warns on stderr.
+
+## [0.67.0] - 2026-09-29
+
+### Added
+
+- **`audit-native-overlap` learns from dismissals.** A new `overlap.py dismiss` subcommand records
+  a human's ruling that a candidate pair is not an overlap, with its reason, the Claude Code
+  version it was ruled against, the date, and a fingerprint of each side's description. `detect`
+  suppresses a dismissed pair and counts it under `discovery.suppressed` until either description
+  changes, then lists it again flagged "resurfaced: description changed". A pair with a verdict
+  row never resurfaces. Every candidate now carries both fingerprints.
+- **The store takes an optional `dismissals` list.** The self-check validates each dismissal and
+  rejects one beside a verdict row for the same pair; `generate` renders a Dismissed section in
+  the registry view.
+- **Dismissals are checked every run and validated strictly.** `detect` checks every dismissal
+  against the current descriptions, including a pair that no longer scores above the discovery
+  cut, and lists one whose surface or component is gone under `discovery.dismissals_orphaned`.
+  `dismiss` accepts only a component this repo has, named by plain name segments. The store
+  rejects a path-like component name, a reason over 300 characters, and a version, date, or
+  fingerprint with trailing characters, and the Dismissed table escapes markdown in every cell.
+- **Eval cases** for `inventory` answering "is /foo real" under a degraded lane and classifying a
+  command the docs mark removed, and for `audit-native-overlap` recommending `suggest` for a
+  user-only surface and suppressing then resurfacing a dismissed pair.
+
+## [0.66.2] - 2026-09-29
+
+### Added
+
+- **`observability` carries a Boundary section for the bundled skill `explain-usage`.** When it
+  resolves, it answers where this session's tokens went in plain language; this skill keeps local
+  telemetry, cross-session trends, hooks, and cost.
+
+## [0.66.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:audit-skill-visibility` resolves `bash` through `PATH` when enumerating managed
+  scope.** On Windows a bare `bash` reached the WSL relay in `System32` instead of Git Bash, so the
+  managed-scope read failed. The name now goes through `shutil.which`, and a missing `bash` reports
+  the managed scope as unreadable. The audit suite runs on `windows-2025` in CI again.
+
+## [0.66.0] - 2026-09-29
+
+### Added
+
+- **`inventory` reports every built-in surface's arguments and invocability.** Commands, bundled
+  skills and bundled workflows carry `argument_hint`, `user_invocable` and `model_invocable`,
+  resolved from the bundle; a value the bundle computes at runtime is `null` and counted under
+  `integrity.undetermined`, never guessed.
+- **`inventory` has a bundled-workflows lane** (`bundled_workflows`, canary `deep-research`) with
+  its own integrity status.
+- **`inventory --docs`** fetches the live commands page and changelog and classifies each name:
+  documented, undocumented, alias, removed in the docs, removed but still registered, or
+  docs-only, with kind and alias disagreements. A fetch failure degrades that block only.
+  `--docs-file` and `--changelog-file` run it offline.
+- **`audit-native-overlap detect` discovers candidates** by scoring every native surface against
+  every repo skill and agent (`--threshold`, `--top-k`), beside the seeded pairs. Each candidate
+  carries `invocable_by` and a `recommended_integration` label: a user-only surface is
+  recommended as `suggest`. A label is never a verdict.
+
+### Fixed
+
+- **`inventory` extraction on Claude Code 2.1.284.** Template-literal substitutions are now read as
+  code, so a quote inside a regex in `${...}` no longer desynchronizes the brace reader (15 of 152
+  commands resolved before). `registerSlidesSkill`, literal-table skill rosters and
+  constant-named commands resolve. Validated against 2.1.284.
+- **`inventory --docs` bounds untrusted text.** A fetched body over 16 MB degrades the docs block
+  instead of loading, and a table row over 8,000 characters is skipped, so a malformed page
+  cannot stall the parser on regex backtracking. A body truncated after its headers
+  (`http.client.HTTPException`) degrades the block instead of raising.
+- **`audit-native-overlap detect` scores a plugin-backed command once**, under its plugin-backed
+  class and with the description the extractor enriched it with, instead of adding a bare second
+  surface.
+- **A model-invocable bundled workflow is recommended `route`, never `wrap`**, matching the store
+  rule that rejects `wrap` on a bundled-workflow row.
+
+## [0.65.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:audit-install-state` reports `unreferenced_versions`.** Each plugin cache version
+  directory that no `installPath` in `plugins/installed_plugins.json` references is listed with its
+  `bytes`, `.orphaned_at` marker age, and whether it is past the 14-day sweep window. Report-only:
+  removal stays with `/disk-hygiene:clean`. A missing or unparsable registry yields an empty list
+  and a note, so an empty list reads as "not checked". The report schema is now
+  `claude-install-state/3`, and `content_read_paths` lists only the registry and markers actually
+  opened. Marker reads refuse symlinks and non-regular files.
+- **A note that a running session keeps the plugin version it loaded**, so hook and guard messages
+  can name the previous version's path after an update until the session restarts.
+
+## [0.64.3] - 2026-09-29
+
+### Fixed
+
+- **`audit-native-overlap` rejects a baked description phrase on a model-disabled suggest row.** A
+  bundled skill the model cannot invoke, routed by an integration suggest, has no listing entry for
+  a phrase to live in, so the integration check now reports the combination as a problem.
+- **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
+  matching the rule above.
+- **The three `doctor` registry rows drop the budget caveat and the evidence that assumed a baked
+  phrase**, so the registry no longer describes a routing phrase that does not exist.
+
+## [0.64.2] - 2026-09-29
+
+### Fixed
+
+- **The prerequisites check reads the plugin listing from a file, so a large fleet is fully
+  checked.** The listing was passed through an environment variable, and a listing over the
+  Linux per-variable limit (128 KiB) made the launch fail and the table print only part of the
+  fleet. Output from `claude plugin list --json` that is not a JSON list now exits 2 with an
+  error instead of falling back or printing a partial table.
+
 ## [0.64.1] - 2026-09-29
 
 ### Fixed

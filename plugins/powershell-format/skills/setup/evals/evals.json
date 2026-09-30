@@ -5,7 +5,7 @@
       "id": 1,
       "name": "jq-and-node-are-the-fail-class",
       "prompt": "/powershell-format:setup check",
-      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, pwsh, the PSScriptAnalyzer module, the PSScriptAnalyzerSettings.psd1 opt-in, the powershell_format_enabled toggle, and hook registration — with jq and Node.js the only FAIL-class prerequisites and everything else classified not-applicable rather than missing.",
+      "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, pwsh, the PSScriptAnalyzer module, the PSScriptAnalyzerSettings.psd1 opt-in, the powershell_format_enabled toggle, and hook registration — with jq and Node.js the only FAIL-class prerequisites and everything else classified INFO rather than FAIL.",
       "files": [],
       "expectations": [
         "Reports missing jq as FAIL and names jq and node as the only FAIL-class prerequisites in this plugin",
@@ -25,7 +25,7 @@
         "Classifies the absent settings file as INFO (the opt-out, by design), never FAIL, and states the plugin is not broken",
         "Describes the resolution the hook actually performs: walking up from the file to the repo root, bounded by CLAUDE_PROJECT_DIR when set, stopping at the closest settings file",
         "Does not offer to repair the state and does not write the settings file",
-        "Uses the not-applicable classification consistently with an absent pwsh or module, rather than calling any of them missing prerequisites"
+        "Classifies an absent pwsh or module as INFO consistently, rather than calling either a FAIL-class prerequisite"
       ]
     },
     {
@@ -51,7 +51,7 @@
         "Does not run Install-Module — the command is stated as user-scope guidance for the reader",
         "Does not install PowerShell; it points at the official install page instead",
         "Does not write PSScriptAnalyzerSettings.psd1, and gives the reason: it is the executed-adjacent trust boundary, so the choice and the edit belong to the consumer",
-        "States that leaving pwsh absent is a valid end state when PowerShell is genuinely not applicable on this machine — the hook stays quiet",
+        "States that leaving pwsh absent is a valid end state when PowerShell is genuinely not applicable on this machine — the edit hook stays quiet and only the once-per-session SessionStart notice remains",
         "Does not write Claude Code user settings, pluginConfigs, or the plugin cache"
       ]
     },

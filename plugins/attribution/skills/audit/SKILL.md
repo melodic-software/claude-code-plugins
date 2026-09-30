@@ -1,9 +1,9 @@
 ---
-description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, quoted citations, or four-part stamped records. Breadcrumb-first: citations in or near a passage are the first confirm targets; budgeted search runs only when no breadcrumb exists. Findings carry evidence-gated tiers (fingerprint-confirmed, source-fetched-similar, llm-suspected, not-found); only fingerprint-confirmed copies are fix-eligible. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
+description: "Audit tracked markdown for prose restating content an external source owns without a pointer or a stamped record, and convert copies into links, citations, or four-part stamped records. Breadcrumb-first, then budgeted search. Two rubrics: copy, and restated fact (a default or limit, any wording). Evidence-gated tiers; only fingerprint-confirmed copies are fix-eligible. Only a unanimous restated fact that survives refutation relays, report-only. Also flags verification stamps past their expiry window. Use when: 'find copied content', 'is this copied from the docs', 'check our docs for copied text', 'replace copies with links', 'find stale verification stamps', 'audit provenance', 'where did this paragraph come from', or before publishing prose that restates an upstream page. Read-only by default; explicit 'fix' applies dispositions behind a semantic-diff guard and live pointer checks, and 'sweep' adds per-file closure. Empty target audits tracked markdown."
 argument-hint: "[audit|fix|sweep] [target]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/score-golden.sh:*)", "Bash(node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.mjs:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/extract-breadcrumbs.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/check-stamps.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/score-golden.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/sweep-ledger.sh:*)", "Bash(node ${CLAUDE_SKILL_DIR}/scripts/fingerprint.mjs:*)", "Bash(git:*)", "Bash(jq:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -42,8 +42,8 @@ keeps it honest where a surface must restate a specific to function.
 
 Detection is LLM-led and breadcrumb-first. The deterministic scripts do only reasoning-free work
 (path filtering, breadcrumb extraction, date arithmetic, fingerprint comparison of two concrete
-texts, file composition); every judgment about whether a passage is a copy is model work against
-[`reference/rubric.md`](reference/rubric.md).
+texts, file composition); every judgment about whether a passage is a copy, or restates a fact an
+external source owns, is model work against [`reference/rubric.md`](reference/rubric.md).
 
 ## Action router
 
@@ -77,7 +77,9 @@ texts, file composition); every judgment about whether a passage is a copy is mo
    plus the whole directory's breadcrumb inventory, both under neutral labels per that file's
    "Neutral labels (required)". Recall-biased: a passage nomination never
    proposes can never be found. `accuracy.nomination_passes` (default 2) runs this more than
-   once and the nominations are **unioned**, never intersected.
+   once and the nominations are **unioned**, never intersected. Each nomination carries a class
+   guess (`verbatim`, `near-verbatim`, `paraphrase`, `summary`, or `restated-fact`). The guess is
+   for the report and never routes a candidate away from judgment (step 8).
 
 5. **Resolve the source**, per nomination, in order: breadcrumbs in or near the passage, then
    sibling-file breadcrumbs, then budgeted search only when no breadcrumb exists. Stop early on
@@ -116,24 +118,44 @@ texts, file composition); every judgment about whether a passage is a copy is mo
    3 for anything that could become fix-eligible) against
    [`reference/rubric.md`](reference/rubric.md), dispatched per
    [`reference/nomination.md`](reference/nomination.md). Carve-outs are graded before criteria.
-   Judges never see the fingerprint numbers or each other's verdicts, and each case reaches
-   them under a neutral label rather than its path, per `reference/nomination.md` "Neutral
-   labels (required)". **Unanimity renders the verdict; any split routes to the human** and the
-   finding is not fix-eligible, whatever the majority said.
+   Judges never see the fingerprint numbers, the nominator's class guess, or each other's
+   verdicts, and each case reaches them under a neutral label rather than its path, per
+   `reference/nomination.md` "Neutral labels (required)". **Unanimity renders the verdict; any
+   split routes to the human** and the finding is not fix-eligible, whatever the majority said.
+
+   Name one rubric per dispatch, from the candidate and never from the nominator's class:
+   `copy` when the fingerprint matched a span above the separation rule; `restated-fact` when it
+   did not and the passage states a checkable fact an external source owns, so a paraphrase or
+   summary naming a default, limit, version pin or field list goes to that panel instead of a
+   report-only bucket; `copy` otherwise. The restated-fact panel is the same panel (blind,
+   neutral labels, lens diversity, unanimity, a split to the human) with a floor of 3 samples
+   whatever `judge_samples` says, and it needs no fetched source: a restated-fact candidate whose
+   source search ended `not-found` still goes to it.
 
 9. **Map the tier**, by fixed rule from the evidence, never from a judge's confidence. A
    paraphrase can never be `fingerprint-confirmed`: no lexical evidence is possible for one, and
    unanimity does not manufacture any. A finding whose only basis is an in-repo vendored
-   snapshot, reached because every live fetch failed, caps at `source-fetched-similar` and is
-   never fix-eligible; the full rule is in
-   [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0, run the review pass
-   over STANDS verdicts; a veto never reassigns a tier, it forces `leave-with-reason`.
+   snapshot, reached because every live fetch failed, caps at the report-only `vendored-snapshot`
+   tier and is never fix-eligible; the full rule is in
+   [`reference/source-fetch.md`](reference/source-fetch.md). When `accuracy.review_agents` > 0,
+   run the review pass over copy STANDS verdicts; a veto never reassigns a tier, it forces
+   `leave-with-reason`.
+
+   A restated-fact STANDS is never `fingerprint-confirmed`, whatever the fingerprint module
+   reported, so it is never fix-eligible; a fetched source caps it at `source-fetched-similar`.
+   It takes the refutation pass (`reference/nomination.md` "Refutation") on every run, whatever
+   `review_agents` says: a fresh-context adversary told to default to refute. A REFUTED forces
+   `leave-with-reason` as a veto does; a SURVIVES makes the finding eligible for the relay and
+   changes no tier.
 
 10. **Report.** Group by file. Per finding give the tier, the class, the location, the rubric
     grades with their quoted evidence, and the source with the rung it came from. State the
     carve-out declines with counts, the stamp declines with reasons, the budget telemetry, and
     what the run did not cover. Emit the machine-parseable report sidecar to the run's memory
-    slice so scoring never parses prose.
+    slice so scoring never parses prose. A restated-fact finding records its `class`,
+    `rubric.unanimous`, `rubric.verdict` and `review.verdict`: the relay reads exactly those
+    ([`context/persist-findings.md`](context/persist-findings.md)), and a finding missing one is
+    withheld and counted, never relayed.
 
 11. **Persist the findings file** per
     [`context/persist-findings.md`](context/persist-findings.md) whenever the audit examined
@@ -183,24 +205,31 @@ an explicit neutral outcome**, never when the interesting ones are done. Write e
 the sweep ledger at `.work/<topic-slug>/sweep-ledger.md` in the run's memory slice, so an
 interrupted sweep resumes without re-deciding closed files and the closure count is a fact rather
 than a memory. The entry's required fields are in
-[`reference/dispositions.md`](reference/dispositions.md) "Sweep closure".
+[`reference/dispositions.md`](reference/dispositions.md) "Sweep closure". Like `fix`, it applies
+dispositions to hand-written markdown only: a file whose head carries a generated-output marker is
+reported and routed to the human, and its finding names the generator's input as the fix site.
 
-**Nothing writes or reads that ledger for you.** No script in this plugin creates it, parses it,
-or checks an entry for completeness. It is a file the run keeps by hand, and every resume rule
-below holds only as far as the run kept it honestly.
+**`${CLAUDE_SKILL_DIR}/scripts/sweep-ledger.sh --topic <topic-slug>` keeps that ledger:** `init`
+(creates it under a sweep id, or reports that it exists on a resume), `close <file>`, `spend <n>`,
+`cache-add`, `cache-check`, and `status`, which lists the closed files a resume skips. It checks an entry's shape and the spend's arithmetic, and nothing
+more. It cannot tell whether a disposition is right or whether every finding in a file is
+accounted for, so each field stays the run's own claim.
 
 **The fetch ceiling and the response cache are scoped to the sweep, not to one invocation.**
-`corpus_fetch_ceiling` is spent across the whole sweep, so carry the running spend into the
-ledger beside each closure and, on resume, read it back and continue from that number instead of
-starting again at zero. The cache is per-sweep for the same reason: record which sources the
-sweep holds and when each was fetched, and on resume re-validate an entry before you reuse it,
-because a page fetched before the interruption may have changed since. Reusing an entry unseen
-means reporting on a body nobody in this sweep read.
+`corpus_fetch_ceiling` is spent across the whole sweep. Record each batch of fetches with `spend`
+as you make them: `close` stamps the running total on every closure, and on a resume `status`
+reads the total back, so you continue from it instead of starting again at zero, and it exits
+non-zero once spend reaches the ceiling. The cache is per-sweep for the same reason: `cache-add`
+each fetched source with its sha256, and on a resume `cache-check` reports the entry for
+re-validation, never as something to reuse. Fetch it again, compare the hash, and spend that
+fetch, because a page fetched before the interruption may have changed since. Reusing an entry
+unseen means reporting on a body nobody in this sweep read.
 
 **The ledger is checkout-local.** It lives under this checkout's `.work/` and is never tracked,
-so no other checkout can see it. A sweep resumed where the ledger is not is a new sweep: it
-carries no closures, no spend, and no cache, and it says so in its report rather than presenting
-itself as a continuation.
+so no other checkout can see it. A sweep resumed where the ledger is not is a new sweep: `status`
+there says so, it carries no closures, no spend, and no cache, and the report says so rather than
+presenting itself as a continuation. The ledger names the sweep id and the checkout it started
+in, so a copy carried to another checkout is refused (exit 3) rather than resumed.
 
 ## Configuration
 
@@ -226,9 +255,14 @@ fired on an identifier, a test runner exiting non-zero without failing.
 
 - **Does not fix on bare invocation.** Mutation rides only the explicit `fix` or `sweep`
   argument.
-- **Does not put judgment verdicts in the findings file.** `source-fetched-similar`,
-  `llm-suspected`, and `not-found` reach the human report only. They have no crosswalk row to
-  look a tier up from, and a relay row is an instruction to a remediation surface.
+- **Does not put judgment verdicts in the findings file, with one exception.** A finding at
+  `vendored-snapshot`, `source-fetched-similar`, `llm-suspected`, or `not-found` reaches the human report only: those
+  tiers have no crosswalk row to look a tier up from, and a relay row is an instruction to a
+  remediation surface. The exception is a restated-fact finding that a unanimous panel upheld
+  and the refutation pass could not refute: it relays as
+  `attribution/audit/rule-restated-upstream-fact`, report-only and never fix-eligible, whatever
+  tier it maps to. A split panel, a refuted finding, and a restated-fact finding with no such
+  declared outcome stay withheld.
 - **Does not treat a missing source as evidence.** `not-found` names every surface checked and
   concludes nothing about the passage. `scripts/emit-findings.sh` refuses a sidecar whose
   `not-found` finding names no surface at all, but nothing verifies the listing is complete, so

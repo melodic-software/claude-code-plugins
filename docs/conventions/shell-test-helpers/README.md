@@ -18,8 +18,8 @@ worked example.
 
 That mechanism exists for clusters that are meant to stay **byte-identical**. The assert-helper copies
 below are not that: they are three genuinely different *assertion-primitive* shapes (`ok`/`bad`,
-`pass`/`fail`, vendored-seam), not one library that drifted. The telemetry-sink pair
-`make_sink` / `wait_for_sink` is a different fact and does use the mechanism; see
+`pass`/`fail`, vendored-seam), not one library that drifted. The telemetry-sink helper
+(`make_sink`, `wait_for_sink`, `check_envelope`) is a different fact and does use the mechanism; see
 [The telemetry-sink helper](#the-telemetry-sink-helper).
 
 - **Hook-contract shape** (`ok`/`bad`, `PASS`/`FAIL` counters; both files also keep their own
@@ -70,7 +70,8 @@ denominator or grow branching per caller. Neither is simpler than each script do
 
 ## The telemetry-sink helper
 
-`make_sink` / `wait_for_sink` is one vendored helper. The canonical file is
+`make_sink`, `wait_for_sink` and `check_envelope` are one vendored helper. `check_envelope <envelope-file>
+[schema-file]` asserts a captured envelope against the hook-telemetry `envelope.schema.json`. The canonical file is
 [`lib/hook-test-sink.sh`](../../../lib/hook-test-sink.sh). Each plugin whose suites need it carries a
 byte-identical copy at `plugins/<p>/hooks/hook-test-sink.sh` and sources it from its own directory.
 [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh)
@@ -81,9 +82,23 @@ contract suite is [`lib/hook-test-sink.test.sh`](../../../lib/hook-test-sink.tes
 - `guardrails` and `claude-ops` keep their own plugin-local `make_sink`. The two differ in contract
   (guardrails' takes a stub body, claude-ops' takes a capture file) and stay outside the vendored
   helper.
-- The `ok` / `fail` counters stay duplicated per plugin. Only the sink pair is shared.
+- The `ok` / `fail` counters stay duplicated per plugin. Only the sink helper is shared.
 - `scripts/lib/test-harness.sh` remains the repo-tooling-layer precedent and does not change the
   per-plugin rule.
+
+## Probe awk-sensitive suites under two awks
+
+Run this on a changed `*.test.sh` that passes a regex or other backslash-bearing value through
+`awk -v`:
+
+```sh
+scripts/check-shell-portability.sh --awk-probe path/to/changed.test.sh
+```
+
+It needs gawk and mawk installed; `SHELL_PORTABILITY_AWKS` overrides the candidate list. Exit `0` is
+no divergence, `1` is DIVERGENT, `2` is fewer than two distinct awks or a missing suite. A suite that
+fails under every awk also exits `0`; it still needs the normal test run. CI does not run it.
+The rationale is in [`scripts/lib/awk-probe.sh`](../../../scripts/lib/awk-probe.sh).
 
 ## Deferred, not rejected
 

@@ -100,15 +100,25 @@ PS_HERESTRING_EXPANDABLE=0
 # modeling escapes inside text it has already decided it cannot parse. Read by
 # ps::classify_git_command, where it is the trigger of last resort.
 PS_HERESTRING_EXPANDABLE_SUBEXPR=0
-# 1 when a line this library CONFIRMED as a here-string opener also carries a `#`
-# anywhere before the two-character opener suffix.
+# 1 when the here-string reduction cannot be trusted: the lines it dropped may be
+# live commands, or the text carries a CR this library does not split on. The
+# first shape that tripped it is in PS_REDUCTION_UNTRUSTED_REASON. Reasons, none
+# with an allow token:
+#   herestring-comment-char     — `#` on a confirmed opener prefix
+#   herestring-opener-untrusted — `'`, `"`, `\`, or backtick on that prefix
+#   herestring-comment-span     — a `<#` appears earlier in the command
+#   herestring-orphan-closer    — `'@` / `"@` at column zero with no confirmed opener
+#   bare-cr                     — a CR not followed by LF
 #
-# PowerShell's own tokenizer reads `#` outside a quoted string as the start of a
-# line comment, so the `@"` of `Write-Output x # @"` is comment TEXT and opens
-# nothing: the next line is a live command. This library reads the same line as
-# an opener and DROPS that next line as here-string body, which is how
-# `Write-Output x # @"` / `git push --force` / `"@ fine"` reaches the parser with
-# the git command already gone.
+# The comment-char reason, which the others generalize: a line this library
+# CONFIRMED as a here-string opener also carries a `#` anywhere before the
+# two-character opener suffix. PowerShell's own tokenizer reads `#` outside a
+# quoted string as the start of a line comment, so the `@"` of
+# `Write-Output x # @"` is comment TEXT and opens nothing: the next line is a
+# live command. This library reads the same line as an opener and DROPS that next
+# line as here-string body, which is how `Write-Output x # @"` /
+# `git push --force` / `"@ fine"` reaches the parser with the git command already
+# gone.
 #
 # The test is a plain substring test on the RAW line. It does not decide whether
 # the `#` is a comment, sits inside a string, or is glued to a token, and it
@@ -117,28 +127,18 @@ PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 # refused whole. ACCEPTED OVER-BLOCK: `Write-Output "#1" @"` and `a#b @"` open a
 # real here-string in PowerShell and are refused here anyway.
 #
-# THIS SHAPE HAS NO ALLOW TOKEN, and cannot be given one. Every token-granted
+# THESE SHAPES HAVE NO ALLOW TOKEN, and cannot be given one. Every token-granted
 # sink round spends the caller's shared `_ps_sink_attempts` budget, so a sixth
 # grantable trigger pushes a command that settles in four rounds past the cap,
 # where block-dangerous-git.sh refuses as budget-exhausted without ever reading
 # the destructive sibling. The refusal is therefore unconditional in every
-# reader, and names this shape rather than the budget.
+# reader, and names the shape rather than the budget.
 #
-# Read by ps::classify_git_command (which turns it into sink trigger
-# `herestring-comment-char`), by ps::write_bypass, and by block-dangerous-git.sh,
-# which refuses on the flag itself at the top of its sink loop so the shape never
-# enters a token-granted round.
-#
-# Generalized (#4683) to a reduction-untrusted flag plus a reason. The comment-
-# char flag stays 1 for EVERY untrusted reason so existing FLAG-keyed readers
-# keep refusing; PS_SINK_TRIGGER / PS_REDUCTION_UNTRUSTED_REASON name the shape.
-# Reasons (no allow token on any of them):
-#   herestring-comment-char     — `#` on a confirmed opener prefix
-#   herestring-opener-untrusted — `'`, `"`, `\`, or backtick on that prefix
-#   herestring-comment-span     — a `<#` appears earlier in the command
-#   herestring-orphan-closer    — `'@` / `"@` at column zero with no confirmed opener
-#   bare-cr                     — a CR not followed by LF
-PS_HERESTRING_OPENER_COMMENT_CHAR=0
+# Read by ps::classify_git_command (which turns it into a sink trigger named for
+# the reason), by ps::write_bypass, and by each guard that classifies a
+# PowerShell command: block-dangerous-git.sh and block-no-verify.sh refuse on it
+# at the top of their sink loops so the shape never enters a token-granted round,
+# and the two commit guards refuse on it instead of deferring.
 PS_REDUCTION_UNTRUSTED=0
 PS_REDUCTION_UNTRUSTED_REASON=""
 # 1 when the last ps::_walk_quoted_spans_to pass crossed a DOUBLE-quote opener,
@@ -201,13 +201,15 @@ ps::_mark_untrusted() {
   ((PS_REDUCTION_UNTRUSTED)) && return 0
   PS_REDUCTION_UNTRUSTED=1
   PS_REDUCTION_UNTRUSTED_REASON="$1"
-  PS_HERESTRING_OPENER_COMMENT_CHAR=1
 }
 
 # True when TEXT contains a CR not immediately followed by LF. PowerShell ends
-# a statement at a bare CR; this library splits on LF only.
+# a statement at a bare CR; this library splits on LF only. The glob answers
+# "no CR at all" without the per-character walk, which is every command that
+# carries no CR.
 ps::has_bare_cr() {
   local s="$1" i n next
+  [[ "$s" == *$'\r'* ]] || return 1
   n=${#s}
   for ((i = 0; i < n; i++)); do
     [[ "${s:i:1}" == $'\r' ]] || continue
@@ -224,10 +226,13 @@ ps::payload_has_bare_cr() {
   local s="${1-}" t
   [[ -n "$s" ]] || return 1
   ps::has_bare_cr "$s" && return 0
-  t="${s//\\\\/}"
   # `*"\\r"*` is glob-star + one backslash + r: JSON's two-character `\r`
   # escape. A fully quoted pattern would treat `*` as literal; a single-quoted
-  # `'\\r'` is two backslashes and would miss the payload encoding.
+  # `'\\r'` is two backslashes and would miss the payload encoding. Dropping
+  # escaped backslashes below cannot create a `\r`, so a payload without one
+  # skips the rewrite.
+  [[ "$s" == *"\\r"* ]] || return 1
+  t="${s//\\\\/}"
   while [[ "$t" == *"\\r"* ]]; do
     t="${t#*"\\r"}"
     # JSON CRLF is the two-escape sequence `\r\n`, so the remainder after `\r`
@@ -410,9 +415,6 @@ ps::blank_herestrings() {
   PS_HERESTRING_QUOTE=""
   PS_HERESTRING_EXPANDABLE=0
   PS_HERESTRING_EXPANDABLE_SUBEXPR=0
-  # Read by the sourcing guard, not within this library.
-  # shellcheck disable=SC2034
-  PS_HERESTRING_OPENER_COMMENT_CHAR=0
   PS_REDUCTION_UNTRUSTED=0
   PS_REDUCTION_UNTRUSTED_REASON=""
   # Bare CR on the raw command, before space-folding. jq_fields may already have
@@ -1101,6 +1103,121 @@ ps::call_target_is_bare_subexpression() {
 # same class as the `node -e` writes the hook's scope note already excludes; a
 # pipeline into the call still fails closed on ANY operand, computed or not,
 # because the content demonstrably arrives via `|`.
+#
+# A call site whose variable RESOLVES to a non-writer literal is not measured by
+# this probe at all (see ps::computed_call_var_resolves_to_literal):
+# `$sh='C:/Program Files/Git/bin/bash.exe'; & $sh x.sh record dir` is the same
+# call as `& 'C:/Program Files/Git/bin/bash.exe' x.sh record dir`, which never
+# enters this gate. Each call site is resolved through its OWN variable, so
+# resolving `$sh` never exempts an `& $w` elsewhere in the command. Only this
+# positional arm (count and pipeline) is skipped; the splat, redirect, `-va*`,
+# subexpression and `--%` arms in ps::write_bypass still apply to the call.
+
+# True (0) when lowercased, backtick-deleted TEXT calls or dot-sources a QUOTED
+# writer or iex name, optionally module-qualified (`& 'Set-Content' …`,
+# `. "Microsoft.PowerShell.Management\Set-Content" …`). The name is matched as a
+# prefix, so a quoted program whose name merely starts with one (`& 'nightly.exe'`)
+# is refused too — the safe direction.
+ps::quoted_call_names_writer() {
+  local q="\"'"
+  [[ "$1" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]
+}
+
+# True (0) when variable NAME (lowercase, no `$`) provably holds a single-quoted
+# literal whose command name is not a writer at every point it is called in TEXT
+# (the lowercased, quote-intact command). Anything this cannot prove returns 1,
+# which keeps the positional arm's verdict.
+#
+# Every `$name` occurrence in TEXT must be one of two whitelisted forms:
+#   - a call target: `& $name` / `. $name`;
+#   - an assignment of exactly one single-quoted literal, `$name = '<literal>'`,
+#     followed by `;`, a newline or the end of the command. The terminator is what
+#     rejects `'Set-'+'Content'`, `'x'.Replace(…)`, `'x' | …` and `'a''b'`.
+# Any other occurrence — a read, `+=`, `++`, `foreach ($name in …)`,
+# `[ref]$name`, a double-quoted or computed right-hand side — is unresolvable.
+# Whitelisting occurrences rather than listing write channels keeps a channel
+# nobody thought of on the blocked side.
+#
+# The FIRST occurrence must be the assignment, at depth zero in statement
+# position (start of command, or after `;` or a newline, with no unclosed `{` or
+# `(` in the quote-blanked text before it), so it runs unconditionally in the
+# caller's scope before any call. A later assignment must repeat the same literal.
+#
+# Channels that set a variable by NAME rather than by `$name` make every variable
+# unresolvable: Set-/New-/Get-/Clear-/Remove-Variable and their aliases,
+# Set-Item, the `variable:` drive, PSVariable, the `-*Variable` common
+# parameters, and scope-qualified or braced spellings (`$script:name`,
+# `${name}`), which this does not model. Automatic variables PowerShell rebinds
+# on its own (`$_`, `$args`, `$matches`, …) and any backtick in the command
+# (escape context shifts quote pairing and the depth check) are unresolvable too.
+#
+# The literal's command name — everything after the last `/`, `\` or `:` (which
+# drops the directory, drive and any `Module\` qualifier), minus one
+# .exe/.cmd/.bat/.ps1 — is then checked with the quoted-writer matcher
+# ps::write_bypass applies to `& '<name>'`, so a resolved target is refused
+# exactly when the equivalent literal call is. `sc` is refused as well: it is
+# Set-Content's alias in Windows PowerShell 5.1. A wildcard or whitespace in the
+# name fails closed.
+ps::computed_call_var_resolves_to_literal() {
+  local v="$1" s="$2" rest head="" tail lit="" have=0 blanked i ch depth base
+  local re_asg=$'^[ \t]*=[ \t]*\'([^\']*)\'[ \t]*([;\r\n]|$)'
+  local re_stmt=$'(^|[;\r\n])[ \t]*$'
+  local re_call='(^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*$'
+  local re_byname='(^|[^a-z0-9_-])(set-variable|set|sv|new-variable|nv|get-variable|gv|clear-variable|clv|remove-variable|rv|set-item|si)([^a-z0-9_-]|$)'
+  local re_commonvar='[[:space:]]-(outvariable|ov|pipelinevariable|pv|errorvariable|ev|warningvariable|wv|informationvariable|iv)([[:space:]]|:|$)'
+  [[ "$v" =~ ^[a-z_][a-z0-9_]*$ ]] || return 1
+  case "$v" in
+  _ | psitem | args | input | this | matches | foreach | switch | sender | event | eventargs | eventsubscriber | lastexitcode | error | myinvocation | psboundparameters | pscmdlet) return 1 ;;
+  *) ;;
+  esac
+  [[ "$s" == *'`'* ]] && return 1
+  [[ "$s" =~ $re_byname || "$s" =~ $re_commonvar ]] && return 1
+  [[ "$s" == *variable:* || "$s" == *psvariable* || "$s" == *":$v"* ]] && return 1
+  [[ "$s" == *"\${"* && "$s" == *"$v}"* ]] && return 1
+  rest="$s"
+  while [[ "$rest" == *"\$$v"* ]]; do
+    head+="${rest%%"\$$v"*}"
+    tail="${rest#*"\$$v"}"
+    rest="$tail"
+    if [[ "$tail" == [a-z0-9_?:]* ]]; then
+      # A longer name (`$shell`) or a drive-qualified one — a different variable.
+      head+="\$$v"
+      continue
+    fi
+    if [[ "$tail" =~ $re_asg ]]; then
+      if ((have)); then
+        [[ "${BASH_REMATCH[1]}" == "$lit" ]] || return 1
+      else
+        lit="${BASH_REMATCH[1]}"
+        [[ "$head" =~ $re_stmt ]] || return 1
+        ps::blank_quoted_spans_to blanked "$head"
+        depth=0
+        for ((i = 0; i < ${#blanked}; i++)); do
+          ch="${blanked:i:1}"
+          case "$ch" in
+          '{' | '(') depth=$((depth + 1)) ;;
+          '}' | ')') depth=$((depth - 1)) ;;
+          *) ;;
+          esac
+          ((depth < 0)) && return 1
+        done
+        ((depth == 0)) || return 1
+        have=1
+      fi
+    elif ((!have)) || [[ ! "$head" =~ $re_call ]]; then
+      return 1
+    fi
+    head+="\$$v"
+  done
+  ((have)) || return 1
+  base="${lit##*[/\\:]}"
+  case "$base" in
+  *.exe | *.cmd | *.bat | *.ps1) base="${base%.*}" ;;
+  *) ;;
+  esac
+  [[ "$base" == *[\*\?\[[:space:]]* || "$base" == sc ]] && return 1
+  ! ps::quoted_call_names_writer "& '$base'"
+}
 
 # The OPERAND REGION of one call site: everything following the call target that
 # still belongs to this call. Emitted on stdout.
@@ -1185,7 +1302,7 @@ ps::blank_bracket_interiors_to() {
 }
 
 ps::computed_call_has_positional_write_signal() {
-  local lc="$1" rest="" tok count count_lit piped=0 scan depth opens closes
+  local lc="$1" resolve_text="${2-}" rest="" tok count count_lit piped=0 scan depth opens closes target
   # The BRACED spelling of a variable reference (`& ${env:w} …`, `${my name}`)
   # is matched alongside the bare one. PowerShell's about_Variables makes them the
   # same reference — `${env:t} -eq $env:t` is True — and `ps::call_target_is_bare_computed`
@@ -1213,9 +1330,14 @@ ps::computed_call_has_positional_write_signal() {
   scan="$lc"
   while [[ "$scan" =~ $re_var ]]; do
     rest="${BASH_REMATCH[4]}"
+    target="${BASH_REMATCH[2]}"
     # Advance past this call site before measuring it, so the next iteration
     # starts inside the remainder and a nested call cannot be skipped.
     scan="$rest"
+    if [[ -n "$resolve_text" ]] &&
+      ps::computed_call_var_resolves_to_literal "${target#\$}" "$resolve_text"; then
+      continue
+    fi
     count=0
     count_lit=0
     depth=0
@@ -1888,10 +2010,10 @@ ps::classify_git_command() {
 # pipeline consumer or following statement remains for normal checks.
 #
 # The no-token family (`herestring-comment-char`, `herestring-opener-untrusted`,
-# `herestring-comment-span`, `herestring-orphan-closer`, `bare-cr`) has NO arm here and must never reach this
-# function: none of them carries an allow token, and block-dangerous-git.sh
-# refuses on PS_HERESTRING_OPENER_COMMENT_CHAR at the top of its sink loop, ahead
-# of the allow-list question. The `*` default below blanks an unrecognized
+# `herestring-comment-span`, `herestring-orphan-closer`, `bare-cr`) has NO arm
+# here and must never reach this function: none of them carries an allow token,
+# and block-dangerous-git.sh refuses on PS_REDUCTION_UNTRUSTED at the top of its
+# sink loop, ahead of the allow-list question. The `*` default below blanks an unrecognized
 # trigger's command to nothing and the caller then exits 0, so an arm-less
 # trigger that DID reach a token-granted round would be a general bypass;
 # refusing before the question is what keeps that unreachable.
@@ -2334,14 +2456,19 @@ ps::print_unparsable_git_block_message() {
 # SCOPE: this covers the write-GATE bypass only. Secret-pattern and hardcoded-path
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
+# PS_WRITE_BYPASS_ARM names the arm behind the last 0 return when a caller needs a
+# message specific to it: "computed-positional" for the positional-operand probe,
+# empty for every other arm.
+PS_WRITE_BYPASS_ARM=""
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg head lcq lcq_bt q="\"'" blanked_gate opaque_gate
+  local cmd="$1" scan lcs seg head lcq lcq_bt blanked_gate opaque_gate
+  PS_WRITE_BYPASS_ARM=""
   ps::blank_herestrings "$cmd"
   # The write twin of the git refusal: the reduction just dropped lines that
   # PowerShell may run as commands, so a NO from the scans below would be a
   # statement about text the command does not have. Report a bypass by shape.
   # block-hook-bypass consults no allow-list on this return, so it is final.
-  # See PS_REDUCTION_UNTRUSTED / PS_HERESTRING_OPENER_COMMENT_CHAR.
+  # See PS_REDUCTION_UNTRUSTED.
   ((PS_REDUCTION_UNTRUSTED)) && return 0
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
@@ -2368,9 +2495,7 @@ ps::write_bypass() {
   lcq_bt="${lcq,,}"
   lcq="${lcq//\`/}"
   lcq="${lcq,,}"
-  if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
-    return 0
-  fi
+  ps::quoted_call_names_writer "$lcq" && return 0
   # A call/dot-source of a COMPUTED target — `& ('Set-'+'Content') …`, `& $w …`
   # — evaluates an expression into the command name; it cannot be proven
   # non-writer, so it fails closed like iex WHEN a write signal is also present
@@ -2414,7 +2539,9 @@ ps::write_bypass() {
     # signal (#2906). A global placeholder would also feed quoted `>` / `-value`
     # in message text to the redirect and `-va*` probes — measured fail-open
     # on producer-redirect rows — so this string is derived here and handed
-    # to ps::computed_call_has_positional_write_signal alone.
+    # to ps::computed_call_has_positional_write_signal alone. The quote-intact
+    # `lcq_bt` goes with it, so a call site whose variable holds a single-quoted
+    # non-writer literal is skipped (ps::computed_call_var_resolves_to_literal).
     ps::opaque_quoted_spans_to opaque_gate "$lcq_bt"
     opaque_gate="${opaque_gate//\`/}"
     ps::_gsub_to opaque_gate "$opaque_gate" '[0-9*]*>&[0-9]+' ''
@@ -2453,8 +2580,12 @@ ps::write_bypass() {
       [[ "$blanked_gate" == *'--%'* ]] ||
       ps::computed_call_has_splat_operand "$blanked_gate" ||
       [[ "$blanked_gate" == *'>'* ]] ||
-      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
-      ps::computed_call_has_positional_write_signal "$opaque_gate"; then
+      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]]; then
+      return 0
+    fi
+    if ps::computed_call_has_positional_write_signal "$opaque_gate" "$lcq_bt"; then
+      # shellcheck disable=SC2034 # read by the sourcing guard
+      PS_WRITE_BYPASS_ARM="computed-positional"
       return 0
     fi
   fi

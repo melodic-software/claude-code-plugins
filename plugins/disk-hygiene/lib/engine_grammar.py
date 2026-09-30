@@ -198,10 +198,11 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 takes_value=False,
                 help=(
                     "inventory only explicitly selected immediate children "
-                    "of the target; on an OS-managed volume root those "
-                    "children are non-OS directories and regular files, and "
-                    "on any other directory they are directories, so approved "
-                    "children can be re-inventoried without a whole-tree walk"
+                    "of the target; on a volume root (OS-managed or not) "
+                    "those children are non-OS directories and regular files, "
+                    "and on any other directory they are directories, so "
+                    "approved children can be re-inventoried without a "
+                    "whole-tree walk"
                 ),
             ),
             Flag(
@@ -236,14 +237,14 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
-            # Single-use on purpose: one inline path per call is the
-            # verify-one-delete-one form, with no file write in between.
             Flag(
                 "--path",
+                repeatable=True,
                 metavar="RELATIVE",
                 example="relative/exact.tmp",
                 help=(
-                    "one snapshot-relative approved path, inline; the per-deletion form"
+                    "snapshot-relative approved path, inline; repeatable; "
+                    "one path is the per-deletion form"
                 ),
             ),
             Flag("--vcs-evidence", example="vcs-evidence.json"),
@@ -251,6 +252,22 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         ),
         help="re-verify approved paths for the manual handoff lane (read-only)",
         one_of=(("--paths", "--path"),),
+    ),
+    Subcommand(
+        "catalog",
+        (
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            Flag(
+                "--run-id",
+                required=True,
+                pattern=r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}",
+                example="run-1",
+            ),
+            Flag("--findings", example="findings.json"),
+            Flag("--answers", example="answers.json"),
+            _data_root_flag(),
+        ),
+        help="record investigated entries under the data root (read-only on the target)",
     ),
     Subcommand(
         "apply",
@@ -269,10 +286,33 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             _data_root_flag(),
         ),
     ),
+    Subcommand(
+        "handoff-apply",
+        (
+            Flag("--execute", takes_value=False, required=True),
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            # One exact approved path per call: the engine verifies that path
+            # against live state and deletes it in the same process.
+            Flag(
+                "--path",
+                required=True,
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help="the one snapshot-relative approved path to verify and delete",
+            ),
+            Flag("--vcs-evidence", required=True, example="vcs-evidence.json"),
+            Flag("--report", required=True, example="report.json"),
+            _data_root_flag(),
+        ),
+        help=(
+            "verify one approved path as handoff-verify does, then delete it "
+            "only on a clear verdict (Linux only)"
+        ),
+    ),
 )
 
 # Ordered so a disclosure can name the read-only subcommands first and the
-# mutating one last.
+# mutating ones last.
 SUBCOMMAND_NAMES: tuple[str, ...] = tuple(spec.name for spec in SUBCOMMANDS)
 _SUBCOMMANDS_BY_NAME = {spec.name: spec for spec in SUBCOMMANDS}
 

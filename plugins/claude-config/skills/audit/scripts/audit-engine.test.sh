@@ -175,7 +175,7 @@ run() {
     SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$1/debug" \
     SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 \
-    SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="${DOCS_FIXTURE:-$DOCS}" \
+    FETCH_DOCS_FIXTURE_DIR="${DOCS_FIXTURE:-$DOCS}" \
     SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="${CLI_BIN:-$CLI}" \
     CLAUDE_CODE_DEBUG_LOGS_DIR="" \
     bash "$SCRIPT" "${@:2}"
@@ -490,7 +490,7 @@ rc=0
 out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
   SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_FIXTURE_DIR="$m/fixtures" CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
   bash "$SCRIPT" --json 2>&1) || rc=$?
 assert_exit "case 12: unknown marketplace exits 1" 1 "$rc"
 assert_eq "case 12: unknown marketplace is an error" "error" "$(jq -r '.findings[] | select(.identity.claim=="unknown-marketplace:x@nowhere") | .severity' <<<"$out")"
@@ -569,7 +569,7 @@ rc=0
 out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$m/baseline-renamed.md" \
   SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
   bash "$SCRIPT" --json 2>&1) || rc=$?
 assert_exit "case 17: an unparsed baseline is not an error" 0 "$rc"
 assert_eq "case 17: the reference is reported unparsed" "skip" "$(jq -r '.rows[] | select(.claim=="reference-unparsed") | .status' <<<"$out")"
@@ -818,24 +818,35 @@ while [[ $# -gt 0 ]]; do
   *) url="$1"; shift ;;
   esac
 done
-[[ -f "$CURL_SHIM_SRC/${url##*/}" ]] || exit 22
-cp "$CURL_SHIM_SRC/${url##*/}" "$out"
-# -w '%{url_effective}': where the body came from, after any redirect.
+name="${url##*/}"
+src="$CURL_SHIM_SRC/$name"
+[[ -f "$src" ]] || exit 22
+cp "$src" "$out"
+# A <name>.status or <name>.ctype sidecar overrides the HTTP status or content type.
+status=200
+[[ -f "$src.status" ]] && status="$(cat "$src.status")"
+ctype="text/markdown; charset=utf-8"
+[[ "$name" == llms.txt ]] && ctype="text/plain; charset=utf-8"
+[[ -f "$src.ctype" ]] && ctype="$(cat "$src.ctype")"
+# The final URL, after any redirect.
 effective="$url"
 [[ -n "${CURL_SHIM_REDIRECT:-}" && "$url" == *settings-reference.md ]] && effective="$CURL_SHIM_REDIRECT"
-[[ "$wfmt" == '%{url_effective}' ]] && printf '%s' "$effective"
+wfmt="${wfmt//%\{http_code\}/$status}"
+wfmt="${wfmt//%\{url_effective\}/$effective}"
+wfmt="${wfmt//%\{content_type\}/$ctype}"
+printf '%s' "$wfmt"
 exit 0
 EOF
 chmod +x "$m/shim/curl"
 cp "$DOCS/settings-reference.md" "$DOCS/env-vars.md" "$m/served/"
 printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' '- [Environment variables](https://other.test/docs/en/env-vars.md): vars' >"$m/served/llms.txt"
 fetch_run() {
-  env -u SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR PATH="$m/shim:$PATH" CURL_SHIM_LOG="$m/curl.log" CURL_SHIM_SRC="$m/served" \
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="$m/shim:$PATH" CURL_SHIM_LOG="$m/curl.log" CURL_SHIM_SRC="$m/served" \
     CURL_SHIM_REDIRECT="${CURL_SHIM_REDIRECT:-}" \
     SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
     SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-    SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL="https://docs.test/docs/llms.txt" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+    FETCH_DOCS_INDEX_URL="https://docs.test/docs/llms.txt" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
     bash "$SCRIPT" --json 2>&1
 }
 out=$(fetch_run) || true
@@ -852,6 +863,39 @@ rm -f "$m/curl.log" "$m/served/llms.txt"
 out=$(fetch_run) || true
 assert_eq "case 31: an index that fails to fetch is unread" "unread fetch-failed" "$(jq -r '.docs.index | "\(.state) \(.reason)"' <<<"$out")"
 assert_eq "case 31: and no page is requested after it" "1" "$(wc -l <"$m/curl.log" | tr -d ' ')"
+
+# The fetcher's manifest fields ride into the --json record of a fetched page.
+printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' >"$m/served/llms.txt"
+rm -f "$m/curl.log"
+out=$(fetch_run) || true
+page_json="$(jq -c '.docs.pages[] | select(.slug=="settings-reference")' <<<"$out")"
+assert_eq "case 31: a fetched page records its sha256" "$(sha256sum <"$m/served/settings-reference.md" | cut -d" " -f1)" "$(jq -r '.sha256' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its content type" "text/markdown; charset=utf-8" "$(jq -r '.content_type' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its line count" "$(awk 'END { print NR }' "$m/served/settings-reference.md")" "$(jq -r '.lines' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its byte count" "$(wc -c <"$m/served/settings-reference.md" | tr -d ' ')" "$(jq -r '.bytes' <<<"$page_json")"
+assert_eq "case 31: a fetched page records when it was read" "1" "$(jq -r '.retrieved | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$") | if . then 1 else 0 end' <<<"$page_json")"
+assert_eq "case 31: a fetched page carries no failure reason" "" "$(jq -r '.reason' <<<"$page_json")"
+assert_eq "case 31: the index records its sha256 too" "$(sha256sum <"$m/served/llms.txt" | cut -d" " -f1)" "$(jq -r '.docs.index.sha256' <<<"$out")"
+
+# A 404 or a text/html body is unread, and every row resting on the page stays
+# not-inspectable.
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"max",zzBogusKey:1}' >"$m/project/.claude/settings.json"
+for bad in status ctype; do
+  rm -f "$m/served/settings-reference.md.status" "$m/served/settings-reference.md.ctype"
+  if [[ $bad == status ]]; then
+    printf '404' >"$m/served/settings-reference.md.status"
+    want="http-404"
+  else
+    printf 'text/html; charset=utf-8' >"$m/served/settings-reference.md.ctype"
+    want="unexpected-content-type"
+  fi
+  out=$(fetch_run) || true
+  assert_eq "case 31 ($bad): the page is unread with the reason" "unread $want" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.reason)"' <<<"$out")"
+  assert_eq "case 31 ($bad): the page has no hash" "null" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | .sha256' <<<"$out")"
+  assert_eq "case 31 ($bad): the key row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:zzBogusKey") | .status' <<<"$out")"
+  assert_eq "case 31 ($bad): the value row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="effortLevel:max") | .status' <<<"$out")"
+done
+rm -f "$m/served/settings-reference.md.status" "$m/served/settings-reference.md.ctype"
 
 # --- Case 32: a read page that does not parse fails closed --------------------
 # A soft 404 arrives as a page with a body and no key headings. Read at face
@@ -1033,7 +1077,7 @@ printf '%s\n' '{"name":"mkt","plugins":[{"name":"ren\txy"}]}' >"$m/fixtures/mkt.
 out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
   SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
   SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_FIXTURE_DIR="$m/fixtures" CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
   bash "$SCRIPT" --json 2>&1) || true
 assert_eq "case 44: a tab in an orphan key is kept" "info" "$(jq -r '.rows[] | select(.claim=="orphan-disabled:a\tb@mkt") | .severity' <<<"$out")"
 assert_eq "case 44: a backslash in an orphan key is kept" "warning" "$(jq -r '.rows[] | select(.claim=="orphan-enabled:c\\d@mkt") | .severity' <<<"$out")"
@@ -1220,7 +1264,7 @@ for ud in "$m/home/.claude" "${spellings[@]}"; do
   out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/home" SETTINGS_AUDIT_ENGINE_USER_DIR="$ud" \
     SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
     SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_ENGINE_SKIP_DRIFT=1 CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-    SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+    FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
     bash "$SCRIPT" --json 2>&1) || rc=$?
   assert_exit "case 48 ($ud): home-rooted run exits 0" 0 "$rc"
   assert_eq "case 48 ($ud): the user file is read" "ok" "$(jq -r '.scopes[] | select(.label == "user") | .state' <<<"$out")"

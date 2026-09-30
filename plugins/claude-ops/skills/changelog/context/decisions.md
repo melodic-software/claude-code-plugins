@@ -57,7 +57,7 @@ No Workflow script is used. The orchestrating session spawns ordinary subagents,
 follows the number of clusters and not the number of items:
 
 1. **Item files.** Ingest writes one file per release, one line per item, each led by its stable id.
-2. **Explore.** One explorer per release cluster of about fifty items, reading the item files and grepping the surfaces in [repo-surfaces.md](repo-surfaces.md). Each returns candidate (surface, lens) pairs, the repo evidence, and the questions research must answer.
+2. **Explore.** One explorer per release cluster of about fifty items, reading the item files, running `scripts/discover-surfaces.sh`, and grepping the classes it prints (examples in [repo-surfaces.md](repo-surfaces.md)). Each returns candidate (surface, lens) pairs, the repo evidence, and the questions research must answer.
 3. **Research.** One researcher per feature cluster, receiving the explorers' questions. It grounds every claim by `curl` of the docs page to a local file and returns the page URL with each claim. An uncited claim is unverified.
 4. **Verify.** One local verifier checks the repo-side facts: each cited component says what the row says, each path exists, each false-versus-true pair is a pair.
 
@@ -73,6 +73,7 @@ range adds explorers in steps of about fifty items and adds researchers only for
 - `items/<version>.md`: the item files
 - `rows.md`: the repository revision (`git rev-parse HEAD`) the rows were derived at, then the decision rows and the docs-lag section, each row with its recheck trigger (the page it rests on and the condition that would change it)
 - `pages/`: the docs pages the researchers fetched, each with its URL and fetch time on its first line
+- `native-drift/`: `apply` Phase 7's extraction, overlap candidates, summary and drift report ([native-drift.md](native-drift.md)). The summary is then copied to `<memory_dir>/claude-code-changelog/native-surface-summary.json`, the one file outside any range: the next run diffs against it
 
 `apply` consumes that directory instead of re-running `diff`. It re-fetches only what a recheck
 trigger names: a release newer than `<B>` exists, or a row's own trigger is met. A row whose

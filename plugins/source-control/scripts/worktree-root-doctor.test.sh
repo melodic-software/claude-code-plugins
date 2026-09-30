@@ -18,7 +18,7 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(native_mktemp_dir)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 HOME_DIR="$TEST_TMPDIR/home"

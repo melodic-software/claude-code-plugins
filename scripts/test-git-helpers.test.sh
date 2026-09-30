@@ -54,6 +54,9 @@
 # shellcheck disable=SC2030,SC2031
 set -uo pipefail
 
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HELPER="${TEST_GIT_HELPERS_UNDER_TEST:-$SELF_DIR/test-git-helpers.sh}"
 
@@ -71,7 +74,7 @@ SENTINEL="sentinel@example.invalid"
 # would overwrite.
 new_caller() {
   local d
-  d="$(mktemp -d)"
+  d="$(mktemp -d "$TMP/x.XXXX")"
   git -c init.defaultBranch=main init -q "$d"
   git -C "$d" config --local user.email "$SENTINEL"
   git -C "$d" config --local user.name sentinel
@@ -107,11 +110,11 @@ assert_isolated() {
 scenario_a() {
   local caller fixture before
   caller="$(new_caller)"
-  fixture="$(mktemp -d)/fx"
+  fixture="$(mktemp -d "$TMP/x.XXXX")/fx"
   mkdir -p "$fixture"
   before="$(caller_email "$caller")"
   (
-    cd "$(mktemp -d)" || exit 1
+    cd "$(mktemp -d "$TMP/x.XXXX")" || exit 1
     export GIT_DIR="$caller/.git"
     export GIT_WORK_TREE="$caller"
     # shellcheck source=test-git-helpers.sh
@@ -127,7 +130,7 @@ scenario_b() {
   caller="$(new_caller)"
   git -C "$caller" -c user.email="$SENTINEL" -c user.name=sentinel \
     -c commit.gpgsign=false commit -q --allow-empty -m seed
-  wt="$(mktemp -d)/lw"
+  wt="$(mktemp -d "$TMP/x.XXXX")/lw"
   if ! git -C "$caller" worktree add -q -b lw "$wt" >/dev/null 2>&1; then
     fail "B linked worktree: could not create the linked worktree fixture"
     return
@@ -135,11 +138,11 @@ scenario_b() {
   # A linked worktree's `.git` is a FILE pointing at the real gitdir; resolve
   # it rather than assuming a layout.
   lgd="$(git -C "$wt" rev-parse --absolute-git-dir)"
-  fixture="$(mktemp -d)/fx"
+  fixture="$(mktemp -d "$TMP/x.XXXX")/fx"
   mkdir -p "$fixture"
   before="$(caller_email "$caller")"
   (
-    cd "$(mktemp -d)" || exit 1
+    cd "$(mktemp -d "$TMP/x.XXXX")" || exit 1
     export GIT_DIR="$lgd"
     export GIT_WORK_TREE="$wt"
     # shellcheck source=test-git-helpers.sh
@@ -158,7 +161,7 @@ scenario_c() {
   mkdir -p "$fixture"
   before="$(caller_email "$caller")"
   (
-    cd "$(mktemp -d)" || exit 1
+    cd "$(mktemp -d "$TMP/x.XXXX")" || exit 1
     export GIT_DIR="$caller/.git"
     export GIT_WORK_TREE="$caller"
     # shellcheck source=test-git-helpers.sh
@@ -184,11 +187,11 @@ scenario_c() {
 scenario_d() {
   local caller fixture before
   caller="$(new_caller)"
-  fixture="$(mktemp -d)/fx"
+  fixture="$(mktemp -d "$TMP/x.XXXX")/fx"
   mkdir -p "$fixture"
   before="$(caller_email "$caller")"
   (
-    cd "$(mktemp -d)" || exit 1
+    cd "$(mktemp -d "$TMP/x.XXXX")" || exit 1
     export GIT_CONFIG="$caller/.git/config"
     # shellcheck source=test-git-helpers.sh
     . "$HELPER"

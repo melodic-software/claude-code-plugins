@@ -1,5 +1,74 @@
 # Changelog: discovery plugin
 
+## [0.25.16] - 2026-09-30
+
+### Changed
+
+- **The `deep-research` Boundary bullet in `research-deep` no longer asserts that the workflow
+  ships with Claude Code.** It keeps the provenance class, what the workflow does and how it is
+  invoked, in the native-references template form.
+
+## [0.25.15] - 2026-09-30
+
+### Fixed
+
+- **`research` at `breadth=low` is bounded.** Phase 1 is capped at 6 web queries and fetches
+  combined, the researcher runs with `Turn budget: 15`, and a verifier-owned FAIL is presented with
+  a caveat instead of resuming the researcher.
+
+## [0.25.14] - 2026-09-30
+
+### Fixed
+
+- **Skill spokes no longer cite bundled files with the literal `${CLAUDE_PLUGIN_ROOT}` token.** The
+  token is substituted in SKILL.md bodies, not in spoke files read on demand, so a spoke path
+  resolved to nothing. Markdown links in the `explore`, `research` and `trace-intent` spokes are now
+  relative to the spoke, and the script and brief paths cite the plugin root as rendered in the
+  SKILL.md body.
+
+## [0.25.13] - 2026-09-30
+
+### Changed
+
+- **`/discovery:setup` no longer writes the gate allow rules into user settings.** `check` prints
+  the rules resolved to the installed plugin version, ready to paste into `permissions.allow`, and
+  says they pin this version's cache directory, so a plugin update invalidates them again. The
+  parent contract, the `research` skill and the setup eval cases describe check-only setup. A
+  version-wildcard rule stays rejected: the `..` traversal probe showed it matches paths outside
+  the plugin root
+  ([#4233](https://github.com/melodic-software/claude-code-plugins/issues/4233)).
+
+## [0.25.12] - 2026-09-29
+
+### Added
+
+- **`scripts/turns-to-complete.py` measures how many turns a discovery subagent takes.** It reads
+  `subagents/agent-*.jsonl` session transcripts, counts distinct assistant message ids per
+  finished dispatch (running or aborted ones are excluded), and reports per-agent-type n, min, p50,
+  p90, max and runs at the turn ceiling, as a
+  table or `--json`. The parent contract's `maxTurns` record names the command and one machine's
+  measured distribution; whether to resize the research lanes stays the owner's decision
+  ([#5304](https://github.com/melodic-software/claude-code-plugins/issues/5304)).
+
+## [0.25.11] - 2026-09-29
+
+### Added
+
+- **`explore` carries a Boundary section for the built-in `Explore` agent.** A bare locate
+  dispatches the built-in agent directly; a persisted exploration stays with this skill, which
+  keeps `Explore` as its locate-tier scout. The four-part record is in the skill's
+  `reference/native-explore.md`. The section's bullets follow the native-references template and
+  describe the built-in without asserting it is available.
+
+## [0.25.10] - 2026-09-29
+
+### Added
+
+- **`research-deep` carries a Boundary section for the bundled workflow `deep-research`.** The
+  workflow is reserved for the person to run, so the model offers `/deep-research` for a
+  single-topic deep report instead of or alongside this skill, and keeps multi-topic dispatch here.
+  Tier 1 no longer names the bundled workflow as a dispatch target.
+
 ## [0.25.9] - 2026-09-29
 
 ### Fixed

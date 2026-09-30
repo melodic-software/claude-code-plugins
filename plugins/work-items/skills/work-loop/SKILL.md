@@ -95,7 +95,7 @@ the source of truth for these counters):
  "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
  "stop_mode":"standing","ordering":"oldest-first","shard":null,"scope":null,
  "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
- "paused_until":null,
+ "paused_until":null,"latched_account":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -106,7 +106,8 @@ the source of truth for these counters):
 telemetry comment; they are not re-derived from prose in the launch prompt.
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
-budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
+is the tripping account's fingerprint (see [reference/paused-wait.md](reference/paused-wait.md)).
 
 Every counter here is **per-instance**, the marker partitions the block, so `item_cap`,
 `clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience,
@@ -115,34 +116,13 @@ newly named instance runs its first drain under the C3 ratification gate rather 
 another lane's trust period. Only the blanket period-end flag resets. Item-level ratifications
 travel with the item.
 
-**Instance-collision check (cycle start, before any write).** `writer_nonce` is generated once per
-session; `heartbeat_at` is rewritten every cycle. After re-reading the block:
-
-- No block at all → unclaimed. **Claim before any work**: upsert a cycle-0 block with my nonce and
-  heartbeat, re-read, and run the creation-race reconcile; if the canonical (lowest-id) comment
-  carries a different nonce, another session claimed first. Take the live-collision branch below.
-  Claiming first means two same-id sessions starting together stop before either overwrites the
-  other's first durable state.
-- Nonce matches mine → ordinary continuation.
-- Nonce differs **and** `restart_request` is non-null → **clean handoff**: recording the request
-  is a stopping lane's last write, so a fresh `heartbeat_at` beneath one is a stopped predecessor,
-  not a live writer. Adopt, clear `restart_request`, write my nonce, continue, a replacement
-  after a budget or expiry stop starts immediately instead of waiting out the staleness window.
-- Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
-  `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
-  block, write my nonce, continue, the ordinary restart path; two hours is twice the one-hour
-  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
-- Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
-  holds my instance id.** Write nothing, escalate per the convention's escalation contract, and
-  stop the loop cleanly.
-
-`paused_until` is not `rate_limit_latch` and does not replace it: the latch says *do not claim
-work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
-pause so a paused lane is never adopted as a dead one.
-
-Report the instance on its own `instance:` line in the cycle report, never appended to `lane:`,
-the telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`,
-reporting the lane as if nothing were partitioned.
+**Instance-collision check (cycle start, before any write).** After the re-read, compare
+`writer_nonce` and `heartbeat_at` and adopt, hand off, or stop per
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md) ("Instance-collision check"): a fresh
+block under a different nonce with no `restart_request` means another live lane holds my instance
+id, so write nothing, escalate, and stop. Write `paused_until` before entering a rate-limit pause so
+a paused lane is never adopted as a dead one. That reference also owns the `instance:` cycle-report
+line.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the tee,
@@ -173,13 +153,29 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
-  fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
-  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries an **`account.email` field when the writer could attribute the observation**, so a write
-  is still the signal that the windows changed under you (account switch, another session's
-  refresh).
+  fresh snapshot stays valid through the pause unless the account changes (see **Account switch**;
+  no refresh happens while paused). While paused, a consumer **must** arm a session Monitor on the
+  tee file and re-evaluate on every write: the file carries an **`account.email` field when the
+  writer could attribute the observation**, so a write is still the signal that the windows changed
+  under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
+- **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
+  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
+  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
+  the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
+  with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
+  every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
+  re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
+  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
+  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
+  latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
+  missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
+  print, log, or interpolate the email or the state file (`.claude.json` holds account state); parse
+  it with a JSON parser only and treat the value as untrusted.
 
 Two further reader-contract rules apply alongside the floor (outside the byte-audited block):
 
@@ -197,7 +193,10 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
 A trip additionally latches `rate_limit_latch` in durable state: the adaptive cap never ramps up
-while the latch is set (clear it on a fresh healthy snapshot after the pause end).
+while the latch is set (clear it on a fresh healthy snapshot after the pause end, or on an account
+switch that resumes the lane). While paused, apply the floor's **Account switch** bullet at pause
+entry, on every wake, and on every Monitor tick; [reference/paused-wait.md](reference/paused-wait.md)
+owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched_account` together.
 
 ## Cycle shape
 
@@ -281,7 +280,8 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    same bytes but emits only a `Bash` event the seam's `Write` matcher never sees. Body
    `{"schema":"loop-lane/escalation-record@1","lane":"work-loop","kind":"<marker kind>","repo":"<owner>/<repo>","item":"<item URL>","summary":"<the marker comment's one-line question>","written_at":"<UTC ISO-8601>"}`.
    Duplicate suppression is the marker read this step already performs before escalating: an item
-   whose marker already stands, a still-unratified `ratify-c3`, an idempotent label re-convergence,
+   whose marker already stands while it still wears the human-gated label (a marker left after
+   the operator answered and returned the item to the frontier is not standing), a still-unratified `ratify-c3`, an idempotent label re-convergence,
    is not a new escalation, so the cycle files no second comment and writes no second record.
    **Record before marker is load-bearing, not incidental**: a stop between the two then loses the
    tracker comment, which the next cycle re-files (one duplicate notification), whereas the reverse
@@ -290,33 +290,33 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    configured hook means the file is inert exhaust, the tracker item stays the escalation of
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
    that directory out of the tree this lane runs its gates against.
-   **Background-job launch mode (interim, pending the owner's decision on
-   [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).** Observed, not
-   yet decided: a background session on the shared default-branch checkout had its record Write
-   refused with "parent bg session hasn't isolated yet, so writes to the shared checkout are
-   blocked", while a background job launched inside an already-isolated lane worktree (instance
-   `melo-lap-001-wsl-2`, worktree `cc-plugins-lane-2`) completed three record Writes. Claude Code's
-   background-session docs describe the same split: inside a git repository, writes to the shared
-   checkout are blocked until the session is moved into a worktree, and a session already inside a
-   linked git worktree skips that move. So the trigger appears to be session isolation, not
-   background mode itself; triage did not reproduce the refusal. This lane deliberately runs on the
-   default-branch checkout and must not call `EnterWorktree`, which would end the long-lived
-   orchestrator. Step 0's gitignore preflight does not lift a harness block. When the record Write
-   is refused, the tracker marker comment is the escalation of record and the cycle continues.
-   Foreground on the default-branch checkout is the known-good mode.
+   **Background-job launch mode.** Launch a background lane from inside an isolated linked git
+   worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
+   `/claude-ops:lanes` launches) to keep the record Write: Claude Code moves a background session into a worktree before its first edit
+   and skips the move when the session already sits in a linked worktree, so the Write lands in
+   place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
+   `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
+   (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not
+   the recommended mode: one lane's record Write there was refused with "parent bg session
+   hasn't isolated yet, so writes to the shared checkout are blocked", and otherwise the session
+   moves into an auto-created worktree under `.claude/worktrees/`; that launch was not probed
+   here. Either
+   way the tracker marker comment is the escalation of record, and a refused record Write does
+   not stop the cycle. This lane must not call `EnterWorktree` (it would end the long-lived
+   orchestrator), so isolation comes from where the operator launches it. Foreground on the
+   default-branch checkout remains the known-good mode.
 
-   Verification record for that paragraph. Claim: the harness refusal of the record Write is
-   conditional on the session not yet being isolated in a worktree, not on background mode.
-   Basis: [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598) body (the
-   refusal text, instance `melo-lap-001-wsl-1`, shared checkout) and its second comment (three
-   Writes succeeded from the isolated worktree `cc-plugins-lane-2`, instance `melo-lap-001-wsl-2`);
-   the docs agree: "Inside a git repository, Claude Code blocks writes to the shared checkout until
-   Claude moves the session into a worktree", and Claude skips the move when "the session is
-   already inside a linked git worktree"
-   (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; the hooks reference
-   is silent on the point). As of 2026-09-29; the refusal itself was not reproduced. Recheck
-   trigger: that docs section changes its block or skip rules, a Claude Code release note changes
-   background-session isolation, or the owner records the #4598 decision.
+   Verification record for that paragraph. Claim: a background session launched inside a linked
+   git worktree keeps the record Write in place; one launched from a non-linked checkout is
+   blocked or moved into an auto-created worktree before its first edit. Basis: the docs, "Before
+   editing files, Claude moves the session into an isolated git worktree", skipped when "the
+   session is already inside a linked git worktree, whether Claude created it under
+   `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
+   (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>); the `claude --bg`
+   probe, the `cc-plugins-lane-2` Writes and the refusal text, all on
+   [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598). As of
+   2026-09-29; the non-linked launch was not reproduced. Recheck trigger: that docs section
+   changes its block or skip rules, or a release note changes background-session isolation.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
@@ -348,16 +348,24 @@ frontier candidates (open linked PR)" rule in
 [`${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md`](${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md)
 as written, through the bound adapter's "Open linked PRs" operation: the closing-keyword linkage is
 the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a
-binding with no PR host keeps it. An excluded candidate is neither dispatched, nor ratify-queued,
-nor escalated, and this cycle changes none of its labels. The cycle report lists it as
-`in flight: #<item> (PR #<pr>, draft|ready, open <age>)`, oldest PR first, or as
-`in-flight check failed: #<item>` when the query errored. The gate itself stays boolean; for a
-candidate it has already excluded, a second query with the adapter's reporting reduction supplies
-the PR number, draft state, and age from `createdAt`. The exclusion has no age bound, so an
-abandoned, red, or stale-draft closing PR keeps its item out of every cycle and out of the
-no-progress counter; the age on this line is the operator's only signal until a bound exists. `/work-items:work`'s own dispatch-time
-staleness pre-check does not cover this: it runs only for items this gate dispatches, and a
-queued or escalated item never reaches it.
+binding with no PR host keeps it. An excluded candidate is neither dispatched nor ratify-queued,
+and within the age bound below it is not escalated and this cycle changes none of its labels. The
+cycle report lists it as `in flight: #<item> (PR #<pr>, draft|ready, open <age>)`, oldest PR first,
+or as `in-flight check failed: #<item>` when the query errored. The gate itself stays boolean; for
+a candidate it has already excluded, a second query with the adapter's reporting reduction supplies
+the PR number, draft state, and age from `createdAt`.
+
+The exclusion is bounded by age. Read `${user_config.work_loop_in_flight_stale_days}` (default 14;
+a surviving literal `${user_config.…}` placeholder means the key is unset, so apply the manifest
+default). A PR open longer than that stops silently excluding its item: it is still not dispatched
+or classified, and step 5 escalates it as `kind=escalated`, whose one-line question names the PR
+number, draft or ready state, and age, and asks the human to land, close, or unlink it. Step 5's
+marker read suppresses duplicates only while the item still wears the human-gated label; an item
+back on the frontier gets a fresh marker naming the PR, and the labeled item leaves the
+autonomous frontier. The cycle report lists it as `stale in flight: #<item> (PR #<pr>, draft|ready, open <age>) -> escalated`.
+A failed check has no age and stays excluded. The escalation is not progress: it does not reset
+the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check does not cover
+this: it runs only for dispatched items, never a queued or escalated one.
 
 Hard gates that override any classification:
 
@@ -432,14 +440,13 @@ citation. This lane's specifics:
 
 - **Qualifying progress** (worker lane, an item advanced or a PR opened): an admitted item
   executed to an opened PR or a closed item, or an item's tracker state advanced by this lane,
-  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A dirty
-  execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
+  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A stale
+  in-flight escalation is not progress. A dirty execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
   candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
-  excluded is waiting on its PR, not on this lane, so it does not count. Otherwise the cycle is
-  idle and the counter holds. A cycle
-  in which the rate-limit guard barred this lane from claiming new work is **held**, and the
+  excluded is waiting on its PR, not on this lane, so it does not count, stale or not. Otherwise the cycle is
+  idle and the counter holds. A cycle in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
   itself (the inlined floor above. Drain-then-pause): `rate_limit_latch` gates only adaptive-cap
   ramp-up here, so it alone never holds the counter, per the convention's held-cycle rule.

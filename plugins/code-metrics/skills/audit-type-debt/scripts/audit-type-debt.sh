@@ -5,7 +5,7 @@
 #
 #   audit-type-debt.sh [--json] [--all] [--base <ref>] [--config <resolved.json>] [<path>...]
 #
-# Prints the markdown report; `--json` prints the `code-metrics/v1` document
+# Prints the markdown report; `--json` prints the `code-metrics/v2` document
 # instead. Scope, lanes, and the collector ladder are the dispatcher's
 # (scripts/dispatch.sh in the plugin root); this script owns its own options.
 # Bash, Go, and C# report `not-applicable`: no tool produces a comparable

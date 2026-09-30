@@ -42,7 +42,10 @@ inventoried from the directory the session loads, and a divergence from the regi
 reported. The skill-listing budget is read from an existing debug log before anyone is asked to
 relaunch. `settings.local.json` is inspected structurally (key counts and the four model and
 effort keys) only, never read or echoed. `scripts/check-doc-citations.sh` greps every docs page the
-checklist cites for the keys and sentences it relies on.
+checklist cites for the keys and sentences it relies on. The engine and the citation check both read
+docs pages through `scripts/fetch-docs.sh` (a synced copy of the shared `lib/fetch-docs.sh`), which
+writes each page verbatim plus a per-run manifest (`url`, `retrieved`, `sha256`, `status`,
+`content_type`, `bytes`, `lines`, `state`, `reason`, and `claude_version`).
 
 ```shell
 /claude-config:audit              # full report-only audit
@@ -262,7 +265,7 @@ from `raw.githubusercontent.com` (read-only; a failed fetch degrades to SKIP).
 
 The bundled scripts run in `bash` (Claude Code's Bash-tool shell on every platform;
 [Git Bash](https://code.claude.com/docs/en/setup#set-up-on-windows) on native Windows). The
-JSON-parsing scripts require `jq`; the plugin-drift check additionally requires `curl`; and `awk`
+JSON-parsing scripts require `jq`; the plugin-drift check and the docs fetcher additionally require `curl`; and `awk`
 and `sort` are required across three skills, not one: `audit`'s engine (both),
 `audit-permission-grants`' rule check (both), and `audit-instructions`' conflict pass (both). Only the conflict pass probes for them and `exit 2`s naming the one that is missing; the
 others call them unguarded, so an absent `awk` or `sort` surfaces there as a bare `command not

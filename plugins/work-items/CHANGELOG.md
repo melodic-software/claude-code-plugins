@@ -3,6 +3,40 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`setup` description fits the 1024-codepoint Agent Skills maximum.** The description keeps its trigger phrases and the check and apply summary; the first-run and schedule-summary detail lives in the skill body. The skill leaves the description-cap baseline.
+
+## [0.43.0] - 2026-09-29
+
+### Changed
+
+- **`work-loop` and `attend-queue` drop a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet. `work-loop` records the account of the snapshot that tripped the pause, not the account `.claude.json` names at pause entry, as the latched account beside `rate_limit_latch` and `paused_until`. It reads the account at pause entry and on each paused wake and Monitor tick, and on a change clears the latch when the new account is below the pause threshold, re-latches at or above it, and drops the latch and runs reactive-only when no fresh snapshot attributes the new account (`reference/paused-wait.md`). The account read falls back to `shasum -a 256` where `sha256sum` is absent and rejects a value that is not email-shaped, and the tee file is read once so the fingerprint and the windows come from the same snapshot. A fresh snapshot with one plausible window resumes when that window is below the threshold. Four evals cover a resume on a wake with a keep-latch on an unreadable state file, a switch found at pause entry, an unattributed trip that stays paused, and a switch with one plausible window. `attend-queue` keeps no durable state and holds the latched account in the session.
+- **`work-loop`'s instance-collision block and its `instance:` cycle-report line moved, unchanged, from `SKILL.md` to `reference/telemetry-upsert.md`.** The floor sync pushed `SKILL.md` past the 500-line cap; `SKILL.md` keeps a pointer.
+
+## [0.42.1] - 2026-09-29
+
+### Changed
+
+- **The work-loop recommends launching a background lane from inside an isolated linked worktree.** "Background-job launch mode" now says to `git worktree add` and run `claude --bg` from there, because a linked worktree outside `.claude/worktrees` keeps the lane's record write in place; the fallback wording for a non-isolated launch is kept
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+
+## [0.42.0] - 2026-09-29
+
+### Added
+
+- **The work-loop bounds its in-flight exclusion by PR age.** A candidate whose open closing PR is older than the new `work_loop_in_flight_stale_days` option (default 14) is no longer silently excluded: the lane escalates it with the `kind=escalated` marker naming the PR, its draft or ready state, and its age, and the cycle report lists it as `stale in flight`. Younger PRs stay excluded as before, and the escalation does not reset the no-progress streak
+  ([#5326](https://github.com/melodic-software/claude-code-plugins/issues/5326)).
+
+## [0.41.10] - 2026-09-29
+
+### Fixed
+
+- **`create-item` works on a GitHub CLI whose GraphQL calls are refused.** Below gh 2.94 it creates the item with `gh api repos/{owner}/{repo}/issues`, emits it from a REST read, and resolves the repo over REST. The `--type` fallback adds the mapped `type:` label only when the repo defines it and otherwise omits it with a stderr note. The GitHub adapter README's *Search items* operation has a REST form (a repo-scoped issues listing filtered client-side) for the `track add` duplicate pre-flight
+  ([#5338](https://github.com/melodic-software/claude-code-plugins/issues/5338)).
+
 ## [0.41.9] - 2026-09-29
 
 ### Fixed

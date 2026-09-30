@@ -15,11 +15,17 @@
 #   flow.md    mermaid sequenceDiagram. Asynchronous hops use -->> .
 #              Synchronous hops use ->> . A handoff names map-events.
 #
-# Consecutive hops with the same from-role, to-role, sync, resolution, and
+# Consecutive hops with the same from-role, to-role, sync, resolution, mechanism, and
 # handoff collapse to one arrow. The artifact says how many were collapsed.
 #
 # Prints one summary line on stdout:
-#   flow: entry=<name> hops=<n> truncated=<yes|no> unresolved=<n> handoffs=<n>
+#   flow: entry=<name> hops=<n> truncated=<yes|no> unresolved=<n> external=<n> di=<n> handoffs=<n>
+#
+# unresolved counts every unresolved hop. external counts the ones whose receiver
+# is outside the tree or of unknown type (mechanism external-call,
+# receiver-type-unknown, callee-not-in-tree). di counts interface and service-locator
+# hops (mechanism interface, dependency-injection). The rest are ambiguous-method,
+# reflection and broker hand-offs.
 #
 # Exit: 0 = written; 1 = unreadable, not schema_version 1, or not the
 # one-object-per-line layout (nothing is written); 2 = usage.
@@ -164,7 +170,11 @@ BEGIN { out = ENVIRON["OUT_FILE"] }
   res[n] = jstr($0, "resolution")
   mech[n] = jstr($0, "mechanism")
   hand[n] = jstr($0, "handoff")
-  if (res[n] == "unresolved") unresolved++
+  if (res[n] == "unresolved") {
+    unresolved++
+    if (mech[n] ~ /^(external-call|receiver-type-unknown|callee-not-in-tree)$/) external++
+    else if (mech[n] ~ /^(interface|dependency-injection)$/) di++
+  }
   if (hand[n] == "yes") handoffs++
 }
 END {
@@ -173,7 +183,7 @@ END {
   i = 1
   while (i <= n) {
     j = i
-    while (j < n && from[j + 1] == from[i] && to[j + 1] == to[i] && sync[j + 1] == sync[i] && res[j + 1] == res[i] && hand[j + 1] == hand[i])
+    while (j < n && from[j + 1] == from[i] && to[j + 1] == to[i] && sync[j + 1] == sync[i] && res[j + 1] == res[i] && mech[j + 1] == mech[i] && hand[j + 1] == hand[i])
       j++
     m++
     c_from[m] = from[i]
@@ -229,9 +239,9 @@ END {
   collapsed = 0
   for (i = 1; i <= m; i++) if (c_count[i] > 1) collapsed += c_count[i]
   if (collapsed > 0)
-    emit("Collapsed " collapsed " hops that shared a role pair, sync, resolution, and handoff. The table above keeps every cited call.")
+    emit("Collapsed " collapsed " hops that shared a role pair, sync, resolution, mechanism, and handoff. The table above keeps every cited call.")
   else
     emit("No consecutive hops were collapsed.")
-  printf "flow: entry=%s hops=%d truncated=%s unresolved=%d handoffs=%d\n", entry, n + 0, (truncated == "" ? "no" : truncated), unresolved + 0, handoffs + 0
+  printf "flow: entry=%s hops=%d truncated=%s unresolved=%d external=%d di=%d handoffs=%d\n", entry, n + 0, (truncated == "" ? "no" : truncated), unresolved + 0, external + 0, di + 0, handoffs + 0
 }
 AWK

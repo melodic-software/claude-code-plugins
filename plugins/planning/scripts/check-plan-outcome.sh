@@ -47,8 +47,9 @@
 #   bash check-plan-outcome.sh --help
 #
 # Output (stdout, greppable): one `criterion=<name> status=<pass|fail> ...` line
-# per criterion, each failing path hit as `path-hit=<line>:<text>`, then a
-# closing `phases=<n> status=<ok|fail>` line. `--approval-only` prints the single
+# per criterion, each failing path hit as `path-hit=<line>:<text>` (at most 20
+# lines, then `path-hit-truncated=<n>` when more exist; `hits=` is the full
+# count), then a closing `phases=<n> status=<ok|fail>` line. `--approval-only` prints the single
 # `criterion=approval status=<pass|fail>` line.
 
 set -uo pipefail
@@ -232,6 +233,8 @@ else
   report blast-radius fail "level=missing (no Blast radius line naming LOW, MEDIUM, HIGH or CRITICAL)"
 fi
 
+readonly max_path_hits=20
+
 # /Users and /home must begin a path: not preceded by a path-continuation character.
 path_hits="$(
   tr -d '\r' <"$plan" |
@@ -241,8 +244,12 @@ path_hits="$(
 if [[ -z "$path_hits" ]]; then
   report portable-paths pass "hits=0"
 else
-  report portable-paths fail "hits=$(printf '%s\n' "$path_hits" | wc -l | tr -d ' ')"
-  printf '%s\n' "$path_hits" | sed 's/^/path-hit=/'
+  total_hits="$(printf '%s\n' "$path_hits" | wc -l | tr -d ' ')"
+  report portable-paths fail "hits=$total_hits"
+  printf '%s\n' "$path_hits" | head -n "$max_path_hits" | sed 's/^/path-hit=/'
+  if [[ "$total_hits" -gt "$max_path_hits" ]]; then
+    printf 'path-hit-truncated=%s\n' "$((total_hits - max_path_hits))"
+  fi
 fi
 
 if [[ "$failed" -eq 0 ]]; then

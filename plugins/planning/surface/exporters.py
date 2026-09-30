@@ -57,12 +57,20 @@ import json
 import re
 from pathlib import Path
 
-from server import EMPTY_RESPONSES, MAX_VISUAL_FILE, load_json, read_visual_file
+from server import (
+    EMPTY_RESPONSES,
+    IMAGE_TYPES,
+    MAX_VISUAL_FILE,
+    load_json,
+    read_visual_file,
+)
 
 # The Brief contract's arbiter tokens (the interview skill's context/loop.md "Brief template").
 ARBITER_USER = "**arbiter: USER-RESERVED**"
 ARBITER_PLAN = "**arbiter: /planning:plan**"
 SEED_NOTE = "Seeded from ledger"
+# The note an accept made by an accept-audit event exports with (schema/event.schema.json).
+PENDING_NOTE = "pending agent validation"
 ROW = re.compile(r"^\s*-\s+[Qq]([0-9]+)\s*\|(.*)$")
 LEAD = re.compile(r"^\[([^\]\s]+)\]\s*(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
@@ -91,14 +99,6 @@ CONFIRMED = re.compile(r"^(?:; )?confirmed:(:?)(?: |$)(.*)$", re.DOTALL)
 TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
 ANSWER_MARK = re.compile(r"^answer::(?: |$)(.*)$", re.DOTALL)
 WAS_MARK = re.compile(r"w(?=as:)", re.IGNORECASE)
-IMAGE_TYPES = {
-    ".png": "png",
-    ".jpg": "jpeg",
-    ".jpeg": "jpeg",
-    ".gif": "gif",
-    ".webp": "webp",
-    ".svg": "svg+xml",
-}
 
 
 def clean(s):
@@ -472,16 +472,29 @@ def latest_decision(q, responses):
     return newest_decision(q, responses, aside=False)
 
 
+def pending_validation(rec, events):
+    """rec, carrying the pending-validation note when it is the accept an accept-audit made:
+    the page decision it came from is an accept event with `auditSeq`. Any later decision, or a
+    terminal answer, carries another seq (or none) and reads as its own."""
+    src = next((e for e in events if e.get("seq") == rec.get("seq")), None)
+    if rec.get("decision") == "accept" and src and "auditSeq" in src:
+        return {**rec, "text": PENDING_NOTE}
+    return rec
+
+
 def commitments(q, events):
     """(confirmed, unconfirmed) commitment texts; a live `confirm` event ticks one by index, and
-    so does a `commitsConfirmed` record from the confirm-commitments op."""
+    so does a `commitsConfirmed` record from the confirm-commitments op. A confirm event at or
+    below `commitsSinceSeq` was made against an earlier commitment list and does not tick."""
     commits = q.get("commits") or []
     ticked = {c.get("index") for c in q.get("commitsConfirmed") or []}
+    since = q.get("commitsSinceSeq")
     for e in events:
         if (
             e.get("id") == q["id"]
             and e.get("kind") == "confirm"
             and not e.get("withdrawn")
+            and (since is None or (e.get("seq") or 0) > since)
         ):
             try:
                 ticked.add(int(e.get("alt")))
@@ -534,6 +547,7 @@ def settle(q, responses, events, seed_rows):
         # The resolution stays the seed's own, so a re-import reads the same proposal back.
         return "superseded-by-plan", seed_resolution(seed, confirmed), text, False
     if decision in ("accept", "alt", "own", "defer"):
+        rec = pending_validation(rec, events)
         return (*answer_row(q, rec, confirmed), text, decision == "defer")
     if superseded:
         # A set-aside decision leaves the plan's proposal waiting on the user again.
@@ -642,11 +656,28 @@ def export_brief(d):
     out += [
         f"- {r['n']} {clean(r['q'].get('short'))}: {r['display']}" for r in answered
     ] or ["- none recorded"]
+    restatement = doc.get("restatement") or {}
+    verdicts = [
+        e.get("alt")
+        for e in resp.get("events") or []
+        if e.get("kind") == "confirm-understanding"
+        and e.get("contentRev") == restatement.get("rev")
+    ]
+    restated = (
+        restatement.get("sections", {}).get("acceptance")
+        if verdicts[-1:] == ["confirm"]
+        else None
+    )
+    criteria = [
+        "- " + para(re.sub(r"^(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?", "", line.strip()))
+        for line in str(restated or "").splitlines()
+        if line.strip()
+    ]
     out += [
         "",
         "### Acceptance criteria",
         "",
-        "- none recorded in the interview surface",
+        *(criteria or ["- none recorded in the interview surface"]),
         "",
     ]
     out += ["### Captured assumptions", ""]
@@ -729,7 +760,7 @@ def visuals_for(doc, q):
     out += [
         v for v in doc.get("visuals") or [] if v.get("scope") == f"question:{q['id']}"
     ]
-    return out
+    return [v for v in out if not v.get("archived")]
 
 
 def thread(q, resp):
@@ -837,7 +868,11 @@ def export_report(d):
     scoped = {
         v.get("id") for q in doc.get("questions") or [] for v in visuals_for(doc, q)
     }
-    others = [v for v in doc.get("visuals") or [] if v.get("id") not in scoped]
+    others = [
+        v
+        for v in doc.get("visuals") or []
+        if v.get("id") not in scoped and not v.get("archived")
+    ]
     if others:
         out.append("<h2>Visuals</h2>")
         out += [render_visual(v, d) for v in others]

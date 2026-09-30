@@ -7,6 +7,24 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Location outliers ratified, 2026-09-29
+
+- **Consumer config placed outside `.claude/` is declared, not drift (#3577).** `standards`
+  (`<standards_dir>/`), `songwriting` (`songwriting/templates/pat-pattison/`) and the `work-items`
+  recurring schedule (`.github/recurring-schedule.json`) are recorded as Declared exceptions, each
+  with a four-part record, and `songwriting` and the schedule gain Implementers rows.
+  [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) rules on location
+  only and names the recursive `.claude/**/*.local.*` line as the canonical overlay spelling,
+  applied when each surface next touches its setup. No `contract_version` bump: declaring
+  exceptions changes neither precedence nor what a layer means.
+
+## Semantics table generated, 2026-09-29
+
+- **The glance table is generated from the Implementers rows (#3575).** The Implementers table
+  gains `Who wins` and `Merge form` columns; `scripts/sync-config-cascade-semantics.py` writes the
+  glance table from them and `--check` fails on drift. No `contract_version` bump: a derived view
+  and documentation columns, not a rule change.
+
 ## Consumer gotchas forms narrowed, 2026-09-29
 
 - **`consumer-gotchas.md` permits one local form (#3547).** Consumer gotchas live in the `## Gotchas`

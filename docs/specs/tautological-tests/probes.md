@@ -92,7 +92,7 @@ directory whose `.claude/testing.yaml` holds two excludes, one rule level and on
 
 | Run | Load average | before p95 | no config p95 | with config p95 |
 |---|---|---|---|---|
-| idle, separate runs | under 8 | 116, 123 ms | 123, 126 ms | not measured |
+| idle, separate runs | under 8 | 116, 123 ms | 123, 126 ms | 130, 133, 131 ms (next section) |
 | interleaved, 3 rounds | 22-27 | 189, 164, 177 ms | 175, 179, 179 ms | 181, 196, 188 ms |
 
 With no layer file the scan does three file tests more and nothing else, and the loaded rounds put
@@ -102,6 +102,23 @@ before on the round means. Idle before plus that delta is about 130-135 ms, insi
 budget, but that figure is an estimate: the host stayed above load 20 for the whole session, and
 every arm, before included, went over 150 ms under that load. Re-measure the config arm on an idle
 host.
+
+### Idle config arm (WSL2, 2026-09-29)
+
+Three arms per round, one sample of each per iteration, 50 samples, each round started only at a
+1-minute load below 8 (5.6-6.9 across the run), on the scanner that follows helpers to any depth:
+test-scan with no layer file, test-scan with a user-layer `.claude/testing.yaml` (two excludes,
+one rule level, one `extend` list), and test-weaken with the same layer on an Edit that removes a
+test block. Each arm was first checked to emit its finding or weakening note.
+
+| Round | test-scan no config p50/p95 | test-scan config p50/p95 | test-weaken config p50/p95 |
+|---|---|---|---|
+| 1 | 110/116 ms | 120/130 ms | 104/109 ms |
+| 2 | 115/124 ms | 123/133 ms | 107/113 ms |
+| 3 | 112/119 ms | 122/131 ms | 105/113 ms |
+
+The layer file costs about 10 ms at p50 and 12-14 ms at p95, matching the loaded estimate above.
+Every arm meets the 150 ms p95 budget at idle.
 
 ### Phase 6: `test-weaken` (WSL2, 2026-09-29)
 
@@ -119,3 +136,28 @@ The scanner change leaves test-scan within noise of before. test-weaken runs abo
 test-scan on every round, because `--inventory` skips the Playwright config walk and the rules. No
 arm meets the 150 ms p95 budget at load 33-36, before included; the idle measurement moves to
 Phase 8 with the Phase 5 config arm.
+
+## Release 2 probes
+
+Claude Code 2.1.285, WSL2, 2026-09-30. Each probe ran in its own scratch git repository under
+`.work/tautological-tests-judge/probe/` with throwaway project-scope hooks; logs, hook payloads and
+tmux pane captures are in its `logs/` folder. Sessions started through a wrapper that unsets the
+calling session's `CLAUDE_*` variables. Interactive probes ran `claude` in tmux. "stand-in judge"
+is the Phase 3 judge command with `timeout 150`, `TEST_JUDGE_ACTIVE=1`, `--system-prompt`,
+`--tools Read,Grep,Glob`, `--allowedTools "Read(<repo>/**)" "Grep(<repo>/**)" "Glob(<repo>/**)"`,
+`--settings '{"disableAllHooks":true}'`, `--setting-sources ""`, `--strict-mcp-config`,
+`--effort medium` and `--max-budget-usd`.
+
+| id | version | command | observed | verdict | design thread |
+|---|---|---|---|---|---|
+| R2-P1 | 2.1.285 | `claude -p` (haiku, sonnet, opus) spawning a general-purpose subagent that runs Bash; PreToolUse and SubagentStart hooks log payloads | the subagent's Bash PreToolUse carries `agent_id` and the parent's `session_id` in all three sessions; `CLAUDE_CODE_SESSION_ID` in the hook env matches | holds | DT8 |
+| R2-P2 | 2.1.285 | same sessions; `jq '.message.model'` on assistant lines | main transcript lines: `claude-haiku-4-5-20251001`, `claude-sonnet-5`, `claude-opus-5-5`; later sonnet runs the same day: `claude-sonnet-5-5` (both contain the class); subagent lines go to `<session>/subagents/agent-*.jsonl`, never the main transcript; a subagent's hook payloads (PreToolUse, SubagentStart) carry `agent_id` and the main `transcript_path` and `session_id`, and its file is `<dirname(transcript_path)>/<session_id>/subagents/agent-<agent_id>.jsonl` (4 subagent sessions, `p12-hooks.jsonl`). untested: a `<synthetic>` line on 2.1.285 (none produced); 52 seen in this machine's 2.1.283-2.1.284 transcripts, from usage-limit errors (`isApiErrorMessage: true`) and one "No response requested." | holds | DT3 |
+| R2-P3 | 2.1.285 | the Phase 3 judge command exactly as `docs/specs/tautological-tests-judge/plan.md` states it (stand-in flags plus `--disable-slash-commands`, parent environment unchanged, `ANTHROPIC_API_KEY` unset), model `haiku`, started from a Stop hook of a `claude -p` haiku session; variants: a six-question prompt at `--max-budget-usd 0.50`, and `--max-budget-usd 0.0001`; `--output-format stream-json --verbose --include-hook-events` added for observation | re-ran 2026-09-30 after the DT16 amendment. init: `skills: []`, `slash_commands: []`, `mcp_servers: []`, plugins only 2 builtin, tools Glob Grep Read; 0 hook events. No CLAUDE.md: codeword "NONE", no `ZEBRA` in the stream. System prompt replaced: reply starts "SYSPROMPT-OK", first turn 3,302 input tokens against 35,040 for the first run's default child; asked whether its system prompt mentions Claude Code, the model said YES, citing a system reminder. Model: `claude-haiku-4-5-20251001`. Budget: `error_max_budget_usd` after 1 turn, rc 1, $0.0042 spent against $0.0001 (one turn overshoots). Scoped allow rules refused the outside Read and Grep (`permission_denied`, "Path is outside allowed working directories"); the inside Read succeeded. `apiKeySource: "none"` with no key set; the run succeeded on the claude.ai login. Key billing is settled by the docs, not probed: "In non-interactive mode (`-p`), the key is always used when present" (code.claude.com/docs/en/env-vars, fetched 2026-09-30); the first run's placeholder key gave `apiKeySource: "ANTHROPIC_API_KEY"`. Hook env has `CLAUDE_CODE_CHILD_SESSION=1`. Logs `p3r-*` | holds | DT16 |
+| R2-P4 | 2.1.285 | two interactive haiku sessions in tmux; PostToolUse `async: true` Bash hook that starts a `claude -p` grandchild alive 90 s and logs a heartbeat; one session then ran `/clear`, the other `/exit` | the hook and grandchild kept running after the turn ended and while the session answered a new prompt; both survived `/clear` and interactive exit (after exit, 2 orphaned processes: hook shell and grandchild), received no signal, and finished normally ("grandchild exit=0", result "done", "hook end"); none remained afterward. Windows variant (native `claude.exe` 2.1.285 on melo-desk-001, hooks under Git Bash 5.3.15, one interactive haiku session driven over WSL interop; the turn, then a new prompt, `/clear`, `/exit`): the same result. The hook heartbeat continued through the new prompt, `/clear` and exit (exit rc=0); after exit 5 orphaned processes remained (four `bash.exe`: the `bash -c` wrapper, the hook script and two subshells; plus the `claude.exe` grandchild), none received a signal, and they finished normally ("grandchild exit=0", result "done", "hook end"); none remained afterward | holds | DT16 |
+| R2-P5 | 2.1.285 | interactive haiku session in tmux, Stop hook returning `systemMessage` with and without `decision: block` | pane shows "Stop says: SYSMSG-BLOCK-A" and "Stop says: SYSMSG-ALLOW-A"; the block reason is shown to the user as "Stop hook error: Reply with exactly the token FORCED-A ..." | holds | DT16 |
+| R2-P6 | 2.1.285 | `claude -p` haiku, Stop hook blocks when `stop_hook_active` is false | first Stop `stop_hook_active: false`, block, forced turn replied "FORCED-A"; second Stop `stop_hook_active: true`, allowed | holds | DT2 |
+| R2-P7 | 2.1.285 | stand-in judge, opus at medium effort, one test file with 1 test and one with 10, 3 runs each | 1 test: 11.1-12.1 s (process wall 13.1 s), 3 turns, output 1026-1071 tokens, input about 7.5k (cache write plus read), $0.023-0.054. 10 tests: 27.5-31.0 s (wall 29.0 s), 4-5 turns, output 3118-3561 tokens, input 13-18k, $0.073-0.090. n=3, so the ten-test figure is a maximum, not a p95 | holds | DT16 |
+| R2-P8 | 2.1.285 | interactive haiku session in tmux with `/clear`; then `claude -p --resume <id>` and `claude -p --resume <id> --fork-session` | `/clear`: new `session_id` and transcript (SessionEnd reason "clear", SessionStart source "clear"); `--resume`: same `session_id` (source "resume"); fork: new `session_id` and transcript (source "fork"), and its SessionStart payload names no parent session. Resume and fork were run through `-p` only. /compact (re-run 2026-09-30): same session_id, same transcript_path, SessionStart source "compact" | fails | DT8 |
+| R2-P9 | 2.1.285 | a Stop hook logs `CLAUDE_CODE_SESSION_ATTENDED`, `CLAUDE_CODE_ENTRYPOINT` and `permission_mode`, haiku, with (b) and (d) re-run on sonnet because haiku did not enter auto mode: (a) interactive default and (b) interactive `--permission-mode auto`, both in tmux; (c) `claude -p`; (d) `claude -p --permission-mode auto`; (e) `claude --bg`. Pass rule fixed before running: (a) and (b) read exactly `1`; (c), (d) and (e) anything else or absent | re-ran 2026-09-30 after the DT15 amendment. ATTENDED / ENTRYPOINT / permission_mode: (a) `1` / `cli` / `default`; (b) `1` / `cli` / `default` (haiku shows "manual mode on"); (c) `0` / `sdk-cli` / `default`; (d) `0` / `sdk-cli` / `default`; (e) `0` / `cli` / `default`. SessionStart and UserPromptSubmit carry the same values. The Stop block forced a turn in all five. Haiku did not engage auto in (b) or (d), so both re-ran on sonnet: (b) `1` / `cli` / `auto` (pane "auto mode on"), (d) `0` / `sdk-cli` / `auto`. From the first run: in `-p` the forced turn's reply replaces the `-p` result; `systemMessage` goes to stream-json as `system`/`informational` and to the transcript as `hook_system_message`, not to text or json output. Logs `p9r-hooks.jsonl` (c, d), `p5r-hooks.jsonl` (a, b, e), `p5r-pane-a.txt`, `p5r-pane-b.txt`, `p5r-pane-b-sonnet.txt`, `p5r-bg-logs.txt` | holds | DT15 |
+| R2-P10 | 2.1.285 | `claude -p` haiku with two Stop hooks that each block once | both reasons arrive as two separate "Stop hook feedback" user messages in one Stop; one forced turn, which obeyed only one ("FORCED-B"); the next Stop has `stop_hook_active: true` for both and both allow | holds | DT16 |
+| R2-P11 | 2.1.285 | `claude -p` with the installed `testing` 0.11.5 plugin hook (option set through `pluginConfigs`) writing `src/sum.test.js`; separately the `setup check` consumer entry (`test-scan.sh --enabled` from the plugin cache, `*.it.js` through `.claude/testing.yaml`) writing `src/sum2.it.js` | both runs wrote `marks/call-<tool_use_id>` under `~/.claude/plugins/data/testing-melodic-software/`; the plugin hook through `CLAUDE_PLUGIN_DATA`, the consumer entry by deriving it from the cache path; both returned `rule-zero-assertion` | holds | DT8 |

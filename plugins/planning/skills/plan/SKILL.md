@@ -225,6 +225,10 @@ Apply the reviewer rule under Planning Process before blast radius or presentati
    [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only
    sub-agent: the agent definition carries bounded `effort` and `maxTurns` that session effort cannot
    lower per invocation (the verification record in `agents/plan-reviewer.md`).
+   When the reviewer stops at its `maxTurns` limit its output may be marked partial, and older
+   clients do not mark it. A complete report ends with its `### Summary` counts, or is the literal
+   `No plan gaps found.` for a clean pass; treat any other return without that section as
+   incomplete whether or not a marker is present: resume it (or re-dispatch with a narrowed brief); never treat a partial table as a clean pass.
 4. **Verify reviewer findings** against the actual code/files before applying fixes. Sub-agent findings are synthesis, not ground truth
 5. Fix every confirmed gap in the plan BEFORE proceeding. Do not present a plan with known gaps. A fix that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
 
@@ -302,6 +306,46 @@ The skill does not automatically enter plan mode. The user controls permission m
 Plan mode is also a natural moment for a **scoping confirm**. If you're entering plan mode for safe exploration during planning, treat it as a license to ask 1–4 questions that settle what this plan covers, as one numbered round before proposing it. The round renders via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the questions are independent. Inline prose otherwise.
 
 **Substantive rounds do not belong in plan mode.** A question that resolves *what we are building*, real tradeoffs, contested requirements, anything whose answer changes the plan's shape, routes to `/planning:interview` via the Skill tool, run with **plan mode off**, for two reasons. Mechanically, that skill's ask-time open-question register is a disk write, and plan mode's read-only enforcement blocks it, so questions get asked with nothing on disk holding them. Doctrinally, plan mode primes the run toward producing the plan when the job is still reaching shared understanding. Plan mode's round confirms scope; it is not a substitute for the interview. **Getting there is the user's move, not yours**. Symmetric to entering plan mode above: you do not toggle permission modes, so when plan mode is active and a substantive round comes due, say why and ask the user to exit it (`shift+tab`), then invoke the interview once they have. Do not invoke it from inside plan mode on the assumption the register write will survive. It will not.
+
+## Boundary, the built-in `/plan` command
+
+The command and this skill share a name, so "plan this" can mean either.
+
+- **`/plan` (built-in command)**: `/plan [description]` enters plan mode, the read-only permission
+  mode Plan Mode Integration above describes, optionally starting on the description; `/plan open`
+  views the session plan. It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an
+  approval gate, and a persisted PLAN.md a cleared session can execute.
+
+**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: you
+can run `/plan` (or press `shift+tab`) alongside this skill. Prefer this skill for the plan
+itself. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** This skill writes PLAN.md and its checklist; `/plan` changes the permission
+mode. This skill never toggles the mode on the person's behalf.
+
+**Availability is never assumed.** This section states what to do when the person can run `/plan`,
+never that it is present. The four-part records live in
+[reference/native-plan.md](reference/native-plan.md).
+
+## Boundary, the built-in `Plan` agent
+
+Both produce an implementation plan, so "plan this" can also route to the subagent.
+
+- **`Plan` (built-in subagent)**: a research agent that returns a step-by-step approach to its
+  caller, skips CLAUDE.md, and runs no approval gate. It mutates nothing: it cannot write files. It
+  is reached through the Agent tool's `subagent_type`.
+- **This skill (marketplace plugin)**: the plan the person approves: stress-test, blast radius,
+  decision gates, and a persisted PLAN.md.
+
+**Routing.** When the built-in `Plan` agent resolves in this session, dispatch it for a throwaway
+approach sketch or read-only context-gathering whose result feeds other work; use this skill when
+the plan needs the person's approval or must outlive the session. This skill may dispatch `Plan`
+to gather context, but the plan it presents is its own.
+
+**Mutation gate.** `Plan` writes nothing. This skill writes PLAN.md and its checklist.
+
+The four-part records live in [reference/native-plan-agent.md](reference/native-plan-agent.md).
 
 ## Plan Review Mode
 

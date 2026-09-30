@@ -515,9 +515,11 @@ devnull_target_exempt() {
 # itself also reached the `/dev/null` exemption (#2226); a whole-operand parse
 # closes both, and devnull_target_exempt is where the discard half decides.
 #
-# SCOPE: Bash lane only. The PowerShell lane classifies on cmdlet/redirect
-# CO-OCCURRENCE and never resolves a single effective target, so there is no
-# well-defined target to exempt there; its `$null` discard is unchanged.
+# SCOPE: the Bash lane, and on the PowerShell lane only a command that is one
+# write to one literal destination (see _bbh_ps_write_exempt). Every other
+# PowerShell write keeps the lane's cmdlet/redirect CO-OCCURRENCE block, which
+# resolves no single effective target to exempt; its `$null` discard is
+# unchanged.
 _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 
 # --- Shipped default, in ADDITION to the configured list (#3719) -------------
@@ -564,10 +566,9 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 # default-on security guard, and ADR 0003 wants firing evidence before one of
 # those moves. Filed rather than decided.
 #
-# The consequence is that `printf '*' >> .work/.gitignore` still blocks. That
-# command is session-flow's own documented procedure, so the conflict routes back
-# to the skill (fix the procedure to use Write, which is scanned) rather than to
-# the guard, which is where the filed issue puts it.
+# The consequence is that `printf '*' >> .work/.gitignore` still blocks because the
+# memory tier is not exempt; write that file with Write, which the content guards
+# scan.
 #
 # THE PLUGIN DATA DIRECTORY (`<config dir>/plugins/data`, the config dir being
 # CLAUDE_CONFIG_DIR or `~/.claude`) IS a second default, on the same argument
@@ -1318,8 +1319,9 @@ py_inline_invocation() {
 # The block message (#4679). stderr is the model channel on exit 2, so it carries
 # only what the blocked agent can act on: the verdict, the Write/Edit remedy,
 # and on the redirect and staged-move lanes why the target was not
-# scratch-exempt plus the roots that would have exempted it. The PowerShell and
-# python lanes never consult a scratch root, so their remedy names none.
+# scratch-exempt plus the roots that would have exempted it. The python lane
+# never consults a scratch root, and the PowerShell lane consults one only for a
+# single literal destination, so their remedy names none.
 #
 # The operator's levers and the guard's scope are not the agent's to act on.
 # The levers go on systemMessage once per (session, agent), latched by
@@ -1377,8 +1379,10 @@ _bbh_exempt_roots() {
 block_bypass() {
   local form="$1" reason="$2" noun=target code
   echo "BLOCKED: $reason" >&2
-  echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
+  [[ "$form" == powershell-computed-positional ]] ||
+    echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
   case "$form" in
+  powershell-computed-positional) ;;
   cat-redirect | echo-redirect | staged-write-move)
     [[ "$form" == staged-write-move ]] && noun="move destination"
     code="$_BBH_SCRATCH_REFUSAL"
@@ -1404,10 +1408,159 @@ block_bypass() {
   echo "Operator levers for this guard: the guardrails README, block-hook-bypass." >&2
   if hook::notice_once "guardrails-block-hook-bypass-levers" "$INPUT" &&
     [[ "$HOOK_NOTICE_KIND" == full ]]; then
-    hook::emit_channels PreToolUse "" "guardrails block-hook-bypass blocked a shell file-write. Its levers, narrowest first: (1) block_hook_bypass_scratch_roots, a target-scoped exemption for Bash redirect targets; (2) a session-scoped disable via claude --settings; (3) the user-global block_hook_bypass_enabled switch via /plugin configure, which persists in every repository where guardrails is enabled, so re-enable it once the bypass is no longer needed. This guard is a deterrent over one command string, not a sandbox; the guardrails README lists what it does not inspect."
+    hook::emit_channels PreToolUse "" "guardrails block-hook-bypass blocked a shell file-write. Its levers, narrowest first: (1) block_hook_bypass_scratch_roots, a target-scoped exemption for Bash redirect targets and a PowerShell command's single literal write destination; (2) a session-scoped disable via claude --settings; (3) the user-global block_hook_bypass_enabled switch via /plugin configure, which persists in every repository where guardrails is enabled, so re-enable it once the bypass is no longer needed. This guard is a deterrent over one command string, not a sandbox; the guardrails README lists what it does not inspect."
   fi
   emit_tel "blocked" "$form"
   exit 2
+}
+
+# 0 when the PowerShell command <$1>, which ps::write_bypass already refused, is
+# one write whose single literal destination lies strictly under an exempt root.
+# Called only on that refusal, so a command that was going to pass pays nothing.
+#
+# Every test fails closed, and a command must pass all of them:
+#   - the reduction ps::write_bypass ran is trusted, and the command carries no
+#     `$`, backtick, `(`, `)`, `{`, `}`, `@`, `&`, `"`, `;`, `#`, `<`, CR or
+#     newline, nor a construct, dynamic invocation or launcher ps:: treats as
+#     untrusted. Here-strings, splats, subexpressions, call operators, comments
+#     and statement lists are therefore all out, and a single-quoted span, the
+#     only quoting left, is a literal with nothing to evaluate.
+#   - exactly ONE write form, counted over the split words: one word that is
+#     exactly one of ps::write_bypass's cmdlet and alias names (a single-quoted
+#     word counts, its quotes removed), or one unquoted `>`/`>>` redirect. A
+#     destination that merely contains such a name, or a `>` inside quotes, is
+#     not a form. A command naming a second writer, or an IO.File /
+#     StreamWriter, keeps its block.
+#   - a cmdlet write is Out-File, Set-Content, Add-Content (`ac`), Tee-Object
+#     (`tee`), Export-Csv (`epcsv`) or Export-Clixml, as the first word of its
+#     pipeline segment. Its arguments are one destination, bound by -Path,
+#     -FilePath, -LiteralPath, -LP or -PSPath or given positionally, plus only
+#     the value-free switches -Append, -Force, -NoClobber, -NoNewline and
+#     -NoTypeInformation. Any other flag, a colon-attached one included, could
+#     take the operand as its value and leave the write's real path to come
+#     from the pipeline, so it refuses. `sc` and the other Export-* cmdlets,
+#     whose destination parameters are not modeled, keep their block.
+#   - the destination is one token, bare or exactly one single-quoted span,
+#     free of `*`, `?`, `[`, `]`, `,` and `|`, and absolute: a drive path, or on
+#     a POSIX host also a `/` path. On Windows PowerShell resolves `/x` against
+#     the current drive, not the Git Bash root this guard would compare.
+#   - scratch_target_exempt grants it, `\` folded to `/` and case-folded as the
+#     Bash lane's segment scan delivers its targets.
+_bbh_ps_write_exempt() {
+  local cmd="$1" lc n=0 cmdlet="" t="" i ch v="" r="" have=0 inq=0 j k start=-1 end
+  local a op_r="" op_v="" op_n=0
+  local -a tv=() tr=()
+  ((PS_REDUCTION_UNTRUSTED)) && return 1
+  case "$cmd" in
+  *[\$\`\(\)\{\}@\&\"\;#'<']* | *$'\n'* | *$'\r'*) return 1 ;;
+  *) ;; # no refused character
+  esac
+  ps::has_special_constructs "$cmd" && return 1
+  ps::has_dynamic_invocation "$cmd" && return 1
+  ps::has_launcher "$cmd" && return 1
+  lc="${cmd,,}"
+  [[ "$lc" == *io.file* || "$lc" == *streamwriter* ]] && return 1
+  # Split into words, `|` and `>` markers, keeping each word's raw spelling.
+  # A marker's raw form is the bare character; a quoted `'|'` word keeps quotes.
+  for ((i = 0; i <= ${#cmd}; i++)); do
+    ch="${cmd:i:1}"
+    if ((inq)); then
+      r+="$ch"
+      if [[ "$ch" == "'" ]]; then inq=0; else v+="$ch"; fi
+      continue
+    fi
+    case "$ch" in
+    "'")
+      inq=1
+      r+="$ch"
+      have=1
+      ;;
+    '' | ' ' | $'\t' | '|' | '>')
+      if ((have)); then
+        tv+=("$v")
+        tr+=("$r")
+      fi
+      v="" r="" have=0
+      if [[ "$ch" == '|' ]]; then
+        tv+=('|') tr+=('|')
+      elif [[ "$ch" == '>' ]]; then
+        [[ "${cmd:i+1:1}" == '>' ]] && i=$((i + 1))
+        tv+=('>') tr+=('>')
+      fi
+      ;;
+    *)
+      v+="$ch" r+="$ch" have=1
+      ;;
+    esac
+  done
+  ((inq)) && return 1
+  # Count write forms over whole words, so a destination whose name contains a
+  # cmdlet or alias spelling (`out-file.csv`, a `tee` folder) is not a second form.
+  local re='^(set-content|add-content|out-file|tee-object|ac|tee|sc|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+)$'
+  for ((k = 0; k < ${#tv[@]}; k++)); do
+    [[ "${tv[k],,}" =~ $re ]] || continue
+    n=$((n + 1))
+    cmdlet="${BASH_REMATCH[1]}"
+  done
+  for ((k = 0; k < ${#tr[@]}; k++)); do
+    if [[ "${tr[k]}" == '>' ]]; then t+='>'; fi
+  done
+  if ((n == 1 && ${#t} == 0)); then
+    case "$cmdlet" in
+    out-file | set-content | add-content | ac | tee-object | tee | export-csv | epcsv | export-clixml) ;;
+    *) return 1 ;;
+    esac
+  elif ((n != 0 || ${#t} != 1)); then
+    return 1
+  fi
+  if [[ -z "$cmdlet" ]]; then
+    for ((k = 0; k < ${#tr[@]}; k++)); do
+      [[ "${tr[k]}" == '>' ]] || continue
+      ((k + 1 < ${#tr[@]})) || return 1
+      [[ "${tr[k + 1]}" == '|' || "${tr[k + 1]}" == '>' ]] && return 1
+      op_r="${tr[k + 1]}" op_v="${tv[k + 1]}" op_n=1
+      break
+    done
+  else
+    for ((k = 0; k < ${#tr[@]}; k++)); do
+      if ((k == 0)) || [[ "${tr[k - 1]}" == '|' ]]; then
+        [[ "${tr[k],,}" == "$cmdlet" ]] && start=$k && break
+      fi
+    done
+    ((start >= 0)) || return 1
+    for ((end = start + 1; end < ${#tr[@]}; end++)); do
+      [[ "${tr[end]}" == '|' ]] && break
+    done
+    for ((j = start + 1; j < end; j++)); do
+      a="${tr[j],,}"
+      case "$a" in
+      -path | -filepath | -literalpath | -lp | -pspath)
+        ((j + 1 < end)) || return 1
+        j=$((j + 1))
+        op_r="${tr[j]}" op_v="${tv[j]}" op_n=$((op_n + 1))
+        ;;
+      -append | -force | -noclobber | -nonewline | -notypeinformation) ;;
+      -*) return 1 ;;
+      *) op_r="${tr[j]}" op_v="${tv[j]}" op_n=$((op_n + 1)) ;;
+      esac
+    done
+  fi
+  ((op_n == 1)) || return 1
+  if [[ "$op_r" == *"'"* ]]; then
+    [[ "$op_r" =~ ^\'[^\']*\'$ ]] || return 1
+  fi
+  [[ -n "$op_v" ]] || return 1
+  case "$op_v" in
+  *[\*\?\[\],\|]*) return 1 ;;
+  *) ;; # no wildcard, list or pipe character
+  esac
+  v="${op_v//\\//}"
+  if ((_BBH_WIN)); then
+    [[ "$v" =~ ^[A-Za-z]:/ ]] || return 1
+  else
+    [[ "$v" == /* || "$v" =~ ^[A-Za-z]:/ ]] || return 1
+  fi
+  scratch_target_exempt "${v,,}" 0 0
 }
 
 # PowerShell tool: the Bash strip / producer scan below does not model the
@@ -1429,7 +1582,12 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
   if ps::write_bypass "$COMMAND"; then
-    block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+    if [[ "$PS_WRITE_BYPASS_ARM" == computed-positional ]]; then
+      block_bypass "powershell-computed-positional" "a call through a variable (& \$var) with 2+ positional operands is read as Set-Content <path> <value>; call the program by a literal quoted path (& 'C:/path/tool.exe' args) or put a flag before the positional operands"
+    fi
+    if ! _bbh_ps_write_exempt "$COMMAND"; then
+      block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+    fi
   fi
   # Interpreter-producer writes (`python3 -c "<inline code that writes>"`) route
   # around Write/Edit whichever tool launches them, and ps::write_bypass models only

@@ -288,6 +288,12 @@ class TestRefusals(DirCase):
         self.assertNotIn("Q1,", err)
         self.assertNotIn("names Q1", err)
 
+    def test_version_label_is_not_a_bare_id(self):
+        q = question("Q4", title="Ship the V1 release on K8s?")
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0)
+        self.assertNotIn("V1", err)
+
     def test_apply_add_round_warns(self):
         ops = {
             "ops": [
@@ -396,6 +402,73 @@ class TestRevise(DirCase):
         rc, out, err = self.rp("revise", "Q1", "--alt", "a:One", "--alt", "b:Two")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
+
+
+class TestReviseCommits(DirCase):
+    def revise_commits(self, *commits):
+        args = [a for c in commits for a in ("--commit", c)]
+        return self.rp("revise", "Q1", "--rec", "New.", "--affects", "none", *args)
+
+    def test_cli_writes_the_commitments_in_order(self):
+        rc, out, err = self.revise_commits("A", "B")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], ["A", "B"])
+
+    def test_commit_none_clears_them(self):
+        rc, out, err = self.revise_commits("none")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], [])
+
+    def test_commit_alone_is_a_revision(self):
+        rc, out, err = self.rp("revise", "Q1", "--commit", "A")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["commits"], ["A"])
+        self.assertEqual(self.q("Q1")["contentRev"], 1)
+        self.assertIn("commitments", self.q("Q1")["history"][-1]["text"])
+
+    def test_the_same_list_changes_nothing(self):
+        out = self.assert_refused("revise", "Q1", "--commit", "Only one writer")
+        self.assertIn("nothing to revise", out)
+
+    def test_apply_op_takes_a_list_and_an_empty_list_clears(self):
+        for commits, want in ((["A", "B"], ["A", "B"]), (["none"], ["none"]), ([], [])):
+            ops = {"ops": [{"op": "revise", "id": "Q1", "commits": commits}]}
+            rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+            self.assertEqual(rc, 0, out + err)
+            self.assertEqual(self.q("Q1")["commits"], want)
+
+    def test_an_over_cap_commitment_is_refused_before_writing(self):
+        self.assert_refused("revise", "Q1", "--commit", "x" * 501)
+        ops = {"ops": [{"op": "revise", "id": "Q1", "commits": ["ok", "x" * 501]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_a_changed_list_drops_old_confirmations(self):
+        doc = self.doc()
+        doc["questions"][0]["commitsConfirmed"] = [
+            {"index": 0, "reason": "said in chat", "at": "2026-09-24T10:00:00Z"}
+        ]
+        self.write_doc(doc)
+        self.write_events(
+            [
+                {
+                    "seq": 7,
+                    "id": "Q1",
+                    "kind": "confirm",
+                    "alt": "0",
+                    "text": "",
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp(
+            "revise", "Q1", "--commit", "A", "--commit", "B", "--seq", "7"
+        )
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertNotIn("commitsConfirmed", q)
+        self.assertEqual(q["commitsSinceSeq"], 7)
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
 
 
 class TestStatus(DirCase):
@@ -610,6 +683,118 @@ class TestApply(DirCase):
             "handle",
         ):
             self.assertIn(name, out)
+
+
+class TestVisualOps(DirCase):
+    """replace-visual, archive-visual, and the primary-per-group rule."""
+
+    def apply(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+
+    def refused(self, *ops):
+        return self.assert_refused(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+
+    def add(self, *visuals):
+        self.apply({"op": "add-round", "visuals": list(visuals)})
+
+    def visual(self, vid, **extra):
+        return {"id": vid, "format": "markdown", "content": vid, **extra}
+
+    def live(self, vid):
+        return next(v for v in self.doc()["visuals"] if v["id"] == vid)
+
+    def test_replace_swaps_the_whole_object(self):
+        self.add(self.visual("v1", label="old", primary=True))
+        self.apply({"op": "replace-visual", "visual": self.visual("v1", label="new")})
+        self.assertEqual(self.live("v1"), self.visual("v1", label="new"))
+
+    def test_replace_unknown_id_is_refused(self):
+        out = self.refused({"op": "replace-visual", "visual": self.visual("nope")})
+        self.assertIn("unknown visual: nope", out)
+
+    def test_duplicate_add_names_replace_visual(self):
+        self.add(self.visual("v1"))
+        out = self.refused({"op": "add-round", "visuals": [self.visual("v1")]})
+        self.assertIn("replace-visual", out)
+
+    def test_archive_marks_visuals_and_keeps_them(self):
+        self.add(self.visual("v1"), self.visual("v2"))
+        self.apply({"op": "archive-visual", "ids": ["v1"], "why": "superseded"})
+        self.assertEqual(self.live("v1")["archived"]["why"], "superseded")
+        self.assertNotIn("archived", self.live("v2"))
+
+    def test_archive_unknown_id_or_blank_why_is_refused(self):
+        self.add(self.visual("v1"))
+        out = self.refused(
+            {"op": "archive-visual", "ids": ["v1", "nope"], "why": "gone"}
+        )
+        self.assertIn("unknown visual: nope", out)
+        self.refused({"op": "archive-visual", "ids": ["v1"], "why": " "})
+
+    def test_two_primaries_in_one_group_and_scope_are_refused(self):
+        self.add(self.visual("v1", scope="all", group="g", primary=True))
+        out = self.refused(
+            {
+                "op": "add-round",
+                "visuals": [self.visual("v2", scope="all", group="g", primary=True)],
+            }
+        )
+        self.assertIn("both primary", out)
+
+    def test_primaries_in_other_groups_scopes_or_archived_are_allowed(self):
+        self.add(
+            self.visual("v1", scope="all", group="g", primary=True),
+            self.visual("v2", scope="all", group="h", primary=True),
+            self.visual("v3", scope="question:Q1", group="g", primary=True),
+        )
+        self.apply({"op": "archive-visual", "ids": ["v1"], "why": "old"})
+        self.add(self.visual("v4", scope="all", group="g", primary=True))
+
+    def test_inline_visuals_count_toward_the_primary_rule(self):
+        q = question("Q9")
+        self.refused(
+            {
+                "op": "add",
+                "question": dict(
+                    q,
+                    visuals=[
+                        self.visual("i1", group="g", primary=True),
+                        self.visual("i2", group="g", primary=True),
+                    ],
+                ),
+            }
+        )
+        self.refused(
+            {
+                "op": "add-round",
+                "visuals": [
+                    self.visual("v1", scope="question:Q9", group="g", primary=True)
+                ],
+                "questions": [
+                    dict(q, visuals=[self.visual("i1", group="g", primary=True)])
+                ],
+            }
+        )
+
+    def test_replace_cannot_create_a_second_primary(self):
+        self.add(
+            self.visual("v1", scope="all", group="g", primary=True),
+            self.visual("v2", scope="all", group="g"),
+        )
+        self.refused(
+            {
+                "op": "replace-visual",
+                "visual": self.visual("v2", scope="all", group="g", primary=True),
+            }
+        )
+
+    def test_an_invalid_new_field_type_is_refused(self):
+        self.refused({"op": "add-round", "visuals": [self.visual("v1", order="x")]})
 
 
 class TestClaudeActivity(DirCase):
@@ -1144,6 +1329,140 @@ class TestRecordTerminal(DirCase):
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
 
 
+class TestReviseSetsAsideOwn(DirCase):
+    """A recommendation revision sets aside the counted own answer; other decisions stay."""
+
+    REC = ["--rec", "Use the lock.", "--affects", "none"]
+    CLOSED = "First group: 1 of 2 closed; open: Q2 Short Q2"
+    OPEN = "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2"
+
+    def answer(self, kind, text=""):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": kind,
+                    "alt": "a" if kind == "alt" else None,
+                    "text": text,
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+    def status(self):
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        return out.splitlines()
+
+    def latest(self):
+        from exporters import latest_decision
+
+        responses = json.loads((self.dir / "responses.json").read_text("utf-8"))
+        return latest_decision(self.q("Q1"), responses["responses"])
+
+    def test_revise_rec_sets_the_own_answer_aside(self):
+        self.answer("own", "what are the patterns?")
+        self.assertIn(self.CLOSED, self.status())
+        rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["setAsideSeq"], 1)
+        self.assertEqual(q["setAsideRev"], self.doc()["rev"])
+        self.assertNotIn("waiting", q)
+        self.assertNotIn("waitingBy", q)
+        self.assertIsNone(self.latest())
+        self.assertIn(self.OPEN, self.status())
+
+    def test_reply_rec_sets_the_own_answer_aside(self):
+        self.answer("own", "what are the patterns?")
+        rc, out, err = self.rp(
+            "reply", "Q1", "--text", "See below.", *self.REC, "--seq", "1"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["setAsideSeq"], 1)
+        self.assertIsNone(self.latest())
+        self.assertIn(self.OPEN, self.status())
+
+    def test_reply_without_rec_and_revise_without_rec_keep_the_answer(self):
+        self.answer("own", "what are the patterns?")
+        self.assertEqual(self.rp("reply", "Q1", "--text", "Noted.", "--seq", "1")[0], 0)
+        self.assertEqual(
+            self.rp("revise", "Q1", "--title", "Renamed?", "--seq", "1")[0], 0
+        )
+        self.assertNotIn("setAsideSeq", self.q("Q1"))
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_accept_and_alt_answers_are_not_set_aside(self):
+        for kind in ("accept", "alt"):
+            self.answer(kind)
+            rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("setAsideSeq", self.q("Q1"))
+            self.assertIsNotNone(self.latest())
+            self.assertIn(self.CLOSED, self.status())
+
+    def test_an_answer_saved_after_the_guard_read_is_not_set_aside(self):
+        sys.path.insert(0, str(HERE))
+        import round as r
+
+        snapshot = r.guard_revision(self.dir, self.doc(), "Q1", 0, False)
+        self.answer("own", "arrived after the guard read")
+        q = self.q("Q1")
+        r.set_aside_own(snapshot, self.doc(), q)
+        self.assertNotIn("setAsideSeq", q)
+
+    def test_a_terminal_own_answer_is_set_aside_too(self):
+        self.apply_ops(
+            {"op": "record-terminal", "id": "Q1", "decision": "own", "text": "x"}
+        )
+        self.apply_ops(
+            {"op": "revise", "id": "Q1", "rec": "Use the lock.", "affects": "none"}
+        )
+        q = self.q("Q1")
+        self.assertGreater(q["setAsideRev"], q["terminal"]["rev"])
+        self.assertIn(self.OPEN, self.status())
+
+    def test_a_terminal_own_record_after_the_revision_counts(self):
+        self.answer("own", "what are the patterns?")
+        self.assertEqual(self.rp("revise", "Q1", *self.REC, "--seq", "1")[0], 0)
+        rc, out, err = self.rp(
+            "record-terminal", "Q1", "--decision", "own", "--text", "the patterns"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.latest()["decision"], "own")
+        self.assertEqual(self.latest()["text"], "the patterns")
+        self.assertIn(self.CLOSED, self.status())
+
+    def test_a_terminal_record_in_the_same_apply_counts(self):
+        self.answer("own", "what are the patterns?")
+        self.apply_ops(
+            {
+                "op": "revise",
+                "id": "Q1",
+                "rec": "Use the lock.",
+                "affects": "none",
+                "seq": 1,
+            },
+            {
+                "op": "record-terminal",
+                "id": "Q1",
+                "decision": "own",
+                "text": "the patterns",
+            },
+        )
+        q = self.q("Q1")
+        self.assertLess(q["setAsideRev"], q["terminal"]["rev"])
+        self.assertEqual(self.latest()["text"], "the patterns")
+        self.assertIn(self.CLOSED, self.status())
+
+    def apply_ops(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+
+
 class TestArchive(DirCase):
     """AC20 server side: archive sets archived {why, at}, never state."""
 
@@ -1357,6 +1676,46 @@ class TestRebuild(unittest.TestCase):
         self.assertEqual(responses["Q1"]["seq"], 1)
         self.assertEqual([h["kind"] for h in history["Q1"]], ["accept", "confirm"])
         self.assertEqual(history["Q1"][1]["alt"], "0")
+
+
+class TestGroupSummaryOf(DirCase):
+    """A group summary records the questions it was written for and warns when they change."""
+
+    def add_group(self, summary):
+        rc, out, err = self.rp("group", "g3", "--title", "T", "--summary", summary)
+        self.assertEqual(rc, 0, out + err)
+
+    def add(self, qid):
+        return self.rp("add", "--file", self.file("q.json", question(qid, group="g3")))
+
+    def test_a_summary_rewrite_records_the_members(self):
+        self.add_group("First take.")
+        self.assertEqual(self.add("Q4")[0], 0)
+        self.assertEqual(self.add("Q5")[0], 0)
+        self.add_group("Second take.")
+        g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
+        self.assertEqual(g3["summaryOf"], ["Q4", "Q5"])
+
+    def test_a_question_added_after_the_summary_warns_and_keeps_summary_of(self):
+        self.add_group("Take.")
+        self.add("Q4")
+        self.add_group("Take.")
+        rc, out, err = self.add("Q5")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("group g3 summary predates 1 questions", err)
+        g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
+        self.assertEqual(g3["summaryOf"], ["Q4"])
+
+    def test_add_round_with_summary_and_questions_records_them_without_warning(self):
+        spec = {
+            "groups": [{"id": "g3", "title": "T", "summary": "Take."}],
+            "questions": [question("Q4", group="g3"), question("Q5", group="g3")],
+        }
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("summary predates", err)
+        g3 = next(g for g in self.doc()["groups"] if g["id"] == "g3")
+        self.assertEqual(g3["summaryOf"], ["Q4", "Q5"])
 
 
 class TestMeta(DirCase):
