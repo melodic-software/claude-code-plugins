@@ -133,7 +133,7 @@
       "kind": "name_glob",
       "pattern": "nul",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-nul-ext",
@@ -141,7 +141,7 @@
       "kind": "name_glob",
       "pattern": "nul.*",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-con",
@@ -149,7 +149,7 @@
       "kind": "name_glob",
       "pattern": "con",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-con-ext",
@@ -157,7 +157,7 @@
       "kind": "name_glob",
       "pattern": "con.*",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-prn",
@@ -165,7 +165,7 @@
       "kind": "name_glob",
       "pattern": "prn",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-prn-ext",
@@ -173,7 +173,7 @@
       "kind": "name_glob",
       "pattern": "prn.*",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-aux",
@@ -181,7 +181,7 @@
       "kind": "name_glob",
       "pattern": "aux",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-aux-ext",
@@ -189,7 +189,7 @@
       "kind": "name_glob",
       "pattern": "aux.*",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-com",
@@ -197,7 +197,7 @@
       "kind": "name_glob",
       "pattern": "com[1-9]",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-com-ext",
@@ -205,7 +205,7 @@
       "kind": "name_glob",
       "pattern": "com[1-9].*",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-lpt",
@@ -213,7 +213,7 @@
       "kind": "name_glob",
       "pattern": "lpt[1-9]",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     },
     {
       "id": "windows-device-name-lpt-ext",
@@ -221,7 +221,7 @@
       "kind": "name_glob",
       "pattern": "lpt[1-9].*",
       "confidence_ceiling": "low",
-      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+      "reason": "Windows reserved device name on a non-Windows filesystem; a regular file of this name is most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     }
   ]
 }
