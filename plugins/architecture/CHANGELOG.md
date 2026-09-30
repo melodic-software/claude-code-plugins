@@ -24,7 +24,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   `map-containers` now reads a store URL such as
   `redis://cache.example.com:6379;x`. With it set, a URL whose authority ends at
   an unencoded `?` or `#` with an `@` after it yields no row. A caller that does
-  not set it is unchanged. No-leak fixtures cover userinfo, query tokens, and a `;` inside userinfo.
+  not set it is unchanged. No-leak fixtures cover userinfo, query tokens, and a
+  `;` inside userinfo.
 
 ## [0.13.0] - 2026-09-29
 
