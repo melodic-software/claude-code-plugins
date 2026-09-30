@@ -536,7 +536,19 @@ class HygieneTests(unittest.TestCase):
                     "preselect": True,
                 }
             ],
-            "unknown-match-key": [{"match": {"class": "temp"}, "preselect": True}],
+            "unknown-match-key": [{"match": {"glob": "*.tmp"}, "preselect": True}],
+            "hint-id-and-class": [
+                {
+                    "match": {"hint_id": "common-temp-file", "class": "temp"},
+                    "preselect": True,
+                }
+            ],
+            "hint-ids-and-class": [
+                {
+                    "match": {"hint_ids": ["common-temp-file"], "class": "temp"},
+                    "preselect": True,
+                }
+            ],
             "empty-hint-ids": [{"match": {"hint_ids": []}, "preselect": True}],
             "non-string-hint-id": [{"match": {"hint_id": 3}, "preselect": True}],
             "missing-preselect": [{"match": good}],
@@ -596,6 +608,158 @@ class HygieneTests(unittest.TestCase):
                     hygiene.HygieneError, "min_age_basis"
                 ):
                     hygiene.load_policy(path)
+
+    def _class_hint(self, hint_id: str, pattern: str, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": hint_id,
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": pattern,
+            "confidence_ceiling": "low",
+            "reason": "Class fixture",
+            **fields,
+        }
+
+    def test_class_rule_resolves_to_every_merged_hint_carrying_the_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"}),
+                    self._class_hint("orig-file", "*.orig", **{"class": "backup"}),
+                ],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "hint_ids": ["bak-file", "orig-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                        "class": "backup",
+                    }
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_baseline_temp_hints_carry_the_temp_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[{"match": {"class": "temp"}, "preselect": True}],
+            )
+            (rule,) = hygiene.load_policy(path)["rules"]
+            self.assertLessEqual(
+                {"common-temp-file", "common-temp-directory", "scratch-artifact"},
+                set(rule["hint_ids"]),
+            )
+            self.assertNotIn("common-lock-file", rule["hint_ids"])
+
+    def test_class_rule_rejects_an_unknown_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for value in ("nope", "", None, ["temp"]):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[{"match": {"class": value}, "preselect": True}],
+                )
+                with (
+                    self.subTest(value=value),
+                    self.assertRaisesRegex(
+                        hygiene.HygieneError, "class must be one of"
+                    ),
+                ):
+                    hygiene.load_policy(path)
+
+    def test_class_rule_rejects_a_class_no_merged_hint_carries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[{"match": {"class": "crash-dump"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(
+                hygiene.HygieneError, "matches no hint.*crash-dump"
+            ):
+                hygiene.load_policy(path)
+            disabled = self._overlay(
+                temporary,
+                "disabled.json",
+                additional_hints=[
+                    self._class_hint("dump-file", "*.dmp", **{"class": "crash-dump"})
+                ],
+                disabled_hint_ids=["dump-file"],
+                rules=[{"match": {"class": "crash-dump"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "matches no hint"):
+                hygiene.load_policy(disabled)
+
+    def test_hint_class_is_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[self._class_hint("x", "*.x", **{"class": "nope"})],
+            )
+            with self.assertRaisesRegex(
+                hygiene.HygieneError, "hint class must be one of"
+            ):
+                hygiene.load_policy(path)
+
+    def test_class_rule_preselects_tagged_hints_and_names_the_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "guarded").mkdir(parents=True)
+            (root / "a.bak").write_text("old", encoding="utf-8")
+            (root / "a.orig").write_text("old", encoding="utf-8")
+            (root / "guarded" / "keep.bak").write_text("old", encoding="utf-8")
+            (root / "plain.txt").write_text("keep", encoding="utf-8")
+            overlay = self._overlay(
+                temporary,
+                "class.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"}),
+                    self._class_hint("orig-file", "*.orig"),
+                ],
+                additional_protected_path_globs=["guarded/**"],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            entries = hygiene.entry_map(
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
+            )
+            self.assertIs(True, entries["a.bak"]["preselected"])
+            self.assertEqual(
+                {
+                    "source": str(overlay),
+                    "index": 0,
+                    "hint_id": "bak-file",
+                    "class": "backup",
+                },
+                entries["a.bak"]["policy_rule"],
+            )
+            self.assertNotIn("preselected", entries["a.orig"])
+            self.assertNotIn("preselected", entries["plain.txt"])
+            protected = entries["guarded/keep.bak"]
+            self.assertIn("consumer-protected-path", protected["protected_reasons"])
+            self.assertIs(False, protected["preselected"])
+
+    def test_id_rule_policy_rule_carries_no_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "a.tmp").write_text("x", encoding="utf-8")
+            overlay = self._overlay(
+                temporary,
+                "id.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            entry = hygiene.entry_map(
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
+            )["a.tmp"]
+            self.assertNotIn("class", entry["policy_rule"])
 
     def test_rules_layer_in_order_and_the_failing_layer_changes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

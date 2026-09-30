@@ -1112,8 +1112,12 @@ def apply_policy_overlay(
             )
         known_ids.add(hint["id"])
     disabled_set = set(disabled)
-    merged_ids = known_ids - disabled_set
-    rules = validate_rules(overlay.get("rules", []), merged_ids, overlay_path)
+    merged_hints = [
+        hint
+        for hint in (*result["hints"], *additions)
+        if hint["id"] not in disabled_set
+    ]
+    rules = validate_rules(overlay.get("rules", []), merged_hints, overlay_path)
     elevation = overlay.get("elevation", result["elevation"])
     if not isinstance(elevation, str) or elevation not in ELEVATION_VALUES:
         raise HygieneError(
@@ -1135,18 +1139,20 @@ def apply_policy_overlay(
 
 
 HINT_ENTRY_TYPES = ("file", "directory", "link", "other")
+HINT_CLASSES = ("superseded-version", "backup", "empty", "temp", "crash-dump")
 MAX_EMPTY_DIRECTORY_PATHS = 200
 
 
 def validate_rules(
-    rules: Any, hint_ids: set[Any], overlay_path: Path
+    rules: Any, hints: list[dict[str, Any]], overlay_path: Path
 ) -> list[dict[str, Any]]:
     """Validate an overlay's `rules` and normalize each `match` to `hint_ids`.
 
-    Rules match on hint id: an entry carries no class, only the hints that
-    matched it. A rule naming an id missing from the merged hint set is
-    rejected so a typo cannot silently preselect nothing.
+    A rule matches on hint id or on a hint class, which resolves to the ids of
+    the merged hints carrying it. A rule naming an id or a class that no merged
+    hint carries is rejected so a typo cannot silently preselect nothing.
     """
+    hint_ids = {hint["id"] for hint in hints}
     if not isinstance(rules, list):
         raise HygieneError(f"rules must be an array: {overlay_path}")
     normalized = []
@@ -1163,9 +1169,20 @@ def validate_rules(
         match = rule.get("match")
         if not isinstance(match, dict) or len(match) != 1:
             raise HygieneError(
-                f"rule match must be an object with exactly one of hint_id or hint_ids: {overlay_path}"
+                f"rule match must be an object with exactly one of hint_id, hint_ids or class: {overlay_path}"
             )
-        if "hint_id" in match:
+        match_class = match.get("class")
+        if "class" in match:
+            if match_class not in HINT_CLASSES:
+                raise HygieneError(
+                    f"rule match class must be one of {', '.join(HINT_CLASSES)}: {overlay_path}"
+                )
+            ids = [h["id"] for h in hints if h.get("class") == match_class]
+            if not ids:
+                raise HygieneError(
+                    f"rule match class matches no hint ({overlay_path}): {match_class}"
+                )
+        elif "hint_id" in match:
             ids = [match["hint_id"]]
         elif (
             "hint_ids" in match
@@ -1175,7 +1192,7 @@ def validate_rules(
             ids = match["hint_ids"]
         else:
             raise HygieneError(
-                f"rule match must be a hint_id string or a non-empty hint_ids array: {overlay_path}"
+                f"rule match must be a hint_id string, a non-empty hint_ids array or a class: {overlay_path}"
             )
         if not all(isinstance(value, str) and value for value in ids):
             raise HygieneError(
@@ -1194,6 +1211,8 @@ def validate_rules(
             "source": str(overlay_path),
             "index": index,
         }
+        if match_class is not None:
+            entry["class"] = match_class
         if "min_age_days" in rule:
             days = rule["min_age_days"]
             if isinstance(days, bool) or not isinstance(days, int) or days < 0:
@@ -1297,6 +1316,8 @@ def apply_rules(
             "index": rule["index"],
             "hint_id": hint_id,
         }
+        if "class" in rule:
+            entry["policy_rule"]["class"] = rule["class"]
         entry["preselected"] = rule["preselect"] and not entry["protected_reasons"]
         if entry["preselected"] and "min_age_days" in rule:
             reason = rule_in_flight_reason(entry, rule["min_age_days"], facts, now_ns)
@@ -1309,11 +1330,13 @@ def validate_hint(hint: Any) -> None:
     if not isinstance(hint, dict):
         raise HygieneError("each additional hint must be an object")
     required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
-    if not required <= set(hint) or set(hint) - required - {"entry_types"}:
+    if not required <= set(hint) or set(hint) - required - {"entry_types", "class"}:
         raise HygieneError(
             "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason "
-            "and optionally entry_types"
+            "and optionally entry_types and class"
         )
+    if "class" in hint and hint["class"] not in HINT_CLASSES:
+        raise HygieneError(f"hint class must be one of {', '.join(HINT_CLASSES)}")
     if "entry_types" in hint:
         entry_types = hint["entry_types"]
         if (
