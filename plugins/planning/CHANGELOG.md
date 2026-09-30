@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.6] - 2026-09-29
+## [0.47.7] - 2026-09-29
 
 ### Fixed
 
 - **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.47.6] - 2026-09-29
+
+### Fixed
+
+- **The interview surface's carry chip reads "carried N rounds" and explains itself on hover.** It no longer repeats the state word ("Open open 2 rounds"), and its tooltip says the question was asked that many rounds before the stage's latest round and is still unanswered ([#5449](https://github.com/melodic-software/claude-code-plugins/issues/5449)).
 
 ## [0.47.5] - 2026-09-29
 
