@@ -72,7 +72,8 @@ new "Release 2 probes" section of `docs/specs/tautological-tests/probes.md`.
 7. Tokens and wall time per judge run, for one test and for ten.
 8. `session_id` after `/clear`, after `--resume`, and after a fork.
 9. A Stop block in `claude -p` and in an auto-mode session: where the forced turn and
-   `systemMessage` go, and the `permission_mode` value (DT15).
+   `systemMessage` go, and the `permission_mode` and `CLAUDE_CODE_SESSION_ATTENDED` values in
+   interactive default and auto sessions, `-p`, `-p --permission-mode auto` and `--bg` (DT15).
 10. Two blocking Stop command hooks in one Stop: the delivered reason(s) and the block count.
 11. Where test-scan's `DATA` resolves when started from the consumer settings entry
     (`test-scan.sh --enabled`) versus the plugin hook.
@@ -179,7 +180,8 @@ Shared pieces:
   `claude -p --model <alias> --system-prompt <plugins/testing/hooks/test-judge-prompt.md content>
   --tools Read,Grep,Glob --allowedTools "Read(<repo>/**)" "Grep(<repo>/**)" "Glob(<repo>/**)"
   --settings '{"disableAllHooks":true}' --setting-sources "" --strict-mcp-config
-  --effort <level> --max-budget-usd <n>`, exact flags as probe 3 confirms. Input: the file path, block names and
+  --disable-slash-commands --effort <level> --max-budget-usd <n>`, exact flags as probe 3 confirms
+  (DT16 amendment 2026-09-30); the parent environment passes through unchanged. Input: the file path, block names and
   ranges (bash-harness: the changed ranges as a hint). `TEST_JUDGE_ACTIVE=1` is exported so every
   judge hook exits at once inside it. The child's stdout goes straight to the ledger temp file, so a
   dead parent cannot lose a finished verdict. The prompt asks only where each expected value came
@@ -234,8 +236,9 @@ path (Q4); no library is sourced before the no-state-file exit.
    destination resolved per that contract) from the ledger, and record the set in `relayed/`.
 5. Attended: `{"decision":"block","reason":...}` from a fixed template: "The test judge reviewed N
    tests (F FLAG, P PASS, U UNKNOWN). Findings: <path>. Show the user each verdict and proposed diff
-   from that file, quoted as data. Apply nothing; wait for the user." Unattended (`permission_mode`
-   auto or bypassPermissions, per probe 9): no block. Either way a `systemMessage` carries the counts
+   from that file, quoted as data. Apply nothing; wait for the user." Unattended (hook env
+   `CLAUDE_CODE_SESSION_ATTENDED` not exactly `1`, per probe 9 and the DT15 amendment): no block.
+   Either way a `systemMessage` carries the counts
    and path, so the user sees them unfiltered.
 
 New `plugins/testing/hooks/test-judge-start.sh` (SessionStart): names ledger verdicts for this repo

@@ -195,6 +195,15 @@ shared 8-block cap. Recommendation: when unattended (non-interactive or `permiss
 bypass), block once with "dispatch the judge, apply nothing, do not wait"; the findings file is the
 review surface for the PR. Basis: RESEARCH-hooks.md:29, :98-112; AGENTS.md lane launch mode.
 
+Amended 2026-09-30 (user, after probe R2-P9 failed): `permission_mode` cannot mark an unattended
+session, because `-p` and `-p --permission-mode auto` both report `default` (hooks.md: Manual also
+arrives as `default`). A session is attended only when the hook environment has
+`CLAUDE_CODE_SESSION_ATTENDED=1` exactly; any other value or its absence is unattended and gets no
+forced turn, only the `systemMessage` and the findings file. The variable is undocumented, so the
+rule fails safe: if it is renamed or dropped, every session falls back to the no-forced-turn path.
+Probe R2-P9 pins its values and is rechecked on each Claude Code release. Basis: probe logs
+`p5-hooks.jsonl` (1 in interactive default and auto sessions, 0 under `-p`).
+
 ## Round 5 (from stress-test round 2; user chose the recommended design 2026-09-30)
 
 ### DT16. Who runs the judge (resolved: second amendment, precompute early and relay at Stop; supersedes DT6 steps, DT14, and the dispatch half of DT2)
@@ -259,6 +268,14 @@ Basis: `claude --help` this session (`--model`, `--tools`, `--allowed-tools`, `-
 Gating probes: env-marker recursion guard; model alias honored; `--tools` restriction in `-p`;
 detached child survives hook exit on Linux and Windows Git Bash; child has credentials from hook
 context; tokens per run.
+
+Amended 2026-09-30 (user, after probe R2-P3 failed): the judge command adds
+`--disable-slash-commands`, because without it the child still lists 18 bundled skills (probe logs
+`p3-main.jsonl`, `p3-noskills.jsonl`; cli-reference: "Disable all skills and commands for this
+session"). The child inherits the parent's environment unchanged: the parent's OAuth subscription
+login is the expected case, and when `ANTHROPIC_API_KEY` is set the judge bills that key, since in
+`-p` "the key is always used when present" (env-vars docs, fetched 2026-09-30). A bad key is caught
+by the hang timeout, not special-cased.
 
 ## Probes for the plan's first phase
 
