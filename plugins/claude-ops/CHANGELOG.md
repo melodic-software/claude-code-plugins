@@ -3,6 +3,94 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.66.2] - 2026-09-29
+
+### Added
+
+- **`observability` carries a Boundary section for the bundled skill `explain-usage`.** When it
+  resolves, it answers where this session's tokens went in plain language; this skill keeps local
+  telemetry, cross-session trends, hooks, and cost.
+
+## [0.66.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:audit-skill-visibility` resolves `bash` through `PATH` when enumerating managed
+  scope.** On Windows a bare `bash` reached the WSL relay in `System32` instead of Git Bash, so the
+  managed-scope read failed. The name now goes through `shutil.which`, and a missing `bash` reports
+  the managed scope as unreadable. The audit suite runs on `windows-2025` in CI again.
+
+## [0.66.0] - 2026-09-29
+
+### Added
+
+- **`inventory` reports every built-in surface's arguments and invocability.** Commands, bundled
+  skills and bundled workflows carry `argument_hint`, `user_invocable` and `model_invocable`,
+  resolved from the bundle; a value the bundle computes at runtime is `null` and counted under
+  `integrity.undetermined`, never guessed.
+- **`inventory` has a bundled-workflows lane** (`bundled_workflows`, canary `deep-research`) with
+  its own integrity status.
+- **`inventory --docs`** fetches the live commands page and changelog and classifies each name:
+  documented, undocumented, alias, removed in the docs, removed but still registered, or
+  docs-only, with kind and alias disagreements. A fetch failure degrades that block only.
+  `--docs-file` and `--changelog-file` run it offline.
+- **`audit-native-overlap detect` discovers candidates** by scoring every native surface against
+  every repo skill and agent (`--threshold`, `--top-k`), beside the seeded pairs. Each candidate
+  carries `invocable_by` and a `recommended_integration` label: a user-only surface is
+  recommended as `suggest`. A label is never a verdict.
+
+### Fixed
+
+- **`inventory` extraction on Claude Code 2.1.284.** Template-literal substitutions are now read as
+  code, so a quote inside a regex in `${...}` no longer desynchronizes the brace reader (15 of 152
+  commands resolved before). `registerSlidesSkill`, literal-table skill rosters and
+  constant-named commands resolve. Validated against 2.1.284.
+- **`inventory --docs` bounds untrusted text.** A fetched body over 16 MB degrades the docs block
+  instead of loading, and a table row over 8,000 characters is skipped, so a malformed page
+  cannot stall the parser on regex backtracking. A body truncated after its headers
+  (`http.client.HTTPException`) degrades the block instead of raising.
+- **`audit-native-overlap detect` scores a plugin-backed command once**, under its plugin-backed
+  class and with the description the extractor enriched it with, instead of adding a bare second
+  surface.
+- **A model-invocable bundled workflow is recommended `route`, never `wrap`**, matching the store
+  rule that rejects `wrap` on a bundled-workflow row.
+
+## [0.65.0] - 2026-09-29
+
+### Added
+
+- **`/claude-ops:audit-install-state` reports `unreferenced_versions`.** Each plugin cache version
+  directory that no `installPath` in `plugins/installed_plugins.json` references is listed with its
+  `bytes`, `.orphaned_at` marker age, and whether it is past the 14-day sweep window. Report-only:
+  removal stays with `/disk-hygiene:clean`. A missing or unparsable registry yields an empty list
+  and a note, so an empty list reads as "not checked". The report schema is now
+  `claude-install-state/3`, and `content_read_paths` lists only the registry and markers actually
+  opened. Marker reads refuse symlinks and non-regular files.
+- **A note that a running session keeps the plugin version it loaded**, so hook and guard messages
+  can name the previous version's path after an update until the session restarts.
+
+## [0.64.3] - 2026-09-29
+
+### Fixed
+
+- **`audit-native-overlap` rejects a baked description phrase on a model-disabled suggest row.** A
+  bundled skill the model cannot invoke, routed by an integration suggest, has no listing entry for
+  a phrase to live in, so the integration check now reports the combination as a problem.
+- **`audit-install-state` and `audit-skill-visibility` descriptions drop the doctor route phrase**,
+  matching the rule above.
+- **The three `doctor` registry rows drop the budget caveat and the evidence that assumed a baked
+  phrase**, so the registry no longer describes a routing phrase that does not exist.
+
+## [0.64.2] - 2026-09-29
+
+### Fixed
+
+- **The prerequisites check reads the plugin listing from a file, so a large fleet is fully
+  checked.** The listing was passed through an environment variable, and a listing over the
+  Linux per-variable limit (128 KiB) made the launch fail and the table print only part of the
+  fleet. Output from `claude plugin list --json` that is not a JSON list now exits 2 with an
+  error instead of falling back or printing a partial table.
+
 ## [0.64.1] - 2026-09-29
 
 ### Fixed

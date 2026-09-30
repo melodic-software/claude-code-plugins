@@ -1,10 +1,18 @@
 # Changelog: session-flow plugin
 
-## [0.40.1] - 2026-09-29
+## [0.40.2] - 2026-09-29
 
 ### Changed
 
 - **running-retro tests:** the `_short_id` determinism check carries `cant-fail-ok: determinism contract`, so the can't-fail scanner counts it as a deliberate exemption instead of a finding. Test-only.
+
+## [0.40.1] - 2026-09-29
+
+### Added
+
+- **`orient` carries a Boundary section for the built-in `/recap` command.** It keeps the durable and off-thread briefing and offers the person-run `/recap` for a one-line conversation recap rather than invoking it.
+- **`continue-in-background` carries a Boundary section for the built-in `/subtask`, `/fork`, and `/background` commands.** It keeps the save-point plus fresh `claude --bg` launch and offers the person-run native commands as alternatives or additions rather than invoking them.
+- **`retro` carries a Boundary section for the built-in `/insights` command.** It keeps the single-session scored retrospective and offers the person-run `/insights` for a cross-session usage report rather than invoking it.
 
 ## [0.40.0] - 2026-09-29
 

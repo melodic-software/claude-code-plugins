@@ -76,6 +76,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FACTS="$SCRIPT_DIR/portfolio-facts.sh"
 EDGES="$SCRIPT_DIR/reference-edges.sh"
+# shellcheck source=../../../lib/record-layout.sh
+source "$SCRIPT_DIR/../../../lib/record-layout.sh"
 
 usage() {
   # Print the header comment block only, selected by comment marker so --help
@@ -358,42 +360,7 @@ fi
 grep -q '"schema_version"[[:space:]]*:[[:space:]]*1' "$compare_to" ||
   die "not a schema_version 1 record: $compare_to" 1
 
-# The arrays below are recovered by line, so a record that is valid JSON in
-# another layout (compacted, or one key per line) would recover nothing and
-# report every repository and edge as added. Shared with render-landscape.sh:
-# each array is either empty on its key's line, or opens alone on that line and
-# holds one object of the expected shape per line until its closing bracket.
-# Prints the first problem, or nothing.
-read -r -d '' LAYOUT_AWK <<'AWK' || true
-BEGIN {
-  shape["repositories"] = "^[[:space:]]*[{]\"name\":"
-  shape["edges"] = "^[[:space:]]*[{]\"from\":"
-}
-function open_array(key,   rest) {
-  if (!match($0, "\"" key "\"[[:space:]]*:[[:space:]]*\\[")) return
-  rest = substr($0, RSTART + RLENGTH)
-  if (rest ~ /^[[:space:]]*\]/) { seen[key] = 1; return }
-  if (substr($0, 1, RSTART - 1) ~ /^[[:space:]]*$/ && rest ~ /^[[:space:]]*$/) { open = key; return }
-  problem = "the " key " array does not start on a line of its own"
-}
-open != "" {
-  if ($0 ~ /^[[:space:]]*\][[:space:]]*,?[[:space:]]*$/) { seen[open] = 1; open = ""; next }
-  if ($0 !~ shape[open]) { problem = "line " NR " is not one " open " object"; exit }
-  next
-}
-{
-  open_array("repositories")
-  if (problem == "" && open == "") open_array("edges")
-  if (problem != "") exit
-}
-END {
-  if (problem == "" && open != "") problem = "the " open " array never closes"
-  if (problem == "" && !("repositories" in seen)) problem = "no repositories array was found"
-  if (problem == "" && !("edges" in seen)) problem = "no edges array was found"
-  print problem
-}
-AWK
-layout_problem="$(awk "$LAYOUT_AWK" "$compare_to")"
+layout_problem="$(record_layout_problem "$compare_to")"
 [[ -z "$layout_problem" ]] ||
   die "record is not in the one-object-per-line layout this script writes ($layout_problem); regenerate it: $compare_to" 1
 
