@@ -104,8 +104,22 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
-- Never elevate, trigger UAC/sudo, install a dependency, close another process's handle, or disable a
-  retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
+- Never install a dependency, close another process's handle, or disable a retention mechanism.
+- While the scan output's `elevation` is `never` (the default), never elevate or trigger UAC/sudo.
+  Report `needs-elevation` or `handle-state-unverified` and stop that tier. With `uac-prompt`, on
+  Windows only, a path in the approved tier whose per-path `handoff-verify` returns `contested` with
+  `needs-elevation` as its only reason may go through an elevated script. Write a PowerShell script
+  under `<run-dir>` that re-checks each such path natively (still present, not a reparse point, no
+  entry the snapshot did not record), skips any that fails, removes the rest under the
+  [manual-lane rules](reference/unsupported-platform-handoff.md), and logs one result per path to a
+  file. Show the operator the script's full contents, launch it with
+  `Start-Process -Verb RunAs -Wait` so it waits behind the UAC prompt the operator approves, and read
+  the results back from the log. The script never invokes the engine. Never on Linux or macOS (no
+  sudo), never for a protected entry or any other contest reason, never without the per-tier
+  approval, never when the kill-switch probe reports execution disabled, and never for a
+  preview-time `needs-elevation` blocker, which still stops the tier. No guard sees the deletions
+  inside the script, and no Windows UAC pilot has run this lane yet: see
+  [Opt-in elevation](reference/safety-model.md#opt-in-elevation).
 - If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
   `${user_config.disk_hygiene_enabled}`), audit only and explain why execution is disabled. A
   literal unexpanded token is not evidence the toggle is unset, resolve it deterministically by
@@ -226,7 +240,7 @@ and protected names. Without `--policy`, the engine also layers standing policy 
 `~/.claude/disk-hygiene.json` (user-global), then `<project>/.claude/disk-hygiene.json` via
 `--project-dir`. An explicit `--policy` is the invocation-specific choice and replaces both standing
 layers. Every overlay can only disable/add hints and add protected globs; none can weaken hard guards.
-The scan output names its `policy_sources`. Treat scan errors and unvisited protected roots as
+The scan output names its `policy_sources` and the effective `elevation`. Treat scan errors and unvisited protected roots as
 coverage gaps, not clean results.
 
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
@@ -498,7 +512,7 @@ and what the guard does when no Python resolves → "Hook launch form".
   handoff confirm must appear. Add one if the manual handoff must not depend on hook-`ask`
   surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
-  the deletion authority.
+  the deletion authority, except inside the opt-in elevated script, which no guard sees.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

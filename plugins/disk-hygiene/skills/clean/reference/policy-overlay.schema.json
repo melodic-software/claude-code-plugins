@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "policy-overlay.schema.json",
   "title": "disk-hygiene policy overlay",
-  "description": "A standing policy file (~/.claude/disk-hygiene.json, <project>/.claude/disk-hygiene.json) or an explicit --policy file. Layers apply in that order and only add: an overlay can disable or add hints, add protected path globs, and, at version 2, add rules. No overlay can weaken a hard guard. The engine loader (load_policy, apply_policy_overlay) enforces the constraints this schema cannot express: hint ids in a rule must exist in the merged hint set, and additional hint ids must not collide with an existing id.",
+  "description": "A standing policy file (~/.claude/disk-hygiene.json, <project>/.claude/disk-hygiene.json) or an explicit --policy file. Layers apply in that order and only add: an overlay can disable or add hints, add protected path globs, and, at version 2, add rules. No overlay can weaken a hard guard. The one exception to only-add is the version 2 elevation opt-in. The engine loader (load_policy, apply_policy_overlay) enforces the constraints this schema cannot express: hint ids in a rule must exist in the merged hint set, additional hint ids must not collide with an existing id, and a project file may set elevation only to never.",
   "oneOf": [
     { "$ref": "#/$defs/overlayV1" },
     { "$ref": "#/$defs/overlayV2" }
@@ -47,6 +47,11 @@
           "description": "Rules that decide what a hinted entry is preselected for. Rules match on hint id (an entry carries hints, not a class). Later layers append; when two rules match the same entry, the rule from the later layer wins.",
           "type": "array",
           "items": { "$ref": "#/$defs/rule" }
+        },
+        "elevation": {
+          "description": "Whether the clean skill may offer a UAC-elevated re-check and removal for approved-tier paths that handoff-verify reports contested with needs-elevation as the only reason. Windows only; never sudo. Defaults to never. The last layer that sets it wins, and only the user-global file or an explicit --policy may set uac-prompt.",
+          "enum": ["never", "uac-prompt"],
+          "default": "never"
         }
       }
     },

@@ -177,7 +177,9 @@ engine plan:
    after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
    in the manual lane, where no snapshot token protects execution.
 4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
-   around a lock, or delete under a stale verdict.
+   around a lock, or delete under a stale verdict. The one exception is a `contested` verdict
+   whose only reason is `needs-elevation` while the effective `elevation` is `uac-prompt`: that
+   path may go through the [opt-in elevated script](safety-model.md#opt-in-elevation).
 
 ## The PowerShell guard lane
 

@@ -502,6 +502,66 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual([], result["rules"])
             self.assertEqual(["baseline"], result["policy_sources"])
 
+    def test_elevation_defaults_to_never(self) -> None:
+        self.assertEqual("never", hygiene.baseline_policy()["elevation"])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v2.json", rules=[])
+            self.assertEqual("never", hygiene.load_policy(path)["elevation"])
+
+    def test_elevation_accepts_uac_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(temporary, "v2.json", elevation="uac-prompt")
+            self.assertEqual("uac-prompt", hygiene.load_policy(path)["elevation"])
+
+    def test_elevation_rejects_every_other_value(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for value in ("always", "UAC-PROMPT", "sudo", "", True, None, 1, []):
+                path = self._overlay(temporary, "bad.json", elevation=value)
+                result = hygiene.baseline_policy()
+                with self.subTest(value=value), self.assertRaisesRegex(
+                    hygiene.HygieneError, "elevation must be one of"
+                ):
+                    hygiene.apply_policy_overlay(result, path)
+                self.assertEqual("never", result["elevation"])
+            v1 = self._overlay(temporary, "v1.json", version=1, elevation="never")
+            with self.assertRaisesRegex(hygiene.HygieneError, "unknown policy fields"):
+                hygiene.load_policy(v1)
+
+    def test_only_user_global_or_explicit_policy_may_opt_into_elevation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary) / "project"
+            (project / ".claude").mkdir(parents=True)
+            user_file = Path(temporary) / "user.json"
+            project_file = project / ".claude" / "disk-hygiene.json"
+            user_file.write_text(
+                json.dumps({"version": 2, "elevation": "uac-prompt"}), encoding="utf-8"
+            )
+            project_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user_file, project_file]
+            ):
+                self.assertEqual(
+                    "uac-prompt", hygiene.load_policy(None, project)["elevation"]
+                )
+                project_file.write_text(
+                    json.dumps({"version": 2, "elevation": "never"}), encoding="utf-8"
+                )
+                self.assertEqual(
+                    "never", hygiene.load_policy(None, project)["elevation"]
+                )
+                user_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
+                project_file.write_text(
+                    json.dumps({"version": 2, "elevation": "uac-prompt"}),
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(
+                    hygiene.HygieneError, "not a project policy"
+                ):
+                    hygiene.load_policy(None, project)
+            self.assertEqual(
+                "uac-prompt", hygiene.load_policy(project_file)["elevation"]
+            )
+
     def _preselect_fixture(
         self, directory: str, ceiling: str = "low"
     ) -> tuple[Path, dict[str, Any], Path]:
@@ -4096,6 +4156,7 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "children_rollup",
                 "errors",
                 "policy_sources",
+                "elevation",
                 "os_autoclean",
                 "note",
             },
@@ -4530,13 +4591,14 @@ class StdlibShadowingTests(unittest.TestCase):
                 home,
                 home / "snapshot.json",
                 snapshot,
-                {"policy_sources": ["baseline"]},
+                {"policy_sources": ["baseline"], "elevation": "uac-prompt"},
                 None,
                 "note",
             ),
             True,
         )
         self.assertEqual(snapshot["stdlib_shadowing"], payload["stdlib_shadowing"])
+        self.assertEqual("uac-prompt", payload["elevation"])
 
 
 class OsAutocleanAdvisoryTests(unittest.TestCase):

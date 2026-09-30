@@ -35,6 +35,7 @@ SCHEMA_VERSION = 1
 # Overlay versions the loader accepts; version 2 adds the `rules` array.
 OVERLAY_VERSIONS = (1, 2)
 RULE_MIN_AGE_BASES = ("mtime",)
+ELEVATION_VALUES = ("never", "uac-prompt")
 MAX_SNAPSHOT_ENTRIES = 250_000
 # The temp-zone size walk runs on every scan whose target overlaps the temp
 # directory, including the gated large-target probe, so it stays well below
@@ -233,6 +234,7 @@ def scan_complete_payload(
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
         "policy_sources": policy["policy_sources"],
+        "elevation": policy["elevation"],
         "os_autoclean": advisory,
         "note": note,
     }
@@ -750,6 +752,7 @@ def baseline_policy() -> dict[str, Any]:
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
         "rules": [],
+        "elevation": "never",
         "policy_sources": ["baseline"],
     }
 
@@ -800,12 +803,25 @@ def load_policy(
         if overlay_path is not None
         else standing_policy_paths(project_dir)
     )
+    project_layer = (
+        project_dir / ".claude" / "disk-hygiene.json"
+        if overlay_path is None and project_dir is not None
+        else None
+    )
     for path in overlays:
-        apply_policy_overlay(result, path)
+        apply_policy_overlay(result, path, project_scope=path == project_layer)
     return result
 
 
-def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
+def apply_policy_overlay(
+    result: dict[str, Any], overlay_path: Path, project_scope: bool = False
+) -> None:
+    """Layer one overlay onto ``result``; a failing layer changes nothing.
+
+    ``elevation`` is the one field that loosens rather than adds, so a
+    repository-controlled project file may set it only to ``never``; opting
+    into ``uac-prompt`` takes the user-global file or an explicit --policy.
+    """
     overlay = load_json(overlay_path)
     version = overlay.get("version")
     if isinstance(version, bool) or version not in OVERLAY_VERSIONS:
@@ -817,7 +833,7 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
         "additional_protected_path_globs",
     }
     if version == 2:
-        allowed.add("rules")
+        allowed.update({"rules", "elevation"})
     unknown = sorted(set(overlay) - allowed)
     if unknown:
         raise HygieneError(
@@ -845,12 +861,23 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
     disabled_set = set(disabled)
     merged_ids = known_ids - disabled_set
     rules = validate_rules(overlay.get("rules", []), merged_ids, overlay_path)
+    elevation = overlay.get("elevation", result["elevation"])
+    if not isinstance(elevation, str) or elevation not in ELEVATION_VALUES:
+        raise HygieneError(
+            f"elevation must be one of {', '.join(ELEVATION_VALUES)}: {overlay_path}"
+        )
+    if project_scope and "elevation" in overlay and elevation != "never":
+        raise HygieneError(
+            "elevation can be opted into only from the user-global policy or an "
+            f"explicit --policy, not a project policy: {overlay_path}"
+        )
     result["hints"] = [
         hint for hint in result["hints"] if hint.get("id") not in disabled_set
     ]
     result["hints"].extend(additions)
     result["additional_protected_path_globs"].extend(protections)
     result["rules"].extend(rules)
+    result["elevation"] = elevation
     result["policy_sources"].append(str(overlay_path))
 
 
