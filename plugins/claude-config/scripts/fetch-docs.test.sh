@@ -332,6 +332,9 @@ mkdir -p "$src"
 printf '%s\n' '# Docs' '- [X](http://other.test/docs/en/x.md): x' >"$src/llms.txt"
 shim_run "$src" "$TEST_TMPDIR/out20" x
 assert_eq "case 20: non-https link is off-origin" "unread off-origin" "$(page "$TEST_TMPDIR/out20/manifest.json" x '"\(.state) \(.reason)"')"
+printf '%s\n' '# Docs' '- [X](//other.test/docs/en/x.md): x' >"$src/llms.txt"
+shim_run "$src" "$TEST_TMPDIR/out20r" x
+assert_eq "case 20: protocol-relative link is off-origin" "unread off-origin" "$(page "$TEST_TMPDIR/out20r/manifest.json" x '"\(.state) \(.reason)"')"
 
 # --- Case: the claude version probe runs under a timeout ---
 mkdir -p "$TEST_TMPDIR/tbin"
