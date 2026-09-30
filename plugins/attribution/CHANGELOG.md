@@ -12,9 +12,12 @@
 
   **Method.** Each judge was one `claude -p` process (no subagent tool was available), model
   `opus`, effort `medium`, with no tools, no hooks, no skills, no MCP servers, no CLAUDE.md
-  discovery, and a neutral working directory outside any repository. The session's init event
-  listed empty `tools`, `skills`, `slash_commands` and `mcp_servers`. A judge could not open
-  `expected.json` because it could open nothing. Each prompt carried the `nomination.md` framing
+  discovery, and a neutral working directory outside any repository. A probe launched with the same
+  flags reported empty `tools`, `skills`, `slash_commands` and `mcp_servers` in its init event, and
+  each judge's input was 9,444 to 9,680 tokens, the size of its own prompt, so no standing
+  instruction text rode along. A judge could not open `expected.json` because it could open
+  nothing. Every one of the 96 criterion grades that a judge gave carries a quoted span, and each
+  quote is text from that judge's own prompt. Each prompt carried the `nomination.md` framing
   block, the "Judgment" prompt shape, the whole of `reference/rubric.md` as committed, one lens
   sentence, and the case block. The three lens sentences are the ones `nomination.md` names (could
   it have been written without the source in hand; what does a reader lose if the passage becomes a
@@ -68,7 +71,7 @@
   <panel findings>` with `cases_run` declaring all ten cases (`coverage_declared` true, nothing
   declined) returned, condensed to its `overall`, `by_class` and per-case `verdict` fields:
 
-  ```json
+  ```text
   {"scored":10,"tp":8,"fp":0,"fn":0,"tn":2,"precision":1,"recall":1}
   {"class":"verbatim","n":2,"tp":2,"fp":0,"fn":0,"tn":0,"precision":1,"recall":1,"gate":"report-only (n=2 below min_n_per_class=10)"}
   {"class":"near-verbatim","n":5,"tp":5,"fp":0,"fn":0,"tn":0,"precision":1,"recall":1,"gate":"report-only (n=5 below min_n_per_class=10)"}
@@ -103,8 +106,8 @@
     answer (no finding) holds.
 
   **One limit on the tier column.** The route line handed to judges ("served from a local copy")
-  drew tier commentary: nine of the thirty judges, across seven of the eight STANDS cases, mention
-  the `vendored-snapshot` row in their reasoning. That row's gate is a committed snapshot read
+  drew tier commentary: four of the thirty judges (on `c02`, `c03`, `c08` and `c10`) mention the
+  `vendored-snapshot` row in their reasoning. That row's gate is a committed snapshot read
   because a live fetch failed, which is not what a fixture's local source is. The panel never
   assigns a tier, every panel was unanimous on the verdict and class it returned, and the recorded
   tiers above come from `fingerprint.mjs`, so the commentary changed no result.
