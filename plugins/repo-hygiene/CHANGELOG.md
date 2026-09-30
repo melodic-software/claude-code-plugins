@@ -3,6 +3,23 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-09-30
+
+### Changed
+
+- **The batch plan defaults to a durable per-repo-set directory (#5215).** `clean-batch.sh` without
+  `--batch-plan` now writes the plan and manifests to `clean-batch/<tier>-<key>` under
+  `${CLAUDE_PLUGIN_DATA}`, else `~/.claude/plugins/data/repo-hygiene`, instead of a `mktemp`
+  directory. Each dry-run writes a new `run.*` directory under its tier, repo set and skip list, so
+  a later dry-run never replaces a plan already confirmed, and removes that set's `run.*`
+  directories older than 14 days. `--batch-plan FILE` still overrides.
+
+### Added
+
+- **The batch dry-run lists the planned paths per repo (#5215).** Each repo's paths print largest
+  first, read from the manifests apply consumes, capped at 20 per repo by the new
+  `--list-paths-max N`, with an `N more, see plan file: <path>` tail when the cap truncates.
+
 ## [0.16.0] - 2026-09-30
 
 ### Added
