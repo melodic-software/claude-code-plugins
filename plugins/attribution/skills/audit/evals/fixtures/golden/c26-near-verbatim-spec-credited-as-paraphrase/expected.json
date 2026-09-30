@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 7, "end_line": 10 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://github.com/cursor/plugins/blob/5f9a00e/pstack/skills/technical-writing/SKILL.md"
+  },
+  "notes": {
+    "shape": "Three consecutive bullets reproduced from a skill page with one added word of edit, under an intro that credits a different, upstream standard as the thing being paraphrased. The file names an attribution, and it is the wrong one: the proximate source is never named.",
+    "carve_outs": "None apply. The quoted example inside the third bullet is stripped by the fingerprint module and is not part of the span.",
+    "rubric": "C1 holds: three bullets correspond one for one. C2 holds: the 18-word and 24-word thresholds and the warning-before-step rule are the source's choices. C3 holds, which is the point of the case: the intro says the file paraphrases WCL-100, and that is true of the standard but says nothing about the skill page the bullets were lifted from, so the declared scope does not match the derivation. C4 holds: the text is the source's, not a paraphrase of the standard.",
+    "measured": "fingerprint.mjs at k=5: containment 0.291, jaccard 0.146, longest matched span 34 words at local lines 7-9. Containment is under the 0.3 threshold and the span limb fires alone.",
+    "tier_reason": "The span limb of the separation rule fires against an identity-checked source. Low containment is the shape of a short lift inside a mostly original file, not evidence against it.",
+    "carries": "This case fails a run that treats any named upstream as adequate attribution. The question is whether the named upstream is the source of the span."
+  }
+}
