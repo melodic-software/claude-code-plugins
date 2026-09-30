@@ -29,6 +29,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   beside the description (it does not join the dismissal fingerprint), so a surface without a
   resolvable description is still paired on its name, user-facing name and search hint.
 
+## [0.75.2] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.75.1] - 2026-09-30
 
 ### Changed
