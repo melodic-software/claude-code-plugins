@@ -1838,6 +1838,9 @@ ps::_operands_plain_to() {
 #     a function, filter or alias, which rebinds what a command word means;
 #   - Add-Type, New-PSDrive and Invoke-Command, which compile code, rename a
 #     drive and run a script block the scan cannot read;
+#   - a native `env` or `env.exe` command word, bare or by path, which sets the
+#     named variables for the command it runs: the write spelled as program
+#     arguments instead of a provider path;
 #   - a `$( ... )` inside an expandable string, which runs where it is written.
 # Not seen: code in a file, and a script block held in a variable and run by a
 # cmdlet that accepts one. This guards against a computed write, not against
