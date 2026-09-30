@@ -113,6 +113,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         exercised += check_digest(path, source, failures)
 
     if failures.items:
+        failures.report_suppressed()
         print(
             f"{PROG}: FAILED -- {len(failures.items)} failure(s) across "
             f"{len(args.digests)} digest(s); {exercised} snippet fence(s) "

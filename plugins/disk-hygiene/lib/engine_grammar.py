@@ -198,10 +198,11 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 takes_value=False,
                 help=(
                     "inventory only explicitly selected immediate children "
-                    "of the target; on an OS-managed volume root those "
-                    "children are non-OS directories and regular files, and "
-                    "on any other directory they are directories, so approved "
-                    "children can be re-inventoried without a whole-tree walk"
+                    "of the target; on a volume root (OS-managed or not) "
+                    "those children are non-OS directories and regular files, "
+                    "and on any other directory they are directories, so "
+                    "approved children can be re-inventoried without a "
+                    "whole-tree walk"
                 ),
             ),
             Flag(

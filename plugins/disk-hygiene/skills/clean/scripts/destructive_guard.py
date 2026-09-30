@@ -21,8 +21,8 @@ stale network drive letter or UNC path referenced by an ordinary, unrelated
 Bash command) would not by itself explain an *uncaught* exception. Two things
 follow: (1) the strongest identified candidate for the 17s itself is
 ``_engine_gate_relevant``'s marker-free fallback, which calls
-``os.path.samefile`` on every separator-containing word of *every* Bash/
-PowerShell command in *every* session (not only disk-hygiene commands) when
+``os.path.samefile`` on every whitespace token (or every literal shell word) of
+*every* Bash/PowerShell command in *every* session (not only disk-hygiene commands) when
 resolving the plugin-level engine gate — a slow or unreachable path argument
 in an unrelated command is a real, user-reachable way to stall this hook for
 longer than milliseconds; (2) empty stderr is not what an uncaught Python
@@ -740,9 +740,11 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
       mere mention (expansions, operators, unparsable quoting) — fail closed
       into the gate; the belt's own rules then decide.
 
-    A path-like word (containing a separator) that is the SAME FILE as the
-    bundled engine — a symlink or hard link under any name — gates regardless
-    of its filename. Accepted residuals, all of the copy-evasion class the gate
+    A word that is the SAME FILE as the bundled engine — a symlink or hard link
+    under any name — gates regardless of its filename. The marker-free fallback
+    identity-checks every whitespace token (or every ``_literal_shell_words``
+    word) of the command, not only separator-carrying words, and a relative word
+    is also read against the engine's own directory. Accepted residuals, all of the copy-evasion class the gate
     can never close (a byte copy is a different file): a PATH-installed alias
     with no separator, an alias inside a command the literal parser rejects
     when the marker is absent, and a copied engine. This is a belt, not the
@@ -791,8 +793,9 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # No marker: the only relevant shape is a linked alias of the bundled
         # engine invoked by path. Unparsable marker-free commands cannot fail
         # closed (that would gate every command with an operator), so scan
-        # their whitespace tokens for separator-carrying words and identity-
-        # check those — a literal alias path gates even beside an operator.
+        # their whitespace tokens and identity-check every one, not only
+        # separator-carrying words — a literal alias path gates even beside an
+        # operator.
         #
         # The path-legal tokens are scanned as well, and carry this branch's
         # weight now that a name merely CONTAINING the marker lands here: a
