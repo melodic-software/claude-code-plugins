@@ -116,6 +116,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the header counts 1 pending research and Q3 not answered", (await text("#pendBtn")) === "1 pending research" && (await text("#meterText")) === "2 of 5 answered", (await text("#pendBtn")) + " / " + await text("#meterText"));
     ok("the Claude line shows the status with its age", /^Researching the retry benchmark for Q3/.test(await text("#claudeLine")) && await page.$eval("#claudeLine .age", el => el.getAttribute("aria-hidden") === "true" && /ago|just now/.test(el.textContent)), await text("#claudeLine"));
     ok("a held question's commitments leave the to-confirm count", (await text("#assumeCount")) === "3 to confirm", await text("#assumeCount"));
+    const f0 = await page.$eval("#filter", el => el.value);
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
+    const open2 = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
+    await page.selectOption("#filter", f0); await page.waitForTimeout(150);
+    ok("Show: Open leaves out Q3, held for research after its accept, and lists the questions that need you", open2 === "Q4,Q5", open2);
     await pick("Q3");
     ok("the card shows the banner beside the kept decision", /Pending research: the retry benchmark/.test(await text("#dscroll .waitban")) && /Accepted/.test(await text("#cur")) && /Counts once Claude's research on Q3 returns/.test(await text("#cur")), await text("#cur"));
     await arm("2");
@@ -160,6 +165,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
     const chip = await page.$$eval(".qbtn .chip.hot", els => els.filter(el => !/after your answer/.test(el.textContent)).map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
     ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
+    ok("Q3's heads-up reply after its answer puts the after-answer chip on its card", /Replied after your answer/.test(await text('.qbtn[data-q="Q3"]')), await text('.qbtn[data-q="Q3"]'));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
     await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
@@ -205,6 +211,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     // Claude-side confirmation and Confirm all
     ok("Claude's confirmation leaves Q2's list, shows its reason and lowers the count", !(await page.$('#toConfirm [data-cq="Q2"]')) && /Q2 \(Confirmed in the terminal\)/.test(await text("#byClaude")) && (await text("#assumeCount")) === "3 to confirm", (await text("#assumeCount")) + " / " + await text("#byClaude"));
     ok("a terminal accept mirrored with record-terminal, then confirmed by Claude, leaves no part of Q4 to confirm", !(await page.$('#toConfirm [data-cq="Q4"]')) && /Q4 \(Said yes in the terminal\)/.test(await text("#byClaude")), await text("#toConfirm"));
+    const f4 = await page.$eval("#filter", el => el.value);
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
+    const open4 = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
+    await page.selectOption("#filter", f4); await page.waitForTimeout(150);
+    const cards4 = await text('.qbtn[data-q="Q2"]') + await text('.qbtn[data-q="Q4"]');
+    ok("Claude's confirm-commitments line after an answer is not a reply: Q2 and Q4 stay settled, off Show: Open and without the after-answer chip", !/Q[24]/.test(open4) && !/after your answer/.test(cards4) && /Q3/.test(open4) && (await text("#meterText")) === "4 of 7 answered", open4 + " / " + cards4 + " / " + await text("#meterText"));
     ok("Wrap up warns while assumptions are open and stays enabled", /^3 assumptions not confirmed yet\.$/.test(await text("#openAssumeWarn")) && !(await page.$eval('[data-wrapup="1"]', el => el.disabled)), await text("#openAssumeWarn"));
     const n1 = (await events()).length;
     await tap("[data-confirmall]", 1500);

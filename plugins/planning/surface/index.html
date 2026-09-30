@@ -566,15 +566,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return out;
   }
   const openAssumptions = () => commitRows().filter(r => !r.on).length;
+  const talks = h => h.by === "claude" && (!!h.replyTo || ["reply", "rephrase", "note", "revise"].includes(h.kind)); // the asked, hold, supersede and confirm lines carry neither
   function unansweredReply(q){ // Claude answered your question and you have not responded since
-    const h = historyOf(q)[0];
+    const h = historyOf(q).find(x => x.by !== "claude" || talks(x));
     if (!h || h.by !== "claude") return false;
     if (!h.replyTo) return h.kind !== "revise"; // a heads-up: Claude spoke first and nothing of yours follows it
     return !!events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase"));
   }
-  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a bare "Asked." and a reply recording the decision itself are not
+  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a reply recording the decision itself is not
     const d = counted(q), recorded = x => x.kind !== "revise" && events().some(e => e.seq === x.replyTo && DEC.has(e.kind));
-    const h = d && historyOf(q).find(x => x.by === "claude" && String(x.text).trim() !== "Asked." && !recorded(x));
+    const h = d && historyOf(q).find(x => talks(x) && !recorded(x));
     return h && String(h.at) > String(d.updatedAt) ? h : null;
   }
   const afterText = h => h.kind === "revise" ? "Revised after your answer - review" : "Replied after your answer " + fmtT(h.at);
@@ -1380,11 +1381,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const i = order.indexOf(S.sel);
     select(order[(i + dir + order.length) % order.length], {animate: true});
   }
-  function nextOpen(){
-    const order = railOrder(), i = order.indexOf(S.sel);
-    for (let k = 1; k <= order.length; k++) { const id = order[(i + k) % order.length]; if (isOpen(stateOf(Q[id]))) return id; }
-    return null;
-  }
   function firstNeeding(){ // the first question you can answer now, else the first you cannot yet, else the first in the rail
     const order = railOrder(), need = order.filter(id => needsYou(Q[id]));
     return need.find(id => !blocked(Q[id])) || need[0] || order[0] || null;
@@ -1492,7 +1488,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         toast(held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread.", false, true);
         fillNote(); renderAll(); return;
       }
-      const nxt = nextOpen(), done = allDone();
+      const nxt = nextNeeding(1), done = allDone();
       const msg = "Saved " + q.id + ".";
       if (typing) { toast(msg + (nxt && nxt !== q.id ? " Next open: " + nxt + (setting("shortcuts") ? " (Esc, then n)." : ".") : done ? " All answered." : ""), false, true); fillNote(); renderAll(); return; }
       if (nxt && nxt !== q.id) { select(nxt, {animate: true}); toast(msg + " Now " + nxt + ".", false, true); }
