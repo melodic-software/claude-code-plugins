@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.43.3] - 2026-09-30
+## [0.43.4] - 2026-09-30
 
 ### Fixed
 
@@ -11,6 +11,15 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - **The read-only group check refuses an environment write it cannot prove has a plain literal target.** `GIT_PAGER`, `GIT_EXTERNAL_DIFF` and `PATH` turn a read into execution, so a command that writes the environment or rebinds `git` keeps the group blocked. The check reads syntax instead of matching text, so a name built from pieces no longer slips through: `Set-Item`, `New-Item`, `Set-Content` and the other provider cmdlets need plain-literal operands (a path that is computed, held in a variable, splatted or piped in refuses), and an `Env:`, `Function:` or `Alias:` drive path, a `$env:NAME` assignment (alone, in a target list or as a foreach variable), a static `::` call, any method call, `ForEach-Object -MemberName`, a computed call target, a word spliced from quoted parts, and a function, filter or alias definition all refuse. `Set-Item -Path ('E'+'nv:') ...` and `$m.InvokeMember(...)` beside `& { git log }` are blocked. Code in a file, and a script block held in a variable and run by a cmdlet, are not read.
 - **The PowerShell read-only git test judges `remote` and `stash` by arguments.** Both were listed as mutating stems, so bare `git remote`, `remote -v`, `remote show`, `remote get-url`, `stash list` and `stash show` were refused. Every other `remote` or `stash` form still blocks.
 - **The PowerShell sink denial offers the commit form only for a commit and names the PowerShell rewrite first.** The fallback line for an unrecognized trigger leads with the rewrite too.
+
+## [0.43.3] - 2026-09-30
+
+### Changed
+
+- `block-windows-drive-tmp` skips its `cygpath` probe for a command that names no tmp path, removing two process forks from every benign Bash command on Windows.
+- `secret-pattern-detection` pre-matches a Windows write target against the environment's temp spellings and adds the `cygpath` drive spellings only after a hit, or when a temp root has no `tmp` or `temp` component, so a write outside temp spawns no resolver process under the default temp roots.
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+- The `block-hook-bypass`, `secret-pattern-detection`, `run-guards` and `coverage-manifest` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
 
 ## [0.43.2] - 2026-09-30
 

@@ -2,7 +2,7 @@
 
 `<scripts-dir>` is the scripts directory resolved in SKILL.md. This file is read as raw bytes, so substitute that resolved absolute path for `<scripts-dir>` before a command reaches Bash.
 
-Full detail for the `/source-control:worktree audit` action. SKILL.md carries the headline plus Step 1 (run `status` internally); this file carries the Step 2 configuration-health checklist and the Step 3 findings presentation.
+Full detail for the `/source-control:worktree audit` action. SKILL.md carries the headline plus Step 1 (run `status` internally); this file carries the Step 2 configuration-health checklist, Steps 2b and 2c, and the Step 3 findings presentation.
 
 Periodic health check for worktree infrastructure. Suitable as a recurring item in your work-item tracker.
 
@@ -16,6 +16,7 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 | Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention. Skip when the project has none |
 | Stale metadata | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `prunable=no` on every row | Clean. Otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
 | Claim liveness | `bash "<scripts-dir>/worktree-claim.sh" report --repo-dir <repo>` | Exit 0. Every linked worktree carries a lock reason (a claim other agents can read). Exit 1 lists each `UNCLAIMED` path: a plain `git worktree add` that bypassed `worktree-create.sh`. Claim with `worktree-claim.sh claim <path>` or leave it reported; do not rewrite an existing helper reason |
+| Unregistered directories under the worktree root | `bash "<scripts-dir>/worktree-root-scan.sh" --repo-dir <each canonical repo>`, reported per Step 2c | Zero rows with `proposed` = `yes` |
 | Orphaned plugin install records | `claude plugin list --json`, project-scope records grouped by `projectPath`, classified per Step 2b (which requires a **liveness** test, not just registration in this repository, since the worktree root is shared across repositories) | Zero paths in the `candidate orphan` bucket |
 
 ## Step 2b: Orphaned project-scope plugin install records
@@ -128,6 +129,29 @@ what the second call will remove.
 The helper refuses unless the directory it is standing in is the one named, and it never touches
 `installed_plugins.json` directly.
 
+## Step 2c: Unregistered directories under the worktree root
+
+Run the scan with one `--repo-dir` per canonical repository whose worktrees share the root, so a
+directory another repository owns classifies as `live` instead of a proposal. Exit 3 means the root
+does not resolve (an unmounted drive): report "root scan unavailable" and offer nothing.
+
+```bash
+bash "<scripts-dir>/worktree-root-scan.sh" --repo-dir <repo> [--repo-dir <repo> ...]
+```
+
+Report each row (`<path>`, `<class>`, `<proposed>`) by class:
+
+| Class | Meaning | Handling |
+|---|---|---|
+| `empty` | no entries | proposed for removal through [cleanup.md](cleanup.md); the user confirms each path |
+| `husk` | `.git` file naming `<common>/worktrees/<name>`, that admin dir gone while `<common>` is still a repository: git dropped the registration | `proposed` `yes` (the `.git` file is the only entry): proposed for removal through cleanup, after the file-lock release in [cleanup.md](cleanup.md) Step 4a. `proposed` `no` (other content, possibly uncommitted work): reported only |
+| `foreign` | content and no `.git` | reported only |
+| `live` | inside a live work tree, usually another repository's | reported only |
+| `symlink` | a symlink | reported only |
+| `unknown` | a directory that cannot be listed (no read permission), or any other `.git` entry: its gitdir exists but `rev-parse` fails, or `<common>` is gone (main clone moved, deleted or unmounted: a live worktree, recoverable with `git worktree repair` from the recovered clone) | reported only |
+
+Read-only: neither the scan nor this step removes anything.
+
 ## Step 3: Present findings
 
 ```markdown
@@ -140,6 +164,7 @@ The helper refuses unless the directory it is standing in is the one named, and 
 | Worktree root convention | OK (worktreeroot.path supplied by includeIf "gitdir/i:~/work/") |
 | .worktreeinclude | SUGGEST: gitignored local settings exist but no .worktreeinclude |
 | Stale metadata | OK (none prunable) |
+| Unregistered root directories | 2 proposed for cleanup (1 empty, 1 husk); 1 foreign reported only |
 | Orphaned plugin install records | 108 records, 8 marketplaces, 1 candidate-orphan path (0 live elsewhere, 0 other project paths) |
 
 ### Worktree Health
