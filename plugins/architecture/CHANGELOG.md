@@ -27,6 +27,15 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   caller that does not set it is unchanged. No-leak fixtures cover userinfo,
   query tokens, and a `;` inside userinfo.
 
+## [0.16.1] - 2026-09-29
+
+### Changed
+
+- **`map-landscape` description** fits the 500-character listing target. The trigger `chart our
+  repositories` is dropped (`map our landscape` carries the same intent); the other triggers and
+  the Skip-when route are kept, and the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.16.0] - 2026-09-29
 
 ### Added
