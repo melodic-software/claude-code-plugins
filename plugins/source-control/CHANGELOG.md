@@ -3,6 +3,20 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.30] - 2026-09-29
+
+### Changed
+
+- **`commit` and `pull-request` descriptions open with a presence-gated routing clause for the
+  native surfaces their Boundary sections cover.** `commit` routes to the bundled `commit` skill
+  only when none of its contract (convention, trailer, surgical staging, pre-checks) is wanted, and
+  a commit-push-PR request to the built-in `/commit-push-pr` command, when either resolves in the
+  session; it keeps every other commit. `pull-request` routes a one-shot PR with no draft, body
+  contract, or later ready, monitor or merge step to the bundled `pr` skill when the work is
+  committed, to `/commit-push-pr` only when the whole working tree belongs in the commit, and
+  keeps everything else. Its Boundary section says the same, so unrelated uncommitted changes never reach a
+  native commit.
+
 ## [0.62.29] - 2026-09-29
 
 ### Added

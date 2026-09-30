@@ -912,7 +912,7 @@ function sh_inert(s, r) {
     RUN_PEND = 0
   }
   if (RUN_PEND && r ~ /\$\{?(status|output|lines|stderr|stderr_lines)([^A-Za-z0-9_]|$)|(^|[^A-Za-z0-9_])(assert|refute)[A-Za-z_]*/) RUN_PEND = 0
-  if (s ~ /^![[:space:]]/) { BANG_PEND = FNR; BANG_KIND = line_kind(); BANG_SNIP = snippet(r) }
+  if (s ~ /^![[:space:]]/) { BANG_PEND = FNR; BANG_KIND = line_kind(); BANG_SNIP = snippet(r); BANG_SOLO = s !~ /\|\||&&|;/ }
 }
 
 # Flushed as the block closes: a pending run or harness [ ] is decided there.
@@ -920,6 +920,9 @@ function inert_close(    n, recs, i, f) {
   if (has(block_masked, R_BODY_SKIP)) RUN_PEND = 0
   if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
   if (PS_PEND) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
+  # A standalone ! command on the test's last line is its assertion; after
+  # || , && or ; the list's status is no longer the negation's.
+  BANG_LAST = BANG_PEND && BANG_SOLO
   RUN_PEND = BANG_PEND = PS_PEND = 0
   if (!SET_E && !SOURCED && BRK_OUT != "") {
     n = split(BRK_OUT, recs, "\n")
@@ -1452,12 +1455,12 @@ function derived_check(a, b, tkind) {
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Same-file helpers, one level deep. A function defined in the test file
-# outside any test asserts when its text, from its definition to the next
-# definition or test start, holds an assertion token, a mock verification, a
-# fail call, or a throw, raise or reject. A test with no assertion token of its
-# own that calls such a function by name is not a zero-assertion finding. The
-# helper's own calls are not followed. Bash and PowerShell are not tracked: a
+# Same-file helpers. A function defined in the test file outside any test
+# asserts when its text, from its definition to the next definition or test
+# start, holds an assertion token, a mock verification, a fail call, or a
+# throw, raise or reject, or when it calls such a function the same way a test
+# would. A test with no assertion token of its own that calls an asserting
+# function by name is not a zero-assertion finding. Bash and PowerShell are not tracked: a
 # harness file is one block, and a PowerShell call takes no parentheses.
 # ---------------------------------------------------------------------------
 
@@ -1478,6 +1481,9 @@ function def_name(m,    s) {
   } else if (LEXER == "go") {
     if (match(m, /^func[[:space:]]+(\([^)]*\)[[:space:]]*)?[A-Za-z_][A-Za-z0-9_]*/)) s = substr(m, RSTART, RLENGTH)
   }
+  # Where the matched header ends, past the defined name: every pattern is
+  # anchored at the line start, and sub leaves RSTART and RLENGTH alone.
+  DEF_END = s == "" ? 0 : RSTART + RLENGTH
   sub(/^.*[^A-Za-z0-9_$]/, "", s)
   return s
 }
@@ -1488,7 +1494,7 @@ function def_name(m,    s) {
 # opening the body on a line of its own. A definition indented deeper than
 # the open one nests in it, so a line of the inner function is also a line
 # of the outer.
-function helper_scan(m,    name, ind, k) {
+function helper_scan(m,    name, ind, k, calls) {
   if (m ~ /^[[:space:]]*$/) return
   if (has(m, R_START)) { HK = 0; return }
   ind = indent_of(m)
@@ -1497,6 +1503,18 @@ function helper_scan(m,    name, ind, k) {
   if (name != "") { HK++; HI[HK] = ind; HD[HK] = ++DEF_N; DEF_NAME[DEF_N] = name; DEF_CLS[DEF_N] = CLS_K ? CLS_NAME[CLS_K] : "" }
   if (HK > 0 && (has(m, R_ANY) || has(m, R_MOCKA) || has(m, R_FAILC) || m ~ /(^|[^A-Za-z0-9_$.])((throw|raise)([^A-Za-z0-9_$]|$)|reject[[:space:]]*\()/))
     for (k = 1; k <= HK; k++) DEF_ASSERTS[HD[k]] = 1
+  # A definition line is read from after the name it defines.
+  if (name != "") {
+    m = substr(m, DEF_END)
+    # The parameter count, from the list on this line, C# only (the header
+    # match ends at its open paren; no other lexer has overloads); -1 when
+    # unknown.
+    DEF_ARITY[DEF_N] = -1
+    if (LEXER == "cs" && extract_parens("(" m, 1)) DEF_ARITY[DEF_N] = arg_count(EXTRACT)
+  }
+  if (HK > 0 && (calls = called_names(m)) != "")
+    for (k = 1; k <= HK; k++) DEF_CALLS[HD[k]] = DEF_CALLS[HD[k]] calls
+  for (k = 1; k <= HK; k++) DEF_SELF[HD[k]] = DEF_SELF[HD[k]] self_arities(m, DEF_NAME[HD[k]])
 }
 
 # The class a line sits in, by indentation as helper_scan tracks functions:
@@ -1549,12 +1567,66 @@ function calls_helper(calls, cls,    n, c, i, name, key) {
   return 0
 }
 
-function helper_verdicts(    i, key) {
-  for (i = 1; i <= DEF_N; i++) {
-    key = DEF_CLS[i] SUBSEP DEF_NAME[i]
-    SCOPE_DEFS[key]++
-    if (i in DEF_ASSERTS) { SCOPE_ASSERTS[key]++; NAME_ASSERTS[DEF_NAME[i]] = 1 }
+function helper_mark(i) {
+  SCOPE_ASSERTS[DEF_CLS[i] SUBSEP DEF_NAME[i]]++
+  NAME_ASSERTS[DEF_NAME[i]] = 1
+}
+
+# The number of top-level arguments in an argument or parameter list.
+function arg_count(s,    n) {
+  if (s ~ /^[[:space:]]*$/) return 0
+  n = 1
+  while (split_top_comma(s)) { n++; s = SPLIT2 }
+  return n
+}
+
+# The arity of every call to name in m, bare or on self, this or cls, each
+# with a leading space.
+function self_arities(m, name,    out, pre, p) {
+  out = ""
+  while ((p = index(m, name)) > 0) {
+    pre = substr(m, 1, p - 1)
+    m = substr(m, p + length(name))
+    if (pre ~ /[A-Za-z0-9_$]$/) continue
+    if (pre ~ /\.[[:space:]]*$/ && pre !~ /(^|[^A-Za-z0-9_$.])(self|this|cls)[[:space:]]*\.[[:space:]]*$/) continue
+    if (match(m, /^[[:space:]]*(<[^<>()]*>)?[[:space:]]*\(/) && extract_parens(m, RLENGTH)) out = out " " arg_count(EXTRACT)
   }
+  return out
+}
+
+# Whether definition i calls another overload of its own name, by argument
+# count, and that overload asserts. A call whose count matches i's own
+# parameters is recursion, not delegation. An arity of -1 (a parameter list
+# split over lines) matches any count.
+# Plain statements on purpose: gawk 5.2.1 double-frees on this test written
+# as one return of joined && and || terms (Ubuntu 24.04, 2026-09-29).
+function delegates_to_overload(i,    j, a) {
+  if (DEF_SELF[i] == "") return 0
+  for (j = 1; j <= DEF_N; j++) {
+    if (j == i || !(j in DEF_ASSERTS)) continue
+    if (DEF_NAME[j] != DEF_NAME[i] || DEF_CLS[j] != DEF_CLS[i]) continue
+    if (DEF_ARITY[j] < 0 || DEF_ARITY[i] < 0) return 1
+    if (DEF_ARITY[j] == DEF_ARITY[i]) continue
+    a = " " DEF_ARITY[j] " "
+    if (index(DEF_SELF[i] " ", a)) return 1
+  }
+  return 0
+}
+
+# A helper that calls an asserting helper asserts too, to any depth: repeat
+# until no definition changes.
+function helper_verdicts(    i, changed, hit) {
+  for (i = 1; i <= DEF_N; i++) SCOPE_DEFS[DEF_CLS[i] SUBSEP DEF_NAME[i]]++
+  for (i = 1; i <= DEF_N; i++) if (i in DEF_ASSERTS) helper_mark(i)
+  do {
+    changed = 0
+    for (i = 1; i <= DEF_N; i++) {
+      if (i in DEF_ASSERTS) continue
+      hit = calls_helper(DEF_CALLS[i], DEF_CLS[i])
+      if (!hit) hit = delegates_to_overload(i)
+      if (hit) { DEF_ASSERTS[i] = 1; helper_mark(i); changed = 1 }
+    }
+  } while (changed)
 }
 
 function eval_block(    blk, stripped, mocka_n, kind, calls) {
@@ -1566,7 +1638,7 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
   g8_eval()
   if (block_raw) return
   kind = block_exempt ? "X" : "F"
-  if (!has(blk, R_ANY) && !has(blk, R_MOCKA)) {
+  if (!has(blk, R_ANY) && !has(blk, R_MOCKA) && !BANG_LAST) {
     # A call to a same-file function may be the assertion; the verdict waits
     # for END, when every function in the file has been read.
     if ((calls = called_names(blk)) == "") emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")
