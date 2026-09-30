@@ -882,7 +882,9 @@ STUBS="$TEST_TMPDIR/stubs"
 NOSTUBS="$TEST_TMPDIR/nostubs"
 mkdir -p "$STUBS" "$NOSTUBS"
 ln -s "$(command -v pwsh)" "$NOSTUBS/pwsh"
+# shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
 printf '%s\n' '#!/bin/sh' 'echo security >>"$STUB_LOG"' 'case "$3" in NATIVE_* | ALL_*) echo "native-$3" ;; *) exit 1 ;; esac' >"$STUBS/security"
+# shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
 printf '%s\n' '#!/bin/sh' 'echo pass >>"$STUB_LOG"' 'case "$2" in NATIVE_* | ALL_*) echo "native-$2" ;; *) exit 1 ;; esac' >"$STUBS/pass"
 chmod +x "$STUBS/security" "$STUBS/pass"
 
@@ -900,6 +902,7 @@ for spec in macos:security:pass linux:pass:security; do
     \$global:Log -join '|'
   ")"
   msg="$(tail -n 1 "$TEST_TMPDIR/$tag-present.out")"
+  # portability-ok: false positive, plain sort with no -V option
   consulted="$(sort -u "$log" | tr '\n' ' ')"
   if [[ "$code" == 0 && "$msg" == 'got:native-NATIVE_A' && "$consulted" == "$cmd " ]]; then
     pass "$plat: a declared secret resolves from the native store, and $other is never consulted"
@@ -931,6 +934,7 @@ for spec in macos:security:pass linux:pass:security; do
     \$global:Log -join '|'
   ")"
   msg="$(tail -n 1 "$TEST_TMPDIR/$tag-miss.out")"
+  # portability-ok: false positive, plain sort with no -V option
   consulted="$(sort -u "$log" | tr '\n' ' ')"
   if [[ "$code" == 0 && "$msg" == 'prompt:Secret UNKNOWN_A|got:typed-UNKNOWN_A' && "$consulted" == "$cmd " && ! -s "$TEST_TMPDIR/$tag-miss.err" ]]; then
     pass "$plat: a name the native store does not know is skipped silently and the prompt answers"
