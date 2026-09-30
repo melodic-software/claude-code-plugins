@@ -1161,7 +1161,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ## Dismissed
 
-Pairs a human ruled are not an overlap. `detect` suppresses each one until either side's description fingerprint changes, then lists it again flagged "resurfaced: description changed".
+Pairs a human ruled are not an overlap. `detect` suppresses each one until either side's fingerprint changes, then lists it again flagged "resurfaced: description changed".
 
 | Native surface | Class | Component | Reason | As of | Date |
 |---|---|---|---|---|---|
