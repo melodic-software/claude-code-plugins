@@ -1807,8 +1807,8 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$RF" worktree add -q -b agent-def456 "$TEST_TMPDIR/rf-wt" main
   rf_bin="$TEST_TMPDIR/rf-bin"
   mkdir -p "$rf_bin"
-  printf '[{"headRefName":"feat/eq","state":"MERGED","number":11,"headRefOid":"%s"},{"headRefName":"feat/base","state":"MERGED","number":12,"headRefOid":"%s"},{"headRefName":"feat/past","state":"MERGED","number":13,"headRefOid":"%s"},{"headRefName":"agent-abc123","state":"MERGED","number":14,"headRefOid":"%s"}]\n' \
-    "$(rf_tip feat/eq)" "$base_head" "$past_head" "$(rf_tip agent-abc123)" >"$rf_bin/prs.json"
+  printf '[{"headRefName":"feat/eq","state":"MERGED","number":11,"headRefOid":"%s"},{"headRefName":"feat/base","state":"MERGED","number":12,"headRefOid":"%s"},{"headRefName":"feat/past","state":"MERGED","number":13,"headRefOid":"%s"},{"headRefName":"agent-abc123","state":"MERGED","number":14,"headRefOid":"%s"},{"headRefName":"feat/eq","state":"OPEN","number":15,"headRefOid":"%s"}]\n' \
+    "$(rf_tip feat/eq)" "$base_head" "$past_head" "$(rf_tip agent-abc123)" "$(rf_tip feat/eq)" >"$rf_bin/prs.json"
   printf '#!/usr/bin/env bash\ncase "$*" in *pr\\ list*) cat "%s" ;; *) exit 1 ;; esac\n' "$rf_bin/prs.json" >"$rf_bin/gh"
   chmod +x "$rf_bin/gh"
 
@@ -1828,7 +1828,7 @@ if command -v jq >/dev/null 2>&1; then
   assert_contains "merged PR whose head is the tip: landed" "$(rf_field feat/eq Landed)" "PR #11 merged, its head is the tip"
   assert_contains "tip that is an ancestor of the merged head: landed" "$(rf_field feat/base Landed)" "PR #12 merged, the tip is an ancestor of its head"
   assert_contains "tip past the merged head: not landed" "$(rf_field feat/past Landed)" "no"
-  assert_contains "a family with no rule has no retention verdict" "$(rf_field feat/eq Retention)" "n/a"
+  assert_contains "a family with no rule has no retention verdict, even with an open PR" "$(rf_field feat/eq Retention)" "n/a"
   assert_contains "fresh claude branch is kept" "$(rf_field claude/x Retention)" "KEEP"
   assert_contains "fresh claude branch reason names the window" "$(rf_field claude/x Reason)" "within the 30d retention for claude"
   assert_contains "fresh plan branch is kept" "$(rf_field plan/x Retention)" "KEEP"

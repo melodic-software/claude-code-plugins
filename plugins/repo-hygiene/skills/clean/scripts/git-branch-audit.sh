@@ -382,7 +382,7 @@ remote_families_report() {
     # a landed branch is then a candidate, and an unlanded one only when its
     # tip is on another ref. A missing signal keeps the branch.
     verdict=KEEP expired=0 why=""
-    if [[ -n "${open_pr[$name]+x}" ]]; then
+    if [[ "$family" != none && -n "${open_pr[$name]+x}" ]]; then
       why="PR open"
     else
       case "$family" in
