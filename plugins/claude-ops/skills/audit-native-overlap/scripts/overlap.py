@@ -200,6 +200,10 @@ PRESENCE_MENTION_RE = re.compile(
 START_MARKER = "<!-- native-surfaces:start -->"
 END_MARKER = "<!-- native-surfaces:end -->"
 
+# Evidence lines quote native text verbatim, so one carrying an em dash keeps it and tells the
+# ai-slop audit to skip that line.
+VERBATIM_MARKER = " <!-- ai-slop-ignore: verbatim native text -->"
+
 # Every pattern below is applied with `fullmatch`, so a trailing newline fails.
 DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 AS_OF_RE = re.compile(r"\d+\.\d+\.\d+")
@@ -1052,7 +1056,8 @@ def render_block(
             lines.append(f"- **Our component:** `{target}` ({component['kind']})")
             lines.append("- **Evidence:**")
             for item in row["evidence"]:
-                lines.append(f"  - {item}")
+                quoted = VERBATIM_MARKER if "—" in item else ""
+                lines.append(f"  - {item}{quoted}")
             observation = row["observation"]
             lines.append(
                 f"- **Observation:** {observation['class']}: {observation['detail']} "

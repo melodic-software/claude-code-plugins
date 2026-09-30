@@ -5,6 +5,9 @@
 ### Fixed
 
 - **Removed the em dash in `skills/audit/context/persist-findings.md`.** Wording only; behavior is unchanged.
+- **Removed the em dashes in the `restated-fact` golden cases `c12`, `c14` and `c16`, and marked
+  the verbatim upstream text in the `c24` source as ignored by the ai-slop detector.** Punctuation
+  only, on the same lines, so every expected span is unchanged.
 
 ## [0.8.0] - 2026-09-29
 

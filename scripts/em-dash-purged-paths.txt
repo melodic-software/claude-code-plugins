@@ -56,14 +56,7 @@
 # Root README, purged in #3265.
 README.md
 
-# Convention documents. Every directory under docs/conventions/ is declared by
-# name rather than by one `*/` glob, because docs/conventions/standards/README.md
-# is deliberately NOT purged: it carries a `standards-contract` semver, and
-# changing a single character of it forces a version bump that makes every
-# consuming repository's index mismatch, degrading skills to best-effort routing
-# until each one re-runs setup. That price is not worth a punctuation pass, so the
-# contract keeps its em dashes and stays off this list. Its worked example, which
-# carries no contract version, is purged and declared.
+# Convention documents, declared directory by directory.
 docs/conventions/authoring-formats/*.md
 docs/conventions/commit-convention/*.md
 docs/conventions/config-cascade/*.md
@@ -91,7 +84,7 @@ docs/conventions/rendered-views/*.md
 docs/conventions/retired-conventions/*.md
 docs/conventions/seam-phrasing/*.md
 docs/conventions/shell-test-helpers/*.md
-docs/conventions/standards/CHANGELOG.md
+docs/conventions/standards/*.md
 docs/conventions/standards/examples/*.md
 docs/conventions/topic-docs/*.md
 docs/conventions/topic-docs/examples/*.md
@@ -372,13 +365,9 @@ plugins/overengineering/skills/*/SKILL.md
 plugins/overengineering/skills/*/context/*.md
 plugins/performance/README.md
 plugins/performance/skills/*/SKILL.md
-# The planning plugin was purged whole. `reference/` is declared file by file rather than by a
-# glob because plugins/planning/reference/standards-contract.md is a byte-for-byte generated copy
-# of docs/conventions/standards/README.md, which this campaign deliberately leaves unpurged; the
-# sync gate holds the copy identical to it, so the copy cannot be purged either.
+# The planning plugin was purged whole.
 plugins/planning/*.md
-plugins/planning/reference/artifact-protocol.md
-plugins/planning/reference/topic-docs.md
+plugins/planning/reference/*.md
 plugins/planning/skills/*/SKILL.md
 plugins/planning/skills/*/context/*.md
 plugins/planning/skills/*/templates/*.md
@@ -422,14 +411,11 @@ plugins/repo-hygiene/CHANGELOG.md
 plugins/repo-hygiene/skills/*/SKILL.md
 plugins/repo-hygiene/skills/clean/context/*.md
 plugins/repo-hygiene/skills/clean/reference/*.md
-# The review plugin was purged whole. `reference/` is declared file by file for the same reason as
-# planning's: plugins/review/reference/standards-contract.md is a generated copy of the deliberately
-# unpurged standards contract, held identical to it by the sync gate.
+# The review plugin was purged whole.
 plugins/review/*.md
 plugins/review/agents/*.md
 plugins/review/context/*.md
-plugins/review/reference/findings-file-shape.md
-plugins/review/reference/topic-docs.md
+plugins/review/reference/*.md
 plugins/review/skills/*/SKILL.md
 plugins/review/skills/*/context/*.md
 plugins/review/skills/audit-enforceability/evals/fixtures/*.md
