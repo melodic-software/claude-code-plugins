@@ -569,6 +569,10 @@ def _within_plugin_cache_family(value: str) -> bool:
 # before it matches flags, so an unknown subcommand fails closed.
 _ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
 
+# The subcommands allowed without a prompt. Named here rather than derived from
+# the grammar, so a subcommand added there is denied until it is listed.
+_READ_ONLY_ENGINE_SUBCOMMANDS = ("scan", "inventory", "preview", "handoff-verify")
+
 
 def _engine_script_path() -> Path:
     """The one bundled engine path both the classifier and the denial disclose."""
@@ -2510,7 +2514,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview", "handoff-verify"}:
+    if command_kind in _READ_ONLY_ENGINE_SUBCOMMANDS:
         return _settle(
             command,
             tool_name,
@@ -2537,7 +2541,9 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         "kill-switch-disabled-apply"
         if denied_by_kill_switch
         else "not-exact-engine-command",
-        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
+        "Disk-hygiene execution is disabled; only exact bundled "
+        + ", ".join(_READ_ONLY_ENGINE_SUBCOMMANDS)
+        + " invocations are permitted."
         if denied_by_kill_switch
         else _bash_denial_guidance(authority),
     )

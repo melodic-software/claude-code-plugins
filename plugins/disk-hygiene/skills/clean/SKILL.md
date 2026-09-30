@@ -447,8 +447,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
-  apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
+- The Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
+  handoff-verify, and apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
   interpreter. The same denial text also admits literal-form read-only supporting commands whose
   heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
   `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`

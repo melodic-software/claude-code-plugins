@@ -31,6 +31,7 @@ import datetime as dt
 import json
 import os
 import re
+import stat
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
@@ -140,11 +141,33 @@ def make_row(
 ) -> dict[str, Any]:
     """One schema row for ``path``, measured with lstat so a link is never followed."""
     st = os.lstat(path)
-    is_dir = os.path.isdir(path) and not os.path.islink(path)
+    return _stat_row(
+        path,
+        st,
+        _tree_size(path) if stat.S_ISDIR(st.st_mode) else st.st_size,
+        producer=producer,
+        category=category,
+        disposition=disposition,
+        reason=reason,
+        evidence=evidence,
+    )
+
+
+def _stat_row(
+    path: Path,
+    st: os.stat_result,
+    size: int,
+    *,
+    producer: str,
+    category: str,
+    disposition: str,
+    reason: str,
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     row: dict[str, Any] = {
         "name": str(path),
-        "ext": "" if is_dir else path.suffix,
-        "size": _tree_size(path) if is_dir else st.st_size,
+        "ext": "" if stat.S_ISDIR(st.st_mode) else path.suffix,
+        "size": size,
         "mtime": _iso(st.st_mtime),
         "owner": _owner(st.st_uid),
         "producer": producer,
@@ -494,22 +517,164 @@ def dangling_symlinks(
                 dirs[:] = []
             for name in dirs + files:
                 path = Path(current) / name
-                if not path.is_symlink() or path.exists():
-                    continue
-                producer = next(
-                    (p for hint, p in LINK_PRODUCERS if hint in path.as_posix()),
-                    "unknown",
-                )
-                rows.append(
-                    make_row(
-                        path,
-                        producer=producer,
-                        category="dangling-symlink",
-                        disposition="CANDIDATE",
-                        reason=f"points to {os.readlink(path)}, which does not exist",
-                    )
-                )
+                if path.is_symlink() and not path.exists():
+                    rows.append(dangling_row(path))
     return rows
+
+
+def dangling_row(path: Path) -> dict[str, Any]:
+    """The candidate row for one symlink whose target does not exist."""
+    producer = next(
+        (p for hint, p in LINK_PRODUCERS if hint in path.as_posix()), "unknown"
+    )
+    return make_row(
+        path,
+        producer=producer,
+        category="dangling-symlink",
+        disposition="CANDIDATE",
+        reason=f"points to {os.readlink(path)}, which does not exist",
+    )
+
+
+FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+UNCLASSIFIED = {
+    "producer": "unknown",
+    "category": "unclassified",
+    "disposition": "UNKNOWN",
+    "reason": "no category rule attributes this entry",
+}
+
+
+def _descends(st: os.stat_result) -> bool:
+    """A real directory: not a symlink, junction or other reparse point."""
+    return stat.S_ISDIR(st.st_mode) and not (
+        getattr(st, "st_file_attributes", 0) & FILE_ATTRIBUTE_REPARSE_POINT
+    )
+
+
+def _within(path: Path, root: Path) -> bool:
+    return path == root or root in path.parents
+
+
+def _dotted_versions(names: Iterable[str]) -> bool:
+    """Two or more dotted version names, so a year-named folder pair never qualifies."""
+    dotted = (VERSION_RE.match(name) for name in names)
+    return sum(1 for m in dotted if m and "." in m.group(1)) >= 2
+
+
+def category_rows(
+    target: Path, *, home: Path, tmp_dir: Path, now: float, running: set[str]
+) -> dict[str, dict[str, Any]]:
+    """Rows of each category whose root lies inside ``target``, keyed by name."""
+    rows: list[dict[str, Any]] = []
+    claude_dir = home / ".claude"
+    if _within(claude_dir, target):
+        rows += plugin_cache_versions(claude_dir)
+        rows += project_transcripts(claude_dir / "projects")
+    if _within(tmp_dir, target):
+        rows += tmp_entries(tmp_dir, now, running)
+    return {row["name"]: row for row in rows}
+
+
+def inventory_rows(
+    target: Path,
+    *,
+    deep: bool,
+    home: Path,
+    tmp_dir: Path,
+    now: float,
+    running: Iterable[str] = (),
+    skip: frozenset[str] = frozenset(),
+) -> Iterable[dict[str, Any]]:
+    """Yield one row per entry of ``target``, the target itself last.
+
+    ``deep`` lists every level, each directory after its contents with the
+    sum of their sizes; otherwise only the immediate children, each directory
+    sized by its own walk. A category row replaces the unclassified row at its
+    path. A directory that cannot be read, or that is another filesystem's
+    mount point, is one UNKNOWN row and is not entered. Paths in ``skip`` (the
+    report being written) are left out.
+    """
+    running = set(running)
+    overrides = category_rows(
+        target, home=home, tmp_dir=tmp_dir, now=now, running=running
+    )
+
+    def children(directory: Path) -> list[tuple[Path, os.stat_result | None, str]]:
+        with os.scandir(directory) as it:
+            entries = sorted(it, key=lambda e: e.name, reverse=True)
+        if _dotted_versions(e.name for e in entries):
+            for row in superseded_versions([directory], running):
+                overrides.setdefault(row["name"], row)
+        found: list[tuple[Path, os.stat_result | None, str]] = []
+        for entry in entries:
+            if entry.path in skip:
+                continue
+            try:
+                found.append((Path(entry.path), entry.stat(follow_symlinks=False), ""))
+            except OSError as exc:
+                found.append((Path(entry.path), None, f"{type(exc).__name__}: {exc}"))
+        return found
+
+    def row(path: Path, st: os.stat_result, size: int) -> dict[str, Any]:
+        found = overrides.get(str(path))
+        if found is not None:
+            return found
+        if stat.S_ISLNK(st.st_mode) and not path.exists():
+            return dangling_row(path)
+        return _stat_row(path, st, size, **UNCLASSIFIED)
+
+    def not_entered(path: Path, st: os.stat_result, why: str) -> dict[str, Any]:
+        return _stat_row(
+            path,
+            st,
+            0,
+            producer="unknown",
+            category="not-walked",
+            disposition="UNKNOWN",
+            reason=f"{why}; its contents and size are not counted",
+        )
+
+    root_st = os.lstat(target)
+    try:
+        stack = [(target, root_st, children(target), [0])]
+    except OSError as exc:
+        yield not_entered(target, root_st, f"unreadable ({type(exc).__name__}: {exc})")
+        return
+    while stack:
+        directory, dir_st, pending, total = stack[-1]
+        if not pending:
+            stack.pop()
+            if stack:
+                stack[-1][3][0] += total[0]
+            yield row(directory, dir_st, total[0])
+            continue
+        path, st, error = pending.pop()
+        if st is None:
+            yield {
+                "name": str(path),
+                "ext": path.suffix,
+                "size": 0,
+                "mtime": None,
+                "owner": None,
+                **UNCLASSIFIED,
+                "category": "not-walked",
+                "reason": f"cannot be read ({error})",
+            }
+            continue
+        # Windows DirEntry stats carry st_dev 0, so only a real device id compares.
+        if _descends(st) and st.st_dev and st.st_dev != root_st.st_dev:
+            yield not_entered(path, st, "another filesystem is mounted here")
+            continue
+        if deep and _descends(st):
+            try:
+                stack.append((path, st, children(path), [0]))
+            except OSError as exc:
+                yield not_entered(path, st, f"unreadable ({type(exc).__name__}: {exc})")
+            continue
+        size = _tree_size(path) if _descends(st) else st.st_size
+        total[0] += size
+        yield row(path, st, size)
 
 
 def _category_only(reason: str) -> bool:

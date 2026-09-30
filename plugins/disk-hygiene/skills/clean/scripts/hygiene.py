@@ -29,6 +29,11 @@ if str(_LIB_DIR) not in sys.path:
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import deep_inventory  # noqa: E402  (path set above; sibling module)
+
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
@@ -4277,6 +4282,70 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     }
 
 
+INVENTORY_REPORT_KIND = "deep-inventory-report"
+# Distinct from 2 (invalid), 3 (blocked) and 4 (apply skipped paths).
+INVENTORY_VALIDATION_FAILED = 5
+
+
+def run_inventory(target_arg: str, deep_flag: bool) -> int:
+    """List a target into a JSONL report under the data root, then validate it.
+
+    Report only: nothing here deletes, and the summary is neither a snapshot
+    nor a plan, so preview and apply refuse it. Rows stream to the file, so no
+    entry cap applies. Deep is the default when the target is the home
+    directory.
+    """
+    target_input = Path(target_arg).expanduser().absolute()
+    if not target_input.is_dir() or has_linkish_component(target_input):
+        raise HygieneError(
+            "target must be an existing directory with no link or reparse-point component"
+        )
+    target = target_input.resolve(strict=True)
+    if is_os_managed_target(target):
+        raise HygieneError("OS-managed roots are not valid inventory targets")
+    home = Path.home().resolve()
+    deep = deep_flag or target == home
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    rows_path = state_output_path(
+        Path(DATA_ROOT_OVERRIDE or "") / "inventory" / f"inventory-{stamp}.jsonl"
+    )
+    summary_path = state_output_path(rows_path.with_suffix(".json"))
+    rows_path.parent.mkdir(parents=True, exist_ok=True)
+    dispositions: dict[str, int] = {}
+    failures: list[str] = []
+    with rows_path.open("w", encoding="utf-8") as out:
+        for row in deep_inventory.inventory_rows(
+            target,
+            deep=deep,
+            home=home,
+            tmp_dir=Path(tempfile.gettempdir()).resolve(),
+            now=dt.datetime.now(dt.timezone.utc).timestamp(),
+            running=deep_inventory.running_paths(),
+            skip=frozenset({str(rows_path), str(summary_path)}),
+        ):
+            out.write(json.dumps(row, sort_keys=True) + "\n")
+            key = str(row.get("disposition"))
+            dispositions[key] = dispositions.get(key, 0) + 1
+            failures.extend(deep_inventory.validate_report([row]))
+    summary = {
+        "kind": INVENTORY_REPORT_KIND,
+        "status": "inventory-failed" if failures else "inventory-complete",
+        "target": str(target),
+        "deep": deep,
+        "rows": str(rows_path),
+        "row_count": sum(dispositions.values()),
+        "dispositions": dispositions,
+        "validation_failures": failures,
+        "note": (
+            "Report only: rows are findings, never a deletion plan, and preview "
+            "and apply do not accept this report. Removing a candidate goes "
+            "through scan, preview and apply with their confirmation gates."
+        ),
+    }
+    write_json(summary_path, summary)
+    return emit(summary, INVENTORY_VALIDATION_FAILED if failures else 0)
+
+
 _PARSER_VALUE_TYPES = {"int": int}
 
 
@@ -4592,6 +4661,8 @@ def main(argv: list[str] | None = None) -> int:
                     args.quiet,
                 )
             )
+        if args.command == "inventory":
+            return run_inventory(args.target, args.deep)
         snapshot = load_json(Path(args.snapshot))
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
