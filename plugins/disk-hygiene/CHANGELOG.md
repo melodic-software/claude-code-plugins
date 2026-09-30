@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-09-29
+
+### Added
+
+- **Virtual-disk images are protected by name**
+  ([#5228](https://github.com/melodic-software/claude-code-plugins/issues/5228)). `*.vhd`, `*.vhdx`,
+  `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img` (WSL's `ext4.vhdx` included) are baseline protected
+  globs, matched case-insensitively. A matching file carries the `virtual-disk` size qualifier, so
+  its bytes leave `target_reclaimable_local_bytes` and the child roll-ups, and `hard_protection`
+  reports `virtual-disk`; scan, preview, apply, `handoff-verify`, and the root-children ladder refuse
+  it and any candidate that contains one.
+- **The volume an attached image backs is reported.** Windows asks `Get-DiskImage` (bounded at 20
+  seconds); Linux and WSL read the loop devices' backing files and mounts. An attached image adds
+  `attached-virtual-disk:<drive or mountpoint>`; a probe that errors, times out, or has no route adds
+  `virtual-disk-attach-unverified` and never reads as detached.
+
 ## [0.29.0] - 2026-09-29
 
 ### Added
