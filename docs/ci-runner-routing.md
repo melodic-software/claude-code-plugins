@@ -71,16 +71,19 @@ for an in-flight full run, then ends on a settled `success`, `failure`, or
 
 **Operator remedy.** When a contract-only `ci-status` is red:
 
-- If `ci-lanes` on that SHA is already `success`, try re-running the red
-  contract-only `ci` run; if it stays red, push a new commit.
+- If `ci-lanes` on that SHA is `success`, re-run the red contract-only `ci`
+  run. The composite logs `Carried forward: ci-lanes is success`, passes, and
+  the re-run replaces the red check run. Pushing a new commit is not needed.
 - If `ci-lanes` is `failure` or missing, re-run the full workflow.
 
-A body edit while a failed full run is being re-run can still read the old
-failure without waiting (#4670). Distinguishing that re-run from a
-contract-only sibling is a ci-workflows composite change; this repository
-pins the composite and documents the remedy until that pin moves. How a ruleset
-treats two same-name `ci-status` check runs on one SHA is unverified and tracked
-in #4670.
+A body edit while a failed full run is being re-run reads the old `ci-lanes`
+failure at once, without waiting, and goes red; the re-run's later `success`
+does not change that run. The wait loop only holds while no settled `ci-lanes`
+status exists. Fixing this is a ci-workflows composite change
+([ci-workflows#646](https://github.com/melodic-software/ci-workflows/issues/646));
+this repository pins the composite and documents the remedy until that pin
+moves. How a ruleset treats two same-name `ci-status` check runs on one SHA is
+unverified and tracked in #4670.
 
 ## Toolchain integrity
 
