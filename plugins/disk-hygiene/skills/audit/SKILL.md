@@ -32,10 +32,10 @@ Run the argument-free probe first, before any engine call:
 
 Take `hook_python` and `data_root` from its one-line JSON. Every engine call needs the absolute
 `<hook-python>` and `--data-root`; a bare `python3` is rejected. When `hook_python` is not yet
-known, submit the probe once with bare `python`. The probe reports `hook_python` as the interpreter
-it ran under, so that value is the guard's only if the guard's own interpreter ran it. The scan is
-admitted only under the guard's interpreter: if it is denied for that reason, the denial names the
-interpreter and ran nothing, so rerun the scan with the interpreter it names.
+known, submit the probe once with bare `python`: the guard denies that read-only call and names its
+interpreter, so nothing from bare `python` is a result. Rerun the probe with the interpreter the
+denial names, and take `hook_python` and `data_root` only from a probe that ran under it. Never
+submit a scan to learn either value.
 
 - `data_root` is `null`: the install layout proved no data root and the guard denies every engine
   call. Report the audit as not run, submit no engine call, and stop.
@@ -85,8 +85,9 @@ Report from the snapshot and the scan's stdout, and nothing the run did not obse
   as coverage gaps. A `large-target-confirmation-required` or `root-children-selection-required`
   status names the next step, not a failure.
 - Quote hint coverage as a rate: `hinted_entries` of `entries`, never "N findings".
-- List protected, locked, needs-elevation, and unverified entries separately, and surface an
-  `os_autoclean` recommendation as the engine states it.
+- List protected entries separately, and surface an `os_autoclean` recommendation as the engine
+  states it. A scan does not assess live handles or elevation, so it yields no locked,
+  needs-elevation, or unverified entries: say those were not assessed, never that there are none.
 - Give each hinted entry the evidence the snapshot holds (path, hint, `protected_reasons`,
   `size_qualifiers`). A hint has no owner check behind it, so label the list hints for a person to
   judge, not verdicts, and rank nothing for deletion. Empty directories stay visible.
@@ -109,7 +110,15 @@ Run by a person when the findings warrant removal; it takes the same target, not
 
 - The argument-free probe is not one of the calls the engine-gate adjudicates, so a session in a
   permission mode that asks may hold it for a person. That is the "waiting for a person" stop in
-  step 1, not a reason to skip the probe.
+  step 1, not a reason to skip the probe. **Claim:** a headless session in the default permission
+  mode denies the probe and a `--bg` session parks it, because no hook adjudicates it.
+  **Basis:** the three probe lanes on
+  [#5516](https://github.com/melodic-software/claude-code-plugins/issues/5516) (headless default
+  denied, `--bg` default parked, headless `bypassPermissions` denied), run on Claude Code 2.1.285;
+  upstream behavior is in the
+  [permission modes doc](https://code.claude.com/docs/en/permission-modes) and the
+  [hooks doc](https://code.claude.com/docs/en/hooks). **As of:** 2026-09-30. **Recheck:** a Claude
+  Code release changes how permission modes treat Bash calls no hook adjudicates.
 - Under an inline `--plugin-dir` load the probe can report `data_root` as `null` even though the
   plugin data directory exists. Stop as step 1 says; do not substitute a guessed path. **Claim:** the
   guard derives `data_root` only from the `<plugins>/cache/<marketplace>/<name>` install layout or a

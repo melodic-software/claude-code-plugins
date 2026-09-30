@@ -704,9 +704,9 @@ unbounded traversal, so an unauthenticated whole-volume walk cannot begin by omi
 scan-cost gating (time and resources), distinct from the hard rejection of an OS-managed root as an
 invalid target.
 
-`--sizes-only`, as implemented, bypasses that gate. It does not ask the large-scan question, does
-not stop at VCS or protected directories (it sums through them, read-only, and emits no entries),
-and has no entry cap. Its snapshot is refused by disposition.
+`--sizes-only` goes through that same gate: a known-large root needs `--max-depth` or
+`--confirmed-large-scan`. It does not stop at VCS or protected directories (it sums through them,
+read-only, for exact totals), keeps no per-path entries, and has no entry cap. Its snapshot is refused by disposition.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
