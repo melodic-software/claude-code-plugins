@@ -324,7 +324,7 @@ pin_case_set() {
   elif [[ "$got" == "$want" ]]; then
     ok "$label"
   else
-    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest (${ATTENDED_ONLY}) with: jq -r '.evals[] | \"\\(.id):\\(.name)\"' <evals.json> | sort | tr -d '\\r' | sha256sum"
+    fail "$label — the eval-case roster in ${EVALS#"$PLUGIN_DIR/"} changed (want $want, got $got). Adding a case is fine; adding one that contradicts case 15 or 16 is not. Confirm no new case licenses the silent capture or a fudged gap, then update the digest. ${ATTENDED_ONLY}"
   fi
 }
 
