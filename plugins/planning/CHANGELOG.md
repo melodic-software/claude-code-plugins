@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.52.2] - 2026-09-30
+
+### Fixed
+
+- **The interview page drives its Open filter, counters and first pick from one "needs you" state.** The revising chip names the upstream question it waits on, "Sent to Claude" clears once the question is answered, and the composer has a Clear button. An answered question shows the chosen option and an answered-after marker. The `reply` op stamps `kind: "reply"` on its history line by default, and only Claude's reply, rephrase, note and revise lines count as replies, so a hold or a confirm-commitments line does not put a settled question back in Show: Open. Muted text and the Archived chip meet WCAG AA contrast, question titles render through `inline()`, and `surface.md` documents the `meta.stages` shape. The 510px sidebar check now covers cards with 0, 1, 2 and 4 dependencies ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
 ## [0.52.1] - 2026-09-30
 
 ### Changed

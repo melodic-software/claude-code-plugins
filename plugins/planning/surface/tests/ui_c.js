@@ -45,6 +45,9 @@ async page => {
     const order = await page.$$eval('.sec[data-key="g:base"] .qbtn', els => els.map(e => e.dataset.q));
     ok("AC17: Q1 renders before Q3 though Q3 was inserted first", order.indexOf("Q1") >= 0 && order.indexOf("Q1") < order.indexOf("Q3"), order.join(","));
 
+    const chipOf = async id => (await page.textContent('.qbtn[data-q="' + id + '"] .qmeta')).replace(/\s+/g, " ").trim();
+    ok("a question whose prerequisite is unanswered wears Blocked, not Open", /Blocked/.test(await chipOf("P2")) && !/Open/.test(await chipOf("P2")) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
+
     // R-J: emoji anchors on
     await pick("Q1");
     ok("R-J: question title leads with the question anchor", (await page.textContent("#dscroll .dhead h3")).startsWith(Q_MARK + " "), await page.textContent("#dscroll .dhead h3"));
@@ -143,6 +146,26 @@ async page => {
     await page.keyboard.press("Shift+N");
     ok("AC16: Shift+N goes back (P2)", await sel() === "P2", await sel());
 
+    // R1 holds an accept followed by Claude's reply to an ask: it still needs you, so Show: Open lists it and the group counts it
+    await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
+    const openIds = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
+    ok("Show: Open lists an accepted question with an unanswered Claude reply", openIds.includes("R1"), openIds.join(","));
+    ok("Show: Open leaves out a settled question", !openIds.includes("P1"), openIds.join(","));
+    ok("Show: Open leaves out a question held for research, whose newest Claude line is the hold", !openIds.includes("H1"), openIds.join(","));
+    ok("no Sent to Claude chip once a reply carries replyTo at or past the last event", !/Sent to Claude/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
+    ok("the group counter counts the unanswered reply", /^1 open \//.test(await page.textContent('.sec[data-key="g:talk"] .cnt')), await page.textContent('.sec[data-key="g:talk"] .cnt'));
+    ok("a reply after the accept puts the after-answer chip on the card", /Replied after your answer/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
+    await pick("R1");
+    ok("an accepted question has input:checked on the recommended row, labeled Your answer", await page.$eval("#choices .choice.rec", el => el.querySelector("input:checked") !== null && /Your answer/.test(el.textContent)), await page.textContent("#choices"));
+    ok("only the accepted row is checked", (await page.$$("#choices input:checked")).length === 1);
+    ok("Save starts disabled on an answered question", await page.$eval("[data-save]", el => el.disabled));
+    await page.click("#choices .choice.rec input");
+    ok("clicking the pre-selected Your answer row arms it and enables Save", /Accept/.test(await armed()) && await page.$eval("[data-save]", el => !el.disabled), await armed());
+    ok("the detail says when you answered", /You answered Accepted at /.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
+    ok("the detail shows the after-answer chip", /Replied after your answer/.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("P2");
+
     // SPEC 6 re-answer triage: Reconfirm re-sends the kept decision exactly; choice 2 onward picks again
     const last = async () => { const e = await events(); return e[e.length - 1]; };
     const stale = async id => (await state()).questions.questions.find(q => q.id === id).state === "stale";
@@ -187,8 +210,8 @@ async page => {
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
     await page.waitForTimeout(900);
-    ok("revising chip on the dependent", /Claude is revising/.test(await page.textContent('.qbtn[data-q="P2"]')));
-    ok("revising banner in the detail", /Claude is revising/.test(await page.textContent("#dscroll")));
+    ok("revising chip on the dependent", /Upstream P1 changed/.test(await page.textContent('.qbtn[data-q="P2"]')));
+    ok("revising banner in the detail", /Upstream P1 changed/.test(await page.textContent("#dscroll")));
 
     // shortcuts off: no single key acts
     await page.keyboard.press(","); await page.waitForTimeout(200);
