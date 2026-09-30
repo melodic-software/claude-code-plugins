@@ -1819,6 +1819,18 @@ done <<'EOF'
 0|chroot /mnt ls /
 EOF
 
+# A -match regex is text, not a path. It is allowed beside a literal-target delete,
+# and a refusal for some other reason never names the regex as a system path.
+PS_RX="-match '^[a-z0-9]{8}\.[a-z0-9]{3}\$'"
+expect_both 'PS regex pipeline with -LiteralPath $_.FullName delete allowed' 0 --tool PowerShell \
+  --command "Get-ChildItem C:\\Temp\\x | Where-Object { \$_.Name $PS_RX } | ForEach-Object { Remove-Item -LiteralPath \$_.FullName -Recurse -Force }"
+expect_both 'PS literal safe Remove-Item -Recurse beside the regex allowed' 0 --tool PowerShell \
+  --command "Remove-Item -Recurse -Force ./build; Get-ChildItem | Where-Object { \$_.Name $PS_RX }"
+guard_invoke --tool PowerShell \
+  --command "Remove-Item -Recurse -Force C:\\; Get-ChildItem | Where-Object { \$_.Name $PS_RX }"
+assert_exit "PS regex beside a root delete still blocks" 2 "$GUARD_RC"
+assert_absent "PS block message does not name the regex as a path" "$GUARD_ERR" '^[a-z0-9]'
+
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0
 bash "$HOOK" </dev/null >/dev/null 2>&1 || rc=$?

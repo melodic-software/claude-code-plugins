@@ -3,12 +3,23 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.2] - 2026-09-30
+## [0.34.1] - 2026-09-30
 
 ### Fixed
 
 - **`clean` hints Windows device-name files on Linux.** The baseline policy flags an entry named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) at confidence ceiling low; the reason says an entry of that name is most likely a redirection artifact. The hints match regular files only and apply on Linux only.
 - **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means a tmpfiles.d directory exists, not that a rule covers the temp zone.
+
+## [0.34.0] - 2026-09-30
+
+### Added
+
+- **`handoff-verify --path` is repeatable.** Pass `--path` once per approved path to report several paths in one call without writing a paths file. Each path gets the same validation as a `--paths` entry, and `--path` stays mutually exclusive with `--paths` in the parser and the guard.
+- **The apply and PowerShell deletion prompts list what they will delete.** The exact-engine apply prompt renders the plan's tier, path count, and every path; the PowerShell mutation prompt lists the path-shaped literals its command contains, noting the list may not be every path it acts on. Both prompts escape control characters in the listed text. Text only: every allow and ask verdict is unchanged, and an unreadable plan keeps the generic reason.
+
+### Changed
+
+- **`clean` gotcha: an allow rule cannot remove the deletion prompts.** The deletions are hook `ask` verdicts, which force a prompt, and the engine's read-only calls already get hook `allow`. The unsupported-platform handoff text names the repeatable `--path`.
 
 ## [0.33.1] - 2026-09-30
 

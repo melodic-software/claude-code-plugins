@@ -438,11 +438,8 @@ activity, sparse files, hard links, compression, and delayed allocation affect i
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
 so the engine never deletes there and the default outcome is the report. When, and only when,
 an execution request was made on one of those platforms and the human approved an exact single-tier
-path list in this session, read
-[reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
-it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
-revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
-lane from the engine steps above.
+path list in this session, read [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md)
+and follow it. It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
 
 ## Gotchas
 
@@ -494,6 +491,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority, except inside the opt-in elevated script, which no guard sees.
+- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts, which force a prompt; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Auto mode also drops broad interpreter allow rules such as `Bash(python*)`.
+  Verified 2026-09-29 against Claude Code 2.1.285 at `https://code.claude.com/docs/en/hooks#pretooluse-decision-control` (an `ask` prompts the user, including in auto mode) and `https://code.claude.com/docs/en/permission-modes` (the list of allow rules dropped on entering auto mode); recheck when either page changes those statements, or when a release note names hook permission decisions or auto-mode rule handling.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.
