@@ -3,6 +3,15 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-09-29
+
+### Changed
+
+- **`map-landscape` description** fits the 500-character listing target. The trigger `chart our
+  repositories` is dropped (`map our landscape` carries the same intent); the other triggers and
+  the Skip-when route are kept, and the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.16.0] - 2026-09-29
 
 ### Added
