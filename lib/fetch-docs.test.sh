@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Self-contained tests for fetch-docs.sh (no external test lib; ships with the plugin).
+# Self-contained tests for lib/fetch-docs.sh (no external test lib; the copies ship with the plugins).
 #
 # No case touches the network: the fixture cases set the docs fixture seam, and
 # the fetch cases put a curl stand-in first on PATH that serves local files and
@@ -94,7 +94,7 @@ mk_index() {
 fixture_run() {
   local fx="$1" out="$2"
   shift 2
-  SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$fx" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLAUDE_STUB" \
+  FETCH_DOCS_FIXTURE_DIR="$fx" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
     bash "$SCRIPT" --index-url "$INDEX" --out "$out" "$@"
 }
 
@@ -102,8 +102,8 @@ fixture_run() {
 shim_run() {
   local src="$1" out="$2"
   shift 2
-  env -u SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" \
-    SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLAUDE_STUB" bash "$SCRIPT" --index-url "$INDEX" --out "$out" "$@"
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" \
+    FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" bash "$SCRIPT" --index-url "$INDEX" --out "$out" "$@"
 }
 
 # page <manifest> <slug> <jq path>: one field of one page record.
@@ -153,7 +153,7 @@ assert_eq "case 2: index unread fixture-missing" "unread fixture-missing" "$(jq 
 assert_eq "case 2: page unread index-unread" "unread index-unread" "$(page "$m" skills '"\(.state) \(.reason)"')"
 assert_no_file "case 2: no page file" "$TEST_TMPDIR/out2/skills.md"
 rc=0
-SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="" \
+FETCH_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" FETCH_DOCS_CLAUDE_BIN="" \
   bash "$SCRIPT" --index-url "$INDEX" --out "$TEST_TMPDIR/out2b" skills || rc=$?
 assert_eq "case 2: a missing fixture directory reads the same" "unread fixture-missing" "$(jq -r '.index | "\(.state) \(.reason)"' "$TEST_TMPDIR/out2b/manifest.json")"
 assert_eq "case 2: an unreadable claude is an empty claude_version" "" "$(jq -r .claude_version "$TEST_TMPDIR/out2b/manifest.json")"
@@ -336,12 +336,33 @@ printf '%s\n' '# Docs' '- [X](//other.test/docs/en/x.md): x' >"$src/llms.txt"
 shim_run "$src" "$TEST_TMPDIR/out20r" x
 assert_eq "case 20: protocol-relative link is off-origin" "unread off-origin" "$(page "$TEST_TMPDIR/out20r/manifest.json" x '"\(.state) \(.reason)"')"
 
+# --- Case: publisher profiles ---------------------------------------------------
+fx="$TEST_TMPDIR/fxp"
+mkdir -p "$fx"
+printf '%s\n' '# Docs' '- [Skills](https://code.claude.com/docs/en/skills.md): skills' >"$fx/llms.txt"
+printf '%s\n' '# Skills' >"$fx/skills.md"
+FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --out "$TEST_TMPDIR/outp-default" skills >/dev/null
+FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile anthropic --out "$TEST_TMPDIR/outp-named" skills >/dev/null
+assert_eq "profile: the default profile is anthropic" \
+  "$(jq -S 'del(.pages[].retrieved, .index.retrieved) | del(.pages[].file, .index.file)' "$TEST_TMPDIR/outp-named/manifest.json")" \
+  "$(jq -S 'del(.pages[].retrieved, .index.retrieved) | del(.pages[].file, .index.file)' "$TEST_TMPDIR/outp-default/manifest.json")"
+assert_eq "profile: anthropic index and page resolve" "read read https://code.claude.com/docs/llms.txt https://code.claude.com/docs/en/skills.md" \
+  "$(jq -r '"\(.index.state) \(.pages[0].state) \(.index.url) \(.pages[0].url)"' "$TEST_TMPDIR/outp-default/manifest.json")"
+rc=0
+err="$(FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile nope --out "$TEST_TMPDIR/outp-bad" skills 2>&1 >/dev/null)" || rc=$?
+assert_eq "profile: an unknown profile is fatal" 2 "$rc"
+assert_eq "profile: the error names the profile" "ERROR: unknown profile: nope (known: anthropic)" "$err"
+assert_no_file "profile: an unknown profile writes no manifest" "$TEST_TMPDIR/outp-bad/manifest.json"
+rc=0
+FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile --out "$TEST_TMPDIR/outp-bad" skills >/dev/null 2>&1 || rc=$?
+assert_eq "profile: --profile takes the next word as its value" 2 "$rc"
+
 # --- Case: the claude version probe runs under a timeout ---
 mkdir -p "$TEST_TMPDIR/tbin"
 # shellcheck disable=SC2016 # the stub script expands its own arguments
 printf '#!/usr/bin/env bash\necho "$1" >"%s"\nshift\nexec "$@"\n' "$TEST_TMPDIR/timeout.log" >"$TEST_TMPDIR/tbin/timeout"
 chmod +x "$TEST_TMPDIR/tbin/timeout"
-PATH="$TEST_TMPDIR/tbin:$PATH" SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLAUDE_STUB" \
+PATH="$TEST_TMPDIR/tbin:$PATH" FETCH_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
   bash "$SCRIPT" --index-url "$INDEX" --out "$TEST_TMPDIR/out-to" skills || true
 assert_eq "timeout: probe bounded to 30 s" 30 "$(cat "$TEST_TMPDIR/timeout.log" 2>/dev/null)"
 assert_eq "timeout: version still read" 9.8.7 "$(jq -r .claude_version "$TEST_TMPDIR/out-to/manifest.json")"
