@@ -898,17 +898,17 @@ TWEOF
   # --no-drive stops before cygpath even on a Windows OSTYPE.
   : >"$TW_DIR/log"
   # shellcheck disable=SC2016 # $1 is the child's own positional parameter
-  tw_nd=$(env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" \
+  tw_nodrive=$(env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" \
     PATH="$TW_DIR/bin:$PATH" "$BASH" -c '
       OSTYPE=msys
       source "$1"
       hook::_temp_root_candidates --no-drive
       (IFS="|"; printf "%s" "${_HOOK_TEMP_CANDS[*]}")
     ' _ "$HOOK_DIR/hook-utils.sh")
-  if [[ "$tw_nd" == "$TW_POSIX" && ! -s "$TW_DIR/log" ]]; then
+  if [[ "$tw_nodrive" == "$TW_POSIX" && ! -s "$TW_DIR/log" ]]; then
     ok "temp_root_candidates: --no-drive adds no spelling and calls no cygpath"
   else
-    fail "temp_root_candidates: --no-drive: want '$TW_POSIX' and no call, got '$tw_nd' and '$(<"$TW_DIR/log")'"
+    fail "temp_root_candidates: --no-drive: want '$TW_POSIX' and no call, got '$tw_nodrive' and '$(<"$TW_DIR/log")'"
   fi
   rm -rf "$TW_DIR"
   ;;
