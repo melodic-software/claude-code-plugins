@@ -951,6 +951,45 @@ run_pwsh "PS: grouping + computed launcher (still blocked)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + interpolating-string call target (still blocked)" \
   "foreach (\$x in @('a')) { & \"\$tool\" reset --hard }" 2
+# Read-only git inside grouping (`interrogation-ok` sink scope): a `{}`/`()`
+# command in which every git invocation is a built-in interrogator passes; any
+# other git use, and every non-grouping sink trigger, still blocks.
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only foreach loop with remote and stash (allowed)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p remote -v; git -C \$p status --short --branch | Select-Object -First 8; git -C \$p log --oneline -3; git -C \$p stash list }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop with git reset --hard (blocked)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p remote -v; git -C \$p reset --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop with git stash drop (blocked)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p stash list; git -C \$p stash drop }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop with git push --force (blocked)" \
+  "foreach (\$d in 'a','b') { \$p=\"C:\\x\\\$d\"; git -C \$p status; git -C \$p push --force }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: read-only loop then git reset --hard outside the group (blocked)" \
+  "foreach (\$d in 'a') { git -C \$d status }; git reset --hard" 2
+run_pwsh "PS: obscured subcommand inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git ('re'+'set') --hard }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: computed subcommand inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git \$sub -fdx }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: git -c core.pager inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git -c core.pager=./x log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: git --exec-path inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git --exec-path=. status }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: an alias-shaped subcommand inside grouping (blocked)" \
+  "foreach (\$d in 'a') { git co main }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: iex beside a read-only git group (blocked)" \
+  "iex \$x; { }; git status" 2
+run_pwsh "PS: nested pwsh with a read-only git group (blocked)" \
+  "pwsh -c { git status }" 2
+run_pwsh "PS: launcher alone still blocked" \
+  "Start-Process git -ArgumentList status" 2
 
 # --- PowerShell token separators bash does not honor (#2928) ----------------
 # PowerShell's tokenizer treats U+00A0 as token-separating whitespace; bash's
@@ -1272,8 +1311,8 @@ run_pwsh "PS cmp: GitHub path component is not a git command (allowed)" \
   "Get-ChildItem C:\\code\\proj | Where-Object { \$_.PSIsContainer }" 0
 
 # Counterexamples: every one keeps the quote-intact probe and stays blocked.
-run_pwsh "PS cmp: bare git in call position beside a comparison (blocked)" \
-  "git status; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
+run_pwsh "PS cmp: bare mutating git beside a comparison (blocked)" \
+  "git reset --hard; Get-Process | Where-Object { \$_.Name -eq 'node' }" 2
 run_pwsh "PS cmp: Start-Process 'git' is a call target, not an operand (blocked)" \
   "Start-Process 'git' reset --hard; Get-Process | Where-Object { \$_.Name -eq 'x' }" 2
 run_pwsh "PS cmp: saps 'git' is a call target, not an operand (blocked)" \

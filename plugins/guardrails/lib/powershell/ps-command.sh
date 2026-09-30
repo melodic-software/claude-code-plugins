@@ -1584,12 +1584,15 @@ ps::might_invoke_git() {
 #   c. THE SUBCOMMAND IS IRRELEVANT. `-c core.pager=./x`, `-c core.editor=./x`,
 #      `-c alias.z=!./x`, `--exec-path=.` turn a read-only `git log` into
 #      arbitrary local execution.
-# The mangle-resistant fix for all three is to INVERT this into an allowlist —
-# read-only iff every git occurrence is followed by a known interrogator — which
-# is a redesign of the #1415 allowance, not a widening of this list. Until then
-# this narrows the sink on a best-effort basis and is never the only thing between
-# a destructive form and the repository: the DEFAULT `mutating` sink scope (what
-# block-dangerous-git uses) does not consult this function at all.
+# The mangle-resistant fix for all three is an allowlist — read-only iff every git
+# occurrence is followed by a known interrogator — which is
+# ps::git_command_is_interrogation_only below. This blocklist stays the test for
+# the `readonly-ok` scope (block-no-verify), so all three residuals still apply
+# there, on a best-effort basis. block-dangerous-git owns the destructive forms
+# and never consults this function: its `interrogation-ok` scope reads the
+# allowlist, which refuses all three. What neither closes is the repository's own
+# config: `core.pager` or `core.fsmonitor` in its `.git/config` still runs under
+# `git log` or `git status`, the same as in the Bash tool.
 ps::git_command_is_readonly() {
   local recovered="${1//\`/}" lc
   lc="${recovered,,}"
@@ -1620,6 +1623,110 @@ ps::git_command_is_readonly() {
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(replace|rerere|reset|restore|revert|rm|send-pack|sparse-checkout|stage|stash)([^[:alnum:]_.-]|$) ]] && return 1
   [[ "$lc" =~ (^|[^[:alnum:]_.-])(submodule|subtree|svn|switch|symbolic-ref|tag|update-index|update-ref|update-server-info|worktree)([^[:alnum:]_.-]|$) ]] && return 1
   return 0
+}
+
+# True (0) when every git invocation in the text is a built-in INTERROGATOR, read
+# off the argv rather than off a list of spellings to refuse. This is the
+# allowlist the residual note above ps::git_command_is_readonly names, and it is
+# what block-dangerous-git consults (sink scope `interrogation-ok`, #4235): that
+# guard owns destructive forms, so it cannot take the blocklist's residuals.
+#
+# Each git token must be a bare command word, optionally behind `-C <path>`,
+# `--no-pager`/`-P`, `--no-optional-locks` or `--literal-pathspecs`, and followed
+# by one of the built-ins below as a literal word. That closes the blocklist's
+# three residual families:
+#   a. an OBSCURED subcommand (`git ('cle'+'an')`, `git $sub`) is not a literal
+#      word, so it is not on the list;
+#   b. an ALIAS (`git co`) is not on the list, and git never lets an alias shadow
+#      a built-in, so `git status` always means status;
+#   c. `-c <name>=<value>`, `--exec-path`, `--git-dir` and every other global
+#      option outside the four above stop the walk, and what they leave in
+#      subcommand position is not on the list. `$env:GIT_*` anywhere refuses too,
+#      because GIT_PAGER / GIT_EXTERNAL_DIFF turn a read into execution.
+# `-C` is compared case-sensitively: git reads `-c` as a config override.
+#
+# Dual-mode verbs are argument-aware, as in the blocklist's carve-out: `remote`
+# alone or `remote -v`/`--verbose` ending the statement, `remote show`, `remote
+# get-url`, `stash list`, `stash show`. `grep` (whose `-O` opens files in a
+# named program), `ls-remote` and `fetch` (whose `--upload-pack` runs a named
+# program against a local repository) and `help` (which can launch a browser)
+# are left off on purpose.
+#
+# A git token inside a quoted string is not a bare command word: the count of
+# git tokens the quote-INTACT probe sees must equal the count found in the
+# argv, so `& 'git' reset --hard` and `Write-Host 'git clean'; git status` both
+# refuse. Every other way ps::might_invoke_git can say yes without a literal git
+# token (iex, a quoted or subexpression call target, a launcher) refuses here as
+# well, since those can run anything.
+ps::git_command_is_interrogation_only() {
+  local recovered="${1//\`/}" lc opaque s tok ch i k j sub next n_probe=0 n_git=0
+  local -a toks=()
+  lc="${recovered,,}"
+  # shellcheck disable=SC2016  # a literal PowerShell `$env:` prefix, not an expansion
+  [[ "$lc" == *'$env:git_'* ]] && return 1
+  ps::has_dynamic_invocation "$1" && return 1
+  ps::has_launcher "$1" && return 1
+  ps::call_target_is_bare_subexpression "$recovered" && return 1
+  ps::call_target_is_interpolating_string "$recovered" && return 1
+  s="$lc"
+  while [[ "$s" =~ (^|[[:space:]\;\|\&\(\{\}\"\'/\\:=])git([.]exe)?([^[:alnum:]_/\\]|$) ]]; do
+    n_probe=$((n_probe + 1))
+    s="${s#*"${BASH_REMATCH[0]}"}"
+  done
+  ((n_probe > 0)) || return 1
+  ps::opaque_quoted_spans_to opaque "$recovered"
+  tok=""
+  for ((i = 0; i < ${#opaque}; i++)); do
+    ch="${opaque:i:1}"
+    case "$ch" in
+    [[:space:]] | '=')
+      [[ -n "$tok" ]] && toks+=("$tok")
+      tok=""
+      ;;
+    ';' | '|' | '&' | '{' | '}' | '(' | ')' | ',')
+      [[ -n "$tok" ]] && toks+=("$tok")
+      tok=""
+      toks+=(';')
+      ;;
+    *) tok+="$ch" ;;
+    esac
+  done
+  [[ -n "$tok" ]] && toks+=("$tok")
+  for ((k = 0; k < ${#toks[@]}; k++)); do
+    [[ "${toks[k],,}" =~ (^|[/\\:])git([.]exe)?$ ]] || continue
+    n_git=$((n_git + 1))
+    j=$((k + 1))
+    while ((j < ${#toks[@]})); do
+      case "${toks[j]}" in
+      -C)
+        [[ "${toks[j + 1]-;}" != ';' ]] || return 1
+        j=$((j + 2))
+        ;;
+      --no-pager | -P | --no-optional-locks | --literal-pathspecs) j=$((j + 1)) ;;
+      *) break ;;
+      esac
+    done
+    sub="${toks[j]-}"
+    next="${toks[j + 1]-;}"
+    case "$sub" in
+    status | log | show | diff | rev-parse | ls-files | ls-tree | cat-file | describe | blame | shortlog | for-each-ref | show-ref | merge-base | rev-list | name-rev | count-objects | version | cherry | range-diff | check-ignore | check-attr) ;;
+    remote)
+      case "$next" in
+      ';' | show | get-url) ;;
+      -v | --verbose) [[ "${toks[j + 2]-;}" == ';' ]] || return 1 ;;
+      *) return 1 ;;
+      esac
+      ;;
+    stash)
+      case "$next" in
+      list | show) ;;
+      *) return 1 ;;
+      esac
+      ;;
+    *) return 1 ;;
+    esac
+  done
+  ((n_git == n_probe))
 }
 
 # True (0) when the command both names a python3 interpreter TOKEN and carries a
@@ -1787,6 +1894,11 @@ ps::has_launcher() {
 #   `readonly-ok` — block only when git might be reached AND the visible git use is
 #      not read-only (commit/push/reset-class). Lets routine read-only PowerShell
 #      through the fail-closed branch (#1415).
+#   `interrogation-ok` — for a guard that owns destructive forms (block-dangerous-git,
+#      #4235). Relieves ONLY the `special-construct` trigger (`{}`/`()` grouping,
+#      backtick, `--%`), and only when every git invocation is a built-in
+#      interrogator on ps::git_command_is_interrogation_only's allowlist. Dynamic
+#      invocation, launcher and here-string triggers still refuse.
 ps::classify_git_command() {
   local tool="$1" cmd="$2" sink_scope="${3:-mutating}" scan
   PS_SAFE_COMMAND="$cmd"
@@ -1850,6 +1962,10 @@ ps::classify_git_command() {
     ((PS_HERESTRING_EXPANDABLE)) && return 2
     ps::might_invoke_git "$PS_BLANKED" || return 1
     if [[ "$sink_scope" == "readonly-ok" ]] && ps::git_command_is_readonly "$PS_BLANKED"; then
+      return 1
+    fi
+    if [[ "$sink_scope" == "interrogation-ok" && "$PS_SINK_TRIGGER" == "special-construct" ]] &&
+      ps::git_command_is_interrogation_only "$PS_BLANKED"; then
       return 1
     fi
     return 2
