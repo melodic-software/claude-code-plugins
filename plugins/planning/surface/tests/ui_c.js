@@ -21,7 +21,7 @@ async page => {
     let n = 0;
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
-      if (!["accept", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
+      if (!["accept", "hedged", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
       const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && e.seq <= q.commitsSinceSeq)).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
       n += q.commits.filter((c, i) => !cf.has(String(i))).length;
     }
@@ -105,10 +105,24 @@ async page => {
     ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     ok("AC16: Esc closes the sheet", await page.evaluate(() => !document.getElementById("keysDlg").open));
+    // Hedged: accept with a required condition note; its commitments count like an accept's
+    await pick("Q3"); await page.click("main.detail h3");
+    await page.keyboard.press("h");
+    ok("h arms Hedged and focuses the note", /Hedged/.test(await armed()) && (await focused()) === "note", await armed());
+    ok("Hedged with no condition cannot be saved", await page.$eval("[data-save]", el => el.disabled) && /Hedged needs a condition/.test(await page.textContent("#decideRow")));
+    await page.keyboard.type("only if the migration is reversible"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
+    const eh = await events(), hd = eh[eh.length - 1];
+    ok("Hedged posts a hedged event with the condition", hd.id === "Q3" && hd.kind === "hedged" && hd.text === "only if the migration is reversible", JSON.stringify(hd));
+    await pick("Q3");
+    ok("the hedged decision shows as Hedged with its condition", /Hedged/.test(await page.textContent("#cur")) && /only if the migration is reversible/.test(await page.textContent("#cur")), await page.textContent("#cur"));
+    s = await state();
+    ok("a hedged question's commitments count in To confirm", (await counter()) === (openAssumptions(s) ? open(openAssumptions(s)) : ""), (await counter()) + " vs " + openAssumptions(s));
+    await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
     await pick("Q1"); await page.click("main.detail h3");
+    const nBeforeReopen = (await events()).length;
     await page.keyboard.press("r"); await page.waitForTimeout(700);
     const e4 = await events();
-    ok("AC16: r sends Reopen when a decision exists", e4.length === n1 + 1 && e4[e4.length - 1].kind === "reopen" && e4[e4.length - 1].id === "Q1", e4[e4.length - 1].kind);
+    ok("AC16: r sends Reopen when a decision exists", e4.length === nBeforeReopen + 1 && e4[e4.length - 1].kind === "reopen" && e4[e4.length - 1].id === "Q1", e4[e4.length - 1].kind);
 
     // AC20: archived X1 is greyed, out of the open counts and the meter
     s = await state();
