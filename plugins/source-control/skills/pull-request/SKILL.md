@@ -1,5 +1,5 @@
 ---
-description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer it for a one-shot PR with no draft or body contract; this skill for the lifecycle. Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
+description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, with no draft or body contract; this skill for the lifecycle. Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args]"
@@ -255,8 +255,11 @@ is opened or watched.
   under this repository's PR title and body contract, the ready flip after merging the base,
   research-gated local monitoring with per-finding classification and replies, and merge.
 
-**Routing.** When the bundled `pr` skill or `/commit-push-pr` resolves in this session, prefer it
-for a one-shot PR where no draft discipline, body contract, or later lifecycle step applies. Prefer
+**Routing.** Where no draft discipline, body contract, or later lifecycle step applies: when the
+bundled `pr` skill resolves in this session, prefer it to open a PR from work already committed;
+when `/commit-push-pr` resolves, prefer it only when the whole working tree belongs in the commit,
+since it commits, pushes and opens the PR in one step. With unrelated uncommitted changes, `pr`
+is the native route, never `/commit-push-pr`. Prefer
 this skill whenever the repository declares a PR convention or the work continues into ready,
 monitor, or merge.
 

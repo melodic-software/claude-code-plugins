@@ -11,8 +11,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   native surfaces their Boundary sections cover.** `commit` routes a plain commit to the bundled
   `commit` skill and a commit-push-PR request to the built-in `/commit-push-pr` command when either
   resolves in the session, and keeps a request to commit and nothing more. `pull-request` routes a
-  one-shot PR with no draft or body contract to the bundled `pr` skill or `/commit-push-pr`, and
-  keeps the lifecycle.
+  one-shot PR with no draft or body contract to the bundled `pr` skill when the work is committed,
+  to `/commit-push-pr` only when the whole working tree belongs in the commit, and keeps the
+  lifecycle. Its Boundary section says the same, so unrelated uncommitted changes never reach a
+  native commit.
 
 ## [0.62.29] - 2026-09-29
 
