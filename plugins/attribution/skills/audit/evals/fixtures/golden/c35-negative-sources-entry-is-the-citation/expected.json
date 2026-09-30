@@ -1,0 +1,18 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous on verdict and on failing C2, C3 and C4",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5.md"
+  },
+  "notes": {
+    "shape": "The matched text is the file's own Sources entry for the guide: the page's URL and title, plus fetch provenance the page does not carry (a read date, a byte count and a hash). Two claims above it are tagged as drawn from the guide.",
+    "carve_outs": "None applies, and none is needed. The entry is the citation the rest of the file points at.",
+    "rubric": "C1 holds: the URL and the title correspond to the source's. C2 FAILS: a URL and a title are the idiom of citing a page, and nothing in them is a specific the source could have chosen otherwise. C3 FAILS: the entry is the attribution, and its stated scope, every 'guide' citation above, matches the file's per-claim tags. C4 FAILS: the entry adds the read date, the size and the hash, which the source does not have. One failing criterion clears the candidate.",
+    "measured": "fingerprint.mjs at k=5: containment 0.209, jaccard 0.098, longest matched span 18 words at local line 8. The quoted title is stripped before shingling, so the matched words are the entry's URL, which repeats the source's canonical location. The span limb fires on the URL alone, which is why the candidate reaches judgment.",
+    "carries": "This case fails a run that flags a bibliography entry for matching the thing it cites. A citation that reproduces its target's URL and title is the pointer remedy, not a copy needing one. It pairs with the case where an attribution's own URL is the only match."
+  }
+}

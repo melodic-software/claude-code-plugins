@@ -163,6 +163,15 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             Flag("--output", required=True, example="snapshot.json"),
             Flag("--policy", example="policy.json"),
             Flag("--project-dir", example="project-dir"),
+            Flag(
+                "--in-flight-refs",
+                example="in-flight-refs.json",
+                help=(
+                    "JSON file of absolute paths referenced by open work "
+                    "(issue, PR, handoff); entries at or under one are not "
+                    "preselected"
+                ),
+            ),
             _data_root_flag(),
             Flag(
                 "--max-depth",
@@ -219,6 +228,26 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             ),
         ),
         help="inventory a target without mutating it",
+    ),
+    Subcommand(
+        "inventory",
+        (
+            Flag("--target", required=True, example="target-dir"),
+            _data_root_flag(),
+            Flag(
+                "--deep",
+                takes_value=False,
+                help=(
+                    "list every level of the target instead of its immediate "
+                    "children; the default when the target is the user's home "
+                    "directory"
+                ),
+            ),
+        ),
+        help=(
+            "report each entry's producer, disposition and reason; writes a "
+            "report that preview and apply never accept"
+        ),
     ),
     Subcommand(
         "preview",

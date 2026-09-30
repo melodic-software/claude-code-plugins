@@ -3,6 +3,52 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-09-30
+
+### Added
+
+- **Class-matched policy rules, atime/ctime age basis, and a reference in-flight input**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A schema v2 rule
+  can match on a hint `class` as well as `hint_id`/`hint_ids`. `min_age_days` can be measured on
+  `mtime`, `atime` or `ctime` through `min_age_basis`. `scan --in-flight-refs <json>` reads
+  `{"references":[{"path","reason"}]}` and leaves a path (and its ancestors) referenced by open
+  work unticked, with the reason shown in the preview. The policy overlay schema,
+  `skills/clean/SKILL.md` and `skills/clean/reference/scan-flags.md` document all three.
+
+## [0.40.0] - 2026-09-30
+
+### Added
+
+- **A read-only managed-state owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
+  them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
+  registry match is reported. A match grants no approval and adds no delete path; the engine is
+  unchanged. The report neither shows nor runs a product-native destructive command; the registry
+  keeps each as data. Its presence check and read-only command run through the PowerShell tool or
+  the operator, because the skill's Bash guard denies them, and by the resolved application
+  executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
+  manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
+
+## [0.39.0] - 2026-09-30
+
+### Added
+
+- **Read-only `inventory` subcommand with a deep mode**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
+  --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
+  a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
+  validated KEEP reason (exit 5 when the validator fails); without a readable `/proc`, rows that depend
+  on the process table are UNKNOWN, not CANDIDATE. A home-directory target, or any target with
+  `--deep`, runs it before any `scan`, so a bare `/disk-hygiene:clean ~` starts there. The engine
+  grammar declares the subcommand read-only, so the destructive guard admits it beside `catalog`.
+  A superseded version a symlink points at is kept, a release outranks its own prerelease, a
+  plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
+  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. The walk does not enter a bind mount on the
+  same device (read from `/proc/self/mountinfo`), an open file counts as use of a `/tmp` entry, and
+  the report is written to a temporary file and renamed only when the walk finishes.
+  `skills/clean/SKILL.md` and its references document the attended workflow.
+
 ## [0.38.0] - 2026-09-30
 
 ### Added
