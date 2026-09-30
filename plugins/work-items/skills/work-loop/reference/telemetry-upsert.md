@@ -103,6 +103,37 @@ per-subcommand matching rule, or when a release note names compound-command perm
 invocation is blocked anyway, retry it rather than hand-transcribing the upsert: reproducing the
 gates in isolated calls loses the distinct exit codes the lane reads its own outcome from.
 
+## Instance-collision check (cycle start, before any write)
+
+`writer_nonce` is generated once per session; `heartbeat_at` is rewritten every cycle. After
+re-reading the block:
+
+- No block at all → unclaimed. **Claim before any work**: upsert a cycle-0 block with my nonce and
+  heartbeat, re-read, and run the creation-race reconcile; if the canonical (lowest-id) comment
+  carries a different nonce, another session claimed first. Take the live-collision branch below.
+  Claiming first means two same-id sessions starting together stop before either overwrites the
+  other's first durable state.
+- Nonce matches mine → ordinary continuation.
+- Nonce differs **and** `restart_request` is non-null → **clean handoff**: recording the request
+  is a stopping lane's last write, so a fresh `heartbeat_at` beneath one is a stopped predecessor,
+  not a live writer. Adopt, clear `restart_request`, write my nonce, continue, a replacement
+  after a budget or expiry stop starts immediately instead of waiting out the staleness window.
+- Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
+  `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
+  block, write my nonce, continue, the ordinary restart path; two hours is twice the one-hour
+  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
+- Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
+  holds my instance id.** Write nothing, escalate per the convention's escalation contract, and
+  stop the loop cleanly.
+
+`paused_until` is not `rate_limit_latch` and does not replace it: the latch says *do not claim
+work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
+pause so a paused lane is never adopted as a dead one.
+
+Report the instance on its own `instance:` line in the cycle report, never appended to `lane:`,
+the telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`,
+reporting the lane as if nothing were partitioned.
+
 ## Known limits
 
 A PATCH that succeeds while storing the previous body still verifies: the read-back asserts that

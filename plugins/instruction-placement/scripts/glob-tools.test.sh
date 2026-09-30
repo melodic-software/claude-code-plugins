@@ -12,6 +12,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 SCRIPT="$SCRIPT_DIR/glob-tools.sh"
 
 FAILED=0
@@ -41,7 +44,7 @@ commit_all() {
 # Build a fixture repo with a known tracked-file set.
 fixture_repo() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d "$TMP/x.XXXX")"
   local rel
   for rel in "$@"; do
     mkdir -p "$dir/$(dirname "$rel")"
@@ -359,14 +362,13 @@ fi
 # --------------------------------------------------------------------------
 # Non-git roots still answer
 # --------------------------------------------------------------------------
-plain="$(mktemp -d)"
+plain="$(mktemp -d "$TMP/x.XXXX")"
 mkdir -p "$plain/src"
 printf 'x\n' >"$plain/src/a.ts"
 out="$(run validate --root "$plain" --glob '**/*.ts')"
 assert_eq "a non-git root falls back to a file walk" "1" "$(row_field "$out" '**/*.ts' 5)"
 
 # --------------------------------------------------------------------------
-rm -rf "$repo" "$repo_dot" "$repo_brace" "$repo_nested" "$repo_br" "$repo_esc" "$rules_repo" "$flow_repo" "$budget_repo" "$split_repo" "$clean_repo" "$plain"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

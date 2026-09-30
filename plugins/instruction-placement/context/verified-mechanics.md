@@ -86,11 +86,12 @@ Four findings follow, each of which a rubric rule depends on:
    *instead of* `AGENTS.md`.
    - **Claim**: Claude reads `AGENTS.md` only where no `CLAUDE.md`, `.claude/CLAUDE.md` or
      `CLAUDE.local.md` sits in the working directory or above it, and attaches a subdirectory's
-     `AGENTS.md` on a Read there under the same condition; reading it directly needs v2.1.277 or
-     later and is unavailable in some sessions.
+     `AGENTS.md` on a Read there under the same condition; reading it directly
+     depends on a CLI version floor and on the session, both in
+     `skills/migrate/reference/sources.md`, "The minimum CLI version".
    - **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code
      reads AGENTS.md", "When AGENTS.md support is unavailable"; canary runs on 2.1.278.
-   - **As of**: 2026-09-19.
+   - **As of**: 2026-09-29.
    - **Recheck trigger**: that section changes which file names count for the check, or a release
      note names `AGENTS.md` or instruction-file loading.
 4. **A subagent inherits none of the parent's on-demand loads.** Dispatched *after* the parent had

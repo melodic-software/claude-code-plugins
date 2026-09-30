@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "playwright-cli",
-      "check": "/playwright:setup check",
+      "check": "/playwright:check",
       "install": "npm install -g @playwright/cli"
     }
   ]

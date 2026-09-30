@@ -1,5 +1,5 @@
 ---
-description: "Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a quick plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and anything the local telemetry stores hold. Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]"
@@ -183,7 +183,7 @@ Read [context/data-sources.md](context/data-sources.md). Summary:
 | Source | Path | What it provides |
 |---|---|---|
 | ccusage | MCP or CLI | Token counts, cost USD, billing blocks |
-| Hook log root | `<session_event_log_dir>/` (`.observability/claude` by default, project-relative): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl`; present only once a producer wrote there | Hook duration, exit codes, what was blocked, the per-session event timeline |
+| Hook log root | `<session_event_log_dir>/` (`.observability/claude` by default, project-relative): `sessions/<session_id>.jsonl` and the shared `hook-events.jsonl` with its rotated `hook-events.jsonl.1`; present only once a producer wrote there | Hook duration, exit codes, what was blocked, the per-session event timeline |
 | Pipeline state | `scripts/probe-observability-state.sh --pipeline` (the pipeline rows of the "Hook event log" line above) | Toggles, retention, guard state, stale prune sets |
 | OTEL store | `$CC_OTEL_STORE/*.json` → DuckDB | Logs, metrics, spans. [context/otel-queries.md](context/otel-queries.md) |
 | Auto-memory | `~/.claude/.../memory/feedback_*.md` | User-correction patterns |
@@ -206,8 +206,8 @@ retention in effect" section, the six probe lines verbatim.
 One native surface also answers "where did my tokens go", and the two get conflated whenever a
 session feels expensive:
 
-- **`explain-usage` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
-  It explains where the current session's tokens went, with one simple chart in plain language.
+- **`explain-usage` (bundled skill)**: explains where the current session's tokens went, with one
+  simple chart in plain language.
   The model and the person can both invoke it where it resolves.
 - **This skill (marketplace plugin).** Reads locally captured telemetry (the OTEL store, the hook
   event log, ccusage) across sessions: trends, cost, hook latency, which hooks fired, and a
@@ -229,7 +229,7 @@ records live in [reference/native-explain-usage.md](reference/native-explain-usa
 
 - Empty stores are normal on first run. Degrade gracefully
 - **No `${user_config.*}` inside a pre-compute command.** A `${user_config.*}` value renders in plain skill content only; shell-executing content rejects it because the shell would re-parse whatever the value holds, and a placeholder left unrendered on a shell line is a bash `bad substitution` that aborts the whole invocation, since one failed pre-compute line aborts every line. The options render as plain content above the probe lines; the probe lines pass none and print no option tier (`--observed`), so a manifest default never appears where an effective value belongs; the model hands the rendered values to the probe through its own Bash call, the one place the options render. Basis: "Fields that run in a shell reject `${user_config.*}`" under "User configuration" at <https://code.claude.com/docs/en/plugins-reference>, and the substitution list under "Dynamic context injection" at <https://code.claude.com/docs/en/skills>. Verified 2026-09-09 against Claude Code 2.1.263 and both pages as fetched that day; recheck when either page names `user_config` for pre-compute lines
-- **The pipeline line names two tiers.** `envelope:` counts rows the telemetry sink wrote for the audit hooks, across `sessions/*.jsonl` (rows marked `source: "envelope"`) and the whole shared `hook-events.jsonl` (the legacy shape for a hook payload with no session id); those follow the per-hook audit toggles and never the event-log switch. `event log:` is the switch. `event log: off` beside a populated root is the normal state, not a contradiction
+- **The pipeline line names two tiers.** `envelope:` counts rows the telemetry sink wrote for the audit hooks, across `sessions/*.jsonl` (rows marked `source: "envelope"`) and the whole shared `hook-events.jsonl` plus its rotated `hook-events.jsonl.1` (the legacy shape for a hook payload with no session id); those follow the per-hook audit toggles and never the event-log switch. `event log:` is the switch. `event log: off` beside a populated root is the normal state, not a contradiction
 - **`session_id` joins only per-session files**. Rows in `sessions/<id>.jsonl` carry the id; rows in the shared `hook-events.jsonl` do not, and are never attributed to a session (say "legacy rows, shared file, time proximity only"). OTEL rows join on `session_id` as before; `cwd` + `branch` + time proximity is the fallback for a producer that sends none. Hook input carries `session_id` on every event (the common input fields at <https://code.claude.com/docs/en/hooks>), so a row without one comes from a producer that dropped it, never from the harness. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day; recheck when the common input fields drop `session_id`
 - **Per-hook duration per session covers producers that emit `data.session_id`** (the nine claude-ops audit hooks). Other hooks appear in the whole-root tables only
 - **Hooks run in parallel**. Row order within one second is write order, not fire order; group by `prompt_id` or `tool_use_id`, not by adjacency

@@ -586,6 +586,22 @@ routinely shared across skills, so one `setup` skill is the single discoverable 
 flag fragmented across per-skill actions. Where distinct skills carry distinct readiness, the one
 setup skill aggregates and reports it per skill.
 
+`disable-model-invocation` is a whole-skill flag, so `setup` cannot hide `apply` from Claude and
+leave `check` reachable. A plugin whose hook or probe names a read-only check therefore also ships
+a separate `<plugin>:check` skill with `disable-model-invocation: false`. It reads `setup` and
+follows only its `check` section, so `setup` stays the one account of what is checked, and it
+installs and writes nothing. `setup` keeps `true`, and `apply` stays manual. A hook or probe names
+`/<plugin>:check`, never `/<plugin>:setup check`, which the flag hides from Claude.
+`plugins/context7/skills/check/SKILL.md` is the shape to copy. Verification record. Claim: the flag
+is set per skill in frontmatter, and the skills page documents no per-action invocation flag.
+Basis: <https://code.claude.com/docs/en/skills#frontmatter-reference>, field
+`disable-model-invocation` ("Set to `true` to prevent Claude from automatically loading this
+skill. Use for workflows you want to trigger manually with `/name`."), and
+<https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> ("Two frontmatter fields let
+you restrict this"), both read from the raw `.md` of that page on 2026-09-29. As of: 2026-09-29.
+Recheck: a Claude Code release adds a per-action invocation flag, or that field's description
+stops applying to the whole skill.
+
 The verb set is deliberately closed at `check` and `apply`: no standalone `remove`, `reset`, or
 `migrate` verb joins the mandatory contract (teardown, where genuinely needed, rides as a `remove`
 argument to `apply`, per the teardown rule below). `apply` is *state-assessing*: it reads current

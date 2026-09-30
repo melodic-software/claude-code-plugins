@@ -4,7 +4,7 @@
 Zero external dependencies — stdlib only.
 
 Usage:
-    python registry_manager.py <action> [args] [--flags]
+    python registry_manager.py [--data-dir DIR] [--dry-run] <action> [args] [--flags]
 
 Actions:
     list      List issues, optionally filtered
@@ -77,7 +77,7 @@ def load_registry(data_dir: Path) -> dict[str, Any]:
     except (json.JSONDecodeError, OSError) as exc:
         print(f"Error reading {path}: {exc}", file=sys.stderr)
         sys.exit(2)
-    if not isinstance(data.get("issues"), list):
+    if not isinstance(data, dict) or not isinstance(data.get("issues"), list):
         print(
             f"Invalid schema: 'issues' must be a list in {path}",
             file=sys.stderr,
@@ -88,6 +88,9 @@ def load_registry(data_dir: Path) -> dict[str, Any]:
 
 def save_registry(data_dir: Path, data: dict[str, Any]) -> None:
     """Atomic write: temp file, fsync, close, os.replace."""
+    # A freshly configured registry dir must be writable on first `add`; reads
+    # and dry runs never create it.
+    data_dir.mkdir(parents=True, exist_ok=True)
     target = data_dir / REGISTRY_FILENAME
     with tempfile.NamedTemporaryFile(
         mode="w",
@@ -532,6 +535,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override path to registry.json directory",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="add/update/remove: report the result without writing registry.json",
+    )
     sub = parser.add_subparsers(dest="action", required=True)
 
     p_list = sub.add_parser("list", help="List issues, optionally filtered")
@@ -667,10 +675,6 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
             / "data"
             / "claude-ops-melodic-software"
         )
-    # Create the resolved directory for every path (CLI --data-dir included) — a
-    # freshly configured registry_dir must be writable on first `add`, matching
-    # the fallback behavior (else save_registry's tempfile raises FileNotFoundError).
-    data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
 
@@ -740,7 +744,17 @@ def main() -> None:
             raise ValueError(msg)
 
     if args.action in _MUTATING_ACTIONS and result["status"] == "ok":
-        save_registry(data_dir, data)
+        if args.dry_run:
+            result["dry_run"] = True
+        else:
+            try:
+                save_registry(data_dir, data)
+            except OSError as exc:
+                print(
+                    f"Error writing {data_dir / REGISTRY_FILENAME}: {exc}",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
 
     exit_code = {"not_found": 1, "error": 2}.get(result["status"], 0)
     output_result(result, exit_code)

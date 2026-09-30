@@ -165,7 +165,7 @@ Trigger phrases (Claude may also invoke it automatically): "improve
 architecture", "find deepening opportunities", "shallow modules", "architecture
 scan", "make this more testable", "module seams", "locality", "map our
 landscape", "system landscape", "what systems do we have", "application
-portfolio", "who owns which repo", "chart our repositories", "map
+portfolio", "who owns which repo", "map
 dependencies", "component diagram", "map events", "trace this route", "map
 containers", "system context", "entity relationship", "deployment diagram".
 

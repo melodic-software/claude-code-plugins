@@ -28,11 +28,11 @@ a release note names `/security-review`. This org-authored skill is the CI path.
 One native Claude Code surface shares this lane's name, and the two get conflated on any open pull
 request:
 
-- **`security-review` (native command).** Ships with Claude Code rather than as a marketplace
-  plugin; the installed binary registers it plugin-backed, and the commands table gives it no
-  Skill label. A developer runs it in their session for a single security pass over the current
-  branch, diffed against `origin`'s default branch; it takes no flags and no target argument. It
-  cannot run under the Actions checkout (the opening paragraph carries that record).
+- **`security-review` (native command)**: the installed binary registers it plugin-backed, and the
+  commands table gives it no Skill label. A developer runs it in their session for a single security
+  pass over the current branch, diffed against `origin`'s default branch; it takes no flags and no
+  target argument. It cannot run under the Actions checkout (the opening paragraph carries that
+  record).
 - **This skill (marketplace plugin).** The security logic the `claude-security-review` reusable
   workflow runs in CI. The wrapper supplies the target and owns posting; this skill owns what to
   hunt for.
@@ -124,9 +124,9 @@ changing what it forbids. The register URL is not readable with this skill's gra
 WebFetch) and the file may be absent from the checkout, so read
 `docs/conventions/instruction-exception-register/README.md` when it is present, and when it is not,
 fall back to recognition by consequence and say in the review that the protected-class list was not
-consulted. This lens lives in this skill only: the `security-reviewer` agent behind
-`/review:quality-gate` security mode and `/review:fanout` carries no such lens, so those surfaces
-can judge the same diff differently.
+consulted. The `security-reviewer` agent behind
+`/review:quality-gate` security mode and `/review:fanout` carries the same lens as a pointer, so
+local and CI review judge such a diff by the same register.
 
 ## High-signal bar
 

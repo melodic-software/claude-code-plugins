@@ -74,6 +74,7 @@ detector is reinstalled. The same gate and the same fallback bind the rule-famil
 | `attribution/audit/rule-verbatim-copy` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | admission is gated on a fingerprint comparison the producer computes, not on a reader's judgment |
 | `attribution/audit/rule-stamp-expired` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | expiry is a date comparison the producing script performs |
 | `attribution/audit/rule-trigger-less-stamp` | `defined-diagnostic` | `analyzer-pack-rule` | already deterministic: keep the `attribution:audit` detector | a missing recheck trigger is a structural absence the producing script observes |
+| `attribution/audit/rule-restated-upstream-fact` | `design-judgment` | `llm-only` | none | whether a passage states a fact an external source owns is a panel's judgment, so the family default of "already deterministic" would claim a check the producer does not compute |
 
 ### Rule-family rows (prefix match on `<plugin>/<skill>/`)
 
@@ -110,7 +111,7 @@ is unambiguous, plus a default that hands everything else to the next ladder ste
   cross-checked against each producer's own emitter script for the ids it constructs at run time.
   The `attribution:audit` producer holds crosswalk rows in that contract without an adopters-table
   row, which is why its ids appear here and its adoption status does not.
-- **As of.** 2026-09-27.
+- **As of.** 2026-09-29.
 - **Recheck trigger.** A new producer row lands in that contract's crosswalk, or an existing
   producer's emitter starts constructing an id this table does not list. Either shows up as a
   finding whose id reaches the rule-family step instead of the rule-id step.
