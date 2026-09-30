@@ -189,6 +189,44 @@ class HygieneTests(unittest.TestCase):
             }
             self.assertIn(expected, matched, name)
 
+    def test_file_only_hints_skip_directories(self) -> None:
+        policy = hygiene.load_policy(None)
+        for name, hint_id in (("x.tmp", "common-temp-file"), ("x.lock", "common-lock-file")):
+            as_dir = {h["id"] for h in hygiene.matching_hints(name, name, policy, "directory")}
+            as_file = {h["id"] for h in hygiene.matching_hints(name, name, policy, "file")}
+            self.assertNotIn(hint_id, as_dir, name)
+            self.assertIn(hint_id, as_file, name)
+
+    def test_invalid_entry_types_is_rejected(self) -> None:
+        hint = {
+            "id": "h",
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": "*.x",
+            "confidence_ceiling": "low",
+            "reason": "fixture",
+        }
+        hygiene.validate_hint({**hint, "entry_types": ["file"]})
+        for bad in (["symlink"], [], "file"):
+            with self.assertRaisesRegex(hygiene.HygieneError, "entry_types"):
+                hygiene.validate_hint({**hint, "entry_types": bad})
+
+    def test_empty_directory_paths_are_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for i in range(hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5):
+                (root / f"d{i:04d}").mkdir()
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(
+                hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5, snapshot["empty_directory_count"]
+            )
+            self.assertEqual(
+                hygiene.MAX_EMPTY_DIRECTORY_PATHS, len(snapshot["empty_directory_paths"])
+            )
+            self.assertEqual(sorted(snapshot["empty_directory_paths"]), snapshot["empty_directory_paths"])
+            self.assertTrue(snapshot["empty_directory_paths_truncated"])
+
     def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
         # Separated from the OS-agnostic rows and run under a pinned os_key:
         # `matching_hints` filters by the current OS BEFORE matching, so asserting

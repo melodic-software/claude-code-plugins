@@ -28,6 +28,7 @@
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.tmp",
+      "entry_types": ["file"],
       "confidence_ceiling": "medium",
       "reason": "Common temporary-file suffix; provenance and live ownership still need proof"
     },
@@ -60,6 +61,7 @@
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.lock",
+      "entry_types": ["file"],
       "confidence_ceiling": "low",
       "reason": "Lock-looking file; only stale when its owner and process state prove it"
     },

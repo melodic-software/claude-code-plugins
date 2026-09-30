@@ -856,14 +856,29 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
     result["policy_sources"].append(str(overlay_path))
 
 
+HINT_ENTRY_TYPES = ("file", "directory", "other")
+MAX_EMPTY_DIRECTORY_PATHS = 200
+
+
 def validate_hint(hint: Any) -> None:
     if not isinstance(hint, dict):
         raise HygieneError("each additional hint must be an object")
     required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
-    if set(hint) != required:
+    if not required <= set(hint) or set(hint) - required - {"entry_types"}:
         raise HygieneError(
-            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason"
+            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason "
+            "and optionally entry_types"
         )
+    if "entry_types" in hint:
+        entry_types = hint["entry_types"]
+        if (
+            not isinstance(entry_types, list)
+            or not entry_types
+            or not all(value in HINT_ENTRY_TYPES for value in entry_types)
+        ):
+            raise HygieneError(
+                "hint entry_types must be a non-empty array containing file/directory/other"
+            )
     if hint["kind"] not in {"name_glob", "path_glob"}:
         raise HygieneError(f"unsupported hint kind: {hint['kind']}")
     if hint["confidence_ceiling"] not in TIERS:
@@ -882,13 +897,15 @@ def validate_hint(hint: Any) -> None:
 
 
 def matching_hints(
-    relative: str, name: str, policy: dict[str, Any]
+    relative: str, name: str, policy: dict[str, Any], kind: str | None = None
 ) -> list[dict[str, str]]:
     matches = []
     current_os = os_key()
     for hint in policy["hints"]:
         validate_hint(hint)
         if "all" not in hint["os"] and current_os not in hint["os"]:
+            continue
+        if kind is not None and kind not in hint.get("entry_types", HINT_ENTRY_TYPES):
             continue
         subject = name if hint["kind"] == "name_glob" else relative
         if glob_matches(subject, hint["pattern"]):
@@ -1221,12 +1238,12 @@ def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
     return parents
 
 
-def empty_directory_count(
+def empty_directory_paths(
     entries: list[dict[str, Any]],
     *,
     error_paths: Iterable[str] | None = None,
-) -> int:
-    """Count walked empty directories in a snapshot inventory.
+) -> list[str]:
+    """Sorted paths of walked empty directories in a snapshot inventory.
 
     ``error_paths`` are scan-error relatives that must not count as empty even
     when they were recorded with ``logical_size`` 0 and no descendants.
@@ -1238,8 +1255,8 @@ def empty_directory_count(
     }
     parents_with_children = inventory_parent_paths(by_path)
     unknown = {path for path in (error_paths or ()) if isinstance(path, str) and path}
-    return sum(
-        1
+    return sorted(
+        entry["path"]
         for entry in by_path.values()
         if entry_is_empty_directory(
             entry,
@@ -1247,6 +1264,14 @@ def empty_directory_count(
             unknown_paths=unknown,
         )
     )
+
+
+def empty_directory_count(
+    entries: list[dict[str, Any]],
+    *,
+    error_paths: Iterable[str] | None = None,
+) -> int:
+    return len(empty_directory_paths(entries, error_paths=error_paths))
 
 
 def empty_file_count(entries: list[dict[str, Any]]) -> int:
@@ -2029,7 +2054,7 @@ def scan_tree(
                     {
                         "path": relative,
                         **data,
-                        "hints": matching_hints(relative, path.name, policy),
+                        "hints": matching_hints(relative, path.name, policy, kind),
                         "protected_reasons": sorted(set(protections)),
                     }
                 )
@@ -2072,6 +2097,7 @@ def scan_tree(
             if "not-walked" in (entry.get("size_qualifiers") or [])
         }
     )
+    empty_directories = empty_directory_paths(entries, error_paths=error_paths)
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -2082,9 +2108,10 @@ def scan_tree(
         "target_identity": target_identity,
         "target_logical_bytes": total_size,
         "target_reclaimable_local_bytes": reclaimable,
-        "empty_directory_count": empty_directory_count(
-            entries, error_paths=error_paths
-        ),
+        "empty_directory_count": len(empty_directories),
+        "empty_directory_paths": empty_directories[:MAX_EMPTY_DIRECTORY_PATHS],
+        "empty_directory_paths_truncated": len(empty_directories)
+        > MAX_EMPTY_DIRECTORY_PATHS,
         "empty_file_count": empty_file_count(entries),
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],

@@ -229,6 +229,12 @@ and protected names. Without `--policy`, the engine also layers standing policy 
 `~/.claude/disk-hygiene.json` (user-global), then `<project>/.claude/disk-hygiene.json` via
 `--project-dir`. An explicit `--policy` is the invocation-specific choice and replaces both standing
 layers. Every overlay can only disable/add hints and add protected globs; none can weaken hard guards.
+A hint may set `entry_types` (`file`, `directory`, `other`) to match only those entry kinds; the
+baseline `*.tmp` and `*.lock` hints are file-only, so a directory such as `~/.codex/.tmp` is not
+hinted. The engine does not probe processes: a `common-lock-file` hint stays at confidence `low`,
+and whether the lock is stale is proven during investigation (step 2), never by the engine. The
+snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;
+`scan-complete` stdout carries only `empty_directory_count`.
 The scan output names its `policy_sources`. Treat scan errors and unvisited protected roots as
 coverage gaps, not clean results.
 
