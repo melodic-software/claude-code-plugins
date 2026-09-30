@@ -3,11 +3,49 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.70.1] - 2026-09-29
+## [0.71.2] - 2026-09-29
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.71.1] - 2026-09-29
+
+### Fixed
+
+- **`changelog apply` Phase 7 files nothing in a repository with no overlap store**: `overlap.py
+  self-check` exits `3` there in report-only mode, which the phase read as a passing run, so it
+  filed tracker items and replaced the baseline. `native_drift.py diff` now marks such a run
+  `report_only`, moves its items to `unfiled`, and the phase keeps the previous baseline.
+- **`native_drift.py` rejects wrong-shaped JSON with exit `2`**: a summary, detect report, store
+  or inventory that parsed but lacked its shape (a top-level `[]`, a string where an object
+  belongs) raised a traceback with exit `1`.
+- **`native_drift.py` hardens its inputs and the facts it hands a filed body**: leaf types
+  (aliases, markers, descriptions, store row names and classes, candidate keys), the store's and
+  the detect report's schema and required fields, deeply nested JSON and oversized integer
+  literals all exit `2`, and any type error left over exits `2` rather than a traceback. Each fact
+  is one line without backticks, and each item carries a `quote` block that sets every fact in a
+  code span, so upstream text cannot forge a `Drift key:` line and suppress a filing. `diff` has
+  no default for `report_only`.
+- **`inventory --docs` stops reading the tools table at the next heading**: when the table's rows
+  stopped matching (tool names without backticks), the parser read on through the page and took a
+  later backticked row as the table, reporting every tool `undocumented` instead of the block
+  `broken`.
+
+## [0.71.0] - 2026-09-29
+
+### Added
+
+- **`CC_OTEL_HOT_MAX_MB` caps each hot OTEL store file.** `prune-otel-store.sh` applies the size cap
+  as a fallback when age-based pruning alone leaves a hot file over the limit, because the
+  collector's file exporter appends and cannot rotate.
+- **`probe-observability-state.sh --otel-store` reports cold size and last-prune age**, beside the
+  per-file hot sizes it already printed.
+
+### Changed
+
+- **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
+  exporter's append-only limit, replacing the earlier cold-store estimate.
 
 ## [0.70.0] - 2026-09-29
 

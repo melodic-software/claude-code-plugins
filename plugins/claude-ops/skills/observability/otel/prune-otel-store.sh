@@ -38,10 +38,17 @@
 # The match regex is case-sensitive + leading-quote-anchored ("timeUnixNano":"...) so it never
 # matches the sibling observedTimeUnixNano (logs) / startTimeUnixNano (metrics) fields.
 #
-# --dry-run reports the cutoffs + per-file per-class counts (kept / dropped / surgery /
-# body_dropped / would_compact) and never stops the Collector or mutates a file. A real run
-# also short-circuits (no stop/trim/restart) when nothing is below either cutoff, avoiding
-# needless Collector churn.
+# Size cap: a hot file larger than CC_OTEL_HOT_MAX_MB (default 1024, 0 = off) is pruned even
+# when every line is inside the age windows. The structure cutoff for THAT file is raised to
+# the second after the newest line that no longer fits, so the kept lines total at most the
+# cap (lines sharing the boundary second all drop). The extra drops take the same
+# compact-to-cold-before-trim path as age drops. Sizes are measured before body surgery,
+# which only shrinks lines.
+#
+# --dry-run reports the cutoffs, the cap, the files that would be size-pruned and per-file
+# per-class counts (kept / dropped / surgery / body_dropped / would_compact), and never stops
+# the Collector or mutates a file. A real run also short-circuits (no stop/trim/restart) when
+# nothing is below either cutoff and no file is over the cap, avoiding needless Collector churn.
 #
 # Usage:
 #   bash prune-otel-store.sh             # prune if needed (stop/trim/restart)
@@ -55,6 +62,8 @@
 #                          keep api_*_body records newer than N days (default: 2); must not
 #                          exceed CC_OTEL_RETENTION_DAYS (body records cannot outlive their
 #                          lines)
+#   CC_OTEL_HOT_MAX_MB     size cap per hot file in MiB (default: 1024; 0 disables). A file over
+#                          the cap drops its oldest lines until it fits, even inside the age windows.
 #   CC_OTEL_STORE          absolute store dir (default: <repo-root>/.claude/observability/otel)
 #   CC_OTEL_COLD_KEEP_USER_PROMPTS
 #                          =1 keeps user_prompt bodies + the `prompt` attribute in the cold
@@ -73,6 +82,8 @@ set -euo pipefail
 
 readonly DEFAULT_CC_OTEL_RETENTION_DAYS=7
 readonly DEFAULT_CC_OTEL_BODY_RETENTION_DAYS=2
+readonly DEFAULT_CC_OTEL_HOT_MAX_MB=1024
+readonly BYTES_PER_MB=1048576
 readonly SECONDS_PER_DAY=86400
 readonly STORE_FILES=("cc-logs.json" "cc-metrics.json" "cc-traces.json")
 
@@ -100,13 +111,15 @@ for logs) — a compaction or surgery failure aborts BEFORE the trim. Verify-bef
 store file is only ever replaced by a temp that parses.
 
 Options:
-  --dry-run   Report cutoffs + per-file per-class counts; never stop the Collector or mutate.
+  --dry-run   Report cutoffs, the size cap + per-file per-class counts; never stop the Collector or mutate.
   --help      Show this help.
 
 Env:
   CC_OTEL_RETENTION_DAYS       keep structure records newer than N days (default: 7)
   CC_OTEL_BODY_RETENTION_DAYS  keep api_*_body records newer than N days (default: 2; must
                                not exceed the structure window)
+  CC_OTEL_HOT_MAX_MB           size cap per hot file in MiB (default: 1024; 0 disables): a file
+                               over the cap drops its oldest lines, via cold, until it fits
   CC_OTEL_STORE                absolute store dir (default: <repo-root>/.claude/observability/otel)
   CC_OTEL_COLD_KEEP_USER_PROMPTS
                                =1 keeps user_prompt bodies + prompt attribute in cold (default: off)
@@ -142,6 +155,31 @@ filter_file() {
     -f "$SCRIPT_DIR/prune-filter.awk" "$src"
 }
 
+# Print the structure cutoff (epoch seconds) for one store file: the age cutoff, raised when
+# the file exceeds cap_bytes to the second after the newest line that no longer fits, so the
+# lines at or after it total at most cap_bytes. cap_bytes 0 = off.
+effective_cutoff() {
+  local src="$1" cutoff_seconds="$2" cap_bytes="$3"
+  local time_field="timeUnixNano" size cut
+  [[ "${src##*/}" == cc-traces.json ]] && time_field="startTimeUnixNano"
+  size="$(wc -c <"$src")"
+  size="${size//[[:space:]]/}"
+  cut=""
+  if ((cap_bytes > 0 && size > cap_bytes)); then
+    cut="$(LC_ALL=C awk -v tf="$time_field" '
+      match($0, "\"" tf "\":\"[0-9]+\"") {
+        prefix_len = length(tf) + 4
+        ns = substr($0, RSTART + prefix_len, RLENGTH - prefix_len - 1)
+        print substr(ns, 1, length(ns) - 9), length($0) + 1
+      }' "$src" | sort -rn | awk -v cap="$cap_bytes" '{ acc += $2; if (acc > cap) { print $1 + 1; exit } }')"
+  fi
+  if [[ -n "$cut" ]] && ((cut > cutoff_seconds)); then
+    printf '%s\n' "$cut"
+  else
+    printf '%s\n' "$cutoff_seconds"
+  fi
+}
+
 # Read "kept=.. dropped=.. total=.. surgery=.." into the named-by-convention globals
 # KEPT/DROPPED/TOTAL/SURGERY. (#*dropped= strips the SHORTEST prefix, so it lands on the
 # first occurrence — never the body_dropped= field later in the line.)
@@ -156,6 +194,9 @@ parse_counts() {
   SURGERY="${line#*surgery=}"
   SURGERY="${SURGERY%% *}"
 }
+
+# The probe reads this stamp to show the scheduled prune is firing.
+stamp_last_prune() { date -u +%Y-%m-%dT%H:%M:%SZ >"$1/.last-prune"; }
 
 main() {
   local dry_run=false
@@ -190,6 +231,11 @@ main() {
     err "CC_OTEL_BODY_RETENTION_DAYS must be a non-negative integer (got: $body_retention_days)"
     return 2
   fi
+  local hot_max_mb="${CC_OTEL_HOT_MAX_MB:-$DEFAULT_CC_OTEL_HOT_MAX_MB}"
+  if [[ ! "$hot_max_mb" =~ ^[0-9]+$ ]]; then
+    err "CC_OTEL_HOT_MAX_MB must be a non-negative integer (got: $hot_max_mb)"
+    return 2
+  fi
   # Reject, don't clamp: body records cannot outlive the lines that carry them.
   if ((body_retention_days > retention_days)); then
     err "CC_OTEL_BODY_RETENTION_DAYS ($body_retention_days) must not exceed CC_OTEL_RETENTION_DAYS ($retention_days)"
@@ -210,13 +256,15 @@ main() {
   printf 'store_dir=%s\n' "$store_dir"
   printf 'retention_days=%s\n' "$retention_days"
   printf 'body_retention_days=%s\n' "$body_retention_days"
+  printf 'hot_max_mb=%s\n' "$hot_max_mb"
   printf 'cutoff_epoch_seconds=%s\n' "$cutoff_seconds"
   printf 'body_cutoff_epoch_seconds=%s\n' "$body_cutoff_seconds"
 
   # Per-file per-class counts (dry-check decides whether a real run needs the
   # stop/trim/restart at all). The awk output line IS the report format.
-  local f src counts total_dropped=0 total_surgery=0
+  local f src counts file_cutoff total_dropped=0 total_surgery=0 size_pruned=0
   local -a present_files=()
+  local -A file_cutoffs=()
   for f in "${STORE_FILES[@]}"; do
     src="$store_dir/$f"
     if [[ ! -f "$src" ]]; then
@@ -224,7 +272,13 @@ main() {
       continue
     fi
     present_files+=("$f")
-    counts="$(filter_file "$src" "" "$cutoff_seconds" "" "$body_cutoff_seconds" "")"
+    file_cutoff="$(effective_cutoff "$src" "$cutoff_seconds" $((hot_max_mb * BYTES_PER_MB)))"
+    file_cutoffs["$f"]="$file_cutoff"
+    if ((file_cutoff > cutoff_seconds)); then
+      size_pruned=$((size_pruned + 1))
+      printf '%s: size_prune cutoff_epoch_seconds=%s\n' "$f" "$file_cutoff"
+    fi
+    counts="$(filter_file "$src" "" "$file_cutoff" "" "$body_cutoff_seconds" "")"
     parse_counts "$counts"
     printf '%s: %s\n' "$f" "$counts"
     total_dropped=$((total_dropped + DROPPED))
@@ -232,7 +286,7 @@ main() {
   done
 
   if [[ "$dry_run" == true ]]; then
-    printf 'action=dry-run total_dropped=%s total_surgery=%s\n' "$total_dropped" "$total_surgery"
+    printf 'action=dry-run total_dropped=%s total_surgery=%s size_pruned_files=%s\n' "$total_dropped" "$total_surgery" "$size_pruned"
     return 0
   fi
 
@@ -243,6 +297,7 @@ main() {
 
   # Dry-check short-circuit: nothing below either cutoff => no Collector churn.
   if ((total_dropped == 0 && total_surgery == 0)); then
+    stamp_last_prune "$store_dir"
     printf 'action=noop-nothing-to-prune\n'
     return 0
   fi
@@ -295,7 +350,9 @@ main() {
     temp="$src.prune.tmp"
     dropped="$src.dropped.tmp"
     surgery_tmp="$src.surgery.tmp"
-    counts="$(filter_file "$src" "$temp" "$cutoff_seconds" "$dropped" "$body_cutoff_seconds" "$surgery_tmp")"
+    # The preflight cutoff predates the Collector stop; batches it appended since count toward the cap.
+    file_cutoffs["$f"]="$(effective_cutoff "$src" "$cutoff_seconds" $((hot_max_mb * BYTES_PER_MB)))"
+    counts="$(filter_file "$src" "$temp" "${file_cutoffs[$f]}" "$dropped" "$body_cutoff_seconds" "$surgery_tmp")"
     # awk only opens dst when it prints a kept line, so a file with ZERO kept records (every
     # record older than the cutoff — the case retention exists for) leaves the temp absent.
     # Create it empty: an empty store is the correct all-aged-out end-state (append:true refills
@@ -342,6 +399,7 @@ main() {
       "$f" "$KEPT" "$DROPPED" "$TOTAL" "$surgery_kept" "$surgery_dropped"
   done
 
+  STAMP_DIR="$store_dir"
   printf 'action=pruned total_dropped=%s total_surgery=%s\n' "$total_dropped" "$total_surgery"
   # cleanup (EXIT trap) removes the sentinel and starts the Collector service.
 }

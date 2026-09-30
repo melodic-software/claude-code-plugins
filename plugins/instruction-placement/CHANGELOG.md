@@ -3,11 +3,19 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.23] - 2026-09-29
+## [0.16.1] - 2026-09-29
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.16.0] - 2026-09-29
+
+### Added
+
+- **`detect.sh identity` derives a finding's anchor and `finding_id`.** `audit` and `delta` call it instead of computing `anchor/v1` and `finding_id` by hand, so both skills produce the same identity for the same finding
+  ([#5166](https://github.com/melodic-software/claude-code-plugins/issues/5166)).
+  It rejects a `--file` that is not a canonical relative path and fails when neither `sha256sum` nor `shasum` exists, so no alias or unhashed value produces an id.
 
 ## [0.15.22] - 2026-09-29
 

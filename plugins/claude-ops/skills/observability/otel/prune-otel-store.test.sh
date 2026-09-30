@@ -191,6 +191,7 @@ if [[ -d "$S/cold" ]]; then
 else
   pass "--dry-run creates no cold dir"
 fi
+if [[ -e "$S/.last-prune" ]]; then fail "--dry-run writes no last-prune stamp" "absent" "present"; else pass "--dry-run writes no last-prune stamp"; fi
 
 # --- 4. footgun: OLD timeUnixNano + RECENT observedTimeUnixNano -> counted DROPPED ---
 S="$(new_store footgun-log)"
@@ -221,6 +222,8 @@ if [[ -f "$TMP/stopped.marker" ]]; then pass "real run stopped the Collector"; e
 if [[ -f "$TMP/restarted.marker" ]]; then pass "real run restarted the Collector"; else fail "real run restarted the Collector" "restarted.marker" "absent"; fi
 if [[ -f "$TMP/concurrent-blocked.marker" ]]; then pass "restart runs while sentinel still blocks a concurrent prune"; else fail "restart runs while sentinel still blocks a concurrent prune" "concurrent-blocked.marker" "absent"; fi
 if [[ -d "$S/.prune-in-progress" ]]; then fail "sentinel removed after run" "absent" "present"; else pass "sentinel removed after run"; fi
+stamp="$(cat "$S/.last-prune" 2>/dev/null)"
+if [[ "$stamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then pass "real run writes an ISO-8601 UTC last-prune stamp"; else fail "real run writes an ISO-8601 UTC last-prune stamp" "ISO-8601 Z" "$stamp"; fi
 
 # --- 5a. stop denial/failure: abort before mutation and do not attempt a start ---
 S="$(new_store stopfail)"
@@ -253,6 +256,7 @@ assert_eq "start failure exits nonzero" "1" "$rc"
 assert_contains "start failure is visible" "$out" "failed to restart Collector service"
 assert_eq "start failure occurs after the verified trim" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
 if [[ -d "$S/.prune-in-progress" ]]; then fail "start failure removes sentinel" "absent" "present"; else pass "start failure removes sentinel"; fi
+assert_eq "start failure writes no last-prune stamp" "absent" "$([[ -e "$S/.last-prune" ]] && echo present || echo absent)"
 
 # --- 5c. service-query error: fail closed before mutation, then recover + release lock ---
 S="$(new_store querystatusfail)"
@@ -723,6 +727,100 @@ if [[ "$HAS_DUCKDB" == true ]]; then
 else
   skip_case "duckdb not found — skipping source projection"
 fi
+
+# --- 26. size cap: hot file over CC_OTEL_HOT_MAX_MB is pruned though every line is young ---
+# 1400 lines of ~1.5KB (~2MB) between 3d and 2.8h ago: inside the 7d window, over a 1 MiB cap.
+BIG_SRC="$TMP/big-cc-logs.json"
+big_pad="$(printf 'p%.0s' $(seq 1 900))"
+: >"$BIG_SRC"
+for ((i = 0; i < 1400; i++)); do
+  real_log_line "$(mk_nano "$((NOW - 3 * 86400 + i * 10))")" tool_decision "$big_pad" "$TOOL_EXTRA" >>"$BIG_SRC"
+done
+BIG_NEWEST="$(mk_nano "$((NOW - 3 * 86400 + 1399 * 10))")"
+BIG_OLDEST="$(mk_nano "$((NOW - 3 * 86400))")"
+readonly CAP_BYTES=1048576
+
+S="$(new_store sizecap)"
+cp "$BIG_SRC" "$S/cc-logs.json"
+out="$(CC_OTEL_HOT_MAX_MB=1 run_prune "$S" --dry-run)"
+rc=$?
+assert_eq "size cap dry-run exits 0" "0" "$rc"
+assert_contains "dry-run reports the cap" "$out" "hot_max_mb=1"
+assert_contains "dry-run names the size-pruned file" "$out" "cc-logs.json: size_prune cutoff_epoch_seconds="
+assert_contains "dry-run counts size-pruned files" "$out" "size_pruned_files=1"
+assert_eq "dry-run left the over-cap file byte-identical" "$(cksum <"$BIG_SRC")" "$(cksum <"$S/cc-logs.json")"
+[[ -e "$TMP/stopped.marker" ]] && rm -f "$TMP/stopped.marker"
+
+out="$(CC_OTEL_HOT_MAX_MB=1 run_prune "$S")"
+rc=$?
+assert_eq "size cap run exits 0" "0" "$rc"
+assert_contains "size cap run prunes (no noop short-circuit)" "$out" "action=pruned"
+assert_eq "size cap run stopped the Collector" "yes" "$([[ -e "$TMP/stopped.marker" ]] && echo yes || echo no)"
+rm -f "$TMP/stopped.marker"
+hot_bytes="$(wc -c <"$S/cc-logs.json" | tr -d ' \r')"
+if ((hot_bytes <= CAP_BYTES && hot_bytes > 0)); then pass "hot file fits under the cap and is not emptied"; else fail "hot file fits under the cap and is not emptied" "0 < bytes <= $CAP_BYTES" "$hot_bytes"; fi
+assert_contains "newest line survives" "$(cat "$S/cc-logs.json")" "$BIG_NEWEST"
+assert_not_contains "oldest line dropped" "$(cat "$S/cc-logs.json")" "\"$BIG_OLDEST\""
+
+# Lines the Collector appends between the preflight and its stop still count toward the cap.
+S="$(new_store sizecap-late)"
+{
+  log_line "$OLD" "$OLD"
+  head -n 600 "$BIG_SRC"
+} >"$S/cc-logs.json"
+tail -n +601 "$BIG_SRC" >"$TMP/late-batches.json"
+LATE_STOP="$TMP/late-stop-stub.sh"
+printf '#!/usr/bin/env bash\ncat "%s" >>"%s/cc-logs.json"\ntouch "%s/stopped.marker"\n' "$TMP/late-batches.json" "$S" "$TMP" >"$LATE_STOP"
+chmod +x "$LATE_STOP"
+CC_OTEL_HOT_MAX_MB=1 CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$LATE_STOP" CC_OTEL_RUNNING_CMD=false \
+  CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD="$COMPACT_STUB" CC_OTEL_START_CMD="$START_STUB" bash "$SCRIPT" >/dev/null 2>&1
+hot_bytes="$(wc -c <"$S/cc-logs.json" | tr -d ' \r')"
+if ((hot_bytes <= CAP_BYTES && hot_bytes > 0)); then pass "cap holds for lines appended before the Collector stopped"; else fail "cap holds for lines appended before the Collector stopped" "0 < bytes <= $CAP_BYTES" "$hot_bytes"; fi
+rm -f "$TMP/stopped.marker"
+
+# Same fixture through the REAL compaction: the size-dropped lines land in cold Parquet.
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store sizecap-cold)"
+  cp "$BIG_SRC" "$S/cc-logs.json"
+  out="$(CC_OTEL_HOT_MAX_MB=1 run_prune_real "$S")"
+  rc=$?
+  assert_eq "size cap real run exits 0" "0" "$rc"
+  kept_lines="$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
+  cold_rows="$(dq "SELECT count(*) FROM read_parquet('$(sql_path "$S")/cold/cc-logs-*.parquet');")"
+  assert_eq "size-dropped lines all landed in cold" "$((1400 - kept_lines))" "$cold_rows"
+  if ((cold_rows > 0)); then pass "size cap dropped rows into cold"; else fail "size cap dropped rows into cold" ">0" "$cold_rows"; fi
+else
+  skip_case "duckdb not found — skipping size-cap cold compaction"
+fi
+
+# Compaction failure on a size drop still aborts before the trim (same posture as age drops).
+S="$(new_store sizecap-compactfail)"
+cp "$BIG_SRC" "$S/cc-logs.json"
+out="$(CC_OTEL_HOT_MAX_MB=1 CC_OTEL_STORE="$S" CC_OTEL_STOP_CMD="$STOP_STUB" CC_OTEL_RUNNING_CMD=false CC_OTEL_VERIFY_CMD=true CC_OTEL_COMPACT_CMD=false CC_OTEL_START_CMD="$START_STUB" bash "$SCRIPT" 2>&1)"
+rc=$?
+assert_eq "size-drop compaction failure exits 1" "1" "$rc"
+assert_eq "size-drop compaction failure leaves hot byte-identical" "$(cksum <"$BIG_SRC")" "$(cksum <"$S/cc-logs.json")"
+
+# --- 27. size cap: under-cap file with young lines is untouched (no-op short-circuit holds) ---
+S="$(new_store sizecap-under)"
+cp "$BIG_SRC" "$S/cc-logs.json"
+rm -f "$TMP/stopped.marker"
+out="$(CC_OTEL_HOT_MAX_MB=8 run_prune "$S")"
+rc=$?
+assert_eq "under-cap run exits 0" "0" "$rc"
+assert_contains "under-cap run is a no-op" "$out" "action=noop-nothing-to-prune"
+assert_eq "no-op run still writes the last-prune stamp" "yes" "$([[ -s "$S/.last-prune" ]] && echo yes || echo no)"
+assert_not_contains "under-cap file not reported as size-pruned" "$out" "size_prune"
+assert_eq "under-cap file byte-identical" "$(cksum <"$BIG_SRC")" "$(cksum <"$S/cc-logs.json")"
+assert_eq "under-cap run never stopped the Collector" "no" "$([[ -e "$TMP/stopped.marker" ]] && echo yes || echo no)"
+out="$(CC_OTEL_HOT_MAX_MB=0 run_prune "$S")"
+assert_contains "cap 0 disables the size prune" "$out" "action=noop-nothing-to-prune"
+
+# --- 28. CC_OTEL_HOT_MAX_MB validation: non-integer exits 2 pre-store ---
+out="$(CC_OTEL_HOT_MAX_MB=abc bash "$SCRIPT" --dry-run 2>&1)"
+rc=$?
+assert_eq "non-integer CC_OTEL_HOT_MAX_MB exits 2" "2" "$rc"
+assert_contains "CC_OTEL_HOT_MAX_MB validation message" "$out" "CC_OTEL_HOT_MAX_MB must be"
 
 printf '\n%d passed, %d failed\n' "$((CASE_NUM - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
