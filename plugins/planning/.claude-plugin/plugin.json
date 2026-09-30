@@ -1,13 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-<<<<<<< HEAD
   "version": "0.48.0",
-||||||| e17d8076b
-  "version": "0.47.6",
-=======
-  "version": "0.47.7",
->>>>>>> origin/main
   "userConfig": {
     "surface": {
       "type": "string",
