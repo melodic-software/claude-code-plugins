@@ -41,7 +41,7 @@ built them could not run the tool; the first live run is that row's recheck trig
 
 ## Duplication size limits
 
-Upstream figures that bound which files a duplication scan reads. The plugin's own caps and their defaults are in [config.md](config.md); the upstream numbers live only here.
+Upstream figures that bound which files a duplication scan reads. The plugin's own caps and their defaults are in [config.md](config.md); the jscpd line caps are in the `jscpd size and line caps` row of the Duplication table above.
 
 | Tool or format | Lane(s) | Measure | Claim the adapter relies on | Basis | Verified | Recheck trigger |
 |---|---|---|---|---|---|---|
