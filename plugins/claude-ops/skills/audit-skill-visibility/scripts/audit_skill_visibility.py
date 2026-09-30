@@ -40,6 +40,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -1158,6 +1159,13 @@ def enumerate_managed_scope(
 
     if not os.path.isfile(lib_path):
         return _unreadable("vendored lib/managed-scope.sh is missing")
+    if not os.path.dirname(bash):
+        # Windows CreateProcess searches System32 before PATH and would run
+        # the WSL relay bash.exe; resolve the name the way PATH does.
+        resolved = shutil.which(bash)
+        if resolved is None:
+            return _unreadable(f"{bash} is not on PATH")
+        bash = resolved
     try:
         result = subprocess.run(
             [bash, "-c", MANAGED_SCOPE_SHIM, "managed-scope", lib_path, override or ""],

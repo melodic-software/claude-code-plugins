@@ -1,5 +1,34 @@
 # Changelog: session-flow plugin
 
+## [0.40.2] - 2026-09-29
+
+### Changed
+
+- **running-retro tests:** the `_short_id` determinism check carries `cant-fail-ok: determinism contract`, so the can't-fail scanner counts it as a deliberate exemption instead of a finding. Test-only.
+
+## [0.40.1] - 2026-09-29
+
+### Added
+
+- **`orient` carries a Boundary section for the built-in `/recap` command.** It keeps the durable and off-thread briefing and offers the person-run `/recap` for a one-line conversation recap rather than invoking it.
+- **`continue-in-background` carries a Boundary section for the built-in `/subtask`, `/fork`, and `/background` commands.** It keeps the save-point plus fresh `claude --bg` launch and offers the person-run native commands as alternatives or additions rather than invoking them.
+- **`retro` carries a Boundary section for the built-in `/insights` command.** It keeps the single-session scored retrospective and offers the person-run `/insights` for a cross-session usage report rather than invoking it.
+
+## [0.40.0] - 2026-09-29
+
+### Changed
+
+- **A new `/goal` arrives as its own railed region in the handoff resume prompt** ([#4337](https://github.com/melodic-software/claude-code-plugins/issues/4337)). When the user asked for a fresh goal, or a `/goal` is active in the producing session, `## Resume prompt` holds two railed regions, each with its own copy line: the goal region first (type `/goal` and a space, paste the condition, confirm the `◎ /goal active` indicator), then the resume region. The condition carries no leading `/goal`, ends with the `Read @` directive, and stays within the 4,000-character limit. With no goal the output is unchanged.
+- **`save_point.py` emits, fills and validates the goal region.** The `goal-rearm` slot is replaced by `goal-first` and `goal-after`. `check` fails a `/goal` line between rails, a second goal region, a goal region without its copy line or `Read @` directive, and an over-limit condition.
+- **`handoff`, `continue-in-background` and `find-handoff` follow the new contract.** The recoverable unit is the resume region, the goal region and every below-rail re-arm message, so `find-handoff` recovers a goal from a file or a transcript.
+
+## [0.39.0] - 2026-09-29
+
+### Added
+
+- **The retro transcript parser emits `data.plugin_usage`** ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)): each plugin skill invoked in the session with a count, from the model's Skill tool calls and the operator's typed `/<plugin>:<skill>` commands. A multi-session run sums it into `aggregate.all_plugin_skills`. Hook events are not attributed to a plugin: a transcript records a plugin hook command unexpanded. Existing keys are unchanged.
+- **`workflow` wrap-up offers `/plugin-quality:audit session`** in one line when the session invoked at least one plugin skill. The offer is presence-gated on `plugin-quality`; the run stays operator-gated.
+
 ## [0.38.29] - 2026-09-29
 
 ### Fixed

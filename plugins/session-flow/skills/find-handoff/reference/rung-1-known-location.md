@@ -27,8 +27,10 @@ missing while step 4 claims to present it.
 
 **A shape-2 candidate carries its own resume prompt; print it from the file.** When the
 frontmatter has `handoff_shape: 2`, the file ends with a `## Resume prompt` section storing the
-rails block exactly as the producer emitted it. Surface that section at step 4 as the recovered
-prompt: run `"$PY" -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" emit <file>` through the
+rails prompt exactly as the producer emitted it: the resume region, plus the goal region when a
+goal applied, in the emitted order. Surface that whole section at step 4 as the recovered prompt,
+never just the first rail pair: run
+`"$PY" -X utf8 "${CLAUDE_PLUGIN_ROOT}/scripts/save_point.py" emit <file>` through the
 interpreter ladder the producer's structure doc shows (`python3`, then `python`, 3.10+). `emit`
 prints the section verbatim; when the stored `Read @` path is not the file's real path (a file
 preserved out of a removed worktree) it warns on stderr and prints the current path instead, so
@@ -42,7 +44,7 @@ final section, and the confirm gate still holds before any resume. Locate the pr
 own `session_id` (`<session_id>.jsonl` under `~/.claude/projects/*/`, the same lookup step 5
 performs, pulled ahead). That is a bounded, read-only read of ONE already-named file, not the
 step-2 scan reintroduced. **Bind the note to THIS candidate by content, never by taking the
-transcript's last one:** one session can emit several handoffs, so find the rails block whose
+transcript's last one:** one session can emit several handoffs, so find the rails prompt whose
 `Read @…` directive names this exact file and capture only the note adjacent to that block. A
 tail read would hand back a later handoff's note, and if the loop was stopped and relaunched
 with a different prompt in between, that re-arms the wrong recurring work, which is worse than

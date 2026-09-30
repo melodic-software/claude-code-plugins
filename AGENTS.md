@@ -11,6 +11,12 @@ and then marks it ready.
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
 `ci-status` fails any other title.
 
+When a pull request is superseded or must not merge, apply the `do-not-merge` label (for example
+`gh pr edit <n> --add-label do-not-merge`) before writing any explanation. "Do not merge" in the body
+or a comment is not enforced by `ci-status`, which reads only the label; the babysit merge gate
+still respects a body hold and human comments, so never override one. The hold convention is in
+`docs/conventions/loop-lane/README.md`.
+
 ## When to stop and when to keep going
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as
@@ -40,7 +46,6 @@ and its content is not already in context, read the file directly.
 |---|---|---|
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies carry a four-part verification record for any volatile specific they restate, and name their successor in a `## Next` section; read before editing any skill body |
-| `.claude/rules/vendor-docs-are-not-style.md` | `plugins/*/skills/*/vendor/**` | Vendored upstream docs are reference content, not this repository's house style; read before imitating anything under a skill's vendor/ tree |
 | `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |
 | `plugins/autonomy/AGENTS.md` | `plugins/autonomy/**` | autonomy plugin: contributor conventions |
 | `plugins/machine-health/skills/audit/AGENTS.md` | `plugins/machine-health/skills/audit/**` | machine-health audit skill: contributor conventions |

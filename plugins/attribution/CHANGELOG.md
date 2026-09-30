@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.4] - 2026-09-29
+
+### Fixed
+
+- **audit:** a config root that is the home directory (or an ancestor of it) or is not inside a git
+  working tree no longer reads `.claude/attribution.json` and `.claude/attribution.local.json` as
+  team and overlay layers, and two paths naming one file are read once. The classifier is
+  `lib/config-root.sh`, a synced copy of the source-control resolver.
+
+## [0.6.3] - 2026-09-29
+
+### Fixed
+
+- The provenance design-threads spec no longer says the first no-breadcrumb case validates the
+  searched-surfaces listing: the listing is a prose requirement the reader verifies, and
+  `emit-findings.sh` checks presence only. `reference/source-fetch.md` now names where a
+  completeness floor would have to live (a machine-written log of visited surfaces, compared
+  against the sidecar's `searched` array by `emit-findings.sh`) and says no such log exists
+  (Refs #3465).
+
 ## [0.6.2] - 2026-09-29
 
 ### Fixed
