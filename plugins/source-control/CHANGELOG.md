@@ -3,6 +3,16 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`babysit-prs` resolves ten repository-policy keys per target repository.** The merge method, block labels, extra dependency-manager logins, approval-downgrade logins, skip-downgrade logins, review trigger phrase, review bot logins and settle minutes, review gate context and CI gateway context come from each PR's own repository, read from `.claude/source-control.md` on its default branch through the GitHub contents API. Hold lists and review bot logins only grow, the settle window is never shorter than the `userConfig` window, `babysit_skip_downgrade_logins` can only shrink, and a fetch or parse error refuses the merge and request-review paths and leaves that repository's PRs unclassified in the snapshot.
+
+### Deprecated
+
+- **The `userConfig` values for those ten keys are a fallback.** Each use prints one stderr note per key per process. The fallback is removed in a later minor release, no earlier than 90 days after this one.
+
 ## [0.63.0] - 2026-09-29
 
 ### Added
