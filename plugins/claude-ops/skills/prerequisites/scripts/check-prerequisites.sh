@@ -31,15 +31,20 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --help | -h)
-    sed -n '2,22p' "${BASH_SOURCE[0]}" >&2
+    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
     exit 0
     ;;
   *)
-    echo "check-prerequisites.sh: unknown argument $1" >&2
+    echo "check-prerequisites.sh: unknown argument $1 (see --help)" >&2
     exit 2
     ;;
   esac
 done
+
+command -v python3 >/dev/null 2>&1 || {
+  echo "check-prerequisites.sh: python3 is required to read the plugin listing and declarations" >&2
+  exit 2
+}
 
 STATE_READ=0
 if [[ ${#ROOTS[@]} -eq 0 ]]; then

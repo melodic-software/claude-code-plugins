@@ -455,7 +455,14 @@ fi
 
 procedure_state="unchecked"
 if [[ "$procedure_on" -eq 1 ]]; then
-  for ((round_num = 1; round_num <= max_round; round_num++)); do
+  # Contiguous rounds never exceed the row count, so bound the walk there: a
+  # mistyped round number fails fast instead of iterating to it.
+  round_limit="$max_round"
+  if [[ "$max_round" -gt "$registered" ]]; then
+    round_limit="$registered"
+    proc_problems="${proc_problems}highest round $max_round exceeds the $registered registered question(s); rounds must run contiguously from 1"$'\n'
+  fi
+  for ((round_num = 1; round_num <= round_limit; round_num++)); do
     case "$rounds_seen" in
     *" $round_num "*) ;;
     *) proc_problems="${proc_problems}round $round_num has no register row (rounds must run contiguously from 1; highest is $max_round)"$'\n' ;;

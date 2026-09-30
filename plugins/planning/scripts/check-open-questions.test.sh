@@ -705,6 +705,12 @@ proc_pipe="$(
 - Q1 | answered | round 1 | Which output | JSON or XML? |
 EOT
 )"
+proc_huge="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 100000000000 | Who writes? | admin
+EOT
+)"
+expect_exit "--procedure huge round number fails fast -> 1" 1 --ledger "$proc_huge" --procedure
 expect_exit "--procedure pipe in question with empty resolution -> 1" 1 --ledger "$proc_pipe" --procedure
 proc_pipe_ok="$(
   mkledger <<'EOT'
