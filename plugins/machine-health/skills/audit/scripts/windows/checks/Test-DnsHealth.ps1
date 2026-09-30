@@ -14,7 +14,7 @@ $id = 'dns-health'
 $category = 'network'
 $commands = @(
     'Resolve-DnsName microsoft.com -Type A -DnsOnly -QuickTimeout'
-    'Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Test-Connection -TargetName {_.NextHop}'
+    'Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1 | Where-Object NextHop -NE 0.0.0.0 | ForEach-Object { Test-Connection -TargetName $_.NextHop -Count 1 -TimeoutSeconds 1 }'
 )
 
 $FailureSummary = 'DNS health check failed.'
