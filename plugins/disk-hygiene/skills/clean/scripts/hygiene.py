@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import ctypes
 import datetime as dt
 import fnmatch
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -27,8 +29,12 @@ from typing import Any
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -164,10 +170,11 @@ class HygieneError(Exception):
 
 QUIET_SCAN_NOTE = (
     "Quiet output: children_rollup is omitted from stdout only, and "
-    "truncated_paths is the count of truncated paths rather than the list. The "
-    'snapshot file named by "snapshot" carries every row and every truncated '
-    "path in full, in this mode exactly as in the default one; read per-child "
-    "detail and the coverage gaps there. Re-run without --quiet for the rollup "
+    "truncated_paths is the count of truncated paths rather than the list and "
+    "truncation_reasons is a per-reason tally rather than a path map. The "
+    'snapshot file named by "snapshot" carries every row, every truncated '
+    "path and its reason in full, in this mode exactly as in the default one; "
+    "read per-child detail and the coverage gaps there. Re-run without --quiet for the rollup "
     "and the full interpretation note. Hints are discovery signals, never "
     "cleanup verdicts."
 )
@@ -181,9 +188,10 @@ QUIET_SCAN_NOTE = (
 # no other signal that the inventory is partial by construction.
 QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     "Quiet output: children_rollup is omitted from stdout only, and "
-    "truncated_paths is the count of truncated paths rather than the list; the "
-    'snapshot file named by "snapshot" carries every row and every truncated '
-    "path in full. Coverage limit, "
+    "truncated_paths is the count of truncated paths rather than the list and "
+    "truncation_reasons is a per-reason tally; the "
+    'snapshot file named by "snapshot" carries every row, every truncated '
+    "path and its reason in full. Coverage limit, "
     "unchanged by --quiet: root-children mode inventoried only the selected "
     "immediate children, so the scan target itself and every skipped "
     "OS-owned/hidden/system/reparse or unselected sibling were never walked, and "
@@ -192,6 +200,14 @@ QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     "represented in truncated_paths. Re-run without --quiet for the rollup "
     "and the full interpretation note. Hints are discovery signals, never "
     "cleanup verdicts."
+)
+
+
+PROTECTED_TARGET_HINT = (
+    "The refusal covers a protected shell folder or profile hive and everything beneath it, "
+    "so a child directory of Documents, Desktop or Downloads is refused too. Allowed targets "
+    "have no protected name anywhere in their path: a directory outside the shell folders "
+    "(for example a project or data directory), or the home directory itself."
 )
 
 
@@ -231,6 +247,8 @@ def scan_complete_payload(
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
         "truncated_paths": snapshot["truncated_paths"],
+        "truncation_reasons": snapshot["truncation_reasons"],
+        "totals_are_lower_bounds": snapshot["totals_are_lower_bounds"],
         "stdlib_shadowing": snapshot.get("stdlib_shadowing", []),
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
@@ -239,6 +257,8 @@ def scan_complete_payload(
         "os_autoclean": advisory,
         "note": note,
     }
+    if snapshot.get("catalog_unreadable"):
+        payload["catalog_unreadable"] = True
     if snapshot.get("inventory_mode") == "sizes-only":
         payload["inventory_mode"] = "sizes-only"
         payload["rollup_precision"] = snapshot.get("rollup_precision")
@@ -255,7 +275,8 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     the rollup. It also replaces the ``truncated_paths`` list with its length,
     since a depth-cut home scan truncates well over a hundred paths: the count
     says how much went unwalked, stays present at zero so a clean scan is
-    distinguishable, and the snapshot keeps the list. Nothing else changes: the
+    distinguishable, and the snapshot keeps the list. ``truncation_reasons`` is
+    likewise reduced from a path map to a per-reason tally. Nothing else changes: the
     same run happens, the same snapshot is written, and every other field
     survives unchanged.
 
@@ -270,6 +291,11 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     trimmed = {key: value for key, value in payload.items() if key != "children_rollup"}
     if isinstance(trimmed.get("truncated_paths"), list):
         trimmed["truncated_paths"] = len(trimmed["truncated_paths"])
+    if isinstance(trimmed.get("truncation_reasons"), dict):
+        tally: dict[str, int] = {}
+        for reason in trimmed["truncation_reasons"].values():
+            tally[reason] = tally.get(reason, 0) + 1
+        trimmed["truncation_reasons"] = dict(sorted(tally.items()))
     trimmed["note"] = (
         QUIET_ROOT_CHILDREN_SCAN_NOTE
         if payload.get("root_children_mode")
@@ -286,6 +312,42 @@ def load_json(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise HygieneError(f"JSON root must be an object: {path}")
     return value
+
+
+def catalog_paths() -> tuple[Path, Path]:
+    """``catalog.json`` and ``CATALOG.md`` under the authorized data root."""
+    data_root = Path(DATA_ROOT_OVERRIDE or "")
+    return (
+        state_output_path(data_root / "catalog.json"),
+        state_output_path(data_root / "CATALOG.md"),
+    )
+
+
+def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
+    """Attach ``prior_disposition`` from the data-root catalog, when one exists.
+
+    A hint for the report only: an absent or unreadable catalog leaves the scan
+    unchanged, and nothing here touches the target.
+    """
+    if not DATA_ROOT_OVERRIDE:
+        return
+    catalog_path = catalog_paths()[0]
+    if not catalog_path.is_file():
+        return
+    try:
+        investigated_catalog.annotate_entries(snapshot, load_json(catalog_path))
+    except HygieneError:
+        snapshot["catalog_unreadable"] = True
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    """Replace ``path`` whole or leave it as it was."""
+    temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -718,6 +780,111 @@ def is_os_managed_target(
     return False
 
 
+# The device path, not DiskImage.Number, tells a VHD (a physical drive with
+# partitions) from an optical image (.iso/.img, a CD-ROM device with one volume).
+WINDOWS_DISK_IMAGE_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$image = Get-DiskImage -ImagePath $env:DISK_HYGIENE_IMAGE
+if (-not $image.Attached) { 'detached'; exit 0 }
+'attached'
+if ($image.DevicePath -match '^\\\\\.\\PHYSICALDRIVE(\d+)$') {
+  Get-Partition -DiskNumber $Matches[1] -ErrorAction SilentlyContinue |
+    ForEach-Object AccessPaths
+} else {
+  Get-Volume -DiskImage $image -ErrorAction SilentlyContinue |
+    Where-Object DriveLetter | ForEach-Object { "$($_.DriveLetter):" }
+}
+"""
+
+
+def windows_disk_image_mounts(path: Path) -> list[str] | None:
+    powershell = shutil.which("powershell")
+    if not powershell:
+        raise OSError("powershell not found")
+    encoded = base64.b64encode(WINDOWS_DISK_IMAGE_PROBE.encode("utf-16-le")).decode()
+    # ponytail: one PowerShell spawn per image per engine call; batch one
+    # Get-DiskImage per scan if image-heavy targets make scans slow.
+    run = subprocess.run(
+        [powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=20,
+        check=False,
+        env={**os.environ, "DISK_HYGIENE_IMAGE": str(path)},
+    )
+    # Exit code and sentinel only: Windows PowerShell writes CLIXML progress
+    # records to a redirected stderr even on success.
+    lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
+    if run.returncode != 0 or not lines or lines[0] not in {"attached", "detached"}:
+        raise ValueError(
+            f"Get-DiskImage exit {run.returncode}: {run.stderr.strip()[:200]}"
+        )
+    if lines[0] == "detached":
+        return None
+    return sorted(
+        {line.rstrip("\\") for line in lines[1:] if not line.startswith("\\\\?\\")}
+    )
+
+
+def linux_loop_mounts(
+    path: Path,
+    sys_block: Path = Path("/sys/block"),
+    mountinfo: Path = Path("/proc/self/mountinfo"),
+) -> list[str] | None:
+    if not sys_block.is_dir():
+        raise OSError(f"{sys_block} is not readable")
+    image = os.path.realpath(path)
+    devices = {
+        backing.parent.parent.name
+        for backing in sys_block.glob("loop*/loop/backing_file")
+        if backing.read_text(encoding="utf-8").strip() == image
+    }
+    if not devices:
+        return None
+    mounts: set[str] = set()
+    for line in mountinfo.read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if "-" not in fields[6:]:
+            continue
+        separator = fields.index("-", 6)
+        if len(fields) < separator + 3:
+            raise ValueError(f"malformed mountinfo line: {line[:200]}")
+        source = fields[separator + 2].removeprefix("/dev/")
+        if re.sub(r"p\d+$", "", source) in devices:
+            mounts.add(_decode_mountinfo_path(fields[4]))
+    return sorted(mounts)
+
+
+def is_wsl() -> bool:
+    return (
+        "microsoft" in platform.release().lower()
+        or Path("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+    )
+
+
+def virtual_disk_attachment(path: Path) -> list[str] | None:
+    """Where an attached disk image is mounted, or None when it is detached.
+
+    An attached image with no mounted volume returns an empty list. Raises
+    OSError, subprocess.SubprocessError, or ValueError when the host cannot
+    tell, including on a platform with no probe. Windows asks Get-DiskImage;
+    Linux reads the loop devices' backing files. Under WSL a loop-device miss
+    cannot prove the image detached, because WSL sees only its own loop
+    devices, never the Windows host's attachments, so it raises instead.
+    """
+    if os.name == "nt":
+        return windows_disk_image_mounts(path)
+    if os_key() == "linux":
+        mounts = linux_loop_mounts(path)
+        if mounts is None and is_wsl():
+            raise OSError("WSL cannot see the Windows host's disk attachments")
+        return mounts
+    raise OSError("no virtual-disk attach probe on this platform")
+
+
 def hard_protection(
     path: Path,
     target: Path,
@@ -729,6 +896,22 @@ def hard_protection(
         reasons.append("target-root")
     if is_volume_root(path) and is_os_managed_target(path):
         reasons.append("os-managed-root")
+    # Only the entry itself: a directory that merely carries an image-style name
+    # holds no image, and its contents are judged entry by entry. A path that
+    # cannot be stat'ed reads as not-a-directory, which fails closed.
+    if is_virtual_disk_name(path.name) and not path.is_dir():
+        reasons.append("virtual-disk")
+        try:
+            mounts = virtual_disk_attachment(path)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            # Never read an unanswered probe as detached.
+            reasons.append("virtual-disk-attach-unverified")
+        else:
+            if mounts is not None:
+                reasons.extend(
+                    [f"attached-virtual-disk:{mount}" for mount in mounts]
+                    or ["attached-virtual-disk"]
+                )
     current = path
     while is_within(current, target):
         linkish, cloud_placeholder = link_and_cloud_state(current)
@@ -780,7 +963,11 @@ def standing_policy_paths(project_dir: Path | None) -> list[Path]:
     layers = [Path.home() / ".claude" / "disk-hygiene.json"]
     if project_dir is not None:
         layers.append(project_dir / ".claude" / "disk-hygiene.json")
-    return [path for path in layers if path.is_file()]
+    unique: dict[Path, Path] = {}
+    for path in layers:
+        if path.is_file():
+            unique.setdefault(path.resolve(), path)
+    return list(unique.values())
 
 
 def baseline_policy() -> dict[str, Any]:
@@ -796,6 +983,7 @@ def baseline_policy() -> dict[str, Any]:
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "protected_name_globs": list(baseline.get("protected_name_globs", [])),
+        "disk_image_name_globs": list(baseline.get("disk_image_name_globs", [])),
         "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
@@ -838,6 +1026,23 @@ def baseline_protected_name_globs() -> tuple[str, ...]:
     a build-time constant.
     """
     return tuple(baseline_policy()["protected_name_globs"])
+
+
+@functools.lru_cache(maxsize=1)
+def baseline_disk_image_name_globs() -> tuple[str, ...]:
+    """Bundled disk-image name patterns, read from the baseline like the protected globs."""
+    return tuple(baseline_policy()["disk_image_name_globs"])
+
+
+def is_virtual_disk_name(name: str) -> bool:
+    """True when a file name is a virtual-disk image (``*.vhdx``, ``*.vmdk``, ...).
+
+    A disk image holds a whole machine or volume: it is sparse or dynamically
+    sized, is usually held open by a hypervisor or WSL, and its name says
+    nothing about whether the guest inside is disposable. Matched casefolded
+    through ``glob_matches``, so ``DISK.VMDK`` and ``ext4.vhdx`` both hit.
+    """
+    return any(glob_matches(name, glob) for glob in baseline_disk_image_name_globs())
 
 
 def load_policy(
@@ -927,6 +1132,10 @@ def apply_policy_overlay(
     result["rules"].extend(rules)
     result["elevation"] = elevation
     result["policy_sources"].append(str(overlay_path))
+
+
+HINT_ENTRY_TYPES = ("file", "directory", "link", "other")
+MAX_EMPTY_DIRECTORY_PATHS = 200
 
 
 def validate_rules(
@@ -1100,10 +1309,21 @@ def validate_hint(hint: Any) -> None:
     if not isinstance(hint, dict):
         raise HygieneError("each additional hint must be an object")
     required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
-    if set(hint) != required:
+    if not required <= set(hint) or set(hint) - required - {"entry_types"}:
         raise HygieneError(
-            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason"
+            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason "
+            "and optionally entry_types"
         )
+    if "entry_types" in hint:
+        entry_types = hint["entry_types"]
+        if (
+            not isinstance(entry_types, list)
+            or not entry_types
+            or not all(value in HINT_ENTRY_TYPES for value in entry_types)
+        ):
+            raise HygieneError(
+                "hint entry_types must be a non-empty array containing file/directory/link/other"
+            )
     if hint["kind"] not in {"name_glob", "path_glob"}:
         raise HygieneError(f"unsupported hint kind: {hint['kind']}")
     if hint["confidence_ceiling"] not in TIERS:
@@ -1122,13 +1342,16 @@ def validate_hint(hint: Any) -> None:
 
 
 def matching_hints(
-    relative: str, name: str, policy: dict[str, Any]
+    relative: str, name: str, policy: dict[str, Any], kind: str | None = None
 ) -> list[dict[str, str]]:
     matches = []
     current_os = os_key()
     for hint in policy["hints"]:
         validate_hint(hint)
         if "all" not in hint["os"] and current_os not in hint["os"]:
+            continue
+        entry_types = hint.get("entry_types")
+        if kind is not None and entry_types is not None and kind not in entry_types:
             continue
         subject = name if hint["kind"] == "name_glob" else relative
         if glob_matches(subject, hint["pattern"]):
@@ -1195,6 +1418,10 @@ def metadata(
         qualifiers.append("not-walked")
     if is_cloud_placeholder_stat(info):
         qualifiers.append("cloud-placeholder")
+    # An image's size is a guest disk's capacity or growth ceiling, and the file
+    # is never deletable by name, so its bytes are not reclaimable.
+    if kind == "file" and is_virtual_disk_name(path.name):
+        qualifiers.append("virtual-disk")
     # Directories carry st_nlink >= 2 for "." / ".." (and higher for each
     # subdirectory) on POSIX; that is not multi-name hard-linking of content.
     # Only regular files with more than one directory entry share one object.
@@ -1380,6 +1607,51 @@ def children_rollup(
     unknown with no more specific cause falls back to the bare ``not-walked``,
     the same qualifier the flat entry carries.
     """
+    totals: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        accumulate_child_rollup(totals, entry)
+    return child_rollup_rows(totals, unknown_paths, unwalked_reasons)
+
+
+def accumulate_child_rollup(
+    totals: dict[str, dict[str, Any]], entry: dict[str, Any]
+) -> None:
+    """Fold one inventory record into its immediate child's accumulator.
+
+    Keeps only the child's own kind and logical size, never the record, so a
+    caller that feeds records one at a time need not retain them.
+    """
+    relative = entry.get("path")
+    # `.` is the target itself, never one of its children: `scan_tree` keeps
+    # the target's record out of the inventory, and the same skip in the gap
+    # loop keeps a target-level truncation from inventing a `.` child row.
+    if not isinstance(relative, str) or not relative or relative == ".":
+        return
+    name = child_rollup_name(relative)
+    bucket = totals.setdefault(name, empty_child_rollup_bucket())
+    if relative == name:
+        bucket["self"] = {
+            "kind": entry.get("kind"),
+            "logical_size": entry.get("logical_size"),
+        }
+    else:
+        bucket["descendants"] = bucket["descendants"] + 1
+    mtime = entry.get("mtime_ns")
+    if isinstance(mtime, int):
+        newest = bucket["newest"]
+        bucket["newest"] = mtime if newest is None else max(newest, mtime)
+    bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
+    local = entry_reclaimable_local_bytes(entry)
+    if local is not None:
+        bucket["reclaimable"] = bucket["reclaimable"] + local
+
+
+def child_rollup_rows(
+    totals: dict[str, dict[str, Any]],
+    unknown_paths: Iterable[str] = (),
+    unwalked_reasons: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """The per-child rows ``children_rollup`` documents, from accumulated totals."""
     reasons = unwalked_reasons or {}
     gaps: dict[str, set[str]] = {}
     for path in unknown_paths:
@@ -1389,28 +1661,6 @@ def children_rollup(
         gaps.setdefault(name, set()).add(
             reasons.get(path, "not-walked") if path == name else "descendant-not-walked"
         )
-    totals: dict[str, dict[str, Any]] = {}
-    for entry in entries:
-        relative = entry.get("path")
-        # `.` is the target itself, never one of its children: `scan_tree` keeps
-        # the target's record out of `entries`, and the same skip in the gap loop
-        # above keeps a target-level truncation from inventing a `.` child row.
-        if not isinstance(relative, str) or not relative or relative == ".":
-            continue
-        name = child_rollup_name(relative)
-        bucket = totals.setdefault(name, empty_child_rollup_bucket())
-        if relative == name:
-            bucket["self"] = entry
-        else:
-            bucket["descendants"] = bucket["descendants"] + 1
-        mtime = entry.get("mtime_ns")
-        if isinstance(mtime, int):
-            newest = bucket["newest"]
-            bucket["newest"] = mtime if newest is None else max(newest, mtime)
-        bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
-        local = entry_reclaimable_local_bytes(entry)
-        if local is not None:
-            bucket["reclaimable"] = bucket["reclaimable"] + local
     rows: list[dict[str, Any]] = []
     for name in sorted(set(totals) | set(gaps)):
         bucket = totals.get(name) or empty_child_rollup_bucket()
@@ -1461,12 +1711,12 @@ def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
     return parents
 
 
-def empty_directory_count(
+def empty_directory_paths(
     entries: list[dict[str, Any]],
     *,
     error_paths: Iterable[str] | None = None,
-) -> int:
-    """Count walked empty directories in a snapshot inventory.
+) -> list[str]:
+    """Sorted paths of walked empty directories in a snapshot inventory.
 
     ``error_paths`` are scan-error relatives that must not count as empty even
     when they were recorded with ``logical_size`` 0 and no descendants.
@@ -1478,8 +1728,8 @@ def empty_directory_count(
     }
     parents_with_children = inventory_parent_paths(by_path)
     unknown = {path for path in (error_paths or ()) if isinstance(path, str) and path}
-    return sum(
-        1
+    return sorted(
+        entry["path"]
         for entry in by_path.values()
         if entry_is_empty_directory(
             entry,
@@ -1487,6 +1737,14 @@ def empty_directory_count(
             unknown_paths=unknown,
         )
     )
+
+
+def empty_directory_count(
+    entries: list[dict[str, Any]],
+    *,
+    error_paths: Iterable[str] | None = None,
+) -> int:
+    return len(empty_directory_paths(entries, error_paths=error_paths))
 
 
 def empty_file_count(entries: list[dict[str, Any]]) -> int:
@@ -2003,6 +2261,8 @@ def root_child_skip_reason(
             return "hidden"
         if attributes & FILE_ATTRIBUTE_SYSTEM:
             return "system"
+    if is_reg and is_virtual_disk_name(name):
+        return "virtual-disk"
     if has_protected_name(path, exact_names):
         return "baseline-protected-name"
     mounted, mount_error = mount_state(path, known_linux_mounts)
@@ -2147,6 +2407,17 @@ def scan_tree(
     sizes_only: bool = False,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
+    # A sizes-only walk keeps no per-path record: each path folds straight into
+    # these running totals, so memory follows the immediate children rather than
+    # the tree.
+    child_totals: dict[str, dict[str, Any]] = {}
+    # Only the count and a bounded sorted sample of empty directories are kept.
+    empty_directory_total = 0
+    empty_directory_sample: list[str] = []
+    inventoried = 0
+    reclaimable_total = 0
+    empty_files = 0
+    not_walked_paths: set[str] = set()
     errors: list[dict[str, str]] = []
     truncated: list[str] = []
     # Why each uninventoried path is uninventoried, so the per-child roll-up can
@@ -2166,6 +2437,7 @@ def scan_tree(
         allowed_root_children = {name.casefold() for name in root_children}
 
     def visit(directory: Path, depth: int = 1) -> int | None:
+        nonlocal inventoried, reclaimable_total, empty_files, empty_directory_total
         total = 0
         try:
             with os.scandir(directory) as iterator:
@@ -2180,7 +2452,7 @@ def scan_tree(
             path = Path(child.path)
             # Root-children mode never walks the volume root as a whole: only
             # explicitly selected immediate children are entered, and
-            # unselected siblings are never inventoried.
+            # unselected siblings are never inventoried, only named.
             child_key = child.name if root_children_sensitive else child.name.casefold()
             if (
                 allowed_root_children is not None
@@ -2188,6 +2460,7 @@ def scan_tree(
                 and directory == target
                 and child_key not in allowed_root_children
             ):
+                unwalked_reasons[child.name] = "root-child-unselected"
                 continue
             relative = path.relative_to(target).as_posix()
             protections = hard_protection(path, target, exact_names, known_mounts)
@@ -2198,6 +2471,7 @@ def scan_tree(
             )
             if consumer_matches:
                 protections.append("consumer-protected-path")
+            descendants = 0
             try:
                 if is_linkish(path):
                     kind = "link"
@@ -2238,7 +2512,9 @@ def scan_tree(
                         else:
                             subtotal = 0
                     else:
+                        before = inventoried
                         subtotal = visit(path, depth + 1)
+                        descendants = inventoried - before
                         if subtotal is None:
                             # scandir failed inside this child: unknown, not empty.
                             walked = False
@@ -2260,24 +2536,52 @@ def scan_tree(
                 unwalked_reasons[relative] = "scan-error"
                 continue
             if not sizes_only and len(entries) >= MAX_SNAPSHOT_ENTRIES:
-                raise HygieneError(
-                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; rerun with "
-                    "--max-depth or split the audit into bounded subtrees"
+                by_child = Counter(e["path"].split("/", 1)[0] for e in entries)
+                in_progress = relative.split("/", 1)[0]
+                largest = ", ".join(
+                    f"{name} ({count}{', walk in progress' if name == in_progress else ''})"
+                    for name, count in by_child.most_common(5)
                 )
+                raise HygieneError(
+                    f"snapshot exceeds {MAX_SNAPSHOT_ENTRIES} entries; "
+                    f"largest top-level children by entries so far: {largest}. "
+                    "The child still being walked is a lower bound; children not yet "
+                    "reached are not counted. Size candidates with --sizes-only (no "
+                    "entry cap), then rerun with --root-children --root-child <name> "
+                    "on bounded children or with --max-depth"
+                )
+            inventoried += 1
+            if "not-walked" in data["size_qualifiers"]:
+                not_walked_paths.add(relative)
             if sizes_only:
-                entries.append({"path": relative, **data})
+                record = {"path": relative, **data}
+                accumulate_child_rollup(child_totals, record)
+                reclaimable_total += entry_reclaimable_local_bytes(record) or 0
+                if kind == "file" and data["logical_size"] == 0:
+                    empty_files += 1
+                if (
+                    descendants == 0
+                    and kind == "directory"
+                    and entry_is_empty_directory(record, parents_with_children=set())
+                ):
+                    empty_directory_total += 1
+                    empty_directory_sample.append(relative)
+                    if len(empty_directory_sample) >= 2 * MAX_EMPTY_DIRECTORY_PATHS:
+                        empty_directory_sample[:] = sorted(empty_directory_sample)[
+                            :MAX_EMPTY_DIRECTORY_PATHS
+                        ]
             else:
                 entries.append(
                     {
                         "path": relative,
                         **data,
-                        "hints": matching_hints(relative, path.name, policy),
+                        "hints": matching_hints(relative, path.name, policy, kind),
                         "protected_reasons": sorted(set(protections)),
                         **protection_matches_field(consumer_matches),
                     }
                 )
-            if len(entries) % 25_000 == 0:
-                print(f"scanned {len(entries)} entries...", file=sys.stderr)
+            if inventoried % 25_000 == 0:
+                print(f"scanned {inventoried} entries...", file=sys.stderr)
         return total
 
     total_size = visit(target)
@@ -2299,7 +2603,6 @@ def scan_tree(
             },
         )
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
-    reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -2316,15 +2619,22 @@ def scan_tree(
     # Everything the walk could not fully account for, from all three places it
     # can be recorded: an explicit truncation, a scan error (which never adds a
     # truncation and can leave no entry at all), and a `not-walked` record.
-    unknown_paths = (
-        set(truncated)
-        | error_paths
-        | {
-            entry["path"]
-            for entry in entries
-            if "not-walked" in (entry.get("size_qualifiers") or [])
-        }
-    )
+    unknown_paths = set(truncated) | error_paths | not_walked_paths
+    if sizes_only:
+        reclaimable = reclaimable_total
+        empty_directories_total = empty_directory_total
+        empty_directories = sorted(empty_directory_sample)[:MAX_EMPTY_DIRECTORY_PATHS]
+        empty_files_total = empty_files
+        rollup_rows = child_rollup_rows(child_totals, unknown_paths, unwalked_reasons)
+    else:
+        reclaimable = reclaimable_local_bytes(entries)
+        all_empty_directories = empty_directory_paths(entries, error_paths=error_paths)
+        empty_directories_total = len(all_empty_directories)
+        empty_directories = all_empty_directories[:MAX_EMPTY_DIRECTORY_PATHS]
+        empty_files_total = empty_file_count(entries)
+        rollup_rows = children_rollup(
+            entries, unknown_paths=unknown_paths, unwalked_reasons=unwalked_reasons
+        )
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -2335,25 +2645,27 @@ def scan_tree(
         "target_identity": target_identity,
         "target_logical_bytes": total_size,
         "target_reclaimable_local_bytes": reclaimable,
-        "empty_directory_count": empty_directory_count(
-            entries, error_paths=error_paths
-        ),
-        "empty_file_count": empty_file_count(entries),
+        "empty_directory_count": empty_directories_total,
+        "empty_directory_paths": empty_directories,
+        "empty_directory_paths_truncated": empty_directories_total
+        > MAX_EMPTY_DIRECTORY_PATHS,
+        "empty_file_count": empty_files_total,
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
         "errors": errors,
         "max_depth": max_depth,
         "truncated_paths": sorted(truncated),
-        "stdlib_shadowing": stdlib_shadowing,
-        "children_rollup": children_rollup(
-            entries,
-            unknown_paths=unknown_paths,
-            unwalked_reasons=unwalked_reasons,
+        "truncation_reasons": {
+            **dict.fromkeys(sorted(truncated), "scan-error"),
+            **dict(sorted(unwalked_reasons.items())),
+        },
+        "totals_are_lower_bounds": bool(
+            truncated or unwalked_reasons or root_children is not None
         ),
-        "entries": []
-        if sizes_only
-        else sorted(entries, key=lambda entry: entry["path"]),
+        "stdlib_shadowing": stdlib_shadowing,
+        "children_rollup": rollup_rows,
+        "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
@@ -3679,7 +3991,12 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             current = target.joinpath(*PurePosixPath(name).parts)
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
-            blockers.extend(hard_protection(current, target, exact_names, known_mounts))
+            # The candidate itself is in expected_paths and was judged above; a
+            # second call would spawn the attach probe again for an image.
+            if name != relative:
+                blockers.extend(
+                    hard_protection(current, target, exact_names, known_mounts)
+                )
             matches = consumer_protection_matches(current, target, globs)
             if matches:
                 blockers.append("consumer-protected-path")
@@ -4141,18 +4458,22 @@ def handoff_verify(
                     )
                     if not identity_matches:
                         drifted.add("changed-since-scan")
-                current_protections = hard_protection(
-                    current, target, exact_names, known_mounts
-                )
-                if evidence_verified:
-                    current_protections = evidence_adjusted_protections(
-                        current_protections,
-                        current,
-                        target,
-                        repository_paths,
-                        exact_names,
+                # The candidate itself is in expected_paths and its protections
+                # were added above; a second call would spawn the attach probe
+                # again for an image.
+                if name != relative:
+                    current_protections = hard_protection(
+                        current, target, exact_names, known_mounts
                     )
-                contested.update(current_protections)
+                    if evidence_verified:
+                        current_protections = evidence_adjusted_protections(
+                            current_protections,
+                            current,
+                            target,
+                            repository_paths,
+                            exact_names,
+                        )
+                    contested.update(current_protections)
                 matches = consumer_protection_matches(current, target, globs)
                 if matches:
                     contested.add("consumer-protected-path")
@@ -4607,8 +4928,13 @@ def main(argv: list[str] | None = None) -> int:
             if has_protected_path_component(
                 target, set(policy["protected_exact_names"])
             ):
-                raise HygieneError(
-                    "protected shell-folder and profile-hive roots are not valid audit targets"
+                return emit(
+                    {
+                        "status": "invalid-or-blocked",
+                        "error": "protected shell-folder and profile-hive roots are not valid audit targets",
+                        "hint": PROTECTED_TARGET_HINT,
+                    },
+                    2,
                 )
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")
@@ -4677,7 +5003,6 @@ def main(argv: list[str] | None = None) -> int:
                     child_large_reasons
                     and args.max_depth is None
                     and not args.confirmed_large_scan
-                    and not sizes_only
                 ):
                     return emit(
                         {
@@ -4713,6 +5038,7 @@ def main(argv: list[str] | None = None) -> int:
                         2,
                     )
                 snapshot["root_children_skipped"] = skipped
+                annotate_investigated_catalog(snapshot)
                 write_json(output_path, snapshot)
                 skipped_counts = root_children_skipped_reason_counts(skipped)
                 home_note = withheld_home_container_note(skipped)
@@ -4751,7 +5077,6 @@ def main(argv: list[str] | None = None) -> int:
                 large_reasons
                 and args.max_depth is None
                 and not args.confirmed_large_scan
-                and not sizes_only
             ):
                 immediate_entries, probe_error = top_level_entry_count(target)
                 return emit(
@@ -4785,6 +5110,7 @@ def main(argv: list[str] | None = None) -> int:
                     },
                     2,
                 )
+            annotate_investigated_catalog(snapshot)
             write_json(output_path, snapshot)
             return emit(
                 scan_stdout_payload(
@@ -4821,8 +5147,13 @@ def main(argv: list[str] | None = None) -> int:
                                 "target_reclaimable_local_bytes excludes every "
                                 "entry whose size_qualifiers is non-empty "
                                 "(cloud-placeholder, hardlinked, sparse, "
-                                "not-walked); target_logical_bytes is the walked "
-                                "roll-up and may understate truncated subtrees."
+                                "virtual-disk, not-walked). Both totals count "
+                                "walked subtrees only: when "
+                                "totals_are_lower_bounds is true, some subtree "
+                                "was not walked, so read them as lower bounds; "
+                                "truncation_reasons maps each unwalked path to "
+                                "its cause (vcs-boundary, protected, depth-cut, "
+                                "scan-error, root-child-unselected)."
                             )
                         ),
                     ),
@@ -4830,10 +5161,65 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         snapshot = load_json(Path(args.snapshot))
+        if args.command == "catalog":
+            entries = snapshot.get("entries")
+            if (
+                not isinstance(snapshot.get("target"), str)
+                or not isinstance(entries, list)
+                or not all(
+                    isinstance(entry, dict) and isinstance(entry.get("path"), str)
+                    for entry in entries
+                )
+            ):
+                raise HygieneError(
+                    "catalog needs a scan snapshot whose entries each have a path"
+                )
+            json_path, markdown_path = catalog_paths()
+            json_path.parent.mkdir(parents=True, exist_ok=True)
+            findings = (
+                load_json(Path(args.findings)).get("records", [])
+                if args.findings
+                else []
+            )
+            answers = (
+                load_json(Path(args.answers)).get("answers", [])
+                if args.answers
+                else []
+            )
+            if not isinstance(findings, list) or not isinstance(answers, list):
+                raise HygieneError("catalog findings and answers must be arrays")
+            merged, report = investigated_catalog.sync_catalog(
+                snapshot,
+                load_json(json_path) if json_path.is_file() else None,
+                findings,
+                answers,
+                args.run_id,
+            )
+            write_text_atomic(
+                json_path, json.dumps(merged, indent=2, sort_keys=True) + "\n"
+            )
+            write_text_atomic(
+                markdown_path, investigated_catalog.render_markdown(merged, report)
+            )
+            return emit(
+                {
+                    "status": "catalog-complete",
+                    "catalog": str(json_path),
+                    "rendered": str(markdown_path),
+                    "records": len(merged["records"]),
+                    **report,
+                    "note": (
+                        "A catalog record is a hint. It does not authorize deletion, "
+                        "skip a preview, or shorten approval. Report new_or_changed "
+                        "first, then one line per unchanged entry, and end with the "
+                        "questions."
+                    ),
+                }
+            )
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                {"version": SCHEMA_VERSION, "paths": [args.path]}
-                if args.path is not None
+                {"version": SCHEMA_VERSION, "paths": args.path}
+                if args.path
                 else load_json(Path(args.paths)),
                 entry_map(snapshot),
             )

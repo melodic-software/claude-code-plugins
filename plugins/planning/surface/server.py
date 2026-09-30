@@ -41,11 +41,12 @@ EMPTY_RESPONSES = {
 }
 DECISIONS = {"accept", "alt", "own", "defer", "reopen"}
 REQUESTS = {"ask", "rephrase"}
-# Events not tied to a question; `confirm-understanding` answers the restatement.
-FREE = {"note", "wrapup", "confirm-understanding"}
-# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision, and
-# `confirm-understanding` carries `confirm` or `off`.
-WITH_ALT = {"alt", "confirm", "confirm-understanding"}
+# Events not tied to a question; `confirm-understanding` answers the restatement, and
+# `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
+FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}
+# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision,
+# `confirm-understanding` carries `confirm` or `off`, and `accept-audit` the round id.
+WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit"}
 UNDERSTANDING = ("confirm", "off")
 API = 2
 MAX_BODY = 64 * 1024
@@ -579,6 +580,67 @@ def rebuild_responses(events):
     return responses, history
 
 
+def check_accept_audit(msg):
+    """ValueError (400) unless msg is a well-formed accept-audit: a round id in `alt` and a
+    non-empty `items` list of {id, contentRev} pairs with no repeated id. Returns the items."""
+    if not (isinstance(msg.get("alt"), str) and msg["alt"].strip()):
+        raise ValueError("accept-audit needs alt: the round id")
+    items = msg.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError(
+            "accept-audit needs items: a non-empty list of {id, contentRev}"
+        )
+    seen = set()
+    for it in items:
+        if not (
+            isinstance(it, dict)
+            and set(it) == {"id", "contentRev"}
+            and isinstance(it["id"], str)
+            and isinstance(it["contentRev"], int)
+            and not isinstance(it["contentRev"], bool)
+        ):
+            raise ValueError("each item must be {id: string, contentRev: integer}")
+        if it["id"] in seen:
+            raise ValueError(f"items repeats {it['id']}")
+        seen.add(it["id"])
+    return items
+
+
+def split_accept_audit(doc, r, items):
+    """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
+    {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
+    `ineligible` is an unknown, closed, held or recommendation-less question, or one whose
+    prerequisite has no decision yet."""
+    qs = {q.get("id"): q for q in doc.get("questions") or []}
+    states = question_states(doc, r)
+    seeded = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
+
+    def decided(qid):
+        return (r["responses"].get(qid) or {}).get("decision") or (
+            (qs.get(qid) or {}).get("terminal") or {}
+        ).get("decision")
+
+    accepted, skipped = [], []
+    for it in items:
+        q = qs.get(it["id"])
+        if q and it["contentRev"] != content_rev(q, r["events"]):
+            reason = "changed"
+        elif (
+            not q
+            or states.get(it["id"], ("",))[0] != "open"
+            or not q.get("recommendation")
+            or q.get("waiting")
+            or (seeded.get(it["id"]) or {}).get("status") == "superseded-by-plan"
+            or not all(decided(p) for p in q.get("dependsOn") or [])
+        ):
+            reason = "ineligible"
+        else:
+            accepted.append(it)
+            continue
+        skipped.append({"id": it["id"], "reason": reason})
+    return accepted, skipped
+
+
 def check_alt(q, kind, alt):
     """ValueError (400) unless `alt` names one of q's alternative keys (alt) or commitments (confirm)."""
     if kind == "alt":
@@ -610,16 +672,18 @@ def check_understanding(doc, alt, text, rev):
         raise Conflict({"error": "stale", "contentRev": current})
 
 
-def repeat_of(events, event):
+def repeat_of(events, event, since_seq=None):
     """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
-    event's seq. A commitment's confirm repeats any live confirm of it; an understanding Confirm
-    repeats only when the newest answer to that restatement rev is a Confirm."""
+    event's seq. A commitment's confirm repeats any live confirm of it after `since_seq` (the
+    question's commitsSinceSeq: a commitments revise retires earlier confirms); an understanding
+    Confirm repeats only when the newest answer to that restatement rev is a Confirm."""
     kind = event["kind"]
     if kind == "confirm":
         same = [
             e
             for e in events
             if not e.get("withdrawn")
+            and (e.get("seq") or 0) > (since_seq or 0)
             and (e.get("kind"), e.get("id"), e.get("alt"))
             == (kind, event["id"], event["alt"])
         ]
@@ -805,9 +869,17 @@ class Hub:
             r = load_json(self.responses, EMPTY_RESPONSES)
             settings, theme = self.layers.resolve(self.dir, self.user_settings())
             derived = question_states(q, r)
+            # exporters imports server at module top
+            from exporters import latest_decision
+
             for x in q.get("questions") or []:
                 if isinstance(x, dict) and x.get("id") in derived:
                     x["state"], x["revising"] = derived[x["id"]]
+                    x["answered"] = bool(
+                        (latest_decision(x, r.get("responses", {})) or {}).get(
+                            "decision"
+                        )
+                    )
             self._last_state = {
                 "questions": q,
                 "responses": r,
@@ -826,7 +898,9 @@ class Hub:
         }
 
     def record(self, msg):
-        """Append one page event. Returns (seq, contentRev or None). Raises ValueError (400) or Conflict (409)."""
+        """Append one page event. Returns (seq, contentRev or None, extra), where extra is the
+        `accepted` and `skipped` an accept-audit adds to its response and {} for any other kind.
+        Raises ValueError (400) or Conflict (409)."""
         qid, kind = msg.get("id"), msg.get("kind")
         if not isinstance(kind, str) or not isinstance(qid, (str, type(None))):
             raise ValueError("id and kind must be strings")
@@ -848,7 +922,9 @@ class Hub:
             raise ValueError("unknown question")
         if kind in ("own", "ask", "note") and not text.strip():
             raise ValueError("text required")
+        items = check_accept_audit(msg) if kind == "accept-audit" else None
         now = now_iso()
+        extra = {}
         with self.cond:
             if kind == "confirm-understanding":
                 check_understanding(
@@ -870,6 +946,22 @@ class Hub:
                 qid = event["id"]
             elif kind == "confirm-understanding":
                 event["contentRev"] = msg["contentRev"]
+            elif kind == "accept-audit":
+                accepted, skipped = split_accept_audit(doc, r, items)
+                if not accepted:
+                    raise Conflict({"error": "nothing accepted", "skipped": skipped})
+                event["items"] = accepted
+                extra = {"accepted": [i["id"] for i in accepted], "skipped": skipped}
+            elif (
+                kind == "confirm"
+                and qid in qs
+                and msg.get("contentRev") is not None
+                and msg["contentRev"] != (qs[qid].get("contentRev") or 0)
+            ):
+                # A tab holding an old commitments list would otherwise confirm the new one by index.
+                raise Conflict(
+                    {"error": "stale", "contentRev": qs[qid].get("contentRev") or 0}
+                )
             elif kind in DECISIONS and msg.get("contentRev") is not None:
                 current = content_rev(qs[qid], r["events"])
                 if msg.get("contentRev") != current:
@@ -894,9 +986,15 @@ class Hub:
             # After the contentRev check, so a page holding old alternatives gets the 409 payload.
             if kind in WITH_ALT and qid:
                 check_alt(qs[qid], kind, alt)
-            dup = repeat_of(r["events"], event)
+            dup = repeat_of(
+                r["events"], event, (qs.get(qid) or {}).get("commitsSinceSeq")
+            )
             if dup:
-                return dup["seq"], content_rev(qs[qid], r["events"]) if qid else None
+                return (
+                    dup["seq"],
+                    content_rev(qs[qid], r["events"]) if qid else None,
+                    {},
+                )
             r["seq"] = seq = event["seq"]
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:
@@ -922,10 +1020,33 @@ class Hub:
                 if kind == "undo":
                     line["undoSeq"] = event["undoSeq"]
                 r["history"].setdefault(qid, []).append(line)
+            for it in event["items"] if kind == "accept-audit" else []:
+                r["seq"] += 1
+                accept = {
+                    "seq": r["seq"],
+                    "id": it["id"],
+                    "kind": "accept",
+                    "alt": None,
+                    "text": "",
+                    "at": now,
+                    "auditSeq": seq,
+                }
+                r["events"].append(accept)
+                r["responses"][it["id"]] = decision_view(accept)
+                r["history"].setdefault(it["id"], []).append(
+                    {
+                        "at": now,
+                        "by": "user",
+                        "kind": "accept",
+                        "alt": None,
+                        "text": "",
+                        "seq": accept["seq"],
+                    }
+                )
             save_json(self.responses, r)
             self.cond.notify_all()
             crev = content_rev(qs[qid], r["events"]) if qid in qs else None
-        return seq, crev
+        return seq, crev, extra
 
     def _undo(self, r, doc, msg, event):
         """Withdraw a decision Claude has not handled yet, restoring the decision before it."""
@@ -1285,7 +1406,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(400, {"error": "JSON object required"})
         if url.path == "/api/answer":
             try:
-                seq, crev = self.hub.record(msg)
+                seq, crev, extra = self.hub.record(msg)
             except (ValueError, TypeError) as e:
                 return self.send(400, {"error": str(e)})
             except Conflict as e:
@@ -1297,6 +1418,7 @@ class Handler(BaseHTTPRequestHandler):
                     "seq": seq,
                     "contentRev": crev,
                     "listener": self.hub.listener(),
+                    **extra,
                 },
             )
         if url.path == "/api/visual-open":

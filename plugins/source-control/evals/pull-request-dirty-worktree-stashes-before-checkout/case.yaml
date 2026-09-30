@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: pull-request-dirty-worktree-stashes-before-checkout
+context:
+  scaffold_script: scaffold.sh

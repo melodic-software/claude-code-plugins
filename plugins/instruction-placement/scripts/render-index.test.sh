@@ -12,6 +12,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
 SCRIPT="$SCRIPT_DIR/render-index.sh"
 
 FAILED=0
@@ -54,7 +57,7 @@ commit_all() {
 # A fixture repository carrying a representative mix of instruction surfaces.
 build_fixture() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d "$TMP/x.XXXX")"
   mkdir -p "$dir/.claude/rules/nested" "$dir/src/billing" "$dir/infra"
 
   cat >"$dir/.claude/rules/csharp.md" <<'EOF'
@@ -196,7 +199,7 @@ assert_eq "render is byte-identical across runs" "$a" "$b"
 # --------------------------------------------------------------------------
 # Empty repository
 # --------------------------------------------------------------------------
-empty="$(mktemp -d)"
+empty="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$empty" init -q .
 out="$(run render --root "$empty")"
 assert_contains "an empty repo still emits a well-formed block" "$out" "BEGIN GENERATED"
@@ -237,7 +240,7 @@ assert_eq "and the repository is in sync afterwards" "0" "$?"
 # working directory is not the repository writes `--file AGENTS.md --root <repo>`
 # and means the repository's own file; anchoring that to the caller's cwd finds
 # nothing and dies.
-relroot="$(mktemp -d)"
+relroot="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$relroot" init -q .
 mkdir -p "$relroot/.claude/rules"
 printf -- '---\npaths:\n  - "**/*.py"\n---\n# Python\n' >"$relroot/.claude/rules/py.md"
@@ -247,7 +250,7 @@ commit_all "$relroot"
 
 # Run these from a neutral empty directory: a --file resolved against the
 # caller's cwd would write into whatever repository the suite was launched from.
-neutral="$(mktemp -d)"
+neutral="$(mktemp -d "$TMP/x.XXXX")"
 
 out="$( (cd "$neutral" && run check --file AGENTS.md --root "$relroot") 2>&1)"
 assert_not_contains "a relative --file is resolved against --root, not cwd" "$out" "not a readable file"
@@ -364,7 +367,7 @@ assert_not_contains "stale block content is replaced" "$content" "stale generate
 # --------------------------------------------------------------------------
 # reachable — an index nothing loads is the whole point silently not working
 # --------------------------------------------------------------------------
-unwired="$(mktemp -d)"
+unwired="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$unwired" init -q .
 printf '# Claude instructions\n\nNo import here.\n' >"$unwired/CLAUDE.md"
 printf '# Shared\n' >"$unwired/AGENTS.md"
@@ -400,7 +403,7 @@ assert_contains "a root CLAUDE.md target is always reachable" "$out" "LOADED"
 # import is not what decides whether the file is read. The verdict is neither
 # LOADED nor UNREACHABLE, because whether Claude Code reads AGENTS.md directly
 # depends on availability this script cannot observe.
-native="$(mktemp -d)"
+native="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$native" init -q .
 printf '# Shared\n' >"$native/AGENTS.md"
 commit_all "$native"
@@ -422,7 +425,7 @@ assert_contains "adding a non-importing root CLAUDE.md makes it UNREACHABLE" "$o
 # --------------------------------------------------------------------------
 # wiring — an indexed nested AGENTS.md that no sibling imports never loads
 # --------------------------------------------------------------------------
-wiring="$(mktemp -d)"
+wiring="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$wiring" init -q .
 mkdir -p "$wiring/shimmed" "$wiring/bare" "$wiring/linked" "$wiring/localonly"
 printf '@AGENTS.md\n' >"$wiring/CLAUDE.md"
@@ -465,7 +468,7 @@ assert_eq "all wired exits 0" "0" "$?"
 
 # No CLAUDE.md anywhere above the nested file: nothing blocks the nested walk,
 # so the missing shim is not a defect and the row is not a failure.
-nativewiring="$(mktemp -d)"
+nativewiring="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$nativewiring" init -q .
 mkdir -p "$nativewiring/bare" "$nativewiring/ownclaude"
 printf '# Root\n' >"$nativewiring/AGENTS.md"
@@ -489,7 +492,7 @@ assert_eq "NATIVE rows alone exit 0" "0" "$?"
 # Another tool's directories never reach either surface: not the wiring gate,
 # which would demand a Claude shim beside a Cursor file, and not the rendered
 # index, which would advertise one as a Claude on-demand surface.
-othertools="$(mktemp -d)"
+othertools="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$othertools" init -q .
 mkdir -p "$othertools/.cursor/rules" "$othertools/.codex" "$othertools/.github" "$othertools/src"
 printf '@AGENTS.md\n' >"$othertools/CLAUDE.md"
@@ -519,7 +522,7 @@ assert_contains "the index still lists an ordinary subtree" "$out" '`src/AGENTS.
 # `.claude/CLAUDE.md` counts at every level, not only the repository root: the
 # memory page counts "a CLAUDE.md, .claude/CLAUDE.md, or CLAUDE.local.md in
 # your working directory or any directory above it".
-dotclaude="$(mktemp -d)"
+dotclaude="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$dotclaude" init -q .
 mkdir -p "$dotclaude/svc/.claude"
 printf '# Root\n' >"$dotclaude/AGENTS.md"
@@ -537,7 +540,7 @@ commit_all "$dotclaude"
 out="$(run wiring --root "$dotclaude")"
 assert_not_contains "a nested .claude/CLAUDE.md that imports it wires it" "$out" "UNWIRED"
 
-nonested="$(mktemp -d)"
+nonested="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$nonested" init -q .
 printf '# Root only\n' >"$nonested/CLAUDE.md"
 commit_all "$nonested"
@@ -554,7 +557,7 @@ assert_not_contains "the NONE line is not warned about at write time" "$warn" "N
 # An import from the root CLAUDE.md, the root .claude/CLAUDE.md, or an ancestor
 # directory's CLAUDE.md brings the nested file into context too, so those are
 # entry points as well; and the loader follows four hops, not five.
-entry="$(mktemp -d)"
+entry="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$entry" init -q .
 mkdir -p "$entry/.claude" "$entry/byroot" "$entry/bydot" "$entry/anc/leaf" "$entry/five"
 printf '@AGENTS.md\n@byroot/AGENTS.md\n' >"$entry/CLAUDE.md"
@@ -587,7 +590,7 @@ assert_contains "a fifth-hop import does not wire it" "$out" "UNWIRED	five/AGENT
 # --------------------------------------------------------------------------
 # Size posture — the index must not become the bloat it exists to remove
 # --------------------------------------------------------------------------
-many="$(mktemp -d)"
+many="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$many" init -q .
 mkdir -p "$many/.claude/rules" "$many/src"
 printf 'x\n' >"$many/src/a.cs"
@@ -647,7 +650,6 @@ else
   run write --file "$posixrepo/AGENTS.md" --root "$posixrepo" >/dev/null 2>&1
   assert_eq "the drive-letter run writes the same index as the shell-form run" \
     "$(cat "$posixrepo/AGENTS.md")" "$(cat "$winrepo/AGENTS.md")"
-  rm -rf "$posixrepo"
 
   # Backslash spelling, as a PowerShell or cmd caller hands it. MSYS already
   # splits it, so only the forward-slash spelling assertion pins normalization.
@@ -679,12 +681,9 @@ else
 
   assert_eq "the backslash run writes the same index as the forward-slash run" \
     "$(cat "$winrepo/AGENTS.md")" "$(cat "$bsrepo/AGENTS.md")"
-  rm -rf "$bsrepo"
 fi
-rm -rf "$winrepo"
 
 # --------------------------------------------------------------------------
-rm -rf "$repo" "$empty"
 
 printf '\n%d case(s), %d failure(s), %d host skip(s)\n' "$CASE_NUM" "$FAILED" "$SKIPPED"
 [[ $FAILED -eq 0 ]] || exit 1

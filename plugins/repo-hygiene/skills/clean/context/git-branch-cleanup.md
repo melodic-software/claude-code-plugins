@@ -10,9 +10,23 @@ Run the branch-audit script. Do not reimplement collection inline:
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 ```
 
-**Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then the main-checkout block, `MainCheckout:`, `MainCheckoutDirty:`, any `MainCheckoutOperation:` and `OperationInProgress:` lines (see 4.6); then per branch `Branch:`, `Tip:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Loss:`, `Reason:`, `Landed: <proof>` (a landed branch only), `Family:` (a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out); then the loss block, `LossBlock: <n> ...` through `LossBlockEnd: <n>` (always present, `0` when no branch loses work), with one `LossBranch:` per LOSSY branch followed by its `LossCommit:` lines; then exactly one of `TipCapture: <path>` or `TipCaptureError: <why>`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… lossy=… review=…`.
+**Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then the main-checkout block, `MainCheckout:`, `MainCheckoutDirty:`, any `MainCheckoutOperation:` and `OperationInProgress:` lines (see 4.6); then per branch `Branch:`, `Tip:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Loss:`, `Reason:`, `Landed: <proof>` (a landed branch only), `Family:` (a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out); then the loss block, `LossBlock: <n> ...` through `LossBlockEnd: <n>` (always present, `0` when no branch loses work), with one `LossBranch:` per LOSSY branch followed by its `LossCommit:` lines; then exactly one of `TipCapture: <path>`, `TipCaptureError: <why>`, or `TipCaptureSkipped: <why>` (`--read-only`); trailing `Summary: protected=… worktree=… safe=… likely-safe=… lossy=… review=…`.
 
-**Across repos.** `--repo DIR...`, `--repos-from FILE|-`, `--skip ENTRY` and `--skip-from FILE` (the selection `clean-batch.sh` takes) audit several repositories in one run, sequentially, deleting nothing. Each audited repo is a `Repo: <path>` block holding the output above, ended by `---`, with its own `TipCapture:` under its own common git dir. A repo that shares a git common dir with one already audited (a linked worktree, whose branches the first audit already lists) is a `Repo:` / `Outcome: skipped` block, so each repository is audited once, from the first-named worktree. A skip-listed repo, an unresolvable input (`Outcome: blocked`), or an audit that exits nonzero (`Outcome: failed`) is reported without stopping the rest, and `FleetSummary: repos=N audited=A skipped=S duplicate=D blocked=B failed=F` closes the run with exit 0. `--capture-file PATH` names one file, so with more than one repo it is a usage error (exit 2); each repo gets its default capture. With none of these flags the script audits the current repository and its output is unchanged.
+**Across repos.** `--repo DIR...`, `--repos-from FILE|-`, `--skip ENTRY` and `--skip-from FILE` (the selection `clean-batch.sh` takes) audit several repositories in one run, sequentially, deleting nothing. Each audited repo is a `Repo: <path>` block holding the output above, ended by `---`, with its own `TipCapture:` under its own common git dir. A repo that shares a git common dir with one already audited (a linked worktree, whose branches the first audit already lists) is a `Repo:` / `Outcome: skipped` block, so each repository is audited once, from the first-named worktree. A skip-listed repo, an unresolvable input (`Outcome: blocked`), or an audit that exits nonzero (`Outcome: failed`) is reported without stopping the rest, and `FleetSummary: repos=N audited=A skipped=S duplicate=D blocked=B failed=F` closes the run with exit 0. `--capture-file PATH` names one file, so with more than one repo it is a usage error (exit 2); each repo gets its default capture. With none of these flags the script audits the current repository and its output is unchanged. A branch or worktree audit across many repositories, including one outside the ghq root, is `/repo-fleet-hygiene:audit`. `--read-only` and `--remote` (below) work per repository and apply to each repo in a multi-repo run. Under `--remote`, a second clone of one `origin` (compared as in `clean-batch.md`) is a `Repo:` / `Outcome: skipped` block reading `skipped duplicate of <path>`, counted in `duplicate=`, because it would list the same remote branches. A local audit reads each clone's own branches and captures, so it audits every clone.
+
+**Read-only.** `--read-only` leaves the repository as it found it: no tip capture (no file, no `.part`, no directory under the git common dir) and no object. The landed proof's squash step, which otherwise writes one unreferenced loose commit object per branch that reaches it, runs in a throwaway object directory (`GIT_OBJECT_DIRECTORY`, with the repository's objects as its alternate) removed on exit, and `MainCheckoutDirty:` reads the status without refreshing the index, so the verdicts match a normal run. If the throwaway directory cannot be created, the landed proof is skipped altogether: no branch gets a `Landed:` line, and one the chain left in REVIEW stays there. The audit prints `TipCaptureSkipped:` where it would print `TipCapture:`, and `git-branch-delete.sh` refuses (exit 3) without a capture, so a `--read-only` run can inform a decision but never feed a deletion; re-run without the flag to delete. It cannot combine with `--capture-file` (exit 2).
+
+**Live remote audit.** `--remote` audits `origin`'s branches instead of the local ones, and writes no capture. The branch list and tips come from `git ls-remote --heads origin`, the live remote: remote-tracking refs go stale and omit branches never fetched, so a tracking ref is never read. Each branch other than the default and the protected patterns (reported `PROTECTED` without a lookup) is looked up with `gh pr list --repo <origin url> --state merged --head <branch> --json number,headRefOid`, so the PRs come from `origin`'s repository even when gh would resolve another for the directory (for example an `upstream` remote). `--remote-families` (under 4.5) reads the remote-tracking refs by family instead; the two are separate reports and cannot combine. Output: `RemoteBranches: <n>` (or `RemoteError: <why>` when the list could not be read), then per branch `RemoteBranch:`, `RemoteTip:`, `RemoteTier:`, `RemotePR:`, `RemoteReason:` and, on a drift, `RemoteAhead:`, then `RemoteSummary:`.
+
+| `RemoteTier` | Meaning |
+|--------------|---------|
+| `MERGED` | The tip is a merged PR's `headRefOid`: the merged work is the whole branch |
+| `MERGED-DRIFT` | A merged PR exists but the tip differs from every merged PR's head: commits landed on the branch after the merge, and deleting it loses them. `RemoteAhead:` counts commits past the newest merged PR's head, says `diverged` when that head is not an ancestor of the tip (the branch was rewritten after the merge), or says the count is not computable because an object is not fetched locally (the audit never fetches) |
+| `NO-MERGED-PR` | `gh` answered and no merged PR has this branch as its head |
+| `UNKNOWN` | `gh` or `jq` is absent, or the lookup failed: the branch is still listed with its live tip, and nothing is claimed about it |
+| `PROTECTED` | The default branch or a protected pattern |
+
+`MERGED-DRIFT` is the flag to act on: treat the branch as unmerged work, never as a leftover of a merged PR. A remote branch is deleted with `git push origin --delete`, outside this skill's scripts, after the operator confirms it.
 
 **PR-map status line**, the trustworthiness of every PR-derived verdict below. `PRCount: 0` is a repository with no pull requests, which is a real and complete answer. `PRDataUnavailable:` is a repository whose pull requests could not be read at all (no `gh`, no `jq`, unauthenticated, no GitHub remote, unparsable output, or the map file could not be created): squash-merge detection never ran, priority 5 cannot fire, and a landed branch falls through to REVIEW. `PRDataTruncated:` means the returned count equaled the requested cap and rows may have been discarded, with the same effect for whichever branches are missing from the map. Surface either line in the confirmation gate; underneath one, the tier split is not complete evidence.
 
@@ -81,14 +95,24 @@ A merged PR whose head the local branch has moved off (priority 5a and 5b) is se
 
 **`Family:` line**, where the branch name says the branch came from. It is information for the report and never changes a tier, a loss count, or a deletion rule.
 
-| Family | Branch name | Source |
-|--------|-------------|--------|
-| `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees; `worktree-create.sh` uses the harness name as the branch |
-| `claude` | `claude/*` | Claude Code on the web |
-| `plan` | `plan/*` | named by hand |
-| `stranded` | `stranded/*` | named by hand |
-| `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
-| `none` | anything else | no known source |
+| Family | Branch name | Source | Owner | Retention (remote mode) |
+|--------|-------------|--------|-------|-------------------------|
+| `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees; `worktree-create.sh` uses the harness name as the branch | `/source-control:worktree cleanup` | no window; released once no worktree has it checked out |
+| `claude` | `claude/*` | Claude Code on the web | the session that pushed it | 30 days (`CLEAN_RETENTION_CLAUDE_DAYS`) |
+| `plan` | `plan/*` | named by hand | whoever named it | 90 days (`CLEAN_RETENTION_PLAN_DAYS`) |
+| `stranded` | `stranded/*` | named by hand | whoever named it | 30 days (`CLEAN_RETENTION_STRANDED_DAYS`) |
+| `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage | whoever pushed it | 30 days (`CLEAN_RETENTION_PREWIPE_DAYS`) |
+| `none` | anything else | no known source | not decided by family | none (`n/a`) |
+
+The `Retention` column is read only by the remote mode below; the local audit still reads the family for information alone.
+
+### Remote mode: `git-branch-audit.sh --remote-families`
+
+Reports `refs/remotes/origin/*` as last fetched (no fetch is run), skipping `origin/HEAD`, the default branch and the protected patterns. Per branch it prints the family, the PR-map state, `Landed:` and a `Retention:` verdict.
+
+- **Landed:** a merged PR on the branch whose `headRefOid` is the tip, or has the tip as an ancestor. Commits pushed after the merge are not landed. Without the PR map (`PRDataUnavailable:`) no branch reads as landed.
+- **Retention:** the family rule releases a branch when its tip is older than the window (committer date), or, for `agent`, when no worktree has it checked out. A released branch is `CANDIDATE` when it landed or another ref holds its tip, `KEEP-UNIQUE` when it did not land and no other ref holds the tip, and `KEEP-UNDETERMINED` when that check failed or the PR map is incomplete (`PRDataUnavailable:` or `PRDataTruncated:`), since an open PR cannot then be ruled out. `RemoteSummary:` totals the verdicts and `Families:` counts branches per family. An open PR, a checked-out worktree or a tip inside its window is `KEEP`; family `none` is always `n/a`, whatever its PR state.
+- **Report only.** The mode writes no `TipCapture:` and gives `git-branch-delete.sh` nothing to act on. Remote deletion is out of scope: `TipCapture` and `git-branch-delete.sh` stay local-only, and a `CANDIDATE` is a report line for the owner named in the table.
 
 ## 4.6 Present report
 

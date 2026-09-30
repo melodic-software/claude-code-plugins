@@ -3,6 +3,87 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.75.1] - 2026-09-30
+
+### Changed
+
+- **Hook event log budget records Windows Git Bash figures.** `reference/hook-log-budget.md` and
+  the README replace the unmeasured Windows placeholder with the captured spawn floor, parallel
+  wall time, append integrity and `ls -t` tie. The switch stays off by default.
+- **`measure-hook-log-budget.sh` times S through the bash the launcher spawns** and records
+  `invoking_bash_path`, `invoking_bash_native_path`, `launcher_bash_path`, `uname_s` and the PATH
+  bash's own floor. On Windows the launcher resolves Git's `bin\bash.exe` wrapper, not the
+  `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S. The two native
+  paths print in `cygpath -m` form (`C:/Program Files/Git/bin/bash.exe`), which the
+  shell-portability gate does not read as a GNU `\b` regex escape.
+
+## [0.75.0] - 2026-09-30
+
+### Changed
+
+- **`changelog-status` fetches the Claude Code changelog through `scripts/fetch-docs.sh`** (a synced
+  copy of the shared fetcher) instead of calling `curl` on the changelog URL directly, so the fetch
+  is verified against the publisher's index and recorded in a manifest like every other docs read.
+
+## [0.74.1] - 2026-09-30
+
+### Fixed
+
+- **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
+## [0.74.0] - 2026-09-30
+
+### Added
+
+- **`changelog` has a surface-discovery script**, `scripts/discover-surfaces.sh [root]`. It prints
+  `repo-shape: marketplace|consumer`, then one line per surface class present with its count and
+  glob, and reports how many vendored skill files it excluded. It recognizes marketplace,
+  standalone-plugin and consumer repos, and counts skills and conventions by their `SKILL.md` and
+  `README.md` files. Covered by
+  `scripts/discover-surfaces.test.sh` and a consumer fixture.
+- **`changelog` has an eval that runs discovery on both repo shapes**: the marketplace shape on this
+  repo and the consumer shape on the fixture.
+
+### Changed
+
+- **`changelog` explore runs the discovery script** and greps only the classes it prints, where it
+  read a fixed surface list.
+- **`context/repo-surfaces.md` is an examples spoke**: per-class examples of what an item changes,
+  not a checklist. A class the script does not print does not exist in the repo.
+
+## [0.73.1] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` files native-drift items without a `native-drift` label.** The body's
+  `native-drift:<kind>:<surface>:<component>` key already finds every item (on GitHub,
+  `gh issue list --state all --limit 1000 --search '"native-drift:" in:body'`), so the label step and its two recorded facts
+  are gone.
+
+## [0.73.0] - 2026-09-30
+
+### Added
+
+- **`hook_events_max_bytes` option** (default 10 MiB) sets the size at which the telemetry sink
+  rotates the shared `hook-events.jsonl`. It reaches the sink only when a claude-ops hook emits the
+  envelope; an emitter in another plugin that runs the sink keeps the default.
+
+### Fixed
+
+- **The shared `hook-events.jsonl` no longer grows without bound.** The telemetry sink now rotates
+  it to `hook-events.jsonl.1` (replacing any older `.1`) under its existing append lock once it
+  passes `hook_events_max_bytes`, so the pair stays near twice that. Rotation runs whether or not
+  the per-session event log is enabled, which the SessionEnd retention sweep never covered for this
+  file. `observability` clean and its state probe treat the rotated file like the live one, and the
+  README and observability references describe the cap. `clean` prunes the rotated file under the
+  live file's lock, so a concurrent rotation cannot be overwritten by the pruned copy.
+
+## [0.72.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.72.0] - 2026-09-30
 
 ### Changed
