@@ -47,8 +47,10 @@ files beneath it. Named categories: `superseded-version` (dotted versioned direc
 `plugin-cache-version` (cache versions no installed plugin references), `tmp-producer` (`/tmp`
 entries by producer prefix), `transcript-dir` (project transcript directories whose source path is
 gone), `dangling-symlink`, and `not-walked` (an unreadable or mounted subtree, one `UNKNOWN` row).
-Every other entry is `unclassified`. Other read-only listings that need the same columns reuse this
-schema instead of defining their own
+Every other entry is `unclassified`. `superseded-version` and `tmp-producer` keep an entry a running
+process uses; where `/proc` cannot be read (macOS, Windows), a row that would be a `CANDIDATE` on
+that basis is `UNKNOWN`, because nothing checked the process table. Other read-only listings that
+need the same columns reuse this schema instead of defining their own
 ([#5214](https://github.com/melodic-software/claude-code-plugins/issues/5214),
 [#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)); their scope stays
 their own.

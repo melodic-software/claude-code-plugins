@@ -168,15 +168,13 @@ output. It asks no question, so it passes no confirmation-gate row. The row colu
 categories, and shared schema are in [scan-flags.md](reference/scan-flags.md#--deep).
 
 Every `KEEP` row needs a specific reason: who produced the entry and what still uses it. The
-validator fails an empty reason and a reason that is only a category phrase ("tool-managed",
-"OS-owned", "managed by <tool>") unless `evidence` shows the named tool still references the
-entry. Present the report grouped by category, `CANDIDATE` rows first, and report `UNKNOWN` rows as
-coverage gaps.
+validator fails an empty reason or one that is only a category phrase ("tool-managed", "OS-owned",
+"managed by <tool>") unless `evidence` shows the named tool still references the entry. Present the
+report grouped by category, `CANDIDATE` rows first, and report `UNKNOWN` rows as coverage gaps.
 
-Nothing else in this skill changes: `--execute` still means only that deletion may be offered, a
-`CANDIDATE` row is a finding and not a tier, the tiers and the low-signal rule in §3 decide what
-may be offered, and removal still needs `scan`, a fresh `preview`, and the confirmation gate's
-removal row.
+A `CANDIDATE` row is a finding, not a tier. `--execute` still means only that deletion may be
+offered, the tiers and the low-signal rule in §3 decide what, and removal still needs `scan`, a
+fresh `preview`, and the confirmation gate's removal row.
 
 ## 1. Create a read-only snapshot
 

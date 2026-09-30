@@ -12900,6 +12900,12 @@ class InventoryCommandTests(unittest.TestCase):
         self.enterContext(
             mock.patch.object(hygiene, "is_os_managed_target", return_value=False)
         )
+        # The process table is /proc, which macOS and Windows lack.
+        self.running = self.enterContext(
+            mock.patch.object(
+                hygiene.deep_inventory, "running_paths", return_value=set()
+            )
+        )
 
     def write(self, relative: str, text: str = "x") -> Path:
         path = self.target / relative
@@ -12962,6 +12968,20 @@ class InventoryCommandTests(unittest.TestCase):
             self.assertLessEqual(
                 set(hygiene.deep_inventory.ROW_COLUMNS) - {"evidence"}, set(row)
             )
+
+    def test_unread_process_table_leaves_superseded_versions_unknown(self) -> None:
+        self.write("tool/1.2.0/bin", "old")
+        self.write("tool/1.10.0/bin", "new")
+        self.running.return_value = None
+        code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        old = rows[str(self.target / "tool" / "1.2.0")]
+        self.assertEqual("UNKNOWN", old["disposition"])
+        self.assertIn("process table was not read", old["reason"])
+        self.assertEqual(
+            "KEEP", rows[str(self.target / "tool" / "1.10.0")]["disposition"]
+        )
 
     def test_year_named_folders_are_not_versions(self) -> None:
         self.write("Pictures/2024/a.jpg")

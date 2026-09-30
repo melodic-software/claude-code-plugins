@@ -179,8 +179,9 @@ class RunningPathsTest(TempTree):
             {"/opt/tool/1.0/bin", "/home/u", "/opt/tool/2.0/bin", "/srv"},
         )
 
-    def test_missing_proc_root_is_empty(self) -> None:
-        self.assertEqual(di.running_paths(self.root / "absent"), set())
+    def test_unreadable_proc_root_is_none_not_empty(self) -> None:
+        self.assertIsNone(di.running_paths(self.root / "absent"))
+        self.assertEqual(di.running_paths(self.mkdir("proc")), set())
 
 
 class SupersededVersionsTest(TempTree):
@@ -208,6 +209,14 @@ class SupersededVersionsTest(TempTree):
         self.assertEqual(rows["1.9.0"]["disposition"], "KEEP")
         self.assertEqual(rows["1.9.0"]["evidence"], {"running": exe})
         self.assertEqual(rows["1.10.0"]["disposition"], "CANDIDATE")
+
+    def test_unread_process_table_leaves_the_superseded_unknown(self) -> None:
+        rows = by_name(di.superseded_versions([self.parent], None))
+        self.assertEqual(rows["v1.10.1"]["disposition"], "KEEP")
+        for name in ("1.9.0", "1.10.0", "1.2.0"):
+            self.assertEqual(rows[name]["disposition"], "UNKNOWN", name)
+            self.assertIn("process table was not read", rows[name]["reason"])
+            self.assertNotIn("no running process", rows[name]["reason"])
 
     def test_every_keep_passes_the_validator(self) -> None:
         exe = str(self.parent / "1.2.0")
@@ -359,6 +368,14 @@ class TmpEntriesTest(TempTree):
             "CANDIDATE",
         )
 
+    def test_unread_process_table_leaves_an_old_entry_unknown(self) -> None:
+        rows = by_name(di.tmp_entries(self.tmp, NOW, None))
+        self.assertEqual(rows["pytest-of-kyle"]["disposition"], "UNKNOWN")
+        self.assertIn("process table was not read", rows["pytest-of-kyle"]["reason"])
+        # an entry kept for other reasons stays kept
+        self.assertEqual(rows["pytest-of-old"]["disposition"], "KEEP")
+        self.assertEqual(rows["systemd-private-abc-svc"]["disposition"], "KEEP")
+
     def test_every_keep_passes_the_validator(self) -> None:
         self.assertEqual(di.validate_report(di.tmp_entries(self.tmp, NOW)), [])
 
@@ -415,30 +432,47 @@ class ProjectTranscriptsTest(TempTree):
         )
 
 
-class DanglingSymlinksTest(TempTree):
-    def test_reports_only_links_whose_target_is_gone(self) -> None:
+class DanglingLinksTest(TempTree):
+    def walk(self, target: Path) -> dict[str, dict]:
+        rows = di.inventory_rows(
+            target,
+            deep=True,
+            home=self.root / "no-home",
+            tmp_dir=self.root / "no-tmp",
+            now=NOW,
+        )
+        return by_name(list(rows))
+
+    def test_a_walk_marks_only_links_whose_target_is_gone(self) -> None:
         home = self.mkdir("home")
         live = self.write("home/real.toml")
         trusted = self.mkdir("home/.local/state/mise/trusted-configs")
         os.symlink(live, trusted / "ok")
         os.symlink(self.root / "gone" / "mise.toml", trusted / "broken")
         os.symlink(self.root / "gone", home / "loose")
-        rows = by_name(di.dangling_symlinks([home]))
-        self.assertEqual(set(rows), {"broken", "loose"})
+        rows = self.walk(home)
+        self.assertEqual(rows["ok"]["category"], "unclassified")
         self.assertEqual(rows["broken"]["producer"], "mise")
         self.assertEqual(rows["loose"]["producer"], "unknown")
-        self.assertEqual(rows["broken"]["disposition"], "CANDIDATE")
-        self.assertIn("does not exist", rows["broken"]["reason"])
+        for name in ("broken", "loose"):
+            self.assertEqual(rows[name]["category"], "dangling-symlink")
+            self.assertEqual(rows[name]["disposition"], "CANDIDATE")
+            self.assertIn("does not exist", rows[name]["reason"])
         self.assertEqual(di.validate_report(rows.values()), [])
 
-    def test_depth_limit_and_links_are_not_followed(self) -> None:
-        deep = self.mkdir("root/a/b/c")
-        os.symlink(self.root / "gone", deep / "far")
-        os.symlink(self.root / "root", self.root / "root" / "a" / "loop")
-        self.assertEqual(di.dangling_symlinks([self.root / "root"], max_depth=2), [])
-        self.assertEqual(
-            len(di.dangling_symlinks([self.root / "root"], max_depth=8)), 1
+    def test_a_link_to_a_directory_is_not_followed(self) -> None:
+        root = self.mkdir("root")
+        self.write("root/a/file.txt")
+        os.symlink(root, root / "a" / "loop")
+        rows = di.inventory_rows(
+            root,
+            deep=True,
+            home=self.root / "no-home",
+            tmp_dir=self.root / "no-tmp",
+            now=NOW,
         )
+        names = [Path(r["name"]).relative_to(root).as_posix() for r in rows]
+        self.assertEqual(sorted(names), [".", "a", "a/file.txt", "a/loop"])
 
 
 class ReadOnlyTest(TempTree):
@@ -461,7 +495,7 @@ class ReadOnlyTest(TempTree):
         di.superseded_versions([self.root / "v"])
         di.project_transcripts(self.root / "claude" / "projects", self.root)
         di.plugin_cache_versions(self.root / "claude")
-        di.dangling_symlinks([self.root])
+        di.dangling_row(self.root / "tmp" / "dangling")
         self.assertEqual(snapshot(), before)
 
 

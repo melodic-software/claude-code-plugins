@@ -11,7 +11,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
   --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
   a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
-  validated KEEP reason (exit 5 when the validator fails). The engine grammar declares the subcommand
+  validated KEEP reason (exit 5 when the validator fails); without a readable `/proc`, rows that depend
+  on the process table are UNKNOWN, not CANDIDATE. The engine grammar declares the subcommand
   read-only, so the destructive guard admits it. `skills/clean/SKILL.md` and its references document the
   attended workflow.
 

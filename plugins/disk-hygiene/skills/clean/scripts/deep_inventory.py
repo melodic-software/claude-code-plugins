@@ -192,17 +192,19 @@ def _child_dirs(parent: Path) -> list[Path]:
         return []
 
 
-def running_paths(proc_root: Path = Path("/proc")) -> set[str]:
+def running_paths(proc_root: Path = Path("/proc")) -> set[str] | None:
     """Resolved executable and working-directory targets of every process under ``proc_root``.
 
     A deleted executable reads ``<path> (deleted)``; the suffix is dropped so the
-    superseded directory it came from still matches.
+    superseded directory it came from still matches. None means the process table
+    could not be read (no ``/proc``, as on macOS and Windows), which is not the
+    same as an empty set: nothing was checked.
     """
     found: set[str] = set()
     try:
         pids = [p for p in proc_root.iterdir() if p.name.isdigit()]
     except OSError:
-        return found
+        return None
     for pid in pids:
         for link in ("exe", "cwd"):
             try:
@@ -220,15 +222,16 @@ def _in_use(entry: Path, running: Iterable[str]) -> str | None:
 
 
 def superseded_versions(
-    parents: Iterable[Path], running: Iterable[str] = ()
+    parents: Iterable[Path], running: Iterable[str] | None = ()
 ) -> list[dict[str, Any]]:
     """Sibling entries under each parent whose names parse as versions.
 
     Keeps the newest and any version a running process executes; the rest are
-    candidates. A parent with fewer than two version entries yields no rows.
+    candidates, or UNKNOWN when ``running`` is None (process table not read). A
+    parent with fewer than two version entries yields no rows.
     """
     rows: list[dict[str, Any]] = []
-    running = set(running)
+    running = None if running is None else set(running)
     for parent in parents:
         versions: list[tuple[tuple[int, ...], str, Path]] = []
         try:
@@ -250,7 +253,7 @@ def superseded_versions(
             else parent.name
         )
         for _, name, path in versions:
-            used = _in_use(path, running)
+            used = _in_use(path, running or ())
             if name == newest:
                 disposition, reason, evidence = (
                     "KEEP",
@@ -262,6 +265,13 @@ def superseded_versions(
                     "KEEP",
                     f"a running process executes {used}",
                     {"running": used},
+                )
+            elif running is None:
+                disposition, reason, evidence = (
+                    "UNKNOWN",
+                    f"superseded by {newest}; the process table was not read, "
+                    "so whether a process executes it is not known",
+                    None,
                 )
             else:
                 disposition, reason, evidence = (
@@ -371,7 +381,7 @@ def plugin_cache_versions(claude_dir: Path) -> list[dict[str, Any]]:
 def tmp_entries(
     tmp_dir: Path,
     now: float,
-    running: Iterable[str] = (),
+    running: Iterable[str] | None = (),
     min_age_days: float = TMP_MIN_AGE_DAYS,
     producers: tuple[tuple[str, str, str | None], ...] = TMP_PRODUCERS,
 ) -> list[dict[str, Any]]:
@@ -379,10 +389,11 @@ def tmp_entries(
 
     An unattributed entry is UNKNOWN. An attributed one stays when its producer
     rule names a reason, when a running process uses it, or when it changed
-    inside ``min_age_days``; otherwise it is a candidate.
+    inside ``min_age_days``; otherwise it is a candidate, or UNKNOWN when
+    ``running`` is None (process table not read).
     """
     rows: list[dict[str, Any]] = []
-    running = set(running)
+    running = None if running is None else set(running)
     try:
         entries = sorted(tmp_dir.iterdir())
     except OSError:
@@ -391,7 +402,7 @@ def tmp_entries(
         match = next((p for p in producers if path.name.startswith(p[0])), None)
         try:
             age = (now - os.lstat(path).st_mtime) / DAY
-            used = _in_use(path, running)
+            used = _in_use(path, running or ())
         except OSError:
             continue
         common = {"category": "tmp-producer"}
@@ -414,6 +425,12 @@ def tmp_entries(
                     "KEEP",
                     f"changed {age:.1f} days ago, inside the {min_age_days:g}-day window "
                     f"in which a live {producer} run may still use it",
+                )
+            elif running is None:
+                verdict = (
+                    "UNKNOWN",
+                    f"{producer} leftover unchanged for {age:.0f} days; the process table "
+                    "was not read, so whether a process uses it is not known",
                 )
             else:
                 verdict = (
@@ -507,23 +524,6 @@ def project_transcripts(
     return rows
 
 
-def dangling_symlinks(
-    roots: Iterable[Path], max_depth: int = 8
-) -> list[dict[str, Any]]:
-    """Symlinks under ``roots`` (to ``max_depth`` levels) whose target does not exist."""
-    rows: list[dict[str, Any]] = []
-    for root in roots:
-        base_depth = len(root.parts)
-        for current, dirs, files in os.walk(root, followlinks=False):
-            if len(Path(current).parts) - base_depth >= max_depth:
-                dirs[:] = []
-            for name in dirs + files:
-                path = Path(current) / name
-                if path.is_symlink() and not path.exists():
-                    rows.append(dangling_row(path))
-    return rows
-
-
 def dangling_row(path: Path) -> dict[str, Any]:
     """The candidate row for one symlink whose target does not exist."""
     producer = next(
@@ -565,7 +565,12 @@ def _dotted_versions(names: Iterable[str]) -> bool:
 
 
 def category_rows(
-    target: Path, *, home: Path, tmp_dir: Path, now: float, running: set[str]
+    target: Path,
+    *,
+    home: Path,
+    tmp_dir: Path,
+    now: float,
+    running: set[str] | None,
 ) -> dict[str, dict[str, Any]]:
     """Rows of each category whose root lies inside ``target``, keyed by name."""
     rows: list[dict[str, Any]] = []
@@ -585,7 +590,7 @@ def inventory_rows(
     home: Path,
     tmp_dir: Path,
     now: float,
-    running: Iterable[str] = (),
+    running: Iterable[str] | None = (),
     skip: frozenset[str] = frozenset(),
 ) -> Iterable[dict[str, Any]]:
     """Yield one row per entry of ``target``, the target itself last.
@@ -595,9 +600,10 @@ def inventory_rows(
     sized by its own walk. A category row replaces the unclassified row at its
     path. A directory that cannot be read, or that is another filesystem's
     mount point, is one UNKNOWN row and is not entered. Paths in ``skip`` (the
-    report being written) are left out.
+    report being written) are left out. ``running`` is the process table; None
+    means it was not read, so rows that rest on it are UNKNOWN.
     """
-    running = set(running)
+    running = None if running is None else set(running)
     overrides = category_rows(
         target, home=home, tmp_dir=tmp_dir, now=now, running=running
     )
