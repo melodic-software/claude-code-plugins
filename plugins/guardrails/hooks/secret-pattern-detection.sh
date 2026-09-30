@@ -471,7 +471,7 @@ spd_short_spelling() {
 # spd_temp_declines <file_path>: 0 when the write is declined.
 spd_temp_declines() {
   local t="$1" r="${CLAUDE_PROJECT_DIR:-}" cand norm hit=0 nocase=0 ranc="" rsfx phys links
-  local short=0 chars
+  local short=0 chars full custom
   # 1. Target spelling. On Windows the Write tool is Node, which resolves `/tmp/x`
   # and `/c/x` to other places than Git Bash does, so only a drive spelling may
   # decline there. On POSIX `\` is a filename byte, never a separator, and below
@@ -508,27 +508,39 @@ spd_temp_declines() {
   # temp candidate's spelling. It may over-match (costing resolver processes)
   # and never decides alone. A short-name spelling must match a candidate's own
   # spelling, which is the only one it can carry, so a miss spends no resolver.
-  # The cygpath drive spellings cost a process each on Windows, so only a
-  # short-name spelling pays for them here; any other target pre-matches on the
-  # environment's spellings and gets the full set after a hit.
-  if ((short)); then hook::_temp_root_candidates; else hook::_temp_root_candidates --no-drive; fi
+  # The cygpath drive spellings cost a process each on Windows, so a short-name
+  # spelling pays for them here and any other target pre-matches on the
+  # environment's spellings first. The full set follows a hit, and follows a
+  # miss when a candidate has no tmp or temp component, since a target spelled
+  # under such a custom root carries no component to match either.
+  full=$short
   shopt -q nocasematch && nocase=1
   shopt -s nocasematch
-  if ((!short)); then
-    case "$t" in
-    */tmp/* | */temp/*) hit=1 ;;
-    *) ;; # try the candidates' spellings below
-    esac
-  fi
-  for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
-    ((hit)) && break
-    hook::normalize_path_to norm "$cand"
-    norm="${norm%/}"
-    [[ -n "$norm" && "$t" == "$norm"/* ]] && hit=1
+  while :; do
+    if ((full)); then hook::_temp_root_candidates; else hook::_temp_root_candidates --no-drive; fi
+    if ((!short)); then
+      case "$t" in
+      */tmp/* | */temp/*) hit=1 ;;
+      *) ;; # try the candidates' spellings below
+      esac
+    fi
+    custom=0
+    for cand in ${_HOOK_TEMP_CANDS[@]+"${_HOOK_TEMP_CANDS[@]}"}; do
+      case "$cand" in
+      */tmp | */tmp/* | */temp | */temp/*) ;;
+      *) custom=1 ;; # a root no component match can reach
+      esac
+      ((hit)) && continue
+      hook::normalize_path_to norm "$cand"
+      norm="${norm%/}"
+      [[ -n "$norm" && "$t" == "$norm"/* ]] && hit=1
+    done
+    ((hit || full || !spd_win || !custom)) && break
+    full=1
   done
   ((nocase)) || shopt -u nocasematch
   ((hit)) || return 1
-  if ((spd_win && !short)); then hook::_temp_root_candidates; fi
+  if ((spd_win && !full)); then hook::_temp_root_candidates; fi
   # 3. Root gate: the spellings block-hook-bypass's _norm_path accepts, minus the
   # unnormalized ones and a filesystem or drive root.
   [[ -n "$r" ]] || return 1
