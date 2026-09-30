@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
+## [0.47.10] - 2026-09-30
+
+### Changed
+
+- **`interview-defenses.test.sh` states that recomputing a digest or pin is attended-only.** An unattended run that hits a failing digest reports the pin and the git diff, then stops; the digest and pin failure messages say so too ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
+
 ## [0.47.9] - 2026-09-29
 
 ### Changed

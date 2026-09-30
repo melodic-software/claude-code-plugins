@@ -80,16 +80,36 @@
 #     the guards were separate hooks.
 #   * Substitution count: with `--max-substitutions <n>`, a command holding
 #     more than <n> command or process substitutions exits 2 before the first
-#     guard is sourced, and no guard runs. The count is lexical, so quoting
-#     does not hide one: each `$(` (arithmetic `$((` included), `<(` and `>(`
-#     is one, and backticks count in pairs. The cost of reading a command
-#     is spread across the guards and grows with this count while every
-#     per-command cap still holds (#4684): 2,339 sibling `$(: rm)` in 16,378
-#     characters measured 65 s through the chain on Windows, and a row
-#     that runs past its hooks.json `timeout` is cancelled without blocking
-#     (https://code.claude.com/docs/en/hooks, "Timeouts"). No guard sees the
-#     whole chain's time, which is why the cap lives here. An unprimed payload
-#     is counted whole, which no command inside it can exceed.
+#     guard is sourced, and no guard runs. The count is lexical: each `$(`
+#     (arithmetic `$((` included), `<(` and `>(` is one, and backticks count
+#     in pairs. The cost of reading a command is spread across the guards and
+#     grows with this count while every per-command cap still holds: 2,339
+#     sibling `$(: rm)` in 16,378 characters measured 65 s through the chain
+#     on Windows, and a row that runs past its hooks.json `timeout` is
+#     cancelled without blocking (https://code.claude.com/docs/en/hooks,
+#     "Timeouts"). No guard sees the whole chain's time, which is why the cap
+#     lives here. An unprimed payload is counted whole, which no command
+#     inside it can exceed.
+#     For the Bash tool, a spelling inside a single-quoted span does not
+#     count: bash substitutes nothing there, and the guards read the span as
+#     one quoted word, so it costs close to the same text without the
+#     spelling and far below the unquoted cost. Everything else counts as
+#     before, including double-quoted text,
+#     ANSI-C `$'...'` and heredoc bodies, quoted delimiter or not:
+#     block-root-delete-target's substitution scan reads even a `<<'EOF'` body
+#     as commands. The discount is taken only where it is proved. The scan
+#     runs only on a command already past the cap, and from the first place
+#     bash, hook::bash_parse_segments and that scan could read the rest
+#     differently, the rest counts whole: a backtick outside a span; `$(`,
+#     `${` or `$[` inside double quotes; a heredoc; `$'` or `$$'`; a comment
+#     holding a quote; a quote that never closes; a span after `\$`, or after
+#     `((`, `[` or `{` (arithmetic, where bash expands `$(` in quotes); past
+#     1024 scan steps. The whole command counts when it names a command a
+#     guard re-parses an argument of (`eval`, a shell, `su`, `runuser`, `sg`,
+#     `env`, `flock`, `wsl`) or holds `alias`. A command past
+#     --max-command-len is not scanned; the guards refuse it unread.
+#     PowerShell commands are counted as text, quotes and here-strings
+#     included.
 #   * Over-length: with `--max-command-len <n>`, a command longer than <n>
 #     characters ends the chain at the first guard that blocks, and the
 #     remaining guards do not run. <n> is the MAX_COMMAND_LEN ceiling the row's
@@ -279,22 +299,179 @@ fi
 
 # Substitution count (AGGREGATION above). Parameter expansion, not a loop over
 # characters: one pass per spelling, and nothing forks.
+run_guards::count_subst() { # <text> -> _rg_subst
+  local t="$1" rest pat
+  _rg_subst=0
+  # shellcheck disable=SC2016  # literal spellings, matched as text
+  for pat in '$(' '<(' '>('; do
+    rest=${t//"$pat"/}
+    _rg_subst=$((_rg_subst + (${#t} - ${#rest}) / 2))
+  done
+  rest=${t//'`'/}
+  _rg_subst=$((_rg_subst + (${#t} - ${#rest} + 1) / 2))
+}
+
+# The text of a Bash command whose spellings count: the command with each
+# single-quoted span replaced by its last path component when that could be a
+# command name, else by one space. Each [[ =~ ]] jumps to the next character
+# that can change how the rest reads, so the passes grow with the quotes,
+# escapes and `$`, not the length, and nothing forks. The discount holds only
+# where bash, hook::bash_parse_segments and block-root-delete-target's own
+# substitution scan all read the span as quoted and no guard re-reads it as a
+# command; elsewhere the rest of the command, or all of it, counts
+# (AGGREGATION above lists where).
+# shellcheck disable=SC2016,SC1003  # regexes and literal spellings, not expansions
+run_guards::counted_text() { # <command> -> _rg_counted
+  local LC_ALL=C rest="$1" out="" m ws=1 dq=0 br=0 n=0
+  local nl=$'\n'
+  local re_plain='^[^'\''"\`$<#]*' re_dq='^[^"\$`]*' re_sq="^'([^']*)'"
+  local re_cmt="^#[^$nl]*" re_base='[/\]([^/\]*)$' re_name='^[a-zA-Z0-9_.+-]*$'
+  # The words hook::shell_c_operand, eval and the root-delete guard's
+  # launcher arms (su, runuser, sg, env -S, flock -c) re-parse an argument of.
+  local re_reparse='(^|[^a-z0-9_.-])(eval|bash|sh|zsh|dash|ksh|mksh|wsl|su|runuser|sg|env|flock)([^a-z0-9_-]|$)'
+  _rg_counted=$1
+  # A git alias definition (`-c alias.x='!…'`) is re-parsed by the git guards.
+  m=${1,,}
+  [[ $m == *alias* ]] && return 0
+  while [[ -n $rest ]] && ((++n <= 1024)); do
+    # Inside "...": counted, scanned only to find where it closes.
+    if ((dq)); then
+      [[ $rest =~ $re_dq ]]
+      out+=${BASH_REMATCH[0]}
+      rest=${rest:${#BASH_REMATCH[0]}}
+      case $rest in
+      '"'*)
+        out+='"'
+        rest=${rest:1}
+        dq=0
+        ;;
+      '\'?*)
+        out+=${rest:0:2}
+        rest=${rest:2}
+        ;;
+      # A substitution inside "..." opens a context the library does not
+      # model: it ends the string at the first `"`, bash at the matching one.
+      '$('* | '${'* | '$['*) break ;;
+      '$'?*)
+        out+='$'
+        rest=${rest:1}
+        ;;
+      *) break ;;
+      esac
+      continue
+    fi
+    [[ $rest =~ $re_plain ]]
+    m=${BASH_REMATCH[0]}
+    if [[ -n $m ]]; then
+      out+=$m
+      rest=${rest:${#m}}
+      # `((`, `[` (`$((`, `$[` and a subscript) and `{` (`${x:offset}`) may
+      # open arithmetic, where bash expands `$(` inside single quotes.
+      [[ $m == *[\[\{]* || $m == *'(('* ]] && br=1
+      [[ -n $rest ]] || break
+      case ${m: -1} in
+      [$' \t\n;&|()>']) ws=1 ;;
+      *) ws=0 ;;
+      esac
+    fi
+    case $rest in
+    "'"*)
+      # After `\$` the root-delete scan reads an ANSI-C span, whose `\'` does
+      # not close it.
+      ((br == 0)) && [[ $out != *'$' && $rest =~ $re_sq ]] || break
+      m=${BASH_REMATCH[1]}
+      rest=${rest:$((${#m} + 2))}
+      # Its last path component stays when it could name a command, so a
+      # shell spelled in quotes (`'/bin/bash'`, `b'ash'`) is still caught below.
+      [[ $m =~ $re_base ]] && m=${BASH_REMATCH[1]}
+      if [[ $m =~ $re_name ]]; then out+=$m; else out+=' '; fi
+      ws=0
+      ;;
+    '"'*)
+      out+='"'
+      rest=${rest:1}
+      dq=1
+      ws=0
+      ;;
+    '\'?*)
+      # A backslash-newline is removed, so it leaves a word start standing.
+      [[ ${rest:1:1} == "$nl" ]] || ws=0
+      out+=${rest:0:2}
+      rest=${rest:2}
+      ;;
+    '\')
+      out+=$rest
+      rest=""
+      ;;
+    # An ANSI-C span: `$$'` is `$$` then a single-quoted span to bash and an
+    # ANSI-C span to the library.
+    "\$'"* | "\$\$'"*) break ;;
+    '$$'*)
+      out+='$$'
+      rest=${rest:2}
+      ws=0
+      ;;
+    '$'*)
+      out+='$'
+      rest=${rest:1}
+      ws=0
+      ;;
+    '<<<'*)
+      out+='<<<'
+      rest=${rest:3}
+      ws=1
+      ;;
+    # A heredoc: the root-delete scan reads even a quoted body as commands.
+    '<<'*) break ;;
+    '<'*)
+      out+='<'
+      rest=${rest:1}
+      ws=1
+      ;;
+    '#'*)
+      if ((ws)); then
+        # bash and the library skip a comment; the root-delete scan reads a
+        # quote in it as one.
+        [[ $rest =~ $re_cmt && ${BASH_REMATCH[0]} != *[\'\"\`]* ]] || break
+        out+=${BASH_REMATCH[0]}
+        rest=${rest:${#BASH_REMATCH[0]}}
+      else
+        out+='#'
+        rest=${rest:1}
+      fi
+      ;;
+    # A backtick: bash re-reads its body under its own backslash rules.
+    *) break ;;
+    esac
+  done
+  # With each `\` kept (a boundary, as in `C:\…\bash.exe`) and removed
+  # (`ev\al`).
+  m=$out$rest
+  m=${m//\"/}
+  m=${m,,}
+  [[ $m =~ $re_reparse || ${m//\\/} =~ $re_reparse ]] || _rg_counted=$out$rest
+}
+
 if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
   if ((RUN_GUARDS_PRIMED)); then
     _rg_text="${RUN_GUARDS_FIELD['.tool_input.command']-}"
   else
     _rg_text=$RUN_GUARDS_INPUT
   fi
-  _rg_subst=0
   _rg_data=""
-  # shellcheck disable=SC2016  # literal spellings, matched as text
-  for _rg_pat in '$(' '<(' '>('; do
-    _rg_rest=${_rg_text//"$_rg_pat"/}
-    _rg_subst=$((_rg_subst + (${#_rg_text} - ${#_rg_rest}) / 2))
-  done
-  _rg_rest=${_rg_text//'`'/}
-  _rg_subst=$((_rg_subst + (${#_rg_text} - ${#_rg_rest} + 1) / 2))
-  unset _rg_text _rg_rest _rg_pat
+  run_guards::count_subst "$_rg_text"
+  # The quote-aware recount runs only for a Bash command already past the cap
+  # that holds a single quote, and not for one past --max-command-len, which
+  # the guards refuse unread.
+  if ((_rg_subst > RUN_GUARDS_MAX_SUBST && RUN_GUARDS_PRIMED)) &&
+    [[ "${RUN_GUARDS_FIELD['.tool_name']-}" == Bash && $_rg_text == *"'"* ]] &&
+    ! ((RUN_GUARDS_MAX_CMD && ${#_rg_text} > RUN_GUARDS_MAX_CMD)); then
+    run_guards::counted_text "$_rg_text"
+    run_guards::count_subst "$_rg_counted"
+    unset _rg_counted
+  fi
+  unset _rg_text
+  unset -f run_guards::count_subst run_guards::counted_text
   if ((_rg_subst > RUN_GUARDS_MAX_SUBST)); then
     echo "BLOCKED: the command holds $_rg_subst command or process substitutions, more than the $RUN_GUARDS_MAX_SUBST the guards can read before the hook times out, and a timed-out hook blocks nothing." >&2
     echo "Split it into several smaller commands, or put the work in a script file and run that." >&2
