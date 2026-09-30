@@ -102,9 +102,9 @@ class TestNameSchemes(unittest.TestCase):
             with self.subTest(rel=rel):
                 self.assertEqual(engine.classify_name(rel)[0], expected)
 
-    def test_unrecognised_numeric_name_is_unknown_not_a_guess(
+    def test_unrecognised_numeric_name_is_unknown_not_a_guess(  # spellchecker:disable-line
         self,
-    ) -> None:  # identifier, not prose # spellchecker:disable-line
+    ) -> None:
         meaning, _ = engine.classify_name("third-party-plugin/state.99999")
         self.assertEqual(meaning, engine.UNKNOWN_MEANING)
 
