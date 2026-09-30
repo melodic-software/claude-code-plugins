@@ -26,3 +26,12 @@ frontmatter row reads "Overrides the session effort level" and whose Agent-tool 
 is read off the page, which does not state it. As-of: 2026-09-29. Recheck when the Agent tool gains
 a per-invocation effort parameter, or the page stops saying an agent-definition effort overrides the
 session's.
+
+**Verification.** Claim: `maxTurns: 25` in this agent definition takes effect for a plugin agent;
+at the limit the subagent stops and Claude Code returns its output marked partial, which Claude can
+resume. Basis: https://code.claude.com/docs/en/sub-agents, whose `maxTurns` frontmatter row reads
+"Maximum number of agentic turns before the subagent stops" and says the partial marking requires
+Claude Code v2.1.246 or later, and whose plugin-agents note lists only `hooks`, `mcpServers` and
+`permissionMode` as ignored, so `maxTurns` and `effort` are honored. As-of: 2026-09-29. Recheck when
+the page adds `maxTurns` to the ignored plugin-agent fields, changes the partial-output behavior, or
+the minimum Claude Code version for the partial marking changes.
