@@ -3,6 +3,13 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.20] - 2026-09-29
+
+### Fixed
+
+- **`clean` hints Windows device-name files on Linux.** The baseline policy flags a regular file named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) as a likely redirection artifact.
+- **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means tmpfiles.d configuration is present and the temp zone is left to systemd-tmpfiles.
+
 ## [0.28.19] - 2026-09-29
 
 ### Changed
