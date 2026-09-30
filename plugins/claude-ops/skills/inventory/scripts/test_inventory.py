@@ -1347,6 +1347,19 @@ class TestToolDescriptionShapes(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "REAL")
 
+    def test_a_local_object_is_the_visible_one_and_its_getter_closes_over(
+        self,
+    ) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe",Rz="Getter";'
+            'function ff(x){let obj={p:x};function g(){let obj={p:"WRONG"}}return obj.p}'
+            "function gg(x){let obj={get p(){return x}};return obj.p}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+            '$t({name:Rz,maxResultSizeChars:1,description:gg("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+        self.assertEqual(_tool(src, "Getter")["description"], "REAL")
+
     def test_a_partial_argument_leaves_its_fallback_reachable(self) -> None:
         src = (
             'var Qz="Probe";function ff(x){return x||"FALLBACK"}'

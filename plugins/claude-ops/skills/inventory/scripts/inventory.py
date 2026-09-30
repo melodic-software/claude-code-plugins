@@ -1432,6 +1432,14 @@ def _export_index(src: str) -> dict[str, list[tuple[int, str]]]:
     return out
 
 
+def _visible(braces: BraceMap, pos: int, at: int) -> bool:
+    """Whether a declaration at `pos` is visible from a reader at `at`: at
+    the top level, or in a block that also holds the reader. A binding local
+    to an unrelated function is not the one `at` reads."""
+    block = braces.enclosing(pos)
+    return block is None or block[0] < at <= block[1]
+
+
 def _declaration(
     src: str,
     braces: BraceMap,
@@ -1453,7 +1461,8 @@ def _declaration(
     if len(_chunk_starts(src)) == 1:
         found = None
         for m in pattern_for(ident).finditer(src, 0, at):
-            found = m
+            if _visible(braces, m.start(), at):
+                found = m
         return found
     lo, hi = _chunk_span(src, at)
     exported = _chunk_imports(src, lo, hi).get(ident)
@@ -1471,11 +1480,7 @@ def _declaration(
     pattern = pattern_for(ident)
     found = None
     for m in pattern.finditer(src, lo, at):
-        # Visible from the reader: at the module's top level, or in a block
-        # that also holds the reader. A binding local to an unrelated
-        # function is not the one `at` reads.
-        block = braces.enclosing(m.start())
-        if block is None or block[0] < at < block[1]:
+        if _visible(braces, m.start(), at):
             found = m
     if found is None:
         later = pattern.search(src, at, hi)
@@ -1518,8 +1523,7 @@ def _binding_value(
         lo = max(_chunk_span(src, at)[0], at - SHORT_VALUE_LOCALITY_BYTES)
         v = None
         for m in _binding_pattern(ident).finditer(src, lo, at):
-            block = braces.enclosing(m.start())
-            if block is None or block[0] < at < block[1]:
+            if _visible(braces, m.start(), at):
                 v = m.end()
         return v
     m = _declaration(
@@ -1709,7 +1713,15 @@ def _resolve_chain(
     elif len(chain) == 2 and chain[1][0] == "prop":
         if len(ident) == 1:
             return None
-        obj = _resolve_object(src, braces, ident, at)
+        # The object the reader sees: a visible binding holding a literal,
+        # else the alias-following lookup.
+        v = _binding_value(src, braces, ident, at, deferred=deferred)
+        close_v = braces.pairs.get(v) if v is not None else None
+        obj = (
+            (v, src[v : close_v + 1])
+            if close_v is not None
+            else _resolve_object(src, braces, ident, at)
+        )
         if obj is None:
             return None
         found = _eval_field(
@@ -1764,7 +1776,8 @@ def _eval_field(
             block=True,
             hops=hops,
             anchor=anchor,
-            shadow=_params_before(src, pos),
+            # A getter or method closes over the scope it was read in.
+            shadow={**shadow, **_params_before(src, pos)},
             deferred=True,
         )
         return kind
