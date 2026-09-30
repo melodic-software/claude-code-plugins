@@ -19,7 +19,9 @@
 # then its default. A registry or template-spec module, a module file that is
 # not tracked, a nested Microsoft.Resources/deployments resource, a using or
 # extends this reader does not follow, and an unpaired parameters file each
-# refuse the record by file name; a module source is never printed.
+# refuse the record by file name; a module source is never printed. A child
+# resource nested in its parent is read with its full type (Microsoft.Web/sites/slots)
+# and is listed as unmapped, never mapped and never dropped.
 
 function trim(s) { gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s); return s }
 function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
@@ -227,16 +229,20 @@ function parse_value(path,    E, d, first, k, raw, t, n) {
 }
 
 # resource <sym> '<type>@<version>' [existing] = { } | if (...) { } | [for ...: { }]
-function parse_resource(prefix,    sym, type, pre) {
+function parse_resource(prefix,    sym, type, pre, outer, n) {
   sym = V[P + 1]
   if (T[P + 2] != "s") { bad = 1; return }
   type = V[P + 2]
   sub(/@.*/, "", type)
+  if (PARENT_TYPE != "") type = PARENT_TYPE "/" type
   P += 3
   if (T[P] == "n" && V[P] == "existing") P++
+  n = ++RN[FILE_]
+  outer = PARENT_TYPE; PARENT_TYPE = type
   pre = parse_decl(prefix "resource." sym)
+  PARENT_TYPE = outer
   if (bad) return
-  if (prefix == "") { RES[FILE_, ++RN[FILE_]] = pre; RTYPE[FILE_, pre] = type; RSYM[FILE_, pre] = sym }
+  RES[FILE_, n] = pre; RTYPE[FILE_, pre] = type; RSYM[FILE_, pre] = sym
 }
 
 # The = body of a resource or module. Returns the row prefix of its body.
@@ -497,6 +503,16 @@ function unread_containers(sc, rp, path, reps, ports, cl,    f, img) {
   return 1
 }
 
+# The full type of the ARM resource whose rows start at pre. A nested child carries
+# one type segment (slots), so its parent's full type leads it (Microsoft.Web/sites/slots).
+function arm_type(f, pre,    par, t) {
+  t = RV[ROW[f, pre "type"]]
+  par = pre
+  sub(/resources(\[[0-9]+\]|\.[^.\[]+)\.$/, "", par)
+  if (par != "" && ((f SUBSEP par "type") in ROW)) return arm_type(f, par) "/" t
+  return t
+}
+
 function is_node_type(lt) {
   return lt ~ /^microsoft\.(app\/(managed|connected)environments|web\/serverfarms|containerservice\/managedclusters|containerinstance\/containergroups)$/
 }
@@ -617,11 +633,13 @@ END {
     # parameters, secure when typed securestring or secureobject.
     for (k = 1; k <= FN[f]; k++) {
       r = FR[f, k]
-      if (f ~ /\.json$/ && RP[r] ~ /^resources(\[[0-9]+\]|\.[^.\[]+)\.type$/ && RK[r] == "s") {
+      if (f ~ /\.json$/ && RP[r] ~ /^resources(\[[0-9]+\]|\.[^.\[]+)(\.resources(\[[0-9]+\]|\.[^.\[]+))*\.type$/ && RK[r] == "s") {
         pre = substr(RP[r], 1, length(RP[r]) - 4)
-        sym = substr(pre, 11, length(pre) - 11)
-        if (substr(pre, 10, 1) == "[") sym = "resources" substr(pre, 10, length(pre) - 10)
-        RES[f, ++RN[f]] = pre; RTYPE[f, pre] = RV[r]; RSYM[f, pre] = sym
+        match(pre, /resources(\[[0-9]+\]|\.[^.\[]+)\.$/)
+        seg = substr(pre, RSTART)
+        sym = substr(seg, 11, length(seg) - 11)
+        if (substr(seg, 10, 1) == "[") sym = "resources" substr(seg, 10, length(seg) - 10)
+        RES[f, ++RN[f]] = pre; RTYPE[f, pre] = arm_type(f, pre); RSYM[f, pre] = sym
       }
       if (f ~ /\.json$/ && RP[r] ~ /^parameters\.[^.]+\.type$/) {
         name = substr(RP[r], 12, length(RP[r]) - 16)

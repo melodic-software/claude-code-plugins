@@ -15,7 +15,7 @@
 # redacted. A stack file with no project beside
 # it is not read.
 
-BEGIN { CAP = 0; PN_CLUSTER = "name"; PN_SERVICE = "name" }
+BEGIN { CAP = 0; CLUSTER_NAME_PROP = "name"; SERVICE_NAME_PROP = "name" }
 
 function cfg_secret(f, name) { return fld(f, "config." name ".secret") && tolower(FV) == "true" }
 

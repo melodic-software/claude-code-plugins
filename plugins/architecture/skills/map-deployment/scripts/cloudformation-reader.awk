@@ -17,7 +17,7 @@
 # Transform, a nested AWS::CloudFormation::Stack, and a parameter file with no
 # template to pair refuse the record by file name.
 
-BEGIN { CAP = 1; PN_CLUSTER = "ClusterName"; PN_SERVICE = "ServiceName" }
+BEGIN { CAP = 1; CLUSTER_NAME_PROP = "ClusterName"; SERVICE_NAME_PROP = "ServiceName" }
 
 function resolve_param(sc, name, depth,    f, pf, r, sec) {
   f = S_file[sc]; pf = S_pf[sc]

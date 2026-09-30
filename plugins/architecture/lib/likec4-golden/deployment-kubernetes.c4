@@ -4,21 +4,21 @@ specification {
   deploymentNode node
 }
 model {
-  c2_api = container 'api' {
-    technology 'ghcr.io/acme/api:2'
+  c2_web = container 'web' {
+    technology 'ghcr.io/acme/web:2'
     description 'replicas 2'
   }
 }
 deployment {
   env2_prod = environment 'prod' {
-    n2_api = node 'api' 'ingress api.example.com'
-    n3_api_svc = node 'api-svc' 'network'
-    cn4_api = node 'api' 'compute Deployment' {
-      instanceOf c2_api
+    n2_web = node 'web' 'ingress web.example.com'
+    n3_web_svc = node 'web-svc' 'network'
+    cn4_web = node 'web' 'compute Deployment' {
+      instanceOf c2_web
     }
   }
-  env2_prod.n2_api -> env2_prod.cn4_api.c2_api 'routes api.example.com'
-  env2_prod.n3_api_svc -> env2_prod.cn4_api.c2_api 'selects app=api'
+  env2_prod.n2_web -> env2_prod.cn4_web.c2_web 'routes web.example.com'
+  env2_prod.n3_web_svc -> env2_prod.cn4_web.c2_web 'selects app=web'
 }
 views {
   deployment view view2_prod {

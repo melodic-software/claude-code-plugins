@@ -1,8 +1,8 @@
 # YAML and JSON flattener plus the ECS mapping shared by the CloudFormation and
 # Pulumi YAML readers. Prepend redact-connection.awk and deployment-diff.awk,
 # append a reader that defines resolve_at(), collect_res(), lref(), cdpath(), a
-# BEGIN block setting CAP, PN_CLUSTER and PN_SERVICE, and an END block that
-# calls parse_all(), builds scopes, and calls finish(). Arguments are
+# BEGIN block setting CAP, CLUSTER_NAME_PROP and SERVICE_NAME_PROP, and an END
+# block that calls parse_all(), builds scopes, and calls finish(). Arguments are
 # repo-relative paths prefixed with "./". Set tool (cloudformation or
 # pulumi-yaml), places, params, nodes, envs, diffs and flag to output files.
 #
@@ -92,11 +92,11 @@ function is_arr(f, p) { return ((f SUBSEP p) in KTY) && KTY[f, p] == "a" }
 function kids(f, p, out,    n, i) { n = KN[f, p] + 0; for (i = 1; i <= n; i++) out[i] = KP[f, p, i]; return n }
 function items(f, p, out) { if (!is_arr(f, p)) return 0; return kids(f, p, out) }
 # Compact text of a subtree, for unresolved:<text>.
-function ser(f, p,    t, n, i, out, kp) {
+function serialize(f, p,    t, n, i, out, kp) {
   if ((f SUBSEP p) in ROW) return (RK[f, p] == "s") ? "\"" RV[f, p] "\"" : RV[f, p]
   if (!((f SUBSEP p) in KTY)) return ""
   t = KTY[f, p]; n = KN[f, p] + 0; out = ""
-  for (i = 1; i <= n; i++) { kp = KP[f, p, i]; out = out (i > 1 ? "," : "") (t == "m" ? KK[f, kp] ":" : "") ser(f, kp) }
+  for (i = 1; i <= n; i++) { kp = KP[f, p, i]; out = out (i > 1 ? "," : "") (t == "m" ? KK[f, kp] ":" : "") serialize(f, kp) }
   return (t == "a") ? "[" out "]" : "{" out "}"
 }
 
@@ -380,7 +380,7 @@ function parse_all(    i) { for (i = 1; i <= nfiles; i++) parse_file(files[i], s
 function unresolved(raw) { RES_OK = 0; return "unresolved:" raw }
 # The unresolved text of a subtree. A secret marker anywhere inside it makes the value secret.
 function unres(f, p,    t) {
-  t = ser(f, p)
+  t = serialize(f, p)
   RES_SEC = (index(t, "{{resolve:") > 0 || index(t, "secure:") > 0 || index(t, "fn::secret:") > 0)
   return unresolved(t)
 }
@@ -456,7 +456,7 @@ function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, p, gs, k, m) {
   for (i = 1; i <= n; i++) {
     if (RKIND[i] != "cluster") continue
     nid = S_env[sc] "/" RID[i]
-    node(sc, nid, RTYPE[i], show(sc, jp(RPRE[i], PN_CLUSTER), RID[i]), f)
+    node(sc, nid, RTYPE[i], show(sc, jp(RPRE[i], CLUSTER_NAME_PROP), RID[i]), f)
     CID[sc, RID[i]] = nid
   }
   # A service names the task definition and cluster its containers run with.
@@ -471,7 +471,7 @@ function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, p, gs, k, m) {
       if (!((sc SUBSEP td) in SVC_CL)) { SVC_CL[sc, td] = nid; SVC_REPS[sc, td] = reps }
     } else {
       img = has(f, jp(pre, ck("taskDefinition"))) ? unresolved("taskDefinition") : ""
-      place(sc, show(sc, jp(pre, PN_SERVICE), RID[i]), img, reps, "", nid, f)
+      place(sc, show(sc, jp(pre, SERVICE_NAME_PROP), RID[i]), img, reps, "", nid, f)
     }
   }
   for (i = 1; i <= n; i++) {

@@ -377,10 +377,12 @@ End every run with this block, in this order:
   `securestring` or `secureobject`, given a Key Vault `reference`, or named for a credential is
   redacted wherever it lands, as is a `secretRef` or `secureValue` env entry. Every var, function, and conditional is recorded
   as `unresolved:<expression>`. A `for` or `copy` loop is placed once, an `if` or `condition` is
-  ignored, child resources are not read, a `resourceId` with scope arguments matches nothing, and
-  `Microsoft.App/jobs` is not mapped. Every other resource type, and a site whose fx version does
-  not read `DOCKER|` (listed as `Microsoft.Web/sites without a container image`), is listed under
-  `## Unmapped resources`.
+  ignored, a `resourceId` with scope arguments matches nothing, and `Microsoft.App/jobs` is not
+  mapped. A child resource nested in its parent (a Bicep `resource` inside a body, an ARM
+  `resources` array inside a resource) is never mapped: it is listed under its full type, such as
+  `Microsoft.Web/sites/slots`, and a slot's own image is not placed. Every other resource type, and
+  a site whose fx version does not read `DOCKER|` (listed as `Microsoft.Web/sites without a
+  container image`), is listed under `## Unmapped resources`.
 - **Bicep module and parameter file forms.** Claim: a local module path is relative (with or
   without `./`) and may be a `.bicep` file or an ARM JSON template; `br:`, `br/<alias>:`, `ts:`,
   and `ts/<alias>:` are registry and template-spec sources. A `.bicepparam` links its template with

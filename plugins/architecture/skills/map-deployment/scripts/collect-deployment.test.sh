@@ -333,25 +333,25 @@ repo4="$TEST_TMPDIR/k8s"
 init_repo "$repo4"
 mkdir -p "$repo4/deploy"
 printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repo4/deploy/compose.yaml"
-cat >"$repo4/deploy/api.yaml" <<'EOF'
+cat >"$repo4/deploy/web.yaml" <<'EOF'
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api
+  name: web
   namespace: prod
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: api
+      app: web
   template:
     metadata:
       labels:
-        app: api
+        app: web
     spec:
       containers:
-        - name: api
-          image: ghcr.io/acme/api:2
+        - name: web
+          image: ghcr.io/acme/web:2
           env:
             - name: PASSWORD
               value: SuperSecret123
@@ -359,29 +359,29 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: api-svc
+  name: web-svc
   namespace: prod
 spec:
   selector:
-    app: api
+    app: web
   ports:
     - port: 80
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: api
+  name: web
   namespace: prod
 spec:
   rules:
-    - host: api.example.com
+    - host: web.example.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: api-svc
+                name: web-svc
                 port:
                   number: 80
 EOF
@@ -391,24 +391,24 @@ k8s="$(cat "$TEST_TMPDIR/k8s.json")"
 assert_contains "k8s drawn" "$k8s" '"status": "drawn"'
 assert_contains "k8s tool" "$k8s" '"name":"kubernetes"'
 assert_contains "compose still read" "$k8s" '"name":"compose"'
-assert_contains "ingress host" "$k8s" "api.example.com"
+assert_contains "ingress host" "$k8s" "web.example.com"
 assert_not_contains "k8s secret dropped" "$k8s" "SuperSecret123"
 bash "$RENDER" --record "$TEST_TMPDIR/k8s.json" --out "$TEST_TMPDIR/k8s-l" --dialect likec4 --env prod >/dev/null
 kl="$(cat "$TEST_TMPDIR/k8s-l/deployment.md")"
-assert_contains "likec4 ingress node" "$kl" "= node 'api' 'ingress api.example.com'"
+assert_contains "likec4 ingress node" "$kl" "= node 'web' 'ingress web.example.com'"
 assert_contains "likec4 view includes the environment" "$kl" ".**"
 assert_likec4_golden "deployment-kubernetes.c4" "$TEST_TMPDIR/k8s-l/deployment.md"
-assert_contains "likec4 runs the container inside its workload node" "$kl" $'compute Deployment\' {\n      instanceOf c2_api\n    }'
-assert_contains "likec4 draws the Service selector as a relationship" "$kl" "-> env2_prod.cn4_api.c2_api 'selects app=api'"
-assert_contains "likec4 draws the Ingress backend as a relationship" "$kl" "-> env2_prod.cn4_api.c2_api 'routes api.example.com'"
-assert_contains "the placement names its compute node" "$k8s" '"compute":"prod/wl-api"'
-assert_contains "the Service edge is in the record" "$k8s" '{"from":"prod/svc-api-svc","to":"api","to_compute":"prod/wl-api","env":"prod","tool":"kubernetes","label":"selects app=api"'
-assert_contains "the Ingress edge is in the record" "$k8s" '{"from":"prod/ing-api","to":"api","to_compute":"prod/wl-api","env":"prod","tool":"kubernetes","label":"routes api.example.com"'
+assert_contains "likec4 runs the container inside its workload node" "$kl" $'compute Deployment\' {\n      instanceOf c2_web\n    }'
+assert_contains "likec4 draws the Service selector as a relationship" "$kl" "-> env2_prod.cn4_web.c2_web 'selects app=web'"
+assert_contains "likec4 draws the Ingress backend as a relationship" "$kl" "-> env2_prod.cn4_web.c2_web 'routes web.example.com'"
+assert_contains "the placement names its compute node" "$k8s" '"compute":"prod/wl-web"'
+assert_contains "the Service edge is in the record" "$k8s" '{"from":"prod/svc-web-svc","to":"web","to_compute":"prod/wl-web","env":"prod","tool":"kubernetes","label":"selects app=web"'
+assert_contains "the Ingress edge is in the record" "$k8s" '{"from":"prod/ing-web","to":"web","to_compute":"prod/wl-web","env":"prod","tool":"kubernetes","label":"routes web.example.com"'
 bash "$RENDER" --record "$TEST_TMPDIR/k8s.json" --out "$TEST_TMPDIR/k8s-p" --dialect c4-plantuml --env prod >/dev/null
 kp="$(cat "$TEST_TMPDIR/k8s-p/deployment.md")"
-assert_contains "plantuml runs the container inside its workload node" "$kp" $'"compute", "Deployment") {\n    Container(c2_api, "api", "ghcr.io/acme/api:2", "replicas 2")\n  }'
-assert_contains "plantuml draws the Service selector as Rel" "$kp" 'Rel(n3_api_svc, c2_api, "selects app=api")'
-assert_contains "plantuml draws the Ingress backend as Rel" "$kp" 'Rel(n2_api, c2_api, "routes api.example.com")'
+assert_contains "plantuml runs the container inside its workload node" "$kp" $'"compute", "Deployment") {\n    Container(c2_web, "web", "ghcr.io/acme/web:2", "replicas 2")\n  }'
+assert_contains "plantuml draws the Service selector as Rel" "$kp" 'Rel(n3_web_svc, c2_web, "selects app=web")'
+assert_contains "plantuml draws the Ingress backend as Rel" "$kp" 'Rel(n2_web, c2_web, "routes web.example.com")'
 
 # A workload's containers share one node, a Service needs its whole selector to match, an Ingress
 # reaches the containers behind each backend once, and nothing crosses a namespace.
@@ -2210,6 +2210,50 @@ unm_fixture arm-storage main.json "{\"\$schema\":\"$arm_schema\",\"contentVersio
 unm_check "$TEST_TMPDIR/unm-arm-storage"
 assert_contains "an ARM template that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
 assert_contains "the ARM type is listed under arm" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts","evidence":"main.json"}'
+
+# A child resource nested in its parent is listed under its full type, never dropped behind the
+# parent: a Bicep `resource x 'child'` inside a body, an ARM resources array inside a resource.
+bicep_site=$'resource site \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'web\'\n  properties: {\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:1\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'staging\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'DOCKER|nginx:2\'\n      }\n    }\n  }\n}'
+bicep_blob=$'resource sa \'Microsoft.Storage/storageAccounts@2023-01-01\' = {\n  name: \'sa\'\n  resource blob \'blobServices\' = {\n    name: \'default\'\n    resource c \'containers@2023-01-01\' = {\n      name: \'data\'\n    }\n  }\n}'
+unm_fixture bicep-nested main.bicep "$bicep_site"$'\n'"$bicep_blob"
+unm_check "$TEST_TMPDIR/unm-bicep-nested"
+assert_contains "a site with a nested slot is still drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "the parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"bicep"'
+assert_not_contains "the nested slot is not placed as if it were the site" "$unm_rec" 'nginx:2'
+assert_contains "a nested slot is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Web/sites/slots","evidence":"main.bicep"}'
+assert_contains "a child of a storage account is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.bicep"}'
+assert_contains "a grandchild is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices/containers","evidence":"main.bicep"}'
+assert_not_contains "the mapped parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
+assert_contains "the nested resources are counted" "$unm_sum" "unmapped=4"
+assert_contains "the nested slot is in the unmapped table" "$unm_md" '| bicep | Microsoft.Web/sites/slots | main.bicep |'
+
+unm_fixture bicep-nested-refused main.bicep "$bicep_blob"
+unm_check "$TEST_TMPDIR/unm-bicep-nested-refused"
+assert_contains "a Bicep storage account with nested children maps no container and is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the nested Bicep child is listed in the refusal" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.bicep"}'
+
+arm_site="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}},\"resources\":[{\"type\":\"slots\",\"name\":\"staging\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:2\"}}}]}"
+arm_blob='{"name":"sa","resources":[{"type":"blobServices","name":"default","resources":[{"type":"containers","name":"data"}]}],"type":"Microsoft.Storage/storageAccounts"}'
+unm_fixture arm-nested main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_site,$arm_blob]}"
+unm_check "$TEST_TMPDIR/unm-arm-nested"
+assert_contains "an ARM site with a nested slot is still drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "the ARM parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"arm"'
+assert_not_contains "the nested ARM slot is not placed as if it were the site" "$unm_rec" 'nginx:2'
+assert_contains "a nested ARM slot is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites/slots","evidence":"main.json"}'
+assert_contains "an ARM child is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.json"}'
+assert_contains "an ARM grandchild is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts/blobServices/containers","evidence":"main.json"}'
+assert_not_contains "the mapped ARM parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
+assert_contains "the nested ARM resources are counted" "$unm_sum" "unmapped=4"
+
+unm_fixture arm-nested-refused main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_blob]}"
+unm_check "$TEST_TMPDIR/unm-arm-nested-refused"
+assert_contains "an ARM storage account with nested children maps no container and is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the nested ARM child is listed in the refusal" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.json"}'
+
+unm_fixture arm-nested-symbolic main.json "{\"\$schema\":\"$arm_schema\",\"languageVersion\":\"2.0\",\"contentVersion\":\"1.0.0.0\",\"resources\":{\"site\":{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}},\"resources\":{\"slot\":{\"type\":\"slots\",\"name\":\"staging\"}}}}}"
+unm_check "$TEST_TMPDIR/unm-arm-nested-symbolic"
+assert_contains "a nested child under a symbolic-name resource is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites/slots","evidence":"main.json"}'
+assert_not_contains "the symbolic-name parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
 
 unm_fixture pulumi-bucket Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  bucket:\n    type: aws:s3:Bucket'
 unm_check "$TEST_TMPDIR/unm-pulumi-bucket"
