@@ -21,6 +21,7 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not available (the hook itself f
 TEST_TMPDIR="$(native_mktemp_dir)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
+[[ "$TEST_TMPDIR" != *[[:space:]]* ]] || skip_suite "temp root contains whitespace; fixture commands interpolate paths unquoted"
 
 mkrepo() {
   local repo
