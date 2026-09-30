@@ -180,9 +180,9 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
 `--sizes-only`. The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
-when every subtree was walked; a depth cut, a directory that failed to scan, or a mount-state
-error marks `rollup_precision: partial`. Pasteable
-fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
+when every subtree was walked; a depth cut, a directory that failed to scan, or a mount-state error
+marks `rollup_precision: partial`. Entry-cap error and next steps: [scan-flags.md](reference/scan-flags.md).
+Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
@@ -338,7 +338,7 @@ was never inventoried, so `logical_size` is `null` rather than `0`, except on th
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
 `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself.
 Folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
-low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar.
+low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar. A `prior_disposition` or `prior_unresolved` is a hint, never approval; report and record answers per the [investigated catalog](reference/safety-model.md#investigated-catalog).
 
 ## 4. Build one exact-tier plan
 
@@ -468,8 +468,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
-  apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
+- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
+  catalog, and apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
   interpreter. The same denial text also admits literal-form read-only supporting commands whose
   heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
   `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`

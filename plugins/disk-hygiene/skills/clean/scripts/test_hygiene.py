@@ -3921,6 +3921,39 @@ class HygieneTests(unittest.TestCase):
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
 
+    def test_entry_cap_error_names_the_child_being_walked(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "small").mkdir(parents=True)
+            (root / "big").mkdir()
+            for index in range(6):
+                (root / "big" / f"file-{index}.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 3),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 3 entries") as raised,
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            message = str(raised.exception)
+            self.assertRegex(message, r"big \(\d+, walk in progress\)")
+            self.assertNotRegex(message, r"small \(\d+, walk in progress\)")
+            self.assertIn("--sizes-only", message)
+            self.assertIn("--root-children --root-child <name>", message)
+
+    def test_entry_cap_error_does_not_mark_a_finished_child_as_in_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "aaa").mkdir(parents=True)
+            (root / "aaa" / "one.txt").write_text("x", encoding="utf-8")
+            (root / "bbb.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries") as raised,
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            message = str(raised.exception)
+            self.assertIn("aaa (2)", message)
+            self.assertNotIn("aaa (2, walk in progress)", message)
+
     def test_sizes_only_bypasses_inventory_entry_cap(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -12592,6 +12625,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "catalog": "catalog --snapshot s --run-id run-1",
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
@@ -13013,6 +13047,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "catalog": "allow",
             "apply": "ask",
         }
         for subcommand, verdict in verdicts.items():

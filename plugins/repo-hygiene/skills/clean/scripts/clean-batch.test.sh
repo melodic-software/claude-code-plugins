@@ -13,6 +13,9 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 BATCH="$SCRIPT_DIR/clean-batch.sh"
 TEST_TMPDIR="$(mktemp -d)"
+export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/plugin-data"
+export HOME="$TEST_TMPDIR/home"
+mkdir -p "$HOME"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
@@ -488,6 +491,68 @@ assert_contains "git tier new store is would-clean" "$out" "$GT | would-clean | 
 assert_contains "git tier sibling worktree is deduped" "$out" "deduped with a sibling worktree"
 assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT | nothing-to-do"
 assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
+
+# --- 5. durable plan location and dry-run path listing ---
+PD_REPO="$(mkrepo pdrepo)"
+PD_OTHER="$(mkrepo pdother)"
+out1="$(bash "$BATCH" --tier caches --repo "$PD_REPO")"
+PD_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out1")"
+assert_contains "default plan lands under CLAUDE_PLUGIN_DATA" "$PD_PLAN" "$CLAUDE_PLUGIN_DATA/"
+assert_file_exists "default plan file written under CLAUDE_PLUGIN_DATA" "$PD_PLAN"
+out2="$(bash "$BATCH" --tier caches --repo "$PD_REPO")"
+PD_PLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out2")"
+assert_contains "same repo set shares its plan directory" "$PD_PLAN2" "$(dirname "$(dirname "$PD_PLAN")")/"
+assert_not_contains "a repeat dry-run gets a new plan path" "$out2" "BatchPlan: $PD_PLAN"
+assert_file_exists "a repeat dry-run leaves the first plan intact" "$PD_PLAN"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_OTHER")"
+assert_not_contains "different repo set gives a different plan path" "$out3" "BatchPlan: $PD_PLAN"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" "$PD_OTHER" --skip pdother)"
+PD_SKIP_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out3")"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" "$PD_OTHER")"
+assert_not_contains "different skip list gives a different plan directory" "$out3" "BatchPlan: $(dirname "$(dirname "$PD_SKIP_PLAN")")/"
+out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" --list-paths-max 08 2>&1)"
+assert_not_contains "leading-zero --list-paths-max is read as decimal" "$out3" "value too great"
+
+PD_SET_DIR="$(dirname "$(dirname "$PD_PLAN")")"
+mkdir "$PD_SET_DIR/run.old" "$PD_SET_DIR/run.recent" && touch "$PD_SET_DIR/run.recent/plan"
+touch "$PD_SET_DIR/run.old/plan" && touch -d "15 days ago" "$PD_SET_DIR/run.old"
+bash "$BATCH" --tier caches --repo "$PD_REPO" >/dev/null
+assert_file_absent "a run directory older than 14 days is pruned" "$PD_SET_DIR/run.old/plan"
+assert_file_exists "a recent run directory is kept" "$PD_SET_DIR/run.recent/plan"
+
+out="$(env -u CLAUDE_PLUGIN_DATA bash "$BATCH" --tier caches --repo "$PD_REPO")"
+assert_contains "without CLAUDE_PLUGIN_DATA the plan lands under HOME/.claude" "$out" "BatchPlan: $HOME/.claude/"
+
+OVERRIDE="$TEST_TMPDIR/override.plan"
+out="$(bash "$BATCH" --tier caches --repo "$PD_REPO" --batch-plan "$OVERRIDE")"
+assert_contains "--batch-plan overrides the default location" "$out" "BatchPlan: $OVERRIDE"
+assert_file_exists "override plan written" "$OVERRIDE"
+
+out="$(bash "$BATCH" --tier caches --apply --batch-plan "$PD_PLAN")"
+assert_contains "apply with the printed default plan cleans" "$out" "Summary: removed=1 failed=0"
+assert_file_absent "apply with the printed plan removed the cache" "$PD_REPO/.pytest_cache/x"
+
+LR="$(mkrepo listrepo)"
+mkdir -p "$LR/.mypy_cache" "$LR/.ruff_cache"
+echo x >"$LR/.mypy_cache/x"
+echo x >"$LR/.ruff_cache/x"
+out="$(bash "$BATCH" --tier caches --repo "$LR")"
+assert_contains "dry run lists the repo's planned paths" "$out" "Paths: $LR"
+assert_contains "listing names a planned cache" "$out" ".pytest_cache"
+assert_contains "listing names another planned cache" "$out" ".mypy_cache"
+assert_not_contains "under the cap there is no tail" "$out" "more, see plan file"
+LR_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+total="$(grep -c . "$(sed -n 's/^REPO\t[^\t]*\t[^\t]*\t//p' "$LR_PLAN")")"
+
+out="$(bash "$BATCH" --tier caches --repo "$LR" --list-paths-max 1)"
+LR_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+assert_contains "over the cap the tail counts the rest" "$out" "$((total - 1)) more, see plan file: $LR_PLAN"
+entries="$(grep -c '^  [^ ].* | ' <<<"$out")"
+if [[ "$entries" -eq 1 ]]; then
+  pass "over the cap exactly the cap entries are listed"
+else
+  fail "exactly the cap entries are listed" 1 "$entries"
+fi
 
 help_out="$(bash "$BATCH" --help)"
 assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"

@@ -9,6 +9,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, and each case has a `skill-fired` grader.
 
+## [0.65.2] - 2026-09-30
+
+### Fixed
+
+- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** A body under 16000 characters is split through a here-string, so the validator creates no file it must remove. A longer body goes through one `pr-linkage-lines.<pid>` file that is removed right after the read. The gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
+## [0.65.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.65.0] - 2026-09-29
 
 ### Changed
