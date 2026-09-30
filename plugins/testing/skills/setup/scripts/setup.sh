@@ -8,8 +8,8 @@
 #                 A missing rule is a FINDING; Bash, PowerShell and Go have no
 #                 maintained rule. The reading is textual: a rule named in a
 #                 lint config, or the plugin's recommended set referenced.
-#   instruction   an optional line for CLAUDE.md or AGENTS.md, printed to paste;
-#                 this script never edits either file
+#   instruction   an optional line, printed to paste into the instruction file
+#                 Claude Code loads; this script never edits CLAUDE.md or AGENTS.md
 #   hook-entry    for each consumer glob no shipped hook row matches, a
 #                 .claude/settings.json entry that runs test-scan on it
 # apply writes <root>/.claude/testing.yaml from the answer flags, whole, and

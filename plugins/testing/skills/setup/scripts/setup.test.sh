@@ -194,6 +194,8 @@ assert_line "AGENTS.md alone is the file named" "$(target agents AGENTS.md)" 'Pa
 assert_line ".claude/CLAUDE.md beats AGENTS.md" "$(target dotclaude .claude/CLAUDE.md AGENTS.md)" 'Paste this into \.claude/CLAUDE\.md yourself:$'
 assert_line "CLAUDE.local.md keeps AGENTS.md from loading, so CLAUDE.md is named" \
   "$(target local CLAUDE.local.md AGENTS.md)" 'Paste this into CLAUDE\.md yourself \(CLAUDE\.local\.md here keeps AGENTS\.md from loading\):$'
+assert_line "CLAUDE.local.md alone suppresses no AGENTS.md, so the user file is named" \
+  "$(target localonly CLAUDE.local.md)" 'Paste this into ~/\.claude/CLAUDE\.md yourself'
 assert_line "with neither, the user file is named" "$(target none)" 'Paste this into ~/\.claude/CLAUDE\.md yourself \(this repository has neither; that file applies to every repository\):$'
 
 cp "$R/.claude/testing.yaml" "$T/kept.yaml"
