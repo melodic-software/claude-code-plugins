@@ -106,11 +106,13 @@ restores the FAIL semantics. Node.js (step 8) is the exception: the enabled-gate
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL print remediation guidance. Never install anything. There is
-no `apply install-typos`-style write path (unlike `ruff-format`/`markdown-format`): typos has
-no clean per-repo dependency-manager story, so the only responsible action is pointing at the
-official install methods (`https://github.com/crate-ci/typos#install`: cargo, Homebrew,
-Conda, pacman, or a pre-built binary; pick the platform-appropriate one to surface) and letting
-the consumer choose how to install it at the machine level.
+no `apply install-typos` write path. This skill follows the refusal template in
+[docs/plugin-philosophy.md](../../../../docs/plugin-philosophy.md) `### Install subactions and refusal`
+and prints the consumer-run install method instead. Both reasons apply: (1) every install is
+machine-level (cargo, Homebrew, Conda, pacman, or a pre-built binary), not a dependency recorded
+through the repo's package manager; (2) typos publishes several official install methods
+(`https://github.com/crate-ci/typos#install`), so choosing one is the consumer's call. Surface the
+platform-appropriate method.
 
 After the consumer installs `typos` themselves, re-run `check` with live Bash probes (the
 pre-computed rows predate the install) and report its actual result.
