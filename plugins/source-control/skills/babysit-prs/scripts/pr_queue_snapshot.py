@@ -103,9 +103,10 @@ def repo_classify_config(
 ) -> delta.ClassifyConfig:
     """`config` with one repository's effective policy applied.
 
-    The six policy keys this snapshot reads come from the repository's
-    default-branch config, with the flags as the deprecated `userConfig` fallback.
-    Raises `RepoConfigError` when that config cannot be read.
+    The approval-downgrade and skip-downgrade logins and the two gate contexts
+    come from the repository's default-branch config, with the flags as the
+    `userConfig` fallback. The trigger phrase and reviewer logins are
+    `userConfig`-only. Raises `RepoConfigError` when that config cannot be read.
     """
     effective = repo_policy.resolve(repo, repo_policy.fallback_from_args(args))
     return replace(

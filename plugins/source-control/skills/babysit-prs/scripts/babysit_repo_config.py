@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Per-target-repository resolution of the babysit repository-policy keys.
 
-Eight keys are read from the TARGET repository's tracked `.claude/source-control.md`
+Seven keys are read from the TARGET repository's tracked `.claude/source-control.md`
 on its default branch, through the contents API with no `ref`, so neither the
 launching checkout's working tree nor a personal layer (user-global, local
 overlay) can supply a value. The operator's `userConfig` value is the deprecated
 fallback, merged per key by the modes `merge_repo_config` documents. The review
-bot logins and settle minutes stay `userConfig`-only: a repository declaration of
-either is ignored. The fetch and the merge are separate so the merge is
-unit-testable without a network seam.
+bot logins, settle minutes and trigger phrase stay `userConfig`-only: a
+repository declaration of any of them is ignored. The fetch and the merge are
+separate so the merge is unit-testable without a network seam.
 """
 
 from __future__ import annotations
@@ -36,16 +36,23 @@ UNION_KEYS = (
 )
 REVIEW_BOTS = "babysit_review_bot_logins"
 REVIEW_SETTLE = "babysit_review_settle_minutes"
+TRIGGER_PHRASE = "babysit_review_trigger_phrase"
 SKIP_DOWNGRADE = "babysit_skip_downgrade_logins"
 OVERRIDE_KEYS = (
     "babysit_merge_method",
-    "babysit_review_trigger_phrase",
     "babysit_review_gate_context",
     "babysit_ci_gateway_context",
 )
 LIST_KEYS = frozenset((*UNION_KEYS, REVIEW_BOTS, SKIP_DOWNGRADE))
 LOGIN_KEYS = LIST_KEYS - {"babysit_merge_block_labels"}
-KEYS = (*UNION_KEYS, REVIEW_BOTS, REVIEW_SETTLE, SKIP_DOWNGRADE, *OVERRIDE_KEYS)
+KEYS = (
+    *UNION_KEYS,
+    REVIEW_BOTS,
+    REVIEW_SETTLE,
+    TRIGGER_PHRASE,
+    SKIP_DOWNGRADE,
+    *OVERRIDE_KEYS,
+)
 MERGE_METHODS = ("squash", "merge", "rebase")
 
 HEADING_RE = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
@@ -59,7 +66,7 @@ FLAG_DESTS = {
     "babysit_extra_dependency_manager_logins": "extra_dependency_manager_logins",
     "babysit_approval_downgrade_logins": "approval_downgrade_logins",
     "babysit_skip_downgrade_logins": "skip_downgrade_logins",
-    "babysit_review_trigger_phrase": "trigger_phrase",
+    TRIGGER_PHRASE: "trigger_phrase",
     REVIEW_BOTS: "review_bot_logins",
     REVIEW_SETTLE: "review_settle_minutes",
     "babysit_review_gate_context": "review_gate_context",
@@ -194,13 +201,17 @@ def merge_repo_config(
       operator's list could swap that reviewer out. Neither is decided here, so a
       repository declaration of either key is ignored with a note and the
       `userConfig` pair passes through unchanged.
+    - `babysit_review_trigger_phrase`: `userConfig`-only. The phrase is the text
+      the operator's account posts, and a repository must not choose it, so a
+      repository declaration is ignored with a note and the `userConfig` value
+      is used.
     - `babysit_skip_downgrade_logins`: remove-only. When the repository declares
       the key, the effective set is the `userConfig` set intersected with it; a
       repository can never add a login. The `userConfig` value stays the key's
       only additive source, so its use is not deprecated and raises no note.
-    - `OVERRIDE_KEYS` (merge method, trigger phrase, review gate and CI gateway
-      contexts): the repository default-branch value wins; `userConfig` applies
-      only when the repository declares none.
+    - `OVERRIDE_KEYS` (merge method, review gate and CI gateway contexts): the
+      repository default-branch value wins; `userConfig` applies only when the
+      repository declares none.
     """
     fallback = {k: v for k, v in raw_fallback.items() if v and v.strip()}
     used: set[str] = set()
@@ -225,6 +236,11 @@ def merge_repo_config(
             "repository's declaration is ignored"
         )
     bots = _fallback_set(fallback, REVIEW_BOTS) if REVIEW_BOTS in fallback else None
+    if TRIGGER_PHRASE in repo:
+        notes.append(
+            f"{TRIGGER_PHRASE} is userConfig-only, so the repository's "
+            "declaration is ignored"
+        )
 
     overrides: dict[str, str | None] = {}
     for key in OVERRIDE_KEYS:
@@ -241,7 +257,7 @@ def merge_repo_config(
         ],
         approval_downgrade_logins=unions["babysit_approval_downgrade_logins"],
         skip_downgrade_logins=skip,
-        review_trigger_phrase=overrides["babysit_review_trigger_phrase"],
+        review_trigger_phrase=fallback.get(TRIGGER_PHRASE),
         review_bot_logins=bots,
         review_settle_minutes=fallback.get(REVIEW_SETTLE),
         review_gate_context=overrides["babysit_review_gate_context"],
@@ -339,7 +355,7 @@ def resolve(
     The fetched layer, or its error, is cached per repository for the process,
     so one run sees one view of each repository. A deprecation note naming the
     repository key is printed once per key per process whenever a deprecated
-    `userConfig` value takes effect. The review pair and
+    `userConfig` value takes effect. The review pair, the trigger phrase and
     `babysit_skip_downgrade_logins` are not deprecated and print none.
     """
     cache_key = owner_repo.casefold()

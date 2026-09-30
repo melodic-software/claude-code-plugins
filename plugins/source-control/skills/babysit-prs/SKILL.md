@@ -286,7 +286,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | deprecated fallback `--block-labels` (merge wrapper, autopilot merge tier); omit it when unset | tier refuses fail-closed when enabled and the target repository declares none |
-| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | deprecated fallback `--trigger-phrase` (snapshot, request_review); omit it when unset | review-trigger module dormant unless the target repository declares it |
+| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review); omit it when unset | review-trigger module dormant |
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review, merge gate) | review-trigger module dormant; merge gate's review-settle hold dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | deprecated fallback `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_review_settle_minutes` | `${user_config.babysit_review_settle_minutes}` | `--review-settle-minutes` (merge gate) | review-settle hold dormant. Pair it with `babysit_review_bot_logins`, which the gate requires alongside it |
@@ -302,8 +302,8 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
 | state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | n/a |
 
-Eight rows are repository policy: `babysit_merge_method`, `babysit_merge_block_labels`,
-`babysit_review_trigger_phrase`, `babysit_review_gate_context`, `babysit_ci_gateway_context`,
+Seven rows are repository policy: `babysit_merge_method`, `babysit_merge_block_labels`,
+`babysit_review_gate_context`, `babysit_ci_gateway_context`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`, and
 `babysit_skip_downgrade_logins`. Each PR's repository resolves them from its tracked
 `.claude/source-control.md` on the default branch, merged per key with the flag on its row by the
@@ -312,8 +312,9 @@ modes in
 hold lists union, `babysit_skip_downgrade_logins` is remove-only, and the rest take the repository
 value first. The flag is a deprecated fallback for every one of these except
 `babysit_skip_downgrade_logins`, whose flag stays its only additive source. The review pair
-(`babysit_review_bot_logins`, `babysit_review_settle_minutes`) is `userConfig`-only: a repository
-declaration of either is ignored. A repository whose file cannot be read is refused by the merge
+(`babysit_review_bot_logins`, `babysit_review_settle_minutes`) and the trigger phrase
+(`babysit_review_trigger_phrase`) are `userConfig`-only: a repository declaration of any of them is
+ignored. A repository whose file cannot be read is refused by the merge
 gate and `request_review`, and its PRs are never merge-ready in the snapshot. The unset behavior
 above applies when neither source sets the key.
 

@@ -660,7 +660,9 @@ class PerRepoPolicyTests(unittest.TestCase):
         self.assertFalse(result["complete"])
         self.assertEqual(snapshot.exit_code_for(result), 1)
 
-    def test_repository_trigger_config_reaches_the_gate_state(self) -> None:
+    def test_repository_gate_context_reaches_the_gate_state_but_not_the_phrase(
+        self,
+    ) -> None:
         RepoConfigFake(
             {
                 "owner/a": (
@@ -679,7 +681,7 @@ class PerRepoPolicyTests(unittest.TestCase):
         base = snapshot.build_config(args)
         with_repo = snapshot.repo_classify_config(base, args, "owner/a")
         without_repo = snapshot.repo_classify_config(base, args, "owner/b")
-        self.assertEqual(with_repo.review_trigger.trigger_phrase, "@bot review")
+        self.assertEqual(with_repo.review_trigger.trigger_phrase, "flag phrase")
         self.assertEqual(with_repo.review_trigger.reviewer_logins, {"flag-bot"})
         self.assertEqual(with_repo.review_trigger.gate_context, "gate-a")
         self.assertEqual(without_repo.review_trigger.reviewer_logins, {"flag-bot"})

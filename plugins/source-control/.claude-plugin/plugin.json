@@ -113,7 +113,7 @@
     "babysit_review_trigger_phrase": {
       "type": "string",
       "title": "Babysit review trigger phrase",
-      "description": "Comment phrase that requests an AI re-review (posted and recognized). Absent and undeclared in the target repository: the review-trigger module stays dormant."
+      "description": "Comment phrase that requests an AI re-review (posted and recognized). Read only from this option: a target repository cannot supply it. Absent: the review-trigger module stays dormant."
     },
     "babysit_review_bot_logins": {
       "type": "string",

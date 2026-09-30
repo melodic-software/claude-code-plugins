@@ -81,7 +81,7 @@ verdict HYBRID, which this record adopts.
   working with a deprecation note until its removal release.
 - `plugins/source-control/reference/config-resolution.md` states the split and the multi-domain
   consequence, and cites this record.
-- Eight of the ten repository-policy keys resolve per target repository from its default branch,
+- Seven of the ten repository-policy keys resolve per target repository from its default branch,
   with the `userConfig` value as a deprecated fallback, under the merge modes in decision 3.
   `babysit_skip_downgrade_logins` is remove-only: a repository can narrow the `userConfig` set and
   never add a login, so additions stay `userConfig`-only, and its `userConfig` value is not
@@ -91,3 +91,7 @@ verdict HYBRID, which this record adopts.
   listed reviewer has reviewed the head, so a repository reviewer list that adds to the operator's
   lets that reviewer clear the hold early, and one that replaces it can swap the operator's
   reviewer out. Which combination a repository pair may have is a maintainer decision.
+- `babysit_review_trigger_phrase` stays `userConfig`-only, and a repository declaration is ignored.
+  `request_review` posts the phrase as a comment under the operator's account, so a repository must
+  not choose its text. `babysit_review_gate_context` and `babysit_ci_gateway_context` stay
+  repository-overridable: they only select which check the loop waits on.

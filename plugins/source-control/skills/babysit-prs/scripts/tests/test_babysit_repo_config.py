@@ -166,26 +166,39 @@ class MergeModeTests(unittest.TestCase):
     def test_override_and_context_keys_repo_wins_else_userconfig(self) -> None:
         repo = rc.parse_repo_config(
             "## babysit_merge_method\nrebase\n\n"
-            "## babysit_review_trigger_phrase\n@bot review\n\n"
             "## babysit_review_gate_context\n`ci-status`\n\n"
             "## babysit_ci_gateway_context\ngateway\n"
         )
         fallback: dict[str, str | None] = {key: "mine" for key in rc.OVERRIDE_KEYS}
         eff = rc.merge_repo_config(repo, fallback)
         self.assertEqual(
-            (
-                eff.merge_method,
-                eff.review_trigger_phrase,
-                eff.review_gate_context,
-                eff.ci_gateway_context,
-            ),
-            ("rebase", "@bot review", "ci-status", "gateway"),
+            (eff.merge_method, eff.review_gate_context, eff.ci_gateway_context),
+            ("rebase", "ci-status", "gateway"),
         )
         self.assertFalse(set(rc.OVERRIDE_KEYS) & eff.fallback_keys_used)
 
         eff = rc.merge_repo_config({}, fallback)
         self.assertEqual(eff.review_gate_context, "mine")
         self.assertEqual(set(rc.OVERRIDE_KEYS), eff.fallback_keys_used)
+
+    def test_trigger_phrase_is_userconfig_only(self) -> None:
+        repo = rc.parse_repo_config("## babysit_review_trigger_phrase\nrepo phrase\n")
+        for fallback, phrase in (
+            ({"babysit_review_trigger_phrase": "mine"}, "mine"),
+            ({}, None),
+        ):
+            with self.subTest(fallback=fallback):
+                eff = rc.merge_repo_config(repo, fallback)
+                self.assertEqual(eff.review_trigger_phrase, phrase)
+                self.assertEqual(len(eff.notes), 1)
+                self.assertIn(rc.TRIGGER_PHRASE, eff.notes[0])
+                self.assertFalse(eff.fallback_keys_used)
+
+    def test_userconfig_trigger_phrase_is_not_deprecated(self) -> None:
+        eff = rc.merge_repo_config({}, {"babysit_review_trigger_phrase": "mine"})
+        self.assertEqual(eff.review_trigger_phrase, "mine")
+        self.assertEqual(eff.notes, ())
+        self.assertFalse(eff.fallback_keys_used)
 
     def test_blank_userconfig_values_are_unset(self) -> None:
         eff = rc.merge_repo_config({}, {key: "" for key in rc.KEYS})

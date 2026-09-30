@@ -1,7 +1,9 @@
-"""`request_review` resolves the trigger phrase and reviewer logins per repository.
+"""`request_review` takes the trigger phrase and reviewer logins from `userConfig` only.
 
-The gh seam for the repository config read is a fake; the guarded-mutation
-opener is a mock, so no state directory or network is touched.
+A repository's own declaration of either is ignored, and an unreadable repository
+config still refuses the run. The gh seam for the repository config read is a
+fake; the guarded-mutation opener is a mock, so no state directory or network is
+touched.
 """
 
 from __future__ import annotations
@@ -47,11 +49,11 @@ def _quiet_stderr():
 
 
 class TriggerConfigPerRepository(unittest.TestCase):
-    def test_repo_phrase_wins_and_repo_reviewers_are_ignored(self) -> None:
+    def test_repo_phrase_and_repo_reviewers_are_ignored(self) -> None:
         RepoConfigFake({"owner/repo": REPO_FILE}).install(self)
         with _quiet_stderr():
             config = request_review.build_trigger_config(_args(), "owner/repo")
-        self.assertEqual(config.trigger_phrase, "@repo-bot review")
+        self.assertEqual(config.trigger_phrase, "@flag-bot review")
         self.assertEqual(config.reviewer_logins, {"flag-bot"})
 
     def test_flags_apply_when_the_repo_declares_nothing(self) -> None:
@@ -61,12 +63,12 @@ class TriggerConfigPerRepository(unittest.TestCase):
         self.assertEqual(config.trigger_phrase, "@flag-bot review")
         self.assertEqual(config.reviewer_logins, {"flag-bot"})
 
-    def test_two_repositories_resolve_independently(self) -> None:
+    def test_two_repositories_get_the_same_phrase(self) -> None:
         RepoConfigFake({"owner/a": REPO_FILE}).install(self)
         with _quiet_stderr():
             a = request_review.build_trigger_config(_args(), "owner/a")
             b = request_review.build_trigger_config(_args(), "owner/b")
-        self.assertNotEqual(a.trigger_phrase, b.trigger_phrase)
+        self.assertEqual(a.trigger_phrase, b.trigger_phrase)
         self.assertEqual(a.reviewer_logins, b.reviewer_logins)
 
     def test_unreadable_repo_config_raises(self) -> None:
@@ -95,10 +97,10 @@ class _Reached(Exception):
     """Raised by the opener stub to prove the run got past the phrase check."""
 
 
-class PhraseFlagIsOptional(unittest.TestCase):
-    """A repository that declares the phrase needs no `--trigger-phrase` flag."""
+class PhraseComesOnlyFromUserConfig(unittest.TestCase):
+    """The posted text is the `--trigger-phrase` value; a repository cannot supply it."""
 
-    def test_cli_parses_without_the_flag(self) -> None:
+    def test_cli_requires_the_flag(self) -> None:
         argv = [
             "request_review.py",
             "--pr",
@@ -112,13 +114,30 @@ class PhraseFlagIsOptional(unittest.TestCase):
         with (
             mock.patch.object(sys, "argv", argv),
             mock.patch.object(request_review, "run", run),
-            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+            self.assertRaises(SystemExit),
         ):
-            code = request_review.main()
-        self.assertEqual(code, 0)
-        self.assertIsNone(run.call_args.args[0].trigger_phrase)
+            request_review.main()
+        run.assert_not_called()
 
-    def test_repo_phrase_alone_reaches_the_guarded_mutation(self) -> None:
+    def test_repo_phrase_without_the_flag_refuses_before_opening_state(self) -> None:
+        RepoConfigFake({"owner/repo": REPO_FILE}).install(self)
+        opener = mock.Mock(side_effect=_Reached)
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(request_review, "begin_guarded_mutation", opener),
+            _quiet_stderr(),
+            self.assertRaisesRegex(RuntimeError, "review trigger phrase is required"),
+        ):
+            state_dir = pathlib.Path(tmp)
+            request_review.run_locked(
+                _args(trigger_phrase=None, apply=True),
+                state_dir,
+                state_dir / "state.json",
+            )
+        opener.assert_not_called()
+
+    def test_flag_phrase_reaches_the_guarded_mutation(self) -> None:
         RepoConfigFake({"owner/repo": REPO_FILE}).install(self)
         opener = mock.Mock(side_effect=_Reached)
         with (
@@ -129,27 +148,9 @@ class PhraseFlagIsOptional(unittest.TestCase):
         ):
             state_dir = pathlib.Path(tmp)
             request_review.run_locked(
-                _args(trigger_phrase=None, apply=True),
-                state_dir,
-                state_dir / "state.json",
+                _args(apply=True), state_dir, state_dir / "state.json"
             )
         opener.assert_called_once()
-
-    def test_neither_source_refuses_before_opening_state(self) -> None:
-        RepoConfigFake({}).install(self)
-        opener = mock.Mock(side_effect=_Reached)
-        with (
-            tempfile.TemporaryDirectory() as tmp,
-            mock.patch.object(request_review, "begin_guarded_mutation", opener),
-            self.assertRaisesRegex(RuntimeError, "no review trigger phrase"),
-        ):
-            state_dir = pathlib.Path(tmp)
-            request_review.run_locked(
-                _args(trigger_phrase="", apply=True),
-                state_dir,
-                state_dir / "state.json",
-            )
-        opener.assert_not_called()
 
 
 if __name__ == "__main__":

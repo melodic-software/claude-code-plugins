@@ -423,8 +423,8 @@ to re-evaluate fixes. After pushing, check each bot's trigger mode per
 
 - **"On every push" trigger:** re-reviews automatically, just wait
 - **Manual/smart trigger:** when the review-trigger module is configured (SKILL.md
-  effective-configuration block, or the target repository's own file), the orchestrator posts the
-  configured trigger phrase per [review-trigger.md](review-trigger.md); unconfigured, the module is dormant, so note the bot's
+  effective-configuration block), the orchestrator posts the configured trigger phrase per
+  [review-trigger.md](review-trigger.md); unconfigured, the module is dormant, so note the bot's
   own trigger convention from the consuming repo's docs and report instead of inventing one
 
 Research-gate non-trivial fixes (multi-source consensus) per
