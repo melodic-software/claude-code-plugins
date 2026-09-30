@@ -41,7 +41,7 @@ The watcher exits with one JSON line: `{"seq", "timedOut", "events": [...], "not
 
 1. For an `ask`, `own` or `rephrase`, open the turn with a one-line status (which question, what you are doing) before the reply (R10).
 2. Answer every `ask`. For decisions on one question, the latest live event wins; mark the earlier ones handled with it (R7).
-3. Write `'<data_dir>/ops.json'` fresh with the Write tool on every wake; a stale file re-applies old replies.
+3. Write `'<data_dir>/ops.json'` fresh with the Write tool on every wake; a stale file re-applies old replies. When `apply` refuses a `rec` because the question has a newer live user event (the stale-read refusal, R2), re-read the events, restate the reply or revision against what the user just did, and apply again instead of passing `"force": true`.
 4. Run exactly one background Bash call that records and re-arms (R8):
 
 <!-- wake-command: surface/watch.test.sh runs the fenced command below -->
@@ -93,7 +93,7 @@ The page header shows a Claude line: the `set-status` text with its age while on
 
 A `wait` holds a question in one of two ways. The page labels them as follows:
 
-- **Pending research** (`by: claude`, the default): Claude is working something out. The question shows `Pending research: <waitsOn>`, counts in the header's pending-research count, and is listed under Show: Pending. The user can still answer it (Answer anyway).
+- **Pending research** (`by: claude`, the default): Claude is working something out. The question shows `Pending research: <waitsOn>`, counts in the header's pending-research count, and is listed under Show: Pending. The card reads `Research in progress, started <time>` (the time the `wait` landed). The user can still answer it (Answer anyway) and can post `cancel-research` (Cancel research) to release it; a question with no hold offers `research` (Research this) instead.
 - **Needs your answer** (`by: user`): the question needs the user again, even though a decision is recorded. The question shows `Needs your answer: <waitsOn>` and counts as open and in the needs-you navigation. The `wait` also stamps `setAsideAt` and `setAsideSeq`: a page or terminal decision recorded before it no longer counts as an answer anywhere, even after the hold clears; the user's next decision counts. A recommendation revision (`reply --rec`, `revise --rec`) stamps the same fields on a counted `own` answer without a hold: the question returns to open until a new decision counts.
 
 Both count as not answered in the page meter, `round.sh status` and `export-ledger`.
@@ -127,6 +127,8 @@ When the work returns, clear both (`wait` with `"clear": true`, `set-status` wit
 | `reopen` | question | clears it, keeps the note | `handle` |
 | `ask` | question | no | `reply` with its `seq` |
 | `rephrase` | question | no | `reply` with `"kind": "rephrase"` and its `seq` |
+| `research` | question, optional `text` | no | `wait` (`by: claude`) plus `set-status`, then `reply` or `revise` when the lookup returns. Run `/discovery:research` when that skill resolves in this session, else look it up inline. See [Status, activity and holds](#status-activity-and-holds) |
+| `cancel-research` | question | no | `wait` with `clear` and `set-status` with `clear`; ignore the pending result, and `handle` both seqs |
 | `note` | none | no | `note-reply` with its `seq`, or `reply` on a question |
 | `undo` | question, `undoSeq` | withdraws `undoSeq` | Drop that decision from the ledger; `handle` both seqs |
 | `wrapup` | none | no | Run [Wrap-up](#wrap-up), then `handle` |

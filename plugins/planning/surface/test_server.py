@@ -190,6 +190,26 @@ class TestApi(ServerCase):
     def test_07_delivered_at_stamped(self):
         self.assertIn("deliveredAt", self.state()["responses"]["events"][-1])
 
+    def test_08a_research_and_cancel_research_are_accepted_without_a_decision(self):
+        seqs_ = []
+        before = self.state()["responses"]["responses"].get("Q5")
+        for body in (
+            {"id": "Q5", "kind": "research"},
+            {"id": "Q5", "kind": "research", "text": "check the vendor docs"},
+            {"id": "Q5", "kind": "cancel-research"},
+        ):
+            code, data = self.post(body)
+            self.assertEqual(code, 200, data)
+            seqs_.append(data["seq"])
+        evs = {e["seq"]: e for e in self.state()["responses"]["events"]}
+        self.assertEqual(
+            [evs[s]["kind"] for s in seqs_], ["research", "research", "cancel-research"]
+        )
+        self.assertEqual(evs[seqs_[1]]["text"], "check the vendor docs")
+        self.assertEqual(self.state()["responses"]["responses"].get("Q5"), before)
+        self.assertEqual(self.post({"id": "nope", "kind": "research"})[0], 400)
+        self.assertEqual(self.post({"id": "Q5", "kind": "researchh"})[0], 400)
+
     def test_08_empty_note_is_400(self):
         code, _ = self.post({"kind": "note", "text": "  "})
         self.assertEqual(code, 400)

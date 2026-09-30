@@ -221,6 +221,10 @@
         "supersededBy": {"type": "string"},
         "waiting": {"type": "boolean"},
         "waitsOn": {"type": "string"},
+        "waitingSince": {
+          "type": "string",
+          "description": "When the current hold landed; the page shows it as the time research started. Written by the wait op, removed when the hold clears."
+        },
         "waitingBy": {
           "enum": ["claude", "user"],
           "description": "Who a hold waits on; absent means claude (pending research). Written by the wait op, removed when the hold clears."

@@ -749,12 +749,12 @@ def op_wait(d, doc, a):
         sys.exit(f"refused: wait on {a.id} takes no by with clear")
     if a.clear:
         label = HOLD_LABELS[q.get("waitingBy") or "claude"]
-        for key in ("waiting", "waitsOn", "waitingBy"):
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
             q.pop(key, None)
         line, msg = f"No longer {label}.", f"{a.id} no longer {label}"
     else:
         by = a.by or "claude"
-        q.update(waiting=True, waitsOn=waits)
+        q.update(waiting=True, waitsOn=waits, waitingSince=now())
         q.pop("waitingBy", None)
         if by == "user":
             seq = load_json(d / "responses.json", EMPTY_RESPONSES).get("seq", 0)

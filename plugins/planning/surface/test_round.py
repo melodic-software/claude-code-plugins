@@ -880,6 +880,12 @@ class TestClaudeActivity(DirCase):
         self.assertNotIn("status", self.doc())
         self.assertEqual(self.entries(), [])
 
+    def test_a_hold_records_when_it_started_and_clearing_it_removes_the_time(self):
+        self.apply({"op": "wait", "id": "Q3", "waitsOn": "research"})
+        self.assertTrue(self.q("Q3")["waitingSince"])
+        self.apply({"op": "wait", "id": "Q3", "clear": True})
+        self.assertNotIn("waitingSince", self.q("Q3"))
+
     def test_a_non_ascii_summary_prints_on_a_legacy_console(self):
         waits = "the \u6771\u4eac benchmark \u2192 done"
         ops = self.file(

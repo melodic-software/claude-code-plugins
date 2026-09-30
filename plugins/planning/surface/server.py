@@ -40,7 +40,8 @@ EMPTY_RESPONSES = {
     "events": [],
 }
 DECISIONS = {"accept", "alt", "own", "defer", "reopen"}
-REQUESTS = {"ask", "rephrase"}
+# Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin.
+REQUESTS = {"ask", "rephrase", "research", "cancel-research"}
 # Events not tied to a question; `confirm-understanding` answers the restatement, and
 # `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
 FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}

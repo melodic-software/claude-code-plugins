@@ -128,6 +128,16 @@ async page => { // the user journey in order on one page, no reload after phase 
     await tap("[data-save]", 700);
     const aw = await last();
     ok("Answer anyway saves, stays on Q3 and says it counts once the research returns", aw.id === "Q3" && aw.kind === "alt" && await sel() === "Q3" && /Counts once Claude's research on Q3 returns/.test(await text("#toast")) && (await text("#meterText")) === "2 of 5 answered", JSON.stringify(aw) + " " + await text("#toast"));
+    ok("the held card says research is in progress with its start time and keeps the answer controls enabled", /Research in progress, started \d/.test(await text("#dscroll .waitban")) && !(await page.$("#choices input:disabled")) && !(await page.$("#note:disabled")), await text("#dscroll .waitban"));
+    ok("a held question offers Cancel research and no Research this", !!(await page.$('[data-research="cancel-research"]')) && !(await page.$('[data-research="research"]')), await text("#talkRow"));
+    await tap('[data-research="cancel-research"]', 600);
+    const cr = await last();
+    ok("Cancel research posts kind cancel-research for Q3 and the hold stays until Claude releases it", cr.kind === "cancel-research" && cr.id === "Q3" && !!(await page.$('#dscroll .waitban')), JSON.stringify(cr));
+    await pick("Q4");
+    ok("a question with no hold offers Research this and no Cancel research", !!(await page.$('[data-research="research"]')) && !(await page.$('[data-research="cancel-research"]')), await text("#talkRow"));
+    await tap('[data-research="research"]', 600);
+    const rr = await last();
+    ok("Research this posts kind research for Q4", rr.kind === "research" && rr.id === "Q4", JSON.stringify(rr));
     await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
     const listed = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
     ok("Show: Pending lists only Q3", listed === "Q3", listed);
