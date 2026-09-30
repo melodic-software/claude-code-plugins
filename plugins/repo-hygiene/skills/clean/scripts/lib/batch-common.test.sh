@@ -238,6 +238,60 @@ rc=0
 batch_run_fleet "$TEST_TMPDIR/stub-audit.sh" >/dev/null 2>&1 || rc=$?
 assert_exit "fleet: exit status stays 0 despite a failing child" 0 "$rc"
 
+# --- batch_remote_key: github.com paths are case-insensitive, other hosts keep case ---
+git init -q "$TEST_TMPDIR/rk"
+key_for() {
+  git -C "$TEST_TMPDIR/rk" remote remove origin 2>/dev/null
+  git -C "$TEST_TMPDIR/rk" remote add origin "$1"
+  batch_remote_key "$TEST_TMPDIR/rk"
+}
+gh_https="$(key_for https://github.com/Foo/Bar)"
+gh_scp="$(key_for git@GitHub.com:foo/BAR.git)"
+if [[ "$gh_https" == github.com/foo/bar && "$gh_scp" == "$gh_https" ]]; then
+  pass "remote key: github.com URL forms differing only in case agree"
+else
+  fail "remote key: github.com URL forms differing only in case agree" github.com/foo/bar "$gh_https / $gh_scp"
+fi
+other_key="$(key_for https://Example.com/Foo/Bar)"
+if [[ "$other_key" == example.com/Foo/Bar ]]; then
+  pass "remote key: another host keeps its path case"
+else
+  fail "remote key: another host keeps its path case" example.com/Foo/Bar "$other_key"
+fi
+
+# --- batch_dedupe_clones: a skip-listed clone is neither kept nor a duplicate ---
+for r in ca cb cc; do
+  git init -q "$TEST_TMPDIR/clone-$r"
+  git -C "$TEST_TMPDIR/clone-$r" remote add origin https://example.com/o/r.git
+done
+BATCH_SKIP_INPUTS=()
+batch_resolve_repos "$TEST_TMPDIR/clone-ca" "$TEST_TMPDIR/clone-cb" "$TEST_TMPDIR/clone-cc"
+batch_dedupe_clones
+if [[ "${#BATCH_TOPS[@]}" -eq 1 && "${BATCH_TOPS[0]}" == "$TEST_TMPDIR/clone-ca" && "${#BATCH_DUPS[@]}" -eq 2 ]]; then
+  pass "dedupe without a skip list keeps the first clone"
+else
+  fail "dedupe without a skip list keeps the first clone" "1 kept, 2 dups" "${#BATCH_TOPS[@]} kept, ${#BATCH_DUPS[@]} dups"
+fi
+BATCH_SKIP_INPUTS=("$TEST_TMPDIR/clone-ca")
+batch_resolve_repos "$TEST_TMPDIR/clone-ca" "$TEST_TMPDIR/clone-cb" "$TEST_TMPDIR/clone-cc"
+batch_dedupe_clones
+if [[ "${#BATCH_TOPS[@]}" -eq 2 && "${BATCH_TOPS[0]}" == "$TEST_TMPDIR/clone-ca" && "${BATCH_TOPS[1]}" == "$TEST_TMPDIR/clone-cb" &&
+  "${#BATCH_DUPS[@]}" -eq 1 && "${BATCH_DUPS[0]}" == "$TEST_TMPDIR/clone-cc" && "${BATCH_DUP_OF[0]}" == "$TEST_TMPDIR/clone-cb" ]]; then
+  pass "dedupe with the first clone skip-listed keeps the next clone; the skipped one stays for the skip check"
+else
+  fail "dedupe with the first clone skip-listed keeps the next clone" "tops ca cb; cc dup of cb" "tops ${BATCH_TOPS[*]}; dups ${BATCH_DUPS[*]} of ${BATCH_DUP_OF[*]}"
+fi
+BATCH_SKIP_INPUTS=()
+
+# --- batch_run_fleet reports clone duplicates the caller dropped ---
+batch_resolve_repos "$TEST_TMPDIR/clone-ca" "$TEST_TMPDIR/clone-cb" "$TEST_TMPDIR/fleet-good"
+batch_dedupe_clones
+fleet_out="$(batch_run_fleet "$TEST_TMPDIR/stub-audit.sh" 2>/dev/null)"
+assert_contains "fleet: a dropped clone is a skipped block" "$fleet_out" "Repo: $TEST_TMPDIR/clone-cb
+Outcome: skipped
+Reason: skipped duplicate of $TEST_TMPDIR/clone-ca"
+assert_contains "fleet: summary counts the clone duplicate" "$fleet_out" "FleetSummary: repos=3 audited=2 skipped=0 duplicate=1 blocked=0 failed=0"
+
 # --- batch_take_selection_arg ---
 BATCH_REPO_INPUTS=()
 BATCH_SKIP_INPUTS=()

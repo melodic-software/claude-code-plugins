@@ -39,6 +39,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)), so a directory
   such as `~/.codex/.tmp` is not hinted. They match files and links.
 
+## [0.32.1] - 2026-09-30
+
+### Changed
+
+- **`clean` names the hook note as the one primary source for `hook_python` and `data_root`.** The fallback is the probe: when the note is absent, one bare-python probe is denied, names the interpreter, and the rerun probe supplies `data_root`. `safety-model.md` records that the hook is the chosen delivery path and that the denied probe in the no-hook path is an accepted residual.
+
 ## [0.32.0] - 2026-09-30
 
 ### Added
