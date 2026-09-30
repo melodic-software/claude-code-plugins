@@ -3,6 +3,50 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.69.0] - 2026-09-29
+
+### Added
+
+- **`inventory` has built-in subagent and tool lanes** (`builtin_agents`, `builtin_tools`), each
+  with its own integrity status and canaries (`general-purpose`, `Explore`, `Plan`,
+  `statusline-setup`; `Bash`, `Read`, `Edit`, `Write`, `WebFetch`). Agent types and tool names
+  resolve from their constants at runtime. Agents carry the roster status (`default`,
+  `conditional`, `absent`), tool lists and model; tools carry deferral, gating and search hints,
+  and factory-built tools are counted, not guessed.
+- **`inventory --docs` cross-checks tools** against the tools reference in a nested block with its
+  own status; `--tools-docs-file` reads the page from a file.
+- **`audit-native-overlap detect` scores built-in subagents and tools** as the `builtin-agent` and
+  `builtin-tool` classes when the inventory carries those lanes. The store accepts `route` only for
+  both.
+
+### Fixed
+
+- **`inventory --docs` parses table rows in linear time.** The tools and commands row regexes
+  backtracked super-linearly on long whitespace runs (seconds per row well under the 8,000-character
+  row cap); both now match only the first cell and split the rest with string methods, with the
+  same rows parsed from the live pages.
+
+## [0.68.0] - 2026-09-29
+
+### Added
+
+- **`changelog apply` files native-surface drift.** A new Phase 7 runs the inventory self-check, a
+  `--binary-only --docs` extraction, and overlap `detect` and `self-check`, then
+  `scripts/native_drift.py` diffs the result against the previous run's summary (kept at
+  `<memory_dir>/claude-code-changelog/native-surface-summary.json`): surfaces added, removed,
+  renamed or reclassified, invocability and marker changes, docs cross-check changes, and new
+  overlap candidates. It files one work item through `/work-items:track` per new candidate with no
+  store row or dismissal, per store row whose recheck trigger fired, and per degraded or broken
+  self-check; a self-check degraded only by a newer CLI proposes revalidation. Each item carries a
+  `native-drift:<kind>:<surface>:<component>` key that dedupes against open items. Unattended runs
+  file without asking; interactive runs list the items and file on one confirmation.
+- **Native-drift filing is bounded.** A summary written without a `detect` report records
+  `detect: null` and never becomes the candidate baseline, so it cannot make every candidate look
+  new. More than 10 items (`--max-items`) needs a person's confirmation; unattended runs file one
+  `batch-overflow` item instead. Dedupe matches the exact `Drift key: <key>` line (`has-key`), so a
+  key never matches its prefix siblings. Each fact is clipped to 300 characters and treated as
+  quoted data, and an optional input path that is not a file warns on stderr.
+
 ## [0.67.0] - 2026-09-29
 
 ### Added

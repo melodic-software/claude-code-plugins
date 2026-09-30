@@ -145,7 +145,7 @@ class Surface:
         text = " ".join(
             str(r.get(key) or "")
             for r in registrations
-            for key in ("description", "argument_hint")
+            for key in ("description", "argument_hint", "search_hint")
         )
         bag = _bag((name, 3.0), (" ".join(aliases), 2.0), (text, 1.0))
         name_sets = [s for s in (set(tokenize(n)) for n in [name, *aliases]) if s]
@@ -326,5 +326,7 @@ def recommended_integration(klass: str, invocable_by: str) -> str | None:
 
 
 # Classes whose store rows take `route` or `suggest`, never `wrap`: a Native
-# step invokes through the Skill tool, and neither is a skill.
-ROUTE_ONLY_CLASSES = frozenset({"builtin-command", "bundled-workflow"})
+# step invokes through the Skill tool, and none of these is a skill.
+ROUTE_ONLY_CLASSES = frozenset(
+    {"builtin-command", "bundled-workflow", "builtin-agent", "builtin-tool"}
+)
