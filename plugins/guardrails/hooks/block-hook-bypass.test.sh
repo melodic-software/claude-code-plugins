@@ -1076,6 +1076,85 @@ run_pwsh "PS: all-variable staged positional call (allowed — outside scope, #2
 run_pwsh "PS: pipeline into & \$w computed operand (still blocked — #2848)" \
   "\$data | & \$w \$out" 2
 
+# --- #4234: a call variable assigned a single-quoted non-writer literal earlier
+# in the same command is a literal target; the positional arm skips that site.
+# Every other shape keeps the block.
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, bare subcommand positionals (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; & $sh x.sh record dir' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, quoted-bare-quoted operands (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; & $sh "$r/packet-seal.sh" record "$s/d"' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target inside a foreach body (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; foreach ($t in '"'"'a'"'"','"'"'b'"'"') { & $sh "$r/seal.sh" record "$s/$t"; "seal $t=$LASTEXITCODE" }; & $sh "$r/prune.sh" --root $b' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, pipeline into the call (allowed — #4234)" \
+  '$py='"'"'python3'"'"'; $data | & $py tool.py' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a writer name (blocked — #4234)" \
+  '$w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is the sc alias (blocked — #4234)" \
+  '$w='"'"'sc'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a module-qualified writer (blocked — #4234)" \
+  '$w='"'"'Microsoft.PowerShell.Management\Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a writer script path (blocked — #4234)" \
+  '$w='"'"'C:/tools/Out-File.ps1'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted assignment (blocked — #4234)" \
+  '$sh="bash"; & $sh x.sh record dir' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: concatenated literal assignment (blocked — #4234)" \
+  '$w='"'"'Set-'"'"'+'"'"'Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal with a method call (blocked — #4234)" \
+  '$w='"'"'bash'"'"'.Replace('"'"'bash'"'"','"'"'Set-Content'"'"'); & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assignment only after the call (blocked — #4234)" \
+  '& $sh x.sh record dir; $sh='"'"'bash'"'"'' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned to a writer (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned by a compound operator (blocked — #4234)" \
+  '$w='"'"'Set-'"'"'; $w+='"'"'Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assignment inside a script block (blocked — #4234)" \
+  '& { $sh='"'"'bash'"'"' }; & $sh x.sh record dir' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: scope-qualified reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $script:w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: scope-qualified call target (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; & $script:w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; & ${w} f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: Set-Variable reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; sv w '"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: foreach loop variable reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; foreach ($w in '"'"'Set-Content'"'"') { & $w f.txt x }' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: automatic variable rebound by the pipeline (blocked — #4234)" \
+  '$_='"'"'bash'"'"'; '"'"'Set-Content'"'"' | % { & $_ f.txt x }' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved target still refused on a splat (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved target still refused on a redirect (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh x > f.txt' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: one resolved call does not exempt another variable (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh a b; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: variable names are case-insensitive (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $W='"'"'Set-Content'"'"'; & $w f.txt x' 2
+
 # Quoted `>` / `-value` text must not trip the write-signal probes.
 run_pwsh "PS: & \$tool quoted greater-than message (allowed)" \
   "& \$tool -Message \"CPU > 90%\"" 0
