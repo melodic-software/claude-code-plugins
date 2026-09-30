@@ -389,7 +389,8 @@ End every run with this block, in this order:
   `terraform.tfvars`. A `-var-file` (the `<env>.tfvars` here) outranks them all, and a variable
   `default` ranks lowest. Basis: <https://developer.hashicorp.com/terraform/language/values/variables>.
   As of: 2026-09-29. Recheck when that page changes the precedence list.
-- **`override` is not an environment.** An override merges into its base's environment. A layer with no declared merge order is refused by name, never guessed.
+- **A Compose layer with no declared merge order is refused by name, never guessed.** Only a base
+  with its `compose.override.yaml`, or the files a `.env` `COMPOSE_FILE` lists, are one environment.
 - **`--live` is a refusal.** Committed files are not silently substituted for a live comparison.
 - **A reformatted record is refused.** Render exits 1 and writes nothing.
 - **Tracked files only.** `git ls-files` is the source list. A tracked symlink is skipped, so it

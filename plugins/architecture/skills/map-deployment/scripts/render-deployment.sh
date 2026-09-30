@@ -244,8 +244,6 @@ summary="$(
           for (i = 1; i <= shown_d; i++) print rows[i] > md
         }
         print "" > md
-        print "Networks and Ingress hosts are not compared." > md
-        print "" > md
         print "## Diagram" > md
         print "" > md
         np = count["placements"] + 0

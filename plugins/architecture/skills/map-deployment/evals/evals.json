@@ -125,14 +125,14 @@
       "id": 10,
       "name": "kubernetes-namespace-diff",
       "prompt": "/architecture:map-deployment --diff staging prod\n\nTracked files are deploy/staging.yaml and deploy/prod.yaml, Kubernetes Deployments for api in namespaces staging and prod. Prod runs ghcr.io/acme/api:1.4.0 with 3 replicas, container port 9090, LOG_LEVEL warn, and a FEATURE_X variable that staging lacks. Staging runs 1.0.0 with 1 replica, port 8080, LOG_LEVEL info. Each sets PASSWORD to a different value. Neither declares an Ingress.",
-      "expected_output": "The diff names the image, the replica count, the port, the LOG_LEVEL value, FEATURE_X as present in prod only, and that PASSWORD differs. It lists the difference kinds compared and says networks and Ingress hosts are not compared. Neither password appears.",
+      "expected_output": "The diff names the image, the replica count, the port, the LOG_LEVEL value, FEATURE_X as present in prod only, and that PASSWORD differs. It lists the difference kinds compared, which include networks and Ingress hosts. Neither password appears.",
       "narration": true,
       "expectations": [
         "The environments are the namespaces staging and prod",
         "The diff reports the image, replica, port, and LOG_LEVEL differences",
         "The diff reports FEATURE_X as present in one environment only",
         "The diff says the secret parameter differs and does not contain either password",
-        "The diff section lists the kinds compared and does not claim networks or Ingress hosts were compared"
+        "The diff section lists the kinds compared, including network or Ingress added or removed and Ingress host, and does not say they are not compared"
       ]
     },
     {
