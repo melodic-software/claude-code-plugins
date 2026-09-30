@@ -415,3 +415,108 @@ def match_invocation(
         for flag in spec.optional
         if flag.requires is not None and flag.name in seen
     ) and all(len(seen.intersection(group)) == 1 for group in spec.one_of)
+
+
+_TOKEN_CAP = 80
+
+
+def clip_token(value: str) -> str:
+    """A user-supplied token quoted for a message, capped so a paste stays short."""
+    clipped = value if len(value) <= _TOKEN_CAP else value[: _TOKEN_CAP - 3] + "..."
+    return repr(clipped)
+
+
+def required_order(spec: Subcommand) -> str:
+    """The required head of ``spec`` spelled in the one order the guard admits."""
+    return ", ".join(flag.name for flag in spec.required)
+
+
+def _order_rule(spec: Subcommand) -> str:
+    if not spec.required:
+        return "every flag is optional and may come in any order"
+    return (
+        f"required flags first, in order: {required_order(spec)}; "
+        "then optional flags in any order"
+    )
+
+
+def explain_mismatch(
+    name: str,
+    words: list[str],
+    external_checks: dict[str, object] | None = None,
+) -> str | None:
+    """Name the first word ``match_invocation`` refuses and the rule it broke.
+
+    Runs on the deny path only and walks the same grammar in the same order, so
+    it returns ``None`` exactly when ``match_invocation`` returns ``True``.
+    """
+    spec = subcommand(name)
+    if spec is None:
+        return f"{clip_token(name)} is not an engine subcommand."
+    checks = external_checks or {}
+
+    def value_problem(flag: Flag, value: str) -> str | None:
+        subject = f"{flag.name} value {clip_token(value)}"
+        if not is_argument(value):
+            return f"{subject} must be a literal, not empty or starting with '-'."
+        if flag.choices is not None and value not in flag.choices:
+            return f"{subject} must be one of: {', '.join(sorted(flag.choices))}."
+        if flag.pattern is not None and flag.pattern.fullmatch(value) is None:
+            return f"{subject} must match {flag.pattern.pattern}."
+        if flag.external_check is not None:
+            check = checks.get(flag.external_check)
+            if not (callable(check) and check(value)):
+                return f"{subject} is not the {flag.external_check}."
+        return None
+
+    def read_value(flag: Flag, index: int) -> tuple[int, str | None]:
+        if not flag.takes_value:
+            return index, None
+        if index >= len(words):
+            return index, f"{flag.name} needs a value."
+        return index + 1, value_problem(flag, words[index])
+
+    index = 0
+    for flag in spec.required:
+        if index >= len(words):
+            return f"required flag {flag.name} is missing; {_order_rule(spec)}."
+        if words[index] != flag.name:
+            return (
+                f"{clip_token(words[index])} is where required flag {flag.name} "
+                f"belongs; {_order_rule(spec)}."
+            )
+        index, problem = read_value(flag, index + 1)
+        if problem:
+            return problem
+
+    seen: set[str] = set()
+    while index < len(words):
+        word = words[index]
+        flag = spec.flag(word)
+        if flag is None:
+            return f"{clip_token(word)} is not a {name} flag."
+        if flag.required:
+            return (
+                f"required flag {flag.name} is already given in the required head "
+                "and cannot repeat."
+            )
+        if flag.name in seen and not flag.repeatable:
+            return f"{flag.name} is not repeatable but is given twice."
+        seen.add(flag.name)
+        index, problem = read_value(flag, index + 1)
+        if problem:
+            return problem
+
+    for flag in spec.optional:
+        if (
+            flag.requires is not None
+            and flag.name in seen
+            and flag.requires not in seen
+        ):
+            return f"{flag.name} requires {flag.requires}."
+    for group in spec.one_of:
+        given = sorted(seen.intersection(group))
+        if len(given) != 1:
+            count = "none was" if not given else f"{len(given)} were"
+            return f"give exactly one of {', '.join(group)}; {count} given."
+    return None

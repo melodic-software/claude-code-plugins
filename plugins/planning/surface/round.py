@@ -521,9 +521,12 @@ def op_reply(d, doc, a):
         ("why", a.why, TEXT_CAP),
     ):
         capped(f"reply {field}", val, cap)
-    line = {"at": now(), "by": "claude", "text": a.text or ""}
-    if a.kind:
-        line["kind"] = a.kind
+    line = {
+        "at": now(),
+        "by": "claude",
+        "kind": a.kind or "reply",
+        "text": a.text or "",
+    }
     if a.seq is not None:
         line["replyTo"] = a.seq
     if a.rec:

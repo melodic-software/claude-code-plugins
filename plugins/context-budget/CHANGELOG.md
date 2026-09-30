@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.6.48] - 2026-09-30
+
+### Changed
+
+- **`audit`'s description fits the 500-character listing budget.** It keeps the `explain-usage` route phrase and the trigger phrases, in fewer words ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.6.47] - 2026-09-29
 
 ### Changed

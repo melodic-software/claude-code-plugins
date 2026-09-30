@@ -9,10 +9,10 @@
 <style>
 :root{
   color-scheme:light;
-  --ground:#f3f4f6; --panel:#ffffff; --ink:#1a2130; --muted:#5d6678; --faint:#8a93a3;
+  --ground:#f3f4f6; --panel:#ffffff; --ink:#1a2130; --muted:#5d6678; --faint:#657082;
   --line:#dde1e8; --line-strong:#c6ccd6; --accent:#2f5d8a; --accent-soft:#e6eef7;
   --ok:#2d7a4b; --ok-soft:#e3f2e8; --chg:#9a5b00; --chg-soft:#fbefd9;
-  --def:#62489a; --def-soft:#eee8f8; --wait:#6b7280; --wait-soft:#eceef1;
+  --def:#62489a; --def-soft:#eee8f8; --wait:#5f6878; --wait-soft:#eceef1;
   --warn:#a3382b; --warn-soft:#fbe7e4; --res:#0f766e; --res-soft:#dcf2ef;
   --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
@@ -23,7 +23,7 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
-    --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#78808f;
+    --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#8b93a2;
     --line:#2a313c; --line-strong:#3a4250; --accent:#8fb6e0; --accent-soft:#1f2c3b;
     --ok:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
     --def:#b9a3ec; --def-soft:#2a2240; --wait:#9aa1ad; --wait-soft:#232830;
@@ -32,7 +32,7 @@
 }
 :root[data-theme="dark"]{
   color-scheme:dark;
-  --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#78808f;
+  --ground:#12151b; --panel:#1a1f27; --ink:#e7eaf0; --muted:#a3abb9; --faint:#8b93a2;
   --line:#2a313c; --line-strong:#3a4250; --accent:#8fb6e0; --accent-soft:#1f2c3b;
   --ok:#7fcf9c; --ok-soft:#18301f; --chg:#f0b766; --chg-soft:#35270f;
   --def:#b9a3ec; --def-soft:#2a2240; --wait:#9aa1ad; --wait-soft:#232830;
@@ -116,7 +116,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .qbtn:hover{border-color:var(--line-strong)}
 .qbtn[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
 .qbtn.dim{opacity:.55}
-.qbtn.archived{opacity:.45;filter:grayscale(1)}
+.qbtn.archived{filter:grayscale(1)}
 .qid{font:600 13px var(--mono);grid-row:1;align-self:start;padding-top:1px;max-width:8ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qbody{min-width:0;display:flex;flex-direction:column;gap:2px}
 .qtitle{font-size:13.5px;line-height:1.35}
@@ -137,7 +137,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .s-accept,.s-hedged{color:var(--ok);background:var(--ok-soft)}
 .s-alt,.s-own{color:var(--chg);background:var(--chg-soft)}
 .s-defer{color:var(--def);background:var(--def-soft)}
-.s-sup,.s-arch{color:var(--wait);background:var(--wait-soft)}
+.s-sup,.s-arch,.s-blocked{color:var(--wait);background:var(--wait-soft)}
 .s-wait{color:var(--res);background:var(--res-soft)}
 .s-need{color:var(--warn);background:var(--warn-soft)}
 .qbtn.st-wait{border-left:3px solid var(--res)}
@@ -169,6 +169,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .dids b{font:600 20px var(--mono);color:var(--ink)}
 .dids .grow{flex:1}
 .dhead h3{font:600 22px/1.25 var(--display);margin:0;text-wrap:balance;max-width:48ch}
+.youans{margin:4px 0 0;font-size:13px;color:var(--muted)}
 .links{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
 .links span{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 .ref{display:inline-flex;gap:5px;align-items:baseline;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:1px 6px;font:13px var(--sans);cursor:pointer;color:var(--ink)}
@@ -238,7 +239,7 @@ legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase
 .choice .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .choice.armed{border-color:var(--accent);background:var(--accent-soft)}
 .choice.rec .t b{color:var(--ok)}
-.choice.current .t::after{content:" (current)";color:var(--faint)}
+.choice .yours{font-size:11px;font-weight:600;color:var(--accent);margin-right:6px}
 .choices.nudge{animation:flash 1.2s ease-out}
 .arow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
 .compose{display:grid;gap:8px}
@@ -543,6 +544,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function crev(q){ return (q.contentRev || 0) + events().filter(e => e.id === q.id && (DEC.has(e.kind) || e.kind === "undo")).length; }
   function pending(){ return events().filter(e => !isHandled(e.seq) && !e.withdrawn); }
   function lastEventSeq(id){ let s = 0; for (const e of events()) if (e.id === id && e.seq > s) s = e.seq; return s; }
+  const answered = (q, seq) => isHandled(seq) || (q.history || []).some(h => h.by === "claude" && h.replyTo >= seq); // a later reply or revise to this event (or a newer one) answers it
+  function upstreamChanged(q){ // the prerequisites behind a delivered, unhandled decision; the server marks their direct dependents `revising`
+    return (q.dependsOn || []).filter(p => Q[p] && events().some(e => e.id === p && DEC.has(e.kind) && e.deliveredAt && !e.withdrawn && !isHandled(e.seq)));
+  }
+  const upstreamText = q => { const u = upstreamChanged(q); return u.length ? "Upstream " + u.join(", ") + " changed" : "Upstream changed"; };
   function lastDecisionSeq(id){ let s = 0; for (const e of events()) if (e.id === id && DEC.has(e.kind) && !e.withdrawn && e.seq > s) s = e.seq; return s; }
   function staleBy(q){ // the prerequisites decided after this question was
     const ps = (q.dependsOn || []).filter(p => Q[p]), mine = lastDecisionSeq(q.id), c = ps.filter(p => lastDecisionSeq(p) > mine);
@@ -561,17 +567,29 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return out;
   }
   const openAssumptions = () => commitRows().filter(r => !r.on).length;
+  const talks = h => h.by === "claude" && (!!h.replyTo || ["reply", "rephrase", "note", "revise"].includes(h.kind)); // the asked, hold, supersede and confirm lines carry neither
   function unansweredReply(q){ // Claude answered your question and you have not responded since
-    const h = historyOf(q)[0];
-    return !!(h && h.by === "claude" && h.replyTo && events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase")));
+    const h = historyOf(q).find(x => x.by !== "claude" || talks(x));
+    if (!h || h.by !== "claude") return false;
+    if (!h.replyTo) return h.kind !== "revise"; // a heads-up: Claude spoke first and nothing of yours follows it
+    return !!events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase"));
   }
-  const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (stateOf(q) !== "arch" && unansweredReply(q));
+  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a reply recording the decision itself is not
+    const d = counted(q), recorded = x => x.kind !== "revise" && events().some(e => e.seq === x.replyTo && DEC.has(e.kind));
+    const h = d && historyOf(q).find(x => talks(x) && !recorded(x));
+    return h && String(h.at) > String(d.updatedAt) ? h : null;
+  }
+  const afterText = h => h.kind === "revise" ? "Revised after your answer - review" : "Replied after your answer " + fmtT(h.at);
+  const answerLine = q => { const d = counted(q); return d ? "You answered " + LABEL[d.decision] + (d.decision === "alt" ? " (" + d.alt + ")" : "") + " at " + fmtT(d.updatedAt) : ""; };
+  const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (live(q) && (unansweredReply(q) || !!afterAnswer(q)));
+  const blocked = q => stateOf(q) === "need" || upOf(q).some(p => !isAnswered(stateOf(Q[p]))); // answerable questions sort before these
+  const settled = q => isAnswered(stateOf(q)) && !needsYou(q);
   function wrapFreeze(){ // ms left in the wrap-up freeze on decision saves
     const w = events().filter(e => e.kind === "wrapup" && !e.withdrawn).pop();
     if (!w || isHandled(w.seq)) return 0;
     return Math.max(0, FREEZE_MS - (Date.now() - Date.parse(w.at)));
   }
-  const allDone = () => { const l = S.doc.questions.filter(live); return l.length > 0 && l.every(q => isAnswered(stateOf(q))); };
+  const allDone = () => { const l = S.doc.questions.filter(live); return l.length > 0 && l.every(settled); };
   const groupById = id => (S.doc.groups || []).find(g => g.id === id);
   const groupDone = gid => S.doc.questions.filter(q => q.group === gid && live(q)).every(q => isAnswered(stateOf(q)));
   const lockedBy = gid => ((groupById(gid) || {}).dependsOn || []).filter(p => groupById(p) && !groupDone(p));
@@ -580,12 +598,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function carryOver(){
     const max = {}, out = {};
     S.doc.questions.forEach(q => { const s = q.stage || ""; max[s] = Math.max(max[s] || 0, q.round || 1); });
-    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - (q.round || 1); if (n > 0 && isOpen(stateOf(q))) out[q.id] = n; });
+    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - (q.round || 1); if (n > 0 && needsYou(q)) out[q.id] = n; });
     return out;
   }
   function passes(q){
     const st = stateOf(q);
-    return S.filter === "all" || (S.filter === "open" && isOpen(st)) || (S.filter === "pending" && st === "wait") || (S.filter === "answered" && isAnswered(st));
+    return S.filter === "all" || (S.filter === "open" && needsYou(q)) || (S.filter === "pending" && st === "wait") || (S.filter === "answered" && isAnswered(st));
   }
   const opened = () => new Set(lsGet("opened", []));
 
@@ -622,7 +640,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     const landed = landedIds();
     secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds; a new round's section opens
-      s.open = s.items.filter(q => ["open", "wait", "need"].includes(stateOf(q))).length;
+      s.open = s.items.filter(q => stateOf(q) === "wait" || needsYou(q)).length;
       s.done = s.items.length > 0 && s.open === 0;
       s.fresh = s.items.some(q => landed.has(q.id));
       const o = lsGet("col:" + s.key, null), dflt = s.done;
@@ -652,18 +670,21 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (st === "wait" || st === "need") {
       chips.push('<span class="chip s-' + st + '" title="' + esc(waitText(q)) + '">' + esc(trunc(waitText(q), 60)) + "</span>");
       if (d && d.decision) chips.push(d.aside ? '<span class="chip aside">Set aside</span>' : '<span class="chip plain">' + LABEL[d.decision] + "</span>");
-    } else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
+    } else if (st === "open" && blocked(q)) chips.push('<span class="chip s-blocked" title="Waits on a question you have not answered">Blocked</span>');
+    else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
     if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
-    if (q.revising && st !== "arch") chips.push('<span class="chip hot">Claude is revising</span>');
+    if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled that answer yet, so this question may be revised.">' + esc(upstreamText(q)) + "</span>");
     if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
-    if (lastEventSeq(q.id) && !isHandled(lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
+    const aa = live(q) && afterAnswer(q);
+    if (aa) chips.push('<span class="chip hot">' + esc(afterText(aa)) + "</span>");
+    if (lastEventSeq(q.id) && !answered(q, lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const needs = upOf(q).map(p => '<span class="needs' + (isAnswered(stateOf(Q[p])) ? "" : " unmet") + '">needs ' + esc(p) + "</span>").join("");
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
     return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath || up ? " dim" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
-      '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(q.short || q.title) + "</span>" + needs +
+      '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(String(q.short || q.title).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1")) + "</span>" + needs +
       '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") + "</span>" +
       (dot ? '<span class="newdot" title="Changed by Claude"></span><span class="vh">, updated</span>' : "") + "</button>";
   }
@@ -758,7 +779,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("eyebrow").textContent = m.eyebrow || (headRound() ? "" : "Interview");
     $("roundLbl").textContent = headRound();
     $("title").textContent = m.title || "Interview";
-    const l = S.doc.questions.filter(live), done = l.filter(q => isAnswered(stateOf(q))).length, wn = l.filter(q => stateOf(q) === "wait").length;
+    const l = S.doc.questions.filter(live), done = l.filter(settled).length, wn = l.filter(q => stateOf(q) === "wait").length;
     $("meterText").textContent = done + " of " + l.length + " answered";
     $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const pb = $("pendBtn"); pb.hidden = !wn; pb.textContent = wn + " pending research";
@@ -917,12 +938,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("answer").hidden = false;
     const q = Q[S.sel];
     if (!q) { el.innerHTML = '<p class="empty">' + (S.loaded ? "Pick a question." : "Loading questions.") + "</p>"; renderAnswer(); return; }
-    const st = stateOf(q), d = decisionOf(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [], off = reconfirmOf(q) ? 1 : 0;
+    const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [], off = reconfirmOf(q) ? 1 : 0;
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner();
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + (g ? "<span>" + esc(g.title) + "</span>" : "") +
       '<span class="chip s-' + st + '">' + LABEL[st] + '</span><span class="grow"></span>' +
-      (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + esc(q.title) + "</h3></div>";
+      (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
+      (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + "</div>";
     const kids = S.doc.questions.filter(x => x.followUpOf === q.id).map(x => x.id);
     const unblocks = S.doc.questions.filter(x => (x.dependsOn || []).includes(q.id)).map(x => x.id);
     const link = (label, ids) => ids.length ? "<span>" + label + " " + ids.map(refHtml).join(" ") + "</span>" : "";
@@ -934,7 +956,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + upOf(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. You can still answer.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
-    if (q.revising && st !== "arch") h += '<div class="banner"><b>Claude is revising</b> after a change to a question this one needs. You can still answer.</div>';
+    if (q.revising && st !== "arch") h += '<div class="banner"><b>' + esc(upstreamText(q)) + ".</b> Claude has not handled that answer yet, so this question may be revised. You can still answer.</div>";
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
     if (q.revised) h += '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true ? "" : q.revised) +
@@ -992,8 +1014,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt)) : null;
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
-    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && c.kind === "accept" ? " rec" : "") + (armed === c ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t"><b>' + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
+    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
     const needText = armed && noteKind(armed.kind) && keptText(armed) === undefined && !text, frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + armed.label + (withNote(q, armed) ? " with note" : "") : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
@@ -1002,7 +1024,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
-      '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>';
+      '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>' +
+      '<button class="act soft" data-clear="1"' + (text ? "" : " disabled") + ' title="Empties the note">Clear</button>';
     renderConflict();
     renderToast();
   }
@@ -1016,6 +1039,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const draft = lsGet("draft:" + q.id, null), d = decisionOf(q);
     $("note").value = draft !== null ? draft : ((d && !d.aside && d.text) || "");
     grow($("note"));
+  }
+  function clearNote(){ // an empty draft, so the saved decision note is not put back
+    const q = Q[S.sel]; if (!q) return;
+    lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note")); renderAnswer(); $("note").focus();
   }
   function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
 
@@ -1355,10 +1382,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const i = order.indexOf(S.sel);
     select(order[(i + dir + order.length) % order.length], {animate: true});
   }
-  function nextOpen(){
-    const order = railOrder(), i = order.indexOf(S.sel);
-    for (let k = 1; k <= order.length; k++) { const id = order[(i + k) % order.length]; if (isOpen(stateOf(Q[id]))) return id; }
-    return null;
+  function firstNeeding(){ // the first question you can answer now, else the first you cannot yet, else the first in the rail
+    const order = railOrder(), need = order.filter(id => needsYou(Q[id]));
+    return need.find(id => !blocked(Q[id])) || need[0] || order[0] || null;
   }
   function nextNeeding(dir){ // next (1) or previous (-1) item needing you, in rail order
     const order = railOrder(), len = order.length, i = order.indexOf(S.sel);
@@ -1450,11 +1476,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }
       if (!res.ok) throw new Error(data.error || res.status);
       S.conflict = null;
-      lsSet("draft:" + q.id, null);
+      lsSet("draft:" + q.id, kind === "own" ? "" : null); // an own answer shows in the decision line, so the composer starts empty
       await refresh();
       S.busy = false; S.snap[q.id] = snapOf(Q[q.id]);
       if (!isDec) {
-        $("note").value = ""; grow($("note"));
+        lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note"));
         toast(kind === "ask" ? "Sent. Claude's reply lands in the thread." : "Sent. Claude's rephrase lands in the thread.");
         renderDetail(); const th = $("thread"); if (th) th.classList.add("flash");
         return;
@@ -1466,7 +1492,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         toast(held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread.", false, true);
         fillNote(); renderAll(); return;
       }
-      const nxt = nextOpen(), done = allDone();
+      const nxt = nextNeeding(1), done = allDone();
       const msg = "Saved " + q.id + ".";
       if (typing) { toast(msg + (nxt && nxt !== q.id ? " Next open: " + nxt + (setting("shortcuts") ? " (Esc, then n)." : ".") : done ? " All answered." : ""), false, true); fillNote(); renderAll(); return; }
       if (nxt && nxt !== q.id) { select(nxt, {animate: true}); toast(msg + " Now " + nxt + ".", false, true); }
@@ -1615,7 +1641,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       S.pinned = lsGet("pinned", false); S.railHidden = lsGet("railHidden", false); S.noteSeen = lsGet("noteSeen", 0);
       if (lsGet("actSeen", null) === null) markSeen(); // a new browser starts with everything seen
       const saved = lsGet("sel", null);
-      const pick = saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : (railOrder().find(id => isOpen(stateOf(Q[id]))) || railOrder()[0] || null);
+      const pick = saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : firstNeeding();
       if (pick) select(pick); else { renderRail(); renderDetail(); }
       if (document.hidden) S.hiddenBase = arrivalKeys(); // a tab opened in the background fires no visibilitychange
       renderHeader(); renderFly();
@@ -1670,6 +1696,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // ---------- events ----------
   document.addEventListener("click", e => {
     const t = e.target;
+    if (t.name === "choice") { arm(+t.value); return; } // click, not change: the pre-checked Your answer row fires no change
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
@@ -1693,6 +1720,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const v = t.closest(".seg button"); if (v) { S.view = v.dataset.view; lsSet("view", S.view); renderRail(); return; }
     if (t.closest("[data-save]")) { submitArmed(); return; }
     const a = t.closest("button[data-act]"); if (a && !a.disabled) { send(a.dataset.act); return; }
+    const cl = t.closest("button[data-clear]"); if (cl && !cl.disabled) { clearNote(); return; }
     if (t.closest("[data-undo]")) { doUndo(); return; }
     const cf = t.closest("[data-conflict]");
     if (cf && S.conflict) {
@@ -1722,7 +1750,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
   document.addEventListener("change", e => {
     const t = e.target;
-    if (t.name === "choice") { arm(+t.value); return; }
     if (t.dataset && t.dataset.gcmp) { S.gal.b = t.value; galRefresh(); return; }
     if (t.id === "filter") { S.filter = t.value; lsSet("filter", S.filter); renderRail(); return; }
     if (t.dataset && t.dataset.set) {
