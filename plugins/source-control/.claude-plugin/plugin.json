@@ -108,12 +108,12 @@
       "type": "string",
       "multiple": true,
       "title": "Babysit merge block labels",
-      "description": "Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent: the tier (when enabled) refuses fail-closed."
+      "description": "Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent and undeclared in the target repository: the tier (when enabled) refuses fail-closed."
     },
     "babysit_review_trigger_phrase": {
       "type": "string",
       "title": "Babysit review trigger phrase",
-      "description": "Comment phrase that requests an AI re-review (posted and recognized). Absent: the review-trigger module stays dormant."
+      "description": "Comment phrase that requests an AI re-review (posted and recognized). Absent and undeclared in the target repository: the review-trigger module stays dormant."
     },
     "babysit_review_bot_logins": {
       "type": "string",

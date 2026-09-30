@@ -91,5 +91,66 @@ class RunRefusesBeforeOpeningState(unittest.TestCase):
         opener.assert_not_called()
 
 
+class _Reached(Exception):
+    """Raised by the opener stub to prove the run got past the phrase check."""
+
+
+class PhraseFlagIsOptional(unittest.TestCase):
+    """A repository that declares the phrase needs no `--trigger-phrase` flag."""
+
+    def test_cli_parses_without_the_flag(self) -> None:
+        argv = [
+            "request_review.py",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "a" * 12,
+            "--state-dir",
+            "/state",
+        ]
+        run = mock.Mock(return_value={})
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(request_review, "run", run),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = request_review.main()
+        self.assertEqual(code, 0)
+        self.assertIsNone(run.call_args.args[0].trigger_phrase)
+
+    def test_repo_phrase_alone_reaches_the_guarded_mutation(self) -> None:
+        RepoConfigFake({"owner/repo": REPO_FILE}).install(self)
+        opener = mock.Mock(side_effect=_Reached)
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(request_review, "begin_guarded_mutation", opener),
+            _quiet_stderr(),
+            self.assertRaises(_Reached),
+        ):
+            state_dir = pathlib.Path(tmp)
+            request_review.run_locked(
+                _args(trigger_phrase=None, apply=True),
+                state_dir,
+                state_dir / "state.json",
+            )
+        opener.assert_called_once()
+
+    def test_neither_source_refuses_before_opening_state(self) -> None:
+        RepoConfigFake({}).install(self)
+        opener = mock.Mock(side_effect=_Reached)
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            mock.patch.object(request_review, "begin_guarded_mutation", opener),
+            self.assertRaisesRegex(RuntimeError, "no review trigger phrase"),
+        ):
+            state_dir = pathlib.Path(tmp)
+            request_review.run_locked(
+                _args(trigger_phrase="", apply=True),
+                state_dir,
+                state_dir / "state.json",
+            )
+        opener.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

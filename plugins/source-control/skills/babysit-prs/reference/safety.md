@@ -492,8 +492,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   --review-settle-minutes <review-settle-minutes>`. Dropping it from a merge command silently
   merges inside a re-review's latency window, and supplying
   one half without the other is a usage error (exit `2`) rather than a partial hold. Omit the pair
-  only when **both** keys are unset; the gate still applies a pair the PR's repository declares on
-  its default branch. See §Review-Settle Hold.
+  only when **both** keys are unset: the pair is `userConfig`-only, and a repository's declaration
+  of either key never supplies or changes it. See §Review-Settle Hold.
 - **`babysit_review_settle_minutes` set with `babysit_review_bot_logins` unset is a configuration
   error, and it must be refused HERE rather than rendered away.** Omitting both flags because one
   key is missing is the one case the CLI's exit `2` cannot catch: the lone flag never reaches it,
@@ -537,8 +537,10 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - The merge wrapper's `--autopilot-merge-tier` flag layers the tier criteria (issue-linked,
   lane-authored, no blocking label, a distinct-bot approval on the live head, no human blocking
   comment) onto the base gate. It is **fail-closed**: the umbrella flag refuses (exit `3`) unless
-  `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all non-empty, and supplying
-  any of those three without the umbrella is a usage error (exit `2`). Absent the flag the gate is
+  `--lane-logins` and `--approver-bot-logins` are non-empty and the effective block labels are
+  non-empty (the `--block-labels` fallback plus the target repository's `babysit_merge_block_labels`;
+  the gate checks that set after it reads the repository's policy). Supplying any of those three
+  flags without the umbrella is a usage error (exit `2`). Absent the flag the gate is
   exactly its prior self, so worker/autopilot's existing gate-proven merges are unchanged. This
   tier is only ever wired when `babysit_autopilot_merge_tier` is enabled.
 - The resolve wrapper's mutating forms are `--autonomous --resolve` (worker tier, constrained by
@@ -747,8 +749,11 @@ announced operator step.
   ```
 
   The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
-  `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all supplied, and any of
-  those three without the umbrella is a usage error (exit `2`). Add `--method <merge-method>`,
+  `--lane-logins` and `--approver-bot-logins` are supplied and the effective block labels are
+  non-empty, and any of those three flags without the umbrella is a usage error (exit `2`).
+  `--block-labels` is the deprecated `userConfig` fallback: omit it when `babysit_merge_block_labels`
+  is unset and the target repository declares the key, and the gate refuses (exit `3`) when neither
+  source supplies a label. Add `--method <merge-method>`,
   `--extra-dependency-manager-logins <extra-dependency-manager-logins>`, and the review-settle pair
   `--review-bot-logins <review-bot-logins> --review-settle-minutes <review-settle-minutes>` when
   configured, exactly as for the base merge readiness gate above (omit each when its value is empty

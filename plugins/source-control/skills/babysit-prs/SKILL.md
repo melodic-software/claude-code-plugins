@@ -285,8 +285,8 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only. Gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
 | `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
-| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | deprecated fallback `--block-labels` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
-| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | deprecated fallback `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
+| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | deprecated fallback `--block-labels` (merge wrapper, autopilot merge tier); omit it when unset | tier refuses fail-closed when enabled and the target repository declares none |
+| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | deprecated fallback `--trigger-phrase` (snapshot, request_review); omit it when unset | review-trigger module dormant unless the target repository declares it |
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review, merge gate) | review-trigger module dormant; merge gate's review-settle hold dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | deprecated fallback `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_review_settle_minutes` | `${user_config.babysit_review_settle_minutes}` | `--review-settle-minutes` (merge gate) | review-settle hold dormant. Pair it with `babysit_review_bot_logins`, which the gate requires alongside it |

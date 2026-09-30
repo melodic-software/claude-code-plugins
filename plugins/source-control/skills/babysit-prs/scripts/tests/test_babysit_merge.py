@@ -1542,6 +1542,36 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
             result["autopilotMergeTier"]["blockingLabels"], ["do-not-merge"]
         )
 
+    def test_repo_block_labels_enable_the_tier_with_the_flag_unset(self) -> None:
+        flags = self.TIER_FLAGS[:-2]
+        self.assertNotIn("--block-labels", flags)
+        RepoConfigFake(
+            {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
+        ).install(self)
+        code, held = self._run_real_gate(
+            "owner/repo#1", _pr(labels=[{"name": "repo-veto"}]), *flags
+        )
+        self.assertEqual((code, held["ready"]), (10, False))
+        self.assertEqual(held["autopilotMergeTier"]["blockingLabels"], ["repo-veto"])
+        code, clear = self._run_real_gate("owner/repo#1", _pr(), *flags)
+        self.assertEqual((code, clear["ready"]), (0, True), clear["blockers"])
+
+    def test_tier_with_no_block_labels_from_either_source_refuses(self) -> None:
+        RepoConfigFake({}).install(self)
+        evaluate = mock.Mock()
+        argv = ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner"]
+        argv += self.TIER_FLAGS[:-2]
+        out = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(merge, "evaluate", evaluate),
+            contextlib.redirect_stdout(out),
+        ):
+            code = merge.main()
+        self.assertEqual(code, 3)
+        self.assertIn("block labels", json.loads(out.getvalue())["error"])
+        evaluate.assert_not_called()
+
     def test_repo_dependency_manager_logins_add_to_the_flag_set(self) -> None:
         RepoConfigFake(
             {

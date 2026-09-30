@@ -1545,20 +1545,20 @@ def main() -> int:
             )
 
     # Build the autopilot-merge-tier config before any network access, failing
-    # closed on a partial configuration: the tier's whole point is that the three
-    # sets are all supplied deliberately, so an umbrella flag with any of them
-    # empty is a refusal, never a merge on an under-specified tier.
+    # closed on a partial configuration: the tier's whole point is that its sets are
+    # all supplied deliberately, so an umbrella flag with any of them empty is a
+    # refusal, never a merge on an under-specified tier. The block labels are the
+    # exception: the target repository may declare them, so their non-empty check
+    # runs once the repository's policy is read.
     tier: AutopilotMergeTierConfig | None = None
     if args.autopilot_merge_tier:
         lane = parse_csv_set(args.lane_logins)
         approver = parse_csv_set(args.approver_bot_logins)
-        block = parse_csv_set(args.block_labels)
         missing = [
             name
             for name, value in (
                 ("--lane-logins", lane),
                 ("--approver-bot-logins", approver),
-                ("--block-labels", block),
             )
             if not value
         ]
@@ -1572,7 +1572,7 @@ def main() -> int:
         tier = AutopilotMergeTierConfig(
             lane_logins=frozenset(lane),
             approver_bot_logins=frozenset(approver),
-            block_labels=frozenset(block),
+            block_labels=frozenset(parse_csv_set(args.block_labels)),
         )
     elif any((args.lane_logins, args.approver_bot_logins, args.block_labels)):
         return _refuse(
@@ -1615,7 +1615,15 @@ def main() -> int:
                 2,
             )
     if tier is not None:
-        # Add-only: the effective labels are the flag set plus the repository's.
+        # Add-only: the effective labels are the flag set plus the repository's, and
+        # an empty union is the same under-specified refusal the flags used to raise.
+        if not policy.merge_block_labels:
+            return _refuse(
+                "--autopilot-merge-tier requires non-empty block labels, from "
+                "--block-labels or the repository's babysit_merge_block_labels; "
+                "refusing to run the tier under-specified",
+                3,
+            )
         tier = replace(tier, block_labels=policy.merge_block_labels)
 
     # Resolve self logins only after every argument-shape refusal above: '@me'

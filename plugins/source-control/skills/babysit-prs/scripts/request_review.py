@@ -292,7 +292,10 @@ def run_locked(
     config = build_trigger_config(args, target_repo)
     recognizer = trigger_regex(config.trigger_phrase)
     if recognizer is None:
-        raise RuntimeError("a non-empty review trigger phrase is required")
+        raise RuntimeError(
+            "no review trigger phrase: neither the repository's "
+            "babysit_review_trigger_phrase nor --trigger-phrase is set"
+        )
     opened = begin_guarded_mutation(args, state_dir, state_path)
     repo, number, key, state, pr_state, expected_head_sha = opened
     mutation_policy = json_object(pr_state.get("mutation_policy"))
@@ -538,10 +541,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--trigger-phrase",
-        required=True,
+        default=None,
         help=(
-            "Exact review-trigger comment body to post and recognize. Required: "
-            "the CLI is inert without it."
+            "Deprecated userConfig fallback for the exact review-trigger comment "
+            "body to post and recognize. The target repository's "
+            "`babysit_review_trigger_phrase` wins; with neither set the run refuses."
         ),
     )
     parser.add_argument(
@@ -561,8 +565,6 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
-    if not (args.trigger_phrase or "").strip():
-        parser.error("--trigger-phrase must not be empty")
     try:
         print(json.dumps(run(args), indent=2, sort_keys=True))
     except Exception as exc:

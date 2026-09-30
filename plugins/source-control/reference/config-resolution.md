@@ -346,7 +346,9 @@ Merge modes:
 
 - **Hold lists** are the union of the repository list and the fallback list. Either side can add an
   entry and neither can drop one, so a repository-writable file never shortens a hold or removes a
-  veto label.
+  veto label. The autopilot merge tier is fail-closed on the union: it refuses when the effective
+  block labels are empty, so a repository that declares `babysit_merge_block_labels` enables the tier
+  with the fallback flag unset.
 - **The review pair** is `userConfig`-only: a repository that declares either key is ignored with a
   note on stderr, and the `userConfig` pair applies unchanged. The merge gate clears the settle hold
   as soon as ANY listed reviewer has reviewed the live head, so a repository-writable reviewer list
