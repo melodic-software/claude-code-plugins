@@ -183,7 +183,9 @@ out of scope until such a signal exists.
   `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }`
   runs. A `-c` override, `--exec-path`, a computed or obscured subcommand, an
   alias, `fetch`, `grep` or any mutating verb keeps the whole command blocked,
-  as do dynamic invocation, launchers and here-string shapes. A blocked loop
+  as do an environment write (a `GIT_*` name, an `Env:` provider path, a
+  `$env:NAME` assignment, `SetEnvironmentVariable`, a .NET `[Environment]` or
+  `.Invoke(` call), dynamic invocation, launchers and here-string shapes. A blocked loop
   runs once unrolled into flat statements (`git -C <path> status; git -C <path>
   log --oneline -3`)
   ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236),

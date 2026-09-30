@@ -1002,6 +1002,9 @@ run_pwsh "PS: PATH assignment beside a read-only git group (blocked)" \
 run_pwsh "PS: provider-qualified Environment:: path beside a read-only git group (blocked)" \
   "Set-Item -Path 'Microsoft.PowerShell.Core\\Environment::X' 'v'; & { git log }" 2
 # shellcheck disable=SC2016
+run_pwsh "PS: reflection SetEnvironmentVariable with a split name beside a read-only git group (blocked)" \
+  "\$m = [Environment].GetMethod(('Set'+'EnvironmentVariable'), [Type[]]@([string],[string])); \$m.Invoke(\$null, [object[]]@(('GI'+'T_PAGER'), 'C:\\evil.exe')); & { git log }" 2
+# shellcheck disable=SC2016
 run_pwsh "PS: a \$env: read inside a read-only git group (allowed)" \
   "foreach (\$d in 'a') { git -C \"\$env:USERPROFILE\\\$d\" status }" 0
 # shellcheck disable=SC2016

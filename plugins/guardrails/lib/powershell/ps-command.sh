@@ -1768,10 +1768,12 @@ ps::git_command_is_readonly() {
 #      read into execution and a changed PATH swaps the git that runs. Refused:
 #      any `git_` text (however the name is spelled), an `env:` that is not a
 #      `$env:NAME` / `${env:NAME}` read (a provider path such as `Set-Item
-#      ('Env:' + $n)`), an assignment to `$env:NAME`, `Environment::` and
-#      `SetEnvironmentVariable`. A name split in pieces across BOTH the drive and
-#      the variable (`'e'+'nv:'`, `'GI'+'T_'`) is not seen: text matching cannot
-#      prove a computed string harmless.
+#      ('Env:' + $n)`), an assignment to `$env:NAME`, `Environment::`,
+#      `SetEnvironmentVariable`, a `[Environment]` type literal and reflection
+#      (`.Invoke(`, `GetMethod`). A name or type split in pieces (`'e'+'nv:'`,
+#      `'GI'+'T_'`, `[Type]('System.Env'+'ironment')`) is not seen: text matching
+#      cannot prove a computed string harmless, so this is a guard against a
+#      careless write, not a proof against deliberate obfuscation.
 # `-C` is compared case-sensitively: git reads `-c` as a config override.
 #
 # Dual-mode verbs are argument-aware, as in the blocklist's carve-out: `remote`
@@ -1794,7 +1796,7 @@ ps::git_command_is_interrogation_only() {
   # shellcheck disable=SC2016  # literal PowerShell `$env:` text, not expansions
   local env_assign='\$\{?env:[^[:space:]=]+[[:space:]]*[-+*/%]?=' env_read="${lc//\$\{env:/}"
   env_read="${env_read//\$env:/}"
-  [[ "$lc" == *git_* || "$env_read" == *env:* || "$lc" == *environment::* || "$lc" == *setenvironmentvariable* ]] && return 1
+  [[ "$lc" == *git_* || "$env_read" == *env:* || "$lc" == *environment::* || "$lc" == *environment\]* || "$lc" == *setenvironmentvariable* || "$lc" == *.invoke\(* || "$lc" == *getmethod* ]] && return 1
   [[ "$lc" =~ $env_assign ]] && return 1
   ps::has_dynamic_invocation "$1" && return 1
   ps::has_launcher "$1" && return 1
