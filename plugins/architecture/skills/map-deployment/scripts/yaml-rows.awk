@@ -450,7 +450,7 @@ function ecs_container(sc, g, dflt, reps, cl, ev,    f, c, img, ports, pg, eg, m
 # The cluster, task definition and service of one scope. collect_res() lists
 # them in RID, RKIND (cluster, taskdef, service), RTYPE and RPRE, and sets
 # KIND_OF[sc, id].
-function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, p, gs, k, m) {
+function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, gs, k, m) {
   f = S_file[sc]
   n = collect_res(sc)
   for (i = 1; i <= n; i++) {
@@ -468,7 +468,9 @@ function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, p, gs, k, m) {
     nid = ((sc SUBSEP cl) in CID) ? CID[sc, cl] : ""
     reps = show(sc, jp(pre, ck("desiredCount")), "undeclared")
     if (td != "" && KIND_OF[sc, td] == "taskdef") {
+      # A later service on the same task definition is not placed again: it is listed.
       if (!((sc SUBSEP td) in SVC_CL)) { SVC_CL[sc, td] = nid; SVC_REPS[sc, td] = reps }
+      else note_unmapped(tool, RTYPE[i], f)
     } else {
       img = has(f, jp(pre, ck("taskDefinition"))) ? unresolved("taskDefinition") : ""
       place(sc, show(sc, jp(pre, SERVICE_NAME_PROP), RID[i]), img, reps, "", nid, f)
@@ -479,11 +481,9 @@ function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, p, gs, k, m) {
     id = RID[i]; pre = RPRE[i]
     reps = ((sc SUBSEP id) in SVC_REPS) ? SVC_REPS[sc, id] : "undeclared"
     cl = ((sc SUBSEP id) in SVC_CL) ? SVC_CL[sc, id] : ""
-    p = cdpath(f, pre)
-    if (is_arr(f, p)) {
-      m = items(f, p, gs)
-      for (k = 1; k <= m; k++) ecs_container(sc, gs[k], id, reps, cl, f)
-    } else if (has(f, p)) place(sc, id, unresolved("containerDefinitions"), reps, "", cl, f)
+    m = items(f, cdpath(f, pre), gs)
+    for (k = 1; k <= m; k++) ecs_container(sc, gs[k], id, reps, cl, f)
+    if (m == 0) place(sc, id, unresolved("containerDefinitions"), reps, "", cl, f)
   }
 }
 

@@ -25,7 +25,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   with an empty body (`resource "aws_s3_bucket" "b" {}`, in `.tf` or `.tf.json`)
   is placed or listed in `unmapped` like any other resource, and an
   `aws_ecs_task_definition` with no `container_definitions` places one container
-  with the image `unresolved:container_definitions`.
+  with the image `unresolved:container_definitions`. A `.tf.json` block written
+  as an array of objects (`"resource": [{...}]`) reads like the object form.
+- A Bicep or ARM container app or container group, or a CloudFormation or Pulumi
+  YAML task definition, with no containers or an empty list places one container
+  named for the resource with an unresolved image. A second ECS service on a task
+  definition another service already runs is listed in `unmapped` by the
+  Terraform, CloudFormation and Pulumi YAML readers.
 - A Terraform `helm_release` or a Pulumi `kubernetes:helm.sh/` resource declines
   Helm, so the record is refused as `partial-read` instead of drawing the rest
   of the repository.

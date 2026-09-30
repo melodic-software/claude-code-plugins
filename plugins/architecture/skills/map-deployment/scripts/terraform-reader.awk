@@ -130,14 +130,27 @@ function tokenize(f, s,    L, i, c, c2, j, out, depth, ch, nx, inner, rest, tag,
 
 function row(path, kind, value) {
   NR_++
-  RF[NR_] = FILE_; RP[NR_] = path; RK[NR_] = kind; RV[NR_] = value
+  RF[NR_] = FILE_; RP[NR_] = blockpath(path); RK[NR_] = kind; RV[NR_] = value
+}
+
+# .tf.json may write a block type, or a block's labels, as an array of objects
+# ("resource": [{...}]). Drop those indices so resource.<type>.<name> and
+# module.<name> read the same as the object form; argument lists keep theirs.
+function blockpath(p,    s, n, i, lim, out) {
+  if (FILE_ !~ /\.tf\.json$/) return p
+  n = split(p, s, ".")
+  sub(/\[[0-9]+\]$/, "", s[1])
+  lim = (s[1] ~ /^(resource|data)$/) ? 3 : (s[1] ~ /^(module|variable|output|provider)$/) ? 2 : 1
+  out = s[1]
+  for (i = 2; i <= n; i++) { if (i <= lim) sub(/\[[0-9]+\]$/, "", s[i]); out = out "." s[i] }
+  return out
 }
 
 function skip_sep() { while (T[P] == "nl" || (T[P] == "p" && V[P] == ",")) P++ }
 function is_p(k, v) { return T[k] == "p" && V[k] == v }
 
 function parse_body(prefix, closer,    key, path, k) {
-  if (prefix ~ /^resource\.[^.]+\.[^.]+\.$/) row(substr(prefix, 1, length(prefix) - 1), "b", "")
+  if (blockpath(prefix) ~ /^resource\.[^.]+\.[^.]+\.$/) row(substr(prefix, 1, length(prefix) - 1), "b", "")
   while (!bad) {
     skip_sep()
     if (T[P] == "EOF") { if (closer != "") bad = 1; return }
@@ -412,7 +425,9 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
     cl = ((sc SUBSEP "aws_ecs_cluster." cl) in done) ? compute_id(sc, "aws_ecs_cluster", cl) : ""
     reps = show(sc, pre, "desired_count", "undeclared")
     if (td != "" && (sc SUBSEP "aws_ecs_task_definition." td) in done) {
+      # A later service on the same task definition is not placed again: it is listed.
       if (!((sc SUBSEP td) in svc_cl)) { svc_cl[sc, td] = cl; svc_reps[sc, td] = reps }
+      else note_unmapped("terraform", "aws_ecs_service", res_file[sc, res_list[sc, i]])
     } else {
       td = field(d, pre, "task_definition") ? unresolved(FV) : ""
       place(sc, show(sc, pre, "name", parts[2]), td, reps, "", cl, res_file[sc, res_list[sc, i]])

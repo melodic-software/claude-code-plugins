@@ -175,8 +175,10 @@ Shipped readers, every one that is present:
   default. `${resource.attr}` links a service to its cluster and task definition. A file that does
   not parse is `pulumi-unreadable:<file>`.
 - Both YAML readers refuse anchors, aliases, the `<<` merge key, duplicate keys, a tab in the
-  indentation, and more than one document. Their `containerDefinitions` given as anything but a list
-  (a JSON string, a function) places one container whose image is `unresolved:containerDefinitions`.
+  indentation, and more than one document. Their `containerDefinitions` given as anything but a
+  non-empty list (absent, empty, a JSON string, a function) places one container whose image is
+  `unresolved:containerDefinitions`. A second service on a task definition another service already
+  runs is listed as unmapped; the containers are placed once, on the first service's cluster.
 
 A Pulumi project of any other runtime (`nodejs`, `python`, `go`, `dotnet`, ...), Helm (a
 `Chart.yaml`, a Terraform `helm_release`, or a `kubernetes:helm.sh/` resource in a Pulumi YAML
@@ -380,9 +382,11 @@ End every run with this block, in this order:
   ignored, a `resourceId` with scope arguments matches nothing, and `Microsoft.App/jobs` is not
   mapped. A child resource nested in its parent (a Bicep `resource` inside a body, an ARM
   `resources` array inside a resource) is never mapped: it is listed under its full type, such as
-  `Microsoft.Web/sites/slots`, and a slot's own image is not placed. Every other resource type, and
-  a site whose fx version does not read `DOCKER|` (listed as `Microsoft.Web/sites without a
-  container image`), is listed under `## Unmapped resources`.
+  `Microsoft.Web/sites/slots`, and a slot's own image is not placed. A container app or container
+  group whose containers are an expression, an empty list, or absent places one container named for
+  the resource, its image `unresolved:<expression>` or `unresolved:containers`. Every other resource
+  type, and a site whose fx version does not read `DOCKER|` (listed as `Microsoft.Web/sites`), is
+  listed under `## Unmapped resources`.
 - **Bicep module and parameter file forms.** Claim: a local module path is relative (with or
   without `./`) and may be a `.bicep` file or an ARM JSON template; `br:`, `br/<alias>:`, `ts:`,
   and `ts/<alias>:` are registry and template-spec sources. A `.bicepparam` links its template with
@@ -413,7 +417,10 @@ End every run with this block, in this order:
   `unresolved:container`; a `dynamic` block beside plain ones adds a second, `<name>.dynamic`. An
   ECS task definition with no `container_definitions` places one container, its image
   `unresolved:container_definitions`. A resource with an empty body (`resource "aws_s3_bucket" "b" {}`)
-  is placed or listed as unmapped like any other.
+  is placed or listed as unmapped like any other. A `.tf.json` block type or label written as an
+  array of objects (`"resource": [{...}]`) reads like the object form. A second `aws_ecs_service`
+  on a task definition another service already runs is listed as unmapped; the containers are
+  placed once, on the first service's cluster.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:
@@ -432,6 +439,11 @@ End every run with this block, in this order:
   `terraform.tfvars`. A `-var-file` (the `<env>.tfvars` here) outranks them all, and a variable
   `default` ranks lowest. Basis: <https://developer.hashicorp.com/terraform/language/values/variables>.
   As of: 2026-09-29. Recheck when that page changes the precedence list.
+- **A `.tf.json` block may be an array of objects at any level.** Claim: each label level of a
+  block (a resource's type and name) and its body may be a JSON object or a JSON array of objects,
+  so `"resource": [{"aws_s3_bucket": {"b": {}}}]` declares the same resource as the object form.
+  Basis: <https://raw.githubusercontent.com/hashicorp/hcl/main/json/spec.md> (Blocks). As of:
+  2026-09-30. Recheck when that spec changes where an array may stand in for an object.
 - **A Compose layer with no declared merge order is refused by name, never guessed.** Only a base
   with its `compose.override.yaml`, or the files a `.env` `COMPOSE_FILE` lists, are one environment.
 - **`--live` is a refusal.** Committed files are not silently substituted for a live comparison.

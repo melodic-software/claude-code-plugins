@@ -492,13 +492,13 @@ function compute_ref(sc, path, type,    f, v, e, lt, p, nm) {
   return ((sc SUBSEP type SUBSEP "name" SUBSEP nm) in CID) ? CID[sc, type, "name", nm] : ""
 }
 
-# A containers list that is an expression places one container named for the
-# resource, its image the unresolved expression.
-function unread_containers(sc, rp, path, reps, ports, cl,    f, img) {
+# A containers list that is an expression, empty, or absent places one container
+# named for the resource, its image unresolved.
+function unread_containers(sc, rp, path, reps, ports, cl,    f, img, gs) {
   f = S_file[sc]
-  if (!field(f, rp path)) return 0
-  img = resolve(sc, FK, FV, 0)
-  if (RES_SEC) img = "[redacted]"
+  if (items(f, rp path, gs) > 0) return 0
+  if (field(f, rp path)) { img = resolve(sc, FK, FV, 0); if (RES_SEC) img = "[redacted]" }
+  else img = unresolved("containers")
   place(sc, show(sc, rp "name", RSYM[f, rp]), img, reps, ports, cl, f)
   return 1
 }

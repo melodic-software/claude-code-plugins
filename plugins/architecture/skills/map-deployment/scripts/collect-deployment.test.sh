@@ -1161,7 +1161,7 @@ for s in S P; do
   {
     printf 'upstream = "%s"\n' "$(gh_tok "$s")"
     printf 'api_token = "plainvalueXYZ%s"\n' "$s"
-    printf 'cs_sql   = "Server=db.example.com;User ID=app;Password=%s-TFSQL%s"\n' "$fake" "$s"
+    printf 'cs_sql   = "%s"\n' "Server=db.example.com;User ID=app;Password=${fake}-TFSQL${s}"
     printf 'opaque   = "%s-OPQ%s"\n' "$fake" "$s"
   } >"$repoTL/$d.tfvars"
 done
@@ -2291,6 +2291,57 @@ unm_check "$TEST_TMPDIR/unm-same-env"
 assert_contains "two tools in one environment place each container once" "$unm_sum" "placements=2"
 assert_equals "one default environment is drawn" "$(grep -c "= environment 'default'" <<<"$unm_md")" "1"
 assert_equals "each container is an instanceOf once" "$(grep -c 'instanceOf' <<<"$unm_md")" "2"
+
+# A container app, container group or ECS task definition with no containers still places one
+# container named for it, its image unresolved, so the resource is never dropped.
+unm_fixture bicep-app-none main.bicep $'resource app \'Microsoft.App/containerApps@2023-05-01\' = {\n  name: \'api\'\n  properties: {\n    template: {\n      scale: { minReplicas: 1 }\n    }\n  }\n}'
+unm_check "$TEST_TMPDIR/unm-bicep-app-none"
+assert_contains "a Bicep container app with no containers places one" "$unm_rec" '"container":"api","env":"default","tool":"bicep","node":"default","compute":"","image":"unresolved:containers"'
+unm_fixture bicep-app-empty main.bicep $'resource app \'Microsoft.App/containerApps@2023-05-01\' = {\n  name: \'api\'\n  properties: {\n    template: {\n      containers: []\n    }\n  }\n}'
+unm_check "$TEST_TMPDIR/unm-bicep-app-empty"
+assert_contains "a Bicep container app with an empty containers list places one" "$unm_rec" '"container":"api","env":"default","tool":"bicep","node":"default","compute":"","image":"unresolved:containers"'
+unm_fixture arm-group-empty main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[{\"type\":\"Microsoft.ContainerInstance/containerGroups\",\"name\":\"g\",\"properties\":{}}]}"
+unm_check "$TEST_TMPDIR/unm-arm-group-empty"
+assert_contains "an ARM container group with no containers places one in the group" "$unm_rec" '"container":"g","env":"default","tool":"arm","node":"default/resources[0]","compute":"default/resources[0]","image":"unresolved:containers"'
+unm_fixture cfn-td-none template.yaml $'Resources:\n  Td:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      Family: api'
+unm_check "$TEST_TMPDIR/unm-cfn-td-none"
+assert_contains "a CloudFormation task definition with no container definitions places one" "$unm_rec" '"container":"Td","env":"default","tool":"cloudformation","node":"default","compute":"","image":"unresolved:containerDefinitions"'
+unm_fixture cfn-td-empty template.yaml $'Resources:\n  Td:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions: []'
+unm_check "$TEST_TMPDIR/unm-cfn-td-empty"
+assert_contains "a CloudFormation task definition with an empty list places one" "$unm_rec" '"container":"Td","env":"default","tool":"cloudformation","node":"default","compute":"","image":"unresolved:containerDefinitions"'
+unm_fixture pulumi-td-none Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      family: api'
+unm_check "$TEST_TMPDIR/unm-pulumi-td-none"
+assert_contains "a Pulumi task definition with no container definitions places one" "$unm_rec" '"container":"td","env":"default","tool":"pulumi-yaml","node":"default","compute":"","image":"unresolved:containerDefinitions"'
+unm_fixture pulumi-td-empty Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions: []'
+unm_check "$TEST_TMPDIR/unm-pulumi-td-empty"
+assert_contains "a Pulumi task definition with an empty list places one" "$unm_rec" '"container":"td","env":"default","tool":"pulumi-yaml","node":"default","compute":"","image":"unresolved:containerDefinitions"'
+
+# A second ECS service on a task definition another service already runs is listed, not dropped.
+unm_fixture tf-shared-td main.tf "$tf_ecs"$'\nresource "aws_ecs_service" "api2" {\n  name            = "api2"\n  task_definition = aws_ecs_task_definition.api.arn\n}'
+unm_check "$TEST_TMPDIR/unm-tf-shared-td"
+assert_contains "a Terraform service sharing a task definition keeps the root drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "a second Terraform service on one task definition is listed" "$unm_rec" '{"tool":"terraform","type":"aws_ecs_service","evidence":"main.tf"}'
+unm_fixture cfn-shared-td template.yaml $'Resources:\n  Td:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n  One:\n    Type: AWS::ECS::Service\n    Properties:\n      TaskDefinition: !Ref Td\n  Two:\n    Type: AWS::ECS::Service\n    Properties:\n      TaskDefinition: !Ref Td'
+unm_check "$TEST_TMPDIR/unm-cfn-shared-td"
+assert_contains "a second CloudFormation service on one task definition is listed" "$unm_rec" '{"tool":"cloudformation","type":"AWS::ECS::Service","evidence":"template.yaml"}'
+unm_fixture pulumi-shared-td Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions:\n        - name: api\n          image: acme/api:1\n  one:\n    type: aws:ecs:Service\n    properties:\n      taskDefinition: ${td.arn}\n  two:\n    type: aws:ecs:Service\n    properties:\n      taskDefinition: ${td.arn}'
+unm_check "$TEST_TMPDIR/unm-pulumi-shared-td"
+assert_contains "a second Pulumi service on one task definition is listed" "$unm_rec" '{"tool":"pulumi-yaml","type":"aws:ecs:Service","evidence":"Pulumi.yaml"}'
+
+# .tf.json blocks written as arrays of objects read like the object form.
+unm_fixture tfjson-array main.tf.json '{"resource":[{"aws_s3_bucket":{"b":{}}}]}'
+unm_check "$TEST_TMPDIR/unm-tfjson-array"
+assert_contains "an array-form .tf.json bucket is refused as unmapped" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "an array-form .tf.json bucket is listed under its type" "$unm_rec" '{"tool":"terraform","type":"aws_s3_bucket","evidence":"main.tf.json"}'
+unm_fixture tfjson-type-array main.tf.json '{"resource":{"aws_s3_bucket":[{"b":{"bucket":"b"}}]}}'
+unm_check "$TEST_TMPDIR/unm-tfjson-type-array"
+assert_contains "a type-level array lists the type without an index" "$unm_rec" '{"tool":"terraform","type":"aws_s3_bucket","evidence":"main.tf.json"}'
+unm_fixture tfjson-array-td main.tf.json '{"resource":[{"aws_ecs_task_definition":{"api":[{"family":"api","container_definitions":"[{\"name\":\"api\",\"image\":\"acme/api:1\"}]"}]}}]}'
+unm_check "$TEST_TMPDIR/unm-tfjson-array-td"
+assert_contains "an array-form .tf.json task definition is placed" "$unm_rec" '"container":"api","env":"default","tool":"terraform","node":"default","compute":"","image":"acme/api:1"'
+unm_fixture tfjson-array-module main.tf.json '{"module":[{"net":{"source":"https://example.com/net"}}]}'
+unm_check "$TEST_TMPDIR/unm-tfjson-array-module"
+assert_contains "an array-form remote module refuses by name" "$unm_rec" '"reason": "terraform-module-unread:main.tf.json:module.net"'
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'
