@@ -3,6 +3,15 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.14] - 2026-09-29
+
+### Added
+
+- **`implement-dispatch` carries a Boundary section for the bundled `batch` skill.** This skill
+  executes an approved plan's phases; when no plan exists and the work is a large mechanical change
+  that splits into independent PRs, the model offers the person-run `/batch` rather than invoking
+  it.
+
 ## [0.19.13] - 2026-09-29
 
 ### Changed
