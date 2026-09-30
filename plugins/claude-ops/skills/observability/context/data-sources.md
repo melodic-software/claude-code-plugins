@@ -29,7 +29,7 @@ run. Under the root: `sessions/<session_id>.jsonl`, one file per session, holdin
 per-session event log rows (`source: "event-log"`) and the sink's envelope rows for that
 session (`source: "envelope"`); and the shared `hook-events.jsonl`, holding the same envelope
 rows for envelopes that carry no session id. That file is size-capped: past `hook_events_max_bytes`
-(10 MB by default) the sink moves it to `hook-events.jsonl.1`, replacing any older `.1`, so queries
+(10 MiB by default) the sink moves it to `hook-events.jsonl.1`, replacing any older `.1`, so queries
 read both files.
 
 ```bash

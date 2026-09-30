@@ -17,7 +17,7 @@
 #     file the observability skill has always read, under its lock. The record
 #     is the same minus `session_id`, which these rows do not have. The file is
 #     size-capped: under that lock, a file over hook_events_max_bytes (default
-#     10 MB) moves to hook-events.jsonl.1, replacing any older .1, before the
+#     10 MiB) moves to hook-events.jsonl.1, replacing any older .1, before the
 #     append, so the pair stays near twice the cap. The cap applies whether or
 #     not the per-session event log is enabled.
 #
@@ -146,9 +146,11 @@ max_bytes="${CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES:-}"
 [[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || max_bytes=10485760
 
 # hook::append_jsonl plus a size cap: a <file> over <max_bytes> moves to
-# <file>.1 (replacing any older .1) before the append. Without flock the
-# rotation runs unlocked; a concurrent writer can at worst append to the
-# rotated file.
+# <file>.1 (replacing any older .1) before the append. Without flock (macOS,
+# Git for Windows) the check and the move run unlocked: two writers can both
+# see the file over the cap, and the second move then replaces the .1 the first
+# just made with the new one-line live file, losing up to <max_bytes> of
+# rotated rows. That loss is accepted.
 #   append_capped <file> <line> <max_bytes>
 append_capped() {
   local file="$1" line="$2" max="$3" size

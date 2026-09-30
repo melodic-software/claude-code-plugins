@@ -15,7 +15,11 @@
 #     session removes the shared write.
 #   * absent: appended to the shared hook-events.jsonl under the same root, the
 #     file the observability skill has always read, under its lock. The record
-#     is the same minus `session_id`, which these rows do not have.
+#     is the same minus `session_id`, which these rows do not have. The file is
+#     size-capped: under that lock, a file over hook_events_max_bytes (default
+#     10 MiB) moves to hook-events.jsonl.1, replacing any older .1, before the
+#     append, so the pair stays near twice the cap. The cap applies whether or
+#     not the per-session event log is enabled.
 #
 # Field mapping: ts<-timestamp, hook_event_name<-hook_event, hook<-hook,
 # tool<-data.tool, subject<-data.subject, changed<-data.changed (when a
@@ -141,6 +145,31 @@ fi
 mkdir -p "$root" 2>/dev/null || exit 0
 slog_event_record_to LINE envelope "$TS" "" "$EVENT" "$STATUS_OUT" \
   "${DURATION_MS:-0}" "${RUN_KEYS[@]}"
-hook::append_jsonl "${root}/hook-events.jsonl" "$LINE"
+max_bytes="${CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES:-}"
+[[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || max_bytes=10485760
+
+# hook::append_jsonl plus a size cap: a <file> over <max_bytes> moves to
+# <file>.1 (replacing any older .1) before the append. Without flock (macOS,
+# Git for Windows) the check and the move run unlocked: two writers can both
+# see the file over the cap, and the second move then replaces the .1 the first
+# just made with the new one-line live file, losing up to <max_bytes> of
+# rotated rows. That loss is accepted.
+#   append_capped <file> <line> <max_bytes>
+append_capped() {
+  local file="$1" line="$2" max="$3" size
+  if command -v flock >/dev/null 2>&1; then
+    (
+      flock -w 2 9 || exit 0
+      size=$(wc -c <"$file" 2>/dev/null) || size=0
+      ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
+      printf '%s\n' "$line" >>"$file"
+    ) 9>"${file}.lock" 2>/dev/null
+  else
+    size=$(wc -c <"$file" 2>/dev/null) || size=0
+    ((size > max)) && mv -f "$file" "${file}.1" 2>/dev/null
+    printf '%s\n' "$line" >>"$file" 2>/dev/null
+  fi
+}
+append_capped "${root}/hook-events.jsonl" "$LINE" "$max_bytes"
 
 exit 0
