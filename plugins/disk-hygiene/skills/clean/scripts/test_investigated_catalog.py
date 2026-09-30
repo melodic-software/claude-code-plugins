@@ -217,6 +217,31 @@ class CatalogRulesTest(unittest.TestCase):
         catalog.annotate_entries(own, answered)
         self.assertNotIn("target_prior_disposition", own)
 
+    def test_an_answer_reused_from_another_target_is_reported_unchanged(self) -> None:
+        answered, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/root"),
+            None,
+            [],
+            [{"path": "esupport", "owner": "eSupport", "disposition": "keep"}],
+            "run-t",
+        )
+        reached = _snapshot(_entry("esupport", inode=20), target="/other")
+        again, report = catalog.sync_catalog(reached, answered, [], [], "run-u")
+        line = "esupport | keep | eSupport | answered under /root"
+        self.assertEqual([line], report["unchanged"])
+        for key in ("new_or_changed", "questions", "uncatalogued"):
+            self.assertEqual([], report[key])
+        self.assertIn(f"- {line}", catalog.render_markdown(again, report))
+        _, local = catalog.sync_catalog(
+            reached,
+            answered,
+            [],
+            [{"path": "esupport", "disposition": "remove"}],
+            "run-v",
+        )
+        self.assertEqual([], local["unchanged"])
+        self.assertEqual(["new"], [item["state"] for item in local["new_or_changed"]])
+
     def test_identity_change_under_another_target_invalidates_the_answer(self) -> None:
         first = _snapshot(_entry("esupport", inode=20), target="/root")
         answered, _ = catalog.sync_catalog(

@@ -35,15 +35,18 @@ recorded as checked with no result, not skipped.
 ## Recording evidence
 
 Each evidence item is one line with its source: the file path it was read from, the exact command that
-produced it, or the URL. An item with no source is not evidence. The catalog record's `owner` and
-`reason` state the conclusion; the evidence lines stay in the report beside them.
+produced it, or the URL. An item with no source is not evidence. The finding's `owner` and
+`provenance` state the conclusion, and each evidence item's source goes into its `evidence` list as
+`{"source": "<source>"}`, so the catalog record keeps what the investigation found. The report shows
+the same lines beside the conclusion.
 
 ## When no owner is found
 
 Escalate to `/discovery:research` only when every source above found no owner, and only when that
 skill resolves in this session. When it does not resolve, skip the escalation and go to the question
 below. `/discovery:explore` applies only to a stray inside a repository, never to a home-directory or
-volume-root entry.
+volume-root entry, and only when that skill resolves in this session. When it does not resolve, read
+the repository's own files with the local sources above.
 
 End the report with one question per entry whose owner is still unknown: name the entry, list the
 sources checked, and ask who or what owns it. Until the operator answers, that entry stays `keep`.

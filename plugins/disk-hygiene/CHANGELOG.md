@@ -22,7 +22,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 - **Operator answers follow the entry, not the scan target.** A `source: human` record whose identity
   and descendant set still hold is reused when another scan target reaches the same entry, so it is
-  not asked again. The scan sets `target_prior_disposition` when the scan target itself was answered.
+  not asked again. The scan sets `target_prior_disposition` when the scan target itself was answered,
+  and the `catalog` report lists a reused entry under `unchanged` as `answered under <target>`.
 
 ## [0.40.0] - 2026-09-30
 

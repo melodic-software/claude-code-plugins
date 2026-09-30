@@ -869,7 +869,8 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
   answered entry. Matching looks at the record under this target and path first, then at answers
   recorded under other targets. An engine record is reused only under its own target and path.
   A matched answer is not copied: the next answer recorded under this target becomes its own record
-  and wins here.
+  and wins here. The `catalog` report lists a matched entry under `unchanged` as `<path> |
+  <disposition> | <owner> | answered under <target>`.
 - A changed identity (device, inode, kind) or descendant set invalidates the record. Under its own
   target it is replaced by an unresolved `keep` with its question, and the next scan stops
   annotating it. An entry reached from another target whose identity or descendant set differs

@@ -158,7 +158,7 @@ def _uncatalogued(
     target: str,
     scope: dict[str, list[str]],
     records: dict[tuple[str, str], dict[str, Any]],
-    reused: set[str],
+    reused: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """In-scope entries with no record of their own and no owner-level ancestor."""
     owners = {
@@ -334,7 +334,7 @@ def sync_catalog(
     records = _records_by_key(existing)
     answers_elsewhere = _human_by_identity(records)
     state: dict[str, str] = {}
-    reused: set[str] = set()
+    reused: dict[str, dict[str, Any]] = {}
     for path, entry in by_path.items():
         previous = records.get((target, path))
         if previous is not None and identity_holds(previous, entry, entries):
@@ -349,9 +349,9 @@ def sync_catalog(
                 "last_verified": run_id,
             }
             state[path] = "unchanged"
-        elif _other_target_answer(answers_elsewhere, target, entry, entries):
+        elif answer := _other_target_answer(answers_elsewhere, target, entry, entries):
             records.pop((target, path), None)
-            reused.add(path)
+            reused[path] = answer
         elif previous is not None:
             records[(target, path)] = _unresolved_record(
                 target, entry, entries, run_id, previous
@@ -389,26 +389,31 @@ def sync_catalog(
     uncatalogued = _uncatalogued(
         target, catalog_scope(snapshot, positional), records, reused
     )
-    return catalog, _report(target, records, state, unmatched, uncatalogued)
+    return catalog, _report(target, records, state, reused, unmatched, uncatalogued)
 
 
 def _report(
     target: str,
     records: dict[tuple[str, str], dict[str, Any]],
     state: dict[str, str],
+    reused: dict[str, dict[str, Any]],
     unmatched: list[str],
     uncatalogued: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """New or changed entries first, unchanged entries one line each."""
+    """New or changed entries first, unchanged entries one line each.
+
+    An entry matched to an operator answer recorded under another scan target
+    has no record of its own here. It is unchanged, and its line names the
+    target that holds the answer.
+    """
     new_or_changed = []
     unchanged = []
     questions = []
     for path in sorted(state):
         record = records[(target, path)]
         if state[path] == "unchanged":
-            unchanged.append(
-                f"{path} | {record['disposition']} | {record['owner'] or 'unknown'}"
-            )
+            owner = record["owner"] or "unknown"
+            unchanged.append((path, f"{path} | {record['disposition']} | {owner}"))
         else:
             new_or_changed.append(
                 {
@@ -422,9 +427,19 @@ def _report(
             )
         if record["question"]:
             questions.append({"path": path, "question": record["question"]})
+    for path, answer in reused.items():
+        if path not in state:
+            owner = answer["owner"] or "unknown"
+            unchanged.append(
+                (
+                    path,
+                    f"{path} | {answer['disposition']} | {owner}"
+                    f" | answered under {answer['target']}",
+                )
+            )
     return {
         "new_or_changed": new_or_changed,
-        "unchanged": unchanged,
+        "unchanged": [line for _, line in sorted(unchanged)],
         "questions": questions,
         "uncatalogued": uncatalogued,
         "unmatched": unmatched,
