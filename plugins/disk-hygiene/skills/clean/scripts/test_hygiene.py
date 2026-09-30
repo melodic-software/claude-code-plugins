@@ -2131,6 +2131,31 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("mount points are not valid audit targets", payload["error"])
             self.assertFalse((data_root / "snapshot.json").exists())
 
+    def test_scan_refusal_of_shell_folder_descendant_carries_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "Documents" / "child"
+            data_root = base / "plugin-data"
+            target.mkdir(parents=True)
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("profile-hive roots are not valid", payload["error"])
+            self.assertIn("child directory of Documents", payload["hint"])
+            self.assertIn("no protected name anywhere in their path", payload["hint"])
+
     def test_preview_denies_os_managed_root_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"

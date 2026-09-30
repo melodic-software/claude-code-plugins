@@ -190,6 +190,14 @@ QUIET_ROOT_CHILDREN_SCAN_NOTE = (
 )
 
 
+PROTECTED_TARGET_HINT = (
+    "The refusal covers a protected shell folder or profile hive and everything beneath it, "
+    "so a child directory of Documents, Desktop or Downloads is refused too. Allowed targets "
+    "have no protected name anywhere in their path: a directory outside the shell folders "
+    "(for example a project or data directory), or the home directory itself."
+)
+
+
 def emit(payload: dict[str, Any], code: int = 0) -> int:
     print(json.dumps(payload, indent=2, sort_keys=True))
     return code
@@ -4351,8 +4359,13 @@ def main(argv: list[str] | None = None) -> int:
             if has_protected_path_component(
                 target, set(policy["protected_exact_names"])
             ):
-                raise HygieneError(
-                    "protected shell-folder and profile-hive roots are not valid audit targets"
+                return emit(
+                    {
+                        "status": "invalid-or-blocked",
+                        "error": "protected shell-folder and profile-hive roots are not valid audit targets",
+                        "hint": PROTECTED_TARGET_HINT,
+                    },
+                    2,
                 )
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")

@@ -31,6 +31,9 @@ metadata:
 
 # Disk hygiene
 
+On Windows and macOS a run ends in a report plus the `execution-platform-unsupported` handoff, so
+plan for no deletion lane there.
+
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
 filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
 primary objective; reclaimed bytes are secondary.** That posture does not change when the disk is
@@ -76,7 +79,7 @@ or more explicit `--root-child <name>` flags, after the human clears the confirm
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection. With no target, ask once. Reject an
 OS-managed root (unless `--root-children` on the volume root itself), a non-root mount target, a protected shell-folder root
-or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
+or descendant (the refusal carries a `hint`: a child of a shell folder is refused too, so name a directory whose path holds no protected name), a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
 is not OS-managed (a Windows Dev Drive) is a valid target, but
 as a known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
