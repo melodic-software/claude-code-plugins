@@ -31,8 +31,11 @@ target. Do not wrap the engine in compound shells (`;`, `&&`, `|`).
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<subtree-path>" --output "<run-dir>/sizes.json" \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
-  --sizes-only
+  --sizes-only [--confirmed-large-scan]
 ```
+
+Add `--confirmed-large-scan` only when the parent confirmed a large target; without it a
+known-large root returns `large-target-confirmation-required`.
 
 Read `inventory_mode: sizes-only` and `rollup_precision` on stdout. `partial` means a subtree was
 cut or failed to scan. `children_rollup` rows with `walked: true` are exact totals, not depth-cut
