@@ -67,7 +67,7 @@ own and runs only when your repo has opted into Ruff.
   the PostToolUse notice names the same install route. The two share one latch, so the probe's
   notice counts as the first and the first PostToolUse notice stays silent until the renewal.
   The probe looks on `PATH` and at
-  `.venv/bin/ruff` under the working directory; the edit hook also resolves a `.venv` ruff by
+  `.venv/bin/ruff` under the working directory or up to eight ancestors of it; the edit hook also resolves a `.venv` ruff by
   walking up from the edited file. Run `/ruff-format:check` to see what resolves; it is read-only
   and installs nothing.
 - A **Ruff config** (`.ruff.toml`, `ruff.toml`, or `pyproject.toml` with

@@ -42,12 +42,12 @@
       "id": 4,
       "name": "project-venv-ruff-counts-though-path-has-none",
       "prompt": "/ruff-format:check\n\nThe SessionStart notice said ruff is missing, but this repo has .venv/bin/ruff and no ruff on PATH.",
-      "expected_output": "Looks for .venv/bin/ruff and .venv/Scripts/ruff.exe as well as PATH, reports the .venv ruff as found, and explains the SessionStart probe checks PATH only while the edit hook still uses the .venv ruff.",
+      "expected_output": "Looks for .venv/bin/ruff and .venv/Scripts/ruff.exe as well as PATH, reports the .venv ruff as found, and explains the SessionStart probe also checks .venv/bin/ruff while the edit hook still uses the .venv ruff.",
       "files": [],
       "expectations": [
         "Looks for .venv/bin/ruff and .venv/Scripts/ruff.exe in addition to PATH",
         "Reports ruff as found when the .venv binary exists",
-        "States that the SessionStart probe checks PATH only and the edit hook still uses a project .venv ruff",
+        "States that the SessionStart probe also checks .venv/bin/ruff and the edit hook still uses a project .venv ruff",
         "Installs nothing and stops after the table"
       ]
     },
