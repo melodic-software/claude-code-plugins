@@ -39,6 +39,7 @@ pointers if the page's layout later changes.
 | Correction | The owning plugin's `CHANGELOG.md`. The ledger's Corrected table points at that entry |
 | Replace candidate | Nominated into the `/claude-ops:audit-native-overlap` gate. A run never writes the verdict and never edits the component. The ledger row reads `nominated`, never `replaced` |
 | Adoption, decline, defer | The upstream ledger, in its Adopted and Declined tables |
+| Decision too large for the session | Its own issue, filed through `/work-items:track` when the work-items plugin is installed and worked later in its own PR behind an interview-style human gate. The ledger row for its kind names the issue in its record column. With the plugin absent the decision is reported and nothing is filed |
 | Read marker | The upstream ledger's marker line (see [read-actions.md](read-actions.md)) |
 
 The upstream ledger (default `docs/upstream/claude-code.md`) keeps one table per outcome, in the
@@ -73,7 +74,7 @@ range adds explorers in steps of about fifty items and adds researchers only for
 - `items/<version>.md`: the item files
 - `rows.md`: the repository revision (`git rev-parse HEAD`) the rows were derived at, then the decision rows and the docs-lag section, each row with its recheck trigger (the page it rests on and the condition that would change it)
 - `pages/`: the docs pages the researchers fetched, each with its URL and fetch time on its first line
-- `native-drift/`: `apply` Phase 7's extraction, overlap candidates, summary and drift report ([native-drift.md](native-drift.md)). The summary is then copied to `<memory_dir>/claude-code-changelog/native-surface-summary.json`, the one file outside any range: the next run diffs against it
+- `native-drift/`: `apply` Phase 5's extraction, overlap candidates, summary and drift report ([native-drift.md](native-drift.md)). The summary is then copied to `<memory_dir>/claude-code-changelog/native-surface-summary.json`, the one file outside any range: the next run diffs against it
 
 `apply` consumes that directory instead of re-running `diff`. It re-fetches only what a recheck
 trigger names: a release newer than `<B>` exists, or a row's own trigger is met. A row whose

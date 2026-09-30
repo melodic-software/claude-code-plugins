@@ -1,10 +1,28 @@
 # Changelog: discovery plugin
 
-## [0.25.17] - 2026-09-30
+## [0.25.18] - 2026-09-30
 
 ### Fixed
 
 - **Dropped the filler "in order to" from the `explore` skill body and `reference/workflow.md`.** Wording only; behavior is unchanged.
+
+## [0.25.17] - 2026-09-30
+
+### Added
+
+- **`tests/count-rereads.py` counts rereads in a subagent transcript.** It reads one
+  `subagents/agent-*.jsonl`, prints `REREAD:` for a second full read of a file with no edit between,
+  `SCAN->READ:` for a `Grep` or `ls` of a file followed on a later turn by a full read of it, the
+  handback turn, and the two totals. Paths and counts only, never transcript content.
+  `tests/count-rereads.test.sh` covers it with synthetic transcripts.
+
+### Changed
+
+- **The parent contract's read-once rule says never to `Grep` a file you mean to read in full.** A
+  measured `discovery:explorer` run scanned a rule file with `Grep` and then read it whole; the rule
+  now names that shape. A re-run on the tightened rule counted 0 rereads and 0 scan-then-read
+  pairs, with the handback at turn 20 of a 30-turn budget
+  ([#4258](https://github.com/melodic-software/claude-code-plugins/issues/4258)).
 
 ## [0.25.16] - 2026-09-30
 
