@@ -163,6 +163,15 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             Flag("--output", required=True, example="snapshot.json"),
             Flag("--policy", example="policy.json"),
             Flag("--project-dir", example="project-dir"),
+            Flag(
+                "--in-flight-refs",
+                example="in-flight-refs.json",
+                help=(
+                    "JSON file of absolute paths referenced by open work "
+                    "(issue, PR, handoff); entries at or under one are not "
+                    "preselected"
+                ),
+            ),
             _data_root_flag(),
             Flag(
                 "--max-depth",

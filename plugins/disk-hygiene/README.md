@@ -307,9 +307,13 @@ Version 2 adds preselect `rules`, an age threshold, and an elevation opt-in
 
 A rule ticks matching candidates in the approval list; it never approves. The approval question still
 names one tier and its path list, and a tick never raises a candidate above its hint's
-`confidence_ceiling` or past a blocker. With `min_age_days`, an entry modified inside the window (or
-a directory whose newest descendant is, or whose coverage is incomplete) stays unticked and is
-labeled in-flight. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
+`confidence_ceiling` or past a blocker. A rule matches by `hint_id`, `hint_ids`, or `class`
+(`superseded-version`, `backup`, `empty`, `temp`, `crash-dump`). Only the baseline temp hints carry
+a class; the other classes match only hints an operator adds through `additional_hints` with that
+`class`. With `min_age_days`, an entry touched inside the window (or a directory whose newest descendant is, or
+whose coverage is incomplete) stays unticked; `min_age_basis` picks the timestamp: `mtime` by
+default, `atime`, or `ctime`. The entry is labeled in-flight. Paths that open issues, PRs, or handoffs
+reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
 project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
 that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
 elevation lane has not been proven in a Windows UAC pilot; see the
