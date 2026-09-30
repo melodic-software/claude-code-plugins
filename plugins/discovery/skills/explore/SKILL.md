@@ -140,10 +140,10 @@ This file is the authoritative stage summary, a fresh session must be able to re
 
 Both answer "what is in this codebase", so a request to explore can route to either.
 
-- **`Explore` (built-in subagent).** Ships with Claude Code; reached through the Agent tool's
-  `subagent_type`. A read-only, one-shot locator: it cannot write files, skips CLAUDE.md, and
-  returns excerpts to its caller.
-- **This skill (marketplace plugin).** The full exploration: six dimensions, the project's rules
+- **`Explore` (built-in subagent)**: a one-shot locator that returns excerpts to its caller and
+  skips CLAUDE.md. It mutates nothing: it cannot write files. It is reached through the Agent
+  tool's `subagent_type`.
+- **This skill (marketplace plugin)**: the full exploration: six dimensions, the project's rules
   loaded, and a persisted, verified `EXPLORE.md` a cleared session resumes from.
 
 **Routing.** When the built-in `Explore` agent resolves in this session, dispatch it directly for a

@@ -7,7 +7,8 @@
 - **`explore` carries a Boundary section for the built-in `Explore` agent.** A bare locate
   dispatches the built-in agent directly; a persisted exploration stays with this skill, which
   keeps `Explore` as its locate-tier scout. The four-part record is in the skill's
-  `reference/native-explore.md`.
+  `reference/native-explore.md`. The section's bullets follow the native-references template and
+  describe the built-in without asserting it is available.
 
 ## [0.25.10] - 2026-09-29
 

@@ -57,12 +57,12 @@ Escalation order when WebFetch fails:
 
 Both fetch and search the web, so "search the web" or "read this page" can route to either.
 
-- **`WebFetch` (built-in tool).** Ships with Claude Code; called by name. Fetches one URL, converts
-  it to Markdown, and returns a small model's answer to an extraction prompt, not the raw page.
-  No JS rendering, no anti-bot handling.
-- **`WebSearch` (built-in tool).** Ships with Claude Code; called by name. Returns result titles
-  and URLs inline; it does not fetch the result pages.
-- **This skill (marketplace plugin).** Scrape, search-and-scrape, crawl, map, and interact through
+- **`WebFetch` (built-in tool)**: fetches one URL, converts it to Markdown, and returns a small
+  model's answer to an extraction prompt, not the raw page; no JS rendering, no anti-bot handling.
+  It writes nothing to disk. It is called by name.
+- **`WebSearch` (built-in tool)**: returns result titles and URLs inline; it does not fetch the
+  result pages. It writes nothing to disk. It is called by name.
+- **This skill (marketplace plugin)**: scrape, search-and-scrape, crawl, map, and interact through
   a paid API, with full content written to disk.
 
 **Routing.** When the built-in `WebFetch` or `WebSearch` tool resolves in this session, prefer it

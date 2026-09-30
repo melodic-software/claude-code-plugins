@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Added
 
-- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`.
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
 
 ## [0.47.2] - 2026-09-29
 

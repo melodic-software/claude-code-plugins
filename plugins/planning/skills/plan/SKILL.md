@@ -329,10 +329,10 @@ never that it is present. The four-part records live in
 
 Both produce an implementation plan, so "plan this" can also route to the subagent.
 
-- **`Plan` (built-in subagent).** Ships with Claude Code; reached through the Agent tool's
-  `subagent_type`. A read-only research agent that returns a step-by-step approach to its caller.
-  It cannot write files, skips CLAUDE.md, and runs no approval gate.
-- **This skill (marketplace plugin).** The plan the person approves: stress-test, blast radius,
+- **`Plan` (built-in subagent)**: a research agent that returns a step-by-step approach to its
+  caller, skips CLAUDE.md, and runs no approval gate. It mutates nothing: it cannot write files. It
+  is reached through the Agent tool's `subagent_type`.
+- **This skill (marketplace plugin)**: the plan the person approves: stress-test, blast radius,
   decision gates, and a persisted PLAN.md.
 
 **Routing.** When the built-in `Plan` agent resolves in this session, dispatch it for a throwaway
