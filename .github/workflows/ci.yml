@@ -1508,6 +1508,18 @@ jobs:
         continue-on-error: true
         run: scripts/check-pipefail-grep-q.sh
 
+      # A *.test.sh that runs mktemp must trap EXIT to remove it; the known
+      # offenders are listed in scripts/test-tmp-cleanup-baseline.txt, which
+      # only shrinks. Self-test first, so a broken checker cannot mask a
+      # regression.
+      - name: Test the test-temp-cleanup gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-test-tmp-cleanup.test.sh
+      - name: Gate test suites on cleaning up their temp paths
+        id: test_tmp_cleanup
+        continue-on-error: true
+        run: scripts/check-test-tmp-cleanup.sh --check
+
       # Runner policy, previously its own job. Reads .github/workflows/** and
       # the pinned policy package, so it gates on the workflows filter group:
       # a change that touches nothing under .github/ cannot move a runner
@@ -1601,6 +1613,7 @@ jobs:
             portability-lint=${{ steps.portability.outcome }}
             shell-portability-lint=${{ steps.shell_portability.outcome }}
             pipefail-grep-q=${{ steps.pipefail_grep_q.outcome }}
+            test-tmp-cleanup=${{ steps.test_tmp_cleanup.outcome }}
             runner-policy=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
@@ -2227,6 +2240,29 @@ jobs:
             exit 0
           fi
           scripts/sync-html-escape.sh --check-bump "origin/$BASE_REF"
+
+      - name: Verify fetch-docs copies match the canonical fetcher
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-fetch-docs.sh --check
+      - name: Run fetch-docs tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/fetch-docs.test.sh
+          bash scripts/sync-fetch-docs.test.sh
+      - name: Verify carrying plugins bumped when the fetcher changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-fetch-docs.sh --check-bump "origin/$BASE_REF"
 
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'

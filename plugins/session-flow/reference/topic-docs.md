@@ -26,6 +26,35 @@ Timestamps are ISO-basic UTC `YYYYMMDDTHHMMSSZ` per the contract's filename spec
 is configurable via the concern file's `memory_dir` key; session-flow never writes the contract
 tier.
 
+The writers never delete, so the `tidy-work` skill owns the lifecycle (`scripts/tidy_work.py`).
+`report` inventories the memory root and `~/.work` by age, size, and kind (handoff, running-retro,
+slice, checklist, scratch, concern, unknown) and marks each item in flight or stale. A scratch item
+is a top-level entry whose name holds exactly one issue or PR number (one all-digit token of 3 to 7
+digits, optionally prefixed `pr`, `issue`, or `gh`, and a year-like token from 1900 to 2099 needs
+the prefix); `report` and the `clean` dry run show that issue or PR and its state, and `clean`
+removes it only once the issue is closed or the PR merged. A name with no such token or with
+several is unknown. `normalize` moves a handoff (with its
+`.slots.json` sidecar) or running-retro file that sits in the wrong directory into `handoffs/` or
+`running-retros/`; it never deletes and refuses to overwrite. `clean` removes only items of a known
+kind that are not in flight and that name at least one issue or PR, every one closed or merged. An
+item that names none is kept however old it is: a handoff or running retro whose text names no
+issue or PR, and every slice and checklist, which have no attribution source. Both are dry runs that
+print exact absolute paths until `--apply`, and
+neither modifies content git tracks: each refuses a memory root whose `.gitignore` lacks a line `*`.
+Every command rejects a memory root that is the repository root, and one outside the repository
+whose `.gitignore` lacks that line. A handoff or running-retro file is that kind wherever it sits in
+the root, `handoffs/`, or `running-retros/`; the misplaced ones are what `normalize` moves. An
+unknown item, such as another tool's own folder, is always reported and always kept, as is every
+entry of another skill's concern dir (`reviews/`, `exports/`, `overengineering/`,
+`enforceability/`, `docs-hygiene/`, `lanes/`), which that skill reads back. An item is in flight
+when a slice's `INDEX.md` `status:` (or
+a child slice's) is anything but `done`, a checklist has an unfinished stage, a `.git` file or
+directory sits under it (a clone or worktree), it changed within the window (default 14 days), a
+later handoff that is itself kept names it, or a handoff or running-retro names an issue or PR (a
+`github.com` URL, `owner/repo#N`, or `#N`), or a scratch item's number, that is not closed or merged
+or whose state is unknown. No writer records an issue or PR in frontmatter, so the references are
+read from the text.
+
 The running-retro **detached observer** ([`observer.md`](./observer.md)) writes autonomous post-end
 findings to that same `running-retros/` ledger (matched by `session_id`), so the autonomous and
 in-session checkpoints share one file per session. Its intermediate distilled observations are NOT a
