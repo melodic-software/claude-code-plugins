@@ -1745,6 +1745,115 @@ help_out="$(bash "$AUDIT" --help)"
 assert_contains "--help documents --repo" "$help_out" "--repo DIR..."
 assert_contains "--help documents the capture rule" "$help_out" "--capture-file with more than one repo"
 
+# --remote-families: report-only read of refs/remotes/origin/*. A bare origin and
+# a clone whose remote-tracking branches cover every family, each landed case,
+# both retention outcomes for an expired branch and the agent-<hex> worktree rule.
+if command -v jq >/dev/null 2>&1; then
+  RF="$TEST_TMPDIR/rf-repo"
+  git init -q --bare "$TEST_TMPDIR/rf-origin.git"
+  git init -q -b main "$RF"
+  git -C "$RF" config user.email "t@example.com"
+  git -C "$RF" config user.name "Test"
+  git -C "$RF" remote add origin "$TEST_TMPDIR/rf-origin.git"
+  echo a >"$RF/a"
+  git -C "$RF" add a
+  git -C "$RF" commit -qm init
+  git -C "$RF" push -q origin HEAD:main
+  git -C "$RF" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  old_date="$(date -d '200 days ago' '+%Y-%m-%dT%H:%M:%S')"
+  # rf_branch <name> [old]: one commit on a new branch, pushed, then the local branch
+  # is dropped so only refs/remotes/origin/<name> remains.
+  rf_branch() {
+    git -C "$RF" checkout -q -b "$1" main
+    echo "$1" >"$RF/f"
+    git -C "$RF" add f
+    if [[ "${2:-}" == old ]]; then
+      GIT_AUTHOR_DATE="$old_date" GIT_COMMITTER_DATE="$old_date" git -C "$RF" commit -qm "$1"
+    else
+      git -C "$RF" commit -qm "$1"
+    fi
+    git -C "$RF" push -q origin "$1"
+    git -C "$RF" checkout -q main
+    git -C "$RF" branch -q -D "$1"
+  }
+  rf_tip() { git -C "$RF" rev-parse "refs/remotes/origin/$1"; }
+  for b in agent-abc123 agent-def456 claude/x plan/x stranded/x pre-wipe/x feat/eq; do
+    rf_branch "$b"
+  done
+  rf_branch pre-wipe/old-held old
+  rf_branch pre-wipe/old-unique old
+  # another ref holds the old-held tip: a branch at the same commit
+  git -C "$RF" push -q origin "refs/remotes/origin/pre-wipe/old-held:refs/heads/keep/holder"
+  # tip is an ancestor of the merged head; tip is past the merged head
+  rf_branch feat/anc
+  git -C "$RF" checkout -q -b anc-head "refs/remotes/origin/feat/anc"
+  echo more >"$RF/anc-more"
+  git -C "$RF" add anc-more
+  git -C "$RF" commit -qm "anc head"
+  anc_head="$(git -C "$RF" rev-parse HEAD)"
+  git -C "$RF" checkout -q main
+  git -C "$RF" checkout -q -b past-head main
+  echo p >"$RF/past-1"
+  git -C "$RF" add past-1
+  git -C "$RF" commit -qm "past head"
+  past_head="$(git -C "$RF" rev-parse HEAD)"
+  echo q >"$RF/past-2"
+  git -C "$RF" add past-2
+  git -C "$RF" commit -qm "past tip"
+  git -C "$RF" push -q origin HEAD:refs/heads/feat/past
+  git -C "$RF" checkout -q main
+  git -C "$RF" fetch -q origin
+  # agent-def456 is checked out in a linked worktree under its own name
+  git -C "$RF" worktree add -q -b agent-def456 "$TEST_TMPDIR/rf-wt" main
+  rf_bin="$TEST_TMPDIR/rf-bin"
+  mkdir -p "$rf_bin"
+  printf '[{"headRefName":"feat/eq","state":"MERGED","number":11,"headRefOid":"%s"},{"headRefName":"feat/anc","state":"MERGED","number":12,"headRefOid":"%s"},{"headRefName":"feat/past","state":"MERGED","number":13,"headRefOid":"%s"},{"headRefName":"agent-abc123","state":"MERGED","number":14,"headRefOid":"%s"}]\n' \
+    "$(rf_tip feat/eq)" "$anc_head" "$past_head" "$(rf_tip agent-abc123)" >"$rf_bin/prs.json"
+  printf '#!/usr/bin/env bash\ncase "$*" in *pr\\ list*) cat "%s" ;; *) exit 1 ;; esac\n' "$rf_bin/prs.json" >"$rf_bin/gh"
+  chmod +x "$rf_bin/gh"
+
+  refs_before="$(git -C "$RF" for-each-ref --format='%(refname) %(objectname)')"
+  rf_rc=0
+  rf_out="$(cd "$RF" && PATH="$rf_bin:$PATH" bash "$AUDIT" --remote-families)" || rf_rc=$?
+  assert_exit "--remote-families exits 0" 0 "$rf_rc"
+  # rf_field <branch> <field>: one line of a RemoteBranch record
+  rf_field() { awk -v b="RemoteBranch: $1" -v f="$2: " '$0 == b { p = 1; next } /^RemoteBranch: / { p = 0 } p && index($0, f) == 1 { print substr($0, length(f) + 1); exit }' <<<"$rf_out"; }
+
+  assert_contains "remote mode announces itself as report only" "$rf_out" "Mode: remote-families (report only"
+  assert_not_contains "remote mode does not print local branch records" "$(grep -E "^(Branch|Tier): " <<<"$rf_out")" "Branch: "
+  assert_not_contains "remote mode lists no default branch" "$rf_out" "RemoteBranch: main"
+  for pair in agent-abc123:agent claude/x:claude plan/x:plan stranded/x:stranded pre-wipe/x:pre-wipe feat/eq:none; do
+    assert_contains "remote family of ${pair%%:*} is ${pair#*:}" "$(rf_field "${pair%%:*}" Family)" "${pair#*:}"
+  done
+  assert_contains "merged PR whose head is the tip: landed" "$(rf_field feat/eq Landed)" "PR #11 merged, its head is the tip"
+  assert_contains "tip that is an ancestor of the merged head: landed" "$(rf_field feat/anc Landed)" "PR #12 merged, the tip is an ancestor of its head"
+  assert_contains "tip past the merged head: not landed" "$(rf_field feat/past Landed)" "no"
+  assert_contains "a family with no rule has no retention verdict" "$(rf_field feat/eq Retention)" "n/a"
+  assert_contains "fresh claude branch is kept" "$(rf_field claude/x Retention)" "KEEP"
+  assert_contains "fresh claude branch reason names the window" "$(rf_field claude/x Reason)" "within the 30d retention for claude"
+  assert_contains "fresh plan branch is kept" "$(rf_field plan/x Retention)" "KEEP"
+  assert_contains "fresh stranded branch is kept" "$(rf_field stranded/x Retention)" "KEEP"
+  assert_contains "fresh pre-wipe branch is kept" "$(rf_field pre-wipe/x Retention)" "KEEP"
+  assert_contains "expired pre-wipe with its tip on another ref: candidate" "$(rf_field pre-wipe/old-held Retention) $(rf_field pre-wipe/old-held Reason)" "CANDIDATE tip is 200d old, past the 30d retention for pre-wipe; another ref holds the tip"
+  assert_contains "expired pre-wipe with unique commits: kept" "$(rf_field pre-wipe/old-unique Retention) $(rf_field pre-wipe/old-unique Reason)" "KEEP-UNIQUE tip is 200d old, past the 30d retention for pre-wipe; not landed and no other ref holds the tip"
+  assert_contains "agent branch with no worktree and a landed PR: candidate" "$(rf_field agent-abc123 Retention) $(rf_field agent-abc123 Landed)" "CANDIDATE PR #14 merged, its head is the tip"
+  assert_contains "agent branch checked out in a worktree: kept" "$(rf_field agent-def456 Retention) $(rf_field agent-def456 Reason)" "KEEP checked out in worktree"
+  assert_not_contains "remote mode writes no TipCapture line" "$rf_out" "TipCapture:"
+  assert_not_contains "remote mode reports no deletion" "$rf_out" "Deleted:"
+  if [[ "$(git -C "$RF" for-each-ref --format='%(refname) %(objectname)')" == "$refs_before" ]]; then
+    pass "remote mode deletes and moves no ref"
+  else
+    fail "remote mode deletes and moves no ref" "no difference" "refs changed"
+  fi
+  if [[ -z "$(find "$RF/.git" -name '*.tsv*' 2>/dev/null)" ]]; then pass "remote mode writes no capture file"; else fail "remote mode writes no capture file" none present; fi
+  rc=0
+  (cd "$RF" && PATH="$rf_bin:$PATH" bash "$AUDIT" --remote-families --capture-file "$TEST_TMPDIR/rf.tsv" >/dev/null 2>&1) || rc=$?
+  assert_exit "--remote-families with --capture-file exits 2" 2 "$rc"
+  assert_file_absent "rejected capture flag writes nothing" "$TEST_TMPDIR/rf.tsv"
+else
+  skip_case "remote-families cases need jq"
+fi
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
