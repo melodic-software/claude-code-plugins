@@ -546,12 +546,12 @@ def _attribution(item: Item) -> str:
 
 
 def _verdict(item: Item) -> str:
-    if item.reasons:
-        verdict = "keep: " + "; ".join(item.reasons)
-    elif item.kind == "concern":
+    if item.kind == "concern":
         verdict = "keep: concern state read back by its skill"
     elif item.kind == "unknown":
         verdict = "keep: unknown kind"
+    elif item.reasons:
+        verdict = "keep: " + "; ".join(item.reasons)
     else:
         verdict = "stale" if item.links else "keep: names no issue or PR"
     return verdict + _attribution(item)

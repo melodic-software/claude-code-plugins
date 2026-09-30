@@ -383,6 +383,16 @@ def test_text_table(env):
     assert "removable," in result.stdout.splitlines()[-1]
 
 
+def test_a_recent_concern_item_is_never_described_as_recent(env):
+    build(env)
+    _, _, repo = env
+    write(repo / ".work" / "reviews" / "fresh" / "report.md", "r")
+    result = run_cli(env, "--offline")
+    row = next(ln for ln in result.stdout.splitlines() if "reviews/fresh" in ln)
+    assert "keep: concern state read back by its skill" in row
+    assert "modified within" not in row
+
+
 def test_bad_link_state_exits_2(env):
     bad = env[0] / "bad.json"
     bad.write_text("[]", encoding="utf-8")
