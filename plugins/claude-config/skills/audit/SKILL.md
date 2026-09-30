@@ -327,8 +327,8 @@ environment.
 For each user-approved fix:
 
 1. Make the edit. Route each approved edit to `settings.json` or `settings.local.json`
-   through the built-in `update-config` skill, not a direct write (`.mcp.json` is outside its
-   scope; edit it directly); the one exception is orphan-`false` plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
+   through the built-in `update-config` skill when it resolves in this session, and write directly
+   when it does not (`.mcp.json` is outside its scope; edit it directly); the one exception is orphan-`false` plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
    check still runs. In auto mode a settings edit needs the `[Self-Modification]` handshake: the
    classifier asks, and the user's explicit approval of that fix is the consent. Done when the
    target file carries the change and nothing else in it moved.
@@ -411,8 +411,8 @@ request such as "allow npm commands" or "add a hook that runs when Claude stops"
 an audit.
 
 **Mutation gate.** `update-config` writes settings files as its job. This skill writes only in
-Phase 5, under `--fix`, one confirmed fix at a time, and never chains into `update-config` on its
-own behalf.
+Phase 5, under `--fix`, one confirmed fix at a time; Phase 5 routes each such settings edit through
+`update-config`, and outside `--fix` this skill never chains into it on its own behalf.
 
 **Availability is never assumed.** Bundled skills are gated by settings such as
 `disableBundledSkills` and vary by version and host; this section states what to do when the
