@@ -284,7 +284,7 @@ catrec="$(cat "$TEST_TMPDIR/cat.json")"
 assert_contains "api placed" "$catrec" '"catalog":"api","placed":"yes"'
 assert_contains "batch unplaced" "$catrec" '"catalog":"batch","placed":"no"'
 
-# bicep plus compose is a partial read
+# bicep plus compose is read, since both are shipped
 repo2="$TEST_TMPDIR/both"
 init_repo "$repo2"
 mkdir -p "$repo2/deploy"
@@ -293,8 +293,17 @@ printf "resource web 'Microsoft.Web/sites@2022-03-01' = {\n  name: 'api'\n}\n" >
 commit_all "$repo2"
 bash "$COLLECT" --repo "$repo2" --out "$TEST_TMPDIR/both.json" --generated-on 2026-09-28
 both="$(cat "$TEST_TMPDIR/both.json")"
+assert_contains "bicep beside compose is drawn" "$both" '"status": "drawn"'
+assert_contains "bicep is a shipped tool" "$both" '"name":"bicep","shipped":"yes"'
+
+# pulumi plus compose is a partial read
+printf 'name: web\nruntime: nodejs\n' >"$repo2/Pulumi.yaml"
+git -C "$repo2" rm -q main.bicep
+commit_all "$repo2"
+bash "$COLLECT" --repo "$repo2" --out "$TEST_TMPDIR/both.json" --generated-on 2026-09-28
+both="$(cat "$TEST_TMPDIR/both.json")"
 assert_contains "partial read" "$both" '"reason": "partial-read"'
-assert_contains "names bicep" "$both" '"name":"bicep"'
+assert_contains "names pulumi" "$both" '"name":"pulumi"'
 assert_contains "names compose" "$both" '"name":"compose"'
 bash "$RENDER" --record "$TEST_TMPDIR/both.json" --out "$TEST_TMPDIR/both-out" --dialect likec4 >/dev/null
 bothmd="$(cat "$TEST_TMPDIR/both-out/deployment.md")"
@@ -722,8 +731,8 @@ check_declines() {
   bash "$COLLECT" --repo "$dir" --out "$TEST_TMPDIR/decl.json" --generated-on 2026-09-28
   assert_contains "$label beside compose is a partial read" "$(cat "$TEST_TMPDIR/decl.json")" '"reason": "partial-read"'
 }
-check_declines "an ARM template" arm infra/main.json "{\"\$schema\": \"$arm_schema\", \"resources\": []}"
-check_declines "a Bicep file" bicep infra/main.bicep "param location string = 'westeurope'"
+check_declines "a Pulumi project" pulumi Pulumi.yaml "name: web"
+check_declines "a Kustomize overlay" kustomize deploy/kustomization.yaml "resources: []"
 declining_fixture "$TEST_TMPDIR/notarm" package.json "$(printf '{"%sschema": "https://json.schemastore.org/package.json"}' '$')"
 bash "$COLLECT" --repo "$TEST_TMPDIR/notarm" --out "$TEST_TMPDIR/notarm.json" --generated-on 2026-09-28
 assert_contains "an unrelated json schema is not ARM" "$(cat "$TEST_TMPDIR/notarm.json")" '"reason": "no-declared-iac"'
@@ -1161,6 +1170,357 @@ assert_contains "a sensitive variable that differs is reported without its value
 assert_no_leak "terraform record" "$tlrec"
 tlsum="$(bash "$RENDER" --record "$TEST_TMPDIR/tf-leaks.json" --out "$TEST_TMPDIR/tf-leaks-out" --dialect c4-plantuml --diff staging prod)"
 assert_no_leak "terraform render" "$(cat "$TEST_TMPDIR/tf-leaks-out/deployment.md")$tlsum"
+
+# Bicep: .bicepparam environments over one template, a local module, and compute references.
+repoB="$TEST_TMPDIR/bicep"
+init_repo "$repoB"
+mkdir -p "$repoB/infra/modules"
+cat >"$repoB/infra/main.bicep" <<'EOF'
+targetScope = 'resourceGroup'
+param location string = resourceGroup().location
+param apiImage string = 'ghcr.io/acme/api:1.0.0'
+param minReplicas int = 1
+@description('''The managed
+environment name''')
+param envName string
+
+resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {
+  name: envName
+  location: location
+  properties: {}
+}
+
+resource api 'Microsoft.App/containerApps@2024-03-01' = {
+  name: 'api'
+  location: location
+  properties: {
+    managedEnvironmentId: env.id
+    configuration: {
+      ingress: { external: true, targetPort: 8080 }
+    }
+    template: {
+      containers: [
+        {
+          name: 'api'
+          image: apiImage
+          env: [
+            { name: 'LOG_LEVEL', value: 'info' }
+            { name: 'REGION', value: '${location}-${envName}' }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: minReplicas
+      }
+    }
+  }
+}
+
+resource worker 'Microsoft.App/containerApps@2024-03-01' = if (minReplicas > 1) {
+  name: 'worker'
+  properties: {
+    environmentId: env.id
+    template: {
+      containers: containerList
+    }
+  }
+}
+
+module web 'modules/web.bicep' = {
+  name: 'web'
+  params: {
+    image: 'ghcr.io/acme/web:${minReplicas}'
+  }
+}
+
+output fqdn string = api.properties.configuration.ingress.fqdn
+EOF
+cat >"$repoB/infra/modules/web.bicep" <<'EOF'
+param image string
+resource plan 'Microsoft.Web/serverfarms@2023-01-01' = {
+  name: 'plan'
+  sku: { name: 'B1' }
+}
+resource site 'Microsoft.Web/sites@2023-01-01' = {
+  name: 'web'
+  properties: {
+    serverFarmId: plan.id
+    siteConfig: {
+      linuxFxVersion: 'DOCKER|${image}'
+      appSettings: [
+        { name: 'WEBSITES_PORT', value: '80' }
+      ]
+    }
+  }
+}
+resource code 'Microsoft.Web/sites@2023-01-01' = {
+  name: 'code'
+  properties: {
+    siteConfig: { linuxFxVersion: 'NODE|20-lts' }
+  }
+}
+EOF
+printf "using 'main.bicep'\nparam envName = 'prod-env'\nparam apiImage = 'ghcr.io/acme/api:1.4.0'\nparam minReplicas = 3\n" >"$repoB/infra/main.prod.bicepparam"
+printf "using './main.bicep'\nparam envName = 'stg-env'\n" >"$repoB/infra/main.staging.bicepparam"
+commit_all "$repoB"
+bash "$COLLECT" --repo "$repoB" --out "$TEST_TMPDIR/bicep.json" --generated-on 2026-09-28
+assert_equals "bicep collect exits 0" "$?" "0"
+brec="$(cat "$TEST_TMPDIR/bicep.json")"
+assert_contains "bicep record is drawn" "$brec" '"status": "drawn"'
+assert_contains "a bicepparam file is an environment" "$brec" '"environment":"prod","tool":"bicep","evidence":"infra/main.bicep, infra/main.prod.bicepparam"'
+assert_contains "the other bicepparam file is an environment" "$brec" '"environment":"staging","tool":"bicep"'
+assert_equals "bicep has two environments" "$(grep -c '"environment":"[a-z]*","tool":"bicep"' "$TEST_TMPDIR/bicep.json")" "2"
+assert_contains "a managed environment is a compute node named by its parameter" "$brec" '"id":"prod/env","env":"prod","tool":"bicep","kind":"compute","name":"prod-env","detail":"Microsoft.App/managedEnvironments"'
+assert_contains "a container app runs on the environment its id names" "$brec" '"container":"api","env":"prod","tool":"bicep","node":"prod/env","compute":"prod/env","image":"ghcr.io/acme/api:1.4.0","replicas":"3","ports":"8080"'
+assert_contains "a parameter default applies when the bicepparam file omits it" "$brec" '"container":"api","env":"staging","tool":"bicep","node":"staging/env","compute":"staging/env","image":"ghcr.io/acme/api:1.0.0","replicas":"1"'
+# shellcheck disable=SC2016 # ${...} is literal Bicep interpolation
+assert_contains "an interpolation over a function default is unresolved" "$brec" '"parameter":"REGION","env":"prod","tool":"bicep","container":"api","value":"unresolved:'"'"'${location}-${envName}'"'"'"'
+assert_contains "a containers expression places one unresolved container" "$brec" '"container":"worker","env":"prod","tool":"bicep","node":"prod/env","compute":"prod/env","image":"unresolved:containerList"'
+assert_contains "a module server farm is a compute node" "$brec" '"id":"prod/module.web.plan","env":"prod","tool":"bicep","kind":"compute","name":"plan","detail":"Microsoft.Web/serverfarms","evidence":"infra/modules/web.bicep"'
+assert_contains "a DOCKER site runs on its server farm with the module argument resolved" "$brec" '"container":"web","env":"prod","tool":"bicep","node":"prod/module.web.plan","compute":"prod/module.web.plan","image":"ghcr.io/acme/web:3"'
+assert_contains "an app setting is a parameter" "$brec" '"parameter":"WEBSITES_PORT","env":"prod","tool":"bicep","container":"web","value":"80"'
+assert_not_contains "a code site is not a container" "$brec" '"container":"code"'
+assert_contains "bicep image diff" "$brec" '"change":"image","left":"prod","right":"staging","tool":"bicep","container":"api","detail":"ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"'
+assert_contains "bicep replicas diff" "$brec" '"change":"replicas","left":"prod","right":"staging","tool":"bicep","container":"api","detail":"3 -> 1"'
+bash "$RENDER" --record "$TEST_TMPDIR/bicep.json" --out "$TEST_TMPDIR/bicep-l" --dialect likec4 --env prod >/dev/null
+assert_contains "likec4 runs the bicep container inside its managed environment" "$(cat "$TEST_TMPDIR/bicep-l/deployment.md")" $'= node \'prod-env\' \'compute Microsoft.App/managedEnvironments\' {\n      instanceOf'
+
+# ARM: <stem>.parameters.<env>.json and parameters.<env>.json beside the only template.
+repoA="$TEST_TMPDIR/arm"
+init_repo "$repoA"
+mkdir -p "$repoA/infra"
+cat >"$repoA/infra/app.json" <<EOF
+{
+  "\$schema": "$arm_schema",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "envName": { "type": "string" },
+    "image": { "type": "string", "defaultValue": "ghcr.io/acme/api:1.0.0" },
+    "replicas": { "type": "int", "defaultValue": 1 }
+  },
+  "variables": { "suffix": "x" },
+  "resources": [
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('envName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "api",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', parameters('envName'))]",
+        "configuration": { "ingress": { "targetPort": 8080 } },
+        "template": {
+          "containers": [
+            {
+              "name": "api",
+              "image": "[parameters('image')]",
+              "env": [
+                { "name": "REGION", "value": "[concat('eu-', variables('suffix'))]" },
+                { "name": "LITERAL", "value": "[[bracketed]" }
+              ]
+            }
+          ],
+          "scale": { "minReplicas": "[parameters('replicas')]" }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2023-05-01",
+      "name": "jobs",
+      "properties": {
+        "containers": [
+          {
+            "name": "batch",
+            "properties": {
+              "image": "ghcr.io/acme/batch:1",
+              "ports": [ { "port": 9000 } ],
+              "environmentVariables": [ { "name": "MODE", "value": "nightly" } ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+EOF
+# shellcheck disable=SC2016 # $schema is a literal JSON key
+arm_params() { printf '{\n  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",\n  "parameters": {\n%s\n  }\n}\n' "$1"; }
+arm_params '    "envName": { "value": "prod-env" },
+    "image": { "value": "ghcr.io/acme/api:1.4.0" },
+    "replicas": { "value": 3 }' >"$repoA/infra/app.parameters.prod.json"
+arm_params '    "envName": { "value": "stg-env" }' >"$repoA/infra/parameters.staging.json"
+mkdir -p "$repoA/sub"
+# shellcheck disable=SC2016 # $schema is a literal JSON key
+printf '{\n  "$schema": "https://schema.management.azure.com/schemas/2018-05-01/subscriptionDeploymentTemplate.json#",\n  "resources": []\n}\n' >"$repoA/sub/main.json"
+commit_all "$repoA"
+bash "$COLLECT" --repo "$repoA" --out "$TEST_TMPDIR/arm.json" --generated-on 2026-09-28
+assert_equals "arm collect exits 0" "$?" "0"
+arec="$(cat "$TEST_TMPDIR/arm.json")"
+assert_contains "arm record is drawn" "$arec" '"status": "drawn"'
+assert_contains "arm is a shipped tool" "$arec" '"name":"arm","shipped":"yes"'
+assert_contains "a stem parameters file is an environment" "$arec" '"environment":"prod","tool":"arm","evidence":"infra/app.json, infra/app.parameters.prod.json"'
+assert_contains "a bare parameters file pairs with the only template" "$arec" '"environment":"staging","tool":"arm","evidence":"infra/app.json, infra/parameters.staging.json"'
+assert_contains "a subscription template is recognized and read" "$arec" '"environment":"sub","tool":"arm","evidence":"sub/main.json"'
+assert_contains "an ARM managed environment is a compute node" "$arec" '"id":"prod/resources[0]","env":"prod","tool":"arm","kind":"compute","name":"prod-env"'
+assert_contains "resourceId matches the environment by its resolved name" "$arec" '"container":"api","env":"prod","tool":"arm","node":"prod/resources[0]","compute":"prod/resources[0]","image":"ghcr.io/acme/api:1.4.0","replicas":"3","ports":"8080"'
+assert_contains "an ARM default applies when the parameters file omits it" "$arec" '"container":"api","env":"staging","tool":"arm","node":"staging/resources[0]","compute":"staging/resources[0]","image":"ghcr.io/acme/api:1.0.0","replicas":"1"'
+assert_contains "an ARM function is recorded unresolved" "$arec" '"parameter":"REGION","env":"prod","tool":"arm","container":"api","value":"unresolved:concat('"'"'eu-'"'"', variables('"'"'suffix'"'"'))"'
+assert_contains "a doubled bracket is a literal" "$arec" '"parameter":"LITERAL","env":"prod","tool":"arm","container":"api","value":"[bracketed]"'
+assert_contains "a container group is its own compute node" "$arec" '"id":"prod/resources[2]","env":"prod","tool":"arm","kind":"compute","name":"jobs","detail":"Microsoft.ContainerInstance/containerGroups"'
+assert_contains "a container group container is placed with its port" "$arec" '"container":"batch","env":"prod","tool":"arm","node":"prod/resources[2]","compute":"prod/resources[2]","image":"ghcr.io/acme/batch:1","replicas":"undeclared","ports":"9000"'
+assert_contains "arm image diff" "$arec" '"change":"image","left":"prod","right":"staging","tool":"arm","container":"api","detail":"ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"'
+bash "$RENDER" --record "$TEST_TMPDIR/arm.json" --out "$TEST_TMPDIR/arm-p" --dialect c4-plantuml --env prod >/dev/null
+assert_contains "plantuml runs the ARM container inside its container group" "$(cat "$TEST_TMPDIR/arm-p/deployment.md")" $'"compute", "Microsoft.ContainerInstance/containerGroups") {\n    Container('
+bash "$RENDER" --record "$TEST_TMPDIR/arm.json" --out "$TEST_TMPDIR/arm-l" --dialect likec4 --env prod >/dev/null
+assert_contains "likec4 runs the ARM container inside its container group" "$(cat "$TEST_TMPDIR/arm-l/deployment.md")" $'= node \'jobs\' \'compute Microsoft.ContainerInstance/containerGroups\' {\n      instanceOf'
+
+# Bicep and ARM refuse by name what they cannot read; a module source is never printed.
+tf_refusal "a Bicep registry module" "bicep-module-unread:main.bicep:module.net" main.bicep \
+  "$(printf "module net 'br:acme.azurecr.io/bicep/net:%s' = {\n  name: 'net'\n}" "$(gh_tok M)")"
+assert_not_contains "a registry module source never reaches the record" "$TF_REFUSAL_REC" "$(gh_tok M)"
+tf_refusal "a Bicep template-spec module" "bicep-module-unread:main.bicep:module.net" main.bicep \
+  "$(printf "module net 'ts/Specs:net:1.0' = {\n  name: 'net'\n}")"
+tf_refusal "a Bicep module with no tracked file" "bicep-module-unread:main.bicep:module.net" main.bicep \
+  "$(printf "module net './net.bicep' = {\n  name: 'net'\n}")"
+tf_refusal "an unbalanced Bicep block" "bicep-unreadable:main.bicep" main.bicep \
+  "$(printf "resource env 'Microsoft.App/managedEnvironments@2024-03-01' = {\n  name: 'x'\n")"
+tf_refusal "an unbalanced ARM template" "arm-unreadable:infra/main.json" infra/main.json \
+  "{\"\$schema\": \"$arm_schema\", \"resources\": ["
+tf_refusal "a bicepparam file with using none" "bicep-param-unread:main.bicepparam" main.bicepparam "using none"
+tf_refusal "a nested deployment" "arm-deployment-unread:infra/main.json:resources[0]" infra/main.json \
+  "{\"\$schema\": \"$arm_schema\", \"resources\": [{\"type\": \"Microsoft.Resources/deployments\", \"name\": \"inner\", \"properties\": {}}]}"
+rm -rf "$repoR"
+init_repo "$repoR"
+mkdir -p "$repoR/infra"
+printf "param a string\n" >"$repoR/infra/one.bicep"
+printf "param b string\n" >"$repoR/infra/two.bicep"
+arm_params '    "a": { "value": "x" }' >"$repoR/infra/parameters.prod.json"
+commit_all "$repoR"
+bash "$COLLECT" --repo "$repoR" --out "$TEST_TMPDIR/unpaired.json" --generated-on 2026-09-28
+assert_contains "a parameters file beside two templates is refused by name" "$(cat "$TEST_TMPDIR/unpaired.json")" '"reason": "arm-parameters-unpaired:infra/parameters.prod.json"'
+
+# Bicep no-leak: a secure parameter default, a secure parameter passed through a module into an
+# unmarked one, literal connection strings in env, a secret reference, and a bicepparam secret.
+repoBL="$TEST_TMPDIR/bicep-leaks"
+init_repo "$repoBL"
+cat >"$repoBL/main.bicep" <<EOF
+@secure()
+param dbPassword string = '${fake}-BSEC'
+@secure()
+param token string
+param upstream string
+resource app 'Microsoft.App/containerApps@2024-03-01' = {
+  name: 'api'
+  properties: {
+    template: {
+      containers: [
+        {
+          name: 'api'
+          image: 'ghcr.io/acme/api:1'
+          env: [
+            { name: 'OPAQUE', value: dbPassword }
+            { name: 'PREFIXED', value: 'x-\${token}' }
+            { name: 'UPSTREAM_A', value: upstream }
+            { name: 'CS_SQL', value: 'Server=db.example.com;User ID=app;Password=${fake}-BSQL' }
+            { name: 'CS_BUS', value: 'Endpoint=sb://fakebus.servicebus.windows.net/;SharedAccessKey=${fake}-BSAK' }
+            { name: 'DB_URL', secretRef: 'db' }
+            { name: 'LOG_LEVEL', value: 'info' }
+          ]
+        }
+      ]
+    }
+  }
+}
+module hidden 'hidden.bicep' = {
+  name: 'hidden'
+  params: {
+    image: token
+  }
+}
+EOF
+printf "param image string\nresource g 'Microsoft.ContainerInstance/containerGroups@2023-05-01' = {\n  name: 'g'\n  properties: {\n    containers: [\n      {\n        name: 'hidden'\n        properties: {\n          image: image\n        }\n      }\n    ]\n  }\n}\n" >"$repoBL/hidden.bicep"
+for s in S P; do
+  [[ "$s" == S ]] && d=staging || d=prod
+  printf "using 'main.bicep'\nparam token = '%s-BTOK%s'\nparam upstream = '%s'\n" "$fake" "$s" "$(gh_tok "$s")" >"$repoBL/main.$d.bicepparam"
+done
+commit_all "$repoBL"
+bash "$COLLECT" --repo "$repoBL" --out "$TEST_TMPDIR/bicep-leaks.json" --generated-on 2026-09-28
+blrec="$(cat "$TEST_TMPDIR/bicep-leaks.json")"
+assert_contains "bicep leak fixture is drawn" "$blrec" '"status": "drawn"'
+for k in OPAQUE PREFIXED UPSTREAM_A CS_SQL CS_BUS DB_URL; do
+  assert_contains "bicep leak fixture redacts $k" "$blrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"bicep\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
+done
+assert_contains "a secure parameter passed through a module prints as redacted" "$blrec" '"container":"hidden","env":"prod","tool":"bicep","node":"prod/module.hidden.g","compute":"prod/module.hidden.g","image":"[redacted]"'
+assert_contains "a bicepparam secret that differs is reported without its value" "$blrec" "secret parameter PREFIXED differs"
+assert_no_leak "bicep record" "$blrec"
+blsum="$(bash "$RENDER" --record "$TEST_TMPDIR/bicep-leaks.json" --out "$TEST_TMPDIR/bicep-leaks-out" --dialect c4-plantuml --diff staging prod)"
+assert_no_leak "bicep render" "$(cat "$TEST_TMPDIR/bicep-leaks-out/deployment.md")$blsum"
+bash "$RENDER" --record "$TEST_TMPDIR/bicep-leaks.json" --out "$TEST_TMPDIR/bicep-leaks-l" --dialect likec4 >/dev/null
+assert_no_leak "bicep likec4 render" "$(cat "$TEST_TMPDIR/bicep-leaks-l/deployment.md")"
+
+# ARM no-leak: a securestring default, a literal connection string, a container group secure
+# value, and a Key Vault reference in a parameters file.
+repoAL="$TEST_TMPDIR/arm-leaks"
+init_repo "$repoAL"
+cat >"$repoAL/app.json" <<EOF
+{
+  "\$schema": "$arm_schema",
+  "parameters": {
+    "dbPassword": { "type": "securestring", "defaultValue": "${fake}-ASEC" },
+    "upstream": { "type": "string" },
+    "vaulted": { "type": "string" }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "name": "g",
+      "properties": {
+        "containers": [
+          {
+            "name": "api",
+            "properties": {
+              "image": "ghcr.io/acme/api:1",
+              "environmentVariables": [
+                { "name": "OPAQUE", "value": "[parameters('dbPassword')]" },
+                { "name": "UPSTREAM_A", "value": "[parameters('upstream')]" },
+                { "name": "VAULTED", "value": "[parameters('vaulted')]" },
+                { "name": "CS_SQL", "value": "Server=db.example.com;User ID=app;Password=${fake}-ASQL" },
+                { "name": "SIGNING", "secureValue": "${fake}-ASV" },
+                { "name": "LOG_LEVEL", "value": "info" }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+EOF
+for s in S P; do
+  [[ "$s" == S ]] && d=staging || d=prod
+  arm_params "    \"upstream\": { \"value\": \"$(gh_tok "$s")\" },
+    \"vaulted\": { \"reference\": { \"keyVault\": { \"id\": \"/subscriptions/0/vaults/kv\" }, \"secretName\": \"db-$s\" } }" >"$repoAL/app.parameters.$d.json"
+done
+commit_all "$repoAL"
+bash "$COLLECT" --repo "$repoAL" --out "$TEST_TMPDIR/arm-leaks.json" --generated-on 2026-09-28
+alrec="$(cat "$TEST_TMPDIR/arm-leaks.json")"
+assert_contains "arm leak fixture is drawn" "$alrec" '"status": "drawn"'
+for k in OPAQUE UPSTREAM_A VAULTED CS_SQL SIGNING; do
+  assert_contains "arm leak fixture redacts $k" "$alrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"arm\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
+done
+assert_contains "arm leak fixture keeps a plain value" "$alrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"arm","container":"api","value":"info","redacted":"no"'
+assert_contains "an ARM parameters secret that differs is reported without its value" "$alrec" "secret parameter UPSTREAM_A differs"
+assert_no_leak "arm record" "$alrec"
+alsum="$(bash "$RENDER" --record "$TEST_TMPDIR/arm-leaks.json" --out "$TEST_TMPDIR/arm-leaks-out" --dialect c4-plantuml --diff staging prod)"
+assert_no_leak "arm render" "$(cat "$TEST_TMPDIR/arm-leaks-out/deployment.md")$alsum"
+bash "$RENDER" --record "$TEST_TMPDIR/arm-leaks.json" --out "$TEST_TMPDIR/arm-leaks-l" --dialect likec4 >/dev/null
+assert_no_leak "arm likec4 render" "$(cat "$TEST_TMPDIR/arm-leaks-l/deployment.md")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'

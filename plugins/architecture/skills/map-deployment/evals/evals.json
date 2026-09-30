@@ -21,11 +21,11 @@
     {
       "id": 2,
       "name": "two-tools-refuse",
-      "prompt": "/architecture:map-deployment\n\nThe repository has deploy/compose.yaml and main.bicep with a Bicep resource. Both are tracked.",
-      "expected_output": "The record reason is partial-read. The record and any deployment.md name compose and bicep, and no deployment diagram is drawn.",
+      "prompt": "/architecture:map-deployment\n\nThe repository has deploy/compose.yaml and a Pulumi.yaml project file. Both are tracked.",
+      "expected_output": "The record reason is partial-read. The record and any deployment.md name compose and pulumi, and no deployment diagram is drawn.",
       "narration": true,
       "expectations": [
-        "Does not draw the Compose services and ignore Bicep",
+        "Does not draw the Compose services and ignore Pulumi",
         "Names both tools",
         "The artifact states partial-read",
         "No deployment diagram is written"
@@ -110,14 +110,15 @@
     },
     {
       "id": 9,
-      "name": "arm-template-refuses",
-      "prompt": "/architecture:map-deployment\n\nTracked files are deploy/compose.yaml and infra/main.json, an ARM template whose $schema is https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json.",
-      "expected_output": "The record reason is partial-read and names compose and arm. No diagram is drawn.",
+      "name": "bicep-registry-module-refuses",
+      "prompt": "/architecture:map-deployment\n\nThe only IaC is infra/main.bicep, which declares a Microsoft.App/managedEnvironments resource and a module net whose source is br:acme.azurecr.io/bicep/net:v1. The operator asked where the containers run.",
+      "expected_output": "The record reason is bicep-module-unread:infra/main.bicep:module.net. The registry source is not printed, and no diagram is drawn from the environment alone.",
       "narration": true,
       "expectations": [
-        "Names both compose and arm",
-        "The artifact states partial-read",
-        "Does not draw the Compose services and ignore the ARM template"
+        "Recognizes Bicep as a shipped reader",
+        "Does not draw the managed environment while the registry module stays unread",
+        "The artifact names the file and module that were not read",
+        "The module source does not appear in the record or the artifact"
       ]
     },
     {

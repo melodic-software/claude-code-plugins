@@ -126,10 +126,31 @@ Shipped readers, every one that is present:
   `terraform-module-unread:<file>:module.<name>`, and the source itself is never printed. A file
   that does not parse is `terraform-unreadable:<file>`. A tfvars file with no configuration at or
   above it is `terraform-orphan-tfvars:<file>`.
+- Bicep (`.bicep`, `.bicepparam`) and ARM templates (JSON whose `$schema` names
+  `deploymentTemplate`, any scope), read as text. No `bicep` or `az` binary, no registry restore.
+  A root is a template that no module names. Its environments are one per `.bicepparam` whose
+  `using` names it (`main.prod.bicepparam` is `prod`) and one per JSON parameters file
+  (`$schema` names `deploymentParameters`): `<name>.parameters.<env>.json` beside `<name>.bicep` or
+  `<name>.json`, or `parameters.<env>.json` beside the directory's only template. With none, the
+  environment is the directory name (`default` at the repository root). Containers come from
+  `Microsoft.App/containerApps` (`template.containers`, `scale.minReplicas`,
+  `ingress.targetPort`), `Microsoft.ContainerInstance/containerGroups` (each group is the compute
+  node of its containers), and `Microsoft.Web/sites` whose `linuxFxVersion` or `windowsFxVersion`
+  is `DOCKER|<image>` (`appSettings` are its parameters). Compute nodes are
+  `Microsoft.App/managedEnvironments` and `connectedEnvironments`, `Microsoft.Web/serverfarms`,
+  and `Microsoft.ContainerService/managedClusters`. A container app runs on the environment its
+  `managedEnvironmentId` or `environmentId` names, a site on its `serverFarmId`: a Bicep
+  `<symbol>.id`, or an ARM `resourceId('<type>', <name>)` whose name matches a declared resource.
+  A local module (Bicep or ARM) is followed, each resource addressed `module.<name>.<symbol>`. A
+  registry or template-spec module, or a local one that is not a tracked template, refuses the
+  record as `bicep-module-unread:<file>:module.<name>`, and the source is never printed. A file
+  that does not parse is `bicep-unreadable:<file>` or `arm-unreadable:<file>`. A `.bicepparam`
+  with `using none`, `extends`, or an untracked `using` target is `bicep-param-unread:<file>`. A
+  JSON parameters file with no template to pair is `arm-parameters-unpaired:<file>`. A nested
+  `Microsoft.Resources/deployments` resource is `<bicep|arm>-deployment-unread:<file>:<symbol>`.
 
-ARM templates (JSON whose `$schema` names `deploymentTemplate`), Pulumi, Bicep, CloudFormation,
-Helm (a `Chart.yaml`), and Kustomize are recognized. If any of them is present, the record is refused, including when Compose or Kubernetes
-is also present. A diagram of only the shipped tool would be a partial read. A repository whose only
+Pulumi, CloudFormation, Helm (a `Chart.yaml`), and Kustomize are recognized. If any of them is
+present, the record is refused, including when a shipped reader also matches. A diagram of only the shipped tool would be a partial read. A repository whose only
 IaC is an unshipped tool is refused as `adapter-not-shipped`, not drawn empty. Files under CI
 directories such as `.github/` are not IaC and are skipped. A double-brace expression in a Compose
 or Kubernetes value (a Go template in a healthcheck) reads normally; one in a name, image,
@@ -198,6 +219,7 @@ End every run with this block, in this order:
 
 - Call a cloud API, use credentials, or compare live state to the declaration.
 - Run `terraform`, read Terraform state, or fetch a remote module.
+- Run `bicep` or `az`, restore a registry module, or evaluate an ARM function.
 - Cost, scaling, capacity, or runtime health.
 - Apply Helm templates or Kustomize. Those tools are a refusal, not a guessed render.
 - Add a dialect key, read `landscape_dialect`, or emit mermaid. The dialect is the existing
@@ -245,8 +267,29 @@ End every run with this block, in this order:
   is recorded on `default`. A service that names a network is recorded on that network.
 - **A required secret is not a topology fact.** The value is dropped. The diff can say the
   parameter differs. It cannot show the value.
-- **Two tools are not half-read.** Seeing Bicep, an ARM template, or any other unshipped tool
-  beside Compose refuses the whole record. Terraform beside Compose is read, since both are shipped.
+- **Two tools are not half-read.** Seeing Pulumi or any other unshipped tool beside Compose
+  refuses the whole record. Terraform or Bicep beside Compose is read, since both are shipped.
+- **Bicep and ARM values are resolved, never evaluated.** A parameter resolves from a module
+  `params` argument, then the environment's parameters file, then its default, and `${name}` inside
+  a Bicep string the same way. An ARM value resolves only when it is exactly
+  `[parameters('<name>')]`; `[[` opens a literal. A parameter marked `@secure()`, typed
+  `securestring` or `secureobject`, or given a Key Vault `reference` is redacted wherever it lands,
+  as is a `secretRef` or `secureValue` env entry. Every var, function, and conditional is recorded
+  as `unresolved:<expression>`. A `for` or `copy` loop is placed once, an `if` or `condition` is
+  ignored, child resources are not read, a `resourceId` with scope arguments matches nothing, a
+  site whose fx version does not read `DOCKER|` is not drawn, and `Microsoft.App/jobs` is not
+  mapped.
+- **Bicep module and parameter file forms.** Claim: a local module path is relative (with or
+  without `./`) and may be a `.bicep` file or an ARM JSON template; `br:`, `br/<alias>:`, `ts:`,
+  and `ts/<alias>:` are registry and template-spec sources. A `.bicepparam` links its template with
+  `using '<path>'` or `using none`, and may `extends` another. Basis:
+  <https://learn.microsoft.com/azure/azure-resource-manager/bicep/modules>,
+  <https://learn.microsoft.com/azure/azure-resource-manager/bicep/parameter-files>. As of:
+  2026-09-29. Recheck when either page changes a path form or the `using` statement.
+- **ARM expressions are bracketed strings.** Claim: a string that starts with `[` and ends with `]`
+  is an expression, `[[` escapes a literal, and a parameters-file value is always literal. Basis:
+  <https://learn.microsoft.com/azure/azure-resource-manager/templates/template-expressions>. As of:
+  2026-09-29. Recheck when that page changes the escape rule.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true` is redacted wherever it lands. Everything else,

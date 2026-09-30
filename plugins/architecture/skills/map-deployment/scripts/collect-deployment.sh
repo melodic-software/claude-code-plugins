@@ -2,9 +2,10 @@
 # Collect a per-environment deployment record from committed IaC.
 #
 # WHY. A deployment diagram is a fact only when every node is a declaration in
-# a named file. This script reads Docker Compose, Kubernetes manifests, and
-# Terraform configuration as text. It does not call a cloud API, even when
-# --live is passed, and it never runs terraform or reads state.
+# a named file. This script reads Docker Compose, Kubernetes manifests,
+# Terraform, Bicep, and ARM templates as text. It does not call a cloud API,
+# even when --live is passed, and it never runs terraform, bicep, or az, or
+# reads state.
 #
 # Usage:
 #   collect-deployment.sh [--repo <path>] [--out <file>] [--generated-on <date>]
@@ -13,9 +14,10 @@
 #
 # Tracked files only (`git ls-files`), CI directories (.github and the like)
 # excluded. Shipped readers: Compose, Kubernetes manifests, and Terraform (.tf,
-# .tf.json, .tfvars, .tfvars.json; see terraform-reader.awk). ARM templates,
-# Pulumi, Bicep, CloudFormation, Helm (a Chart.yaml), and Kustomize are
-# recognized and then the record is refused,
+# .tf.json, .tfvars, .tfvars.json; see terraform-reader.awk), and Bicep and ARM
+# templates with their .bicepparam and deploymentParameters files (see
+# azure-reader.awk). Pulumi, CloudFormation, Helm (a Chart.yaml), and
+# Kustomize are recognized and then the record is refused,
 # including when a shipped reader also matches, so the diagram is never a
 # partial read. A compose base file and its compose.override.yaml, or the files
 # a tracked .env COMPOSE_FILE lists, merge in Compose merge order into one
@@ -231,6 +233,7 @@ fi
 : >"$TMP/compose.txt"
 : >"$TMP/k8s.txt"
 : >"$TMP/tf.txt"
+: >"$TMP/azure.txt"
 shipped=0
 unshipped=0
 
@@ -278,9 +281,10 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     unshipped=1
     continue
     ;;
-  *.bicep)
-    add_tool bicep no "$rel"
-    unshipped=1
+  *.bicep | *.bicepparam)
+    printf '%s\n' "$rel" >>"$TMP/azure.txt"
+    add_tool bicep yes "$rel"
+    shipped=1
     continue
     ;;
   *.tf | *.tfvars | *.tf.json | *.tfvars.json)
@@ -290,9 +294,14 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     continue
     ;;
   *.json)
-    if grep -E -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentTemplate' "$repo/$rel"; then
-      add_tool arm no "$rel"
-      unshipped=1
+    if grep -E -i -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentTemplate' "$repo/$rel"; then
+      printf '%s\n' "$rel" >>"$TMP/azure.txt"
+      add_tool arm yes "$rel"
+      shipped=1
+      continue
+    fi
+    if grep -E -i -q '"[$]schema"[[:space:]]*:[[:space:]]*"[^"]*deploymentParameters' "$repo/$rel"; then
+      printf '%s\n' "$rel" >>"$TMP/azure.txt"
       continue
     fi
     ;;
@@ -875,6 +884,25 @@ if [[ -s "$TMP/tf.txt" ]]; then
   if [[ -s "$TMP/tf-flag" ]]; then
     refuse "$(head -n 1 "$TMP/tf-flag")"
   fi
+fi
+
+# Bicep and ARM share one reader, run once per tool so each tool's environments
+# are diffed only against its own.
+if [[ -s "$TMP/azure.txt" ]]; then
+  az_args=()
+  while IFS= read -r rel || [[ -n "$rel" ]]; do
+    az_args+=("./$rel")
+  done <"$TMP/azure.txt"
+  for az_tool in bicep arm; do
+    grep -q "\"name\":\"$az_tool\"" "$TOOLS" || continue
+    if ! (cd "$repo" && awk -v tool="$az_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/az-flag" \
+      -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/azure-reader.awk" "${az_args[@]}"); then
+      refuse "$az_tool-unreadable"
+    fi
+    if [[ -s "$TMP/az-flag" ]]; then
+      refuse "$(head -n 1 "$TMP/az-flag")"
+    fi
+  done
 fi
 
 if [[ -n "$containers_file" ]]; then
