@@ -62,7 +62,7 @@ address an OS-managed volume root (for example `C:\` or `/`): it never walks tha
 recursively. With explicit `--root-child <name>` flags, after the human clears the confirmation
 gate's root-children row, it audits only those admitted children into one snapshot; without names
 the engine returns `root-children-selection-required`. A general "clean everything" is not
-selection. `--sizes-only` skips the large-scan question. What each of the three flags does
+selection. `--sizes-only` goes through the same large-scan gate as an unbounded walk. What each of the three flags does
 exactly, including the admission ladder, is in [scan-flags.md](reference/scan-flags.md). With no
 target, ask once. Reject an OS-managed root (unless `--root-children` on the volume root itself), a
 non-root mount target, a protected shell-folder root or descendant (the refusal carries a `hint`: a child of a shell folder is refused too, so name a directory whose path holds no protected name), a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
@@ -157,9 +157,7 @@ naming what the question never presented cannot be met.
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on a volume root), never "everything" or the scan target itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
-**`--sizes-only`** does not ask the large-scan question, so a known-large root walks without
-`--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only,
-and has no entry cap. Detail: [scan-flags.md](reference/scan-flags.md#--sizes-only).
+**`--sizes-only`** goes through the same large-scan question as an ordinary unbounded walk, so a known-large root needs `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only, keeps no per-path entries, and has no entry cap. Detail: [scan-flags.md](reference/scan-flags.md#--sizes-only).
 
 ## Deep inventory
 
@@ -169,8 +167,9 @@ It only reports: removing a listed entry still takes `scan`, a fresh `preview` a
 
 ## 1. Create a read-only snapshot
 
-Create a unique run directory under `${CLAUDE_PLUGIN_DATA}/runs/`; snapshots, plans, and reports must
-stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
+Choose a unique run-directory path under `${CLAUDE_PLUGIN_DATA}/runs/`; the engine creates it (it
+creates the parent of `--output`). Snapshots, plans, and reports must stay there, never in the target
+or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
@@ -180,7 +179,7 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
   [--root-children [--root-child <name>]...]
 ```
 
-For exact per-child byte totals without a per-entry inventory or the entry cap, add `--sizes-only` ([snapshot fields, entry-cap next steps](reference/scan-flags.md#--sizes-only)).
+For exact per-child byte totals without a per-entry inventory or the entry cap, add `--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`; [snapshot fields, entry-cap next steps](reference/scan-flags.md#--sizes-only)).
 Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies

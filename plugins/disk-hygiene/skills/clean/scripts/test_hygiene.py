@@ -3171,6 +3171,66 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(["builds:user-home"], payload["large_target_reasons"])
             self.assertFalse((data_root / "snapshot.json").exists())
 
+    def test_sizes_only_plain_target_goes_through_the_large_scan_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(),
+                extra_args=["--sizes-only"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [],
+                extra_args=["--sizes-only", "--confirmed-large-scan"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual("sizes-only", payload["inventory_mode"])
+            self.assertTrue((data_root / "snapshot.json").exists())
+
+    def test_sizes_only_root_children_goes_through_the_large_scan_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "builds").mkdir()
+            (target / "builds" / "out.bin").write_text("x", encoding="utf-8")
+            patches = [
+                *self._os_managed_volume_root_patches(target),
+                mock.patch.object(
+                    hygiene,
+                    "large_scan_reasons",
+                    side_effect=lambda path: (
+                        ["user-home"] if Path(path).name == "builds" else []
+                    ),
+                ),
+            ]
+            args = ["--sizes-only", "--root-children", "--root-child", "builds"]
+            code, payload = self._scan_target(target, data_root, patches, args)
+            self.assertEqual(0, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+            code, payload = self._scan_target(
+                target, data_root, [], [*args, "--confirmed-large-scan"]
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual("sizes-only", payload["inventory_mode"])
+            self.assertTrue((data_root / "snapshot.json").exists())
+
     def test_linux_volume_root_os_owned_includes_conventional_roots(self) -> None:
         owned = hygiene.volume_root_os_owned_names("linux")
         for name in (
@@ -4411,6 +4471,72 @@ class HygieneTests(unittest.TestCase):
                 row for row in snapshot["children_rollup"] if row["name"] == "file-0.txt"
             )
             self.assertTrue(child["walked"])
+
+    def test_sizes_only_totals_match_an_ordinary_scan_without_retaining_entries(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "tree" / "nested" / "hollow").mkdir(parents=True)
+            (root / "tree" / "nested" / "data.bin").write_bytes(b"x" * 7)
+            (root / "tree" / "zero.txt").write_bytes(b"")
+            (root / "tree" / "linked-a.txt").write_bytes(b"abc")
+            os.link(root / "tree" / "linked-a.txt", root / "tree" / "linked-b.txt")
+            (root / "empty").mkdir()
+            (root / "top.txt").write_bytes(b"yy")
+            target = root.resolve()
+            policy = hygiene.load_policy(None)
+            with mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(set(), None)
+            ):
+                ordinary = hygiene.scan_tree(target, policy)
+                # Each of these consumes a retained entry list, so none may run
+                # on the sizes-only walk.
+                for name in (
+                    "matching_hints",
+                    "annotate_tracked",
+                    "children_rollup",
+                    "reclaimable_local_bytes",
+                    "empty_directory_paths",
+                    "empty_file_count",
+                ):
+                    self.enterContext(
+                        mock.patch.object(hygiene, name, side_effect=AssertionError)
+                    )
+                sizes = hygiene.scan_tree(target, policy, sizes_only=True)
+            self.assertNotEqual([], ordinary["entries"])
+            self.assertEqual([], sizes["entries"])
+            self.assertEqual("exact", sizes["rollup_precision"])
+            for field in (
+                "children_rollup",
+                "target_logical_bytes",
+                "target_reclaimable_local_bytes",
+                "empty_directory_count",
+                "empty_directory_paths",
+                "empty_directory_paths_truncated",
+                "empty_file_count",
+            ):
+                self.assertEqual(ordinary[field], sizes[field], field)
+            self.assertEqual(7 + 3 + 3 + 2, sizes["target_logical_bytes"])
+            self.assertEqual(2, sizes["empty_directory_count"])
+            self.assertEqual(1, sizes["empty_file_count"])
+
+    def test_sizes_only_keeps_a_bounded_sample_of_empty_directories(self) -> None:
+        many = 2 * hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for i in range(many):
+                (root / f"d{i:04d}").mkdir()
+            target = root.resolve()
+            policy = hygiene.load_policy(None)
+            ordinary = hygiene.scan_tree(target, policy)
+            sizes = hygiene.scan_tree(target, policy, sizes_only=True)
+            self.assertEqual(many, sizes["empty_directory_count"])
+            self.assertTrue(sizes["empty_directory_paths_truncated"])
+            self.assertEqual(
+                ordinary["empty_directory_paths"], sizes["empty_directory_paths"]
+            )
 
     def test_sizes_only_depth_cut_marks_partial_rollup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

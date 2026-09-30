@@ -236,9 +236,9 @@ walking the rest of the home. Every volume root, OS-managed or a Windows Dev Dri
 strict child ladder described under Volume-root coverage; only a target that is not a volume root
 gets the relaxed directory listing.
 
-`--sizes-only` writes per-child byte totals and no entries. As implemented it skips the
-large-scan confirmation, sums through VCS and protected directories read-only, and has no entry
-cap.
+`--sizes-only` writes per-child byte totals and no entries. It goes through the same large-scan
+confirmation as an unbounded walk, sums through VCS and protected directories read-only, and has no
+entry cap.
 
 `--deep`, and a home-directory target without it, runs the read-only deep inventory before any
 scan: every entry with its producer, a disposition and a reason, where each `KEEP` names who
