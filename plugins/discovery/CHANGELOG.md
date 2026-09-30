@@ -4,9 +4,9 @@
 
 ### Fixed
 
-- **`research` at `breadth=low` spends fewer turns.** Evidence gathering is capped for a single
-  folder or topic, and the verifier-fail rework resume is bounded, so a low-breadth run no longer
-  makes dozens of tool calls. Eval 27 and the envelope lines still pass.
+- **`research` at `breadth=low` is bounded.** Phase 1 is capped at 6 web queries and fetches
+  combined, the researcher runs with `Turn budget: 15`, and a verifier-owned FAIL is presented with
+  a caveat instead of resuming the researcher.
 
 ## [0.25.14] - 2026-09-30
 
