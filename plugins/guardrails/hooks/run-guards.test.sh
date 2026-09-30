@@ -25,6 +25,7 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH="$HOOK_DIR/run-guards.sh"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
 
 export CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.."
 export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data"
@@ -391,7 +392,7 @@ for d in "${path_dirs[@]}"; do
     NOJQ_PATH+="${NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+if PATH="$NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "could not build a PATH without jq"
 else
   run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does

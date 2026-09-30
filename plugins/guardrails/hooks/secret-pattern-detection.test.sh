@@ -41,6 +41,7 @@ trap 'd1_cleanup; rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
 
 # Neutralize any ambient CLAUDE_PROJECT_DIR (a CC-wrapped run sets it) so the
 # default cases exercise the fail-closed scan path deterministically.

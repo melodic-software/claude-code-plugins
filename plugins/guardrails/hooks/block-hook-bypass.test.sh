@@ -14,6 +14,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
 
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 #
