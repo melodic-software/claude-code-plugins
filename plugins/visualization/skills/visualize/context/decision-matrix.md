@@ -180,11 +180,13 @@ the model-invocation gate.
 
 > Re-verified 2026-09-29 against a binary extraction of v2.1.285: one bundled
 > registration named `design`, `model_invocable` false (`disable_model_invocation`
-> true), `user_invocable` true, `gated` true, description unresolved. The
-> extraction records one registration where the v2.1.263 string search below found
-> two, so it does not establish whether the canvas registration gained the gate or
-> the hub now answers to the name; either way the model cannot invoke `design`.
-> Recheck when a release makes the `design` registration model-invocable, changes
+> true), `user_invocable` true, `gated` true, description unresolved. A targeted
+> string search of the same binary on 2026-09-30 resolves its identity: the
+> `design` config reads "Make a new Design artifact from a brief" with argument
+> hint `[what to design]`, its prompt creates a new Artifact from the published
+> Artifact type titled "Design", the v2.1.263 canvas strings no longer occur, and
+> the claude.ai/design hub text now belongs to a separate `ClaudeDesign` tool. So
+> `/design` is a user-only design-Artifact creator, not the hub. Recheck when a release makes the `design` registration model-invocable, changes
 > its gating, or splits or merges its registrations.
 
 > Verified 2026-09-11 against the installed v2.1.263 binary (string search of the
