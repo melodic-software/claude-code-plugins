@@ -33,6 +33,17 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
   for `apply`, or that the engine removes only snapshot entries.
 
+## [0.34.3] - 2026-09-30
+
+### Fixed
+
+- **`/disk-hygiene:clean` docs match the engine**
+  ([#5520](https://github.com/melodic-software/claude-code-plugins/issues/5520)). Section 1 says the
+  engine creates the run directory instead of telling the agent to create it. The fan-out worker
+  brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
+  optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
+  tokens, and states that `--project-dir` is optional.
+
 ## [0.34.2] - 2026-09-30
 
 ### Fixed
