@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.1] - 2026-09-30
+
+### Fixed
+
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites run on Windows Git Bash instead of skipping.** Their fixtures now build temp dirs with `native_mktemp_dir` in `scripts/test-helpers.sh`, which returns the `cygpath -m` form native git stores, so an `includeIf` path resolves. The scripts under test are unchanged.
+
 ## [0.65.0] - 2026-09-29
 
 ### Changed
