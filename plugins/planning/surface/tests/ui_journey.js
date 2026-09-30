@@ -80,6 +80,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the ask's toast clears when the view changes", /reply lands in the thread/.test(askToast) && (await text("#toast")) === "", askToast + " / " + await text("#toast"));
     await page.fill("#note", "Should we pin the version?"); await arm("o");
     ok("an Own answer ending in ? shows the Ask Claude nudge before save", /This reads as a question\. Ask Claude instead\?/.test(await text("#askNudge")) && !!(await page.$('#askNudge [data-act="ask"]')), await text("#decideRow"));
+    await page.fill("#note", "We should pin the version because");
+    ok("an Own note that ends mid-sentence shows the cut-off nudge and Save stays enabled", /looks cut off/.test(await text("#cutNudge")) && !(await page.$("#askNudge")) && !(await page.$("[data-save][disabled]")), await text("#decideRow"));
+    await page.fill("#note", "This is complete.");
+    ok("a finished Own note shows no cut-off nudge", !(await page.$("#cutNudge")), await text("#decideRow"));
+    await page.fill("#note", "Should we pin the version?");
     await page.keyboard.press("Escape"); await tap("[data-save]", 700);
     const own = await last();
     ok("saving as own stays possible", own.kind === "own" && own.id === "Q5" && own.text === "Should we pin the version?", JSON.stringify(own));
@@ -316,6 +321,23 @@ async page => { // the user journey in order on one page, no reload after phase 
     await post({kind: "note", text: "Anything else?"});
     const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
     ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
+  }
+  if (PHASE === 14) { // the shell added Q9; the user answers it with their own text
+    await page.waitForSelector('.qbtn[data-q="Q9"]', {state: "attached", timeout: 5000});
+    if (await page.$eval("#fly", el => el.classList.contains("open"))) { await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300); }
+    await pick("Q9"); await page.fill("#note", "what are the patterns?"); await arm("o"); await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const own = await last();
+    ok("the own answer on Q9 is saved from the page with the note still focused", own.id === "Q9" && own.kind === "own" && own.text === "what are the patterns?", JSON.stringify(own));
+  }
+  if (PHASE === 15) { // the shell revised Q9's recommendation in response to that own text
+    await page.waitForTimeout(900);
+    await pick("Q9");
+    ok("the revision sets the own answer aside: the rail reads Open and the card says the answer no longer counts", (await text('.qbtn[data-q="Q9"] .chip')) === "Open" && /Own answer: .*aside\. It no longer counts\./.test(await text("#cur")) && !(await page.$('[data-act="reopen"]')), (await text('.qbtn[data-q="Q9"] .chip')) + " / " + await text("#cur"));
+    ok("the note no longer shows the set-aside own text", (await page.inputValue("#note")) === "", await page.inputValue("#note"));
+    await tap("[data-again]", 300);
+    await arm("a"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const acc = await last();
+    ok("Ctrl+Enter accepts the revised recommendation, not the old own text", acc.id === "Q9" && acc.kind === "accept" && acc.text === "", JSON.stringify(acc));
   }
   const setHidden = h => page.evaluate(h => {
     for (const [k, v] of [["hidden", h], ["visibilityState", h ? "hidden" : "visible"]]) Object.defineProperty(document, k, {configurable: true, get: () => v});

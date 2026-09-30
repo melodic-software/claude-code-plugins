@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.67.0] - 2026-09-30
+
+### Added
+
+- **`worktree` proposes already-safe worktrees for cleanup after `worktree_reap_after_hours` (default 48).** The setting applies only to worktrees whose Work axis is `safe`; stranded and unknown worktrees are never proposed. A locked worktree past the age is proposed only when `worktree-claim.sh stale` proves its lane's lock stale, behind the existing confirmation gate; any other lock, this session's included, keeps it out of the proposal. `worktree_stale_days` keeps its `status` meaning.
+- **`worktree audit` scans the worktree root for unregistered directories** with the new `scripts/worktree-root-scan.sh`, classifying each as empty, husk (a `.git` file whose worktree registration git dropped while its main clone is intact), or foreign (content, no `.git`). Empty directories and husks holding only their `.git` file are proposed for removal by `cleanup`; a husk with other content, a worktree whose main clone was moved or deleted or a directory that cannot be listed (`unknown`), and foreign directories are reported only. `reference/worktree-root-convention.md` documents the classes.
+
+## [0.66.0] - 2026-09-30
+
+### Added
+
+- **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, each case has a `skill-fired` grader, and each case seeds a repository through `--scaffold`.
+
+## [0.65.5] - 2026-09-30
+
+### Fixed
+
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites run on Windows Git Bash instead of skipping.** Their fixtures now build temp dirs with `native_mktemp_dir` in `scripts/test-helpers.sh`, which returns the `cygpath -m` form native git stores, so an `includeIf` path resolves. The gate suite skips, with a reason, when the temp root contains whitespace. The scripts under test are unchanged.
+
 ## [0.65.4] - 2026-09-30
 
 ### Changed

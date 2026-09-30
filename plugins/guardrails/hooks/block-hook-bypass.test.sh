@@ -14,6 +14,19 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
+
+# A plain `ln -s` on Git Bash copies the target, so a fixture link is asked for
+# as a native symlink and confirmed with -L. A host that cannot make one counts
+# a no-coverage skip instead of asserting against a copy.
+bhb_skips=0
+bhb_skip() {
+  echo "SKIP: $* (no coverage here, not a pass)"
+  bhb_skips=$((bhb_skips + 1))
+}
+make_link() { # <target> <link> -> 0 when <link> is a real symlink
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]]
+}
 
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 #
@@ -1712,7 +1725,7 @@ for d in "${latch_path_dirs[@]}"; do
     LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$LATCH_NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+if PATH="$LATCH_NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "latch: could not build a PATH without jq"
 else
   LATCH_DIR3="$TEST_TMPDIR/latch-data-nojq"
@@ -2072,11 +2085,16 @@ PD_PROJ="/tmp/bhb-plugin-data-proj-$$"
 PD_REAL_CFG="/tmp/bhb-plugin-data-cfg-$$"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 mkdir -p "$PD_REAL_CFG/plugins/data" "$PD_PROJ/src"
-ln -s "$PD_PROJ" "$PD_REAL_CFG/plugins/data/to-repo"
+PD_HAVE_LINK=0
+make_link "$PD_PROJ" "$PD_REAL_CFG/plugins/data/to-repo" && PD_HAVE_LINK=1
 run_cwd "plugin data: fires on its own when the temp default stands down (allowed)" \
   "echo hello > $PD_REAL_CFG/plugins/data/r/report.md" "$PD_PROJ" 0 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
-run_cwd "plugin data: symlink escape into the repository blocks" \
-  "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+if ((PD_HAVE_LINK)); then
+  run_cwd "plugin data: symlink escape into the repository blocks" \
+    "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+else
+  bhb_skip "plugin data: symlink escape into the repository not asserted (no real symlink on this host)"
+fi
 # The reverse escape: a CLAUDE_PROJECT_DIR that is a symlink whose physical
 # target sits UNDER the plugin data directory. The lexical gate sees a project
 # root that does not contain the directory and enables the default, but
@@ -2087,15 +2105,118 @@ PD_INNER="$PD_REAL_CFG/plugins/data/projreal"
 PD_LINK="/tmp/bhb-plugin-data-projlink-$$"
 mkdir -p "$PD_INNER/src"
 rm -f "$PD_LINK"
-ln -s "$PD_INNER" "$PD_LINK"
-run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
-  "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
-# A sibling report directory under the same plugin data root is still exempt:
-# the refusal is scoped to the project's own physical subtree, not the root.
-run_cwd "plugin data: a report beside the symlinked project is still allowed" \
-  "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+if make_link "$PD_INNER" "$PD_LINK"; then
+  run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
+    "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+  # A sibling report directory under the same plugin data root is still exempt:
+  # the refusal is scoped to the project's own physical subtree, not the root.
+  run_cwd "plugin data: a report beside the symlinked project is still allowed" \
+    "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+else
+  bhb_skip "plugin data: project root symlinked INTO the directory not asserted (no real symlink on this host)"
+fi
 rm -f "$PD_LINK"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
+
+# --- PowerShell: one write to one literal destination under an exempt root ---
+# The PowerShell lane blocks on cmdlet/redirect co-occurrence, but a command
+# that is exactly one write whose single literal, absolute destination lies
+# under an exempt root is judged by the same axis as a Bash redirect. Anything
+# else in the command that could write, evaluate or rebind the destination keeps
+# the block.
+PS_POSIX_SKIP=0
+run_pwsh_cwd() {
+  local label="$1" command="$2" expected="$3"
+  shift 3
+  ((PS_POSIX_SKIP)) && return 0
+  expect "$label" "$expected" --tool PowerShell --command "$command" --cwd "$PROJ" -- \
+    CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=" "$@"
+}
+PSD="$PD_HOME/.claude/plugins/data/x"
+# The home path is assembled so no contiguous Windows user-home literal sits in
+# this file: the machine-specific-path scan and the hardcoded-path hook reject one.
+WIN_HOME="C:\\"'Users\me'
+run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
+  "Get-ChildItem | Export-Csv -Path ${WIN_HOME}"'\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
+# On a Windows host PowerShell resolves a POSIX-spelled destination against the
+# current drive, so the guard refuses it there and the rows below, every one
+# POSIX-spelled, cannot tell an exemption from a block. The drive-spelled row
+# above is the one that runs on Windows.
+# shellcheck disable=SC2031 # reads the host's real OSTYPE
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]]; then
+  PS_POSIX_SKIP=1
+  printf 'SKIP: PowerShell exempt-root rows with a POSIX-spelled destination not asserted (PowerShell on Windows resolves /x against the current drive; no coverage here, not a pass)\n'
+fi
+run_pwsh_cwd "PS exempt: Export-Csv -Path into plugin data (allowed)" \
+  "Get-ChildItem | Export-Csv -Path $PSD/out.csv" 0
+run_pwsh_cwd "PS exempt: Out-File -FilePath into plugin data (allowed)" \
+  "Get-ChildItem | Out-File -FilePath $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: positional Out-File into plugin data (allowed)" \
+  "Get-ChildItem | Out-File $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: producer > into plugin data (allowed)" \
+  "Write-Output hi > $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: >> append into plugin data (allowed)" \
+  "echo hi >> $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: single-quoted destination plus a switch (allowed)" \
+  "Get-ChildItem | Export-Csv -Path '$PSD/my out.csv' -NoTypeInformation" 0
+run_pwsh_cwd "PS exempt: Tee-Object -FilePath into plugin data (allowed)" \
+  "Get-ChildItem | Tee-Object -FilePath $PSD/t.txt" 0
+run_pwsh_cwd "PS exempt: temp tree (allowed)" \
+  "Write-Output hi > /tmp/bhb-ps-probe/out.txt" 0
+run_pwsh_cwd "PS exempt: configured scratch root (allowed)" \
+  "Get-ChildItem | Out-File /var/jobtmp/f.txt" 0 "$SCRATCH_ENV=/var/jobtmp"
+((PS_POSIX_SKIP)) || expect_both "dispatched parity: PowerShell Export-Csv into plugin data allowed" 0 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh --cwd "$PROJ" \
+  --command "Get-ChildItem | Export-Csv -Path $PSD/out.csv" -- \
+  CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+# Destinations outside every exempt root, or not literal, keep the block.
+run_pwsh_cwd "PS exempt: ProgramData destination blocks" \
+  'Get-ChildItem | Export-Csv -Path C:\ProgramData\x.csv' 2
+run_pwsh_cwd "PS exempt: destination named out-file.csv counts as one write" \
+  "Get-ChildItem | Export-Csv -Path $PSD/out-file.csv" 0
+run_pwsh_cwd "PS exempt: destination under a tee folder counts as one write" \
+  "Get-ChildItem | Export-Csv -Path $PSD/tee/ac/report.csv" 0
+run_pwsh_cwd "PS exempt: second write form still blocks" \
+  "Get-ChildItem | Export-Csv -Path $PSD/a.csv | Out-File $PSD/b.txt" 2
+run_pwsh_cwd "PS exempt: redirect with a tee-named destination is one write" \
+  "Get-ChildItem > $PSD/tee.txt" 0
+run_pwsh_cwd "PS exempt: quoted > inside a cmdlet destination is not a redirect" \
+  "Get-ChildItem | Export-Csv -Path '$PSD/a>b.csv'" 0
+run_pwsh_cwd "PS exempt: a real redirect beside a cmdlet write still blocks" \
+  "Get-ChildItem | Export-Csv -Path $PSD/a.csv > $PSD/b.txt" 2
+run_pwsh_cwd "PS exempt: -PSPath binds the destination" \
+  "Get-ChildItem | Out-File -PSPath $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: project-root destination blocks" \
+  "Get-ChildItem | Out-File -FilePath $PROJ/out.txt" 2
+run_pwsh_cwd "PS exempt: relative destination blocks" \
+  "Get-ChildItem | Out-File out.txt" 2
+run_pwsh_cwd "PS exempt: \$var destination blocks" \
+  "Get-ChildItem | Out-File -FilePath \$d/out.txt" 2
+run_pwsh_cwd "PS exempt: double-quoted destination blocks" \
+  "Get-ChildItem | Out-File -FilePath \"$PSD/out.txt\"" 2
+run_pwsh_cwd "PS exempt: dot-dot escape out of plugin data blocks" \
+  "Get-ChildItem | Out-File $PSD/../../settings.json" 2
+run_pwsh_cwd "PS exempt: comma list naming a second destination blocks" \
+  "'x' | Set-Content -Path $PSD/a.txt,$PROJ/b.txt" 2
+run_pwsh_cwd "PS exempt: colon-attached -FilePath blocks" \
+  "Get-ChildItem | Out-File -FilePath:$PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: unmodeled flag keeps the block" \
+  "Get-ChildItem | Out-File -Encoding utf8 $PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: no project root blocks" \
+  "Get-ChildItem | Out-File $PSD/out.txt" 2 "$PROJ_ENV="
+# The one write must be the only thing that trips the PowerShell write check.
+run_pwsh_cwd "PS exempt: two writes, one outside, blocks" \
+  "Get-ChildItem | Tee-Object -FilePath $PSD/a.txt | Out-File $PROJ/b.txt" 2
+run_pwsh_cwd "PS exempt: write plus & \"x\" blocks" \
+  "& \"x\" | Out-File $PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: pipeline-fed Set-Content -Value blocks" \
+  "Get-ChildItem $PROJ | Set-Content -Value $PSD/x.txt" 2
+run_pwsh_cwd "PS exempt: StreamWriter beside the write blocks" \
+  "New-Object IO.StreamWriter $PROJ/x.txt | Out-File $PSD/y.txt" 2
+run_pwsh_cwd "PS exempt: sc Set-Content form beside the write blocks" \
+  "Get-ChildItem | sc -Path $PROJ/y.txt | Out-File $PSD/z.txt" 2
+run_pwsh_cwd "PS exempt: second redirect beside the write blocks" \
+  "Write-Output hi > $PSD/a.txt; Write-Output x > $PROJ/b.txt" 2
 
 # --- symlink escape out of a SHIPPED default (P1 on #3727) -------------------
 # The lexical compare alone exempted a redirect on its spelling, so a symlink
@@ -2122,11 +2243,11 @@ if [[ "$SYMLINK_PROJ" != "${SYMLINK_PROJ,,}" ]]; then
   # Not a silent skip: the case-folding residual is documented in the hook, and a
   # mixed-case checkout path cannot exercise this assertion at all.
   printf 'SKIP: symlink confirmation not asserted — checkout path carries capitals (%s), which the folded segment scan cannot resolve\n' "$SYMLINK_PROJ"
-else
+elif rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ" && mkdir -p "$SYMLINK_TEMP" "$SYMLINK_PROJ/src" &&
+  ! make_link "$SYMLINK_PROJ" "$SYMLINK_TEMP/to-proj"; then
+  bhb_skip "symlink escape out of the temp default not asserted (no real symlink on this host)"
   rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ"
-  mkdir -p "$SYMLINK_TEMP" "$SYMLINK_PROJ/src"
-  ln -s "$SYMLINK_PROJ" "$SYMLINK_TEMP/to-proj"
-
+else
   run_cwd "symlink: escape out of the temp default still blocks" \
     "echo secret > $SYMLINK_TEMP/to-proj/src/tracked.py" "$SYMLINK_PROJ" 2 \
     "$PROJ_ENV=$SYMLINK_PROJ"
@@ -2217,7 +2338,10 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
   rmdir "$WIN_JDIR" "$WIN_JPROJ/src" "$WIN_JPROJ" 2>/dev/null || :
   if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
     # The harness hands out its scratchpad in TEMP's own spelling, which on a
-    # volume that generates short names is the 8.3 one (#4678).
+    # volume that generates short names is the 8.3 one (#4678). Under Cygwin
+    # bash, where TEMP reads `/tmp`, this case depends on the cygpath drive
+    # spellings in the temp candidates. The Windows lane runs it on a runner
+    # whose TEMP carries RUNNER~1.
     run_cwd "windows temp: an 8.3 short-name target allowed with a non-temp project root" \
       "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
     run_cwd "windows temp: a nonexistent name~9 component under temp blocks" \
@@ -2254,9 +2378,8 @@ S83="/tmp/bhb-4678-$$"
 S83_WIN=(OSTYPE=cygwin "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ")
 rm -rf "$S83"
 mkdir -p "$S83/longname/claude"
-if [[ ! -d /usr ]] || ! ln -s "$S83/longname" "$S83/longna~1" 2>/dev/null ||
-  ! test -L "$S83/longna~1" || ! ln -s /usr "$S83/tousr~1" 2>/dev/null; then
-  printf 'SKIP: 8.3 simulation not asserted (no symlink could be made on this host; no coverage here, not a pass)\n'
+if [[ ! -d /usr ]] || ! make_link "$S83/longname" "$S83/longna~1" || ! make_link /usr "$S83/tousr~1"; then
+  bhb_skip "8.3 simulation not asserted (no symlink could be made on this host)"
 else
   run_cwd "8.3 sim: short-name temp target allowed with a non-temp project root" \
     "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}"
@@ -2287,7 +2410,7 @@ else
     ;;
   *)
     if [[ "$S83_PROJ" == "${S83_PROJ,,}" ]] && mkdir -p "$S83_PROJ/src" &&
-      ln -s "$S83_PROJ/src" "$S83_PROJ/srcali~1" 2>/dev/null; then
+      make_link "$S83_PROJ/src" "$S83_PROJ/srcali~1"; then
       run_cwd "8.3 sim: an existing short path outside temp blocks" \
         "echo secret > $S83_PROJ/srcali~1/tracked.py" "$PROJ" 2 "${S83_WIN[@]}"
     else
@@ -2926,4 +3049,5 @@ assert_contains "two blocking guards dispatched: this guard's reason survives" \
 assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
   "$GUARD_ERR" "--no-verify / -n skips the hooks"
 
+echo "symlink-fixture groups skipped: $bhb_skips"
 report

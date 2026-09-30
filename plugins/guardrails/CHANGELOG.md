@@ -3,6 +3,31 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.3] - 2026-09-30
+
+### Changed
+
+- `block-windows-drive-tmp` skips its `cygpath` probe for a command that names no tmp path, removing two process forks from every benign Bash command on Windows.
+- `secret-pattern-detection` pre-matches a Windows write target against the environment's temp spellings and adds the `cygpath` drive spellings only after a hit, or when a temp root has no `tmp` or `temp` component, so a write outside temp spawns no resolver process under the default temp roots.
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+- The `block-hook-bypass`, `secret-pattern-detection`, `run-guards` and `coverage-manifest` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
+
+## [0.43.2] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block.
+
+### Changed
+
+- Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
 ## [0.43.0] - 2026-09-30
 
 ### Added
