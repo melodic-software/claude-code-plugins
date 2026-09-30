@@ -57,7 +57,7 @@ No Workflow script is used. The orchestrating session spawns ordinary subagents,
 follows the number of clusters and not the number of items:
 
 1. **Item files.** Ingest writes one file per release, one line per item, each led by its stable id.
-2. **Explore.** One explorer per release cluster of about fifty items, reading the item files and grepping the surfaces in [repo-surfaces.md](repo-surfaces.md). Each returns candidate (surface, lens) pairs, the repo evidence, and the questions research must answer.
+2. **Explore.** One explorer per release cluster of about fifty items, reading the item files, running `scripts/discover-surfaces.sh`, and grepping the classes it prints (examples in [repo-surfaces.md](repo-surfaces.md)). Each returns candidate (surface, lens) pairs, the repo evidence, and the questions research must answer.
 3. **Research.** One researcher per feature cluster, receiving the explorers' questions. It grounds every claim by `curl` of the docs page to a local file and returns the page URL with each claim. An uncited claim is unverified.
 4. **Verify.** One local verifier checks the repo-side facts: each cited component says what the row says, each path exists, each false-versus-true pair is a pair.
 

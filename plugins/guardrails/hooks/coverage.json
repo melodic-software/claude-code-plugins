@@ -29,6 +29,26 @@
           "effect": "a comma list of form tokens the guard permits (push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force)"
         }
       ]
+    },
+    {
+      "hook": "hooks/block-credential-read.sh",
+      "event": "PreToolUse",
+      "matcher": "Bash|PowerShell",
+      "decision": "block",
+      "families": [],
+      "patterns": [],
+      "levers": [
+        {
+          "kind": "userConfig",
+          "name": "block_credential_read_enabled",
+          "effect": "false switches the guard off"
+        },
+        {
+          "kind": "userConfig",
+          "name": "block_credential_read_allow",
+          "effect": "a comma list of family tokens the guard permits (credential-fill, gh-auth-token, env-echo, credential-file-read)"
+        }
+      ]
     }
   ]
 }

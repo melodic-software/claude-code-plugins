@@ -142,9 +142,8 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 
 "Report a bug" can mean a defect in the person's own code or one in Claude Code itself.
 
-- **`/bug` (built-in command, alias `/share`).** Ships with Claude Code rather than as a
-  marketplace plugin. Sends a report about Claude Code, with the conversation, to Anthropic. It is
-  reserved for the person to run; the model does not invoke it.
+- **`/bug` (built-in command, alias `/share`)**: sends a report about Claude Code, with the
+  conversation, to Anthropic. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** A five-field report for a defect in the person's code,
   grounded in their repository, filed nowhere unless they ask.
 
