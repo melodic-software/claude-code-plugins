@@ -112,10 +112,14 @@ out of scope until such a signal exists.
 - **PowerShell env assignment and same-command alias.** On the PowerShell
   lane, `$env:LEFTHOOK=0`, `Set-Item env:HUSKY 0` and `si env:HUSKY 0` block when
   the same command also runs `git commit` or `git push`, over the same prefix
-  set. In either lane, `git config alias.NAME '<value with --no-verify / -n>'`
-  followed by `git NAME` in the same command blocks. Known residual: an alias
+  set, with `-Path`/`-Value` in any order. In either lane,
+  `git config alias.NAME '<value with --no-verify / -n>'` followed by
+  `git NAME`, or `git -c alias.NAME='<value>' NAME`, in the same command
+  blocks. A `--config-env` alias blocks. Known residuals: an alias
   defined by an earlier command or in a config file is not seen, so a later
-  `git NAME` commits without the flag being judged.
+  `git NAME` commits without the flag being judged; and a PowerShell comment
+  holding an assignment (`# $env:LEFTHOOK=0`) beside a commit still blocks,
+  because comments are not stripped.
 - **Argv-grammar-faithful matching (and its residual).** `block-no-verify` and
   `block-dangerous-git` share one parser (in the bundled hook-utils library)
   that parses the command the way the shell builds argv, segmenting on

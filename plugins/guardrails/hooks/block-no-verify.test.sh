@@ -401,6 +401,20 @@ run_pwsh "PS env: Set-Item -Path env:LEFTHOOK -Value 0 (blocked)" \
 run_pwsh "PS env: Set-Item -Path 'env:LEFTHOOK' -Value '0' (quoted, blocked)" \
   "Set-Item -Path 'env:LEFTHOOK' -Value '0'; git commit -m x" 2
 run_pwsh "PS env: si env:LEFTHOOK 0 (alias, blocked)" "si env:LEFTHOOK 0; git commit -m x" 2
+run_pwsh "PS env: Set-Item -Value 0 -Path env:LEFTHOOK (reordered, blocked)" \
+  "Set-Item -Value 0 -Path env:LEFTHOOK; git commit -m x" 2
+run_pwsh "PS env: Set-Item -Value 0 env:LEFTHOOK (named value first, blocked)" \
+  "Set-Item -Value 0 env:LEFTHOOK; git commit -m x" 2
+run_pwsh "PS env: Set-Item env:LEFTHOOK -Value 0 -Force (blocked)" \
+  "Set-Item env:LEFTHOOK -Value 0 -Force; git commit -m x" 2
+run_pwsh "PS env: Set-Item -Path env:HUSKY -Value:0 (colon spelling, blocked)" \
+  "Set-Item -Path env:HUSKY -Value:0; git commit -m x" 2
+run_pwsh "PS env: Set-Item -Val 0 -Pa env:HUSKY (prefixes, blocked)" \
+  "Set-Item -Val 0 -Pa env:HUSKY; git commit -m x" 2
+run_pwsh "PS env: Set-Item -Value 1 -Path env:LEFTHOOK (reordered truthy, allowed)" \
+  "Set-Item -Value 1 -Path env:LEFTHOOK; git commit -m x" 0
+run_pwsh "PS env: Set-Item -Value 0 -Path env:OTHER (reordered unlisted, allowed)" \
+  "Set-Item -Value 0 -Path env:OTHER; git commit -m x" 0
 run_pwsh "PS env: SetEnvironmentVariable('LEFTHOOK','0') (blocked)" \
   "[Environment]::SetEnvironmentVariable('LEFTHOOK','0'); git commit -m x" 2
 run_pwsh "PS env: custom prefix list is shared (blocked)" "\$env:MYHOOKS=0; git commit -m x" 2 \
@@ -439,6 +453,18 @@ definition alone (allowed)|git config alias.c 'commit -n'|0
 benign alias (allowed)|git config alias.s status; git s|0
 use before definition (allowed)|git c -m x; git config alias.c 'commit -n'|0
 later definition wins (allowed)|git config alias.c 'commit -n'; git config alias.c commit; git c -m x|0
+inline -c alias (blocked)|git -c alias.c='commit -n' c -m x|2
+inline -c alias --no-verify push (blocked)|git -c alias.p='push --no-verify' p|2
+inline -c shell alias (blocked)|git -c alias.c='!git commit -n' c -m x|2
+inline -c alias of an alias (blocked)|git -c alias.a='commit -n' -c alias.b=a b -m x|2
+inline -c alias .command spelling (blocked)|git -c alias.c.command='commit -n' c -m x|2
+inline -c benign alias (allowed)|git -c alias.c=commit c -m x|0
+inline -c alias loop terminates (allowed)|git -c alias.c=c c|0
+--config-env alias fails closed (blocked)|git --config-env=alias.c=ALIASVAL c -m x|2
+config --get after the definition (blocked)|git config alias.c 'commit -n'; git config --get alias.c commit; git c -m x|2
+config --unset is not a definition (allowed)|git config --unset alias.c commit; git c -m x|0
+config get subcommand is not a definition (allowed)|git config get alias.c commit; git c -m x|0
+config set subcommand defines (blocked)|git config set alias.c 'commit -n'; git c -m x|2
 alias loop terminates (allowed)|git config alias.c c; git c|0
 EOF
 

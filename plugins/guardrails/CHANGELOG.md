@@ -7,7 +7,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` is refused: a `git config alias.NAME VALUE` segment is recorded and a later segment invoking `NAME` is checked as the aliased command. An alias defined in an earlier command or a config file is not seen.
+- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
 
 ## [0.42.0] - 2026-09-29
 

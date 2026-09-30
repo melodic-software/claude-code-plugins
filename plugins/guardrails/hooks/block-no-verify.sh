@@ -184,26 +184,35 @@ block() {
 }
 
 # Same-command git aliases: `git config alias.NAME VALUE` records the definition
-# (a later definition wins); a later segment invoking NAME is re-checked as the
-# spliced argv, so `git c` with alias.c = `commit -n` is `git commit -n`. A
-# `!` value is a shell command, re-parsed with the caller's arguments appended.
-# Aliases defined by an earlier command or in a config file are not visible here.
+# (a later definition wins), and `git -c alias.NAME=VALUE NAME` carries its own; a
+# segment invoking NAME is re-checked as the spliced argv, so `git c` with
+# alias.c = `commit -n` is `git commit -n`. A `!` value is a shell command,
+# re-parsed with the caller's arguments appended. Aliases defined by an earlier
+# command or in a config file are not visible here.
 ALIAS_NAMES=()
 ALIAS_VALUES=()
 ALIAS_DEPTH=0
 
-# Record one alias definition from the words after `config`.
+# Record one alias definition from the words after `config`. Read, list, unset,
+# rename and edit actions define nothing; `git config set` is a write.
 alias_record() {
   local key
   local -a pos=()
   while (($# > 0)); do
     case "$1" in
-    -f | --file | --blob | -t | --type | --default) shift ;;
+    --get | --get-all | --get-regexp | --get-urlmatch | --get-color | --get-colorbool | \
+      --unset | --unset-all | --remove-section | --rename-section | -l | --list | -e | --edit) return 0 ;;
+    -f | --file | --blob | -t | --type | --default | --comment) shift ;;
     -*) ;;
     *) pos+=("$1") ;;
     esac
     shift
   done
+  case "${pos[0]:-}" in
+  get | unset | list | edit | remove-section | rename-section) return 0 ;;
+  set) pos=("${pos[@]:1}") ;;
+  *) ;;
+  esac
   ((${#pos[@]} >= 2)) || return 0
   key="${pos[0],,}"
   [[ "$key" == alias.?* ]] || return 0
@@ -211,19 +220,30 @@ alias_record() {
   ALIAS_VALUES+=("${pos[1]}")
 }
 
-# $1 subcommand, $2 its index, then the segment argv. The locals reach the
+# $1 subcommand, $2 its index, then the segment argv. Re-checks every definition
+# of the subcommand: the inline `-c alias.NAME=VALUE` spellings
+# hook::git_invocation resolved for this segment (copied before a recheck
+# overwrites them) and the last `git config` record. The locals reach the
 # callbacks below through bash's dynamic scope and are restored when a nested
 # alias returns.
 alias_expand() {
   local name="${1,,}" idx=$2 i v
-  local -a ALIAS_HEAD ALIAS_TAIL
+  local -a ALIAS_HEAD ALIAS_TAIL defs=()
+  # --config-env=alias.NAME=VAR expands to a variable's value this parser never reads.
+  [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]] && block "config-env-alias" \
+    "BLOCKED: git alias '$1' is defined via --config-env, so its expansion cannot be verified." \
+    "Define the alias in git config or run the subcommand directly."
+  [[ "$HOOK_GITINV_ALIAS_TERM" == "inline" ]] && defs=("${HOOK_GITINV_ALIAS_EXPS[@]}")
   shift 2
   ALIAS_HEAD=("${@:1:idx}")
   ALIAS_TAIL=("${@:idx+2}")
   ((ALIAS_DEPTH < 5)) || return 0 # git itself refuses an alias loop
   for ((i = ${#ALIAS_NAMES[@]} - 1; i >= 0; i--)); do
     [[ "${ALIAS_NAMES[i]}" == "$name" ]] || continue
-    v="${ALIAS_VALUES[i]}"
+    defs+=("${ALIAS_VALUES[i]}")
+    break
+  done
+  for v in ${defs[@]+"${defs[@]}"}; do
     ((ALIAS_DEPTH++))
     if [[ "$v" == '!'* ]]; then
       hook::bash_parse_segments "${v:1}" alias_recheck_shell
@@ -231,7 +251,6 @@ alias_expand() {
       hook::bash_parse_segments "git $v" alias_recheck
     fi
     ((ALIAS_DEPTH--))
-    return 0
   done
 }
 
@@ -407,9 +426,47 @@ ps_env_disables_hook_manager() {
   head="\\\$(\\{env:|env:)(${HM_ALT})[_a-z0-9]*\\}?[[:space:]]*="
   tail="[[:space:]]*${q}(0|false)${q}([^[:alnum:]_]|\$)"
   [[ "$scan" =~ $head ]] && [[ "$lc" =~ ${head}${tail} ]] && return 0
-  head='(^|[^[:alnum:]_-])(set-item|si)[[:space:]]+(-(literal)?path[[:space:]]+)?'"${q}env:(${HM_ALT})[_a-z0-9]*"
-  tail="${q}[[:space:]]+(-value[[:space:]]+)?${q}(0|false)${q}([^[:alnum:]_]|\$)"
-  [[ "$scan" =~ (^|[^[:alnum:]_-])(set-item|si)[[:space:]] ]] && [[ "$lc" =~ ${head}${tail} ]]
+  [[ "$scan" =~ (^|[^[:alnum:]_-])(set-item|si)[[:space:]] ]] && ps_set_item_disables "$lc"
+}
+
+# True (0) when a `Set-Item`/`si` statement in the lowercased text binds a
+# hook-manager `env:` path and a 0/false value. Operands bind the way PowerShell
+# binds them: `-Path`/`-LiteralPath`/`-Value` (unambiguous prefixes, `-Value:0`
+# spelling) in any order, remaining words positionally as path then value.
+ps_set_item_disables() {
+  local rest="$1" tok name want path val
+  local -a toks
+  local re=$'(^|[^[:alnum:]_-])(set-item|si)[[:space:]]+([^;|&)}\r\n]*)'
+  while [[ "$rest" =~ $re ]]; do
+    read -ra toks <<<"${BASH_REMATCH[3]}"
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+    path="" val="" want=""
+    for tok in ${toks[@]+"${toks[@]}"}; do
+      tok="${tok//[\'\"]/}"
+      if [[ -n "$want" ]]; then
+        [[ "$want" == path ]] && path="$tok" || val="$tok"
+        want=""
+      elif [[ "$tok" =~ ^-([a-z]+)(:(.*))?$ ]]; then
+        name="${BASH_REMATCH[1]}"
+        want=""
+        if [[ value == "$name"* ]]; then
+          want=value
+        elif [[ literalpath == "$name"* ]] || { [[ path == "$name"* ]] && ((${#name} > 1)); }; then
+          want=path
+        fi
+        if [[ -n "$want" && -n "${BASH_REMATCH[2]}" ]]; then
+          [[ "$want" == path ]] && path="${BASH_REMATCH[3]}" || val="${BASH_REMATCH[3]}"
+          want=""
+        fi
+      elif [[ -z "$path" ]]; then
+        path="$tok"
+      else
+        val="$tok"
+      fi
+    done
+    [[ "$path" =~ ^env:[\\/]?(${HM_ALT})[_a-z0-9]*$ && "$val" =~ ^(0|false)$ ]] && return 0
+  done
+  return 1
 }
 
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
