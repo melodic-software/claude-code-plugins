@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.4] - 2026-09-30
+
+### Changed
+
+- **`worktree` refreshes the nesting-invariant stamp from an authenticated probe run** on Claude Code 2.1.285
+  ([#5318](https://github.com/melodic-software/claude-code-plugins/issues/5318)). The owning-parent leak seen on 2.1.224 does not reproduce on dot-nested, plain-nested or external placement; an unrelated enclosing repo's scoped rule still loads. The expired-stamp marker is gone and the expiry moves to 2.1.305 or 2026-12-29.
+
+## [0.65.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `commit` and `/commit-push-pr` bullets in `commit`, the `pr`, `/commit-push-pr` and
+  `/autofix-pr` bullets in `pull-request`, and the `/autofix-pr` bullet in `babysit-prs` keep the
+  provenance class, what the surface does and how it is invoked, in the native-references template
+  form.
+
 ## [0.65.2] - 2026-09-30
 
 ### Fixed
