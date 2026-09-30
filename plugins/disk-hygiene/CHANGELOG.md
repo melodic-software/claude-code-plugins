@@ -20,6 +20,15 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `virtual-disk-attach-unverified` and never reads as detached. Under WSL, which never sees the
   Windows host's attachments, an image with no loop device reads as unverified, not detached.
 
+## [0.31.1] - 2026-09-30
+
+### Fixed
+
+- **The snapshot entry-cap error names the largest top-level children**
+  ([#5517](https://github.com/melodic-software/claude-code-plugins/issues/5517)). The error now lists
+  the top five top-level children by entry count so far, marks the one still being walked as a lower
+  bound, and points at `--sizes-only` and then `--root-children --root-child <name>` or `--max-depth`.
+
 ## [0.31.0] - 2026-09-30
 
 ### Added
