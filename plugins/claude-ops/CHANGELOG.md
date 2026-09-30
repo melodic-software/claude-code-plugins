@@ -24,6 +24,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   implementing a change belongs to the stage skills, and closing issues by matching a title
   to a changelog item is gone with them.
 
+## [0.75.2] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.75.1] - 2026-09-30
 
 ### Changed
