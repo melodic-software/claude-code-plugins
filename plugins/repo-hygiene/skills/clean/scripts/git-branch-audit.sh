@@ -322,7 +322,7 @@ branch_family() {
 # printed first, as in the local form; without it no branch reads as landed.
 remote_families_report() {
   local v line name tip otype ts age_days family days state pr_line landed num oid head refoid
-  local verdict why expired unique_out n_total=0 n_cand=0 n_keep=0 n_unique=0 n_undet=0 n_na=0
+  local verdict why expired unique_out n_total=0 n_cand=0 n_keep=0 n_unique=0 n_unknown=0 n_na=0
   local -A open_pr=() merged_prs=() wt=()
   for v in CLEAN_RETENTION_PREWIPE_DAYS CLEAN_RETENTION_CLAUDE_DAYS CLEAN_RETENTION_PLAN_DAYS CLEAN_RETENTION_STRANDED_DAYS; do
     if ! [[ "${!v}" =~ ^[0-9]+$ ]]; then
@@ -422,7 +422,7 @@ remote_families_report() {
     CANDIDATE) n_cand=$((n_cand + 1)) ;;
     KEEP) n_keep=$((n_keep + 1)) ;;
     KEEP-UNIQUE) n_unique=$((n_unique + 1)) ;;
-    KEEP-UNDETERMINED) n_undet=$((n_undet + 1)) ;;
+    KEEP-UNDETERMINED) n_unknown=$((n_unknown + 1)) ;;
     *) n_na=$((n_na + 1)) ;;
     esac
 
@@ -437,7 +437,7 @@ remote_families_report() {
   done < <(git -C "$REPO_ROOT" for-each-ref refs/remotes/origin/ \
     --format='%(refname)%1f%(objectname)%1f%(objecttype)%1f%(committerdate:unix)' 2>/dev/null | tr -d '\r')
   printf 'RemoteSummary: branches=%s candidate=%s keep=%s keep-unique=%s keep-undetermined=%s no-rule=%s\n' \
-    "$n_total" "$n_cand" "$n_keep" "$n_unique" "$n_undet" "$n_na"
+    "$n_total" "$n_cand" "$n_keep" "$n_unique" "$n_unknown" "$n_na"
 }
 [[ $REMOTE_FAMILIES -eq 1 ]] && {
   remote_families_report

@@ -1760,7 +1760,7 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$RF" commit -qm init
   git -C "$RF" push -q origin HEAD:main
   git -C "$RF" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
-  old_date="$(date -d '200 days ago' '+%Y-%m-%dT%H:%M:%S')"
+  old_date="$(($(date +%s) - 200 * 86400)) +0000"
   # rf_branch <name> [old]: one commit on a new branch, pushed, then the local branch
   # is dropped so only refs/remotes/origin/<name> remains.
   rf_branch() {
@@ -1785,12 +1785,12 @@ if command -v jq >/dev/null 2>&1; then
   # another ref holds the old-held tip: a branch at the same commit
   git -C "$RF" push -q origin "refs/remotes/origin/pre-wipe/old-held:refs/heads/keep/holder"
   # tip is an ancestor of the merged head; tip is past the merged head
-  rf_branch feat/anc
-  git -C "$RF" checkout -q -b anc-head "refs/remotes/origin/feat/anc"
-  echo more >"$RF/anc-more"
-  git -C "$RF" add anc-more
-  git -C "$RF" commit -qm "anc head"
-  anc_head="$(git -C "$RF" rev-parse HEAD)"
+  rf_branch feat/base
+  git -C "$RF" checkout -q -b base-head "refs/remotes/origin/feat/base"
+  echo more >"$RF/base-more"
+  git -C "$RF" add base-more
+  git -C "$RF" commit -qm "base head"
+  base_head="$(git -C "$RF" rev-parse HEAD)"
   git -C "$RF" checkout -q main
   git -C "$RF" checkout -q -b past-head main
   echo p >"$RF/past-1"
@@ -1807,8 +1807,8 @@ if command -v jq >/dev/null 2>&1; then
   git -C "$RF" worktree add -q -b agent-def456 "$TEST_TMPDIR/rf-wt" main
   rf_bin="$TEST_TMPDIR/rf-bin"
   mkdir -p "$rf_bin"
-  printf '[{"headRefName":"feat/eq","state":"MERGED","number":11,"headRefOid":"%s"},{"headRefName":"feat/anc","state":"MERGED","number":12,"headRefOid":"%s"},{"headRefName":"feat/past","state":"MERGED","number":13,"headRefOid":"%s"},{"headRefName":"agent-abc123","state":"MERGED","number":14,"headRefOid":"%s"}]\n' \
-    "$(rf_tip feat/eq)" "$anc_head" "$past_head" "$(rf_tip agent-abc123)" >"$rf_bin/prs.json"
+  printf '[{"headRefName":"feat/eq","state":"MERGED","number":11,"headRefOid":"%s"},{"headRefName":"feat/base","state":"MERGED","number":12,"headRefOid":"%s"},{"headRefName":"feat/past","state":"MERGED","number":13,"headRefOid":"%s"},{"headRefName":"agent-abc123","state":"MERGED","number":14,"headRefOid":"%s"}]\n' \
+    "$(rf_tip feat/eq)" "$base_head" "$past_head" "$(rf_tip agent-abc123)" >"$rf_bin/prs.json"
   printf '#!/usr/bin/env bash\ncase "$*" in *pr\\ list*) cat "%s" ;; *) exit 1 ;; esac\n' "$rf_bin/prs.json" >"$rf_bin/gh"
   chmod +x "$rf_bin/gh"
 
@@ -1826,7 +1826,7 @@ if command -v jq >/dev/null 2>&1; then
     assert_contains "remote family of ${pair%%:*} is ${pair#*:}" "$(rf_field "${pair%%:*}" Family)" "${pair#*:}"
   done
   assert_contains "merged PR whose head is the tip: landed" "$(rf_field feat/eq Landed)" "PR #11 merged, its head is the tip"
-  assert_contains "tip that is an ancestor of the merged head: landed" "$(rf_field feat/anc Landed)" "PR #12 merged, the tip is an ancestor of its head"
+  assert_contains "tip that is an ancestor of the merged head: landed" "$(rf_field feat/base Landed)" "PR #12 merged, the tip is an ancestor of its head"
   assert_contains "tip past the merged head: not landed" "$(rf_field feat/past Landed)" "no"
   assert_contains "a family with no rule has no retention verdict" "$(rf_field feat/eq Retention)" "n/a"
   assert_contains "fresh claude branch is kept" "$(rf_field claude/x Retention)" "KEEP"
