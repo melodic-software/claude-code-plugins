@@ -1,5 +1,5 @@
 {
-  "description": "Formats Python with the pinned Ruff after a write or edit.",
+  "description": "Formats Python with the pinned Ruff after a write or edit, and reports a missing ruff at session start.",
   "hooks": {
     "PostToolUse": [
       {
@@ -26,6 +26,24 @@
             "if": "Edit(*.pyi)",
             "timeout": 15,
             "statusMessage": "Formatting Python with Ruff..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "RUFF_FORMAT_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+            ],
+            "timeout": 10,
+            "statusMessage": "Checking ruff..."
           }
         ]
       }

@@ -1,5 +1,5 @@
 ---
-description: "Chart a repository and the systems it references as a C4 System Landscape plus an application-portfolio table, with drift reported against a committed landscape record. Use when: 'map our landscape', 'system landscape', 'what systems do we have', 'what does this repo depend on', 'application portfolio', 'who owns which repo', 'what runtimes are we on', 'chart our repositories', 'inventory our systems', 'has our landscape drifted'. Skip when: module structure inside one codebase (/architecture:improve)."
+description: "Chart a repository and the systems it references as a C4 System Landscape plus an application-portfolio table, with drift reported against a committed landscape record. Use when: 'map our landscape', 'system landscape', 'what systems do we have', 'what does this repo depend on', 'application portfolio', 'who owns which repo', 'what runtimes are we on', 'inventory our systems', 'has our landscape drifted'. Skip when: module structure inside one codebase (/architecture:improve)."
 argument-hint: "[--repos <path>[,<path>...]] [--root <dir>] [--out <dir>] [--check] [--remote[=all]]"
 user-invocable: true
 disable-model-invocation: false
