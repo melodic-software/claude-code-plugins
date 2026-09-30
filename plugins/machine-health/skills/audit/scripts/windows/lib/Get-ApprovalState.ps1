@@ -3,7 +3,7 @@
 <#
 .SYNOPSIS
 Load the per-user ApprovalState from $OutputBase/state/approvals.json.
-First-run migrates checked boxes from the legacy skill-local TODO.md and
+First-run migrates checked boxes from the legacy TODO.md and
 persists the result. Subsequent runs read approvals.json directly.
 
 .DESCRIPTION

@@ -434,6 +434,10 @@ rc=$?
 assert_eq "missing jq binary exits 4" 4 "$rc"
 assert_contains "missing jq binary message" "$out" "jq not found"
 
+out="$(PATH="/nonexistent" "$BASH_BIN" "$SCRIPT" --help 2>&1)"
+rc=$?
+assert_eq "--help answers with no gh or jq binary" 0 "$rc"
+
 # ============================================================================
 # PRE-WRITE BODY GATE (#952) — the #943 fail-open is a comment whose timestamp
 # moves while its body carries no telemetry. The gate catches it BEFORE the

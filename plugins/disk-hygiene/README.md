@@ -110,13 +110,14 @@ user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROO
 from user/managed/`--settings` scope since Claude Code 2.1.207, so a repo cannot forge it), register
 unconditionally, and fail closed to enabled.
 
-Hook-lifetime caveat: docs scope a skill hook to the component's lifetime, but session-long firing
-of the belt has been observed on at least one Claude Code build (producer-reported; see
-issue #1105). If unrelated commands are denied after a clean run ends, start a new session and see
-that issue. The plugin-level engine gate fires inside subagents. The skill-frontmatter belt was
-observed not to reach a subagent, and #4228 records that its reach was inconsistent within one
-session, so a fanned-out worker's Bash lane is not reliably belt-guarded and "evidence only" is an
-instruction to the worker, not an enforced denial. `skills/clean/SKILL.md` holds the detail.
+Hook lifetime: the hooks page says Claude Code registers a skill's frontmatter hooks when the skill is
+invoked and keeps running them for the rest of the session, on turns after the skill's own turn as
+well. The belt therefore keeps denying after a clean run ends. Start a new session to clear it. The
+plugin-level engine gate fires inside subagents. The skill-frontmatter belt does not: the subagents
+page lists settings, managed-policy and plugin hooks as the ones that apply inside subagents, and a
+Bash call from a subagent ran unguarded on Claude Code 2.1.285. A fanned-out worker's Bash lane is
+not belt-guarded, so "evidence only" is an instruction to the worker, not an enforced denial.
+`skills/clean/SKILL.md` holds the detail.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
@@ -267,6 +268,29 @@ Policy files all share one shape:
   ]
 }
 ```
+
+Version 2 adds preselect `rules`, an age threshold, and an elevation opt-in
+([schema](skills/clean/reference/policy-overlay.schema.json)). A version 1 file keeps working.
+
+```json
+{
+  "version": 2,
+  "rules": [
+    {"match": {"hint_ids": ["common-lock-file"]}, "preselect": true, "min_age_days": 7}
+  ],
+  "elevation": "never"
+}
+```
+
+A rule ticks matching candidates in the approval list; it never approves. The approval question still
+names one tier and its path list, and a tick never raises a candidate above its hint's
+`confidence_ceiling` or past a blocker. With `min_age_days`, an entry modified inside the window (or
+a directory whose newest descendant is, or whose coverage is incomplete) stays unticked and is
+labeled in-flight. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
+project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
+that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
+elevation lane has not been proven in a Windows UAC pilot; see the
+[safety model](skills/clean/reference/safety-model.md#opt-in-elevation).
 
 Without `--policy`, standing policy files layer over the baseline when present:
 `~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's
