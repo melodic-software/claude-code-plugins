@@ -288,6 +288,30 @@ description is the presence check; this section states what to do when the canva
 that it is present. The four-part records live in
 [reference/bundled-design.md](reference/bundled-design.md).
 
+## Boundary, the marketplace `playground` plugin
+
+Both produce a browser page with controls that change what is shown, so an ask to "try options
+visually" can mean either:
+
+- **`playground` (marketplace plugin, first-party, from `anthropics/claude-plugins-official`).** Its
+  `playground` skill builds an interactive parameter explorer: controls on one side, a live preview
+  on the other, and a prompt at the bottom with a copy button. The output returns to the
+  conversation as a prompt.
+- **This skill (marketplace plugin).** Switchable UI variants of the user's own project (real
+  header, data, and routes, or a local mockup); the winning-variant key is kept and the rest is
+  thrown away.
+
+**Routing.** When the ask is to explore a parameter space and hand back a prompt, route it to the
+`playground` skill when that plugin is installed, or to `/playgrounds:use` when that wrapper is
+installed. When neither is, say the capability exists as an installable plugin and do not build an
+imitation. Keep "what should this page look like" here.
+
+**Mutation gate.** A playground writes its own page; this skill never builds one on its behalf.
+
+**Availability is never assumed.** The plugin is present only where it is installed from its
+marketplace; this section states what to do when it resolves, never that it is present. The
+four-part records live in [reference/native-playground.md](reference/native-playground.md).
+
 ## Next
 
 - A direction wins and is folded in: `/planning:plan`.

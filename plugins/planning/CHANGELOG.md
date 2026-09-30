@@ -3,11 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.2] - 2026-09-29
+## [0.47.4] - 2026-09-29
 
 ### Added
 
 - **`surface/wake.sh`** wraps the interview wake loop's compound command (`round.sh apply` then `watch.sh`) so each wake sends one short call. `watch.sh` emits it as the `next` command, and `context/surface.md` and the surface README document it ([#5462](https://github.com/melodic-software/claude-code-plugins/issues/5462)).
+
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
+
+## [0.47.2] - 2026-09-29
+
+### Added
+
+- **`draft-goal-condition` carries a Boundary section for the built-in `/goal` command.** The skill drafts the condition; the person runs `/goal <condition>` with it, and the model never sets a goal.
+- **`plan` carries a Boundary section for the built-in `/plan` command.** Plan mode stays the person's permission-mode switch, offered where Plan Mode Integration already suggests it; the skill keeps the persisted, approval-gated plan.
 
 ## [0.47.1] - 2026-09-29
 
