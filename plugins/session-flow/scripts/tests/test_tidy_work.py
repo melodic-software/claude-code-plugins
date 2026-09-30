@@ -999,3 +999,16 @@ def test_clean_never_removes_what_names_no_issue_or_pr(env):
     assert "would remove" not in dry.stdout
     assert clean(env, "--apply").returncode == 0
     assert tree(repo, home) == before
+
+
+def test_a_kept_handoff_that_names_no_issue_keeps_what_it_names(env):
+    _, _, repo = env
+    work = repo / ".work"
+    handoff(work / "handoffs" / HANDOFF_STALE, "Scratch: measure-4608/")
+    age(work / "handoffs" / HANDOFF_STALE, 60)
+    write(work / "measure-4608" / "out.txt", "x")
+    age(work / "measure-4608", 90)
+    items = report(env, *links(env[0], STATE))
+    assert items[HANDOFF_STALE]["keep"]
+    assert items["measure-4608"]["reasons"] == ["named by a later handoff"]
+    assert "would remove" not in clean(env).stdout

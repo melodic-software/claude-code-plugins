@@ -114,8 +114,8 @@ No flag overrides any of these.
 ## Gotchas
 
 - **`--offline` reads as "in flight", not "stale".** With link state unknown, every handoff
-  or scratch entry that names an issue or PR is kept, so an offline `clean` removes less than an
-  online one. That is the safe direction.
+  or scratch entry that names an issue or PR is kept, and one that names none is kept anyway, so
+  an offline `clean` removes nothing. That is the safe direction.
 - **A scratch attribution is read from the name, so check the bracket.** A file called
   `results-4608.json` is attributed to #4608 whether or not it has anything to do with it; the
   number must exist in the repository to count, but the match is not proof. Read the `[#N state]`

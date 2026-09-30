@@ -457,7 +457,7 @@ def mark_in_flight(
         (i for i in items if i.kind == "handoff"), key=lambda i: i.mtime, reverse=True
     ):
         judge(item)
-        if item.reasons:
+        if item.keep:
             try:
                 kept_handoffs.append(
                     (item.mtime, item.path.read_text(encoding="utf-8"))
