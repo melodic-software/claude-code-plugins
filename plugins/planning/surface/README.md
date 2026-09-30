@@ -14,6 +14,7 @@ A local page for interview rounds. The user answers one question at a time on 12
 | `wake.sh` | Claude | One wake: `round.sh apply` on `ops.json`, then `watch.sh`; the command `watch.sh` prints as `next` |
 | `exporters.py` | Claude | `export-ledger`, `export-brief`, `export-report`, `import-ledger` (called through `round.py`) |
 | `schema.py`, `schema/*.schema.json` | shared | JSON Schemas for the question, response, event, visual and ops files, and the stdlib validator `round.py` applies on every write |
+| `DEFERRED.md` | docs | Deferred page work, each entry with its decision or marked open |
 | `test_*.py`, `*.test.sh`, `tests/` | tests | Python `unittest` suites, shell suites, browser suites and fixtures |
 
 Per data dir: `questions.json` (Claude, through `round.py`), `responses.json` (server only: the event log and derived answers), optional `settings.json` and `theme.json`, and runtime files never exported (`.interview-session.json`, `.interview-session.env`, `.watch-seq`, `.watch-replay`, `questions.json.lock`).
