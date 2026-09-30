@@ -21,6 +21,7 @@ from JSON and `-Human` output.
 | `duplicate-and-missing-path.json` | Duplicate User Path entry + one missing dir |
 | `shadowed-exe.json` | Same `git.exe` in User and Machine Path dirs |
 | `shadow-machine-wins.json` | Process PATH lists Machine dir first |
+| `persisted-and-shadow.json` | Truthy User `DISABLE_AUTOUPDATER` plus a Machine-wins shadow |
 | `path-reg-sz.json` | User Path stored as `REG_SZ` (`String`) |
 | `path-length-warn.json` | User Path length ≥ 1800 and < 2047 |
 | `path-length-crit.json` | User Path length ≥ 2047 |
