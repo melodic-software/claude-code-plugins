@@ -38,8 +38,6 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$HOOK_DIR/rewrite-guard.sh"
 
 # MD_CHANGED is set on the path that ran the fix pass ("true" when
 # markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
@@ -47,10 +45,10 @@ source "$HOOK_DIR/rewrite-guard.sh"
 MD_CHANGED=""
 
 # Every arm exits through hook::finish: telemetry first, then the one JSON
-# document. rewrite-guard.sh is sourced only for hook::gitignored_out_of_scope;
-# this hook never calls rewrite_guard_begin, because markdownlint-cli2's own
-# fix count is authoritative. The verdict arrives on --changed, and a skip arm
-# that passes none omits the key rather than guessing one.
+# document. This hook never calls hook::rewrite_guard_begin, because
+# markdownlint-cli2's own fix count is authoritative. The verdict arrives on
+# --changed, and a skip arm that passes none omits the key rather than guessing
+# one.
 emit_skipped() {
   hook::finish skipped findings array '[]'
 }
@@ -405,7 +403,7 @@ fi
 # "User configuration", https://code.claude.com/docs/en/plugins-reference,
 # fetched 2026-08-08). Booleans arrive as the strings "true"/"false"; anything
 # else falls back to the manifest default rather than being interpolated.
-# Shared helper: hook::gitignored_out_of_scope in rewrite-guard.sh (#4671).
+# Shared helper: hook::gitignored_out_of_scope in hook-utils.sh.
 if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED:-false}" "$FILE"; then
   # silent-skip-ok: this is a path-scope policy verdict, not a missing-tool
   # verdict — the repository declared this path out of scope in its own
