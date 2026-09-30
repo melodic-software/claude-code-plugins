@@ -6,9 +6,9 @@ evidence only.
 
 ## Parent: fill the placeholders before spawning
 
-A worker cannot expand `${...}` tokens (the guard rejects shell expansion) and never receives the
-guard-values note, which a hook emits only when a person types the command. Before spawning,
-replace `<hook-python>`, `<engine>` (the path `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/` plus the
+A worker cannot expand `${...}` tokens (the guard rejects shell expansion) and sees only its spawn
+prompt, not the guard-values note in your context (how the note arrives:
+[safety-model.md](safety-model.md), "Handing the values over up front"). Before spawning, replace `<hook-python>`, `<engine>` (the path `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/` plus the
 engine filename), `<data-root>` (the `data_root` value), `<run-dir>`, and, when it applies,
 `<project-dir>` with the literal absolute values you already hold from the guard-values note or the
 kill-switch probe in `SKILL.md`.
