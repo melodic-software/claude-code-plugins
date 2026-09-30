@@ -93,7 +93,8 @@ Gate:
                      directory under one durable directory per tier, repo set
                      and skip list in ${CLAUDE_PLUGIN_DATA} (else
                      ~/.claude/plugins/data/repo-hygiene): a repeat dry-run
-                     never replaces a plan you already confirmed.
+                     never replaces a plan you already confirmed, and run
+                     directories older than 14 days are removed.
   --list-paths-max N per-repo cap on the dry-run path listing (default 20;
                      0 lists none).
   --apply --batch-plan P
@@ -120,6 +121,7 @@ DRY_RUN=1
 APPLY_GIVEN=0
 BATCH_PLAN_ARG=""
 LIST_MAX=20
+PLAN_RETAIN_DAYS=14
 REPO_INPUTS=()
 
 while [[ $# -gt 0 ]]; do
@@ -471,7 +473,8 @@ batch_reset_gitdirs
 # Batch plan + per-repo manifests live in one dir so they bundle and clean up
 # together; honor an explicit --batch-plan location for a stable, resumable path.
 # The default lives in one durable directory per tier, sorted repo set and skip list, with a
-# fresh run directory per dry-run, so a later dry-run never replaces a plan already confirmed.
+# fresh run directory per dry-run, so a later dry-run never replaces a plan already confirmed;
+# run directories older than PLAN_RETAIN_DAYS are removed on the next dry-run of the same set.
 if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
@@ -487,6 +490,7 @@ else
   } | LC_ALL=C sort | cksum | cut -d' ' -f1)"
   SET_DIR="$DATA_DIR/clean-batch/$TIER-$SET_KEY"
   mkdir -p "$SET_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directory: $SET_DIR"
+  find "$SET_DIR" -maxdepth 1 -type d -name 'run.*' -mtime +"$PLAN_RETAIN_DAYS" -exec rm -rf {} + 2>/dev/null || true
   PLAN_DIR="$(mktemp -d "$SET_DIR/run.XXXXXX" 2>/dev/null)" || fail_usage "cannot create batch-plan directory under: $SET_DIR"
   PLAN="$PLAN_DIR/plan"
 fi

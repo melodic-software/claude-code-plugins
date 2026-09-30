@@ -513,6 +513,13 @@ assert_not_contains "different skip list gives a different plan directory" "$out
 out3="$(bash "$BATCH" --tier caches --repo "$PD_REPO" --list-paths-max 08 2>&1)"
 assert_not_contains "leading-zero --list-paths-max is read as decimal" "$out3" "value too great"
 
+PD_SET_DIR="$(dirname "$(dirname "$PD_PLAN")")"
+mkdir "$PD_SET_DIR/run.old" "$PD_SET_DIR/run.recent" && touch "$PD_SET_DIR/run.recent/plan"
+touch "$PD_SET_DIR/run.old/plan" && touch -d "15 days ago" "$PD_SET_DIR/run.old"
+bash "$BATCH" --tier caches --repo "$PD_REPO" >/dev/null
+assert_file_absent "a run directory older than 14 days is pruned" "$PD_SET_DIR/run.old/plan"
+assert_file_exists "a recent run directory is kept" "$PD_SET_DIR/run.recent/plan"
+
 out="$(env -u CLAUDE_PLUGIN_DATA bash "$BATCH" --tier caches --repo "$PD_REPO")"
 assert_contains "without CLAUDE_PLUGIN_DATA the plan lands under HOME/.claude" "$out" "BatchPlan: $HOME/.claude/"
 
