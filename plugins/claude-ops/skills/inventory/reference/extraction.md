@@ -220,6 +220,11 @@ A description no form resolves is listed in `integrity.undetermined.description_
 `/claude-ops:changelog apply`'s native-drift step, which files each name the previous run did not
 list, so a release that adds a shape this reader cannot follow is filed rather than absorbed.
 
+| Claim | Basis | As of | Recheck trigger |
+|---|---|---|---|
+| The bytecode bundle is about two thousand concatenated modules, each opening with a `// @bun` header, and minified names repeat between them | 2,125 `// @bun` headers counted in the bundle `read_bundle` returns for `~/.local/share/claude/versions/2.1.285`; `jd` bound to `"Workflow"` in one module and to a `"host_exit"` ternary in another | 2026-09-30, Claude Code 2.1.285 | A release drops the `// @bun` module header or the header count falls to one |
+| `design` is the only description the reader leaves unresolved | `inventory.py --binary-only` on 2.1.285: `integrity.undetermined.description_unresolved` lists `design` alone (14 names before this reader) | 2026-09-30, Claude Code 2.1.285 | That list changes on any run; `/claude-ops:changelog apply` files each new name |
+
 ### 8. Find bundled workflows by what the registrar does
 
 The workflow registrar has no readable export name (`function dro(o,e,r){eo().bundledWorkflows.push(

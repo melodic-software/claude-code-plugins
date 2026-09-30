@@ -971,27 +971,36 @@ def _operand(
     t = src[i] if i < n else ""
     if t == "?" and not src.startswith(("??", "?."), i):
         return i
-    if t and t not in ":,;})]":
+    fallback = src.startswith(("||", "??"), i)
+    if t and t not in ":,;})]" and not fallback:
         return i
+    values: list[str] | None = []
     if len(parts) == 1:
         p = parts[0]
-        if p is None:
-            acc.unresolved += 1
-        elif isinstance(p, list):
-            for v in p:
-                _add_static(acc, v)
-        elif isinstance(p, str):
-            _add_static(acc, p)
+        values = p if isinstance(p, list) else [p] if isinstance(p, str) else None
+        if p is _NONSTRING:
+            values = []
     elif len(parts) > 1 and any(isinstance(p, (str, list)) and p for p in parts):
-        _add_static(
-            acc,
+        values = [
             "".join(
                 p
                 if isinstance(p, str)
                 else (p[-1] if isinstance(p, list) and p else _ELLIPSIS)
                 for p in parts
-            ),
-        )
+            )
+        ]
+    if fallback:
+        # `a||b`: when every value `a` can take is a non-empty string, `b`
+        # never shows, so it is skipped; otherwise `b` is read as a value.
+        if not values or not all(values):
+            return i
+        while src.startswith(("||", "??"), i):
+            i = _operand(src, braces, _skip_ws(src, i + 2, n), n, _Values(), **kw)
+            i = _skip_ws(src, i, n)
+    if values is None:
+        acc.unresolved += 1
+    for v in values or []:
+        _add_static(acc, v)
     return i
 
 
@@ -1273,6 +1282,7 @@ def _declaration(
     ident: str,
     at: int,
     pattern_for: Any,
+    later_ok: Any = lambda _src, _braces, _at: True,
 ) -> re.Match[str] | None:
     """The declaration of `ident` that the code at `at` reads.
 
@@ -1280,7 +1290,8 @@ def _declaration(
     module to module: a name the module imports is declared at the top level
     of the one module exporting it (anything else is unresolved); any other
     name is declared in the module itself (nearest before `at`, else first
-    after), and a name neither imported nor declared there is unresolved.
+    after when `later_ok` allows it), and a name neither imported nor
+    declared there is unresolved.
     A single-module source keeps the plain rule: nearest before `at`.
     """
     if len(_chunk_starts(src)) == 1:
@@ -1305,7 +1316,9 @@ def _declaration(
     found = None
     for m in pattern.finditer(src, lo, at):
         found = m
-    return found or pattern.search(src, at, hi)
+    if found is None and later_ok(src, braces, at):
+        found = pattern.search(src, at, hi)
+    return found
 
 
 def _binding_pattern(ident: str) -> re.Pattern[str]:
@@ -1313,17 +1326,37 @@ def _binding_pattern(ident: str) -> re.Pattern[str]:
     return re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
 
 
+def _in_function_body(src: str, braces: BraceMap, at: int) -> bool:
+    """Whether `at` sits directly in a function body, which runs after the
+    module has initialized: a binding later in the module is set by then. An
+    object literal evaluated at load time reads it before its initializer."""
+    enc = braces.enclosing(max(at - 1, 0))
+    # A template substitution's `${` is not a scope: look past it.
+    while enc is not None and enc[0] > 0 and src[enc[0] - 1] == "$":
+        enc = braces.enclosing(enc[0] - 1)
+    if enc is None:
+        return False
+    j = enc[0] - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    return j >= 0 and (src[j] == ")" or src.startswith("=>", j - 1))
+
+
 def _binding_value(src: str, braces: BraceMap, ident: str, at: int) -> int | None:
     """Offset of the `ident=` value `at` reads.
 
     A single-character name is function-local: the nearest binding before
-    `at`, within `SHORT_VALUE_LOCALITY_BYTES`. A longer one follows the
-    module rule in `_declaration`.
+    `at` in `at`'s own module, within `SHORT_VALUE_LOCALITY_BYTES`. A longer
+    one follows the module rule in `_declaration`; a binding after `at` is
+    taken only when `at` is in a function body.
     """
     if len(ident) == 1:
         v = _nearest_binding(src, ident, at)
-        return None if v is None or at - v > SHORT_VALUE_LOCALITY_BYTES else v
-    m = _declaration(src, braces, ident, at, _binding_pattern)
+        lo = _chunk_span(src, at)[0]
+        if v is None or v < lo or at - v > SHORT_VALUE_LOCALITY_BYTES:
+            return None
+        return v
+    m = _declaration(src, braces, ident, at, _binding_pattern, _in_function_body)
     return m.end() if m else None
 
 

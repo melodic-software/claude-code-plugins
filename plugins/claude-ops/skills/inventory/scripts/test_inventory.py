@@ -1232,6 +1232,15 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(_tool(src, "Bash")["description"], "Run shell command")
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
 
+    def test_a_resolved_left_operand_wins_over_its_fallback(self) -> None:
+        src = (
+            'var dd="REAL",Qz="Probe";'
+            '$t({name:Qz,maxResultSizeChars:1,description:dd||"FALLBACK"||"OTHER"});'
+        )
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description"], "REAL")
+        self.assertNotIn("description_variants", rec)
+
     def test_an_empty_fallback_is_not_a_value(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:ua()??""});'
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
@@ -1294,6 +1303,23 @@ class TestModuleScopedResolution(unittest.TestCase):
             'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});',
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Write a … script")
+
+    def test_a_single_letter_binding_never_crosses_a_module_boundary(self) -> None:
+        src = _modules(
+            'var e="Foreign";',
+            'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Use ${e} here`});',
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use … here")
+
+    def test_a_later_binding_resolves_only_inside_a_function_body(self) -> None:
+        src = _modules(
+            'var Qz="Probe",Pz="Lazy";'
+            "$t({name:Qz,maxResultSizeChars:1,description:zz});"
+            "$t({name:Pz,maxResultSizeChars:1,async description(){return zz}});"
+            'var zz="later";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+        self.assertEqual(_tool(src, "Lazy")["description"], "later")
 
     def test_a_name_two_modules_export_is_ambiguous(self) -> None:
         src = _modules(
