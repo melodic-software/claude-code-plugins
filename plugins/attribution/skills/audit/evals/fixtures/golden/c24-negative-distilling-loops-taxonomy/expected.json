@@ -1,0 +1,10 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative. A reference file whose product is a section-by-section distillation of a named guide states the guide's four-way loop taxonomy. The file opens by naming the guide, its part number and its author.",
+    "carve_outs": "Distilling-file surface applies. The attribution line is the opening paragraph naming the guide that the numbered sections distill. Quote it.",
+    "rubric": "Not graded. The copy rubric's distilled-product carve-out reaches the same verdict on the near-verbatim overlap with the source, so no finding of either class is expected.",
+    "carries": "A source page is on hand whose sentences the file follows closely. A run that reports the overlap as a copy or as a restated fact has ignored what the file says it is."
+  }
+}
