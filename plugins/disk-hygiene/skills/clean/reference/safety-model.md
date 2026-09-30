@@ -270,7 +270,7 @@ The Linux command, one approved standalone checkout per call. Any verdict but `c
 nothing; confirm the guard's `ask` only for that path.
 
 ```text
-"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-apply --execute \
+"<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
   --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
   --vcs-evidence "<run-dir>/vcs-evidence.json" --report "<run-dir>/report-handoff.json" \
   --data-root "${CLAUDE_PLUGIN_DATA}"
