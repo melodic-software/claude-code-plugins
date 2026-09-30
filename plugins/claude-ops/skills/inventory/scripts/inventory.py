@@ -601,6 +601,10 @@ _MAX_COMBINATIONS = 16
 Scope = Mapping[str, "list[str] | None"]
 NO_SCOPE: Scope = MappingProxyType({})
 _NONSTRING = object()
+# Non-string literals, by how `||` and `??` treat them.
+_TRUTHY_LITERALS = frozenset({"true", "!0"})
+_FALSY_LITERALS = frozenset({"false", "!1"})
+_NONZERO_RE = re.compile(r"[1-9][0-9.e]*")
 
 
 def _js_unescape(raw: str) -> str:
@@ -938,6 +942,7 @@ def _operand(
         if src.startswith("=>", k):
             params = shadow | _param_names(src[i + 1 : close - 1])
             return _arrow_body(src, braces, k + 2, n, acc, **{**kw, "shadow": params})
+    start = i
     parts: list[Any] = []
     # A call or a group can also yield a non-string (`void 0`, `null`) this
     # reader does not record, so its values never settle a fallback.
@@ -1030,7 +1035,18 @@ def _operand(
         # never shows, so it is skipped; otherwise `b` is read as a value
         # after the values of `a` that are non-empty strings.
         # `a??b` tests only null and undefined, so any string `a` keeps it.
-        if computed or not values or (src.startswith("||", i) and not all(values)):
+        # A non-string literal settles it by its own truthiness.
+        literal = src[start:i].strip() if parts == [_NONSTRING] else None
+        or_op = src.startswith("||", i)
+        kept = (
+            literal in _TRUTHY_LITERALS
+            or (not or_op and literal in _FALSY_LITERALS)
+            or bool(literal and _NONZERO_RE.fullmatch(literal))
+            or bool(not or_op and literal and literal.isdigit())
+        )
+        if kept:
+            values = []
+        elif computed or not values or (or_op and not all(values)):
             for v in values or []:
                 if v:
                     _add_static(acc, v)
@@ -1542,7 +1558,10 @@ def _resolve_chain(
         close = None if fn is None else braces.pairs.get(fn[0])
         if fn is None or close is None:
             return None
-        scope = fn[1]
+        # A nested function closes over its caller's parameters; a top-level
+        # one sees none of them.
+        nested = braces.enclosing(fn[0] - 1) is not None
+        scope = {**shadow, **fn[1]} if nested else fn[1]
         if len(chain) == 2:
             scope = {
                 **scope,

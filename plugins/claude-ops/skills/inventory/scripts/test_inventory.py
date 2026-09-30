@@ -1285,6 +1285,24 @@ class TestToolDescriptionShapes(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Joined")["description_variants"], ["a X", "a Y"])
 
+    def test_a_non_string_literal_settles_its_fallback(self) -> None:
+        def desc(expr: str) -> str:
+            src = f'var Qz="Probe";$t({{name:Qz,maxResultSizeChars:1,description:{expr}}});'
+            return _tool(src, "Probe")["description"]
+
+        self.assertEqual(desc('true||"FALLBACK"'), "")
+        self.assertEqual(desc('false??"FALLBACK"'), "")
+        self.assertEqual(desc('false||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('null??"FALLBACK"'), "FALLBACK")
+
+    def test_a_nested_helper_sees_its_callers_bound_parameter(self) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe";'
+            "function ff(x){function gg(){return x}return gg()}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
     def test_a_nullish_fallback_keeps_an_empty_string(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:""??"FALLBACK"});'
         self.assertEqual(_tool(src, "Probe")["description"], "")
