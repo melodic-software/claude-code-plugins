@@ -92,7 +92,7 @@ directory whose `.claude/testing.yaml` holds two excludes, one rule level and on
 
 | Run | Load average | before p95 | no config p95 | with config p95 |
 |---|---|---|---|---|
-| idle, separate runs | under 8 | 116, 123 ms | 123, 126 ms | not measured |
+| idle, separate runs | under 8 | 116, 123 ms | 123, 126 ms | 130, 133, 131 ms (next section) |
 | interleaved, 3 rounds | 22-27 | 189, 164, 177 ms | 175, 179, 179 ms | 181, 196, 188 ms |
 
 With no layer file the scan does three file tests more and nothing else, and the loaded rounds put
@@ -102,6 +102,23 @@ before on the round means. Idle before plus that delta is about 130-135 ms, insi
 budget, but that figure is an estimate: the host stayed above load 20 for the whole session, and
 every arm, before included, went over 150 ms under that load. Re-measure the config arm on an idle
 host.
+
+### Idle config arm (WSL2, 2026-09-29)
+
+Three arms per round, one sample of each per iteration, 50 samples, each round started only at a
+1-minute load below 8 (5.6-6.9 across the run), on the scanner that follows helpers to any depth:
+test-scan with no layer file, test-scan with a user-layer `.claude/testing.yaml` (two excludes,
+one rule level, one `extend` list), and test-weaken with the same layer on an Edit that removes a
+test block. Each arm was first checked to emit its finding or weakening note.
+
+| Round | test-scan no config p50/p95 | test-scan config p50/p95 | test-weaken config p50/p95 |
+|---|---|---|---|
+| 1 | 110/116 ms | 120/130 ms | 104/109 ms |
+| 2 | 115/124 ms | 123/133 ms | 107/113 ms |
+| 3 | 112/119 ms | 122/131 ms | 105/113 ms |
+
+The layer file costs about 10 ms at p50 and 12-14 ms at p95, matching the loaded estimate above.
+Every arm meets the 150 ms p95 budget at idle.
 
 ### Phase 6: `test-weaken` (WSL2, 2026-09-29)
 

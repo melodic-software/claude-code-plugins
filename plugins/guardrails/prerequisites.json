@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "node",
+      "check": "/guardrails:setup check",
+      "install": "Install Node.js from https://nodejs.org and put node on PATH"
+    }
+  ]
+}
