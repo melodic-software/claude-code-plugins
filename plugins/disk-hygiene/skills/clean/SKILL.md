@@ -406,6 +406,12 @@ but `execution-platform-unsupported`, or whose plan tier ranks above the matched
 `confidence_ceiling`; never raise a tier to keep a tick. Changing the ticked rows changes the list
 the token binds: new plan, preview, and question.
 
+A rule with `min_age_days` (mtime basis) does not tick an entry modified inside the window: the row
+keeps its tier and carries `in_flight_reason` (`in-flight: modified within N days`), shown beside
+it. A directory is as new as its newest inventoried descendant, and one with incomplete coverage
+(not-walked, depth-cut, scan error) counts as in-flight, since unknown is not old. Rules never
+override locked or open-handle blockers; those still block the candidate.
+
 ## 6. Apply only the confirmed preview
 
 After an affirmative answer in this interactive session, run only:

@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -926,14 +927,77 @@ def validate_rules(
     return normalized
 
 
-def apply_rules(entries: list[dict[str, Any]], rules: list[dict[str, Any]]) -> None:
+def rule_age_facts(
+    entries: list[dict[str, Any]], unknown_paths: Iterable[str]
+) -> tuple[dict[str, int], set[str]]:
+    """Newest descendant mtime per directory, and every path with a coverage gap.
+
+    An ancestor of an unknown path is itself unknown: the walk never saw what
+    changed beneath it. Not-walked entries count as unknown alongside
+    `unknown_paths`.
+    """
+    newest: dict[str, int] = {}
+    incomplete: set[str] = set()
+    unknown = set(unknown_paths) | {
+        entry["path"]
+        for entry in entries
+        if "not-walked" in (entry.get("size_qualifiers") or [])
+    }
+    for entry in entries:
+        parent = entry["path"]
+        while "/" in parent:
+            parent = parent.rsplit("/", 1)[0]
+            newest[parent] = max(newest.get(parent, 0), entry["mtime_ns"])
+    for path in unknown:
+        incomplete.add(path)
+        while "/" in path:
+            path = path.rsplit("/", 1)[0]
+            incomplete.add(path)
+    return newest, incomplete
+
+
+def rule_in_flight_reason(
+    entry: dict[str, Any],
+    days: int,
+    facts: tuple[dict[str, int], set[str]],
+    now_ns: int,
+) -> str | None:
+    newest, incomplete = facts
+    path = entry["path"]
+    reason = f"in-flight: modified within {days} days"
+    if path in incomplete:
+        return f"{reason} (coverage incomplete, age unknown)"
+    modified = max(entry["mtime_ns"], newest.get(path, 0))
+    if modified > now_ns - days * 86_400 * 10**9:
+        return reason
+    return None
+
+
+def apply_rules(
+    entries: list[dict[str, Any]],
+    rules: list[dict[str, Any]],
+    unknown_paths: Iterable[str] = (),
+    now_ns: int | None = None,
+) -> None:
     """Annotate entries a rule matches with `policy_rule` and `preselected`.
 
     The last matching rule wins, so a project layer overrides the user layer.
     Preselection is advisory: it changes no hint, tier, or protection, and an
     entry with any protected reason is never preselected. Preview recomputes
     it from live blockers and the plan tier, because a snapshot is editable.
+
+    A rule with `min_age_days` does not preselect an entry modified inside the
+    window (mtime basis). A directory is as new as its newest inventoried
+    descendant, and one whose coverage is incomplete is treated as new: unknown
+    is not old. Such an entry keeps its tier and carries `in_flight_reason`.
     """
+    if now_ns is None:
+        now_ns = time.time_ns()
+    facts = (
+        rule_age_facts(entries, unknown_paths)
+        if any("min_age_days" in rule for rule in rules)
+        else ({}, set())
+    )
     for entry in entries:
         hint_ids = [hint["id"] for hint in entry.get("hints", [])]
         match = None
@@ -949,12 +1013,12 @@ def apply_rules(entries: list[dict[str, Any]], rules: list[dict[str, Any]]) -> N
             "index": rule["index"],
             "hint_id": hint_id,
         }
-        # ponytail: min_age_days is not evaluated yet, so a rule carrying it preselects nothing.
-        entry["preselected"] = (
-            rule["preselect"]
-            and "min_age_days" not in rule
-            and not entry["protected_reasons"]
-        )
+        entry["preselected"] = rule["preselect"] and not entry["protected_reasons"]
+        if entry["preselected"] and "min_age_days" in rule:
+            reason = rule_in_flight_reason(entry, rule["min_age_days"], facts, now_ns)
+            if reason:
+                entry["preselected"] = False
+                entry["in_flight_reason"] = reason
 
 
 def validate_hint(hint: Any) -> None:
@@ -2146,7 +2210,16 @@ def scan_tree(
     stdlib_shadowing: list[dict[str, Any]] = []
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
-        apply_rules(entries, policy.get("rules", []))
+        apply_rules(
+            entries,
+            policy.get("rules", []),
+            set(truncated)
+            | {
+                item["path"]
+                for item in errors
+                if isinstance(item, dict) and isinstance(item.get("path"), str)
+            },
+        )
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
     reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
@@ -3578,6 +3651,8 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 and TIER_RANK[plan["tier"]] <= TIER_RANK[ceiling]
                 and set(blockers) <= {PLATFORM_BLOCKER},
             }
+            if isinstance(candidate_entry.get("in_flight_reason"), str):
+                rule_fields["in_flight_reason"] = candidate_entry["in_flight_reason"]
         results.append(
             {
                 "path": relative,

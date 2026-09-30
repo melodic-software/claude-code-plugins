@@ -663,26 +663,131 @@ class HygieneTests(unittest.TestCase):
             self.assertIs(False, entry["preselected"])
             self.assertEqual(str(project), entry["policy_rule"]["source"])
 
-    def test_a_rule_with_min_age_preselects_nothing_yet(self) -> None:
+    def _aged_fixture(
+        self, directory: str, days: int = 7
+    ) -> tuple[Path, dict[str, Any]]:
+        """`old.stage` (file), `fresh.stage` (file), and `dir.stage` (directory
+        holding one child), all matched by a preselect rule with min_age_days."""
+        root = Path(directory) / "target"
+        (root / "dir.stage").mkdir(parents=True)
+        for name in ("old.stage", "fresh.stage", "dir.stage/child.txt"):
+            (root / name).write_text("stale", encoding="utf-8")
+        overlay = self._overlay(
+            directory,
+            "aged.json",
+            additional_hints=[
+                {
+                    "id": "stage-file",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "*.stage",
+                    "confidence_ceiling": "low",
+                    "reason": "Staging leftovers",
+                }
+            ],
+            rules=[
+                {
+                    "match": {"hint_id": "stage-file"},
+                    "preselect": True,
+                    "min_age_days": days,
+                }
+            ],
+        )
+        return root.resolve(), hygiene.load_policy(overlay)
+
+    @staticmethod
+    def _age(path: Path, days: float) -> None:
+        stamp = time.time_ns() - int(days * 86_400 * 10**9)
+        os.utime(path, ns=(stamp, stamp))
+
+    def test_min_age_preselects_an_old_entry_and_flags_a_new_one_in_flight(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "target"
-            root.mkdir()
-            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
-            overlay = self._overlay(
-                temporary,
-                "v2.json",
-                rules=[
-                    {
-                        "match": {"hint_id": "common-temp-file"},
-                        "preselect": True,
-                        "min_age_days": 0,
-                    }
-                ],
+            root, policy = self._aged_fixture(temporary)
+            self._age(root / "old.stage", 30)
+            self._age(root / "fresh.stage", 1)
+            snapshot = hygiene.scan_tree(root, policy)
+            entries = hygiene.entry_map(snapshot)
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertNotIn("in_flight_reason", entries["old.stage"])
+            self.assertIs(False, entries["fresh.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: modified within 7 days",
+                entries["fresh.stage"]["in_flight_reason"],
             )
-            entry = hygiene.entry_map(
-                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
-            )["orphan.tmp"]
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("fresh.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)
+            self.assertEqual("low", result["candidates"][0]["tier"])
+            self.assertEqual([], result["candidates"][0]["blockers"])
+            self.assertIs(False, result["candidates"][0]["preselected"])
+            self.assertEqual(
+                "in-flight: modified within 7 days",
+                result["candidates"][0]["in_flight_reason"],
+            )
+
+    def test_min_age_directory_is_as_new_as_its_freshest_descendant(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            self._age(root / "dir.stage" / "child.txt", 1)
+            self._age(root / "dir.stage", 30)
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
             self.assertIs(False, entry["preselected"])
+            self.assertIn("in-flight: modified within 7 days", entry["in_flight_reason"])
+            self._age(root / "dir.stage" / "child.txt", 30)
+            self._age(root / "dir.stage", 30)
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
+            self.assertIs(True, entry["preselected"])
+
+    def test_min_age_treats_incomplete_coverage_as_in_flight(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("dir.stage/child.txt", "dir.stage"):
+                self._age(root / name, 30)
+            # A depth cut leaves dir.stage's child uninventoried: age unknown.
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy, max_depth=1))[
+                "dir.stage"
+            ]
+            self.assertIn("not-walked", entry["size_qualifiers"])
+            self.assertIs(False, entry["preselected"])
+            self.assertIn("coverage incomplete", entry["in_flight_reason"])
+
+    def test_min_age_ancestor_of_a_scan_error_is_in_flight(self) -> None:
+        old = time.time_ns() - 30 * 86_400 * 10**9
+        base = {
+            "kind": "directory",
+            "mtime_ns": old,
+            "hints": [{"id": "h"}],
+            "protected_reasons": [],
+        }
+        entries = [
+            {"path": "dir.stage", **base},
+            {**base, "path": "dir.stage/a", "kind": "file", "hints": []},
+        ]
+        rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
+                  "source": "s", "index": 0}]
+        hygiene.apply_rules(entries, rules)
+        self.assertIs(True, entries[0]["preselected"])
+        entries[0].pop("preselected")
+        hygiene.apply_rules(entries, rules, unknown_paths={"dir.stage/unreadable"})
+        self.assertIs(False, entries[0]["preselected"])
+
+    def test_min_age_never_overrides_a_protected_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            (root / "guarded").mkdir()
+            (root / "guarded" / "old.stage").write_text("x", encoding="utf-8")
+            self._age(root / "guarded" / "old.stage", 30)
+            policy["additional_protected_path_globs"].append("guarded/**")
+            entry = hygiene.entry_map(hygiene.scan_tree(root, policy))[
+                "guarded/old.stage"
+            ]
+            self.assertIs(False, entry["preselected"])
+            self.assertNotIn("in_flight_reason", entry)
 
     def test_apply_refuses_a_preselected_entry_without_tier_approval(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
