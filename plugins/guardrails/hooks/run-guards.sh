@@ -92,8 +92,9 @@
 #     inside it can exceed.
 #     For the Bash tool, a spelling inside a single-quoted span does not
 #     count: bash substitutes nothing there, and the guards read the span as
-#     one quoted word, so it costs what the same text without the spelling
-#     costs. Everything else counts as before, including double-quoted text,
+#     one quoted word, so it costs close to the same text without the
+#     spelling and far below the unquoted cost. Everything else counts as
+#     before, including double-quoted text,
 #     ANSI-C `$'...'` and heredoc bodies, quoted delimiter or not:
 #     block-root-delete-target's substitution scan reads even a `<<'EOF'` body
 #     as commands. The discount is taken only where it is proved. The scan
@@ -443,9 +444,12 @@ run_guards::counted_text() { # <command> -> _rg_counted
     *) break ;;
     esac
   done
+  # With each `\` kept (a boundary, as in `C:\…\bash.exe`) and removed
+  # (`ev\al`).
   m=$out$rest
-  m=${m//[\"\\]/}
-  [[ ${m,,} =~ $re_reparse ]] || _rg_counted=$out$rest
+  m=${m//\"/}
+  m=${m,,}
+  [[ $m =~ $re_reparse || ${m//\\/} =~ $re_reparse ]] || _rg_counted=$out$rest
 }
 
 if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then

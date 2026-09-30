@@ -985,7 +985,8 @@ cap_quoted "a heredoc inside \"\$(...)\" counts" 2 "git commit -m \"\$(cat <<'EO
 cap_quoted "a span in (( )) counts" 2 "(( '$QS' ))"
 cap_quoted "a span in \${x:offset} counts" 2 "echo \${x:'$QS'}"
 cap_quoted "a span in an array subscript counts" 2 "a['$QS']=5"
-for cmd in "eval '$QS'" "bash -c '$QS'" "sudo sh -lc '$QS'" "'/bin/bash' -c '$QS'" "ba'sh' -c '$QS'" "git -c 'alias.x=!$QS' x"; do
+for cmd in "eval '$QS'" "bash -c '$QS'" "sudo sh -lc '$QS'" "'/bin/bash' -c '$QS'" "ba'sh' -c '$QS'" \
+  "\"C:\\Program Files\\Git\\bin\\bash.exe\" -c '$QS'" "git -c 'alias.x=!$QS' x"; do
   cap_quoted "a re-parsed argument counts: ${cmd:0:24}" 2 "$cmd"
 done
 # 16 KB of the shape that costs the scan the most steps finishes well inside
