@@ -187,6 +187,27 @@ assert_contains "2 failed attempts give judge not run" "$(field .systemMessage)"
 STUB_MODE=fail stop s9
 check "no third attempt" '[[ "$(stub_calls)" == 2 ]]'
 
+# The findings file follows .claude/topic-docs.yaml's memory_dir, but only to a
+# root strictly inside the checkout; `..` or an outside path falls back to the
+# plugin data directory and writes nothing outside.
+mkdir -p "$REPO/.claude" "$TMP/outside"
+for mem in notes '../escape' "$TMP/outside"; do
+  sid="mem${#mem}"
+  transcript "$sid" claude-sonnet-5
+  W="$REPO/src/mem$sid.test.ts"
+  js_file "$W" "mem$sid"
+  record "$sid" w1 "$W" null
+  printf 'memory_dir: %s\n' "$mem" >"$REPO/.claude/topic-docs.yaml"
+  stop "$sid"
+  f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+  case "$mem" in
+  notes) check "memory_dir inside the checkout is used" '[[ "$f" == "$REPO/notes/reviews/feat-judge-test/"* && -f "$REPO/notes/.gitignore" ]]' ;;
+  *) check "memory_dir $mem outside the checkout: the plugin data directory" \
+    '[[ "$f" == "$DATA/findings/"* && ! -e "$REPO/../escape" && ! -e "$TMP/outside/.gitignore" ]]' ;;
+  esac
+done
+rm -rf "$REPO/.claude" "$REPO/notes"
+
 # Relay validation: a quote not in the file, and a diff touching another
 # file, are relayed as UNKNOWN.
 for mode in badquote otherfile; do

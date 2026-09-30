@@ -382,7 +382,7 @@ judge::section1() {
 # them and their relay markers. A key left without a verdict gets a failed
 # attempt.
 judge::run() {
-  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner n budget raw sys prompt tbin rc kh
+  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner n budget raw sys prompt tbin rc kh c
   IFS=$'\t' read -r file repo owner < <(jq -r '[.file, (.repo // ""), (.owner // "")] | @tsv' <<<"$info")
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
   [[ -n "$repo" && -d "$repo" ]] || repo="${file%/*}"
@@ -402,7 +402,13 @@ judge::run() {
     return 0
   fi
   sys="$(cat "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)"$'\n\n'"$(judge::section1)"
-  tbin="$(command -v timeout || command -v gtimeout)"
+  # coreutils timeout (gtimeout on a Homebrew macOS): it runs the judge in its
+  # own process group and signals the whole group. Windows' own timeout.exe
+  # takes no --version and is rejected.
+  tbin=""
+  for c in timeout gtimeout; do
+    c="$(command -v "$c")" && "$c" --version >/dev/null 2>&1 && tbin="$c" && break
+  done
   prompt="Judge these test blocks in $file (block <ordinal> <start>-<end> <name>):"$'\n'"$(sed -n 's/^[^ ]* /block /p' <<<"$keys")"
   [[ -z "$hint" ]] || prompt+=$'\n'"Changed lines in this file, a hint to where the new tests are: $hint"
   if [[ "$sys" != *"## 1. "* || -z "$tbin" ]]; then
@@ -486,7 +492,7 @@ judge::slug() {
 # self-ignoring .gitignore. No branch, no repository or a root-equivalent
 # memory_dir: the plugin data directory.
 judge::findings_dir() {
-  local repo="$1" branch="" mem
+  local repo="$1" branch="" mem up real top
   [[ -n "$repo" && -d "$repo" ]] && branch="$(git -C "$repo" branch --show-current 2>/dev/null)"
   if [[ -z "$branch" ]]; then
     printf '%s' "$DATA/findings"
@@ -497,7 +503,14 @@ judge::findings_dir() {
   mem="${mem:-.work}"
   case "$mem" in /* | ?:*) ;; *) mem="$repo/${mem#./}" ;; esac
   mem="${mem%/}"
-  if [[ "$mem" == "$repo" || "$mem" == "$repo/." ]] || ! mkdir -p "$mem"; then
+  # The memory root must sit strictly inside the checkout, symlinks resolved
+  # on its nearest existing ancestor, or the self-ignore write would land in
+  # another tree.
+  up="$mem"
+  while [[ ! -d "$up" && "$up" == */* ]]; do up="${up%/*}"; done
+  real="$(cd "$up" 2>/dev/null && pwd -P)/${mem#"$up"}" && real="${real%/}"
+  top="$(cd "$repo" && pwd -P)"
+  if [[ "/$mem/" == */../* || "/$mem/" == */./* || "$real" != "$top/"?* ]] || ! mkdir -p "$mem"; then
     printf '%s' "$DATA/findings"
     return
   fi

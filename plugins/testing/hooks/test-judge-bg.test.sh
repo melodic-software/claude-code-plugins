@@ -58,7 +58,12 @@ stub_reset
 H="$REPO/src/changing.test.ts"
 js_file "$H" changing
 record s1 w3 "$H" "$(blocks changing:1:3:5)"
-payload s1 w3 "$H" | TEST_JUDGE_DEBOUNCE=1 bash "$HOOK" &
+payload s1 w3 "$H" | TEST_JUDGE_DEBOUNCE=2 bash "$HOOK" &
+# The job hashes the file right after writing its pending marker.
+for _ in $(seq 1 40); do
+  [[ -n "$(find "$DATA/pending" -name w3 2>/dev/null)" ]] && break
+  sleep 0.1
+done
 sleep 0.3
 js_file "$H" changing again
 wait

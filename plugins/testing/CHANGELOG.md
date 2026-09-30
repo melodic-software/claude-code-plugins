@@ -17,7 +17,18 @@ All notable changes to the `testing` plugin are documented here. Format follows
   (`null` when unknown, meaning the whole file) and the `cant-fail-ok:` count. `<pkey>` hashes the
   project directory and the transcript directory, so a `/clear` or fork successor finds its
   predecessor's writes. Session state and the task-end judge's state directories are pruned after
-  7 days.
+  7 days. The record also carries `lines`, the lines the write changed (`null` when unknown).
+- **hooks:** an opt-in task-end test judge (`test_judge_enabled`, off by default, needs
+  `test_guards_enabled`). A separate headless `claude -p` run asks one question of each test block
+  the session created or changed: where did its expected value come from? It answers FLAG, PASS or
+  UNKNOWN with quoted evidence and, for FLAG, a proposed diff it never applies. `test-judge-bg.sh`
+  (PostToolUse, async) judges soon after a write and keeps the verdicts in a ledger;
+  `test-judge.sh` (Stop) waits only on runs still in flight, judges the rest (10 per Stop, the
+  remainder at the next task end), writes a review-findings file and, in an attended session,
+  asks Claude once to show the verdicts; `test-judge-start.sh` (SessionStart) names verdicts an
+  earlier session never showed. The judge's model class differs from every model that wrote the
+  tests: `test_judge_model` (default `opus`), `test_judge_fallback_model` (`sonnet`),
+  `test_judge_effort` (`medium`), and `test_judge_session_runs` (unset: no limit).
 
 ## [0.11.7] - 2026-09-30
 
