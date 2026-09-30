@@ -23,6 +23,11 @@
 # moves no ref or working-tree file; what it writes is the tip capture and the
 # landed proof's loose objects (below). git-branch-delete.sh is never batched.
 #
+# REMOTE FAMILIES. --remote-families replaces the local audit with a report-only
+# read of refs/remotes/origin/*: family, landed proof from the PR map, and a
+# retention verdict per the rules in usage(). It never reaches the tip capture or
+# the delete path, and runs before either is set up.
+#
 # LANDED PROOF. A squash or rebase merge leaves a branch that no ancestry check
 # can see as merged, and without PR data (no gh, a truncated map) nothing else
 # says so. When the chain would end at one of its REVIEW fallbacks (no upstream,
@@ -122,10 +127,14 @@ Usage:
   git-branch-audit.sh [--capture-file PATH]
   git-branch-audit.sh [--repo DIR...]... [--repos-from FILE|-]...
                       [--skip ENTRY]... [--skip-from FILE]... [--capture-file PATH]
+  git-branch-audit.sh --remote-families [--repo DIR...]... [--repos-from FILE|-]...
+                      [--skip ENTRY]... [--skip-from FILE]...
   git-branch-audit.sh --help
 
   --capture-file PATH  write the branch-tip capture to PATH instead of the
                        default <git-common-dir>/repo-hygiene/branch-tips/<utc-stamp>-<pid>.tsv
+  --remote-families    report refs/remotes/origin/* by branch family with a retention
+                       verdict, instead of the local audit (see below)
   --repo DIR...        audit these repositories instead of the current one
                        (repeatable; takes every consecutive non-flag path, so a
                        shell glob works)
@@ -171,17 +180,48 @@ Then `TipCapture: <path>` (the durable tip record git-branch-delete.sh requires)
 or `TipCaptureError: <why>` when it could not be written completely.
 Restore a branch from a captured tip: git branch <branch> <tip>
 
+--remote-families is report only and takes the place of everything above: it reads
+refs/remotes/origin/* as last fetched (no fetch is run), skips origin/HEAD, the
+default branch and the protected patterns, writes no capture (so --capture-file is a
+usage error) and gives git-branch-delete.sh nothing to act on. It works without gh,
+leaving PRDataUnavailable in place, and then no branch reads as landed. After the
+PR-map lines and a `Mode:` line, each branch is `RemoteBranch`, `Tip`, `Age days`
+(the tip's committer date), `Family`, `PR`, `Landed` (`no`, or the proof: a MERGED
+PR whose head is the tip or has the tip as an ancestor), `Retention` and `Reason`;
+`RemoteSummary:` closes the run. Retention is one of:
+  CANDIDATE          the family rule releases it and the work landed or is on another ref
+  KEEP               within its window, checked out in a worktree, or has an open PR
+  KEEP-UNIQUE        released by the family rule, but not landed and on no other ref
+  KEEP-UNDETERMINED  released, but the check for another ref failed
+  n/a                family none: no retention rule
+Family rules (a tip is older than N days by committer date; the windows are the
+defaults in lib/cleanup-paths.sh and each is overridden by an environment
+variable holding a whole number of days):
+  pre-wipe/*  30 days  CLEAN_RETENTION_PREWIPE_DAYS
+  claude/*    30 days  CLEAN_RETENTION_CLAUDE_DAYS
+  plan/*      90 days  CLEAN_RETENTION_PLAN_DAYS
+  stranded/*  30 days  CLEAN_RETENTION_STRANDED_DAYS
+  agent-<hex> no window: released once no worktree has it checked out (owner:
+              source-control:worktree cleanup)
+"On another ref" is `git rev-list <tip> --not <every other ref>` being empty. With
+--repo / --repos-from each repository is reported the same way.
+
 Does NOT delete branches. Exit: 0 (2 on a usage error).
 EOF
 }
 
 CAPTURE_ARG=""
 FLEET=0
+REMOTE_FAMILIES=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
     usage
     exit 0
+    ;;
+  --remote-families)
+    REMOTE_FAMILIES=1
+    shift
     ;;
   --capture-file)
     if [[ -z "${2:-}" ]]; then
@@ -207,6 +247,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ $REMOTE_FAMILIES -eq 1 && -n "$CAPTURE_ARG" ]]; then
+  echo "git-branch-audit.sh: --remote-families writes no capture; drop --capture-file" >&2
+  exit 2
+fi
 if [[ $FLEET -eq 0 && ${#BATCH_SKIP_INPUTS[@]} -gt 0 ]]; then
   echo "git-branch-audit.sh: --skip / --skip-from need --repo or --repos-from" >&2
   exit 2
@@ -223,6 +267,7 @@ if [[ $FLEET -eq 1 ]]; then
   fi
   child_args=()
   [[ -n "$CAPTURE_ARG" ]] && child_args=(--capture-file "$CAPTURE_ARG")
+  [[ $REMOTE_FAMILIES -eq 1 ]] && child_args+=(--remote-families)
   batch_run_fleet "$SCRIPT_DIR/git-branch-audit.sh" ${child_args[@]+"${child_args[@]}"}
   exit 0
 fi
@@ -236,6 +281,168 @@ fi
 DEFAULT_BRANCH="$(clean_default_branch "$REPO_ROOT")"
 
 CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r')"
+
+# PR map: branch → state, the mitigation for squash merges that `git --merged`
+# cannot see. clean_pr_map emits PRCount / PRDataTruncated / PRDataUnavailable
+# onto this script's stdout, so a short or missing map is visible to the reader
+# instead of silently degrading every SAFE/REVIEW verdict below.
+declare -A PR_STATE=()
+declare -A PR_NUM=()
+declare -A PR_REFOID=()
+PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
+trap 'rm -f "$PR_MAP_FILE"' EXIT
+clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number,headRefOid'
+if [[ -f "$PR_MAP_FILE" ]]; then
+  while IFS=$'\t' read -r head state num refoid; do
+    [[ -z "$head" ]] && continue
+    PR_STATE["$head"]="$state"
+    PR_NUM["$head"]="$num"
+    PR_REFOID["$head"]="$refoid"
+  done <"$PR_MAP_FILE"
+fi
+
+# branch_family <branch>: where the branch name says it came from. Information
+# only; no local tier reads it.
+branch_family() {
+  case "$1" in
+  claude/*) printf claude ;;
+  plan/*) printf plan ;;
+  stranded/*) printf stranded ;;
+  pre-wipe/*) printf pre-wipe ;;
+  *)
+    if [[ "$1" =~ ^agent-[0-9a-f]+$ ]]; then printf agent; else printf none; fi
+    ;;
+  esac
+}
+
+# remote_families_report: the --remote-families mode. Reads refs/remotes/origin/*
+# as last fetched, prints one record per branch and a retention verdict from the
+# family rules in lib/cleanup-paths.sh. Report only: no deletion, no fetch, no
+# TipCapture, and nothing here is an input to git-branch-delete.sh. The PR map is
+# printed first, as in the local form; without it no branch reads as landed.
+remote_families_report() {
+  local v line name tip otype ts age_days family days state pr_line landed num oid head refoid
+  local verdict why expired unique_out n_total=0 n_cand=0 n_keep=0 n_unique=0 n_undet=0 n_na=0
+  local -A open_pr=() merged_prs=() wt=()
+  for v in CLEAN_RETENTION_PREWIPE_DAYS CLEAN_RETENTION_CLAUDE_DAYS CLEAN_RETENTION_PLAN_DAYS CLEAN_RETENTION_STRANDED_DAYS; do
+    if ! [[ "${!v}" =~ ^[0-9]+$ ]]; then
+      echo "git-branch-audit.sh: $v must be a whole number of days, got '${!v}'" >&2
+      exit 2
+    fi
+  done
+  while IFS=$'\t' read -r head state num refoid; do
+    case "$state" in
+    OPEN) open_pr["$head"]="$num" ;;
+    MERGED) merged_prs["$head"]+="$num $refoid"$'\n' ;;
+    *) ;;
+    esac
+  done <"$PR_MAP_FILE"
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && wt["${line%%$'\t'*}"]="${line#*$'\t'}"
+  done < <(clean_worktree_branch_paths "$REPO_ROOT")
+
+  printf 'Mode: remote-families (report only; deletes nothing, fetches nothing, writes no TipCapture; refs are as last fetched)\n'
+  local now
+  now=$(date +%s)
+  while IFS=$'\x1f' read -r name tip otype ts; do
+    name="${name#refs/remotes/origin/}"
+    [[ -z "$name" || "$name" == HEAD || "$name" == "$DEFAULT_BRANCH" || "$otype" != commit ]] && continue
+    clean_branch_matches_protected_pattern "$name" && continue
+    n_total=$((n_total + 1))
+    age_days=$(((now - ts) / 86400))
+    family="$(branch_family "$name")"
+
+    # Landed: a MERGED PR on this head whose head is the tip, or has the tip as
+    # an ancestor (commits pushed after the merge are not landed).
+    landed="" pr_line="none"
+    while read -r num oid; do
+      [[ -n "$num" ]] || continue
+      if [[ "$oid" == "$tip" ]]; then
+        landed="PR #$num merged, its head is the tip"
+      elif git -C "$REPO_ROOT" rev-parse --verify --quiet "${oid}^{commit}" >/dev/null 2>&1 &&
+        git -C "$REPO_ROOT" merge-base --is-ancestor "$tip" "$oid" 2>/dev/null; then
+        landed="PR #$num merged, the tip is an ancestor of its head"
+      fi
+      [[ -n "$landed" ]] && {
+        pr_line="#$num MERGED"
+        break
+      }
+    done <<<"${merged_prs[$name]:-}"
+    if [[ -n "${open_pr[$name]+x}" ]]; then
+      pr_line="#${open_pr[$name]} OPEN"
+    elif [[ "$pr_line" == none && -n "${PR_STATE[$name]:-}" ]]; then
+      pr_line="#${PR_NUM[$name]} ${PR_STATE[$name]}"
+    fi
+
+    # Retention. `expired` is set when the family's rule releases the branch;
+    # a landed branch is then a candidate, and an unlanded one only when its
+    # tip is on another ref. A missing signal keeps the branch.
+    verdict=KEEP expired=0 why=""
+    if [[ -n "${open_pr[$name]+x}" ]]; then
+      why="PR open"
+    else
+      case "$family" in
+      agent)
+        if [[ -n "${wt[$name]+x}" ]]; then
+          why="checked out in worktree ${wt[$name]}"
+        else
+          expired=1 why="no worktree has it checked out (owner: source-control:worktree cleanup)"
+        fi
+        ;;
+      pre-wipe | claude | plan | stranded)
+        case "$family" in
+        pre-wipe) days="$CLEAN_RETENTION_PREWIPE_DAYS" ;;
+        claude) days="$CLEAN_RETENTION_CLAUDE_DAYS" ;;
+        plan) days="$CLEAN_RETENTION_PLAN_DAYS" ;;
+        *) days="$CLEAN_RETENTION_STRANDED_DAYS" ;;
+        esac
+        if [[ "$age_days" -gt "$days" ]]; then
+          expired=1 why="tip is ${age_days}d old, past the ${days}d retention for $family"
+        else
+          why="tip is ${age_days}d old, within the ${days}d retention for $family"
+        fi
+        ;;
+      *)
+        verdict="n/a" why="no retention rule for this family"
+        ;;
+      esac
+    fi
+    if [[ $expired -eq 1 ]]; then
+      if [[ -n "$landed" ]]; then
+        verdict=CANDIDATE why+="; landed"
+      elif ! unique_out="$(git -C "$REPO_ROOT" rev-list -n 1 "$tip" --not --exclude="refs/remotes/origin/$name" --all 2>/dev/null)"; then
+        verdict=KEEP-UNDETERMINED why+="; could not check whether another ref holds the tip"
+      elif [[ -n "$unique_out" ]]; then
+        verdict=KEEP-UNIQUE why+="; not landed and no other ref holds the tip"
+      else
+        verdict=CANDIDATE why+="; another ref holds the tip"
+      fi
+    fi
+    case "$verdict" in
+    CANDIDATE) n_cand=$((n_cand + 1)) ;;
+    KEEP) n_keep=$((n_keep + 1)) ;;
+    KEEP-UNIQUE) n_unique=$((n_unique + 1)) ;;
+    KEEP-UNDETERMINED) n_undet=$((n_undet + 1)) ;;
+    *) n_na=$((n_na + 1)) ;;
+    esac
+
+    printf 'RemoteBranch: %s\n' "$name"
+    printf 'Tip: %s\n' "$tip"
+    printf 'Age days: %s\n' "$age_days"
+    printf 'Family: %s\n' "$family"
+    printf 'PR: %s\n' "$pr_line"
+    printf 'Landed: %s\n' "${landed:-no}"
+    printf 'Retention: %s\n' "$verdict"
+    printf 'Reason: %s\n' "$why"
+  done < <(git -C "$REPO_ROOT" for-each-ref refs/remotes/origin/ \
+    --format='%(refname)%1f%(objectname)%1f%(objecttype)%1f%(committerdate:unix)' 2>/dev/null | tr -d '\r')
+  printf 'RemoteSummary: branches=%s candidate=%s keep=%s keep-unique=%s keep-undetermined=%s no-rule=%s\n' \
+    "$n_total" "$n_cand" "$n_keep" "$n_unique" "$n_undet" "$n_na"
+}
+[[ $REMOTE_FAMILIES -eq 1 ]] && {
+  remote_families_report
+  exit 0
+}
 
 # Tip capture setup. The capture is opened before the first branch is classified
 # and every row is appended as its branch is reported, so the file mirrors the
@@ -287,25 +494,6 @@ capture_line "# default_branch: $DEFAULT_BRANCH"
 capture_line "# captured_at: $CAPTURED_AT"
 capture_line "# restore: git branch <branch> <tip>"
 capture_line $'# columns: branch\ttip\ttier\tpr\tupstream\tahead\tbehind\tnot_on_default\tlanded\tcaptured_at'
-
-# PR map: branch → state, the mitigation for squash merges that `git --merged`
-# cannot see. clean_pr_map emits PRCount / PRDataTruncated / PRDataUnavailable
-# onto this script's stdout, so a short or missing map is visible to the reader
-# instead of silently degrading every SAFE/REVIEW verdict below.
-declare -A PR_STATE=()
-declare -A PR_NUM=()
-declare -A PR_REFOID=()
-PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
-trap 'rm -f "$PR_MAP_FILE"' EXIT
-clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number,headRefOid'
-if [[ -f "$PR_MAP_FILE" ]]; then
-  while IFS=$'\t' read -r head state num refoid; do
-    [[ -z "$head" ]] && continue
-    PR_STATE["$head"]="$state"
-    PR_NUM["$head"]="$num"
-    PR_REFOID["$head"]="$refoid"
-  done <"$PR_MAP_FILE"
-fi
 
 # The checkout the audit runs from: HEAD, dirty count, in-progress operations.
 MAIN_HEAD_LINE="$CURRENT_BRANCH"
@@ -498,20 +686,6 @@ branch_loss_count() {
   else
     lost="$(clean_loss_count "$REPO_ROOT" "$branch")"
   fi
-}
-
-# branch_family <branch>: where the branch name says it came from. Information
-# only; no tier reads it.
-branch_family() {
-  case "$1" in
-  claude/*) printf claude ;;
-  plan/*) printf plan ;;
-  stranded/*) printf stranded ;;
-  pre-wipe/*) printf pre-wipe ;;
-  *)
-    if [[ "$1" =~ ^agent-[0-9a-f]+$ ]]; then printf agent; else printf none; fi
-    ;;
-  esac
 }
 
 classify_branch() {
