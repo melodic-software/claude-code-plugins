@@ -17,7 +17,7 @@
     },
     "form": {
       "type": "string",
-      "description": "The bypass form when blocked: \"cat-redirect\" | \"echo-redirect\" | \"python-write\". Empty string when the command was allowed (status ok)."
+      "description": "The bypass form when blocked: \"cat-redirect\" | \"echo-redirect\" | \"python-write\" | \"powershell-write\" | \"powershell-computed-positional\". Empty string when the command was allowed (status ok)."
     }
   }
 }

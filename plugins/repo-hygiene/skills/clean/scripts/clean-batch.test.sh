@@ -334,13 +334,35 @@ out="$(bash "$BATCH" --tier build --apply --batch-plan "$PLAN3")"
 assert_file_absent "build dir removed" "$R5/bin/b"
 assert_file_absent "cache removed by build tier (folds caches)" "$R5/.pytest_cache/x"
 
-# --- 6b. git tier dry-run measures loose objects; all tier splits bytes per tier ---
+# --- 6b. git tier dry-run counts only what apply acts on; all tier splits bytes per tier ---
+# `git gc --auto` does nothing below gc.auto or gc.autoPackLimit, so loose objects
+# under those limits are not planned work; above one they are.
+git_totals() { sed -n 's/.*planned=\([0-9]*\) bytes=\([0-9]*\).*/\1 \2/p' <<<"$1" | tail -1; }
 LR="$(mkrepo looserepo)"
 for n in 1 2 3; do echo "blob $n" | git -C "$LR" hash-object -w --stdin >/dev/null; done
+loose_before="$(git -C "$LR" count-objects -v)"
+git -C "$LR" gc --auto --quiet
+if [[ "$(git -C "$LR" count-objects -v)" == "$loose_before" ]]; then pass "git gc --auto removes nothing below its limits"; else fail "git gc --auto removes nothing below its limits" "$loose_before" "$(git -C "$LR" count-objects -v)"; fi
 out="$(bash "$BATCH" --tier git --repo "$LR")"
-gp="$(sed -n 's/.*planned=\([0-9]*\).*/\1/p' <<<"$out" | tail -1)"
-gb="$(sed -n 's/.* bytes=\([0-9]*\).*/\1/p' <<<"$out" | tail -1)"
-if [[ "$gp" -gt 0 && "$gb" -gt 0 ]]; then pass "--tier git dry-run plans loose objects"; else fail "git planned/bytes" ">0" "planned=$gp bytes=$gb"; fi
+if [[ "$(git_totals "$out")" == "0 0" ]]; then pass "--tier git dry-run plans no loose objects below gc.auto"; else fail "--tier git plans no loose objects below gc.auto" "0 0" "$(git_totals "$out")"; fi
+git -C "$LR" config gc.auto 2
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+read -r gp gb <<<"$(git_totals "$out")"
+if [[ "${gp:-0}" -gt 0 && "${gb:-0}" -gt 0 ]]; then pass "--tier git dry-run plans loose objects above gc.auto"; else fail "--tier git plans loose objects above gc.auto" ">0" "planned=$gp bytes=$gb"; fi
+assert_contains "git_bytes equals the git tier bytes" "$out" "bytes=$gb skipped=0 blocked=0 gitdirs=1 git_bytes=$gb"
+git -C "$LR" config gc.auto 0
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+if [[ "$(git_totals "$out")" == "0 0" ]]; then pass "gc.auto 0 turns auto gc off, so nothing is planned"; else fail "gc.auto 0 plans nothing" "0 0" "$(git_totals "$out")"; fi
+git -C "$LR" config --unset gc.auto
+git -C "$LR" repack -q -d
+git -C "$LR" commit --allow-empty -qm second
+git -C "$LR" repack -q -d
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+if [[ "$(git_totals "$out")" == "0 0" ]]; then pass "two packs are below the default gc.autoPackLimit"; else fail "two packs are below gc.autoPackLimit" "0 0" "$(git_totals "$out")"; fi
+git -C "$LR" config gc.autoPackLimit 1
+out="$(bash "$BATCH" --tier git --repo "$LR")"
+read -r gp gb <<<"$(git_totals "$out")"
+if [[ "${gp:-0}" -gt 0 && "${gb:-0}" -gt 0 ]]; then pass "--tier git dry-run plans loose objects above gc.autoPackLimit"; else fail "--tier git plans loose objects above gc.autoPackLimit" ">0" "planned=$gp bytes=$gb"; fi
 out="$(bash "$BATCH" --tier all --repo "$LR")"
 assert_contains "--tier all prints caches_bytes" "$out" "caches_bytes="
 assert_contains "--tier all prints build_bytes" "$out" "build_bytes="
@@ -610,7 +632,14 @@ assert_contains "git tier new store is would-clean" "$out" "$GT | would-clean | 
 assert_contains "git tier sibling worktree is deduped" "$out" "deduped with a sibling worktree"
 assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT | nothing-to-do"
 assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
-assert_not_contains "git tier row carries the measured count, not 0" "$out" "$GT | would-clean | 0 | "
+assert_contains "git tier row counts nothing apply would not act on" "$out" "$GT | would-clean | 0 | 0 B"
+assert_contains "git tier reason says the remote prune is not measured" "$out" "0 item(s) counted, 0 B; remote prune not measured"
+# A worktree whose directory is gone is what `git worktree prune` removes: counted.
+GW="$(mkrepo gitprune)"
+git -C "$GW" worktree add "$TEST_TMPDIR/gitprune-gone" -b gone >/dev/null 2>&1
+rm -rf "$TEST_TMPDIR/gitprune-gone"
+out="$(bash "$BATCH" --tier git --repo "$GW" 2>/dev/null)"
+assert_contains "git tier counts a prunable worktree" "$out" "$GW | would-clean | 1 | "
 
 # A clean apply removes a default-location plan and its directory; an explicit
 # --batch-plan is the caller's and stays.

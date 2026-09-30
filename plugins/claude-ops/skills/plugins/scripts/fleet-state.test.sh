@@ -757,6 +757,20 @@ rc=$?
 assert_exit "jq missing: exit 2" 2 "$rc"
 assert_contains "jq missing: actionable notice" "$out" "jq required"
 
+# --help is the interface-discovery surface: it must work with no jq on PATH,
+# and an unknown argument must point at it.
+ARGS=(--help)
+out=$(run_state "$case_dir" "PATH=$safe_bin_dir")
+rc=$?
+assert_exit "--help with jq missing: exit 0" 0 "$rc"
+assert_contains "--help names the selectors" "$out" "update-candidates-user"
+assert_contains "--help lists the exit codes" "$out" "Exit: 0 ran to completion"
+ARGS=(--nonsense)
+out=$(run_state "$case_dir" "PATH=$safe_bin_dir")
+rc=$?
+assert_exit "unknown argument: exit 2" 2 "$rc"
+assert_contains "unknown argument: names --help" "$out" "(see --help)"
+
 # ============================================================================
 # Case: missing_from_user_install is user-scope completeness, distinct from
 # all-scope missing_from_install. A plugin installed ONLY at project/local

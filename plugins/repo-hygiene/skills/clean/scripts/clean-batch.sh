@@ -91,8 +91,9 @@ Gate:
                      `Repo | Outcome | Paths | Bytes` table, a `BatchPlan: <path>`
                      line, and `Summary: repos=N planned=P bytes=K` (git/all
                      append gitdirs=G git_bytes=B; all also appends
-                     caches_bytes=C build_bytes=D). The git tier counts loose
-                     objects, garbage and prunable worktrees. NEVER mutates.
+                     caches_bytes=C build_bytes=D). The git tier counts prunable
+                     worktrees, plus loose objects and garbage when `git gc --auto`
+                     would run (above gc.auto or gc.autoPackLimit). NEVER mutates.
   --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
                      instead of a directory under ${XDG_STATE_HOME:-$HOME/.local/state}/
                      repo-hygiene/ (never /tmp).
@@ -552,21 +553,35 @@ if tier_has_manifest && ((${#BATCH_TOPS[@]} > 0)); then
 fi
 printf '%s\n' '---'
 
-# git_plan_measure <worktree> prints "<items> <bytes>": what gc/prune would act on
-# in that object store: loose objects and garbage from `git count-objects -v`
-# (size figures are KiB), plus worktrees `git worktree prune` would remove. The
-# bytes are an upper bound: gc packs reachable loose objects instead of deleting
-# them. Remote-prune candidates are not counted; finding them needs a network call.
+# git_plan_measure <worktree> prints "<items> <bytes>": what the git-tier apply ops
+# act on in that object store. `git worktree prune` removes the worktrees its
+# --dry-run -v names, one line each on stderr. `git gc --auto` does nothing
+# until the loose objects exceed gc.auto (default 6700) or the packs exceed
+# gc.autoPackLimit (default 50; a gc.auto of 0 or less turns both checks off), so
+# only then do the loose objects and garbage from `git count-objects -v` count
+# (size figures are KiB), as an upper bound: gc packs reachable loose objects
+# instead of deleting them. Git samples one fan-out directory for its own check,
+# so this trigger is approximate. Remote-prune candidates are not counted;
+# finding them needs a network call.
 git_plan_measure() {
-  local n=0 kib=0 k v wt
+  local k v wt auto limit n=0 kib=0 loose=0 packs=0 garbage=0 kib_loose=0 kib_garbage=0
   while IFS=': ' read -r k v; do
     case "$k" in
-    count | garbage) n=$((n + v)) ;;
-    size | size-garbage) kib=$((kib + v)) ;;
+    count) loose=$v ;;
+    packs) packs=$v ;;
+    garbage) garbage=$v ;;
+    size) kib_loose=$v ;;
+    size-garbage) kib_garbage=$v ;;
     *) ;;
     esac
   done < <(git -C "$1" count-objects -v 2>/dev/null)
-  wt="$(git -C "$1" worktree prune --dry-run -v 2>/dev/null | grep -c .)"
+  auto="$(git -C "$1" config --type=int --get gc.auto 2>/dev/null)" || auto=6700
+  limit="$(git -C "$1" config --type=int --get gc.autoPackLimit 2>/dev/null)" || limit=50
+  if ((auto > 0)) && { ((loose > auto)) || ((limit > 0 && packs > limit)); }; then
+    n=$((loose + garbage))
+    kib=$((kib_loose + kib_garbage))
+  fi
+  wt="$(git -C "$1" worktree prune --dry-run -v 2>&1 | grep -c .)"
   printf '%s %s\n' "$((n + wt))" "$((kib * 1024))"
 }
 
@@ -649,7 +664,7 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
       PLANNED=$((PLANNED + gpaths))
       PLAN_BYTES=$((PLAN_BYTES + gbytes))
       GIT_BYTES=$((GIT_BYTES + gbytes))
-      reason_parts+=("git: shared object store (new): $gpaths item(s), $(clean_human_size "$gbytes")")
+      reason_parts+=("git: shared object store (new): $gpaths item(s) counted, $(clean_human_size "$gbytes"); remote prune not measured")
     else
       reason_parts+=("git: shared object store (deduped with a sibling worktree)")
     fi

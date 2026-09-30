@@ -101,11 +101,17 @@ Linked worktrees share the main clone's objects, so `git gc` / prune must run on
 per unique `git rev-parse --git-common-dir`, not once per worktree. The `git` and
 `all` tiers group repos by common dir and record each store once (as a `GITDIR`
 plan line with a representative worktree to `cd` into); `gitdirs=N` in the summary
-reports the deduped count. The dry-run measures each store once (`git count-objects -v`
-loose objects and garbage, plus worktrees `git worktree prune --dry-run` would remove) and
-folds it into `planned=` and `bytes=`. Those bytes are an upper bound: `gc` packs reachable
-loose objects instead of deleting them, and remote-prune candidates are not counted because
-finding them needs a network call. The git and all tiers end the summary with
+reports the deduped count. The dry-run counts each store once, and only what the apply
+ops act on, into `planned=` and `bytes=`: the worktrees `git worktree prune --dry-run`
+would remove, plus the loose objects and garbage of `git count-objects -v` when
+`git gc --auto` would run, meaning loose objects above `gc.auto` (default 6700) or packs
+above `gc.autoPackLimit` (default 50), neither check running when `gc.auto` is 0 or less.
+Below those limits `gc --auto` removes nothing, so a store with nothing else to prune
+counts 0 items and 0 bytes yet stays `would-clean`, because apply still runs
+`git remote prune origin`. Git samples one fan-out directory for its own trigger, so
+the trigger here is approximate, and the bytes above it are an upper bound: `gc` packs
+reachable loose objects instead of deleting them. Remote-prune candidates are not
+counted because finding them needs a network call. The git and all tiers end the summary with
 `git_bytes=B`; `all` also adds `caches_bytes=C build_bytes=D`, split by manifest class.
 These fields come after the existing ones.
 

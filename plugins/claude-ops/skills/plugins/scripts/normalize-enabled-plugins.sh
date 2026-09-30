@@ -40,6 +40,9 @@ Usage:
 --file defaults to $FLEET_STATE_USER_SETTINGS or ~/.claude/settings.json.
 --check reports whether a reorder is needed without writing.
 --report-project inspects a project-scope settings file and never writes it.
+
+Exit: 0 already sorted, or wrote a reorder, or --report-project ran;
+1 --check found unsorted keys; 2 usage error, jq missing, or a refused write.
 EOF
 }
 
@@ -72,7 +75,7 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   *)
-    echo "normalize-enabled-plugins.sh: unknown argument: $1" >&2
+    echo "normalize-enabled-plugins.sh: unknown argument: $1 (see --help)" >&2
     exit 2
     ;;
   esac

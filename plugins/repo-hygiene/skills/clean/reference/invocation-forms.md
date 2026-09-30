@@ -16,7 +16,7 @@ rules in `allowed-tools`
 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when that page
 names a third place, drops the two-place wording, or when a release note names string substitution
 in skills. The five
-read-only grants (`resolve-clean-action.sh`, `scan.sh`, `preflight.sh`, `git-branch-audit.sh`,
+grants for scripts that delete nothing (`resolve-clean-action.sh`, `scan.sh`, `preflight.sh`, `git-branch-audit.sh`,
 `git-stash-audit.sh`) are fully paired through this surface.
 
 ## Interpreter-led form: bundled `context/*.md`
@@ -72,7 +72,7 @@ permission layer independently of that guard, so a confirmed apply can still be 
 - An allow rule such as `Bash(<script>:*)` does not match a command that starts with
   `CLEAN_GUARD_ACK=1` and a space. The prefix assigns a variable outside the built-in known-safe set, and allow
   rules do not match past such an assignment. Deny and ask rules do match past it. The skill's own
-  `allowed-tools` grants cover only the read-only scripts, which never take the prefix.
+  `allowed-tools` grants cover only scripts that delete nothing, which never take the prefix.
 
 When the confirmed apply is denied or prompts, tell the user which layer stopped it and let them
 decide. Never work around it with a hand-rolled `rm` or another script.
