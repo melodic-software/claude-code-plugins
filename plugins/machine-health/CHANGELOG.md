@@ -3,6 +3,42 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.7] - 2026-09-29
+
+### Fixed
+
+- **audit:** the discovery probes use the catalog check ids (`container-disk-usage`), so a probe
+  and its check share one id.
+- **audit:** `TODO.md` proposals are written under the state directory instead of the skill root,
+  a first-run winget proposal is queued there, and the report's open questions list the queued
+  proposals. The skill body says the orchestrator writes only that first-run proposal. The
+  one-time approvals migration now reads checked boxes from `<StateBase>/TODO.md` (through
+  `Get-ApprovalState`), so a legacy `TODO.md` in the skill directory no longer migrates.
+- **audit:** the environment check summary reports persisted PATH and process PATH shadowing in
+  separate clauses, and its script header says the shadowing pass walks the process PATH.
+- **audit:** the at-a-glance Trend column uses the report template's glyphs: `↑` worsening, `↓`
+  improving, `→` steady, `·` no prior value to compare, with the signed delta after a moving
+  metric's arrow. It replaces a constant `-`.
+- **audit:** the elevated re-run banner captures the run's output stream to a transcript under the
+  state root's `logs` folder. The banner and coverage note say the transcript omits the stderr
+  banners.
+- **audit:** the DNS health check's reproduce command and its catalog entry use a valid
+  `Test-Connection` invocation for the gateway probe, limited to the selected default route.
+- **audit:** the reliability check's recorded command and its catalog entry show the client-side
+  7-day `Where-Object` cutoff the script runs, not a server-side `-Filter`.
+
+### Changed
+
+- **audit:** the Windows check catalog documents checks 9 through 16 with the thresholds each
+  `Test-*.ps1` applies.
+- **audit:** the skill body records that `CLAUDE_PLUGIN_DATA` is present in Bash-tool commands, with
+  its basis, as-of date, and recheck trigger. Two other gotchas are recorded in references:
+  `elevation-matrix.md` (reading an elevated run back through a transcript) and
+  `discovery-guide.md` (`chezmoi status` marks always-run scripts on every run).
+- **audit:** the egress-allowlist guardrail in the skill body and the README's network posture say
+  the allowlist is enforced and logged only for calls routed through `Invoke-AllowlistedWeb.ps1`.
+- **audit:** the README states that the test runner caps Pester at 5.x.
+
 ## [0.14.6] - 2026-09-29
 
 ### Fixed

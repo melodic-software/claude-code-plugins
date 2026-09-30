@@ -45,17 +45,17 @@ The watcher exits with one JSON line: `{"seq", "timedOut", "events": [...], "not
 
 <!-- wake-command: surface/watch.test.sh runs the fenced command below -->
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/surface/round.sh" --dir '<data_dir>' apply --file '<data_dir>/ops.json' && bash "${CLAUDE_PLUGIN_ROOT}/surface/watch.sh" '<data_dir>'
+bash "${CLAUDE_PLUGIN_ROOT}/surface/wake.sh" '<data_dir>'
 ```
 
-In this command `${CLAUDE_PLUGIN_ROOT}/surface` stands for `<surface_dir>`: write it out as `'<surface_dir>'`, or run the watcher's `next` field, which is this command with absolute paths already in single quotes. `apply` runs every op against one loaded file and writes once; any refused op writes nothing and `&&` ends the task, which wakes you with the refusal. Fix `ops.json` and run the call again. With nothing to record, run `watch.sh` alone (`apply` refuses an empty op list). `watch.sh` exits 2 when curl is missing, when the server restarted and the token changed (re-run the SKILL.md start command with its `--emoji-markers` value, dropping `--open` when the page is already open, then re-arm), or when the server stays unreachable. It exits 3 when another session holds the lease: see "One watcher" above.
+In this command `${CLAUDE_PLUGIN_ROOT}/surface` stands for `<surface_dir>`: write it out as `'<surface_dir>'`, or run the watcher's `next` field, which is this command with absolute paths already in single quotes. `wake.sh` runs `round.sh --dir '<data_dir>' apply --file '<data_dir>/ops.json'` and then `watch.sh '<data_dir>'`. `apply` runs every op against one loaded file and writes once; any refused op writes nothing and ends `wake.sh` before the watcher re-arms, which wakes you with the refusal. Fix `ops.json` and run the call again. With nothing to record, run `watch.sh` alone (`apply` refuses an empty op list). `watch.sh` exits 2 when curl is missing, when the server restarted and the token changed (re-run the SKILL.md start command with its `--emoji-markers` value, dropping `--open` when the page is already open, then re-arm), or when the server stays unreachable. It exits 3 when another session holds the lease: see "One watcher" above.
 
-When the first wake prompts for permission, offer the user one allow rule per command prefix, `Bash(bash '<surface_dir>/round.sh' *)` and `Bash(bash '<surface_dir>/watch.sh' *)` with `<surface_dir>` spelled out exactly as the command quotes it, so later wakes run without a prompt. Choosing "Yes, and don't ask again" on the compound call saves the same per-subcommand rules. Permission record:
+When the first wake prompts for permission, offer the user one allow rule, `Bash(bash '<surface_dir>/wake.sh' *)`, with `<surface_dir>` spelled out exactly as the command quotes it, so later wakes run without a prompt. A bare `watch.sh` re-arm (nothing to record) is covered by `Bash(bash '<surface_dir>/watch.sh' *)`. Permission record:
 
-- **Claim:** a `Bash(<prefix> *)` rule matches one subcommand of a compound command, never the whole `&&` chain, so the wake needs one rule for each of its two prefixes, and approving the compound call saves a rule per subcommand.
-- **Basis:** [permissions "Compound commands"](https://code.claude.com/docs/en/permissions#compound-commands): "Claude Code is aware of shell operators, so a rule like `Bash(safe-cmd *)` won't give it permission to run the command `safe-cmd && other-cmd`." and "A rule must match each subcommand independently." The same section: "When you approve a compound command with "Yes, and don't ask again", Claude Code saves a separate rule for each subcommand that requires approval, rather than a single rule for the full compound string." "Wildcard patterns" adds that "Claude Code matches everything before the first `*` as written", so the prefix keeps its quotes.
-- **As of:** 2026-09-24.
-- **Recheck trigger:** a change to that page's "Compound commands" or "Wildcard patterns" section, or a wake that prompts again after both rules are in place.
+- **Claim:** a `Bash(<prefix> *)` rule matches one subcommand of a compound command, never the whole `&&` chain; the wake is one `wake.sh` command, so a single rule covers it, and a bare `watch.sh` re-arm needs its own rule.
+- **Basis:** [permissions "Compound commands"](https://code.claude.com/docs/en/permissions#compound-commands): "Claude Code is aware of shell operators, so a rule like `Bash(safe-cmd *)` won't give it permission to run the command `safe-cmd && other-cmd`." and "A rule must match each subcommand independently." "Wildcard patterns" adds that "Claude Code matches everything before the first `*` as written", so the prefix keeps its quotes.
+- **As of:** 2026-09-29.
+- **Recheck trigger:** a change to that page's "Compound commands" or "Wildcard patterns" section, or a wake that prompts again after the rule is in place.
 
 `ops.json` is `{"ops": [...]}`; each op's fields are in the table below, and the full shapes are in `'<surface_dir>/schema/ops.schema.json'`:
 
@@ -111,7 +111,7 @@ When a question must wait on off-thread work (research, a subagent, a long check
 ]}
 ```
 
-When the work returns, clear both (`wait` with `"clear": true`, `set-status` with `"clear": true`) and post the result as a `reply` on the question. While the watcher is still armed, run `round.sh apply --file '<data_dir>/ops.json'` alone; when a wake is pending, fold the clears into that wake's `ops.json`. Never arm a second watcher.
+When the work returns, clear both (`wait` with `"clear": true`, `set-status` with `"clear": true`) and post the result as a `reply` on the question. While the watcher is still armed, run `round.sh --dir '<data_dir>' apply --file '<data_dir>/ops.json'` alone; when a wake is pending, fold the clears into that wake's `ops.json`. Never arm a second watcher.
 
 **Answer anyway.** A decision event on a question pending research is kept: the page shows it with the Pending research badge and tells the user it counts once the research returns. In that wake, record the decision and either clear the hold (the answer settles it) or keep it and say why in a `reply` (the research can still change the recommendation).
 

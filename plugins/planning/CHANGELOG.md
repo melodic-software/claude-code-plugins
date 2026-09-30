@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.0] - 2026-09-29
+## [0.48.0] - 2026-09-30
 
 ### Added
 
 - **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
+
+## [0.47.11] - 2026-09-30
+
+### Added
+
+- **`surface/wake.sh`** wraps the interview wake loop's compound command (`round.sh apply` then `watch.sh`) so each wake sends one short call. `watch.sh` emits it as the `next` command, and `context/surface.md` and the surface README document it ([#5462](https://github.com/melodic-software/claude-code-plugins/issues/5462)).
 
 ## [0.47.10] - 2026-09-30
 
