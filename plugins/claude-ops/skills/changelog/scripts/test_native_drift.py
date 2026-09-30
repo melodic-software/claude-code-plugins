@@ -525,6 +525,14 @@ class CliTests(unittest.TestCase):
                 self.run_main("has-key", "--key", key, "--body", f"{tmp}/none"), 2
             )
 
+    def test_help_carries_the_whole_interface(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as cm:
+            native_drift.main(["--help"])
+        self.assertEqual(cm.exception.code, 0)
+        self.assertIn("has-key --key", out.getvalue())
+        self.assertIn("Exit: 0 report written", out.getvalue())
+
     def test_unwritable_out_is_a_usage_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             inv = str(Path(tmp) / "inv.json")
