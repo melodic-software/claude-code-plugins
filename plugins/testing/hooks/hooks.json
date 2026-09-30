@@ -1,5 +1,5 @@
 {
-  "description": "Names what a Write or Edit to a test file removes, and scans the written file for tests that cannot fail (opt-in: test_guards_enabled).",
+  "description": "Names what a Write or Edit to a test file removes and scans the written file for tests that cannot fail (opt-in: test_guards_enabled); a task-end judge asks where each new test's expected value came from (opt-in: test_judge_enabled, which needs test_guards_enabled).",
   "hooks": {
     "PreToolUse": [
       {
@@ -1051,6 +1051,610 @@
             "if": "Edit(test_*.py)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.Tests.ps1)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.Tests.ps1)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.bats)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.bats)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.spec.cjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.cjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.spec.js)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.js)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.spec.jsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.jsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.spec.mjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.mjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.spec.ts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.ts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.spec.tsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.tsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.test.cjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.cjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.test.js)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.js)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.test.jsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.jsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.test.mjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.mjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.test.sh)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.sh)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.test.ts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.ts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.test.tsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.tsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*Test.cs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*Test.cs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*Tests.cs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*Tests.cs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*_test.go)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*_test.go)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*_test.py)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*_test.py)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(test_*.py)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(test_*.py)",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge.sh"
+            ],
+            "timeout": 240,
+            "statusMessage": "Collecting the test judge's verdicts..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-start.sh"
+            ],
+            "timeout": 30
           }
         ]
       }

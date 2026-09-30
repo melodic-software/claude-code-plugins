@@ -23,14 +23,33 @@ check() {
 
 check "shipped hooks.json is in sync (--check exits 0)" 'bash "$GEN" --check'
 
-check "PostToolUse runs test-scan, PreToolUse runs test-weaken" \
-  '[[ "$(jq -r "[.hooks.PostToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-scan.sh &&
+check "PostToolUse runs test-scan and test-judge-bg, PreToolUse runs test-weaken" \
+  '[[ "$(jq -r "[.hooks.PostToolUse[].hooks[].args[-1] | sub(\".*/\"; \"\")] | unique | join(\" \")" "$HOOKS")" == "test-judge-bg.sh test-scan.sh" &&
     "$(jq -r "[.hooks.PreToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-weaken.sh ]]'
+
+# The judge rows: the background job on the same `if` rows as test-scan,
+# async; one Stop entry at timeout 240; one SessionStart entry. Every judge
+# row is gated on both options.
+judge() { jq -r "$1" "$HOOKS"; }
+check "test-judge-bg rows are async and match test-scan's if rows" \
+  '[[ "$(judge "[.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\")) | .async] | unique | tostring")" == "[true]" &&
+    "$(judge "[.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\")) | .if] | sort | tostring")" == "$(judge "[.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-scan.sh\")) | .if] | sort | tostring")" ]]'
+check "Stop: one entry, test-judge.sh, timeout 240" \
+  '[[ "$(judge ".hooks.Stop | length")" == 1 && "$(judge ".hooks.Stop[0].hooks | length")" == 1 &&
+    "$(judge ".hooks.Stop[0].hooks[0].args[-1]")" == */test-judge.sh && "$(judge ".hooks.Stop[0].hooks[0].timeout")" == 240 ]]'
+check "SessionStart: one entry, test-judge-start.sh" \
+  '[[ "$(judge ".hooks.SessionStart | length")" == 1 && "$(judge ".hooks.SessionStart[0].hooks[0].args[-1]")" == */test-judge-start.sh ]]'
+check "every judge row is gated on test_guards_enabled and test_judge_enabled" \
+  '[[ "$(judge "[(.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\"))), .hooks.Stop[].hooks[], .hooks.SessionStart[].hooks[]
+      | .args[1:5] == [\"--require-true\", \"TEST_GUARDS_ENABLED\", \"--require-true\", \"TEST_JUDGE_ENABLED\"]] | unique | tostring")" == "[true]" ]]'
+check "the description names both options" \
+  '[[ "$(judge .description)" == *test_guards_enabled* && "$(judge .description)" == *test_judge_enabled* ]]'
 
 for event in PostToolUse PreToolUse; do
   rows="$(jq -r --arg e "$event" '.hooks[$e][].hooks[] | .if // "MISSING"' "$HOOKS")"
   check "$event: every row has an if" '[[ -n "$rows" && "$rows" != *MISSING* ]]'
-  check "$event: no glob appears twice" '[[ "$(sort <<<"$rows" | uniq -d)" == "" ]]'
+  check "$event: no glob appears twice for one script" \
+    '[[ "$(jq -r --arg e "$event" ".hooks[\$e][].hooks[] | \"\(.args[-1]) \(.if)\"" "$HOOKS" | sort | uniq -d)" == "" ]]'
 
   matches_source=""
   while IFS= read -r row; do
