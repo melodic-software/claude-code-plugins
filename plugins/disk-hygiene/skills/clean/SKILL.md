@@ -109,8 +109,9 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   Report `needs-elevation` or `handle-state-unverified` and stop that tier. With `uac-prompt`, on
   Windows only, a path in the approved tier whose per-path `handoff-verify` returns `contested` with
   `needs-elevation` as its only reason may go through an elevated script. Write a PowerShell script
-  under `<run-dir>` that re-checks each such path natively (still present, not a reparse point, no
-  entry the snapshot did not record), skips any that fails, removes the rest under the
+  under `<run-dir>` that re-checks each such path natively (still present, not a reparse point, same
+  identity as the snapshot recorded, no entry the snapshot did not record, and an exclusive-open
+  probe that finds no live handle), skips any path it cannot re-prove, removes the rest under the
   [manual-lane rules](reference/unsupported-platform-handoff.md), and logs one result per path to a
   file. Show the operator the script's full contents, launch it with
   `Start-Process -Verb RunAs -Wait` so it waits behind the UAC prompt the operator approves, and read

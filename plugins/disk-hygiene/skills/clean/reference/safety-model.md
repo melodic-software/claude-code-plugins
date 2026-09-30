@@ -419,7 +419,7 @@ the filesystem is the consumer's own permission policy, never this guard. The ma
 per-path approval covers the paths selected for removal, so it does not reach what such a command
 collaterally destroys: a `Move-Item -Force` destination, a truncated `Out-File` target, or an entire
 volume. The engine's own containment, revalidation, and platform gates remain the deletion
-authority.
+authority, except inside the [opt-in elevated script](#opt-in-elevation).
 
 **Kill-switch enforcement: both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces, the **plugin-level engine gate** (`hooks/hooks.json`, exec form:
@@ -507,7 +507,7 @@ preview/approval-token containment). The model additionally reads the `disk_hygi
 the skill content and self-enforces audit-only, now defense-in-depth over the guard rather than the only path.
 Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
 mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
-deletion authority.
+deletion authority, except inside the [opt-in elevated script](#opt-in-elevation).
 
 **Hook launch form, and what it does and does not bound.** All three registrations use **exec form**:
 the engine gate on `PreToolUse`, its detector on `Stop`, and the skill-frontmatter belt in the clean
@@ -697,8 +697,12 @@ The lane never runs on Linux or macOS (no sudo there), never for a protected ent
 contest reason, never without the per-tier approval, and never for a preview-time `needs-elevation`
 blocker: that preview is `blocked` and still stops the tier. The script never invokes the engine,
 because engine invocations stay on the Bash lane's exact shapes. It re-checks each path natively
-before removing it: the path is still present, is not a reparse point, and holds no entry the
-snapshot did not record. The manual lane's other rules still apply: one path at a time, no
+before removing it: the path is still present, is not a reparse point, has the identity the
+snapshot recorded (volume and file ID), and holds no entry the snapshot did not record, and an
+exclusive-open probe finds no live handle, where a sharing violation skips the path as `locked`.
+The Windows handle probe itself reports an access-denied open as `needs-elevation`, so a
+`needs-elevation`-only verdict can mean the handle check is the one that failed; the elevated
+re-check must repeat it, and skips any path it cannot re-prove. The manual lane's other rules still apply: one path at a time, no
 container-wide deletion, and a fresh approval for a permanent fallback.
 
 Only the user-global file or an explicit `--policy` can set `uac-prompt`. A project file lives in a
