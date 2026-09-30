@@ -44,6 +44,8 @@ A completed `/planning:interview` for the topic. The skill validates whatever an
 
 The answer set to validate is the resolved decisions in whichever of these exists: the ledger when present, else the Brief's decisions, else the general summary. A **Brief-only** interview (an `auto`/`lock` session with no checklist) and a **summary-only** general interview are both valid inputs, not a reason to stop. Derive `<topic-slug>` from `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars; shared with `/planning:interview`); resolve the slices per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). If the topic has NO persisted interview output at all, STOP with a message pointing at `/planning:interview`. There is nothing to validate. If output exists but has open consequential branches, Step 1 fills them under the never-auto floor before validating.
 
+When the caller names the question ids to audit (the interview page's `accept-audit` event lists them), the answer set is exactly those answers: do not fill or validate any other open branch, and leave the rest of the interview open.
+
 ## The validation loop
 
 ### Step 1. Assemble the answer set, holding the never-auto floor

@@ -1,5 +1,5 @@
 ---
-description: "Measure this machine's Claude Code startup context per item, including per-tool attribution /context reports as lump sums, plus a before/after ledger. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default; `fix` applies one project-scope trim behind approval."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language account of where this session's tokens went; this skill for what a session costs before any work starts, per-tool attribution, and whether a settings change saved anything. Measure this machine's Claude Code startup context per item, including per-tool attribution /context reports as lump sums, plus a before/after ledger. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default; `fix` applies one project-scope trim behind approval."
 argument-hint: "[--full-sweep | --tools T1,T2 | --ledger | fix]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,7 +12,8 @@ metadata:
 
 ## Purpose
 
-`/context` itemizes skills, agents, and MCP tools natively. For those, run it and read the tables.
+`/context` itemizes skills, agents, and MCP tools natively. The model cannot invoke it in this
+session, so for those, ask the person to run it and read its tables (the Boundary section below).
 What it structurally cannot itemize is the built-in tool pool: `System tools` and
 `System tools (deferred)` are lump sums, and together they are typically the largest single
 contributor to the fixed startup payload. This skill measures that attribution on the consumer's
@@ -42,7 +43,7 @@ Two rules govern everything this skill says, per the plugin's
   Verified 2026-09-06 against Claude Code 2.1.263 and the commands reference
   (<https://code.claude.com/docs/en/commands>, the `/doctor` row). Recheck when that row stops
   naming the unused-component check, or when a release note names `/doctor`.
-- Per-skill / per-agent / per-MCP-tool attribution → `/context` natively.
+- Per-skill / per-agent / per-MCP-tool attribution → `/context` natively, which the person runs.
 - Live in-session occupancy over time → the `context-guard` plugin, if installed.
 - Settings correctness, permission-rule state → the `claude-config` plugin, if installed.
 
@@ -51,9 +52,9 @@ Two rules govern everything this skill says, per the plugin's
 One native surface also answers "what is using my tokens", and the two get conflated when a
 session feels crowded:
 
-- **`explain-usage` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
-  After the fact, it explains where the current session's tokens went, with one simple chart in
-  plain language. The model and the person can both invoke it where it resolves.
+- **`explain-usage` (bundled skill)**: after the fact, explains where the current session's tokens
+  went, with one simple chart in plain language. The model and the person can both invoke it where
+  it resolves.
 - **This skill (marketplace plugin).** Measures the fixed startup payload of a fresh headless
   session per item, including the built-in tool pools `/context` reports as lump sums, and keeps a
   before/after ledger for every lever the operator toggles.
@@ -68,6 +69,39 @@ costs before any work starts, per-tool attribution, and whether a settings chang
 **Availability is never assumed.** The skill is gated, and bundled skills vary by settings, plan,
 and host; this section states what to do when it resolves, never that it is present. The four-part
 records live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
+
+## Boundary, the built-in `/context` command
+
+Both show what fills a context window, so "what is eating my context" can land on either:
+
+- **`/context` (built-in command)**: visualizes the current session's context usage as a colored
+  grid, with optimization suggestions and capacity warnings; `all` expands the per-item breakdown.
+  It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** Measures a fresh headless session's startup payload per
+  item, splits the built-in tool pools `/context` reports as lump sums, and ledgers before/after
+  deltas.
+
+**Routing.** When the person wants a live look at the current session's window, offer it to the
+person: If /context is available in your session (gate basis: the verification record below), you
+can run `/context` to see what fills the current window. Prefer this skill for startup cost,
+per-tool attribution, and whether a settings change saved anything. An unattended run records the
+offer in its output instead of asking.
+
+**Mutation gate.** Neither writes files by default. This skill never runs `/context` in the
+person's session. The engine's headless capture of `/context` output in a spawned measurement
+session is a separate path: the `cli-parse` rung in [reference/engine.md](reference/engine.md).
+
+**Availability is never assumed.** The command is gated; this section states what to do when the
+person can run it, never that it is present.
+
+**Verification record, `/context`.** Claim: `/context` is a gated, user-only built-in command
+("Visualize current context usage as a colored grid", argument hint `[all]`) that the model
+cannot invoke. Basis: the `/claude-ops:inventory` extraction of the installed Claude Code 2.1.285
+binary on 2026-09-29 (`builtin_commands` lane: `gated` true, `user_invocable` true,
+`model_invocable` false); the `/context [all]` row on <https://code.claude.com/docs/en/commands>,
+fetched 2026-09-30. As of 2026-09-30. Recheck when a release renames or removes `/context`,
+changes its gate, or makes it model-invocable. The remaining records live in
+[reference/native-context.md](reference/native-context.md).
 
 ## Declared scope
 

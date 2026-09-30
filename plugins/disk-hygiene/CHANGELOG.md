@@ -3,11 +3,45 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.2] - 2026-09-30
+## [0.34.5] - 2026-09-30
 
 ### Changed
 
 - **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work. The message is the only change: the guard matches and denies exactly as before.
+
+## [0.34.4] - 2026-09-30
+
+### Fixed
+
+- **`scan --sizes-only` asks the large-scan question and keeps no per-path entries**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). `--sizes-only`
+  no longer skips the `--confirmed-large-scan` gate: a large root without `--max-depth` or the flag
+  returns `large-target-confirmation-required`, as an ordinary unbounded walk does, on both the
+  plain-target and `--root-children` paths. The walk still enters VCS and protected directories
+  (exact totals need it) and now sums sizes straight into the per-child rollup and the target total
+  without retaining one entry per path; the empty-directory count stays exact and the
+  `empty_directory_paths` sample stays capped and sorted. The payload, `inventory_mode: sizes-only` and
+  `rollup_precision` markers are unchanged. The skill, `scan-flags.md`, `safety-model.md`, the README
+  and the fan-out worker brief state the gated behavior, superseding the earlier lines below that say
+  `--sizes-only` skips the question.
+
+## [0.34.3] - 2026-09-30
+
+### Fixed
+
+- **`/disk-hygiene:clean` docs match the engine**
+  ([#5520](https://github.com/melodic-software/claude-code-plugins/issues/5520)). Section 1 says the
+  engine creates the run directory instead of telling the agent to create it. The fan-out worker
+  brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
+  optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
+  tokens, and states that `--project-dir` is optional.
+
+## [0.34.2] - 2026-09-30
+
+### Fixed
+
+- **`clean` hints Windows device-name files on Linux.** The baseline policy flags an entry named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) at confidence ceiling low; the reason says an entry of that name is most likely a redirection artifact. The hints match regular files only and apply on Linux only.
+- **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means a tmpfiles.d directory exists, not that a rule covers the temp zone.
 
 ## [0.34.1] - 2026-09-30
 

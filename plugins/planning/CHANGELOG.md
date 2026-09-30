@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0] - 2026-09-30
+
+### Added
+
+- **The interview page can accept a round's recommendations and hand the round to `/planning:audit-answers`, limited to the accepted questions.** "Accept all and have agents check them" posts one `accept-audit` event; the server records one accept per eligible question, each marked pending agent validation in the exports, and `context/surface.md` routes the event to the audit skill. A question with a typed note is left out, since the event carries no notes. Per-question undo still works, and the page holds no validation logic ([#5472](https://github.com/melodic-software/claude-code-plugins/issues/5472)).
+
+## [0.50.2] - 2026-09-30
+
+### Fixed
+
+- **The interview surface sets aside a counted own answer when the session revises the recommendation.** `reply --rec` and `revise --rec` stamp the set-aside fields on a question whose decision is an own answer, so the page and status stop showing the earlier own text as the decision, and the note field no longer prefills from it. Accept, alt and defer decisions stay, and a `record-terminal` after the revision counts ([#5453](https://github.com/melodic-software/claude-code-plugins/issues/5453)).
+
 ## [0.50.1] - 2026-09-30
 
 ### Fixed

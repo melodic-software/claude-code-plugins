@@ -1531,6 +1531,153 @@ class TestConfirmUnderstanding(WaitCase):
         self.assertEqual(self.state()["responses"]["events"], after["events"])
 
 
+class TestAcceptAudit(WaitCase):
+    """The `accept-audit` event: one post accepts the listed eligible questions, refuses the rest."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("A"),
+            question("B", dependsOn=["A"]),
+            question("C"),
+            question("D", archived={"why": "off path", "at": "t"}),
+            question("E", recommendation=""),
+            question("F", waiting=True),
+        )
+
+    def audit(self, *items, alt="1"):
+        return self.post(
+            {
+                "kind": "accept-audit",
+                "alt": alt,
+                "items": [{"id": i, "contentRev": r} for i, r in items],
+            }
+        )
+
+    def events(self):
+        return self.state()["responses"]["events"]
+
+    def test_1_a_malformed_event_is_400_and_writes_nothing(self):
+        item = {"id": "A", "contentRev": 0}
+        for body in (
+            {"kind": "accept-audit", "items": [item]},
+            {"kind": "accept-audit", "alt": " ", "items": [item]},
+            {"kind": "accept-audit", "alt": "1"},
+            {"kind": "accept-audit", "alt": "1", "items": []},
+            {"kind": "accept-audit", "alt": "1", "items": ["A"]},
+            {"kind": "accept-audit", "alt": "1", "items": [{"id": "A"}]},
+            {"kind": "accept-audit", "alt": "1", "items": [{**item, "extra": 1}]},
+            {
+                "kind": "accept-audit",
+                "alt": "1",
+                "items": [{"id": "A", "contentRev": True}],
+            },
+            {"kind": "accept-audit", "alt": "1", "items": [{"id": 7, "contentRev": 0}]},
+            {"kind": "accept-audit", "alt": "1", "items": [item, item]},
+        ):
+            code, data = self.post(body)
+            self.assertEqual(code, 400, (body, data))
+        self.assertEqual(self.events(), [])
+
+    def test_2_the_accepted_event_lists_its_items_and_fans_out_one_accept_each(self):
+        code, data = self.audit(("A", 0), ("C", 0))
+        self.assertEqual(code, 200, data)
+        self.assertEqual(
+            (data["seq"], data["accepted"], data["skipped"]), (1, ["A", "C"], [])
+        )
+        head, *accepts = self.events()
+        self.assertEqual(
+            {k: head[k] for k in ("seq", "id", "kind", "alt", "items")},
+            {
+                "seq": 1,
+                "id": None,
+                "kind": "accept-audit",
+                "alt": "1",
+                "items": [
+                    {"id": "A", "contentRev": 0},
+                    {"id": "C", "contentRev": 0},
+                ],
+            },
+        )
+        self.assertEqual(
+            [(e["seq"], e["id"], e["kind"], e["auditSeq"]) for e in accepts],
+            [(2, "A", "accept", 1), (3, "C", "accept", 1)],
+        )
+        responses = self.state()["responses"]["responses"]
+        self.assertEqual(
+            (responses["A"]["decision"], responses["A"]["seq"]), ("accept", 2)
+        )
+        self.assertEqual(responses["C"]["seq"], 3)
+
+    def test_3_a_stale_or_ineligible_question_is_skipped_and_left_alone(self):
+        # Claude revised C after the user opened it.
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        next(q for q in doc["questions"] if q["id"] == "C")["contentRev"] = 5
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        before = self.state()["responses"]["responses"]
+        code, data = self.audit(
+            ("B", 0), ("C", 2), ("D", 0), ("E", 0), ("F", 0), ("X", 0)
+        )
+        self.assertEqual(code, 200, data)
+        self.assertEqual(data["accepted"], ["B"])
+        self.assertEqual(
+            data["skipped"],
+            [
+                {"id": "C", "reason": "changed"},
+                {"id": "D", "reason": "ineligible"},
+                {"id": "E", "reason": "ineligible"},
+                {"id": "F", "reason": "ineligible"},
+                {"id": "X", "reason": "ineligible"},
+            ],
+        )
+        after = self.state()["responses"]["responses"]
+        self.assertEqual({k: v for k, v in after.items() if k != "B"}, before)
+        self.assertEqual(self.events()[-2]["items"], [{"id": "B", "contentRev": 0}])
+
+    def test_4_a_prerequisite_decided_only_in_the_same_batch_does_not_count(self):
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["questions"].append(question("G", dependsOn=["H"]))
+        doc["questions"].append(question("H"))
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        code, data = self.audit(("G", 0), ("H", 0))
+        self.assertEqual((code, data["accepted"]), (200, ["H"]), data)
+        self.assertEqual(data["skipped"], [{"id": "G", "reason": "ineligible"}])
+
+    def test_5_nothing_accepted_is_409_and_writes_nothing(self):
+        n = len(self.events())
+        code, data = self.audit(("E", 0), ("X", 0))
+        self.assertEqual(code, 409, data)
+        self.assertEqual(data["error"], "nothing accepted")
+        self.assertEqual(len(data["skipped"]), 2)
+        self.assertEqual(len(self.events()), n)
+
+    def test_6_content_rev_counts_the_fanned_out_accept_and_undo_restores(self):
+        code, data = self.post({"id": "A", "kind": "accept", "contentRev": 1})
+        self.assertEqual(code, 200, data)
+        code, data = self.audit(("A", 1))
+        self.assertEqual(
+            (code, data["skipped"]), (409, [{"id": "A", "reason": "changed"}])
+        )
+        undo = self.events()[-1]["seq"]
+        code, data = self.post({"kind": "undo", "id": "A", "undoSeq": undo})
+        self.assertEqual(code, 200, data)
+        # The audit's own accept of A is live again, as it was before the plain accept.
+        self.assertEqual(self.state()["responses"]["responses"]["A"]["seq"], 2)
+
+    def test_7_the_log_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        r = self.state()["responses"]
+        responses, history = rebuild_responses(r["events"])
+        self.assertEqual(responses, r["responses"])
+        self.assertEqual(history, r["history"])
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
 class TestConfirmUnderstandingNeedsARestatement(WaitCase):
     @classmethod
     def prepare(cls):
