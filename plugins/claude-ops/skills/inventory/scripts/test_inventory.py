@@ -1312,6 +1312,10 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(desc('!!1||"FALLBACK"'), "")
         self.assertEqual(desc('!!0??"FALLBACK"'), "")
         self.assertEqual(desc('!!0||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('(true)||"FALLBACK"'), "")
+        self.assertEqual(desc('((1))||"FALLBACK"'), "")
+        self.assertEqual(desc('(false)??"FALLBACK"'), "")
+        self.assertEqual(desc('(false)||"FALLBACK"'), "FALLBACK")
 
     def test_a_local_alias_of_a_parameter_keeps_its_bound_value(self) -> None:
         src = (
@@ -1397,6 +1401,11 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(_tool(src, "Probe")["description"], "REAL")
         self.assertNotIn("description_variants", _tool(src, "Probe"))
         self.assertEqual(_tool(src, "Quoted")["description"], "REAL")
+        written = (
+            'var Qz="Probe";function hh(x){let s=`${x="LOCAL"}`;return`Use ${x}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:hh("REAL")});'
+        )
+        self.assertEqual(_tool(written, "Probe")["description"], "Use …")
 
     def test_a_partial_element_or_argument_keeps_a_runtime_alternative(self) -> None:
         src = (
@@ -1563,6 +1572,20 @@ class TestModuleScopedResolution(unittest.TestCase):
             "$t({name:Qz,maxResultSizeChars:1,description:outer});"
         )
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_var_is_function_scoped_across_nested_blocks(self) -> None:
+        later = _modules(
+            'var Qz="Probe",xx="WRONG";'
+            'function outer(){if(a){return xx}for(;;){var xx="LOCAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(later, "Probe")["description_source"], "unresolved")
+        earlier = _modules(
+            'var Qz="Probe",xx="WRONG";'
+            'function ff(){if(c){var xx="REAL"}return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff});"
+        )
+        self.assertEqual(_tool(earlier, "Probe")["description"], "REAL")
 
     def test_a_top_level_alias_reads_no_later_binding(self) -> None:
         src = _modules(

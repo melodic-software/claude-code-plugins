@@ -613,21 +613,35 @@ _NESTED_FUNCTION_RE = re.compile(r"function\s*\*?\s*[\w$]*\s*\([^()]*\)\s*\Z")
 
 
 def _mask_strings(text: str) -> str:
-    """`text` with each string and template literal blanked to spaces, so a
-    search for code (a parameter write) never matches quoted text."""
+    """`text` with the quoted text of each string and template literal
+    blanked to spaces, so a search for code (a parameter write) never matches
+    it; a template substitution's `${...}` is code and is kept."""
     out, i, n = [], 0, len(text)
     while i < n:
-        if text[i] in _QUOTES:
-            try:
-                end = _read_literal(text, i, n)[1]
-            except ValueError:
-                end = n
-            out.append(" " * (end - i))
-            i = end
-        else:
-            out.append(text[i])
+        q = text[i]
+        if q not in _QUOTES:
+            out.append(q)
             i += 1
-    return "".join(out)
+            continue
+        j = i + 1
+        out.append(" ")
+        while j < n and text[j] != q:
+            if text[j] == "\\":
+                out.append("  ")
+                j += 2
+            elif q == "`" and text.startswith("${", j):
+                try:
+                    end = _skip_substitution(text, j + 2, n)
+                except ValueError:
+                    end = n
+                out.append("  " + _mask_strings(text[j + 2 : end - 1]) + " ")
+                j = end
+            else:
+                out.append(" ")
+                j += 1
+        out.append(" ")
+        i = j + 1
+    return "".join(out)[:n]
 
 
 def _primitive_text(text: str, *, joined: bool) -> str | None:
@@ -644,9 +658,22 @@ def _primitive_text(text: str, *, joined: bool) -> str | None:
     return None
 
 
+def _unparen(text: str) -> str:
+    """`text` without whitespace and wrapping parentheses: `((1))` is `1`."""
+    text = text.strip()
+    while text.startswith("(") and text.endswith(")"):
+        depth = 0
+        for k, ch in enumerate(text):
+            depth += (ch == "(") - (ch == ")")
+            if depth == 0 and k < len(text) - 1:
+                return text  # `(a)||(b)`: the first group closes early
+        text = text[1:-1].strip()
+    return text
+
+
 def _literal_truthy(text: str) -> bool | None:
     """How `||` sees a non-string literal: truthy, falsy, or None (unknown)."""
-    text = text.strip()
+    text = _unparen(text)
     if text.startswith("!"):
         inner = _literal_truthy(text[1:])
         return None if inner is None else not inner
@@ -660,7 +687,7 @@ def _literal_truthy(text: str) -> bool | None:
 
 def _literal_nullish(text: str) -> bool | None:
     """How `??` sees a non-string literal: nullish, not, or None (unknown)."""
-    text = text.strip()
+    text = _unparen(text)
     if text.startswith(_NULLISH_WORDS):
         return True
     if (
@@ -1047,7 +1074,10 @@ def _operand(
             # `(x()?a:b)` yields both branches.
             group = _sub_value(src, braces, i + 1, close - 1, acc, **kw)
             computed = computed or bool(group and group.partial)
-            parts.append(group)
+            inner = src[i + 1 : close - 1]
+            known = _literal_truthy(inner) is not None or _literal_nullish(inner)
+            # `(true)`: a known primitive stays one, for the fallback below.
+            parts.append(_NONSTRING if group is None and known else group)
             i = close
         elif c == "[":
             joined, i = _array_join(src, braces, i, n, acc, **kw)
@@ -1485,12 +1515,50 @@ def _export_index(src: str) -> dict[str, list[tuple[int, str]]]:
     return out
 
 
-def _visible(braces: BraceMap, pos: int, at: int) -> bool:
+_CONTROL_HEAD_RE = re.compile(r"(?<![\w$.])(?:if|for|while|switch|catch|with)\s*\Z")
+_STATEMENT_START_RE = re.compile(r"[;{}(]\s*var\s(?:[^;{}()]*)\Z")
+
+
+def _function_block(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
+    """The body of the function that holds `pos`, or None at module level:
+    a `var` belongs to it whatever blocks sit in between."""
+    block = braces.enclosing(max(pos - 1, 0))
+    while block is not None:
+        j = block[0] - 1
+        while j >= 0 and src[j] in " \t\r\n":
+            j -= 1
+        if src.startswith("=>", j - 1):
+            return block
+        if j >= 0 and src[j] == ")":
+            depth, k = 0, j
+            while k >= 0 and j - k < 4096:
+                depth += (src[k] == ")") - (src[k] == "(")
+                if depth == 0:
+                    break
+                k -= 1
+            if not _CONTROL_HEAD_RE.search(src, max(0, k - 16), k):
+                return block
+        block = braces.enclosing(block[0] - 1) if block[0] > 0 else None
+    return None
+
+
+def _is_var(src: str, pos: int) -> bool:
+    """Whether the binding at `pos` is declared by a `var` statement."""
+    return bool(_STATEMENT_START_RE.search(src, max(0, pos - 300), pos))
+
+
+def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> bool:
     """Whether a declaration at `pos` is visible from a reader at `at`: at
-    the top level, or in a block that also holds the reader. A binding local
-    to an unrelated function is not the one `at` reads."""
+    the top level, or in a block that also holds the reader; with `src`, a
+    `var` is visible throughout its function. A binding local to an
+    unrelated function is not the one `at` reads."""
     block = braces.enclosing(pos)
-    return block is None or block[0] < at <= block[1]
+    if block is None or block[0] < at <= block[1]:
+        return True
+    if src is None or not _is_var(src, pos):
+        return False
+    scope = _function_block(src, braces, pos)
+    return scope is not None and scope[0] < at <= scope[1]
 
 
 def _declaration(
@@ -1514,7 +1582,7 @@ def _declaration(
     if len(_chunk_starts(src)) == 1:
         found = None
         for m in pattern_for(ident).finditer(src, 0, at):
-            if _visible(braces, m.start(), at):
+            if _visible(braces, m.start(), at, src):
                 found = m
         return found
     lo, hi = _chunk_span(src, at)
@@ -1547,24 +1615,28 @@ def _declaration(
         return max(visible, key=rank)
     found = None
     for m in pattern.finditer(src, lo, at):
-        if _visible(braces, m.start(), at):
+        if _visible(braces, m.start(), at, src):
             found = m
     if found is not None:
         # A declaration later in a scope nearer the reader shadows `found`
         # and is not yet initialized when read: the value is not static.
-        # A `var` hoists out of nested blocks, so any declaration inside the
-        # reader's own block counts, however deeply it is nested there.
+        # A `var` hoists to its function, so one anywhere in the reader's
+        # function counts, however deeply it is nested there.
         outer = braces.enclosing(found.start())
         outer_open = outer[0] if outer else -1
-        reader = braces.enclosing(max(at - 1, 0))
+        reader = _function_block(src, braces, at)
         for m in pattern.finditer(src, at, hi):
             block = braces.enclosing(m.start())
             if (
                 block
                 and block[0] > outer_open
                 and (
-                    _visible(braces, m.start(), at)
-                    or (reader is not None and reader[0] < m.start() < reader[1])
+                    _visible(braces, m.start(), at, src)
+                    or (
+                        reader is not None
+                        and reader[0] < m.start() < reader[1]
+                        and _is_var(src, m.start())
+                    )
                 )
                 and re.search(
                     r"(?:\b(?:var|let|const)\s+|,\s*)$",
@@ -1577,7 +1649,7 @@ def _declaration(
             (
                 m
                 for m in pattern.finditer(src, at, hi)
-                if _visible(braces, m.start(), at)
+                if _visible(braces, m.start(), at, src)
             ),
             None,
         )
@@ -1628,7 +1700,7 @@ def _binding_value(
         lo = max(_chunk_span(src, at)[0], at - SHORT_VALUE_LOCALITY_BYTES)
         v = None
         for m in _binding_pattern(ident).finditer(src, lo, at):
-            if _visible(braces, m.start(), at):
+            if _visible(braces, m.start(), at, src):
                 v = m.end()
         return v
     m = _declaration(
