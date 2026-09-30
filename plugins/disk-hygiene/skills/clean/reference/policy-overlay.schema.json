@@ -139,7 +139,7 @@
           "minimum": 0
         },
         "min_age_basis": {
-          "description": "The timestamp min_age_days is measured from; default mtime. ctime is inode change time on POSIX and creation time on Windows. atime can be unreliable under noatime or relatime mounts.",
+          "description": "The timestamp min_age_days is measured from; default mtime. What ctime and atime mean on each platform: reference/scan-flags.md, Rule age window.",
           "enum": ["mtime", "atime", "ctime"]
         }
       }

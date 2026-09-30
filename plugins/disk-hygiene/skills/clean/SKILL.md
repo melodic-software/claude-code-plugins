@@ -180,21 +180,8 @@ or `${CLAUDE_PLUGIN_ROOT}`. Run:
   [--root-children [--root-child <name>]...]
 ```
 
-**Optional: in-flight references.** Before the scan, dispatch a read-only subagent to collect paths
-that open work still points at. It searches open issues and PRs (`gh search issues` and `gh search
-prs`, `--state open`) for the target's absolute path, and reads the session-flow handoff save-points
-in `<memory_dir>/handoffs/` for it. The belt does not apply to a subagent (see the fan-out paragraph
-below). It returns `{path, reason}` pairs: `path` absolute, `reason` naming the reference ("referenced
-by PR #123", "referenced by handoff <file>"). The parent writes them as
-`{"references": [{"path": "...", "reason": "..."}]}` to `<run-dir>/in-flight-refs.json` and passes
-`--in-flight-refs`; any other field, or a relative path, fails the scan. The engine makes no network
-call: an entry at, under, or holding a listed path keeps its tier, is never `preselected`, and
-carries `in_flight_reason`. A hit is a reason for caution, not proof, and never changes a tier. When
-`gh` is unavailable or not authenticated, scan without the flag and say in the report that open
-issues and PRs were not checked.
-
 For exact per-child byte totals without a per-entry inventory or the entry cap, add `--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`; [snapshot fields, entry-cap next steps](reference/scan-flags.md#--sizes-only)).
-Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
+Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md). To leave paths that open issues, PRs or handoffs reference unticked, collect them first and pass `--in-flight-refs` ([how](reference/scan-flags.md#--in-flight-refs)).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
@@ -418,11 +405,7 @@ the gate still needs the tier and path list named. Preview unticks a candidate w
 `execution-platform-unsupported`, or whose plan tier ranks above the matched hint's
 `confidence_ceiling`; never raise a tier to keep a tick. Changing the ticked rows means a new plan,
 preview, and question. A rule with `min_age_days` leaves an entry touched inside the
-window unticked (`min_age_basis` is mtime by default, or atime or ctime; ctime is inode change time on POSIX
-and creation time on Windows; atime can be unreliable under noatime or relatime mounts), with `in_flight_reason` shown. A directory is as new as its newest inventoried
-descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight. An entry
-named by `--in-flight-refs` is unticked the same way, with the reference as its `in_flight_reason`,
-whether or not a rule matched it.
+window unticked, with `in_flight_reason` shown ([age basis](reference/scan-flags.md#rule-age-window)). A directory is as new as its newest inventoried descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight. An entry named by `--in-flight-refs` is unticked the same way, whether or not a rule matched it.
 
 ## 6. Apply only the confirmed preview
 

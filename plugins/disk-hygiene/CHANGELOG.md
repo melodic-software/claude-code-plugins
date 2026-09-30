@@ -12,8 +12,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   can match on a hint `class` as well as `hint_id`/`hint_ids`. `min_age_days` can be measured on
   `mtime`, `atime` or `ctime` through `min_age_basis`. `scan --in-flight-refs <json>` reads
   `{"references":[{"path","reason"}]}` and leaves a path (and its ancestors) referenced by open
-  work unticked, with the reason shown in the preview. The policy overlay schema and
-  `skills/clean/SKILL.md` document all three.
+  work unticked, with the reason shown in the preview. The policy overlay schema,
+  `skills/clean/SKILL.md` and `skills/clean/reference/scan-flags.md` document all three.
 
 ## [0.39.0] - 2026-09-30
 
