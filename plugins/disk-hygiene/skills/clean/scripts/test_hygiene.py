@@ -591,7 +591,7 @@ class HygieneTests(unittest.TestCase):
 
     def test_policy_rejects_an_unsupported_min_age_basis(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            for basis in ("atime", "ctime", "", None):
+            for basis in ("birthtime", "", None):
                 path = self._overlay(
                     temporary,
                     "v2.json",
@@ -1096,6 +1096,65 @@ class HygieneTests(unittest.TestCase):
             self._age(root / "dir.stage", 30)
             entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
             self.assertIs(True, entry["preselected"])
+
+    def test_policy_accepts_atime_and_ctime_min_age_bases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for basis in ("mtime", "atime", "ctime"):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[
+                        {
+                            "match": {"hint_id": "common-temp-file"},
+                            "preselect": True,
+                            "min_age_days": 7,
+                            "min_age_basis": basis,
+                        }
+                    ],
+                )
+                with self.subTest(basis=basis):
+                    rules = hygiene.load_policy(path)["rules"]
+                    self.assertEqual(basis, rules[-1]["min_age_basis"])
+
+    def _basis_entries(self, basis: str, old: int, new: int) -> list[dict[str, Any]]:
+        base = {"kind": "file", "hints": [], "protected_reasons": []}
+        stamps = {"mtime_ns": old, "atime_ns": old, "ctime_ns": old}
+        return [
+            {"path": "dir.stage", **base, "kind": "directory", "hints": [{"id": "h"}], **stamps},
+            {"path": "dir.stage/a", **base, **stamps, f"{basis}_ns": new},
+        ]
+
+    def test_min_age_basis_uses_the_chosen_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("old.stage", "fresh.stage"):
+                self._age(root / name, 30)
+            os.utime(root / "old.stage", ns=(time.time_ns(), root.joinpath("old.stage").stat().st_mtime_ns))
+            policy["rules"][-1]["min_age_basis"] = "atime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(False, entries["old.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: accessed within 7 days", entries["old.stage"]["in_flight_reason"]
+            )
+            self.assertIs(True, entries["fresh.stage"]["preselected"])
+            policy["rules"][-1]["min_age_basis"] = "mtime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            policy["rules"][-1]["min_age_basis"] = "ctime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(False, entries["old.stage"]["preselected"])
+            self.assertIn("changed within 7 days", entries["old.stage"]["in_flight_reason"])
+
+    def test_min_age_directory_newest_descendant_uses_the_chosen_basis(self) -> None:
+        old = time.time_ns() - 30 * 86_400 * 10**9
+        for basis in ("mtime", "atime", "ctime"):
+            for chosen in ("mtime", "atime", "ctime"):
+                entries = self._basis_entries(basis, old, time.time_ns())
+                rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
+                          "min_age_basis": chosen, "source": "s", "index": 0}]
+                hygiene.apply_rules(entries, rules)
+                with self.subTest(touched=basis, chosen=chosen):
+                    self.assertIs(basis != chosen, entries[0]["preselected"])
 
     def test_min_age_treats_incomplete_coverage_as_in_flight(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -6230,6 +6289,8 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
             silent, entries_under = snapshot_entries(1024**3)
         self.assertIsNotNone(recommended)
         self.assertIsNone(silent)
+        for entry in (*entries_under, *entries_over):
+            entry.pop("atime_ns", None)  # a scan's own reads can move atime
         self.assertEqual(entries_under, entries_over)
 
 

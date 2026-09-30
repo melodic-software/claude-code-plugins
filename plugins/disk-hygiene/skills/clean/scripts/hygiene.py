@@ -40,7 +40,7 @@ MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 # Overlay versions the loader accepts; version 2 adds the `rules` array.
 OVERLAY_VERSIONS = (1, 2)
-RULE_MIN_AGE_BASES = ("mtime",)
+RULE_MIN_AGE_BASES = ("mtime", "atime", "ctime")
 ELEVATION_VALUES = ("never", "uac-prompt")
 MAX_SNAPSHOT_ENTRIES = 250_000
 # The temp-zone size walk runs on every scan whose target overlaps the temp
@@ -1230,10 +1230,17 @@ def validate_rules(
     return normalized
 
 
+def entry_age_ns(entry: dict[str, Any], key: str) -> int:
+    """An entry's timestamp on one basis; a snapshot without it falls back to mtime."""
+    return entry.get(key, entry["mtime_ns"])
+
+
 def rule_age_facts(
-    entries: list[dict[str, Any]], unknown_paths: Iterable[str]
+    entries: list[dict[str, Any]],
+    unknown_paths: Iterable[str],
+    basis: str = "mtime",
 ) -> tuple[dict[str, int], set[str]]:
-    """Newest descendant mtime per directory, and every path with a coverage gap.
+    """Newest descendant timestamp per directory, and every path with a coverage gap.
 
     An ancestor of an unknown path is itself unknown: the walk never saw what
     changed beneath it. Not-walked entries count as unknown alongside
@@ -1241,6 +1248,7 @@ def rule_age_facts(
     """
     newest: dict[str, int] = {}
     incomplete: set[str] = set()
+    key = f"{basis}_ns"
     unknown = set(unknown_paths) | {
         entry["path"]
         for entry in entries
@@ -1250,7 +1258,7 @@ def rule_age_facts(
         parent = entry["path"]
         while "/" in parent:
             parent = parent.rsplit("/", 1)[0]
-            newest[parent] = max(newest.get(parent, 0), entry["mtime_ns"])
+            newest[parent] = max(newest.get(parent, 0), entry_age_ns(entry, key))
     for path in unknown:
         incomplete.add(path)
         while "/" in path:
@@ -1261,16 +1269,19 @@ def rule_age_facts(
 
 def rule_in_flight_reason(
     entry: dict[str, Any],
-    days: int,
+    rule: dict[str, Any],
     facts: tuple[dict[str, int], set[str]],
     now_ns: int,
 ) -> str | None:
     newest, incomplete = facts
     path = entry["path"]
-    reason = f"in-flight: modified within {days} days"
+    days = rule["min_age_days"]
+    basis = rule.get("min_age_basis", "mtime")
+    verb = {"mtime": "modified", "atime": "accessed", "ctime": "changed"}[basis]
+    reason = f"in-flight: {verb} within {days} days"
     if path in incomplete:
         return f"{reason} (coverage incomplete, age unknown)"
-    modified = max(entry["mtime_ns"], newest.get(path, 0))
+    modified = max(entry_age_ns(entry, f"{basis}_ns"), newest.get(path, 0))
     if modified > now_ns - days * 86_400 * 10**9:
         return reason
     return None
@@ -1290,17 +1301,21 @@ def apply_rules(
     it from live blockers and the plan tier, because a snapshot is editable.
 
     A rule with `min_age_days` does not preselect an entry modified inside the
-    window (mtime basis). A directory is as new as its newest inventoried
+    window (the rule's `min_age_basis`, default mtime). A directory is as new as its newest inventoried
     descendant, and one whose coverage is incomplete is treated as new: unknown
     is not old. Such an entry keeps its tier and carries `in_flight_reason`.
     """
     if now_ns is None:
         now_ns = time.time_ns()
-    facts = (
-        rule_age_facts(entries, unknown_paths)
-        if any("min_age_days" in rule for rule in rules)
-        else ({}, set())
-    )
+    unknown_paths = list(unknown_paths)
+    facts = {
+        basis: rule_age_facts(entries, unknown_paths, basis)
+        for basis in {
+            rule.get("min_age_basis", "mtime")
+            for rule in rules
+            if "min_age_days" in rule
+        }
+    }
     for entry in entries:
         hint_ids = [hint["id"] for hint in entry.get("hints", [])]
         match = None
@@ -1320,7 +1335,9 @@ def apply_rules(
             entry["policy_rule"]["class"] = rule["class"]
         entry["preselected"] = rule["preselect"] and not entry["protected_reasons"]
         if entry["preselected"] and "min_age_days" in rule:
-            reason = rule_in_flight_reason(entry, rule["min_age_days"], facts, now_ns)
+            reason = rule_in_flight_reason(
+                entry, rule, facts[rule.get("min_age_basis", "mtime")], now_ns
+            )
             if reason:
                 entry["preselected"] = False
                 entry["in_flight_reason"] = reason
@@ -1462,6 +1479,8 @@ def metadata(
         "allocated_size": allocated,
         "nlink": nlink,
         "mtime_ns": info.st_mtime_ns,
+        "atime_ns": info.st_atime_ns,
+        "ctime_ns": info.st_ctime_ns,
         "device": info.st_dev,
         "inode": info.st_ino,
         "mode": stat.S_IFMT(info.st_mode),

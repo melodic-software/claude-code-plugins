@@ -404,8 +404,9 @@ rows ticked with the rule named beside them. A tick is a policy-file default, no
 the gate still needs the tier and path list named. Preview unticks a candidate with any blocker but
 `execution-platform-unsupported`, or whose plan tier ranks above the matched hint's
 `confidence_ceiling`; never raise a tier to keep a tick. Changing the ticked rows means a new plan,
-preview, and question. A rule with `min_age_days` (mtime basis) leaves an entry modified inside the
-window unticked, with `in_flight_reason` shown. A directory is as new as its newest inventoried
+preview, and question. A rule with `min_age_days` leaves an entry touched inside the
+window unticked (`min_age_basis` is mtime by default, or atime or ctime; ctime is inode change time on POSIX
+and creation time on Windows; atime can be unreliable under noatime or relatime mounts), with `in_flight_reason` shown. A directory is as new as its newest inventoried
 descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight.
 
 ## 6. Apply only the confirmed preview

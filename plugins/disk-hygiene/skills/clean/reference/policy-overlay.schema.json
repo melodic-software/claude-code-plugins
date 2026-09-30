@@ -139,8 +139,8 @@
           "minimum": 0
         },
         "min_age_basis": {
-          "description": "The timestamp min_age_days is measured from. Only mtime is supported.",
-          "enum": ["mtime"]
+          "description": "The timestamp min_age_days is measured from; default mtime. ctime is inode change time on POSIX and creation time on Windows. atime can be unreliable under noatime or relatime mounts.",
+          "enum": ["mtime", "atime", "ctime"]
         }
       }
     }
