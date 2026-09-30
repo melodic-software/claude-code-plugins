@@ -280,6 +280,75 @@ else
   fail "outside the plugin cache, markers go under XDG_STATE_HOME, never TMPDIR"
 fi
 
+# Bash route: test-scan-bash.sh reads tool_response.bashEditDiff and runs
+# test-scan.sh per changed test file.
+BASH_HOOK="$HOOK_DIR/test-scan-bash.sh"
+# bash_payload <tool_use_id> <bashEditDiff json, or "" for none>
+bash_payload() {
+  jq -cn --arg u "$1" --arg d "$2" '{hook_event_name: "PostToolUse", tool_name: "Bash", session_id: "sb",
+    tool_use_id: $u, tool_input: {command: "true"}, tool_response: {stdout: "", stderr: "", interrupted: false}}
+    | if $d == "" then . else .tool_response.bashEditDiff = ($d | fromjson) end'
+}
+# diff_of <created|edit> <file> [hunks json]: a one-file bashEditDiff
+diff_of() {
+  jq -cn --arg k "$1" --arg f "$2" --argjson h "${3:-[]}" '{changedFiles: [$f], moreFiles: 0,
+    files: [{filePath: $f, hunks: $h} + (if $k == "created" then {created: true} else {} end)]}'
+}
+ADD_ALL='[{"oldStart":0,"oldLines":0,"newStart":1,"newLines":1,"lines":["+x"]}]'
+bash_run() {
+  out="$(bash_payload "$1" "$2" | bash "$BASH_HOOK" 2>/dev/null)"
+  rc=$?
+}
+
+bash_run bash-1 "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")"
+if [[ $rc -eq 0 ]]; then ok "(f) Bash: exits 0"; else fail "(f) Bash: exit $rc"; fi
+assert_contains "(f) a created zero-assertion test file reports rule-zero-assertion" "$out" "rule-zero-assertion"
+assert_contains "(f) the finding goes back through additionalContext" "$out" '"additionalContext"'
+
+bash_run bash-2 ""
+assert_empty "(g) no bashEditDiff: no output" "$out"
+if [[ $rc -eq 0 ]]; then ok "(g) no bashEditDiff: exits 0"; else fail "(g) no bashEditDiff: exit $rc"; fi
+bash_run bash-3 "$(diff_of edit "$REPO/src/app.ts" "$ADD_ALL")"
+assert_empty "(g) only non-test files changed: no output" "$out"
+bash_run bash-4 '{"changedFiles":[],"moreFiles":0,"files":[]}'
+assert_empty "(g) an empty diff: no output" "$out"
+out="$(bash_payload bash-5 "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")" |
+  CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' node "$HOOK_DIR/exec-bash.mjs" \
+    --require-true TEST_GUARDS_ENABLED "$BASH_HOOK" 2>&1)"
+assert_empty "(g) option unset: the launcher never starts the hook" "$out"
+out="$(bash_payload bash-5b "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")" |
+  CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' bash "$BASH_HOOK" 2>&1)"
+assert_empty "(g) option unset: nothing runs" "$out"
+
+# Scope follows hook-precision rule 1: an edited file reports only blocks its
+# hunks touch; a file listed without hunks reports nothing.
+bash_run bash-6 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPatch <<<"$EDIT_GOOD")")"
+assert_not_contains "(h) a Bash edit inside the good block leaves the bad block quiet" "$out" "rule-zero-assertion"
+bash_run bash-7 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPatch <<<"$EDIT_BAD")")"
+assert_contains "(h) a Bash edit inside the bad block reports it" "$out" "rule-zero-assertion"
+bash_run bash-8 "$(jq -cn --arg f "$REPO/src/mixed.test.ts" '{changedFiles: [$f], moreFiles: 0, files: []}')"
+assert_empty "(h) a changed file past the hunk list reports nothing" "$out"
+bash_run bash-9 "$(diff_of created "$REPO/scratch/ignored.test.ts" "$ADD_ALL")"
+assert_empty "(h) a gitignored test file is skipped" "$out"
+
+# Two test files in one call each report, in one document.
+two="$(jq -cn --arg a "$REPO/src/sum.test.ts" --arg b "$REPO/src/again.test.ts" --argjson h "$ADD_ALL" \
+  '{changedFiles: [$a, $b], moreFiles: 0,
+    files: [{filePath: $a, created: true, hunks: $h}, {filePath: $b, created: true, hunks: $h}]}')"
+bash_run bash-10 "$two"
+assert_contains "(i) two files: the first reports" "$out" "rule-zero-assertion"
+assert_contains "(i) two files: the second reports" "$out" "rule-recomputed-expectation"
+if [[ "$(jq -s length <<<"$out" 2>/dev/null)" == 1 ]]; then ok "(i) two files: one JSON document"; else fail "(i) two files: one JSON document (got: ${out:0:300})"; fi
+
+# A scanner that fails is reported on stderr, as on the Write and Edit route.
+cat >"$TMP/fail.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 3
+EOF
+err="$(bash_payload bash-11 "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")" |
+  TEST_SCAN_SCANNER="$TMP/fail.sh" bash "$BASH_HOOK" 2>&1 >/dev/null)"
+assert_contains "(k) a failing scanner's diagnostic reaches stderr" "$err" "scanner exited 3"
+
 echo
 echo "$PASS passed, $FAIL failed"
 ((FAIL == 0))

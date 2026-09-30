@@ -9,8 +9,8 @@ The opus-5-prompting integration turned Anthropic's Opus 5 prompting guide and s
 standing instruction surfaces across three plugins. Before it, the repository carried one
 precedent for model-derived doctrine: `plugins/playbooks/skills/fable-5/context/opus-adaptation.md`,
 calibrated against Opus 4.8, routed by a meta-rule that told any Opus model to apply its deltas
-verbatim. The Opus 5 guide then reversed several of that file's counter-steers — effort floor,
-per-edit-batch verifier dispatch, delegation bias, scope literalism — demonstrating that a
+verbatim. The Opus 5 guide then reversed several of that file's counter-steers: effort floor,
+per-edit-batch verifier dispatch, delegation bias, scope literalism, demonstrating that a
 single model guide's corrections can be not merely stale for the next version of the same family
 but inverted.
 
@@ -42,13 +42,13 @@ The scoping is structural, not advisory prose:
   `plugins/playbooks/skills/fable-5/context/model-adaptation/<model-version>.md` (`opus-4-8.md`,
   `opus-5.md`). Routing is by model VERSION, never family (`SKILL.md` meta-rule 3): a missing
   version file routes to the nearest prior version's file, whose preamble directs method-only
-  application — never verbatim adoption of a sibling version's deltas. Chapters open with
+  application, never verbatim adoption of a sibling version's deltas. Chapters open with
   conditional framing ("if you are not X…") because spawn-time model overrides can hand a chapter
   to a model it was not written for.
 - **Audit catalog.** `plugins/claude-config/skills/audit-instructions/reference/criteria.md`
   defines the `Model scope: <version>` annotation (its "Model scoping" section): a scoped row
   fires only on exact string equality of the normalized version token and is otherwise inert,
-  reported as `skipped-for-target` — a near-miss target (point release, dated full ID) skips
+  reported as `skipped-for-target`: a near-miss target (point release, dated full ID) skips
   rather than inherits. The consuming skill's `--target-model` resolution fails loud on
   version-ambiguous values instead of guessing that a family alias such as `opus` means its
   newest version. I8's model rows and I10 carry the annotation with "promotion gate unmet"
@@ -60,7 +60,7 @@ The scoping is structural, not advisory prose:
 
 ## Consequences
 
-Cross-version doctrine misfire — the defect class this replaces — is now structurally impossible
+Cross-version doctrine misfire (the defect class this replaces) is now structurally impossible
 without bypassing the seam: an upstream reversal lands as a new version file or new scoped rows,
 and accepted files for prior versions stand as historical records rather than being rewritten.
 

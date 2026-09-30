@@ -9167,7 +9167,9 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", output["permissionDecision"])
         reason = output["permissionDecisionReason"]
         self.assertIn("execution is disabled", reason)
-        self.assertIn("scan, preview, handoff-verify, and catalog invocations", reason)
+        self.assertIn(
+            "scan, inventory, preview, handoff-verify, and catalog invocations", reason
+        )
         self.assertNotIn("handoff-apply", reason)
 
     def test_every_grammar_subcommand_has_exactly_one_verdict_class(self) -> None:
@@ -14514,6 +14516,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
 
     ENGINE_TAILS = {
         "scan": "scan --target t --output s",
+        "inventory": "inventory --target t --deep",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
         "catalog": "catalog --snapshot s --run-id run-1",
@@ -14628,6 +14631,21 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         belt = self.run_main(self.engine_command("apply"), self.argv())
         self.assertEqual("deny", belt["permissionDecision"])
         self.assertIn("execution is disabled", belt["permissionDecisionReason"])
+
+    def test_kill_switch_denial_names_every_read_only_subcommand(self) -> None:
+        self.write_json(
+            self.settings,
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@acme": {"options": {"disk_hygiene_enabled": False}}
+                }
+            },
+        )
+        belt = self.run_main(self.engine_command("apply"), self.argv())
+        reason = belt["permissionDecisionReason"]
+        for name in ("scan", "inventory", "preview", "handoff-verify", "catalog"):
+            self.assertIn(name, guard._READONLY_ENGINE_SUBCOMMANDS)
+            self.assertIn(name, reason)
 
     # --- AC3, AC13: every unproven shape fails closed -----------------------
 
@@ -14936,6 +14954,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.set_env_data_root()
         verdicts = {
             "scan": "allow",
+            "inventory": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
             "catalog": "allow",
@@ -15490,6 +15509,299 @@ class EngineGrammarTests(unittest.TestCase):
     def test_grammar_refuses_a_subcommand_it_does_not_declare(self) -> None:
         self.assertIsNone(self.grammar.subcommand("summarize"))
         self.assertFalse(self.grammar.match_invocation("summarize", []))
+
+    def test_apply_grammar_is_unchanged(self) -> None:
+        apply_spec = self.grammar.subcommand("apply")
+        assert apply_spec is not None
+        self.assertEqual(
+            ("apply", "handoff-apply"), self.grammar.SUBCOMMAND_NAMES[-2:]
+        )
+        self.assertEqual(
+            [
+                "--execute",
+                "--snapshot",
+                "--plan",
+                "--confirm-tier",
+                "--approval-token",
+                "--report",
+                "--data-root",
+            ],
+            [flag.name for flag in apply_spec.flags],
+        )
+        self.assertEqual(
+            ["--snapshot", "--plan", "--data-root"],
+            [flag.name for flag in self.grammar.subcommand("preview").flags],
+        )
+
+    def test_only_the_mutating_subcommands_are_left_off_the_read_only_allowance(
+        self,
+    ) -> None:
+        self.assertEqual(
+            set(self.grammar.SUBCOMMAND_NAMES) - {"apply", "handoff-apply"},
+            set(guard._READONLY_ENGINE_SUBCOMMANDS),
+        )
+
+    def test_inventory_takes_deep_but_never_an_execute_flag(self) -> None:
+        head = ["--target", "target-dir", "--data-root", self.AUTHORITY]
+        self.assertTrue(self.parse("inventory", [*head, "--deep"]).deep)
+        self.assertFalse(self.parse("inventory", head).deep)
+        self.assertEqual("inventory", self.classify("inventory", [*head, "--deep"]))
+        for extra in (["--execute"], ["--report", "report.json"], ["--plan", "p"]):
+            with self.subTest(extra=extra):
+                self.assertIsNone(self.classify("inventory", [*head, *extra]))
+                self.refuse_parse("inventory", [*head, *extra])
+
+
+class InventoryCommandTests(unittest.TestCase):
+    """The read-only ``inventory`` subcommand and the report it writes."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        base = Path(temporary.name).resolve()
+        self.target = base / "target"
+        self.data_root = base / "data"
+        self.target.mkdir()
+        self.data_root.mkdir()
+        # Home points away from the target unless a test says otherwise, and a
+        # macOS temp dir sits under /private, which is OS-managed.
+        self.home = self.enterContext(
+            mock.patch.object(Path, "home", return_value=base / "home")
+        )
+        self.enterContext(
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False)
+        )
+        # The process table is /proc, which macOS and Windows lack.
+        self.running = self.enterContext(
+            mock.patch.object(
+                hygiene.deep_inventory, "running_paths", return_value=set()
+            )
+        )
+
+    def write(self, relative: str, text: str = "x") -> Path:
+        path = self.target / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def run_inventory(self, *extra: str) -> tuple[int, dict[str, Any]]:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = hygiene.main(
+                [
+                    "inventory",
+                    "--target",
+                    str(self.target),
+                    "--data-root",
+                    str(self.data_root),
+                    *extra,
+                ]
+            )
+        return code, json.loads(output.getvalue())
+
+    def rows(self, summary: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        lines = Path(summary["rows"]).read_text(encoding="utf-8").splitlines()
+        return {row["name"]: row for row in map(json.loads, lines)}
+
+    def test_deep_lists_every_level_with_bottom_up_sizes(self) -> None:
+        self.write("a/b/c.txt", "12345")
+        self.write("a/d.log", "123")
+        (self.target / "gone").symlink_to(self.target / "missing")
+        self.write("tool/1.2.0/bin", "old")
+        self.write("tool/1.10.0/bin", "new")
+        code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertEqual("deep-inventory-report", summary["kind"])
+        self.assertEqual("inventory-complete", summary["status"])
+        self.assertTrue(summary["deep"])
+        rows = self.rows(summary)
+        self.assertEqual(len(rows), summary["row_count"])
+        self.assertTrue(hygiene.is_within(Path(summary["rows"]), self.data_root))
+        nested = rows[str(self.target / "a" / "b" / "c.txt")]
+        self.assertEqual(
+            (5, ".txt", "UNKNOWN"),
+            (nested["size"], nested["ext"], nested["disposition"]),
+        )
+        self.assertEqual(8, rows[str(self.target / "a")]["size"])
+        self.assertEqual(
+            "dangling-symlink", rows[str(self.target / "gone")]["category"]
+        )
+        old = rows[str(self.target / "tool" / "1.2.0")]
+        self.assertEqual(
+            ("superseded-version", "CANDIDATE"), (old["category"], old["disposition"])
+        )
+        self.assertEqual(
+            "KEEP", rows[str(self.target / "tool" / "1.10.0")]["disposition"]
+        )
+        lines = Path(summary["rows"]).read_text(encoding="utf-8").splitlines()
+        self.assertEqual(str(self.target), json.loads(lines[-1])["name"])
+        for row in rows.values():
+            self.assertLessEqual(
+                set(hygiene.deep_inventory.ROW_COLUMNS) - {"evidence"}, set(row)
+            )
+
+    def test_unread_process_table_leaves_superseded_versions_unknown(self) -> None:
+        self.write("tool/1.2.0/bin", "old")
+        self.write("tool/1.10.0/bin", "new")
+        self.running.return_value = None
+        code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        old = rows[str(self.target / "tool" / "1.2.0")]
+        self.assertEqual("UNKNOWN", old["disposition"])
+        self.assertIn("process table was not read", old["reason"])
+        self.assertEqual(
+            "KEEP", rows[str(self.target / "tool" / "1.10.0")]["disposition"]
+        )
+
+    def test_year_named_folders_are_not_versions(self) -> None:
+        self.write("Pictures/2024/a.jpg")
+        self.write("Pictures/2025/b.jpg")
+        _, summary = self.run_inventory("--deep")
+        row = self.rows(summary)[str(self.target / "Pictures" / "2024")]
+        self.assertEqual("unclassified", row["category"])
+
+    def test_without_deep_lists_only_immediate_children(self) -> None:
+        self.write("a/b/c.txt", "12345")
+        code, summary = self.run_inventory()
+        self.assertEqual(0, code, summary)
+        self.assertFalse(summary["deep"])
+        rows = self.rows(summary)
+        self.assertEqual({str(self.target), str(self.target / "a")}, set(rows))
+        self.assertEqual(5, rows[str(self.target / "a")]["size"])
+
+    def test_home_target_is_deep_by_default_and_runs_claude_categories(self) -> None:
+        self.write("notes/todo.md")
+        cache = self.target / ".claude" / "plugins" / "cache" / "mkt" / "plug"
+        (cache / "1.0.0").mkdir(parents=True)
+        (cache / "2.0.0").mkdir(parents=True)
+        (self.target / ".claude" / "plugins" / "installed_plugins.json").write_text(
+            json.dumps(
+                {"plugins": {"plug@mkt": [{"installPath": str(cache / "2.0.0")}]}}
+            ),
+            encoding="utf-8",
+        )
+        self.home.return_value = self.target
+        code, summary = self.run_inventory()
+        self.assertEqual(0, code, summary)
+        self.assertTrue(summary["deep"])
+        rows = self.rows(summary)
+        self.assertIn(str(self.target / "notes" / "todo.md"), rows)
+        self.assertEqual("CANDIDATE", rows[str(cache / "1.0.0")]["disposition"])
+        self.assertEqual("KEEP", rows[str(cache / "2.0.0")]["disposition"])
+
+    def test_mount_point_on_the_same_device_is_not_entered(self) -> None:
+        self.write("bind/inside.txt")
+        self.write("plain/file.txt")
+        mounted = {self.target / "bind"}
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=(mounted, None)
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        self.assertEqual("not-walked", rows[str(self.target / "bind")]["category"])
+        self.assertNotIn(str(self.target / "bind" / "inside.txt"), rows)
+        self.assertIn(str(self.target / "plain" / "file.txt"), rows)
+
+    def test_unreadable_mountinfo_is_reported_not_hidden(self) -> None:
+        self.write("a.txt")
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=(set(), "cannot read mountinfo")
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertEqual("cannot read mountinfo", summary["mount_state_error"])
+
+    def test_readable_mountinfo_reports_no_error(self) -> None:
+        self.write("a.txt")
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=({self.target / "x"}, None)
+        ):
+            _, summary = self.run_inventory("--deep")
+        self.assertIsNone(summary["mount_state_error"])
+
+    def test_an_interrupted_walk_leaves_no_partial_report(self) -> None:
+        self.write("a.txt")
+        with mock.patch.object(
+            hygiene.deep_inventory, "inventory_rows", side_effect=OSError("gone")
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertNotEqual(0, code, summary)
+        self.assertNotIn("rows", summary)
+        self.assertEqual([], list((self.data_root / "inventory").iterdir()))
+
+    def test_report_inside_the_target_is_not_listed(self) -> None:
+        self.data_root = self.target / "data"
+        self.data_root.mkdir()
+        _, summary = self.run_inventory("--deep")
+        self.assertNotIn(summary["rows"], self.rows(summary))
+
+    @unittest.skipIf(
+        os.name == "nt" or os.geteuid() == 0, "needs POSIX modes as non-root"
+    )
+    def test_unreadable_subtree_is_an_unknown_row(self) -> None:
+        locked = self.target / "locked"
+        self.write("locked/secret.txt")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o700)
+        code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        row = self.rows(summary)[str(locked)]
+        self.assertEqual(
+            ("not-walked", "UNKNOWN"), (row["category"], row["disposition"])
+        )
+        self.assertIn("PermissionError", row["reason"])
+        self.assertNotIn(str(locked / "secret.txt"), self.rows(summary))
+
+    def test_a_failing_validator_fails_the_report(self) -> None:
+        bad = self.write("keep.bin")
+        row = hygiene.deep_inventory.make_row(
+            bad,
+            producer="tool",
+            category="test",
+            disposition="KEEP",
+            reason="tool-managed",
+        )
+        with mock.patch.object(
+            hygiene.deep_inventory, "category_rows", return_value={str(bad): row}
+        ):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(hygiene.INVENTORY_VALIDATION_FAILED, code)
+        self.assertEqual("inventory-failed", summary["status"])
+        self.assertEqual(1, len(summary["validation_failures"]))
+        written = json.loads(Path(summary["rows"]).with_suffix(".json").read_text())
+        self.assertEqual("inventory-failed", written["status"])
+
+    def test_report_is_never_accepted_as_a_snapshot_or_plan(self) -> None:
+        self.write("a.tmp")
+        _, summary = self.run_inventory("--deep")
+        report = Path(summary["rows"]).with_suffix(".json")
+        for path in (report, Path(summary["rows"])):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                code = hygiene.main(
+                    [
+                        "preview",
+                        "--snapshot",
+                        str(path),
+                        "--plan",
+                        str(path),
+                        "--data-root",
+                        str(self.data_root),
+                    ]
+                )
+            with self.subTest(path=path.name):
+                self.assertNotEqual(0, code)
+                self.assertNotIn("ready-for-explicit-approval", output.getvalue())
+
+    def test_inventory_needs_a_data_root(self) -> None:
+        output = io.StringIO()
+        with redirect_stdout(output):
+            code = hygiene.main(["inventory", "--target", str(self.target)])
+        self.assertEqual(2, code)
+        self.assertIn("--data-root", output.getvalue())
+        self.assertEqual([], list(self.data_root.iterdir()))
 
 
 if __name__ == "__main__":
