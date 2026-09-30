@@ -137,7 +137,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .s-accept{color:var(--ok);background:var(--ok-soft)}
 .s-alt,.s-own{color:var(--chg);background:var(--chg-soft)}
 .s-defer{color:var(--def);background:var(--def-soft)}
-.s-sup,.s-arch{color:var(--wait);background:var(--wait-soft)}
+.s-sup,.s-arch,.s-blocked{color:var(--wait);background:var(--wait-soft)}
 .s-wait{color:var(--res);background:var(--res-soft)}
 .s-need{color:var(--warn);background:var(--warn-soft)}
 .qbtn.st-wait{border-left:3px solid var(--res)}
@@ -562,15 +562,19 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const openAssumptions = () => commitRows().filter(r => !r.on).length;
   function unansweredReply(q){ // Claude answered your question and you have not responded since
     const h = historyOf(q)[0];
-    return !!(h && h.by === "claude" && h.replyTo && events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase")));
+    if (!h || h.by !== "claude") return false;
+    if (!h.replyTo) return h.kind !== "revise"; // a heads-up: Claude spoke first and nothing of yours follows it
+    return !!events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase"));
   }
-  const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (stateOf(q) !== "arch" && unansweredReply(q));
+  const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (live(q) && unansweredReply(q));
+  const blocked = q => stateOf(q) === "need" || upOf(q).some(p => !isAnswered(stateOf(Q[p]))); // answerable questions sort before these
+  const settled = q => isAnswered(stateOf(q)) && !needsYou(q);
   function wrapFreeze(){ // ms left in the wrap-up freeze on decision saves
     const w = events().filter(e => e.kind === "wrapup" && !e.withdrawn).pop();
     if (!w || isHandled(w.seq)) return 0;
     return Math.max(0, FREEZE_MS - (Date.now() - Date.parse(w.at)));
   }
-  const allDone = () => { const l = S.doc.questions.filter(live); return l.length > 0 && l.every(q => isAnswered(stateOf(q))); };
+  const allDone = () => { const l = S.doc.questions.filter(live); return l.length > 0 && l.every(settled); };
   const groupById = id => (S.doc.groups || []).find(g => g.id === id);
   const groupDone = gid => S.doc.questions.filter(q => q.group === gid && live(q)).every(q => isAnswered(stateOf(q)));
   const lockedBy = gid => ((groupById(gid) || {}).dependsOn || []).filter(p => groupById(p) && !groupDone(p));
@@ -579,12 +583,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function carryOver(){
     const max = {}, out = {};
     S.doc.questions.forEach(q => { const s = q.stage || ""; max[s] = Math.max(max[s] || 0, q.round || 1); });
-    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - (q.round || 1); if (n > 0 && isOpen(stateOf(q))) out[q.id] = n; });
+    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - (q.round || 1); if (n > 0 && needsYou(q)) out[q.id] = n; });
     return out;
   }
   function passes(q){
     const st = stateOf(q);
-    return S.filter === "all" || (S.filter === "open" && isOpen(st)) || (S.filter === "pending" && st === "wait") || (S.filter === "answered" && isAnswered(st));
+    return S.filter === "all" || (S.filter === "open" && needsYou(q)) || (S.filter === "pending" && st === "wait") || (S.filter === "answered" && isAnswered(st));
   }
   const opened = () => new Set(lsGet("opened", []));
 
@@ -621,7 +625,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     const landed = landedIds();
     secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds; a new round's section opens
-      s.open = s.items.filter(q => ["open", "wait", "need"].includes(stateOf(q))).length;
+      s.open = s.items.filter(q => stateOf(q) === "wait" || needsYou(q)).length;
       s.done = s.items.length > 0 && s.open === 0;
       s.fresh = s.items.some(q => landed.has(q.id));
       const o = lsGet("col:" + s.key, null), dflt = s.done;
@@ -651,7 +655,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (st === "wait" || st === "need") {
       chips.push('<span class="chip s-' + st + '" title="' + esc(waitText(q)) + '">' + esc(trunc(waitText(q), 60)) + "</span>");
       if (d && d.decision) chips.push(d.aside ? '<span class="chip aside">Set aside</span>' : '<span class="chip plain">' + LABEL[d.decision] + "</span>");
-    } else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
+    } else if (st === "open" && blocked(q)) chips.push('<span class="chip s-blocked" title="Waits on a question you have not answered">Blocked</span>');
+    else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
     if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot">Claude is revising</span>');
@@ -757,7 +762,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("eyebrow").textContent = m.eyebrow || (headRound() ? "" : "Interview");
     $("roundLbl").textContent = headRound();
     $("title").textContent = m.title || "Interview";
-    const l = S.doc.questions.filter(live), done = l.filter(q => isAnswered(stateOf(q))).length, wn = l.filter(q => stateOf(q) === "wait").length;
+    const l = S.doc.questions.filter(live), done = l.filter(settled).length, wn = l.filter(q => stateOf(q) === "wait").length;
     $("meterText").textContent = done + " of " + l.length + " answered";
     $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const pb = $("pendBtn"); pb.hidden = !wn; pb.textContent = wn + " pending research";
@@ -1359,6 +1364,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     for (let k = 1; k <= order.length; k++) { const id = order[(i + k) % order.length]; if (isOpen(stateOf(Q[id]))) return id; }
     return null;
   }
+  function firstNeeding(){ // the first question you can answer now, else the first you cannot yet, else the first in the rail
+    const order = railOrder(), need = order.filter(id => needsYou(Q[id]));
+    return need.find(id => !blocked(Q[id])) || need[0] || order[0] || null;
+  }
   function nextNeeding(dir){ // next (1) or previous (-1) item needing you, in rail order
     const order = railOrder(), len = order.length, i = order.indexOf(S.sel);
     for (let k = 1; k <= len; k++) { const id = order[(((i < 0 && dir < 0 ? len : i) + dir * k) % len + len) % len]; if (id !== S.sel && needsYou(Q[id])) return id; }
@@ -1611,7 +1620,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       S.pinned = lsGet("pinned", false); S.railHidden = lsGet("railHidden", false); S.noteSeen = lsGet("noteSeen", 0);
       if (lsGet("actSeen", null) === null) markSeen(); // a new browser starts with everything seen
       const saved = lsGet("sel", null);
-      const pick = saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : (railOrder().find(id => isOpen(stateOf(Q[id]))) || railOrder()[0] || null);
+      const pick = saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : firstNeeding();
       if (pick) select(pick); else { renderRail(); renderDetail(); }
       if (document.hidden) S.hiddenBase = arrivalKeys(); // a tab opened in the background fires no visibilitychange
       renderHeader(); renderFly();

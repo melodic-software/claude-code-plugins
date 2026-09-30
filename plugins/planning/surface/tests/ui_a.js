@@ -13,7 +13,7 @@ async page => {
   await page.evaluate(() => localStorage.clear());
   await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
 
-  ok("first open question selected on load", await sel() === "N1", await sel());
+  ok("first question that needs you is selected on load: stale Q9 comes before open N1", await sel() === "Q9" && /Stale/.test(await page.textContent('.qbtn[data-q="Q9"]')), await sel());
   const lock = await page.textContent('.sec[data-key="g:g10"] .lock').catch(() => "");
   ok("dependent group shows locked", /opens after New group/.test(lock), lock);
   ok("independent group not locked", !(await page.$('.sec[data-key="g:g9"] .lock')));
