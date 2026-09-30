@@ -3,11 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.1] - 2026-09-30
+## [0.32.2] - 2026-09-30
 
 ### Fixed
 
 - **PowerShell lane allows engine names in string data.** A here-string body or a quoted argument that only mentions an engine script name (for example a `gh issue create --body` text) no longer trips the engine-invocation deny. Only an invocation position (the command or an interpreter's script argument) counts.
+
+## [0.32.1] - 2026-09-30
+
+### Changed
+
+- **`clean` names the hook note as the one primary source for `hook_python` and `data_root`.** The fallback is the probe: when the note is absent, one bare-python probe is denied, names the interpreter, and the rerun probe supplies `data_root`. `safety-model.md` records that the hook is the chosen delivery path and that the denied probe in the no-hook path is an accepted residual.
 
 ## [0.32.0] - 2026-09-30
 
