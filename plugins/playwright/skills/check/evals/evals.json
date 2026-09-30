@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "name": "hook-notice-runs-the-read-only-check",
-      "prompt": "A session notice just said playwright-cli is missing. Is the playwright-cli binary installed here?",
+      "name": "missing-cli-report-runs-the-read-only-check",
+      "prompt": "A prerequisites report just listed playwright-cli as missing. Is the playwright-cli binary installed here?",
       "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL/INFO table for playwright-cli. Installs nothing and stops.",
       "files": [],
       "expectations": [

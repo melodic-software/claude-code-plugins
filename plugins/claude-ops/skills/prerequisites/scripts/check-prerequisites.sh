@@ -8,11 +8,12 @@
 # install path from `claude plugin list --json`: user and managed rows, plus
 # project and local rows whose projectPath is the current project
 # ($CLAUDE_PROJECT_DIR, else the git toplevel); the most specific scope wins per
-# id. When claude is absent or its output does not parse, merge enabledPlugins
+# id. When claude is absent or prints nothing, merge enabledPlugins
 # from settings.json and settings.local.json in ~/.claude (or $CLAUDE_CONFIG_DIR)
 # and the project's .claude directory instead, skipping a whole file whose
 # enabledPlugins holds a non-Boolean value (Claude Code ignores that file's
-# keys); that fallback does not read the managed scope. Only when none of that
+# keys); that fallback does not read the managed scope. Output that is not a
+# JSON list is an error (exit 2), never a fallback. Only when none of that
 # state exists and this repo has plugins/*/prerequisites.json, scan those.
 #
 # Prints one TSV header and one row per declared tool:
@@ -45,17 +46,19 @@ if [[ ${#ROOTS[@]} -eq 0 ]]; then
   config="${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
   project="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || true)}"
   project="${project%$'\r'}"
-  listing=""
+  listing_file="$(mktemp)"
+  found_file="$(mktemp)"
+  trap 'rm -f "$listing_file" "$found_file"' EXIT
   if command -v claude >/dev/null 2>&1; then
     if command -v timeout >/dev/null 2>&1; then
-      listing="$(timeout 30 claude plugin list --json 2>/dev/null || true)"
+      timeout 30 claude plugin list --json >"$listing_file" 2>/dev/null || true
     else
-      listing="$(claude plugin list --json 2>/dev/null || true)"
+      claude plugin list --json >"$listing_file" 2>/dev/null || true
     fi
   fi
-  mapfile -t found < <(PREREQ_LIST="$listing" python3 - "$config" "$project" <<'PY'
+  if ! python3 - "$config" "$project" "$listing_file" >"$found_file" <<'PY'
 import json, os, sys
-config, project = sys.argv[1], sys.argv[2]
+config, project, listing_path = sys.argv[1], sys.argv[2], sys.argv[3]
 RANK = {"user": 0, "project": 1, "local": 2, "managed": 3}
 
 def same_dir(a, b):
@@ -122,17 +125,30 @@ def from_settings():
                 found.append(path)
     return read, found
 
-try:
-    rows = json.loads(os.environ.get("PREREQ_LIST") or "")
-except json.JSONDecodeError:
-    rows = None
-read, found = (True, from_cli(rows)) if isinstance(rows, list) else from_settings()
+with open(listing_path, encoding="utf-8") as handle:
+    text = handle.read()
+if text.strip():
+    try:
+        rows = json.loads(text)
+        detail = "not a JSON list"
+    except json.JSONDecodeError as exc:
+        rows, detail = None, exc
+    if not isinstance(rows, list):
+        print(f"check-prerequisites.sh: claude plugin list --json: {detail}", file=sys.stderr)
+        sys.exit(2)
+    read, found = True, from_cli(rows)
+else:
+    read, found = from_settings()
 if read:
     print("STATE_READ")
 if found:
     print("\n".join(found))
 PY
-)
+  then
+    echo "check-prerequisites.sh: could not read the plugin listing" >&2
+    exit 2
+  fi
+  mapfile -t found <"$found_file"
   for line in "${found[@]}"; do
     if [[ "$line" == "STATE_READ" ]]; then STATE_READ=1; else ROOTS+=("$line"); fi
   done

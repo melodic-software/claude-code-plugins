@@ -5,6 +5,23 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- **`/plugin-quality:audit` gains `session` and `arm` modes ([#3999](https://github.com/melodic-software/claude-code-plugins/issues/3999)).**
+  `session` discovers the plugins and skills the session used through the session-flow retro
+  transcript parser, confirms the list with the operator, and runs the existing pipeline over the
+  union. `arm` starts the session-flow running-retro observer at session start and records the
+  armed state. Both are operator-invoked only, with no hook.
+- **Evidence bar and research gate.** A candidate with no session artifact is listed as `unfiled`
+  with its reason and never emitted. A suggested change is labeled agent-ready only after a
+  `/discovery:research` pass with its source tiers recorded; otherwise it files as needs-decision.
+- **Review seams named by role** (adversarial re-examination, upstream conformance, the current
+  model's adaptation chapter, scope challenge), presence-gated and resolved at run time, each with an
+  absent-fallback line, plus a "What this composes" section. Detail lives in
+  `reference/session-mode.md`; five evals cover the new behavior.
+
 ## [0.8.0] - 2026-09-29
 
 ### Added

@@ -98,15 +98,17 @@ re-verifying. For everything else `apply` only points:
   writes the value) and its verification record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>).
   Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
-  `claude plugin install go-format@<marketplace> -s user --config go_format_enabled=false`
+  `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`
   (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:
   - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
     resets every option to its manifest default.
-  - Scope. Pass `-s user`. `-s` places the install record and `enabledPlugins`; the option value
-    always lands in user settings. Do not copy a scope from `claude plugin list`: a rerun at
-    another scope adds an install record at that scope and enables the plugin there. When the
-    working directory is the home directory, project scope and user scope are the same settings
-    file, so the list can label that one file as both `user` and `project`.
+  - Scope. Pass the scope `claude plugin list` reports for this plugin, and for a `project` or
+    `local` scope run from that project's directory, so the rerun matches the existing install
+    record. `-s` places the install record and `enabledPlugins`; the option value always lands in
+    user settings, and a rerun at another scope adds an install record at that scope and enables
+    the plugin there. When the working directory is the home directory, project scope and user
+    scope are the same settings file, so the list can label that one file as both `user` and
+    `project`: pass `user`.
   - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
     `check` in a **fresh session** and report the observed effective value, never an unobserved
     change.

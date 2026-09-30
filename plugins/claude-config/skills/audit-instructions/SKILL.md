@@ -1,5 +1,5 @@
 ---
-description: "Audit local CLAUDE.md, AGENTS.md, rules, skills, agents, hook text for instructions current models no longer need, misstated Claude Code behavior, and cross-surface conflicts. Report-only. Use when: 'audit instructions', 'instruction audit', 'are my instructions holding the model back', 'too prescriptive', 'stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'which instruction wins'. Missing text: audit-prompting-postures."
+description: "When the bundled claude-api skill resolves in this session, prefer its prompt-audit for a model migration, a target-model change, or any pass over application-code prompts; this skill for the standing audit of Claude Code instruction surfaces, cross-surface conflicts, and misstated Claude Code behavior, and both when a sweep wants both. Audit local CLAUDE.md, AGENTS.md, rules, skills, agents, hook text for instructions current models no longer need, misstated Claude Code behavior, and cross-surface conflicts. Report-only. Use when: 'audit instructions', 'instruction audit', 'are my instructions holding the model back', 'too prescriptive', 'stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'which instruction wins'. Missing text: audit-prompting-postures."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--persist-findings] [--unattended]"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
@@ -60,24 +60,22 @@ concerns its siblings already cover, so route rather than re-answer:
   *text* against doctrine; unhobble measures the *model*.
 
 On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md,
-`.claude/rules/`, and `rules/` under the user root Phase A resolves),
-this skill runs only the model-era checks I6–I35. It never runs or reports the hygiene checks
-I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces; that
-layer belongs to the `claude-memory` plugin. When it is installed, route memory-layer hygiene to its
-`audit` skill; when it is not, emit a single one-line pointer to the official CLAUDE.md
-include/exclude guidance (recorded with I1–I5 in [reference/criteria.md](reference/criteria.md)).
-Either way, no I1–I5 hygiene finding is ever produced here. On **non-memory surfaces** (skill
-bodies, agent definitions, hook instruction text, output styles) the catalog applies, since no
-incumbent auditor covers instruction content there, **bounded by each row's own surface
-declaration**, which is narrower than the partition for some checks. I13, I14, I29, I31, I32, I33,
-and I34 name their own surface sets and are not run outside them; I15 is answered pairwise by
-Phase B2; this partition never widens a row.
+`.claude/rules/`, and `rules/` under the user root Phase A resolves), this skill runs only the
+model-era checks I6–I35. It never runs or reports the hygiene checks I1–I5 (line-necessity, length,
+placement, inferable content, rule-to-hook) on these surfaces; that layer belongs to the
+`claude-memory` plugin. When it is installed, route memory-layer hygiene to its `audit` skill; when
+it is not, emit a single one-line pointer to the official CLAUDE.md include/exclude guidance
+(recorded with I1–I5 in [reference/criteria.md](reference/criteria.md)). Either way, no I1–I5
+hygiene finding is ever produced here. On **non-memory surfaces** (skill bodies, agent definitions,
+hook instruction text, output styles) the catalog applies, since no incumbent auditor covers
+instruction content there, **bounded by each row's own surface declaration**, which is narrower than
+the partition for some checks. I13, I14, I29, I31, I32, I33, and I34 name their own surface sets and
+are not run outside them; I15 is answered pairwise by Phase B2; this partition never widens a row.
 
 I15 (cross-surface conflict) carries its own narrower routing on the same convention, drawn from the
 population `claude-memory:audit`'s C6 actually enumerates via `discover-instruction-surfaces`
 (project **and** user root-level CLAUDE.md / a natively read AGENTS.md / rules) rather than from the
-name of the layer.
-[reference/conflict-criteria.md](reference/conflict-criteria.md) states that boundary and owns it.
+name of the layer; [reference/conflict-criteria.md](reference/conflict-criteria.md) states and owns it.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
 owned by the publishing repository, and a managed materialization by whatever upstream the consuming
@@ -90,33 +88,45 @@ repository's tracker, never in-place edits; absent such a declaration, no exclus
 One native surface audits prompts for the same anti-pattern families this catalog names, and the
 two are routinely conflated:
 
-- **`claude-api` (bundled skill), `prompt-audit` subcommand.** Ships with Claude Code rather than
-  as a marketplace plugin. It audits the whole prompt surface of the working directory, application
-  code that calls the Claude API included, against the current model's documented anti-patterns,
-  and produces a report with a proposed diff that it applies when asked. Its catalog is the
+- **`claude-api` (bundled skill), `prompt-audit` subcommand**: audits the whole prompt surface of
+  the working directory, application code that calls the Claude API included, against the current
+  model's documented anti-patterns, and produces a report with a proposed diff that it applies when asked. Its catalog is the
   vendor's own migration guidance, refreshed with the model.
 - **This skill (marketplace plugin).** A standing, report-only audit of locally-owned Claude Code
   instruction surfaces against the versioned I-catalog in [reference/criteria.md](reference/criteria.md):
   target-model scoping, deterministic pre-scans, the cross-surface conflict pass, and harness-claim
-  staleness the vendor sweep does not look for. Prompts embedded in application source stay with the
-  bundled subcommand.
+  staleness the vendor sweep misses. Application-source prompts stay with the bundled subcommand.
 
 **Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves in
 this session, prefer its `prompt-audit` for a model migration or any pass over application-code
 prompts, and run it whenever the target model changes. Prefer this skill for the standing catalog
-audit of Claude Code surfaces, for cross-surface conflicts, and for harness claims that misstate
-Claude Code's own behavior. Where a sweep wants both, run both: recurring gap shapes the vendor
-sweep surfaces feed this catalog as new rows, and this skill's findings never substitute for the
-vendor procedure on a model change.
+audit of Claude Code surfaces, cross-surface conflicts, and harness claims that misstate Claude
+Code's own behavior. Where a sweep wants both, run both: recurring gap shapes the vendor sweep
+surfaces feed this catalog as new rows, and this skill's findings never substitute for the vendor
+procedure on a model change.
 
 **Mutation gate.** `prompt-audit` edits files when the request asks for edits. This skill is
-report-only, so never chain into a `prompt-audit` apply on its behalf; surface the finding and let
-the user invoke the sweep.
+report-only: never chain into a `prompt-audit` apply; surface the finding and let the user run it.
 
 **Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
-host; this section states what to do when the surface resolves, never that it is present. Its
-subcommand set, distribution facts, and recheck triggers are in
-[reference/bundled-claude-api.md](reference/bundled-claude-api.md).
+host; this section states what to do when the surface resolves, never that it is present. Subcommand
+set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](reference/bundled-claude-api.md).
+
+## Boundary, the bundled `doctor` skill
+
+`/doctor prompt-audit` also audits these files for outdated or conflicting instructions.
+
+- **`doctor` (bundled skill, alias `checkup`)**: its `prompt-audit` subcommand audits `CLAUDE.md` files, skills, agents, and commands for
+  older-model prompting patterns. It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** Report-only catalog audit that adds over-prescription with
+  target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.
+
+**Routing.** At the end of the run, offer it to the person: you can run `/doctor prompt-audit`
+alongside this skill. An unattended run records the offer in its output instead of asking.
+**Mutation gate.** Its write posture is undocumented; this skill never chains into `/doctor`.
+**Availability is never assumed.** Gated by `DISABLE_DOCTOR_COMMAND`, `skillOverrides`, and
+version, it survives `disableBundledSkills`; this section states what to offer, never that it is
+present. Records: [reference/native-doctor.md](reference/native-doctor.md).
 
 ## Arguments
 
@@ -234,8 +244,7 @@ run's resolved target model. I33 is lane-only; each lane brief restates its Must
 ### Lane sizing
 
 One partition rule sizes lanes, a token budget: no lane cap and no line-count constant. **Plan the
-dispatch before dispatching** by running `lane-runs.sh partition` over the inventoried files, then
-dispatch those lanes.
+dispatch first**: run `lane-runs.sh partition` over the inventoried files, then dispatch those lanes.
 
 A lane's budget is **0.25 of the lane model's own context window**, leaving the rest for the
 catalog, the lane brief, the lane's reasoning, and its report, at **3.5 bytes per token**
@@ -276,22 +285,21 @@ Phase D cost line disclose the planned and actual dispatch counts in place of th
 
 ### Run files and resume
 
-Each run lives under
-`${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/`, the run id a UTC
-`YYYYMMDDTHHMMSSZ` stamp, and each lane writes its report to `lanes/<lane-id>.md` there.
+Each run lives under `${CLAUDE_PLUGIN_DATA}/audit-instructions/runs/<state-key>/<run-id>/`, the run
+id a UTC `YYYYMMDDTHHMMSSZ` stamp, and each lane writes its report to `lanes/<lane-id>.md` there.
 `last-audit.md` stays where Phase D puts it. The lease is audit-pass's `run-state.sh`, invoked with
-`--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions` so its containment pin holds:
-`paths` names the run directory, `lease acquire` starts the run, `lease heartbeat` runs as each
-lane's report lands, and `lease release` writes the tombstone at the end. The skill is read-only,
-so it takes a lease and no lock.
+`--plugin-data ${CLAUDE_PLUGIN_DATA}/audit-instructions` so its containment pin holds: `paths` names
+the run directory, `lease acquire` starts the run, `lease heartbeat` runs as each lane's report
+lands, and `lease release` writes the tombstone at the end. The skill is read-only, so it takes a
+lease and no lock.
 
 Every lane carries an **input digest** from `lane-runs.sh digest`: the lane's ordered file list with
 content hashes, the partition digest, and one `--param` for each of `catalog_version` (the
 `version:` in `reference/criteria.md`), `conflict_criteria_version` (the `Version:` in
-`reference/conflict-criteria.md`), `prompt_digest` (a sha256 of the lane brief with its surface
-list removed), `harness_version` (`claude --version`), `target_model` (the resolved target),
-`scope`, `opinion`, and `no_stopping_condition`. The script refuses a digest missing any of them.
-The lane brief hands the lane the exact last line its report must end with, from
+`reference/conflict-criteria.md`), `prompt_digest` (a sha256 of the lane brief with its surface list
+removed), `harness_version` (`claude --version`), `target_model` (the resolved target), `scope`,
+`opinion`, and `no_stopping_condition`. The script refuses a digest missing any of them. The lane
+brief hands the lane the exact last line its report must end with, from
 `lane-runs.sh marker --lane <id> --digest <digest>`; a report without it as its last non-blank line
 is incomplete.
 
@@ -401,9 +409,8 @@ abort, not an interactive gate, since it prompts nobody and blocks nothing mid-r
 as a table. Each row's identity is `(check, claim, sites)` per
 [reference/finding-identity.md](reference/finding-identity.md); presentation fields stay outside the
 hash. An I15 conflict is one finding with two sites and one Finding ID. **Finding ID** is the row's
-re-run-stable `finding_id/v1` from `scripts/finding-ids.sh`
-([derivation and claim templates](reference/finding-identity.md)); a refused row reads
-`unidentified: <reason>` there.
+re-run-stable `finding_id/v1` from `scripts/finding-ids.sh` ([derivation and claim
+templates](reference/finding-identity.md)); a refused row reads `unidentified: <reason>` there.
 
 | # | Finding ID | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|------------|-------|--------------|----------|------|-----------|---------|-----------------|
@@ -486,6 +493,5 @@ plainly that nothing has been applied.
   population, namely root-level project **or user** `CLAUDE.md` / `CLAUDE.local.md` / a natively read
   `AGENTS.md` or `.claude/AGENTS.md` / rules, including **user↔project** pairs. That is
   `claude-memory:audit`'s C6. A **nested** `CLAUDE.md` / `CLAUDE.local.md` side, an auto-memory side,
-  or any surface outside that population keeps the pair here;
-  [reference/conflict-criteria.md](reference/conflict-criteria.md) owns the routing table and its
-  evidence.
+  or any surface outside that population keeps the pair here; the routing table and its evidence
+  live in [reference/conflict-criteria.md](reference/conflict-criteria.md).

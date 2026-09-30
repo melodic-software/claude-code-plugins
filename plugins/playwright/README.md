@@ -20,8 +20,8 @@ ask for an E2E test, a screenshot, or any live browser flow.
 npm install -g @playwright/cli
 ```
 
-Check it read-only with `/playwright:check`; Claude can run that on its own, for example after a
-session notice that `playwright-cli` is missing. It never installs.
+Check it read-only with `/playwright:check`; Claude can run that on its own, for example when a
+prerequisites report lists `playwright-cli` as missing. It never installs.
 `/playwright:setup apply install-cli` does the global install.
 
 ## What it provides

@@ -10,7 +10,7 @@
         "Does not classify a project from its directory name",
         "Resolves diagram_dialect.system to c4-plantuml, passes --dialect c4-plantuml, and does not read landscape_dialect",
         "Omits --graph because dependency-graph.json is absent, and the record says containment is project-references",
-        "Closes with the fixed report: artifacts, focal, deployables, stores, modules, shared, dialect, technology, containment source, thin result, redaction"
+        "Closes with the fixed report: artifacts, focal, deployables, stores, modules, shared, excluded, working tree, dialect, technology, containment source, thin result, redaction"
       ]
     },
     {

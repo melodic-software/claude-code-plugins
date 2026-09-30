@@ -5,15 +5,17 @@
       "id": 1,
       "name": "cited-hops-and-unresolved-interface",
       "prompt": "/architecture:map-flow /orders/{id}\n\narchitecture_dir is docs/architecture. The subject is a git checkout. src/Transport/OrdersEndpoint.cs has [HttpGet(\"/orders/{id}\")] and awaits _orders.Place where _orders is IOrders, then awaits _service.Handle where _service is OrdersService. src/Application/OrdersService.cs Handle publishes OrderPlaced and calls Repository.Save. src/DecoyWorker/OrdersImpl.cs also defines Place. This is a non-interactive run.",
-      "expected_output": "Runs collect-flow.sh and render-flow.sh. Writes docs/architecture/flow.json and flow.md. The Place hop cites the Transport call site, is unresolved dependency-injection, and does not name OrdersImpl. Handle is inferred. Publish is an asynchronous handoff to map-events. Save is synchronous.",
+      "expected_output": "Runs collect-flow.sh and render-flow.sh. Writes docs/architecture/flow.json and flow.md. The Place hop cites the Transport call site, is unresolved with mechanism interface, and does not name OrdersImpl. Handle is statically-resolved, because _service is a field typed OrdersService. Publish is an unresolved broker hop and an asynchronous handoff to map-events. Save is synchronous.",
       "files": [],
       "narration": true,
       "expectations": [
         "Runs ${CLAUDE_SKILL_DIR}/scripts/collect-flow.sh with --entry /orders/{id} rather than composing the sequence by hand",
         "Writes flow.json before rendering, then runs render-flow.sh to produce flow.md",
-        "The Place hop resolution is unresolved and the mechanism is dependency-injection",
+        "The Place hop resolution is unresolved and the mechanism is interface",
+        "The Handle hop is statically-resolved, because the receiver _service is a field typed OrdersService in the same class",
         "OrdersImpl is not a callee",
-        "The Publish hop is handoff yes and asynchronous, and flow.md names /architecture:map-events",
+        "The Publish hop is resolution unresolved, mechanism broker, handoff yes and asynchronous, and flow.md names /architecture:map-events",
+        "Hops are in call order: the Handle callee's Publish and Save hops come right after the Handle hop",
         "The Save hop is synchronous",
         "Does not read or add a dialect key"
       ]
@@ -111,6 +113,38 @@
         "Does not run collect-flow.sh",
         "Writes no flow.json and no flow.md",
         "Points at /architecture:setup"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "call-binds-through-the-receiver-type",
+      "prompt": "/architecture:map-flow Checkout.Run\n\narchitecture_dir is docs/architecture. src/Application/Checkout.cs has a field `Dictionary<string, int> _cache` and Run calls _cache.Add(id, 1), then Console.WriteLine(id), then `_pricing.Quote(id)` where _pricing is a field typed Pricing. The same file also declares an unrelated class Ledger whose only method is Add, and it calls Journal.Append. This is a non-interactive run.",
+      "expected_output": "The Add hop is unresolved with mechanism external-call, has no callee, and Ledger.Add is not walked, so Journal.Append is absent from flow.json. WriteLine is external-call. Quote is statically-resolved into Pricing. The report splits Unresolved into external and di counts.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs collect-flow.sh with --entry Checkout.Run",
+        "The Add hop has resolution unresolved, mechanism external-call and an empty callee_file",
+        "flow.json contains no Append hop, because the unrelated Ledger.Add is not walked",
+        "The WriteLine hop has mechanism external-call",
+        "The Quote hop is statically-resolved and cites the Pricing declaration",
+        "The report's Unresolved line quotes unresolved=, external= and di= from the summary line and says none were bound to a guessed implementation",
+        "Does not add a hop the script did not emit"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "entry-takes-a-verb-or-type-method",
+      "prompt": "/architecture:map-flow \"GET /orders/{id}\"\n\narchitecture_dir is docs/architecture. OrdersController.cs has [HttpGet(\"/orders/{id}\")] on Get and [HttpPut(\"/orders/{id}\")] on Put, under a class-level [Route(\"api/orders\")]. A second run passes /orders/{id} with no verb. This is a non-interactive run.",
+      "expected_output": "The GET run traces the Get handler and cites its HttpGet attribute line. The run with no verb is a refusal that names both sites and lists the accepted forms: a route, a verb and a route, Type.Method, or a method name. Nothing composes the class-level Route.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes the entry GET /orders/{id} to collect-flow.sh unchanged",
+        "The record's entry cites the HttpGet attribute line, not the HttpPut handler",
+        "The run with no verb exits 3, names both handler sites and lists the accepted entry forms",
+        "Reports the refusal instead of picking one handler",
+        "Does not treat the class-level [Route] as part of the route"
       ]
     }
   ]

@@ -7,7 +7,7 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 
 ### Added
 
-- **`/playwright:check`, a model-invocable read-only check.** It runs the `playwright-cli` probes from `/playwright:setup check` and installs nothing, so Claude can run it after a missing-tool session notice. `disable-model-invocation` is a whole-skill flag, which keeps `/playwright:setup` manual.
+- **`/playwright:check`, a model-invocable read-only check.** It runs the `playwright-cli` probes from `/playwright:setup check` and installs nothing, so Claude can run it when a prerequisites report lists `playwright-cli` as missing. `disable-model-invocation` is a whole-skill flag, which keeps `/playwright:setup` manual.
 
 ### Changed
 
