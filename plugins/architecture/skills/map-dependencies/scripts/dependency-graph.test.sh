@@ -100,7 +100,7 @@ cat >"$basic/src/App/Program.cs" <<'CS'
 using Lib;
 class Program { static void Main() {} }
 CS
-printf '%s\n' '{ "dependencies": { "left-pad": "1.0.0" } }' >"$basic/package.json"
+printf '%s\n' 'source "https://rubygems.org"' >"$basic/Gemfile"
 sibling_sln_path='..\Sibling\Sibling.csproj' # portability-ok: Windows path fixture; \S is the Sibling segment, not a GNU grep class
 cat >"$basic/App.sln" <<SLN
 Microsoft Visual Studio Solution File, Format Version 12.00
@@ -143,7 +143,7 @@ assert_contains "basic: solution membership outside the root is a finding" "$bas
 assert_contains "basic: solution finding keeps the declared path" "$basic_json" '..\\Sibling\\Sibling.csproj' # portability-ok: Windows path fixture; \S is the Sibling segment, not a GNU grep class
 assert_not_contains "basic: solution path is not resolved onto the decoy sibling" "$basic_json" '"to":"src/Sibling/Sibling.csproj"'
 assert_not_contains "basic: a using in Program.cs is not an edge" "$basic_json" 'Program.cs'
-assert_contains "basic: unread node manifest is named, not drawn as empty" "$basic_json" 'Not read: node (package.json)'
+assert_contains "basic: unread ruby manifest is named, not drawn as empty" "$basic_json" 'Not read: ruby (Gemfile)'
 assert_contains "basic: node_threshold documented in the record" "$basic_json" '"node_threshold": 40'
 
 # One object per line: a node line parses as one JSON object.
@@ -253,22 +253,22 @@ th_mermaid="$(printf '%s\n' "$th_md" | awk '/^```mermaid$/,/^```$/')"
 assert_not_contains "threshold: diagram does not draw project files" "$th_mermaid" "App.csproj"
 assert_contains "threshold: diagram draws the directory edge" "$th_mermaid" "g01"
 
-node_only="$(make_tree node-only)"
-printf '%s\n' '{ "dependencies": { "left-pad": "1.0.0" } }' >"$node_only/package.json"
-node_json="$(bash "$GRAPH" "$node_only")"
-assert_equals "node-only: collector exits 0" "$?" "0"
-assert_contains "node-only: result unknown" "$node_json" '"result": "unknown"'
-assert_contains "node-only: names the manifest" "$node_json" "package.json"
-assert_contains "node-only: does not invent an empty graph" "$node_json" "did not invent an empty graph"
-assert_contains "node-only: nodes array is empty" "$node_json" '"nodes": []'
-mkdir -p "$TEST_TMPDIR/out-node"
-printf '%s\n' "$node_json" >"$TEST_TMPDIR/out-node/dependency-graph.json"
-node_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-node/dependency-graph.json" --out "$TEST_TMPDIR/out-node")"
-assert_equals "node-only: renderer exits 0" "$?" "0"
-assert_contains "node-only: summary is unknown" "$node_summary" "result=unknown"
-node_md="$(cat "$TEST_TMPDIR/out-node/dependency-graph.md")"
-assert_contains "node-only: prose says it is not an empty graph" "$node_md" "not an empty graph"
-assert_not_contains "node-only: no mermaid flowchart" "$node_md" '```mermaid'
+gem_only="$(make_tree gem-only)"
+printf '%s\n' 'source "https://rubygems.org"' >"$gem_only/Gemfile"
+gem_json="$(bash "$GRAPH" "$gem_only")"
+assert_equals "gem-only: collector exits 0" "$?" "0"
+assert_contains "gem-only: result unknown" "$gem_json" '"result": "unknown"'
+assert_contains "gem-only: names the manifest" "$gem_json" "Gemfile"
+assert_contains "gem-only: does not invent an empty graph" "$gem_json" "did not invent an empty graph"
+assert_contains "gem-only: nodes array is empty" "$gem_json" '"nodes": []'
+mkdir -p "$TEST_TMPDIR/out-gem"
+printf '%s\n' "$gem_json" >"$TEST_TMPDIR/out-gem/dependency-graph.json"
+gem_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-gem/dependency-graph.json" --out "$TEST_TMPDIR/out-gem")"
+assert_equals "gem-only: renderer exits 0" "$?" "0"
+assert_contains "gem-only: summary is unknown" "$gem_summary" "result=unknown"
+gem_md="$(cat "$TEST_TMPDIR/out-gem/dependency-graph.md")"
+assert_contains "gem-only: prose says it is not an empty graph" "$gem_md" "not an empty graph"
+assert_not_contains "gem-only: no mermaid flowchart" "$gem_md" '```mermaid'
 
 empty="$(make_tree empty)"
 empty_json="$(bash "$GRAPH" "$empty")"
@@ -281,6 +281,61 @@ sdk_json="$(bash "$GRAPH" "$sdk_only")"
 assert_contains "global.json alone: result unknown" "$sdk_json" '"result": "unknown"'
 assert_contains "global.json alone: names the file" "$sdk_json" "global.json"
 assert_contains "global.json alone: does not invent an empty graph" "$sdk_json" "did not invent an empty graph"
+
+# A solution member the .NET reader does not handle is an unread-manifest
+# finding that cites the solution file and the skipped declaration; a solution
+# folder is not one.
+unread="$(make_tree unread-manifest)"
+mkdir -p "$unread/src/App" "$unread/db"
+printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"></Project>' >"$unread/src/App/App.csproj"
+printf '%s\n' '<Project></Project>' >"$unread/db/Db.vbproj"
+cat >"$unread/App.sln" <<'SLN'
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "App", "src\App\App.csproj", "{11111111-1111-1111-1111-111111111111}"
+EndProject
+Project("{F184B08F-C81C-45F6-A57F-5ABD9991F28F}") = "Db", "db\Db.vbproj", "{22222222-2222-2222-2222-222222222222}"
+EndProject
+Project("{00D1A9C2-B5F0-4AF3-8072-F6C62B6356EE}") = "Installer", "wix\Installer.wixproj", "{33333333-3333-3333-3333-333333333333}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{44444444-4444-4444-4444-444444444444}"
+EndProject
+SLN
+unread_json="$(bash "$GRAPH" "$unread")"
+unread_findings="$(printf '%s\n' "$unread_json" | grep '"kind":"unread-manifest"')"
+assert_contains "unread-manifest: the skipped project type is a finding" "$unread_findings" '"kind":"unread-manifest","path":"App.sln"'
+assert_contains "unread-manifest: evidence is the file and the declaration" "$unread_findings" 'App.sln: Project(\"{F184B08F-C81C-45F6-A57F-5ABD9991F28F}\") = \"Db\", \"db\\Db.vbproj\"'
+assert_equals "unread-manifest: one finding per skipped declaration" "$(printf '%s\n' "$unread_findings" | grep -c .)" "2"
+assert_not_contains "unread-manifest: a solution folder is not a finding" "$unread_findings" '\"src\", \"src\"'
+assert_contains "unread-manifest: the supported member is still a node" "$unread_json" '"id":"src/App/App.csproj"'
+assert_not_contains "unread-manifest: the skipped project is not a node" "$unread_json" '"id":"db/Db.vbproj"'
+assert_equals "unread-manifest: a rerun is byte-identical" "$(bash "$GRAPH" "$unread")" "$unread_json"
+mkdir -p "$TEST_TMPDIR/out-unread"
+printf '%s\n' "$unread_json" >"$TEST_TMPDIR/out-unread/dependency-graph.json"
+unread_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-unread/dependency-graph.json" --out "$TEST_TMPDIR/out-unread")"
+assert_contains "unread-manifest: the summary counts the file once" "$unread_summary" "unread_files=1"
+assert_contains "unread-manifest: the artifact lists the skipped declaration" "$(cat "$TEST_TMPDIR/out-unread/dependency-graph.md")" 'Db.vbproj'
+
+# A record of more than one ecosystem names them.
+cat >"$TEST_TMPDIR/out-unread/mixed.json" <<'EOF'
+{
+  "schema_version": 1,
+  "generated_on": "2026-09-28",
+  "result": "ok",
+  "message": "",
+  "ecosystem": "mixed",
+  "node_threshold": 40,
+  "cycles_truncated": false,
+  "nodes": [
+    {"id":"a/A.csproj","name":"A","path":"a/A.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"web/package.json","name":"web","path":"web/package.json","ecosystem":"node","kind":"project"}
+  ],
+  "edges": [],
+  "cycles": [],
+  "findings": []
+}
+EOF
+mixed_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-unread/mixed.json" --out "$TEST_TMPDIR/out-unread")"
+assert_contains "mixed: summary names the ecosystem" "$mixed_summary" "ecosystem=mixed"
+assert_contains "mixed: artifact lists the ecosystems read" "$(cat "$TEST_TMPDIR/out-unread/dependency-graph.md")" "- Ecosystems read: dotnet, node"
 
 mkdir -p "$TEST_TMPDIR/out-bad"
 cat >"$TEST_TMPDIR/pretty.json" <<'EOF'
@@ -586,6 +641,455 @@ assert_not_contains "namespace: an MSBuild expression is not a namespace" "$(nod
 assert_contains "test: a test framework reference marks the node" "$(node_of Tests/Tests.csproj)" '"test":"yes"'
 assert_not_contains "test: an ordinary project has no test field" "$(node_of Bare/Bare.csproj)" '"test"'
 assert_contains "test: schema_version stays 1" "$fields_json" '"schema_version": 1'
+
+T=$'\t'
+
+# Node workspaces. Members are the package folders the workspaces globs expand
+# to; a package elsewhere on disk is never matched by name.
+put() {
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" >"$1"
+}
+nodews="$(make_tree nodews)"
+put "$nodews/package.json" '{
+  "name": "acme",
+  "private": true,
+  "workspaces": ["packages/*", "!packages/legacy"],
+  "devDependencies": { "@acme/tooling": "workspace:^", "typescript": "^5.0.0" }
+}'
+put "$nodews/packages/app/package.json" '{
+  "name": "@acme/app",
+  "dependencies": {
+    "@acme/lib": "workspace:*",
+    "left-pad": "^1.0.0",
+    "decoy-outside": "^1.0.0",
+    "ghost-pkg": "workspace:*",
+    "build-tool": "file:../../tools/build",
+    "escape": "link:../../../elsewhere",
+    "gone": "file:../nope",
+    "shared": "catalog:"
+  },
+  "peerDependencies": { "@acme/tooling": ">=1" }
+}'
+put "$nodews/packages/lib/package.json" '{ "name": "@acme/lib", "devDependencies": { "weird": { "version": "1" } } }'
+put "$nodews/packages/tooling/package.json" '{ "name": "@acme/tooling" }'
+put "$nodews/packages/legacy/package.json" '{ "name": "@acme/legacy" }'
+put "$nodews/tools/build/package.json" '{ "name": "build-tool" }'
+put "$nodews/tools/decoy/package.json" '{ "name": "decoy-outside" }'
+put "$TEST_TMPDIR/elsewhere/package.json" '{ "name": "escape" }'
+nodews_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$nodews")"
+assert_equals "node: collector exits 0" "$?" "0"
+assert_contains "node: result ok" "$nodews_json" '"result": "ok"'
+assert_contains "node: ecosystem node" "$nodews_json" '"ecosystem": "node"'
+assert_contains "node: a package.json is a project node named by its name field" "$nodews_json" '{"id":"packages/app/package.json","name":"@acme/app","path":"packages/app/package.json","ecosystem":"node","kind":"project"}'
+assert_contains "node: a nameless folder gives the root its folder name" "$nodews_json" '"id":"package.json","name":"acme"'
+assert_contains "node: workspace: spec on a member is an internal edge citing file and declaration" "$nodews_json" '{"from":"packages/app/package.json","to":"packages/lib/package.json","kind":"project","status":"resolved","evidence":"packages/app/package.json: \"@acme/lib\": \"workspace:*\""}'
+assert_contains "node: workspace:^ from the root names a member" "$nodews_json" '{"from":"package.json","to":"packages/tooling/package.json","kind":"project","status":"resolved","evidence":"package.json: \"@acme/tooling\": \"workspace:^\""}'
+assert_contains "node: a peerDependency naming a member is an internal edge" "$nodews_json" '"from":"packages/app/package.json","to":"packages/tooling/package.json","kind":"project","status":"resolved","evidence":"packages/app/package.json: \"@acme/tooling\": \">=1\""'
+assert_contains "node: a file: spec inside the root is an internal edge" "$nodews_json" '{"from":"packages/app/package.json","to":"tools/build/package.json","kind":"project","status":"resolved","evidence":"packages/app/package.json: \"build-tool\": \"file:../../tools/build\""}'
+assert_contains "node: an ordinary dependency is an external package edge" "$nodews_json" '{"from":"packages/app/package.json","to":"pkg:node:left-pad","kind":"package","status":"resolved","evidence":"packages/app/package.json: \"left-pad\": \"^1.0.0\""}'
+assert_contains "node: a package node is named pkg:node:<name>" "$nodews_json" '{"id":"pkg:node:left-pad","name":"left-pad","path":"","ecosystem":"node","kind":"package"}'
+assert_contains "node: a devDependency is an external edge from the root" "$nodews_json" '"from":"package.json","to":"pkg:node:typescript","kind":"package"'
+assert_contains "node: a name matching a non-member package stays external" "$nodews_json" '"to":"pkg:node:decoy-outside","kind":"package","status":"resolved"'
+assert_not_contains "node: a name is never matched to a package on disk outside the workspace" "$nodews_json" '"to":"tools/decoy/package.json"'
+assert_contains "node: workspace: naming no member is unresolved" "$nodews_json" '"from":"packages/app/package.json","to":"ghost-pkg","kind":"project","status":"unresolved","evidence":"packages/app/package.json: \"ghost-pkg\": \"workspace:*\""'
+assert_contains "node: a link: outside the root is unresolved and keeps the spec" "$nodews_json" '"to":"link:../../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "node: the outside package is not matched by name or path" "$nodews_json" 'elsewhere/package.json'
+assert_contains "node: a file: to a missing folder is unresolved" "$nodews_json" '"to":"file:../nope","kind":"project","status":"unresolved"'
+assert_contains "node: a catalog: spec is an unread-manifest finding" "$nodews_json" '{"kind":"unread-manifest","path":"packages/app/package.json","evidence":"packages/app/package.json: \"shared\": \"catalog:\""}'
+assert_not_contains "node: a catalog: spec is not drawn as an edge" "$nodews_json" '"to":"pkg:node:shared"'
+assert_contains "node: a negated workspace glob is an unread-manifest finding" "$nodews_json" '{"kind":"unread-manifest","path":"package.json","evidence":"package.json: \"!packages/legacy\""}'
+assert_contains "node: a non-string dependency value is an unread-manifest finding" "$nodews_json" '{"kind":"unread-manifest","path":"packages/lib/package.json","evidence":"packages/lib/package.json: \"weird\": {...}"}'
+nodews_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$nodews")"
+assert_equals "node: two runs are byte-identical" "$nodews_again" "$nodews_json"
+mkdir -p "$TEST_TMPDIR/out-nodews"
+printf '%s\n' "$nodews_json" >"$TEST_TMPDIR/out-nodews/dependency-graph.json"
+nodews_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-nodews/dependency-graph.json" --out "$TEST_TMPDIR/out-nodews")"
+assert_equals "node: renderer exits 0" "$?" "0"
+assert_contains "node: renderer counts the unread manifests" "$nodews_summary" "unread_files=3"
+
+# pnpm-workspace.yaml globs, the workspace: alias and path forms, and scope: a
+# package outside every workspace does not see the members by name.
+pnpm="$(make_tree pnpm)"
+put "$pnpm/pnpm-workspace.yaml" "packages:
+  - 'apps/*'
+  - 'libs/**'
+catalog:
+  react: ^18.0.0"
+put "$pnpm/package.json" '{ "name": "pnpm-root" }'
+put "$pnpm/apps/web/package.json" '{
+  "name": "web",
+  "dependencies": { "ui": "workspace:*", "alias": "workspace:@acme/core@*", "rel": "workspace:../../libs/util", "deep": "^1.0.0" }
+}'
+put "$pnpm/libs/ui/package.json" '{ "name": "ui" }'
+put "$pnpm/libs/core/package.json" '{ "name": "@acme/core" }'
+put "$pnpm/libs/util/package.json" '{ "name": "util" }'
+put "$pnpm/libs/nest/deep/package.json" '{ "name": "deep" }'
+put "$pnpm/tools/cli/package.json" '{ "name": "cli", "dependencies": { "ui": "^1.0.0" } }'
+pnpm_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$pnpm")"
+assert_contains "pnpm: a workspace:* spec resolves to the member by the dependency's name" "$pnpm_json" '{"from":"apps/web/package.json","to":"libs/ui/package.json","kind":"project","status":"resolved","evidence":"apps/web/package.json: \"ui\": \"workspace:*\""}'
+assert_contains "pnpm: the workspace:pkg@range alias resolves to the aliased member" "$pnpm_json" '"from":"apps/web/package.json","to":"libs/core/package.json","kind":"project","status":"resolved","evidence":"apps/web/package.json: \"alias\": \"workspace:@acme/core@*\""'
+assert_contains "pnpm: a workspace: path resolves to the folder" "$pnpm_json" '"from":"apps/web/package.json","to":"libs/util/package.json","kind":"project","status":"resolved","evidence":"apps/web/package.json: \"rel\": \"workspace:../../libs/util\""'
+assert_contains "pnpm: ** reaches a nested member" "$pnpm_json" '"from":"apps/web/package.json","to":"libs/nest/deep/package.json","kind":"project","status":"resolved"'
+assert_contains "pnpm: a package outside every workspace sees a member name as external" "$pnpm_json" '{"from":"tools/cli/package.json","to":"pkg:node:ui","kind":"package","status":"resolved","evidence":"tools/cli/package.json: \"ui\": \"^1.0.0\""}'
+assert_not_contains "pnpm: the yaml catalog raises no finding" "$pnpm_json" 'unread-manifest'
+
+# A flow-list packages key in the yaml is unread.
+pnpmflow="$(make_tree pnpmflow)"
+put "$pnpmflow/pnpm-workspace.yaml" 'packages: [apps/*]'
+put "$pnpmflow/package.json" '{ "name": "root" }'
+pnpmflow_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$pnpmflow")"
+assert_contains "pnpm: a flow-list packages key is an unread-manifest finding" "$pnpmflow_json" '{"kind":"unread-manifest","path":"pnpm-workspace.yaml","evidence":"pnpm-workspace.yaml: packages: [apps/*]"}'
+
+# Node beside .NET is one mixed record.
+nodemix="$(make_tree nodemix)"
+put "$nodemix/src/App/App.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+put "$nodemix/web/package.json" '{ "name": "web", "dependencies": { "left-pad": "1.0.0" } }'
+nodemix_json="$(bash "$GRAPH" "$nodemix")"
+assert_contains "node beside dotnet: ecosystem is mixed" "$nodemix_json" '"ecosystem": "mixed"'
+assert_contains "node beside dotnet: each node keeps its own ecosystem" "$nodemix_json" '"id":"web/package.json","name":"web","path":"web/package.json","ecosystem":"node"'
+
+# Go modules: replace, go.work membership, and everything else external.
+gotree="$(make_tree gotree)"
+put "$gotree/app/go.mod" "module example.com/acme/app
+
+go 1.22
+
+require (
+${T}example.com/acme/lib v1.0.0
+${T}example.com/acme/shared v1.0.0
+${T}example.com/acme/plain v1.0.0
+${T}github.com/pkg/errors v0.9.1
+)
+
+replace example.com/acme/lib => ../lib
+replace example.com/acme/gone => ../nope
+replace example.com/acme/away => ../../elsewhere
+replace github.com/pkg/errors => github.com/fork/errors v0.9.2
+frobnicate this"
+put "$gotree/lib/go.mod" 'module example.com/acme/lib'
+put "$gotree/shared/go.mod" 'module example.com/acme/shared'
+put "$gotree/plain/go.mod" 'module example.com/acme/plain'
+put "$gotree/go.work" "go 1.22
+use (
+${T}./app
+${T}./shared
+${T}./missing
+)"
+put "$TEST_TMPDIR/elsewhere/go.mod" 'module escape'
+go_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$gotree")"
+assert_contains "go: ecosystem go" "$go_json" '"ecosystem": "go"'
+assert_contains "go: a go.mod is a project node named by its module path" "$go_json" '{"id":"app/go.mod","name":"example.com/acme/app","path":"app/go.mod","ecosystem":"go","kind":"project"}'
+assert_contains "go: a local replace is an internal edge citing the replace line" "$go_json" '{"from":"app/go.mod","to":"lib/go.mod","kind":"project","status":"resolved","evidence":"app/go.mod: replace example.com/acme/lib => ../lib"}'
+assert_not_contains "go: a replaced require is not also external" "$go_json" '"to":"pkg:go:example.com/acme/lib"'
+assert_contains "go: a replace to a missing folder is unresolved" "$go_json" '"to":"../nope","kind":"project","status":"unresolved","evidence":"app/go.mod: replace example.com/acme/gone => ../nope"'
+assert_contains "go: a replace outside the root is unresolved" "$go_json" '"to":"../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "go: the outside module is never matched" "$go_json" 'elsewhere/go.mod'
+assert_contains "go: a require of a go.work member is internal citing the use line" "$go_json" '{"from":"app/go.mod","to":"shared/go.mod","kind":"project","status":"resolved","evidence":"go.work: ./shared"}'
+assert_contains "go: a require matching a repo module with no replace or use stays external" "$go_json" '{"from":"app/go.mod","to":"pkg:go:example.com/acme/plain","kind":"package","status":"resolved","evidence":"app/go.mod: example.com/acme/plain v1.0.0"}'
+assert_contains "go: a module replace leaves the require external" "$go_json" '"to":"pkg:go:github.com/pkg/errors","kind":"package"'
+assert_contains "go: an unknown directive is an unread-manifest finding" "$go_json" '{"kind":"unread-manifest","path":"app/go.mod","evidence":"app/go.mod: frobnicate this"}'
+assert_contains "go: a use line with no go.mod is an unread-manifest finding" "$go_json" '{"kind":"unread-manifest","path":"go.work","evidence":"go.work: ./missing"}'
+go_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$gotree")"
+assert_equals "go: two runs are byte-identical" "$go_again" "$go_json"
+
+# A single-line require is read, and Go beside Node is one mixed record.
+gomix="$(make_tree gomix)"
+put "$gomix/svc/go.mod" 'module example.com/svc
+require github.com/pkg/errors v0.9.1'
+put "$gomix/web/package.json" '{ "name": "web" }'
+gomix_json="$(bash "$GRAPH" "$gomix")"
+assert_contains "go beside node: ecosystem is mixed" "$gomix_json" '"ecosystem": "mixed"'
+assert_contains "go: a single-line require is an external edge" "$gomix_json" '"from":"svc/go.mod","to":"pkg:go:github.com/pkg/errors"'
+
+# Python: path references are internal, names are external, setup.py is unread.
+pytree="$(make_tree pytree)"
+put "$pytree/pyproject.toml" '[project]
+name = "acme-app"
+dependencies = [
+  "requests>=2",
+  "acme-lib @ file:./libs/lib",
+  "gone @ file:./nope",
+  "away @ file:../../elsewhere",
+]'
+put "$pytree/libs/lib/pyproject.toml" '[project]
+name = "acme-lib"'
+put "$pytree/svc/pyproject.toml" '[project]
+dependencies = ["shared>=1", "extra"]
+[tool.poetry.dependencies]
+lib = { path = "../libs/lib" }
+[tool.uv.sources]
+shared = { path = "../shared" }'
+put "$pytree/shared/setup.py" 'from setuptools import setup'
+put "$pytree/tools/requirements.txt" '-r requirements/base.txt
+-e ../libs/lib
+flask
+-r ../../outside.txt'
+put "$pytree/tools/requirements/base.txt" 'django
+-e ../../shared'
+put "$pytree/app/setup.py" 'from setuptools import setup'
+put "$pytree/app/requirements.txt" '-e .
+click'
+put "$pytree/dyn/pyproject.toml" '[project]
+name = "d"
+dynamic = ["dependencies"]'
+put "$TEST_TMPDIR/elsewhere/pyproject.toml" '[project]
+name = "escape"'
+py_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$pytree")"
+assert_contains "python: ecosystem python" "$py_json" '"ecosystem": "python"'
+assert_contains "python: a pyproject is a project node named by [project] name" "$py_json" '{"id":"libs/lib/pyproject.toml","name":"acme-lib","path":"libs/lib/pyproject.toml","ecosystem":"python","kind":"project"}'
+assert_contains "python: a requirements file with no manifest beside it is a node" "$py_json" '{"id":"tools/requirements.txt","name":"requirements.txt","path":"tools/requirements.txt","ecosystem":"python","kind":"project"}'
+assert_contains "python: name @ file: is an internal edge citing the declaration" "$py_json" '{"from":"pyproject.toml","to":"libs/lib/pyproject.toml","kind":"project","status":"resolved","evidence":"pyproject.toml: \"acme-lib @ file:./libs/lib\""}'
+assert_not_contains "python: a path requirement is not also external" "$py_json" '"to":"pkg:python:acme-lib"'
+assert_contains "python: a missing path is unresolved and keeps the declared path" "$py_json" '"to":"./nope","kind":"project","status":"unresolved","evidence":"pyproject.toml: \"gone @ file:./nope\""'
+assert_contains "python: a path outside the root is unresolved" "$py_json" '"to":"../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "python: the outside project is never matched" "$py_json" 'elsewhere/pyproject.toml'
+assert_contains "python: a named requirement is an external edge" "$py_json" '{"from":"pyproject.toml","to":"pkg:python:requests","kind":"package","status":"resolved","evidence":"pyproject.toml: \"requests>=2\""}'
+assert_contains "python: a poetry path entry is an internal edge" "$py_json" '{"from":"svc/pyproject.toml","to":"libs/lib/pyproject.toml","kind":"project","status":"resolved","evidence":"svc/pyproject.toml: lib = { path = \"../libs/lib\" }"}'
+assert_contains "python: a uv path source reaches a setup.py project" "$py_json" '{"from":"svc/pyproject.toml","to":"shared/setup.py","kind":"project","status":"resolved","evidence":"svc/pyproject.toml: shared = { path = \"../shared\" }"}'
+assert_not_contains "python: a requirement with a uv path source is not also external" "$py_json" '"to":"pkg:python:shared"'
+assert_contains "python: setup.py is an unread-manifest finding" "$py_json" '{"kind":"unread-manifest","path":"shared/setup.py","evidence":"shared/setup.py: setup.py is not executed or parsed"}'
+assert_contains "python: dynamic dependencies is an unread-manifest finding" "$py_json" '{"kind":"unread-manifest","path":"dyn/pyproject.toml","evidence":"dyn/pyproject.toml: dynamic = [\"dependencies\"]"}'
+assert_contains "python: -e is an internal edge citing the requirements line" "$py_json" '{"from":"tools/requirements.txt","to":"libs/lib/pyproject.toml","kind":"project","status":"resolved","evidence":"tools/requirements.txt: -e ../libs/lib"}'
+assert_contains "python: a -r include inside the root is followed and cited" "$py_json" '{"from":"tools/requirements.txt","to":"shared/setup.py","kind":"project","status":"resolved","evidence":"tools/requirements/base.txt: -e ../../shared"}'
+assert_contains "python: a named requirement in an included file is external" "$py_json" '"from":"tools/requirements.txt","to":"pkg:python:django"'
+assert_contains "python: a -r include outside the root is an unread-manifest finding" "$py_json" '{"kind":"unread-manifest","path":"tools/requirements.txt","evidence":"tools/requirements.txt: -r ../../outside.txt"}'
+assert_contains "python: a requirements file beside setup.py belongs to it" "$py_json" '{"from":"app/setup.py","to":"pkg:python:click","kind":"package","status":"resolved","evidence":"app/requirements.txt: click"}'
+assert_not_contains "python: -e . is not an edge to itself" "$py_json" '"evidence":"app/requirements.txt: -e ."'
+py_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$pytree")"
+assert_equals "python: two runs are byte-identical" "$py_again" "$py_json"
+
+# Python uv workspace: members expand against the pyproject.toml files found.
+uvws="$(make_tree uvws)"
+put "$uvws/pyproject.toml" '[project]
+name = "root"
+[tool.uv.workspace]
+members = ["packages/*", "tools/cli", "missing/one", "pkgs/{a,b}"]
+exclude = ["packages/legacy"]'
+put "$uvws/packages/a/pyproject.toml" '[project]
+name = "a"'
+put "$uvws/packages/legacy/pyproject.toml" '[project]
+name = "legacy"'
+put "$uvws/packages/a/sub/pyproject.toml" '[project]
+name = "nested"'
+put "$uvws/tools/cli/pyproject.toml" '[project]
+name = "cli"'
+uvws_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$uvws")"
+assert_contains "python: a uv members glob is an internal edge citing the declaration" "$uvws_json" '{"from":"pyproject.toml","to":"packages/a/pyproject.toml","kind":"project","status":"resolved","evidence":"pyproject.toml: members \"packages/*\""}'
+assert_contains "python: a literal uv member is an internal edge" "$uvws_json" '"from":"pyproject.toml","to":"tools/cli/pyproject.toml","kind":"project","status":"resolved"'
+assert_not_contains "python: a uv exclude removes the member" "$uvws_json" '"to":"packages/legacy/pyproject.toml"'
+assert_not_contains "python: a single-star glob does not cross folders" "$uvws_json" '"to":"packages/a/sub/pyproject.toml"'
+assert_contains "python: a literal uv member with no pyproject.toml is unresolved" "$uvws_json" '"to":"missing/one","kind":"project","status":"unresolved"'
+assert_contains "python: a member glob the reader cannot resolve is unread" "$uvws_json" '{"kind":"unread-manifest","path":"pyproject.toml","evidence":"pyproject.toml: members \"pkgs/{a,b}\""}'
+uvws_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$uvws")"
+assert_equals "python: uv workspace runs are byte-identical" "$uvws_again" "$uvws_json"
+
+# Python beside Go is one mixed record.
+pymix="$(make_tree pymix)"
+put "$pymix/svc/go.mod" 'module example.com/svc'
+put "$pymix/app/requirements.txt" 'click'
+pymix_json="$(bash "$GRAPH" "$pymix")"
+assert_contains "python beside go: ecosystem is mixed" "$pymix_json" '"ecosystem": "mixed"'
+assert_contains "python beside go: each node keeps its own ecosystem" "$pymix_json" '"id":"app/requirements.txt","name":"requirements.txt","path":"app/requirements.txt","ecosystem":"python"'
+
+# Rust: path dependencies are internal, crates are external, target tables are unread.
+rstree="$(make_tree rstree)"
+put "$rstree/Cargo.toml" '[package]
+name = "app"
+[dependencies]
+serde = "1"
+local = { path = "crates/local" }
+gone = { path = "crates/gone" }
+away = { path = "../../elsewhere" }
+[dev-dependencies]
+Tokio_Rt = { version = "1" }
+[target.'"'"'cfg(unix)'"'"'.dependencies]
+libc = "0.2"'
+put "$rstree/crates/local/Cargo.toml" '[package]
+name = "local"
+[build-dependencies]
+cc = { path = "../cc" }
+[dependencies.sub]
+path = "../sub"'
+put "$rstree/crates/cc/Cargo.toml" '[package]
+name = "cc"'
+put "$rstree/crates/sub/Cargo.toml" '[package]
+name = "sub"'
+put "$TEST_TMPDIR/elsewhere/Cargo.toml" '[package]
+name = "escape"'
+rs_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$rstree")"
+assert_contains "rust: ecosystem rust" "$rs_json" '"ecosystem": "rust"'
+assert_contains "rust: a Cargo.toml is a project node named by [package] name" "$rs_json" '{"id":"crates/local/Cargo.toml","name":"local","path":"crates/local/Cargo.toml","ecosystem":"rust","kind":"project"}'
+assert_contains "rust: a path dependency is an internal edge citing the declaration" "$rs_json" '{"from":"Cargo.toml","to":"crates/local/Cargo.toml","kind":"project","status":"resolved","evidence":"Cargo.toml: local = { path = \"crates/local\" }"}'
+assert_not_contains "rust: a path dependency is not also external" "$rs_json" '"to":"pkg:rust:local"'
+assert_contains "rust: a missing path is unresolved and keeps the declared path" "$rs_json" '"to":"crates/gone","kind":"project","status":"unresolved"'
+assert_contains "rust: a path outside the root is unresolved" "$rs_json" '"to":"../../elsewhere","kind":"project","status":"unresolved"'
+assert_not_contains "rust: the outside crate is never matched" "$rs_json" 'elsewhere/Cargo.toml'
+assert_contains "rust: a build-dependency path is an internal edge" "$rs_json" '{"from":"crates/local/Cargo.toml","to":"crates/cc/Cargo.toml","kind":"project","status":"resolved","evidence":"crates/local/Cargo.toml: cc = { path = \"../cc\" }"}'
+assert_contains "rust: a [dependencies.name] table path is an internal edge" "$rs_json" '{"from":"crates/local/Cargo.toml","to":"crates/sub/Cargo.toml","kind":"project","status":"resolved","evidence":"crates/local/Cargo.toml: [dependencies.sub] path = \"../sub\""}'
+assert_contains "rust: a crate is an external edge" "$rs_json" '{"from":"Cargo.toml","to":"pkg:rust:serde","kind":"package","status":"resolved","evidence":"Cargo.toml: serde = \"1\""}'
+assert_contains "rust: a crate name folds case and underscores" "$rs_json" '"to":"pkg:rust:tokio-rt"'
+assert_contains "rust: a target-specific table is an unread-manifest finding" "$rs_json" '{"kind":"unread-manifest","path":"Cargo.toml","evidence":"Cargo.toml: [target.'"'"'cfg(unix)'"'"'.dependencies]"}'
+assert_not_contains "rust: a target-specific dependency draws no edge" "$rs_json" 'pkg:rust:libc'
+rs_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$rstree")"
+assert_equals "rust: two runs are byte-identical" "$rs_again" "$rs_json"
+
+# Rust workspace: members expand against the Cargo.toml files found; workspace = true resolves.
+rsws="$(make_tree rsws)"
+put "$rsws/Cargo.toml" '[workspace]
+members = ["crates/*", "tools/cli", "missing/one", "pkgs/{a,b}", "."]
+exclude = ["crates/old"]
+[workspace.dependencies]
+core = { path = "crates/core" }
+anyhow = "1"
+unused = { path = "crates/unused" }'
+put "$rsws/crates/core/Cargo.toml" '[package]
+name = "core"'
+put "$rsws/crates/old/Cargo.toml" '[package]
+name = "old"'
+put "$rsws/crates/unused/Cargo.toml" '[package]
+name = "unused"'
+put "$rsws/crates/app/Cargo.toml" '[package]
+name = "app"
+[dependencies]
+core = { workspace = true }
+anyhow.workspace = true
+nope = { workspace = true }'
+put "$rsws/crates/app/inner/Cargo.toml" '[package]
+name = "inner"'
+put "$rsws/tools/cli/Cargo.toml" '[package]
+name = "cli"'
+put "$rsws/loose/Cargo.toml" '[package]
+name = "loose"
+[dependencies]
+core = { workspace = true }'
+rsws_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$rsws")"
+assert_contains "rust: a members glob is an internal edge citing the declaration" "$rsws_json" '{"from":"Cargo.toml","to":"crates/app/Cargo.toml","kind":"project","status":"resolved","evidence":"Cargo.toml: members \"crates/*\""}'
+assert_contains "rust: a literal member is an internal edge" "$rsws_json" '"from":"Cargo.toml","to":"tools/cli/Cargo.toml","kind":"project","status":"resolved"'
+assert_not_contains "rust: an exclude removes the member" "$rsws_json" '"to":"crates/old/Cargo.toml"'
+assert_not_contains "rust: a single-star glob does not cross folders" "$rsws_json" '"to":"crates/app/inner/Cargo.toml"'
+assert_contains "rust: a literal member with no Cargo.toml is unresolved" "$rsws_json" '"to":"missing/one","kind":"project","status":"unresolved"'
+assert_not_contains "rust: the . member draws no edge" "$rsws_json" '"to":"."'
+assert_contains "rust: a member glob the reader cannot resolve is unread" "$rsws_json" '{"kind":"unread-manifest","path":"Cargo.toml","evidence":"Cargo.toml: members \"pkgs/{a,b}\""}'
+assert_contains "rust: workspace = true with a workspace path is internal and cites both declarations" "$rsws_json" '{"from":"crates/app/Cargo.toml","to":"crates/core/Cargo.toml","kind":"project","status":"resolved","evidence":"crates/app/Cargo.toml: core = { workspace = true } via Cargo.toml: core = { path = \"crates/core\" }"}'
+assert_contains "rust: dotted workspace = true with a workspace version is external" "$rsws_json" '"from":"crates/app/Cargo.toml","to":"pkg:rust:anyhow","kind":"package","status":"resolved","evidence":"crates/app/Cargo.toml: anyhow.workspace = true via Cargo.toml: anyhow = \"1\""'
+assert_contains "rust: workspace = true with no workspace entry is unread" "$rsws_json" '{"kind":"unread-manifest","path":"crates/app/Cargo.toml","evidence":"crates/app/Cargo.toml: nope = { workspace = true }"}'
+assert_contains "rust: a workspace path entry is resolved against the workspace root folder" "$rsws_json" '{"from":"loose/Cargo.toml","to":"crates/core/Cargo.toml"'
+assert_not_contains "rust: a workspace entry no member inherits draws no edge" "$rsws_json" '"to":"crates/unused/Cargo.toml","kind":"project","status":"resolved","evidence":"Cargo.toml: unused'
+rsws_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$rsws")"
+assert_equals "rust: workspace runs are byte-identical" "$rsws_again" "$rsws_json"
+
+# workspace = true with no [workspace] ancestor at all is unread.
+rsorph="$(make_tree rsorph)"
+put "$rsorph/Cargo.toml" '[package]
+name = "orphan"
+[dependencies]
+core = { workspace = true }'
+rsorph_json="$(bash "$GRAPH" "$rsorph")"
+assert_contains "rust: workspace = true with no workspace root is unread" "$rsorph_json" '{"kind":"unread-manifest","path":"Cargo.toml","evidence":"Cargo.toml: core = { workspace = true }"}'
+
+# Rust beside Python is one mixed record.
+rsmix="$(make_tree rsmix)"
+put "$rsmix/svc/Cargo.toml" '[package]
+name = "svc"'
+put "$rsmix/app/requirements.txt" 'click'
+rsmix_json="$(bash "$GRAPH" "$rsmix")"
+assert_contains "rust beside python: ecosystem is mixed" "$rsmix_json" '"ecosystem": "mixed"'
+assert_contains "rust beside python: each node keeps its own ecosystem" "$rsmix_json" '"id":"svc/Cargo.toml","name":"svc","path":"svc/Cargo.toml","ecosystem":"rust"'
+
+# Gradle (Groovy): include and project(':x') are internal edges.
+gr="$(make_tree gr)"
+put "$gr/settings.gradle" "rootProject.name = 'demo'
+include ':app', ':core', ':lib:util', ':nobuild', ':ghost'
+include(modulesVar)
+includeBuild('../other')"
+put "$gr/build.gradle" "plugins { id 'java' }"
+put "$gr/app/build.gradle" "dependencies {
+    implementation project(':core')
+    implementation project(path: ':lib:util')
+    implementation project(':missing')
+    implementation projects.core
+    implementation 'org.slf4j:slf4j-api:2.0.0'
+}"
+put "$gr/core/build.gradle" "dependencies { api project(':lib:util') }"
+put "$gr/lib/util/build.gradle" "// leaf"
+put "$gr/nobuild/README" "no build file"
+gr_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$gr")"
+assert_contains "gradle: ecosystem jvm" "$gr_json" '"ecosystem": "jvm"'
+assert_contains "gradle: a build file is a project node named by its folder" "$gr_json" '{"id":"app/build.gradle","name":"app","path":"app/build.gradle","ecosystem":"jvm","kind":"project"}'
+assert_contains "gradle: an include is an internal edge citing the declaration" "$gr_json" '{"from":"build.gradle","to":"app/build.gradle","kind":"project","status":"resolved","evidence":"settings.gradle: include '"'"':app'"'"', '"'"':core'"'"', '"'"':lib:util'"'"', '"'"':nobuild'"'"', '"'"':ghost'"'"'"}'
+assert_contains "gradle: a nested project path maps to nested folders" "$gr_json" '"from":"build.gradle","to":"lib/util/build.gradle","kind":"project","status":"resolved"'
+assert_contains "gradle: an include with no build file is unresolved" "$gr_json" '"to":":nobuild","kind":"project","status":"unresolved"'
+assert_contains "gradle: project(path: ':x') is an internal edge citing the declaration" "$gr_json" '{"from":"app/build.gradle","to":"lib/util/build.gradle","kind":"project","status":"resolved","evidence":"app/build.gradle: implementation project(path: '"'"':lib:util'"'"')"}'
+assert_contains "gradle: a project(':x') dependency is an internal edge" "$gr_json" '{"from":"app/build.gradle","to":"core/build.gradle","kind":"project","status":"resolved","evidence":"app/build.gradle: implementation project('"'"':core'"'"')"}'
+assert_contains "gradle: a dependency on a project with no folder is unresolved" "$gr_json" '"from":"app/build.gradle","to":":missing","kind":"project","status":"unresolved"'
+assert_contains "gradle: a variable include is an unread-manifest finding" "$gr_json" '{"kind":"unread-manifest","path":"settings.gradle","evidence":"settings.gradle: include(modulesVar)"}'
+assert_contains "gradle: includeBuild is an unread-manifest finding" "$gr_json" '"evidence":"settings.gradle: includeBuild('"'"'../other'"'"')"'
+assert_contains "gradle: a type-safe accessor is an unread-manifest finding" "$gr_json" '{"kind":"unread-manifest","path":"app/build.gradle","evidence":"app/build.gradle: implementation projects.core"}'
+assert_not_contains "gradle: an external coordinate draws no edge" "$gr_json" 'slf4j'
+assert_not_contains "gradle: the message does not name JVM as unread" "$gr_json" 'Not read: jvm'
+gr_again="$(bash "$GRAPH" --generated-on 2026-09-29 "$gr")"
+assert_equals "gradle: two runs are byte-identical" "$gr_again" "$gr_json"
+
+# Gradle (Kotlin DSL) with a settings file and no root build file.
+grk="$(make_tree grk)"
+put "$grk/settings.gradle.kts" 'include(":api")
+include(":impl")'
+put "$grk/api/build.gradle.kts" 'dependencies { implementation(project(":impl")) }'
+# shellcheck disable=SC2016 # backticks are literal fixture text
+put "$grk/impl/build.gradle.kts" 'plugins { `java-library` }'
+
+grk_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$grk")"
+assert_contains "kotlin dsl: a settings file with no build file is a project node" "$grk_json" '{"id":"settings.gradle.kts","name":"'"${grk##*/}"'","path":"settings.gradle.kts","ecosystem":"jvm","kind":"project"}'
+assert_contains "kotlin dsl: an include is an edge from the settings project" "$grk_json" '{"from":"settings.gradle.kts","to":"api/build.gradle.kts","kind":"project","status":"resolved","evidence":"settings.gradle.kts: include(\":api\")"}'
+assert_contains "kotlin dsl: project(\":x\") is an internal edge" "$grk_json" '{"from":"api/build.gradle.kts","to":"impl/build.gradle.kts","kind":"project","status":"resolved","evidence":"api/build.gradle.kts: dependencies { implementation(project(\":impl\")) }"}'
+
+# A build file with no settings file above it cannot resolve a project path.
+grn="$(make_tree grn)"
+put "$grn/loose/build.gradle.kts" 'dependencies { implementation(project(":api")) }'
+grn_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$grn")"
+assert_contains "kotlin dsl: a build file with no settings file above it is unresolved" "$grn_json" '{"from":"loose/build.gradle.kts","to":":api","kind":"project","status":"unresolved","evidence":"loose/build.gradle.kts: dependencies { implementation(project(\":api\")) }"}'
+
+# Maven: <modules> are internal edges.
+mv="$(make_tree mv)"
+# shellcheck disable=SC2016 # fixture text with a literal ${dyn}
+put "$mv/pom.xml" '<project>
+  <artifactId>parent</artifactId>
+  <modules>
+    <module>core</module>
+    <module>web/pom.xml</module>
+    <module>alt/pom-alt.xml</module>
+    <module>gone</module>
+    <module>../outside</module>
+    <module>${dyn}</module>
+  </modules>
+  <profiles><profile><modules><module>extra</module></modules></profile></profiles>
+</project>'
+put "$mv/core/pom.xml" '<project><parent><artifactId>parent</artifactId></parent><artifactId>core</artifactId></project>'
+put "$mv/web/pom.xml" '<project><artifactId>web-default</artifactId></project>'
+put "$mv/extra/pom.xml" '<project><artifactId>extra</artifactId></project>'
+mv_json="$(bash "$GRAPH" --generated-on 2026-09-29 "$mv")"
+assert_contains "maven: ecosystem jvm" "$mv_json" '"ecosystem": "jvm"'
+assert_contains "maven: a pom is a project node named by its artifactId" "$mv_json" '{"id":"core/pom.xml","name":"core","path":"core/pom.xml","ecosystem":"jvm","kind":"project"}'
+assert_contains "maven: a module is an internal edge citing the declaration" "$mv_json" '{"from":"pom.xml","to":"core/pom.xml","kind":"project","status":"resolved","evidence":"pom.xml: <module>core</module>"}'
+assert_contains "maven: a module inside a profile is an internal edge" "$mv_json" '"from":"pom.xml","to":"extra/pom.xml","kind":"project","status":"resolved"'
+assert_contains "maven: a module naming a pom.xml is that pom" "$mv_json" '"from":"pom.xml","to":"web/pom.xml","kind":"project","status":"resolved"'
+assert_contains "maven: a module naming a pom file not called pom.xml is an unread-manifest finding" "$mv_json" '{"kind":"unread-manifest","path":"pom.xml","evidence":"pom.xml: <module>alt/pom-alt.xml</module>"}'
+assert_contains "maven: a module with no pom is unresolved" "$mv_json" '"to":"gone","kind":"project","status":"unresolved"'
+assert_contains "maven: a module outside the root is unresolved" "$mv_json" '"to":"../outside","kind":"project","status":"unresolved"'
+# shellcheck disable=SC2016 # ${dyn} is literal fixture text
+assert_contains "maven: a property module is an unread-manifest finding" "$mv_json" '{"kind":"unread-manifest","path":"pom.xml","evidence":"pom.xml: <module>${dyn}</module>"}'
+assert_not_contains "maven: the other manifest kinds are not unread" "$mv_json" 'Not read: jvm'
+
+# JVM beside another ecosystem is one mixed record; Ruby beside JVM is still named unread.
+jvmix="$(make_tree jvmix)"
+put "$jvmix/svc/pom.xml" '<project><artifactId>svc</artifactId></project>'
+put "$jvmix/app/requirements.txt" 'click'
+put "$jvmix/Gemfile" 'source "https://rubygems.org"'
+jvmix_json="$(bash "$GRAPH" "$jvmix")"
+assert_contains "jvm beside python: ecosystem is mixed" "$jvmix_json" '"ecosystem": "mixed"'
+assert_contains "jvm beside python: each node keeps its own ecosystem" "$jvmix_json" '"id":"svc/pom.xml","name":"svc","path":"svc/pom.xml","ecosystem":"jvm"'
+assert_contains "jvm beside ruby: only the unshipped ecosystem is named unread" "$jvmix_json" 'Not read: ruby (Gemfile).'
 
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

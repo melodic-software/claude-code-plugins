@@ -1567,6 +1567,14 @@ class TestToolsDocsCrosscheck(unittest.TestCase):
     def test_a_page_without_the_table_is_broken(self) -> None:
         self.assertEqual(self._block("# Tools\n\nNo table.\n")["status"], "broken")
 
+    def test_unmatched_table_rows_never_reach_a_later_section(self) -> None:
+        unwrapped = TOOLS_DOCS.replace("`Bash`", "Bash").replace("`Read`", "Read")
+        unwrapped = unwrapped.replace("`Task`", "Task").replace(
+            "`TaskOutput`", "TaskOutput"
+        )
+        self.assertEqual(self.dc.parse_tools_table(unwrapped), {})
+        self.assertEqual(self._block(unwrapped)["status"], "broken")
+
     def test_an_unhealthy_lane_degrades_the_block(self) -> None:
         report = dict(self.report)
         report["integrity"] = {"lanes": {"builtin_tools": {"status": "degraded"}}}
