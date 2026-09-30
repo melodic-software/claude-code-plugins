@@ -137,7 +137,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/commit-push-pr`, changes its invocability, or the commands reference documents it (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `commit-push-pr` → `source-control:pull-request`
@@ -154,7 +154,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/commit-push-pr`, changes its command type or invocability, or the commands reference starts documenting it (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `export` → `session-flow:clean-stop`
@@ -607,7 +607,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `commit` skill, changes its invocability or gating, or the commands reference starts documenting it (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `debug` → `debugging:debug`
@@ -838,7 +838,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `pr` skill, changes its invocability or gating, or the commands reference starts documenting it (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `prototype` → `prototype:explore-directions`

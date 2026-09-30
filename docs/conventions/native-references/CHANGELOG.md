@@ -6,6 +6,13 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.3.1] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table records the description phrases baked in `/source-control:commit` and
+  `/source-control:pull-request`** for the bundled `commit` and `pr` skills and `/commit-push-pr`.
+
 ## [3.3.0] - 2026-09-29
 
 Minor: additive guidance.
