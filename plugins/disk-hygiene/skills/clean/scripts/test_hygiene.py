@@ -12892,8 +12892,14 @@ class InventoryCommandTests(unittest.TestCase):
         self.data_root = base / "data"
         self.target.mkdir()
         self.data_root.mkdir()
-        # HOME points away from the target unless a test says otherwise.
-        self.enterContext(mock.patch.dict(os.environ, {"HOME": str(base / "home")}))
+        # Home points away from the target unless a test says otherwise, and a
+        # macOS temp dir sits under /private, which is OS-managed.
+        self.home = self.enterContext(
+            mock.patch.object(Path, "home", return_value=base / "home")
+        )
+        self.enterContext(
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False)
+        )
 
     def write(self, relative: str, text: str = "x") -> Path:
         path = self.target / relative
@@ -12984,8 +12990,8 @@ class InventoryCommandTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        with mock.patch.dict(os.environ, {"HOME": str(self.target)}):
-            code, summary = self.run_inventory()
+        self.home.return_value = self.target
+        code, summary = self.run_inventory()
         self.assertEqual(0, code, summary)
         self.assertTrue(summary["deep"])
         rows = self.rows(summary)

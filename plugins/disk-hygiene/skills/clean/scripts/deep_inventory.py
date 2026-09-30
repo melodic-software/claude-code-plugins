@@ -28,6 +28,7 @@ that is only a category phrase without such evidence.
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import json
 import os
 import re
@@ -102,6 +103,7 @@ def _iso(epoch: float) -> str:
     )
 
 
+@functools.lru_cache(maxsize=None)
 def _owner(uid: int) -> str:
     if pwd is not None:
         try:
