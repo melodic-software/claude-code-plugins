@@ -394,6 +394,13 @@ End every run with this block, in this order:
   is an expression, `[[` escapes a literal, and a parameters-file value is always literal. Basis:
   <https://learn.microsoft.com/azure/azure-resource-manager/templates/template-expressions>. As of:
   2026-09-29. Recheck when that page changes the escape rule.
+- **A nested child resource carries one type segment.** Claim: a child declared inside its parent
+  (a Bicep `resource` in the parent body, an ARM `resources` array in the parent) writes its type
+  as a single segment such as `slots`, and its full type is the parent's full type plus that
+  segment (`Microsoft.Web/sites/slots`). Basis:
+  <https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type> and
+  <https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type>.
+  As of: 2026-09-30. Recheck when either page changes the single-segment rule or the nesting depth.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
