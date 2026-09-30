@@ -15,11 +15,11 @@ place.
 ## Decision
 
 **Compatibility field: no skill carries it, and nothing requires it.** The specification says most
-skills do not need the field. 0 of 303 skills carry it. `check-skill.sh` treats a missing field
-as a pass and length-checks a present one (1-500 characters), so a skill that needs it later can
+skills do not need the field. 0 of 303 skills carry it (every `SKILL.md` under `plugins/`, excluding `vendor` and
+`eval` paths). `check-skill.sh` treats a missing field as a pass and length-checks a present one (1-500 characters), so a skill that needs it later can
 add it without a gate change.
 
-**Frontmatter: no rule.** Frontmatter is loader metadata only. 0 of 305 skills put instructions
+**Frontmatter: no rule.** Frontmatter is loader metadata only. 0 of those 303 skills put instructions
 in frontmatter beyond `description`. The Claude Code skills reference does not say whether
 frontmatter is stripped from the content Claude reads, so a rule would enforce a guess.
 
@@ -40,7 +40,7 @@ only, at the cost of a second copy to keep in step.
 |---|---|---|
 | Name rules | 0 | `check-skill.sh` check 1 accepts a missing `name` field, so a skill without one passes |
 | Body under 500 lines | 0 | Checked |
-| Description 1-1024 characters | 1 baselined in `scripts/skill-description-cap-baseline.txt` | Enforced by `check-skill.sh` check 2b |
+| Description 1-1024 characters | 0, and `scripts/skill-description-cap-baseline.txt` is empty | Enforced by `check-skill.sh` check 2b |
 | Body under 5,000 tokens (recommendation) | 54 skills exceed it | None. Restructuring is out of scope |
 
 ## Consequences
