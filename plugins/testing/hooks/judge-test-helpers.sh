@@ -30,7 +30,7 @@ finish() {
 }
 
 TMP="$(mktemp -d)"
-# Only the suite's own shell cleans up: a forked child signalled before its
+# Only the suite's own shell cleans up: a forked child that gets a signal before its
 # exec still holds this trap.
 trap '[[ "$BASHPID" == "$$" ]] && { jobs -p | xargs -r kill 2>/dev/null; rm -rf "$TMP"; }' EXIT
 REPO="$TMP/repo"
