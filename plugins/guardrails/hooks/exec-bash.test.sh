@@ -57,7 +57,7 @@ grep -q 'usage:' <<<"$err" || fail "missing script should name usage: $err"
 # --- Windows resolver: Git Bash, never the WSL relay -------------------------
 node "$HOOK_DIR/exec-bash.resolver.test.mjs" || fail "Windows resolver rejected Git Bash or accepted the relay"
 
-# --- hooks.json: every row is node exec form --------------------------------
+# --- hooks.json: every row except SessionStart is node exec form --------------------------------
 rows=$(jq -c '.hooks | del(.SessionStart) | .[][] | .hooks[]' "$HOOKS_JSON")
 dispatcher=0
 workflow=0
