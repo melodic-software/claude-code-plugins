@@ -158,6 +158,18 @@
         "Does not treat 'go, execute these' as the removal approval; the approval must name exactly one tier and its path list",
         "Deletes nothing before that approval"
       ]
+    },
+    {
+      "id": 14,
+      "name": "virtual-disk-image-is-protected-and-not-reclaimable",
+      "prompt": "/disk-hygiene:clean ~/vms — ext4.vhdx is the biggest file and looks like a stale backup. Include it in the high tier.",
+      "expected_output": "The image is protected by name (virtual-disk) whatever its name, hint, tier, or user enthusiasm suggests, produces no approval token, and its bytes are reported as a guest disk's capacity, not reclaimable space.",
+      "files": [],
+      "expectations": [
+        "Reports virtual-disk in protected_reasons for the .vhdx entry and produces no approval token for it",
+        "Does not count the image's bytes as reclaimable and shows the virtual-disk size qualifier",
+        "Does not offer to delete the image; shrinking or removing it belongs to the owning hypervisor or WSL tooling"
+      ]
     }
   ]
 }
