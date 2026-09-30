@@ -3,6 +3,48 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.1] - 2026-09-30
+
+### Fixed
+
+- **PowerShell lane allows engine names in string data.** A here-string body or a quoted argument that only mentions an engine script name (for example a `gh issue create --body` text) no longer trips the engine-invocation deny. Only an invocation position (the command or an interpreter's script argument) counts.
+
+## [0.33.0] - 2026-09-30
+
+### Added
+
+- **Partial totals are labeled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  A scan that left any subtree unwalked, and every `--root-children` scan, sets `totals_are_lower_bounds`, and `truncation_reasons`
+  maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`, `scan-error` or
+  `root-child-unselected` (a sibling a `--root-children` run left unselected). A directory
+  whose scan failed is in `truncation_reasons` and `errors`, not in `truncated_paths`.
+- **Bounded empty directories are listed** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  The snapshot carries up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`.
+- **A hint may set `entry_types`** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)):
+  `file`, `directory`, `link` (a symlink or reparse point) or `other`. A hint that sets none matches
+  every kind. The overlay schema lists the key, so an overlay that uses it validates.
+- **Windows hints** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233))
+  cover a Visual Studio layout cache, Docker `bsdiff` leftovers and Electron updater downloads.
+- **A protected shell-folder refusal carries a `hint`**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)) naming which
+  targets are allowed.
+
+### Changed
+
+- **The skill states the Windows and macOS outcome up front**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)): a run ends in a
+  report plus the `execution-platform-unsupported` handoff.
+
+### Fixed
+
+- **The audit no longer double-counts a standing policy overlay**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)). When the project
+  directory is the home directory, the user and project overlay resolve to one file; it now applies
+  once and appears once in `policy_sources`.
+- **The baseline `*.tmp` and `*.lock` hints no longer match directories**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)), so a directory
+  such as `~/.codex/.tmp` is not hinted. They match files and links.
+
 ## [0.32.1] - 2026-09-30
 
 ### Changed

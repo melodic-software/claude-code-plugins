@@ -287,6 +287,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/session-flow:orient`](../plugins/session-flow/skills/orient/SKILL.md) | `session-flow` | Read-only situation report from durable and off-thread state |
 | [`/session-flow:reanchor`](../plugins/session-flow/skills/reanchor/SKILL.md) | `session-flow` | Verify working assumptions are still true before building on them |
 | [`/session-flow:reconcile`](../plugins/session-flow/skills/reconcile/SKILL.md) | `session-flow` | Retire finished off-thread work and square the task ledger |
+| [`/session-flow:tidy-work`](../plugins/session-flow/skills/tidy-work/SKILL.md) | `session-flow` | Report, normalize, and clean stale .work memory items |
 | [`/source-control:worktree`](../plugins/source-control/skills/worktree/SKILL.md) | `source-control` | Create, inspect, and clean git worktrees for parallel sessions |
 
 ## Operator cadence
