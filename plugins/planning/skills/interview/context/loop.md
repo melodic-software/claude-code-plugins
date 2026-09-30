@@ -295,22 +295,22 @@ The ladder, in order:
 
 ### Gate before locking
 
-The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments:
+The register is bookkeeping, so it gets a mechanical check rather than a promise. It runs **twice**, because the two things it proves become checkable at different moments. Both runs carry `--procedure`, which checks what the ledger file can show about the procedure (contiguous rounds, a resolution on every retired row) and, with `--brief`, that the Brief has its seven template headings:
 
 ```bash
 # Step 3, before the contract is persisted. The Brief does not exist yet.
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
-  --ledger <memory_dir>/<topic-slug>/interview-checklist.md
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure
 
 # Step 4, immediately after writing the Brief (engineering sessions only).
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
-  --ledger <memory_dir>/<topic-slug>/interview-checklist.md \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
   --brief <contract_dir>/<topic-slug>/PLAN.md
 ```
 
 Passing `--brief` at Step 3 would name a file Step 4 has not written yet, and the gate exits 2 on a named-but-missing `--brief`, so a first-time interview would deadlock before it could persist anything. A general session writes no Brief and runs only the first form.
 
-Exit 0 = clean; exit 1 = a row is `open` or `superseded-by-plan` (do not lock the contract, do not hand off; resolve or explicitly retire an `open` row; a `superseded-by-plan` row leaves only on the user's reply to it, see "Superseded by plan"); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records), which is treated as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
+Exit 0 = clean; exit 1 = a row is `open` or `superseded-by-plan` (do not lock the contract, do not hand off; resolve or explicitly retire an `open` row; a `superseded-by-plan` row leaves only on the user's reply to it, see "Superseded by plan"), or `--procedure` found a defect (a round missing from the register, a retired row with no resolution, or on the Step 4 run a missing Brief template heading; stderr names each one, so fix the ledger or Brief and re-run); exit 2 = ungradeable (missing ledger, missing register, malformed row, unknown status, duplicate or gapped `Q<N>`, or a `deferred`/`blocked` row the Brief never records), which is treated as a halt, never as a pass. On the Step 4 run a missing question means the **Brief** is incomplete: fix the Brief, never retire the row to quiet the gate.
 
 **The acceptance-criteria coverage prompt is not a registered question, and not a gap in the record either.** It carries no decision, so it writes no row and never reaches this gate; a run whose only question was that prompt has no register and skips the gate rather than failing it ungradeable. The exemption is that one prompt and no other: a real question asked alongside it registers at ask-time and brings the gate into scope exactly as it always did. Step 4's "Acceptance criteria" guidance owns the prompt itself.
 

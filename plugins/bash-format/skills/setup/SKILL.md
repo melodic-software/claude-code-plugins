@@ -106,7 +106,7 @@ restores the FAIL semantics.
     repository gitignores (`git check-ignore`) is silently skipped: no lint, no format, no
     notice. A tracked file that matches an ignore pattern stays in scope, and when git cannot
     decide (git absent, no repository, an error) the hook acts as before
-    (`hook::gitignored_out_of_scope` in `hooks/rewrite-guard.sh`). Report the item 8 value
+    (`hook::gitignored_out_of_scope` in `hooks/hook-utils.sh`). Report the item 8 value
     beside this.
 
 When every probe passes, report the result **with the scope caveats** (items 10 and 11).
