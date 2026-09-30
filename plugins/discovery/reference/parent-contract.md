@@ -91,7 +91,7 @@ opens with no listed word is read as `full`, and the worker names that reading i
 narrower pass and the agent names the level it ran at.
 
 **A research `Budget: low` writes `Turn budget: 15`.** Fifteen leaves 25 of the worker's 40
-`maxTurns` for the index and sidecar writes, the return, and a rework after a verifier fail, and
+`maxTurns` for the index and sidecar writes and the return, and
 it sits below the default stop turn (30), so the worker honors it. The number is a judgment, sized
 so the gathering a `low` row allows fits well inside it. Other `Budget:` words leave the value to
 the parent, up to that default.
