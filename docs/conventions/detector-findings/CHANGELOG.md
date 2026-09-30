@@ -4,6 +4,17 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.5.0] - 2026-09-29
+
+**Minor, additive.** One crosswalk row admits `attribution:audit`'s restated-fact lane:
+`attribution/audit/rule-restated-upstream-fact`, IMPORTANT, `Confidence` omitted, not
+auto-applicable and never reached by that skill's `fix` or `sweep`. It is the first row whose
+relay eligibility is a **declared outcome** rather than an evidence tier: a unanimous STANDS under
+the restated-fact rubric that the refutation pass could not refute. Split panels, refuted findings,
+and findings declaring no such outcome stay on the human report and are counted in `## Surfaces`.
+The `rule-verbatim-copy` row now says its "never reach the relay" sentence is about copy-class
+verdicts. No producer-owned field's rule, coexistence obligation, or enforceability verdict moves.
+
 ## [3.4.1] - 2026-09-29
 
 **Patch.** Docs-only clarification: rule 2 now says that, at equal tier and agreement count, an
