@@ -28,7 +28,8 @@
 # `echo "${GH_TOKEN:+set}"`, `echo ${#GH_TOKEN}`.
 #
 # COMMAND POSITION. A shape matches only where a command can start: the start of
-# the string, or after ; & | ( ` { or a newline. So `git commit -m "block gh auth
+# the string, or after ; & | ( ` { or a newline, past any leading NAME=value
+# assignments. So `git commit -m "block gh auth
 # token"` and `grep 'git credential fill' docs.md` pass. The exception is a command
 # string that also names a shell word (bash, sh, dash, zsh, ksh, pwsh, powershell,
 # eval): quoted text can be handed to that shell and run, so any occurrence matches
@@ -153,8 +154,10 @@ block() {
 match_shapes() {
   local s="$SUBJECT" sp='[[:space:]]' sq="'" dq='"' nl=$'\n'
   local lead stmt
+  # Leading inline assignments (`TERM=xterm gh auth token`) run the command that follows.
+  local assign="(([a-z_][a-z0-9_]*=([^[:space:]${sq}${dq}]*|${sq}[^${sq}]*${sq}|${dq}[^${dq}]*${dq})${sp}+)*)"
   # End of a word: whitespace, a separator, a closing paren or quote, or end of string.
-  local end="([[:space:];&|)${sq}${dq}]|\$)"
+  local end="([[:space:];&|)\`${sq}${dq}]|\$)"
   # A command word may carry a directory prefix (/usr/bin/gh, C:\tools\gh).
   local pre="([^[:space:];&|\`(){}${sq}${dq}]*[/\\\\])?"
   local arg="[^;&|]"
@@ -170,7 +173,7 @@ match_shapes() {
     lead='(^|[^[:alnum:]_.-])'
     stmt='(^|[^[:alnum:]_.(-])'
   else
-    lead="(^|[;&|(\`{${nl}])${sp}*"
+    lead="(^|[;&|(\`{${nl}])${sp}*${assign}"
     stmt="(^|[;&|{${nl}])${sp}*"
   fi
 

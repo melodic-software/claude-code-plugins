@@ -58,6 +58,19 @@ run "gh auth token with a host flag" 'gh auth token --hostname github.com' 2
 run "gh auth token after a semicolon" 'echo hi; gh auth token' 2
 run "gh auth token in a command substitution" 'curl -H "Authorization: Bearer $(gh auth token)" https://api.github.com' 2
 run "gh auth token by absolute path" '/usr/bin/gh auth token' 2
+run "gh auth token in a backtick substitution" 'TOKEN=`gh auth token`' 2
+run "git credential fill in a backtick substitution" 'x=`git credential fill`' 2
+run "printenv in a backtick substitution" 'x=`printenv GH_TOKEN`' 2
+run "cat .netrc in a backtick substitution" 'x=`cat ~/.netrc`' 2
+
+# --- 2b. leading NAME=value assignments do not hide the command (blocked) -----
+run "assignment before gh auth token" 'TERM=xterm gh auth token' 2
+run "assignment before git credential fill" 'X=1 git credential fill' 2
+run "assignment before cat .netrc" 'FOO=1 cat ~/.netrc' 2
+run "assignment before echo of a token" 'Y=1 echo $GH_TOKEN' 2
+run "two assignments, one quoted, before printenv" 'A=1 B="x y" printenv GH_TOKEN' 2
+run "assignment after a semicolon" 'echo hi; X=1 gh auth token' 2
+run "assignment before an unrelated command" 'X=1 git status' 0
 run_ps "PowerShell: gh auth token" 'gh auth token' 2
 run_ps "PowerShell: gh.exe auth token piped" 'gh.exe auth token | Set-Clipboard' 2
 
