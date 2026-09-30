@@ -4,4 +4,5 @@ tool: Bash
 input_match: 'git\s+push'
 min: 0
 max: 0
+arm: both
 ---
