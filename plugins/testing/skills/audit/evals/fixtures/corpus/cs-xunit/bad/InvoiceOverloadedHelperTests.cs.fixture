@@ -1,0 +1,21 @@
+// expect: rule-zero-assertion
+// ShouldTotal has two overloads and the test's call cannot be matched to one
+// by name alone. Only the two-argument overload asserts; the one-argument
+// overload logs and returns, so the test is judged as asserting nothing.
+using Xunit;
+
+public sealed class InvoiceOverloadedHelperTests
+{
+    [Fact]
+    public void Total_IsComputed() => ShouldTotal(new Invoice(10m, 2));
+
+    private static void ShouldTotal(Invoice invoice)
+    {
+        Console.WriteLine(invoice.Total);
+    }
+
+    private static void ShouldTotal(Invoice invoice, decimal expected)
+    {
+        Assert.Equal(expected, invoice.Total);
+    }
+}

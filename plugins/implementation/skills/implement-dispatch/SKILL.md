@@ -32,6 +32,33 @@ Structural variant of `/implementation:implement` for orchestrated execution: th
 
 `/implementation:implement` shares this detection at its Step 0 and chains here; invoking this skill directly with a worker-routed plan is equivalent.
 
+## Boundary, the bundled `batch` skill
+
+Both fan work out to parallel agents in isolated worktrees, so "run this in parallel" can reach for
+either.
+
+- **`/batch` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Takes an
+  `<instruction>`, researches the codebase, decomposes the change into 5 to 30 independent units,
+  and presents a plan; once approved, it spawns one background agent per unit in its own worktree,
+  and each implements, tests, and opens its own PR. Reserved for the person to run; the model does
+  not invoke it.
+- **This skill (marketplace plugin).** Executes an already-approved plan's phases: scope-fenced
+  briefs, capped waves, return verification against direct evidence, the main-side build gate, the
+  phase-verifier, and divergence routing.
+
+**Routing.** When no approved plan exists and the work is a large mechanical change that splits
+into independent PRs, offer it to the person at the prerequisite check, before any brief: "you can
+run `/batch <instruction>` instead of or alongside this skill". With an approved plan, this skill
+runs. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** `/batch` creates worktrees, commits, and opens one PR per unit. This skill never
+triggers it on its own behalf.
+
+**Availability is never assumed.** `disableBundledSkills` or a `skillOverrides` entry hides it, and
+it needs a git repository or a `WorktreeCreate` hook; this section states what to do when it
+resolves, never that it is present. The four-part records live in
+[reference/native-batch.md](reference/native-batch.md).
+
 ## Arguments
 
 `$ARGUMENTS`, an optional phase selector plus an optional `--wave-cap <N>`, in any order.

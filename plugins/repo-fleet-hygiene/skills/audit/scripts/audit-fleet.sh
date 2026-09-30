@@ -296,9 +296,10 @@ git_probe_allowed() {
       [[ $# -eq 6 && "$4" == "-1" && "$5" == "--format=%ct" && "$6" == "HEAD" ]]
       ;;
     for-each-ref)
-      [[ $# -eq 6 && "$4" == "--format=%(refname:short)%09%(objectname)%00" && "$5" == "--" ]] || return 1
-      [[ "$6" == "refs/heads/" ]] && return 0
-      [[ "$6" == refs/remotes/*/ && ! "$6" =~ [[:cntrl:][:space:]] ]]
+      [[ $# -eq 6 && "$5" == "--" ]] || return 1
+      [[ "$4" == "--format=%(refname:short)%09%(objectname)%00" && "$6" == "refs/heads/" ]] && return 0
+      [[ "$4" == "--format=%(refname:short)%09%(objectname)%09%(committerdate:unix)%00" &&
+        "$6" == refs/remotes/*/ && ! "$6" =~ [[:cntrl:][:space:]] ]]
       ;;
     ls-remote)
       # Read-only live remote probe: prove a named head still exists upstream without fetch/prune.
@@ -311,8 +312,8 @@ git_probe_allowed() {
     merge-base)
       ref="${6:-}"
       [[ $# -eq 6 && "$4" == "--is-ancestor" && -n "${5:-}" && "${5:-}" != -* &&
-        ! "${5:-}" =~ [[:cntrl:][:space:]] && "$ref" == refs/remotes/* &&
-        ! "$ref" =~ [[:cntrl:][:space:]] ]]
+        ! "${5:-}" =~ [[:cntrl:][:space:]] && ! "$ref" =~ [[:cntrl:][:space:]] &&
+        ("$ref" == refs/remotes/* || "$ref" =~ ^[0-9a-f]{40}([0-9a-f]{24})?$) ]]
       ;;
     *) return 1 ;;
     esac
@@ -580,6 +581,7 @@ merged-worktree|HIGH|no|yes|Candidate worktree dry-run handoff before branch cle
 merged-protected-branch|HIGH|no|no|Informational only; protected branches are never branch-cleanup candidates
 merged-pr-tip-drift|MEDIUM|no|no|Manual review; not a cleanup candidate
 merged-remote-branch|HIGH/MEDIUM|no|no|Optional remote-branch deletion preview; separate from local branch/worktree cleanup
+remote-branch-family|LOW|no|no|Report only; no cleanup handoff and no deletion preview for family branches
 local-ancestry-only|LOW|no|no|Informational only
 local-ancestry-unavailable|UNKNOWN|no|no|Do not infer local ancestry
 prunable-worktree|HIGH|no|yes|Candidate dry-run handoff
@@ -781,6 +783,19 @@ branch_action_kind() {
 
 worktree_action_kind() {
   finding_registry_lookup "$1" && [[ "$FINDING_ROW_WORKTREE_ACTION" == "yes" ]]
+}
+
+# branch_family <branch>: where the branch name says it came from; empty when it names no known
+# family. Information only.
+branch_family() {
+  case "$1" in
+  claude/*) printf claude ;;
+  plan/*) printf plan ;;
+  stranded/*) printf stranded ;;
+  pre-wipe/*) printf pre-wipe ;;
+  *) [[ "$1" =~ ^agent-[0-9a-f]+$ ]] && printf agent ;;
+  esac
+  return 0
 }
 
 # --- Path and layout helpers ------------------------------------------------
@@ -1200,6 +1215,9 @@ fi
 
 # shellcheck source=../../../scripts/scope-resolve.sh
 source "${BASH_SOURCE[0]%/*}/../../../scripts/scope-resolve.sh"
+# shellcheck source=../../../scripts/fleet-discovery.sh
+source "${BASH_SOURCE[0]%/*}/../../../scripts/fleet-discovery.sh"
+FLEET_GIT_CMD=run_git_probe
 
 # Data mode: answers before argument parsing, config resolution, and discovery, so a gate reads
 # the registry without running an audit and without requiring git.
@@ -1224,19 +1242,6 @@ DETAIL=false
 PLAN_FILE=""
 APPLY_PLAN=""
 PLAN_FILE_EXPLICIT=false
-
-# Bare directory-name validation for --skip / fleet.skip. Reject empty values and anything with a
-# path separator so a mistaken path cannot silently widen or narrow discovery.
-validate_skip_name() {
-  local name="$1" origin="$2"
-  [[ -n "$name" ]] || fail "invalid ${origin} value (expected a bare directory name): (empty)"
-  case "$name" in
-  */* | *\\*)
-    fail "invalid ${origin} value (expected a bare directory name, no path separator): $name"
-    ;;
-  *) ;;
-  esac
-}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -1475,21 +1480,7 @@ else
   CONFIG_DIR=""
 fi
 
-if [[ -z "$MAX_DEPTH" && -n "$CONFIG_FILE" ]]; then
-  MAX_DEPTH="$(run_git_probe config --file "$CONFIG_FILE" --get fleet.maxDepth 2>/dev/null || true)"
-fi
-MAX_DEPTH="${MAX_DEPTH:-5}"
-[[ "$MAX_DEPTH" =~ ^[0-9]+$ && "$MAX_DEPTH" -ge 1 && "$MAX_DEPTH" -le 12 ]] ||
-  fail "max depth must be an integer from 1 through 12"
-
-resolve_input_path() {
-  local value="$1" base="$2"
-  if [[ "$value" =~ ^/ || "$value" =~ ^[A-Za-z]:[\\/] ]]; then
-    printf '%s\n' "$value"
-  else
-    printf '%s/%s\n' "$base" "$value"
-  fi
-}
+fleet_resolve_max_depth "$MAX_DEPTH" "$CONFIG_FILE"
 
 # Entries before these counts came from the command line; entries appended from config below sit
 # at or past them. The failure unit differs by origin: a CLI typo should stop the run, but a
@@ -1498,12 +1489,9 @@ resolve_input_path() {
 CLI_ROOT_COUNT=${#ROOT_ARGS[@]}
 CLI_REPO_COUNT=${#REPO_ARGS[@]}
 if [[ -n "$CONFIG_FILE" ]]; then
-  while IFS= read -r -d '' value; do
-    [[ -n "$value" ]] && ROOT_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.root 2>/dev/null || true)
-  while IFS= read -r -d '' value; do
-    [[ -n "$value" ]] && REPO_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.repo 2>/dev/null || true)
+  fleet_load_config_scope "$CONFIG_FILE" "$CONFIG_DIR"
+  ROOT_ARGS+=(${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"})
+  REPO_ARGS+=(${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
 fi
 
 # Acknowledged known-inaccessible GitHub identities (fleet.ackUnavailable,
@@ -1528,46 +1516,8 @@ fi
 # vendor plus the package-cache names. --extend-skip / fleet.skipAppend add to whichever list is in
 # effect (#4220). . , .. , and .git stay skipped unconditionally even when an explicit list omits
 # them (#2826).
-if [[ -n "$CONFIG_FILE" ]]; then
-  while IFS= read -r -d '' value; do
-    # Empty fleet.skip values hard-fail (same contract as --skip ''), including a bare
-    # `skip =` line that git-config returns as an empty string. Do not silently drop them:
-    # an empty-only list would otherwise restore the defaults and quietly omit vendor/.
-    validate_skip_name "$value" "fleet.skip"
-    SKIP_NAMES+=("$value")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skip 2>/dev/null || true)
-  while IFS= read -r -d '' value; do
-    validate_skip_name "$value" "fleet.skipAppend"
-    SKIP_APPEND_NAMES+=("$value")
-  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.skipAppend 2>/dev/null || true)
-fi
-if [[ ${#SKIP_NAMES[@]} -eq 0 ]]; then
-  # Package-manager cache trees never hold an operator's repository, and pnpm and uv lay junctions
-  # and bare .git markers inside them (#4220).
-  SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2 .nuget
-    __pycache__ .tox)
-fi
-[[ ${#SKIP_APPEND_NAMES[@]} -eq 0 ]] || SKIP_NAMES+=("${SKIP_APPEND_NAMES[@]}")
-
-should_skip_dir_name() {
-  local name="$1" skip
-  # This arm is defense in depth, not a live guard: no input reaching the sole caller
-  # (discover_repositories' child loop) can match it. `.` and `..` can never BE a child basename —
-  # the loop's globs are "$dir"/* (no dotfiles), "$dir"/.[!.]* and "$dir"/..?*, none of which can
-  # yield `.` or `..`. And for `.git`, the nested-repository early return fires first on the
-  # identical path and predicate, so the loop never runs for a directory holding one. The arm is
-  # kept so a future refactor of that early return cannot silently start walking `.git` internals.
-  # Its contract is asserted directly in audit-fleet.test.sh, because no discovery-level test can
-  # observe it (#2844).
-  case "$name" in
-  . | .. | .git) return 0 ;;
-  *) ;;
-  esac
-  for skip in "${SKIP_NAMES[@]}"; do
-    [[ -n "$skip" && "$name" == "$skip" ]] && return 0
-  done
-  return 1
-}
+[[ -z "$CONFIG_FILE" ]] || fleet_load_config_skip "$CONFIG_FILE"
+fleet_finalize_skip_names
 
 is_acked() {
   local key
@@ -1584,7 +1534,7 @@ PRE_FALLBACK_ROOTS=${#ROOT_ARGS[@]}
 PRE_FALLBACK_REPOS=${#REPO_ARGS[@]}
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   # Explicit args and fleet config produced nothing. The shared ladder tries
-  # named paths, ghq roots, then the working directory. The project directory
+  # named paths, ghq roots, an ancestor, then the working directory. The project directory
   # is still not an implicit repo (#2599).
   fallback_file="$(mktemp)"
   if scope_resolve_fallback "${NAMED_ARGS[@]}" >"$fallback_file"; then
@@ -1932,7 +1882,7 @@ No bare path, --root, --repo, or --config was given, $SCOPE_FALLBACK_NOTE. Give 
 
 Or run /repo-fleet-hygiene:setup apply to write a config the audit picks up on its own.
 
-Also tried, and none resolved: --named paths, ghq root when ghq is installed, and the current working directory when it is a Git checkout. The project directory is not a scope.
+Also tried, and none resolved: --named paths, ghq root --all when ghq is installed, an ancestor of the current working directory's checkout holding 2 or more Git repositories, and the current working directory when it is a Git checkout. The project directory is not a scope.
 EOF
     fi
     exit 3
@@ -2047,51 +1997,24 @@ for repo in "${REPO_ARGS[@]:-}"; do
   repo_index=$((repo_index + 1))
 done
 
-discover_repositories() {
-  local dir="$1" depth="$2" child name
-  [[ -d "$dir" && ! -L "$dir" ]] || return 0
-  # Unreadable directories are ordinary under a volume-wide --root (e.g. Windows $RECYCLE.BIN).
-  # Count and move on; never abort the walk. A .git marker that is somehow still visible is recorded
-  # as a discovery skip so the header's unreadable count is not the only signal.
-  if [[ ! -r "$dir" || ! -x "$dir" ]]; then
-    if [[ -e "$dir/.git" ]]; then
-      reject_target discovery "not a Git working tree: $dir"
-      record_rejected_target discovery "$dir" "" "discovered path is not readable"
-    else
-      DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
-    fi
-    return 0
+# Discovery hooks for the shared walker in fleet-discovery.sh. It stops descending at a .git marker,
+# so a repo buried inside another repo's tree never appears as its own audit target (#2712), and a
+# husk that fails a prerequisite degrades per-entry in add_target.
+fleet_on_repo() { add_target "$1" discovery; }
+
+# Symlinked/junctioned intermediate dirs are not followed, but each is disclosed (#2711).
+fleet_on_symlink() { DISCOVERY_SYMLINK_PATHS+=("$1"); }
+
+# Unreadable directories are ordinary under a volume-wide --root (e.g. Windows $RECYCLE.BIN). Count
+# and move on; never abort the walk. A .git marker that is somehow still visible is recorded as a
+# discovery skip so the header's unreadable count is not the only signal.
+fleet_on_unreadable() {
+  if [[ "$2" == 1 ]]; then
+    reject_target discovery "not a Git working tree: $1"
+    record_rejected_target discovery "$1" "" "discovered path is not readable"
+  else
+    DISCOVERY_UNREADABLE_COUNT=$((DISCOVERY_UNREADABLE_COUNT + 1))
   fi
-  if [[ -d "$dir/.git" || -f "$dir/.git" ]]; then
-    # Nested-repository early return: a .git marker means this directory is a repository (or a husk
-    # that degrades per-entry below). Discovery stops descending here — children under a nested
-    # checkout are never walked, so a repo buried inside another repo's tree never appears as its
-    # own audit target (#2712).
-    add_target "$dir" discovery
-    return 0
-  fi
-  [[ "$depth" -lt "$MAX_DEPTH" ]] || return 0
-  for child in "$dir"/* "$dir"/.[!.]* "$dir"/..?*; do
-    # Unmatched globs leave literal patterns; skip those. Broken symlinks still match -L.
-    [[ -e "$child" || -L "$child" ]] || continue
-    name="$(basename "$child")"
-    # Configurable skip list (--skip / fleet.skip): names come from SKIP_NAMES (defaults, or an
-    # explicit replace list). See usage() for replace semantics. should_skip_dir_name also carries
-    # an unconditional . / .. / .git arm, but no child basename reaching here can match it — see
-    # the note on that arm. It is defense in depth, not what keeps discovery out of .git internals;
-    # the nested-repository early return above does that.
-    if should_skip_dir_name "$name"; then
-      continue
-    fi
-    # Symlinked/junctioned intermediate dirs: do not descend, but record for disclosure (#2711).
-    # Windows directory junctions satisfy both -d and -L under Git Bash, so they take this arm.
-    if [[ -L "$child" && -d "$child" ]]; then
-      DISCOVERY_SYMLINK_PATHS+=("$child")
-      continue
-    fi
-    [[ -d "$child" ]] || continue
-    discover_repositories "$child" $((depth + 1))
-  done
 }
 
 ROOT_LABELS=()
@@ -2111,7 +2034,7 @@ for root in "${ROOT_ARGS[@]:-}"; do
     root_index=$((root_index + 1))
     continue
   fi
-  # discover_repositories deliberately skips symlinks (-L). Accepting a symlink root here would
+  # fleet_discover_root deliberately skips symlinks (-L). Accepting a symlink root here would
   # record ROOT_LABELS and exit "0 repositories" even when the target tree is full of repos (#2599).
   # Non-readable/non-executable directories are the same false-empty class.
   if [[ -L "$root" ]]; then
@@ -2133,7 +2056,7 @@ for root in "${ROOT_ARGS[@]:-}"; do
   # contributed none is still reported. Deduplication credits a repo shared by nested/overlapping
   # roots to the first root that reaches it, keeping sum(root counts) + explicit --repo == discovered.
   root_before=${#TARGETS[@]}
-  discover_repositories "$root" 0
+  fleet_discover_root "$root"
   ROOT_LABELS+=("$root")
   ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done
@@ -2475,6 +2398,8 @@ analyze_repo() {
   local -a WT_COMMON_DIR_STATUS=() WT_COMMON_DIR=()
   local WT_ORIGIN_OWNER="" WT_ORIGIN_REPO=""
   local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
+  local -a REMOTE_BRANCH_DATES=() MERGED_REMOTE_REPORTED=()
+  local remote_date family now_epoch age_days on_default ancestor_status
   local -a BRANCH_ATTACHED=() BRANCH_IS_MAIN=() BRANCH_PROTECTED=()
   local -a BRANCH_PR_MATCH=() BRANCH_PR_ANY=() BRANCH_ANCESTRY=()
   local -a GQL_BRANCHES=()
@@ -2765,6 +2690,11 @@ analyze_repo() {
       [[ "$remote_ref_record" == *$'\t'* ]] || continue
       remote_branch_short="${remote_ref_record%%$'\t'*}"
       remote_tip="${remote_ref_record#*$'\t'}"
+      remote_date=""
+      if [[ "$remote_tip" == *$'\t'* ]]; then
+        remote_date="${remote_tip#*$'\t'}"
+        remote_tip="${remote_tip%%$'\t'*}"
+      fi
       # refs/remotes/<remote>/ also yields a bare "<remote>" entry (the symbolic HEAD pointer to
       # the remote's default branch, e.g. refs/remotes/origin/HEAD -> refname:short "origin") --
       # require the literal "<remote>/" prefix so that entry is excluded, not misread as a branch.
@@ -2773,17 +2703,19 @@ analyze_repo() {
         if [[ -n "$remote_branch_short" ]]; then
           REMOTE_BRANCH_NAMES+=("$remote_branch_short")
           REMOTE_BRANCH_TIPS+=("$remote_tip")
+          REMOTE_BRANCH_DATES+=("$remote_date")
         fi
       fi
     done < <(
       run_git_probe -C "$canonical" for-each-ref \
-        '--format=%(refname:short)%09%(objectname)%00' -- "refs/remotes/$canonical_remote/" 2>/dev/null
+        '--format=%(refname:short)%09%(objectname)%09%(committerdate:unix)%00' -- "refs/remotes/$canonical_remote/" 2>/dev/null
       printf '\0__repo_fleet_ref_status__ %s\0' "$?"
     )
     if [[ "$remote_branch_status" != "0" ]]; then
       # Partial producer output is discarded so tip-drift push-state never trusts a half-built list.
       REMOTE_BRANCH_NAMES=()
       REMOTE_BRANCH_TIPS=()
+      REMOTE_BRANCH_DATES=()
       remote_inventory_failed=true
       emit_finding remote-branch-inventory-unavailable "$canonical" \
         "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
@@ -2922,15 +2854,29 @@ analyze_repo() {
       remote_tip="${REMOTE_BRANCH_TIPS[$ri]}"
       [[ -n "$remote_branch_short" && -n "$remote_tip" ]] || continue
       [[ "$remote_branch_short" == "$default_branch" ]] && continue
-      pr_match=""
+      pr_match="" pr_any=""
       while IFS=$'\t' read -r pr_num pr_branch pr_oid pr_merged pr_url; do
         [[ -n "$pr_num" ]] || continue
         [[ "$pr_branch" == "$remote_branch_short" ]] || continue
+        [[ -z "$pr_any" ]] && pr_any="$pr_num|$pr_oid|$pr_merged|$pr_url"
         if [[ "$pr_oid" == "$remote_tip" ]]; then
           pr_match="$pr_num|$pr_oid|$pr_merged|$pr_url"
           break
         fi
       done <<<"$repo_pr_rows"
+      if [[ -z "$pr_match" && -n "$pr_any" ]]; then
+        # The merged head moved past the remote-tracking tip. When the tip is an ancestor of the
+        # head and the head object is in this clone, every commit on the remote branch was in the
+        # merged PR. The probe exits non-zero for a missing head object, so that case stays
+        # silent. No ls-remote runs, so the finding is never HIGH.
+        IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
+        if run_git_probe -C "$canonical" merge-base --is-ancestor "$remote_tip" "$pr_oid" 2>/dev/null; then
+          emit_finding_as MEDIUM - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
+            "GitHub PR #$pr_num MERGED at headRefOid $pr_oid; last-fetched $canonical_remote/$remote_branch_short tip $remote_tip differs, but tip is an ancestor of the merged head ($pr_url); current remote existence was not verified" \
+            "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Re-verify with ls-remote or a pruning fetch before acting"
+          MERGED_REMOTE_REPORTED+=("$remote_branch_short")
+        fi
+      fi
       if [[ -n "$pr_match" ]]; then
         IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_match"
         live_out=""
@@ -2950,6 +2896,7 @@ analyze_repo() {
           emit_finding_as HIGH - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
             "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); ls-remote confirmed refs/heads/$remote_branch_short still at $live_oid (delete_branch_on_merge not enabled or blocked for this repository)" \
             "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Enabling GitHub delete_branch_on_merge is complementary (stops this class accruing) and is not a substitute for this finding; change that setting in the repository's settings-owning automation, never via an org-admin API call from this audit"
+          MERGED_REMOTE_REPORTED+=("$remote_branch_short")
         elif [[ "$live_status" -eq 0 ]]; then
           # Empty or tip-mismatched ls-remote: remote head is gone or moved; do not blame
           # delete_branch_on_merge on a stale local remote-tracking observation.
@@ -2958,8 +2905,40 @@ analyze_repo() {
           emit_finding_as MEDIUM - merged-remote-branch "$canonical :: $canonical_remote/$remote_branch_short" \
             "GitHub PR #$pr_num MERGED; headRefOid $pr_oid equals last-fetched $canonical_remote/$remote_branch_short tip ($pr_url); current remote existence could not be verified (ls-remote failed) — may be a stale local remote-tracking observation after a prune-less fetch" \
             "Preview only: git -C $canonical push --delete --dry-run $canonical_remote $remote_branch_short. Re-verify with ls-remote or a pruning fetch before acting. Enabling GitHub delete_branch_on_merge is complementary (stops this class accruing) and is not a substitute for this finding; change that setting in the repository's settings-owning automation, never via an org-admin API call from this audit"
+          MERGED_REMOTE_REPORTED+=("$remote_branch_short")
         fi
       fi
+    done
+  fi
+
+  # Remote branches in a known family that no merged-remote-branch finding covers. Everything
+  # here reads the last-fetched inventory above plus local ancestry; no remote probe runs, and
+  # nothing here names a deletion.
+  if [[ "$remote_inventory_failed" == "false" && -n "$canonical_remote" ]]; then
+    printf -v now_epoch '%(%s)T' -1
+    for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
+      remote_branch_short="${REMOTE_BRANCH_NAMES[$ri]}"
+      remote_tip="${REMOTE_BRANCH_TIPS[$ri]}"
+      [[ "$remote_branch_short" != "$default_branch" ]] || continue
+      family="$(branch_family "$remote_branch_short")"
+      [[ -n "$family" ]] || continue
+      array_contains "$remote_branch_short" "${MERGED_REMOTE_REPORTED[@]:-}" && continue
+      remote_date="${REMOTE_BRANCH_DATES[$ri]}"
+      age_days="unknown"
+      [[ "$remote_date" =~ ^[0-9]+$ ]] && age_days=$(((now_epoch - remote_date) / 86400))
+      on_default="unknown"
+      if [[ -n "$default_branch" && -n "$remote_tip" ]]; then
+        run_git_probe -C "$canonical" merge-base --is-ancestor "$remote_tip" \
+          "refs/remotes/$canonical_remote/$default_branch" 2>/dev/null
+        ancestor_status=$?
+        case "$ancestor_status" in
+        0) on_default="yes" ;;
+        1) on_default="no" ;;
+        *) ;;
+        esac
+      fi
+      emit_finding remote-branch-family "$canonical :: $canonical_remote/$remote_branch_short" \
+        "family $family; tip $remote_tip; age $age_days days (committer date); on $canonical_remote/$default_branch: $on_default"
     done
   fi
 

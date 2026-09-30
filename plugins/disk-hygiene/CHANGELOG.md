@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.19] - 2026-09-29
+
+### Changed
+
+- **clean tests:** the closed-stderr repair test marks its `os.write(2, b"")` probe with `cant-fail-ok:`, so the can't-fail scanner counts it as a deliberate exemption instead of a zero-assertion finding. Test-only.
+
 ## [0.28.18] - 2026-09-29
 
 ### Fixed
