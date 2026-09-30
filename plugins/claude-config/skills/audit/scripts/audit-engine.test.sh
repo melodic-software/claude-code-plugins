@@ -802,15 +802,15 @@ make_cli "$m/claude-desc" "2.1.281 (Claude Code)" enabledPlugins permissions 'de
 out=$(CLI_BIN="$m/claude-desc" run "$m" --json 2>&1) || true
 assert_contains "case 27: the binary's describe string is quoted" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:describedKey") | .detail' <<<"$out")" '"@internal Whether the user has accepted it"'
 printf '%s\n' '{"ownKey":1,"bareKey":1}' >"$m/project/.claude/settings.local.json"
-make_cli "$m/claude-neighbour" "2.1.281 (Claude Code)" enabledPlugins permissions \
+make_cli "$m/claude-neighbor" "2.1.281 (Claude Code)" enabledPlugins permissions \
   'paths:[{path:["bareKey"]},{path:["ownKey"]}],other:z.string().describe("Elsewhere text")' \
-  'ownKey:z.boolean().describe("Own text"),bareKey:z.boolean().optional(),neighbourKey:z.string().describe("Neighbour text")'
-out=$(CLI_BIN="$m/claude-neighbour" run "$m" --json 2>&1) || true
+  'ownKey:z.boolean().describe("Own text"),bareKey:z.boolean().optional(),neighborKey:z.string().describe("Neighbor text")'
+out=$(CLI_BIN="$m/claude-neighbor" run "$m" --json 2>&1) || true
 own_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:ownKey") | .detail' <<<"$out")"
 bare_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:bareKey") | .detail' <<<"$out")"
 assert_contains "case 27: a key is described by its own entry" "$own_detail" '"Own text"'
-assert_eq "case 27: a key's describe is not a neighbour's or another site's string" "0" "$(grep -c -e 'Neighbour text' -e 'Elsewhere text' <<<"$own_detail")"
-assert_eq "case 27: a key with no describe of its own is quoted nothing" "0" "$(grep -c -e 'the binary describes it' -e 'Neighbour text' -e 'Elsewhere text' <<<"$bare_detail")"
+assert_eq "case 27: a key's describe is not a neighbor's or another site's string" "0" "$(grep -c -e 'Neighbor text' -e 'Elsewhere text' <<<"$own_detail")"
+assert_eq "case 27: a key with no describe of its own is quoted nothing" "0" "$(grep -c -e 'the binary describes it' -e 'Neighbor text' -e 'Elsewhere text' <<<"$bare_detail")"
 printf '%s\n' '{"sharedKey":1,"repeatKey":1}' >"$m/project/.claude/settings.local.json"
 make_cli "$m/claude-shared" "2.1.281 (Claude Code)" enabledPlugins permissions \
   'sharedKey:z.number().describe("A tool input text")' \
