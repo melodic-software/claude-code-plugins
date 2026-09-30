@@ -28,7 +28,7 @@ function resolve_cfg(sc, name,    f, sf, sec, keys, i, p, r) {
       p = "config." keys[i]
       if ((sf SUBSEP p ".secure") in RV) { RES_SEC = 1; return RV[sf, p ".secure"] }
       if ((sf SUBSEP p) in RV) { RES_SEC = sec; return RV[sf, p] }
-      if ((sf SUBSEP p) in KTY) { r = unresolved(ser(sf, p)); RES_SEC = sec; return r }
+      if ((sf SUBSEP p) in KTY) { r = unres(sf, p); RES_SEC = (sec || RES_SEC); return r }
     }
   }
   if (fld(f, "config." name ".default") || fld(f, "config." name)) { RES_SEC = sec; return FV }
@@ -45,7 +45,7 @@ function cfg_known(sc, name,    f, sf) {
 
 function resolve_at(sc, p, depth,    f, v, out, rest, i, q, inner, r, sec, ok) {
   f = S_file[sc]; RES_SEC = 0; RES_OK = 1
-  if (depth > 8) return unresolved(ser(f, p))
+  if (depth > 8) return unres(f, p)
   if ((f SUBSEP p) in RV) {
     v = RV[f, p]
     if (index(v, "${") == 0) return v
@@ -63,7 +63,7 @@ function resolve_at(sc, p, depth,    f, v, out, rest, i, q, inner, r, sec, ok) {
       else { ok = 0; break }
       out = out r
     }
-    if (!ok) { r = unresolved(ser(f, p)); RES_SEC = sec; return r }
+    if (!ok) { r = unres(f, p); RES_SEC = (sec || RES_SEC); return r }
     RES_OK = 1; RES_SEC = sec
     return out rest
   }
@@ -72,7 +72,7 @@ function resolve_at(sc, p, depth,    f, v, out, rest, i, q, inner, r, sec, ok) {
     RES_SEC = 1
     return r
   }
-  return unresolved(ser(f, p))
+  return unres(f, p)
 }
 
 # The resource id a ${id} or ${id.attr} value names, when it is declared.

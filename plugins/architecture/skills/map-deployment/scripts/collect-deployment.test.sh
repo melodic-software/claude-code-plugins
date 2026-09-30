@@ -1581,6 +1581,10 @@ Resources:
             - Name: CLUSTER_ARN
               Value: !GetAtt Cluster.Arn
             - {Name: MODE, Value: !If [IsProd, strict, lax]}
+            - Name: SAME_INDENT
+              Value: !Join
+              - ""
+              - [a, b]
         - Name: sidecar
           Image: ghcr.io/acme/proxy:1
   Service:
@@ -1613,6 +1617,7 @@ assert_contains "a plain env value is kept" "$crec" '"parameter":"LOG_LEVEL","en
 assert_contains "a pseudo parameter is unresolved" "$crec" 'unresolved:{Ref:\"AWS::Region\"}'
 assert_contains "GetAtt is unresolved" "$crec" 'unresolved:{Fn::GetAtt:\"Cluster.Arn\"}'
 assert_contains "a flow-map env entry with If is unresolved" "$crec" '"parameter":"MODE","env":"prod","tool":"cloudformation","container":"api","value":"unresolved:{Fn::If:['
+assert_contains "a short tag over a sequence at the key's own indent is read" "$crec" '"parameter":"SAME_INDENT","env":"prod","tool":"cloudformation","container":"api","value":"unresolved:{Fn::Join:[\"\",[\"a\",\"b\"]]}"'
 assert_contains "the cloudformation diff reports the image" "$crec" '"change":"image","left":"prod","right":"staging","tool":"cloudformation","container":"api","detail":"ghcr.io/acme/api:1.4.0 -> ghcr.io/acme/api:1.0.0"'
 assert_contains "the cloudformation diff reports replicas" "$crec" '"change":"replicas","left":"prod","right":"staging","tool":"cloudformation","container":"api","detail":"3 -> 1"'
 csum="$(bash "$RENDER" --record "$TEST_TMPDIR/cfn-env.json" --out "$TEST_TMPDIR/cfn-env-out" --dialect c4-plantuml --diff prod staging)"
@@ -1698,6 +1703,8 @@ Resources:
               Value: "{{resolve:secretsmanager:prod/db:SecretString:password}}"
             - Name: DYN_SSM
               Value: !Sub "{{resolve:ssm-secure:/prod/api/key:1}}"
+            - Name: NESTED_DYN
+              Value: !Join ["", ["{{resolve:secretsmanager:prod/x}}", "-y"]]
             - Name: CS_SQL
               Value: "Server=db.example.com;User ID=app;Password=${fake}-CFNSQL"
             - Name: LOG_LEVEL
@@ -1720,7 +1727,7 @@ commit_all "$repoCL"
 bash "$COLLECT" --repo "$repoCL" --out "$TEST_TMPDIR/cfn-leaks.json" --generated-on 2026-09-28
 clrec="$(cat "$TEST_TMPDIR/cfn-leaks.json")"
 assert_contains "cloudformation leak fixture is drawn" "$clrec" '"status": "drawn"'
-for k in OPAQUE PREFIXED LITERAL_GH FROM_PARAM DYN_SM DYN_SSM CS_SQL API_KEY; do
+for k in OPAQUE PREFIXED LITERAL_GH FROM_PARAM DYN_SM DYN_SSM NESTED_DYN CS_SQL API_KEY; do
   assert_contains "cloudformation leak fixture redacts $k" "$clrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"cloudformation\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "cloudformation leak fixture keeps a plain value" "$clrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"cloudformation","container":"api","value":"info","redacted":"no"'
@@ -1897,6 +1904,13 @@ resources:
                 value: $(gh_tok C)
               - name: FROM_STACK
                 value: \${upstream}
+              - name: NESTED
+                value:
+                  fn::join:
+                    - "-"
+                    - - fn::secret: ${fake}-PULNEST
+              - name: STRUCT
+                value: \${db}
               - name: CS_SQL
                 value: "Server=db.example.com;User ID=app;Password=${fake}-PULSQL"
               - name: LOG_LEVEL
@@ -1911,13 +1925,13 @@ resources:
 EOF
 for s in U V; do
   [[ "$s" == U ]] && d=staging || d=prod
-  printf 'config:\n  web:dbPassword:\n    secure: v1:%s-PUL%s:cipher\n  web:upstream: %s\n' "$fake" "$s" "$(gh_tok "$s")" >"$repoPL/Pulumi.$d.yaml"
+  printf 'config:\n  web:dbPassword:\n    secure: v1:%s-PUL%s:cipher\n  web:upstream: %s\n  web:db:\n    user: app\n    token:\n      secure: v1:%s-PULDB%s:cipher\n' "$fake" "$s" "$(gh_tok "$s")" "$fake" "$s" >"$repoPL/Pulumi.$d.yaml"
 done
 commit_all "$repoPL"
 bash "$COLLECT" --repo "$repoPL" --out "$TEST_TMPDIR/pulumi-leaks.json" --generated-on 2026-09-28
 plrec="$(cat "$TEST_TMPDIR/pulumi-leaks.json")"
 assert_contains "pulumi leak fixture is drawn" "$plrec" '"status": "drawn"'
-for k in TOKEN PREFIXED WRAPPED LITERAL_GH FROM_STACK CS_SQL; do
+for k in TOKEN PREFIXED WRAPPED LITERAL_GH FROM_STACK NESTED STRUCT CS_SQL; do
   assert_contains "pulumi leak fixture redacts $k" "$plrec" "\"parameter\":\"$k\",\"env\":\"prod\",\"tool\":\"pulumi-yaml\",\"container\":\"api\",\"value\":\"\",\"redacted\":\"yes\""
 done
 assert_contains "pulumi leak fixture keeps a plain value" "$plrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"pulumi-yaml","container":"api","value":"info","redacted":"no"'

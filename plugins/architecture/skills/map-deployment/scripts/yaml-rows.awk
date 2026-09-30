@@ -266,7 +266,7 @@ function parse_value(path, v, ind, iskey,    tag, rest, c) {
     tag = v; sub(/[ \t].*$/, "", tag)
     rest = trim(substr(v, length(tag) + 1))
     if (tag ~ /^!!/) { parse_value(path, rest, ind, iskey); return }
-    parse_value(child_m(path, fnkey(tag)), rest, ind, 0)
+    parse_value(child_m(path, fnkey(tag)), rest, ind, iskey)
     return
   }
   if (v == "") {
@@ -378,6 +378,12 @@ function parse_all(    i) { for (i = 1; i <= nfiles; i++) parse_file(files[i], s
 
 # Values.
 function unresolved(raw) { RES_OK = 0; return "unresolved:" raw }
+# The unresolved text of a subtree. A secret marker anywhere inside it makes the value secret.
+function unres(f, p,    t) {
+  t = ser(f, p)
+  RES_SEC = (index(t, "{{resolve:") > 0 || index(t, "secure:") > 0 || index(t, "fn::secret:") > 0)
+  return unresolved(t)
+}
 function get(sc, p, dflt) {
   if (!has(S_file[sc], p)) { RES_OK = 1; RES_SEC = 0; return dflt }
   return resolve_at(sc, p, 0)

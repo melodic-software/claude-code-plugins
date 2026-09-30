@@ -32,17 +32,17 @@ function resolve_param(sc, name, depth,    f, pf, r, sec) {
 
 function resolve_at(sc, p, depth,    f, v, nm, out, rest, i, q, inner, r, sec, ok) {
   f = S_file[sc]; RES_SEC = 0; RES_OK = 1
-  if (depth > 8) return unresolved(ser(f, p))
+  if (depth > 8) return unres(f, p)
   if ((f SUBSEP p) in RV) {
     v = RV[f, p]
     if (index(v, "{{resolve:") > 0) RES_SEC = 1
     return v
   }
-  if (KN[f, p] != 1) return unresolved(ser(f, p))
+  if (KN[f, p] != 1) return unres(f, p)
   if ((f SUBSEP p ".Ref") in RV) {
     nm = RV[f, p ".Ref"]
     if ((f SUBSEP nm) in PDECL) return resolve_param(sc, nm, depth + 1)
-    return unresolved(ser(f, p))
+    return unres(f, p)
   }
   if ((f SUBSEP p ".Fn::Sub") in RV) {
     v = RV[f, p ".Fn::Sub"]
@@ -61,11 +61,11 @@ function resolve_at(sc, p, depth,    f, v, nm, out, rest, i, q, inner, r, sec, o
       if (!RES_OK) { ok = 0; break }
       out = out r
     }
-    if (!ok) { r = unresolved(ser(f, p)); RES_SEC = sec; return r }
+    if (!ok) { r = unres(f, p); RES_SEC = (sec || RES_SEC); return r }
     RES_OK = 1; RES_SEC = sec
     return out rest
   }
-  return unresolved(ser(f, p))
+  return unres(f, p)
 }
 
 # The logical id a Ref or GetAtt names, when it is a declared resource.
