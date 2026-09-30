@@ -37,7 +37,7 @@ primary objective; reclaimed bytes are secondary.** That posture does not change
 full: there is no emergency lane and no rule that yields under pressure. The recorded no-proportionality
 decision (no rule yields, no regenerable-at-a-cost engine signal) lives in
 [the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
-optional execution lane.
+optional execution lane. On Windows and macOS a run ends in a report plus the `execution-platform-unsupported` handoff, so plan for no deletion lane there.
 
 ## Arguments and boundaries
 
@@ -66,7 +66,7 @@ the engine returns `root-children-selection-required`. A general "clean everythi
 selection. `--sizes-only` skips the large-scan question. What each of the three flags does
 exactly, including the admission ladder, is in [scan-flags.md](reference/scan-flags.md). With no
 target, ask once. Reject an OS-managed root (unless `--root-children` on the volume root itself), a
-non-root mount target, a protected shell-folder root or descendant, a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
+non-root mount target, a protected shell-folder root or descendant (the refusal carries a `hint`: a child of a shell folder is refused too, so name a directory whose path holds no protected name), a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
 or a Windows reparse point. A whole-volume root that is not OS-managed (a Windows Dev Drive) is a
 valid target, but as a known-large root it is gated like a home target (see step 1): the scan
 returns `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
@@ -206,7 +206,7 @@ selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
 confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
 root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdout carries only their count and
-the snapshot the list); report them as coverage gaps, never as clean,
+the snapshot the list; `truncation_reasons` names each cause and `totals_are_lower_bounds` marks partial byte totals, see [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields)); report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only (see
@@ -233,7 +233,7 @@ and protected names. Without `--policy`, the engine also layers standing policy 
 layers. Every overlay can disable/add hints and add protected globs, and `version: 2` adds `rules`
 and `elevation`; none can weaken hard guards. The [overlay schema](reference/policy-overlay.schema.json)
 lists every field; version 1 files load unchanged. The scan output names its `policy_sources` and
-the effective `elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean.
+the effective `elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields).
 
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
