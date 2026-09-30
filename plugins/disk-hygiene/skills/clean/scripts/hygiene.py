@@ -19,7 +19,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -4043,12 +4043,19 @@ def open_anchored_parent(
 MAX_PURGE_DEPTH = 64
 
 
-def purge_directory_contents(directory_fd: int, device: int, depth: int = 0) -> None:
+def purge_directory_contents(
+    directory_fd: int,
+    device: int,
+    directory: Path,
+    protected: Callable[[Path], bool],
+    depth: int = 0,
+) -> None:
     """Empty an open directory fd-relative: no link is followed, no device crossed.
 
     For a directory the snapshot recorded without descendants (Git metadata),
     where ``anchored_remove`` has no inventory to walk. A symlink is unlinked as
-    a link, never entered.
+    a link, never entered. Every child is checked with ``protected`` when it is
+    reached, so an entry created after the pre-purge scan is refused, not deleted.
     """
     if depth > MAX_PURGE_DEPTH:
         raise HygieneError("directory contents nest too deeply to purge")
@@ -4057,6 +4064,8 @@ def purge_directory_contents(directory_fd: int, device: int, depth: int = 0) -> 
             (child.name, child.is_dir(follow_symlinks=False)) for child in iterator
         ]
     for name, is_directory in children:
+        if protected(directory / name):
+            raise HygieneError("directory contents gained a protected path")
         if not is_directory:
             os.unlink(name, dir_fd=directory_fd)
             continue
@@ -4066,7 +4075,9 @@ def purge_directory_contents(directory_fd: int, device: int, depth: int = 0) -> 
         try:
             if os.fstat(child_fd).st_dev != device:
                 raise HygieneError("directory contents cross a device boundary")
-            purge_directory_contents(child_fd, device, depth + 1)
+            purge_directory_contents(
+                child_fd, device, directory / name, protected, depth + 1
+            )
         finally:
             os.close(child_fd)
         os.rmdir(name, dir_fd=directory_fd)
@@ -4106,7 +4117,7 @@ def anchored_remove(
     entries: dict[str, dict[str, Any]],
     target: Path,
     *,
-    purge_contents: bool = False,
+    purge_protected: Callable[[Path], bool] | None = None,
 ) -> None:
     parent_fd, name = open_anchored_parent(target_fd, relative, entries)
     try:
@@ -4131,8 +4142,13 @@ def anchored_remove(
                     current, opened
                 ):
                     raise HygieneError("anchored directory changed since the snapshot")
-                if purge_contents:
-                    purge_directory_contents(directory_fd, opened.st_dev)
+                if purge_protected is not None:
+                    purge_directory_contents(
+                        directory_fd,
+                        opened.st_dev,
+                        target.joinpath(*PurePosixPath(relative).parts),
+                        purge_protected,
+                    )
                 with os.scandir(directory_fd) as iterator:
                     if next(iterator, None) is not None:
                         raise HygieneError("anchored directory is not empty")
@@ -4441,6 +4457,9 @@ def handoff_apply(
     )
     globs = snapshot_protection_globs(snapshot)
 
+    def consumer_protected(path: Path) -> bool:
+        return bool(consumer_protection_matches(path, target, globs))
+
     def path_blockers(path: Path, mounts: set[Path]) -> list[str]:
         reasons = evidence_adjusted_protections(
             hard_protection(path, target, exact_names, mounts),
@@ -4545,7 +4564,12 @@ def handoff_apply(
                 continue
             try:
                 anchored_remove(
-                    target_fd, name, entry, entries, target, purge_contents=purge
+                    target_fd,
+                    name,
+                    entry,
+                    entries,
+                    target,
+                    purge_protected=consumer_protected if purge else None,
                 )
             except HygieneError as exc:
                 skipped.append(

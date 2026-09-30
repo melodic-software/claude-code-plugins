@@ -21,7 +21,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   uninventoried metadata fd-relative before removing it. The purge refuses on a mount point at or
   under the metadata directory, on any consumer protection glob match over a live `os.walk`, and on
   a directory it cannot read (fail closed); it requires every directory to stay on the metadata
-  directory's device and unlinks links rather than following them. The hard-protection name check
+  directory's device and unlinks links rather than following them. Each child is matched against
+  the consumer protection globs again as the purge reaches it. The hard-protection name check
   is not applied to those contents.
 
 ### Changed

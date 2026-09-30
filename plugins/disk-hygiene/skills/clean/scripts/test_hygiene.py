@@ -7321,6 +7321,26 @@ class HandoffApplyTests(unittest.TestCase):
         self.assertFalse(checkout.exists())
         self.assertEqual("precious\n", (outside / "precious.txt").read_text("utf-8"))
 
+    def test_a_protected_path_created_inside_git_metadata_after_the_scan_is_kept(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        snapshot["policy"]["additional_protected_path_globs"] = ["checkout/.git/late/*"]
+        late = checkout / ".git" / "late"
+
+        def create_after_the_scan(*_args: Any) -> None:
+            late.mkdir(exist_ok=True)
+            (late / "kept.txt").write_text("kept\n", encoding="utf-8")
+
+        with mock.patch.object(
+            hygiene, "opaque_contents_blocker", side_effect=create_after_the_scan
+        ):
+            report = self.apply(snapshot, self.evidence())
+        self.assertEqual("completed-with-skips", report["status"], report)
+        self.assertEqual("kept\n", (late / "kept.txt").read_text("utf-8"))
+        self.assertTrue(checkout.is_dir())
+
     def cli(self, snapshot, evidence, *extra: str) -> tuple[int, dict[str, Any]]:
         (self.base / "snapshot.json").write_text(json.dumps(snapshot), "utf-8")
         (self.base / "evidence.json").write_text(

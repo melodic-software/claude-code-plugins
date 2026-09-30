@@ -259,8 +259,9 @@ and then removes the directory. These checks bound that purge:
 
 The mount, glob, and readability checks run once before anything is removed, where a refusal removes
 nothing, and again immediately before the metadata directory is emptied, where a refusal leaves that
-directory in place after the working tree is already gone. The hard-protection name check is not
-applied to the contents.
+directory in place after the working tree is already gone. The purge also matches each child against
+the consumer protection globs as it reaches it, so an entry created after those checks is refused,
+not deleted. The hard-protection name check is not applied to the contents.
 
 The skill-frontmatter Bash belt accepts only complete literal words in the declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
