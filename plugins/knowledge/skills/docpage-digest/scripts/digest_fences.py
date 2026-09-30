@@ -29,8 +29,16 @@ NONE_MARKERS = frozenset(
 )
 
 
+ECHO_LIMIT = 50
+
+
 class Failures:
-    """Named check failures, echoed to stderr as they land under ``prog``."""
+    """Named check failures, echoed to stderr as they land under ``prog``.
+
+    Only the first ``ECHO_LIMIT`` are echoed; ``report_suppressed`` then names
+    how many were not. ``items`` keeps every failure, so the count and the exit
+    code are unaffected.
+    """
 
     def __init__(self, prog: str):
         self.prog = prog
@@ -38,7 +46,13 @@ class Failures:
 
     def add(self, message: str) -> None:
         self.items.append(message)
-        sys.stderr.write(f"{self.prog}: FAIL: {message}\n")
+        if len(self.items) <= ECHO_LIMIT:
+            sys.stderr.write(f"{self.prog}: FAIL: {message}\n")
+
+    def report_suppressed(self) -> None:
+        hidden = len(self.items) - ECHO_LIMIT
+        if hidden > 0:
+            sys.stderr.write(f"{self.prog}: ... {hidden} more failure(s) not shown\n")
 
 
 class Fence(NamedTuple):
@@ -84,7 +98,14 @@ def parse_gate_args(
     prog: str, description: str, argv: Optional[List[str]]
 ) -> argparse.Namespace:
     """Both gates take one ``--source`` and repeatable ``--digest`` paths."""
-    parser = argparse.ArgumentParser(prog=prog, description=description)
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description=description,
+        epilog=(
+            "exit codes: 0 all checks passed; 1 one or more named check "
+            "failures; 2 unusable input; 3 internal gate bug"
+        ),
+    )
     parser.add_argument(
         "--source", required=True, help="Immutable source.md / source.txt"
     )
@@ -93,7 +114,7 @@ def parse_gate_args(
         action="append",
         default=[],
         dest="digests",
-        help="Digest file (repeatable)",
+        help="Digest file (repeatable; at least one required)",
     )
     args = parser.parse_args(argv)
     if not args.digests:
