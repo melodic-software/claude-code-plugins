@@ -21,6 +21,8 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Bundled skills | 29 | 22 | route 20, suggest 7, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 2 | 1 | route 2 | complementary 2 |
+| Built-in subagents | 0 | 0 | none | none |
+| Built-in tools | 0 | 0 | none | none |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
 
@@ -1010,6 +1012,14 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Recheck trigger:** a Claude Code release moves `security-review` out of the plugin-backed lane, renames it, or changes what it reviews (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+## Built-in subagents
+
+No rows recorded in this lane.
+
+## Built-in tools
+
+No rows recorded in this lane.
 
 ## Session-provided skills (observation-only)
 

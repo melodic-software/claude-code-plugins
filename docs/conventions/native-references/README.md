@@ -1,8 +1,8 @@
 # Native references: presence-gated phrasing for Claude Code's own surfaces
 
 Owner doc for **how a component in this marketplace refers to a native Claude Code surface**,
-whether a built-in CLI command, a bundled skill, a plugin-backed built-in, or a session-provided
-skill, when that surface materially overlaps what the component does. One shape: a read-time
+whether a built-in CLI command, a bundled skill, a plugin-backed built-in, a built-in subagent or
+tool, or a session-provided skill, when that surface materially overlaps what the component does. One shape: a read-time
 presence gate that routes, never an assertion that the native thing is there.
 
 The problem this closes is specific. A marketplace skill and a native surface can do overlapping
@@ -247,6 +247,7 @@ at runtime. Every store row carries one of `route`, `wrap`, or `suggest`.
 | `plugin-backed-builtin` | `route` or `wrap` |
 | `marketplace-plugin` | `route` or `wrap`. The wrap grammar for this class is seam-phrasing's, not the Native step below |
 | `session-skill` | `route` only |
+| `builtin-agent`, `builtin-tool` | `route` only. The model reaches a built-in subagent through the Agent tool's `subagent_type` and a built-in tool by its name, never through the Skill tool, so nothing wraps one; neither is a command a person types, so nothing suggests one |
 | verdict `defer` | `route`, and this wins over the class, including a model-disabled bundled skill. Nothing is baked from a defer row |
 
 A `suggest` row on a `bundled-skill` carrying `model-invocation-disabled` carries no description phrase
