@@ -298,10 +298,14 @@ class TestExportBrief(SessionCase):
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
 
-    def acceptance_section(self, acceptance):
+    def acceptance_section(self, acceptance, verdicts=("confirm",)):
         self.session(
             [question("Q1")],
-            [event(1, "Q1", "accept")],
+            [event(1, "Q1", "accept")]
+            + [
+                {**event(2 + i, None, "confirm-understanding", alt), "contentRev": 1}
+                for i, alt in enumerate(verdicts)
+            ],
             restatement={"rev": 1, "at": AT, "sections": {"acceptance": acceptance}},
         )
         text = self.export("brief").read_text(encoding="utf-8")
@@ -316,6 +320,17 @@ class TestExportBrief(SessionCase):
             ["- AC one is testable", "- AC two", "- AC three"],
         )
         self.assertNotIn("none recorded in the interview surface", text)
+
+    def test_unconfirmed_or_rejected_restatement_exports_no_criteria(self):
+        for verdicts in ((), ("off",), ("confirm", "off")):
+            with self.subTest(verdicts=verdicts):
+                text, section = self.acceptance_section("- AC one", verdicts)
+                self.assertNotIn("AC one", text)
+                self.assertIn("- none recorded in the interview surface", section)
+
+    def test_later_confirm_after_off_exports_criteria(self):
+        _, section = self.acceptance_section("- AC one", ("off", "confirm"))
+        self.assertIn("- AC one", section)
 
     def test_no_restatement_keeps_the_none_line(self):
         self.deferred_session()

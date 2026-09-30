@@ -640,7 +640,18 @@ def export_brief(d):
     out += [
         f"- {r['n']} {clean(r['q'].get('short'))}: {r['display']}" for r in answered
     ] or ["- none recorded"]
-    restated = (doc.get("restatement") or {}).get("sections", {}).get("acceptance")
+    restatement = doc.get("restatement") or {}
+    verdicts = [
+        e.get("alt")
+        for e in resp.get("events") or []
+        if e.get("kind") == "confirm-understanding"
+        and e.get("contentRev") == restatement.get("rev")
+    ]
+    restated = (
+        restatement.get("sections", {}).get("acceptance")
+        if verdicts[-1:] == ["confirm"]
+        else None
+    )
     criteria = [
         "- " + para(re.sub(r"^(?:[-*+]\s+)?(?:\[[ xX]\]\s*)?", "", line.strip()))
         for line in str(restated or "").splitlines()
