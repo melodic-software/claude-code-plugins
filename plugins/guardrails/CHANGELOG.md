@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.3] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` allows a computed PowerShell call whose target resolves to a single-quoted non-writer literal.** `$p = 'git'; & $p 'status' bare` was refused by the positional-write arm. The arm now skips a call site whose variable resolves to such a literal; an unresolved target stays blocked and no allow token was added.
+- **The computed-call positional arm has its own block reason.** It reports form `powershell-computed-positional` with a reason that names the computed call, instead of the cmdlet/redirect message with Write/Edit advice. The telemetry schema lists the new form token.
+
 ## [0.42.2] - 2026-09-30
 
 ### Fixed

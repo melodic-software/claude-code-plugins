@@ -162,7 +162,8 @@
 # Exit codes:
 #   0  ok (including "nothing asked for a restart", and a skipped locked tick)
 #   3  invalid argument / malformed config
-#   4  prerequisite missing (jq, gh, claude), or repo / config unresolved
+#   4  prerequisite missing (jq, gh, claude), or repo / config unresolved, or the
+#      lock store is unusable (a held lock is not that: it exits 0)
 #   5  at least one lane could not be evaluated or relaunched: a failed relaunch,
 #      one that never came up, an open breaker, or a telemetry read that errored
 
@@ -334,11 +335,11 @@ parse_args() {
       exit 0
       ;;
     -*)
-      err "unknown option: $1"
+      err "unknown option: $1 (see --help)"
       exit 3
       ;;
     *)
-      err "unknown action: $1"
+      err "unknown action: $1 (want: check run print-schedule)"
       exit 3
       ;;
     esac
