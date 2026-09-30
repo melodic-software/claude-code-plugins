@@ -993,11 +993,13 @@ def _operand(
     # A call or a group can also yield a non-string (`void 0`, `null`) this
     # reader does not record, so its values never settle a fallback.
     computed = False
+    quoted = True  # every part a string or template literal: never nullish
     while True:
         i = _skip_ws(src, i, n)
         if i >= n:
             break
         c = src[i]
+        quoted = quoted and c in _QUOTES
         if c in _QUOTES:
             texts, i, via = _read_string(src, braces, i, n, **kw)
             parts.append(texts if len(texts) > 1 else texts[0])
@@ -1091,13 +1093,16 @@ def _operand(
         # A non-string literal settles it by its own truthiness.
         literal = src[start:i].strip() if parts == [_NONSTRING] else None
         or_op = src.startswith("||", i)
-        kept = bool(literal) and (
-            _literal_truthy(literal) is True
-            if or_op
-            else _literal_nullish(literal) is False
+        kept = (not or_op and quoted and bool(parts)) or (
+            bool(literal)
+            and (
+                _literal_truthy(literal) is True
+                if or_op
+                else _literal_nullish(literal) is False
+            )
         )
         if kept:
-            values = []
+            values = values if quoted else []
         elif (
             computed
             or not values
@@ -1297,7 +1302,10 @@ def _array_join(
             stop = (starts[idx + 1] if idx + 1 < len(starts) else end) - 1
             while stop > start and src[stop] in " \t\r\n,":
                 stop -= 1
-            if src.startswith("]", start) or start > stop:
+            if src.startswith("]", start):
+                continue
+            if start > stop or src.startswith(",", start):
+                out.append([""])  # a hole joins as the empty string
                 continue
             if src.startswith("...[", start):
                 inner = _match_close(src, braces, start + 3, n)

@@ -1398,6 +1398,15 @@ class TestToolDescriptionShapes(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "REAL")
 
+    def test_a_template_is_never_nullish_and_array_holes_join_empty(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Holes";'
+            '$t({name:Qz,maxResultSizeChars:1,description:`${u.v}`??"FALLBACK"});'
+            '$t({name:Rz,maxResultSizeChars:1,description:[,"A",,"B"].join("-")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+        self.assertEqual(_tool(src, "Holes")["description"], "-A--B")
+
     def test_a_nullish_fallback_keeps_an_empty_string(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:""??"FALLBACK"});'
         self.assertEqual(_tool(src, "Probe")["description"], "")
