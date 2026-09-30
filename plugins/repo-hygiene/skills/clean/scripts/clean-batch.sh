@@ -140,7 +140,7 @@ while [[ $# -gt 0 ]]; do
     ;;
   --list-paths-max)
     [[ $# -ge 2 && "$2" =~ ^[0-9]+$ ]] || fail_usage "--list-paths-max requires a non-negative integer"
-    LIST_MAX="$2"
+    LIST_MAX=$((10#$2))
     shift
     ;;
   --repo)
@@ -469,7 +469,7 @@ batch_reset_gitdirs
 
 # Batch plan + per-repo manifests live in one dir so they bundle and clean up
 # together; honor an explicit --batch-plan location for a stable, resumable path.
-# The default dir is keyed to the tier and the sorted repo set, so a repeat dry-run
+# The default dir is keyed to the tier, the sorted repo set and the skip list, so a repeat dry-run
 # of the same set lands on the same path and replaces its stale plan and manifests.
 if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
@@ -480,7 +480,10 @@ else
     [[ -n "${HOME:-}" ]] || fail_usage "cannot place the batch plan: neither CLAUDE_PLUGIN_DATA nor HOME is set (use --batch-plan FILE)"
     DATA_DIR="$HOME/.claude/plugins/data/repo-hygiene"
   fi
-  SET_KEY="$(printf '%s\n' "${BATCH_TOPS[@]}" | LC_ALL=C sort | cksum | cut -d' ' -f1)"
+  SET_KEY="$({
+    printf 'repo\t%s\n' "${BATCH_TOPS[@]}"
+    [[ ${#BATCH_SKIP_INPUTS[@]} -eq 0 ]] || printf 'skip\t%s\n' "${BATCH_SKIP_INPUTS[@]}"
+  } | LC_ALL=C sort | cksum | cut -d' ' -f1)"
   PLAN_DIR="$DATA_DIR/clean-batch/$TIER-$SET_KEY"
   PLAN="$PLAN_DIR/plan"
   mkdir -p "$PLAN_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_DIR"

@@ -10,7 +10,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - **The batch plan defaults to a durable per-repo-set directory (#5215).** `clean-batch.sh` without
   `--batch-plan` now writes the plan and manifests to `clean-batch/<tier>-<key>` under
   `${CLAUDE_PLUGIN_DATA}`, else `~/.claude/plugins/data/repo-hygiene`, instead of a `mktemp`
-  directory. The same tier and repo set land on the same path, and a repeat dry-run replaces the
+  directory. The same tier, repo set and skip list land on the same path, and a repeat dry-run replaces the
   previous plan and manifests. `--batch-plan FILE` still overrides.
 
 ### Added
