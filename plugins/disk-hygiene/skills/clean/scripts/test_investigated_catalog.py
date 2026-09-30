@@ -183,6 +183,37 @@ class CatalogRulesTest(unittest.TestCase):
         partial, _ = catalog.sync_catalog(_snapshot(), merged, [], [], "run-j")
         self.assertEqual(2, len(partial["records"]))
 
+    def test_malformed_records_are_ignored_not_fatal(self) -> None:
+        snapshot = _snapshot(_entry("scratch"))
+        good, _ = catalog.sync_catalog(
+            snapshot, None, [_finding("scratch")], [], "run-m"
+        )
+        hostile = {
+            **good["records"][0],
+            "path": ["not", "a", "string"],
+            "identity": "x",
+        }
+        damaged = {"version": 1, "records": [hostile, "junk", {"path": "scratch"}]}
+        catalog.annotate_entries(snapshot, damaged)
+        self.assertNotIn("prior_disposition", snapshot["entries"][0])
+        merged, _ = catalog.sync_catalog(snapshot, damaged, [], [], "run-n")
+        self.assertEqual([], merged["records"])
+
+    def test_unwalked_subtree_is_not_a_descendant_change(self) -> None:
+        walked = _snapshot(_entry("big"), _entry("big/child", kind="file"))
+        stored, _ = catalog.sync_catalog(walked, None, [_finding("big")], [], "run-o")
+        unwalked = _snapshot({**_entry("big"), "size_qualifiers": ["not-walked"]})
+        catalog.annotate_entries(unwalked, stored)
+        self.assertEqual("keep", unwalked["entries"][0]["prior_disposition"])
+
+    def test_repeating_a_finding_leaves_the_entry_unchanged(self) -> None:
+        snapshot = _snapshot(_entry("loose", kind="file"))
+        findings = [_finding("loose")]
+        stored, _ = catalog.sync_catalog(snapshot, None, findings, [], "run-p")
+        _, report = catalog.sync_catalog(snapshot, stored, findings, [], "run-q")
+        self.assertEqual([], report["new_or_changed"])
+        self.assertEqual(["loose | keep | notes"], report["unchanged"])
+
     def test_unmatched_conclusions_are_reported(self) -> None:
         stored, report = catalog.sync_catalog(
             _snapshot(_entry("here")),
@@ -298,6 +329,14 @@ class CatalogCommandTest(unittest.TestCase):
             ("human", "keep"),
             (stored["records"][0]["source"], stored["records"][0]["disposition"]),
         )
+
+    def test_scan_reports_an_unreadable_catalog_and_still_completes(self) -> None:
+        (self.data / "catalog.json").write_text("{not json", encoding="utf-8")
+        code, result = self.run_main(
+            "scan", "--target", str(self.target), "--output", str(self.data / "s.json")
+        )
+        self.assertEqual(0, code)
+        self.assertTrue(result["catalog_unreadable"])
 
     def test_catalog_needs_a_data_root_and_leaves_the_target_alone(self) -> None:
         snapshot = self.scan("snapshot.json")

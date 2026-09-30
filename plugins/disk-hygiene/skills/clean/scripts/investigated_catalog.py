@@ -44,6 +44,15 @@ def descendant_set(path: str, entries: list[dict[str, Any]]) -> list[str]:
     )
 
 
+def descendants_of(
+    entry: dict[str, Any], entries: list[dict[str, Any]]
+) -> list[str] | None:
+    """The entry's descendant set, or ``None`` when its subtree was not walked."""
+    if "not-walked" in (entry.get("size_qualifiers") or []):
+        return None
+    return descendant_set(entry["path"], entries)
+
+
 def identity_of(entry: dict[str, Any]) -> dict[str, Any]:
     return {
         "device": entry.get("device"),
@@ -59,11 +68,14 @@ def identity_holds(
 
     A moved inode or a changed child set means the thing being described is not
     the thing that was described, so the record is not evidence for this entry.
+    A set that was never walked, on either side, cannot be compared and is not
+    a change.
     """
     if record.get("identity") != identity_of(entry):
         return False
     stored = record.get("descendant_set")
-    return isinstance(stored, list) and stored == descendant_set(entry["path"], entries)
+    current = descendants_of(entry, entries)
+    return stored is None or current is None or stored == current
 
 
 def _question(path: str) -> str:
@@ -86,7 +98,7 @@ def _unresolved_record(
         "target": target,
         "path": path,
         "identity": identity_of(entry),
-        "descendant_set": descendant_set(path, entries),
+        "descendant_set": descendants_of(entry, entries),
         "owner": None,
         "provenance": _unresolved_provenance(path),
         "evidence": [],
@@ -159,8 +171,22 @@ def _records_by_key(catalog: dict[str, Any] | None) -> dict[tuple[str, str], dic
     return {
         (record["target"], record["path"]): record
         for record in records
-        if isinstance(record, dict) and record.keys() >= RECORD_KEYS
+        if _well_formed(record)
     }
+
+
+def _well_formed(record: Any) -> bool:
+    """A record this module wrote. Anything else is ignored, not trusted."""
+    return (
+        isinstance(record, dict)
+        and record.keys() >= RECORD_KEYS
+        and isinstance(record["target"], str)
+        and isinstance(record["path"], str)
+        and isinstance(record["identity"], dict)
+        and record["identity"].keys() == {"device", "inode", "kind"}
+        and isinstance(record["descendant_set"], list | None)
+        and record["evidence"] == _evidence(record["evidence"])
+    )
 
 
 def sync_catalog(
@@ -187,8 +213,12 @@ def sync_catalog(
         if previous is None:
             continue
         if identity_holds(previous, entry, entries):
+            stored = previous["descendant_set"]
             records[(target, path)] = {
                 **previous,
+                "descendant_set": (
+                    descendants_of(entry, entries) if stored is None else stored
+                ),
                 "size": _size(entry),
                 "last_seen_run": run_id,
                 "last_verified": run_id,
@@ -218,8 +248,9 @@ def sync_catalog(
                 and state[path] == "unchanged"
             ):
                 continue
+            before = dict(record)
             _apply(record, conclusion, source)
-            if state[path] == "unchanged":
+            if state[path] == "unchanged" and record != before:
                 state[path] = "changed"
     catalog = {
         "version": CATALOG_VERSION,
