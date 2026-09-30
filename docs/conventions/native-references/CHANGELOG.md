@@ -6,6 +6,17 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.3.5] - 2026-09-30
+
+Patch: clarification.
+
+- **The Adopters table records the description phrases baked in `/context-budget:audit`,
+  `/evals:methodology` and `/playbooks:fable-5`** for the bundled `explain-usage` skill, the bundled
+  `claude-api` skill's `hillclimb` subcommand, and the bundled `claude-api` skill.
+- **The Adopters table records `/prototype:explore-directions`'s and `/visualization:visualize`'s
+  switch from a description phrase to a suggest sentence** for the bundled `design` skill, which a
+  2.1.285 extraction reads as model-invocation-disabled.
+
 ## [3.3.4] - 2026-09-29
 
 Patch: clarification.

@@ -1,5 +1,5 @@
 ---
-description: "Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks only when the target is genuinely ambiguous and no form was named. When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for choosing the form and medium. Routes chart craft and artifact-design fundamentals to those capabilities when installed; does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+description: "Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), renders good defaults, and asks only when the target is genuinely ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed; does not teach them. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
 argument-hint: "[terminal|file|artifact]. Omit to auto-decide; name a form in the request itself"
 user-invocable: true
 disable-model-invocation: false
@@ -68,7 +68,7 @@ rendering-surface facts these rest on. The summary:
 | What changes, when the surrounding shape is already in the conversation | a **diff-shaped delta** over any of the shapes above (a code-shape sketch) |
 | Mostly new code, or a copyable target shape, when no sketch is smaller than the code | **the whole block**, the fallback among the code-shape sketches |
 | A composite, interactive, or large multi-part view; an infographic; a short slide deck | a **rich rendered page** |
-| A visual layout the user would rather tweak by hand: a UI mockup, screen flow, poster, banner, one-pager | a **design canvas**. Route to a design-canvas capability (the bundled `design` skill), when available |
+| A visual layout the user would rather tweak by hand: a UI mockup, screen flow, poster, banner, one-pager | a **rich rendered page**, with the **design canvas** (`/design`, the bundled `design` skill, which the person runs) offered alongside it |
 
 **Code-shape sketches** are fenced text: they render in any GFM surface and need
 no page. Tie-break against the mermaid row: when the content is code (named
@@ -87,23 +87,20 @@ fall back to a simple, honest default (a labeled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable.
 
-When the form is a hand-tweakable visual layout, route to the design-canvas
-capability. That is the bundled `design` skill, when it appears in this session's
-skill list with the canvas description. The canvas exists only on the
-published-Artifact tier, so the offer is also gated on Step 3's medium selection:
-when an explicit `terminal`/`file` argument or the configured preference pins
-delivery on-machine ("never published"), do not offer the canvas. The rich rendered
-page or local file carries the layout instead. Where the medium permits publishing,
-offer it as an explicit alternative, never a silent default: the canvas is a
-published, versioned, persistent Artifact (default-private, shareable with
-teammates at the user's choice; hand-editable where saving is enabled for the
-account, view-plus-PNG/PDF-export otherwise), where this skill's other page paths
-are throwaway or plain-static. When the skill is **absent from the list**, the
-rich rendered page covers the same ground. Do not mention `/design` (that user
-has no such command). When it is **listed but the invocation is refused**, suggest
-the user run `/design` themselves. The canvas surface facts and their
-verified-on/recheck record live in the catalog spoke, and the Boundary section
-below states the split.
+When the form is a hand-tweakable visual layout, render this skill's rich page
+(or the local file or terminal form Step 3's medium pins) and offer the person the
+design canvas. The canvas is the bundled `design` skill, which is reserved for the
+person to run: the model never invokes it. It exists only on the published-Artifact
+tier, so the offer is also gated on Step 3's medium selection: when an explicit
+`terminal`/`file` argument or the configured preference pins delivery on-machine
+("never published"), do not offer it. Where the medium permits publishing, offer
+it as an explicit alternative, never a silent default: the canvas is a published,
+versioned, persistent Artifact (default-private, shareable with teammates at the
+person's choice; hand-editable where saving is enabled for the account,
+view-plus-PNG/PDF-export otherwise), where this skill's page paths are throwaway or
+plain-static. The Boundary section below carries the sentence to offer and its gate
+basis; the canvas surface facts and their verified-on/recheck record live in the
+catalog spoke.
 
 ## Step 3: Pick the medium
 
@@ -262,17 +259,31 @@ plugin and continue with this skill's closest static form (a rich page without t
 round-trip controls), never a hand-built imitation of the explorer.
 
 The **design canvas** is the bundled `design` skill, a native surface this skill overlaps on
-hand-tweakable layouts. It drafts artboards on a persistent, versioned, shareable canvas that the
-user edits by hand; this skill's page paths are throwaway or plain-static. **Routing:** when the
-skill resolves in this session with the canvas description and Step 3's medium permits
-publishing, offer the canvas as an explicit alternative and invoke it only on the user's choice;
-render this skill's rich page otherwise. **Mutation gate:** the canvas publishes a persistent
-Artifact under the user's account, so it is never a silent default and nothing tracked in a
-repository references it. **Availability is never assumed:** the skill is gated on a first-party
-session, a rollout flag, and an Artifact tool that supports capabilities, and a same-named Claude
-Design hub variant (model invocation disabled) registers behind a setting, so the listed
-description is the presence check. The surface facts and their verified-on record live in the
-catalog spoke's design canvas section ([context/decision-matrix.md](context/decision-matrix.md)).
+hand-tweakable layouts, so a request for a mockup or a one-pager can mean either:
+
+- **`design` (bundled skill)**: drafts artboards on a persistent, versioned, shareable canvas
+  Artifact that the person edits by hand, published under their account. It is reserved for the
+  person to run; the model does not invoke it.
+- **This skill (marketplace plugin)**: picks the form and medium and renders a throwaway or
+  plain-static page.
+
+**Routing:** when the form is a hand-tweakable layout and Step 3's medium permits publishing,
+render this skill's page and tell the person: If /design is available in your session (gate
+basis: the verification record below), you can run it instead of or alongside this skill for a
+hand-editable design canvas.
+
+**Mutation gate:** the canvas publishes a persistent Artifact under the person's account, so it is
+never a silent default and nothing tracked in a repository references it. This skill never runs it.
+
+**Verification record, `design`.** Claim: the bundled `design` skill registers as
+model-invocation-disabled, user-invocable, and gated, and settings can remove it
+(`disableBundledSkills`, or a `skillOverrides` entry naming `design`). Basis: a binary extraction
+of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_invocable` false,
+`user_invocable` true, `gated` true); the `disableBundledSkills` and `skillOverrides` rows on
+<https://code.claude.com/docs/en/settings-reference>, fetched that day. As of 2026-09-29.
+Recheck when a release makes the `design` registration model-invocable, changes its gating, or
+splits or merges its registrations. The remaining surface facts live in the catalog spoke's
+design canvas section ([context/decision-matrix.md](context/decision-matrix.md)).
 
 ## What this skill does NOT do
 

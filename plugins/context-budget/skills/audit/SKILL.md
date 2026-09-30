@@ -1,5 +1,5 @@
 ---
-description: "Measure this machine's Claude Code startup context per item, including per-tool attribution /context reports as lump sums, plus a before/after ledger. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default; `fix` applies one project-scope trim behind approval."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language account of where this session's tokens went; this skill for what a session costs before any work starts, per-tool attribution, and whether a settings change saved anything. Measure this machine's Claude Code startup context per item, including per-tool attribution /context reports as lump sums, plus a before/after ledger. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'what would denying this tool save', 'context budget audit', 'baseline my context before trimming', 'did that settings change actually save tokens'. Read-only by default; `fix` applies one project-scope trim behind approval."
 argument-hint: "[--full-sweep | --tools T1,T2 | --ledger | fix]"
 user-invocable: true
 disable-model-invocation: false
@@ -51,9 +51,9 @@ Two rules govern everything this skill says, per the plugin's
 One native surface also answers "what is using my tokens", and the two get conflated when a
 session feels crowded:
 
-- **`explain-usage` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
-  After the fact, it explains where the current session's tokens went, with one simple chart in
-  plain language. The model and the person can both invoke it where it resolves.
+- **`explain-usage` (bundled skill)**: after the fact, explains where the current session's tokens
+  went, with one simple chart in plain language. The model and the person can both invoke it where
+  it resolves.
 - **This skill (marketplace plugin).** Measures the fixed startup payload of a fresh headless
   session per item, including the built-in tool pools `/context` reports as lump sums, and keeps a
   before/after ledger for every lever the operator toggles.

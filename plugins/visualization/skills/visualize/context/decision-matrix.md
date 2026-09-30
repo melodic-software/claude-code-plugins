@@ -167,20 +167,25 @@ Artifact gate above applies, **plus** the skill's own gates:
 - removable by settings (`disableBundledSkills`, or `skillOverrides` naming
   `design`) and absent on non-first-party platforms (Bedrock / GCP / Foundry /
   AWS) and in headless SDK/CI/MCP contexts;
-- **model-invocable where enabled** (no model-invocation gate in its
-  registration), so the skill can be invoked by name, bare `design`; no
-  namespace exists for bundled skills. A local skill named `design` at any level
-  silently overrides the bundled one, and a same-named Claude Design hub variant
-  (model invocation disabled) registers behind an `allow_design_sync` setting.
+- **reserved for the person to run**: the 2.1.285 extraction reads the `design`
+  registration as model-invocation-disabled, so the model never lists it and
+  never invokes it; the person runs `/design`. A local skill named `design` at
+  any level silently overrides the bundled one.
 
-The honest presence check is whether `design` appears in the current session's
-skill list **and its listed description is the design canvas**: because of the
-override and the hub variant above, a bare name match may be an unrelated local
-skill or the hub; when the listed description does not describe a canvas or
-artboard capability, treat the capability as absent rather than invoking a
-shadowing skill. Absent: the rich-page paths above cover the ground (and
-`/design` must not be suggested; that user has no such command).
-Listed-but-refused: user invocation of `/design` survives invocability gates.
+The model cannot check presence: a model-invocation-disabled skill never enters
+its listing. So the skill renders its own page either way and offers the person a
+conditional sentence ("If /design is available in your session ..."), which the
+person checks against their own session. User invocation of `/design` survives
+the model-invocation gate.
+
+> Re-verified 2026-09-29 against a binary extraction of v2.1.285: one bundled
+> registration named `design`, `model_invocable` false (`disable_model_invocation`
+> true), `user_invocable` true, `gated` true, description unresolved. The
+> extraction records one registration where the v2.1.263 string search below found
+> two, so it does not establish whether the canvas registration gained the gate or
+> the hub now answers to the name; either way the model cannot invoke `design`.
+> Recheck when a release makes the `design` registration model-invocable, changes
+> its gating, or splits or merges its registrations.
 
 > Verified 2026-09-11 against the installed v2.1.263 binary (string search of the
 > registrations) and three pages fetched that day. The `/design` row on

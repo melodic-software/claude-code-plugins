@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.6.47] - 2026-09-29
+
+### Changed
+
+- **`audit`'s description opens with a presence-gated routing clause for the bundled
+  `explain-usage` skill.** It routes a plain-language account of where this session's tokens went
+  to `explain-usage` and keeps what a session costs before any work starts, per-tool attribution,
+  and whether a settings change saved anything, the split its Boundary section states.
+- **The `explain-usage` Boundary bullet no longer asserts that the skill ships with Claude Code.**
+  It keeps the provenance class, what the skill does and how it is invoked, in the
+  native-references template form.
+
 ## [0.6.46] - 2026-09-29
 
 ### Added

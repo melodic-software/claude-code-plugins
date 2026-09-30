@@ -1,5 +1,19 @@
 # Changelog: evals
 
+## [0.3.7] - 2026-09-29
+
+### Changed
+
+- **`methodology`'s description opens with a presence-gated routing clause for the bundled
+  `claude-api` skill's `hillclimb`.** It routes sweeping model and effort against an eval suite
+  that already exists to `hillclimb` and keeps the case where the suite does not exist yet or its
+  criteria are not yet measurable, the split its Boundary section states. `plugin-eval` gets no
+  phrase: `plugin eval` is a CLI subcommand, which never enters the model's skill listing the gate
+  reads.
+- **The `claude-api` Boundary bullet in `methodology` no longer asserts that the subcommands ship
+  with Claude Code.** It keeps the provenance class, what the subcommands do and how they are
+  invoked, in the native-references template form.
+
 ## [0.3.6] - 2026-09-29
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "Builds throwaway UI variations, several radically different layouts on one route switchable from a floating bar, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'what should this page look like', 'try a different layout'. Runs on the real stack by default (real header, data, and density) or as a self-contained HTML mockup; the user flips between variants, keeps one or bits of each, and discards the rest. When the bundled design skill resolves in this session, prefer it for a hand-editable design canvas; this skill for switchable variations of the user's own UI. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
+description: "Builds throwaway UI variations, several radically different layouts on one route switchable from a floating bar, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'what should this page look like', 'try a different layout'. Runs on the real stack by default (real header, data, and density) or as a self-contained HTML mockup; the user flips between variants, keeps one or bits of each, and discards the rest. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
 argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
@@ -150,28 +150,22 @@ Constraints:
   `skip:` line in the handover rejects a visual choice, add it to that list before the next
   round.
 
-### Design-canvas alternative (bundled `design` skill, when available)
+### Design-canvas alternative (bundled `design` skill, run by the person)
 
-When the intent selector lands on the HTML mockup substrate AND the bundled `design` skill
-appears in this session's skill list with a description that is the design canvas (a local
-skill named `design` at any level silently overrides the bundled one, and a same-named Claude
-Design hub variant exists behind a setting; if the listed description is something else, treat
-the canvas as absent), offer the user a choice before building, never switch silently; the HTML
-mockup stays the default:
+When the intent selector lands on the HTML mockup substrate, tell the user before building that
+the design canvas is an alternative they can run themselves, using the suggest sentence in the
+Boundary section below. The bundled `design` skill is reserved for the person to run; this skill
+never invokes it and never switches silently. The HTML mockup stays the default and is built
+either way:
 
 - **HTML mockup (default)**, the throwaway `file://` page above; nothing persists.
-- **Design canvas**. Invoke the bundled `design` skill to draft the variants as artboards on
+- **Design canvas**, run by the user as `/design <scope>`: it drafts the variants as artboards on
   one pan/zoom canvas, published as an Artifact. Name the lifecycle difference in the offer:
   the canvas is a published, versioned, persistent Artifact. Default-private, shareable with
   teammates at the user's choice. Unlike the throwaway local mockup, losing variants persist on
   it unless the user deletes or re-seeds the canvas. Hand-editing (click-to-select, properties
   panel, inline text) applies where saving is enabled for the user's account; otherwise the
   canvas is view-plus-PNG/PDF-export.
-
-When `design` is absent from the skill list, do not offer or mention it; the HTML mockup covers
-the same ground, and a user whose session lacks the skill has no `/design` command either. If the
-invocation is refused, suggest the user run `/design <scope>` themselves, since user invocation
-survives gates that stop model invocation.
 
 The capture discipline is unchanged either way: record the winning-variant key and notes in
 your durable answer; the canvas may live on under the user's account, but nothing tracked in
@@ -254,8 +248,8 @@ not written down now is gone.
 - **Sub-shape B**. Promote the winner to a real route; delete the throwaway route and switcher.
 - **HTML mockup substrate**. Discard the mockup file once the winning-variant key and notes are
   captured; nothing tracked is left behind.
-- **Design canvas**. Capture the winning-variant key and notes the same way; then ask whether
-  the user wants the canvas kept (it persists under their account) or cleared. Nothing tracked
+- **Design canvas**, when the user ran `/design`. Capture the winning-variant key and notes the
+  same way; then ask whether the user wants the canvas kept (it persists under their account) or cleared. Nothing tracked
   references it either way.
 
 Don't leave variant components or the switcher lying around. They rot fast.
@@ -265,28 +259,32 @@ Don't leave variant components or the switcher lying around. They rot fast.
 One native Claude Code surface drafts layouts as this skill does, and the two get conflated when
 the intent selector lands on the HTML mockup substrate:
 
-- **`design` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It
-  drafts artboards on one canvas and publishes the canvas as an artifact running a research
-  preview of Claude Design's editor: persistent, versioned, shareable, hand-editable where saving
-  is enabled for the account. It is model-invocable and user-invocable where it resolves.
+- **`design` (bundled skill)**: drafts artboards on one canvas and publishes the canvas as an
+  artifact running a research preview of Claude Design's editor: persistent, versioned,
+  shareable, hand-editable where saving is enabled for the account. It is reserved for the person
+  to run as `/design`; the model does not invoke it.
 - **This skill (marketplace plugin).** Throwaway variants on the real stack or as a local HTML
   mockup, switchable from a control bar; only the winning-variant key survives.
 
-**Routing.** The HTML mockup stays the default. When the bundled `design` skill resolves in this
-session with the canvas description, offer the canvas as an explicit alternative with the
-lifecycle difference stated, and invoke it only when the user picks it; the design-canvas
-subsection above carries the offer shape and the refused-invocation fallback.
+**Routing.** The HTML mockup stays the default and is built either way. Before building, tell the
+user: If /design is available in your session (gate basis: the verification record below), you
+can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
+State the lifecycle difference with it; the design-canvas subsection above carries the offer
+shape.
 
-**Mutation gate.** The canvas persists under the user's account. This skill never switches to it
-silently, never publishes on its own initiative, and never references the canvas from anything
-tracked in the repository; the capture discipline records the winning key and notes only.
+**Mutation gate.** The canvas persists under the user's account. This skill never runs it, never
+publishes on its own initiative, and never references the canvas from anything tracked in the
+repository; the capture discipline records the winning key and notes only.
 
-**Availability is never assumed.** The skill is gated on a first-party session, a rollout flag,
-and an Artifact tool that supports capabilities, and a same-named Claude Design hub variant with
-model invocation disabled registers behind an `allow_design_sync` setting, so the listed
-description is the presence check; this section states what to do when the canvas resolves, never
-that it is present. The four-part records live in
-[reference/bundled-design.md](reference/bundled-design.md).
+**Verification record, `design`.** Claim: the bundled `design` skill registers as
+model-invocation-disabled, user-invocable, and gated, and settings can remove it
+(`disableBundledSkills`, or a `skillOverrides` entry naming `design`). Basis: a binary extraction
+of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_invocable` false,
+`user_invocable` true, `gated` true); the `disableBundledSkills` and `skillOverrides` rows on
+<https://code.claude.com/docs/en/settings-reference>, fetched that day; the canvas gates per
+[reference/bundled-design.md](reference/bundled-design.md). As of 2026-09-29. Recheck when a
+release makes the `design` registration model-invocable, changes its gating, or splits or merges
+its registrations.
 
 ## Boundary, the marketplace `playground` plugin
 
