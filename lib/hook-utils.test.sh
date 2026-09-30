@@ -5231,6 +5231,92 @@ hook::extract_bash_subject_to es_to Bash 'TOKEN="a b" curl x'
 if [[ "$es_to" == Bash ]]; then ok "subject: a quoted assignment value never reaches the subject"; else fail "subject leaked: $es_to"; fi
 unset es_case es_tool es_cmd es_to es_print
 
+# --- gitignore scope gate (#4671) ---------------------------------------------
+# A fixture repository with an ignored scratch tier, a tracked file matching an
+# ignore pattern, and an ordinary file. Global excludes are neutralized so a
+# developer's own ignore rules cannot decide what the suite sees.
+if command -v git >/dev/null 2>&1; then
+  GI_ROOT="$(mktemp -d)"
+  GREPO="$GI_ROOT/grepo"
+  mkdir -p "$GREPO/.work" "$GREPO/src"
+  git -C "$GREPO" init -q
+  git -C "$GREPO" config core.excludesFile /dev/null
+  git -C "$GREPO" config user.email t@t.t
+  git -C "$GREPO" config user.name t
+  printf '.work/\n*.gen.sh\n' >"$GREPO/.gitignore"
+  printf 'x\n' >"$GREPO/.work/scratch.sh"
+  printf 'x\n' >"$GREPO/src/plain.sh"
+  printf 'x\n' >"$GREPO/src/tracked.gen.sh"
+  git -C "$GREPO" add -f src/tracked.gen.sh
+  git -C "$GREPO" commit -q -m init
+
+  if hook::file_is_gitignored "$GREPO/.work/scratch.sh"; then
+    ok "gitignored: an ignored untracked file reads as ignored"
+  else
+    fail "gitignored: .work/scratch.sh did not read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GREPO/src/tracked.gen.sh"; then
+    ok "gitignored: a tracked file matching an ignore pattern reads as not ignored"
+  else
+    fail "gitignored: a tracked file read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GREPO/src/plain.sh"; then
+    ok "gitignored: an ordinary file reads as not ignored"
+  else
+    fail "gitignored: src/plain.sh read as ignored"
+  fi
+
+  NOREPO="$GI_ROOT/norepo"
+  mkdir -p "$NOREPO"
+  printf 'x\n' >"$NOREPO/loose.sh"
+  if ! hook::file_is_gitignored "$NOREPO/loose.sh"; then
+    ok "gitignored: a file in no repository reads as not ignored"
+  else
+    fail "gitignored: a file in no repository read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GI_ROOT/missing-dir/gone.sh"; then
+    ok "gitignored: a vanished directory fails toward acting (not ignored)"
+  else
+    fail "gitignored: a vanished directory read as ignored"
+  fi
+
+  # An inherited GIT_DIR naming ANOTHER repository must not answer: the
+  # other repository ignores nothing, so honoring it would lint the file.
+  OTHER="$GI_ROOT/other"
+  mkdir -p "$OTHER"
+  git -C "$OTHER" init -q
+  if (GIT_DIR="$OTHER/.git" GIT_WORK_TREE="$OTHER" hook::file_is_gitignored "$GREPO/.work/scratch.sh"); then
+    ok "gitignored: an inherited GIT_DIR/GIT_WORK_TREE is cleared (still ignored)"
+  else
+    fail "gitignored: an inherited GIT_DIR/GIT_WORK_TREE decided the answer"
+  fi
+
+  if hook::gitignored_out_of_scope "false" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: ignored file with the opt-in off is out of scope"
+  else
+    fail "out_of_scope: ignored file with the opt-in off stayed in scope"
+  fi
+  if ! hook::gitignored_out_of_scope "true" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: the opt-in 'true' keeps an ignored file in scope"
+  else
+    fail "out_of_scope: the opt-in 'true' did not keep the file in scope"
+  fi
+  if hook::gitignored_out_of_scope "yes; rm -rf /" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: a garbage opt-in value reads as the default (off)"
+  else
+    fail "out_of_scope: a garbage opt-in value opened the gate"
+  fi
+  if ! hook::gitignored_out_of_scope "false" "$GREPO/src/plain.sh"; then
+    ok "out_of_scope: an ordinary file stays in scope with the opt-in off"
+  else
+    fail "out_of_scope: an ordinary file was put out of scope"
+  fi
+  rm -rf "$GI_ROOT"
+  unset GI_ROOT GREPO NOREPO OTHER
+else
+  ok "gitignore scope checks skipped (git absent)"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

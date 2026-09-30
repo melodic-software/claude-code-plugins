@@ -92,6 +92,14 @@ CLEAN_PROTECTED_BRANCH_GLOBS=(
 
 CLEAN_STALE_BRANCH_DAYS=90
 
+# Remote-branch retention windows in days, one per family (git-branch-audit.sh
+# --remote-families). A tip older than the window releases the branch; each is
+# overridable by the environment variable of the same name.
+CLEAN_RETENTION_PREWIPE_DAYS="${CLEAN_RETENTION_PREWIPE_DAYS:-30}"
+CLEAN_RETENTION_CLAUDE_DAYS="${CLEAN_RETENTION_CLAUDE_DAYS:-30}"
+CLEAN_RETENTION_PLAN_DAYS="${CLEAN_RETENTION_PLAN_DAYS:-90}"
+CLEAN_RETENTION_STRANDED_DAYS="${CLEAN_RETENTION_STRANDED_DAYS:-30}"
+
 # tree (git clean) preserve patterns — gitignore syntax for `git clean -e <pat>`.
 # SSOT for the `tree` tier's default-preserve set; aligned with the "Protected
 # paths" classes in reference/cleanup-config.md (drift-checked by
