@@ -3,6 +3,13 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1] - 2026-09-29
+
+### Changed
+
+- `block-root-delete-target` states its scope in the hook header: friction against accidental or casual root deletes, not a sandbox. The launcher grammar and the PowerShell walker are not widened further without a filed, demonstrated bypass, and converging the walker with `lib/powershell/ps-command.sh` waits until the delete lane is under the differential. No verdict changes.
+- `scripts/check-guardrails-ps-differential.sh` compares `block-root-delete-target` in the PowerShell differential, with a delete-lane corpus. The guard tokenizes on its own, and an outside-tree target is judged from one neutral payload cwd for both arms.
+
 ## [0.42.0] - 2026-09-29
 
 ### Added
