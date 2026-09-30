@@ -4,7 +4,7 @@ Intent-only. Everything identical across this plugin's three dispatched families
 contract: the envelope's field list, both shell forms of the pre-dispatch baseline, the `$ARGUMENTS`
 claim, the agents' write boundary, and the resume-before-discard ordering for a partial slice. That
 file is
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md)
 and is not restated here. `SKILL.md`'s **Routing** section owns the dispatch-by-default decision and
 the discipline-liveness token. This file owns the three inline escape hatches and what the parent
 does with the payload once it comes back.
@@ -51,7 +51,7 @@ failure this gate exists to catch is a payload carrying no pointer at all.
 2. **The artifact set is actually on disk, and this run put it there.**
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
+   "<plugin-root>/scripts/check-dispatch-artifact.sh" <the retained memory-slice path> \
      --index-name INTENT.md \
      --newer-than <that slice>/.trace-intent-dispatch --expect-index <the payload's artifact: value>
    ```
@@ -106,7 +106,7 @@ before its final write, and the gate refuses it with exit 1, which routes to tha
 
 At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
 the parent can resume it. Dated record:
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 
 ## The by-value rung is an exception to the halt, not to the gate
@@ -130,7 +130,7 @@ Two conditions bind that write:
   still marked `Run status: in progress` fails the gate and is a failed dispatch.
 
 Why the mode exists and where its boundary sits:
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)
+[`../../../reference/topic-docs.md`](../../../reference/topic-docs.md)
 ("The contract's by-value boundary is the checkout, not the process").
 
 ## The post-dispatch boundary the parent still owns
@@ -140,7 +140,7 @@ The gate passing is not the end of the parent's work:
 - **Re-surface `open_questions`.** The agent cannot call `AskUserQuestion`, which is filtered out of
   every non-fork subagent, so the payload is the only route those questions have to a human. The
   dated record for that harness behavior is
-  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "Harness facts the dispatch design rests on".
 - **Dispatch the sibling verifier** against the `index=` path, with the criterion the payload's
   `verification_request` names: each claim's tier is warranted by the sources cited for it, and no
@@ -151,5 +151,5 @@ The gate passing is not the end of the parent's work:
   reader an artifact whose central claim, that these tiers are honest, nobody ever checked. The
   verifier's route and prompt, the literal `verification:` line, and what to write when no verifier
   can be dispatched are stated once in
-  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md)
   ("The sibling verifier, stated once").

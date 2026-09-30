@@ -3,6 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.1] - 2026-09-30
+
+### Fixed
+
+- **The surface warns beside Wrap up while assumptions are still open.** The hint shows the count of unconfirmed assumptions next to the existing understanding-not-confirmed line ([#5460](https://github.com/melodic-software/claude-code-plugins/issues/5460)).
+
+## [0.48.0] - 2026-09-29
+
+### Added
+
+- **`interview` Step 3 sign-off recap.** Before the confirmation request in `me` and `auto` modes, the restatement carries one line per `Q<N>` naming its status, question text and resolution, generated from the ledger's open-question register rather than the transcript, so it survives a compaction. The recap extends the existing confirmation gate instead of adding an Action Router action or a separate skill: the user already confirms at that gate, the register already holds the data, and the digest-pinned Action Router stays unchanged ([#3941](https://github.com/melodic-software/claude-code-plugins/issues/3941)).
+- **`check-open-questions.sh --procedure`** checks what a ledger file can show about the procedure: rounds appear contiguously in the register and every retired row carries a resolution. With `--brief` it also requires all seven Brief template headings, so the Step 4 cross-check halts on a Brief missing one. The Step 3 gate and the Step 4 Brief cross-check cite its exit code and `procedure=` field. The skill names what stays unchecked: survey grounding, domain classification, ask-time register writes and frontier recomputation.
+
+### Changed
+
+- `interview` and `audit-answers` each state their relationship: the recap and `--procedure` check show the Q&A and that the procedure ran, `audit-answers` adversarially re-validates the answers, and neither composes nor duplicates the other.
+
 ## [0.47.12] - 2026-09-30
 
 ### Fixed
