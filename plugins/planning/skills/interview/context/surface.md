@@ -130,7 +130,10 @@ When the work returns, clear both (`wait` with `"clear": true`, `set-status` wit
 | `undo` | question, `undoSeq` | withdraws `undoSeq` | Drop that decision from the ledger; `handle` both seqs |
 | `wrapup` | none | no | Run [Wrap-up](#wrap-up), then `handle` |
 | `confirm` | question, `alt` is the commitment index | no; ticks one commitment | `handle` |
+| `accept-audit` | none; `alt` is the round id, `items` lists the accepted questions | yes, once per listed question (each has its own `accept` event carrying `auditSeq`) | Record each accepted question, then run `/planning:audit-answers` on the filled ledger. Reply to none of the accepts; the audit returns only the doubtful ones as human questions |
 | `confirm-understanding` | none; `alt` is `confirm` or `off`, `contentRev` is the restatement `rev` | no | `confirm`: the gate passed, `handle`. `off`: `note-reply` to its `text` with its `seq`, see [Confirmation gate](#confirmation-gate) |
+
+"Accept all and have agents check them" arrives as one `accept-audit` event plus its accepts; the page holds no validation logic, so the skill routes the round to `/planning:audit-answers`.
 
 An accept whose note conditions the acceptance ("before we lock it in") is recorded as hedged, headline only, per SKILL.md "A hedged reply resolves only the headline". Accept all, per group and per round section in the Rounds view, arrives as one `accept` event per question, each with its own note `text`, usually in one wake; treat each as a single accept.
 
