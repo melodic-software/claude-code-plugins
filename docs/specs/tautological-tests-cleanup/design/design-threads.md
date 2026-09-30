@@ -26,7 +26,10 @@ Recommended answer taken unattended (2026-09-30). Basis: spec:105-108 (Q13 order
 mode and wave 2 form one release, with no order inside it); spec:96-97 (Q10); judgment for the
 order inside the release.
 
-### DT2. Wave 2 adapters and SW1: defer all four, with switch conditions (deferred, pending the user)
+Decided 2026-09-30 (user): Release 3 builds cleanup only. Split mode is deferred by A16 (DT13) and
+wave 2 by A15 (DT2).
+
+### DT2. Wave 2 adapters and SW1: defer all four, with switch conditions (deferred)
 
 This thread proposes amendment A15 to Q5 and Q13. It is not a design decision, and the spec stays
 unedited here (another PR owns it).
@@ -52,6 +55,9 @@ for one of them, or the user choosing to build ahead of use. Basis: `find` and `
 this session (0 hits); `go-testing.yaml` assertion `calls` (Explore report this session);
 GRID.md `n/a` cells read this session; spec:63-71 (Q5 as amended).
 
+Decided 2026-09-30 (user): A15 approved. Wave 2 and SW1 leave Release 3 until a switch condition
+above fires; the next PR that edits the spec records A15 (PLAN Phase 1).
+
 ## Round 2: `testing:cleanup`
 
 ### DT3. Inputs (resolved)
@@ -76,6 +82,10 @@ PLAN.md:233-234; Fowler 2011, "Eradicating Non-Determinism in Tests"
 `.work/tautological-tests/cleanup/RESEARCH-suite-types.md:71-100`) for flakiness defined as mixed
 outcomes on the same code. Nothing in the repo detects flaky tests today, so without step 3 the
 first step of Q9's order would never fire.
+
+Decided 2026-09-30 (user): no three-run pre-pass. A test is flaky when the user names it, or when
+its result differs between the recording run's own two baseline runs (Release 2b's exercised-scope
+Phase 0); cleanup quarantines it and records again. This replaces item 3 above.
 
 ### DT4. Per-test decision rule and who classifies (resolved)
 
@@ -138,17 +148,17 @@ lists its reason and waits for approval); spec:974 (A10: the judge proposes test
 commits them); AGENTS.md "When to stop and when to keep going" (pushing and PR creation need the
 user).
 
-### DT6. Mutation gate: scope, replay and set comparison (resolved; Release 2b swaps the scope in)
+### DT6. Mutation gate: scope, replay and set comparison (resolved; needs Release 2b's scope)
 
 Decision:
 
-- Scope: mutate the production files the batch's tests exercise. Until Release 2b ships its scope
-  (production code the changed tests exercise, spec:869-870), cleanup proposes a `--paths` glob from
-  the tests' imports and the user confirms it. After 2b lands, cleanup calls that scope instead.
-  Cleanup does not wait for 2b: `--paths` exists today.
+- Scope: mutate the production code the batch's tests exercise. Release 2b's DT3 static mapping
+  (PR #5603) owns that question. The recording run takes 2b's exercised scope over the batch
+  folder's tests, with no `--paths`. Because a recording runs before any test is edited, the
+  mapping starts from the folder's tests as they stand, not from a change set.
 - No diff intersection. Today `--paths` is intersected with the changed lines (Phase 1 step 1), so a
   test-only batch would mutate nothing and pass vacuously. A recording run mutates every mutable
-  line in the scope, one mutant each, with no diff. The effort-derived cap does not apply to
+  line in the scope, one mutant each, with no diff. No effort-derived cap and no 2b cap applies to
   recording runs; an explicit `--max` does, and the report states it.
 - Replay: the recording run writes its mutant list. The replay run applies exactly that list by
   per-mutant application (apply, run the covering tests, revert), the regime `tool: manual` already
@@ -161,26 +171,21 @@ Decision:
   makes the baseline red (the audit stops on a red baseline).
 - Gate: production files are byte-identical between the two runs (`git diff --quiet <base> --
   <paths>`). Detected means killed or timeout. Every mutant detected before is detected after (K0 is
-  a subset of K1). The gate refuses (exit 2) when K0 is empty, since an empty K0 proves nothing. A
-  newly surviving mutant blocks the batch unless `mutation-testing:audit` Phase 4 triage calls it
-  equivalent or arid with evidence. Otherwise the batch changes whose tests import the mutant's file
-  are reverted one at a time, replaying only that mutant each time, until the kill returns. That
-  change leaves the batch (bounded bisection, DT7).
+  a subset of K1). The compare step refuses (exit 2) when K0 is empty, since an empty K0 proves
+  nothing. A newly surviving mutant blocks the batch unless `mutation-testing:audit` Phase 4 triage
+  calls it equivalent or arid with evidence. On a block, cleanup lists the candidate changes (the
+  batch's changed tests that import the mutant's file) and the user reverts.
 - Gate-blind tests: a changed or deleted test with no K0 mutant in a production file it imports is
   marked "gate-blind" in the decision table and needs the user's per-item approval, even for a
   rewrite.
-- Coverage: where the repo's coverage report can be produced for the scope, line coverage before
-  and after is reported beside K0 and K1, and a drop on a file is a per-item approval item. Where
-  no report exists, the table says so.
 - The gate is necessary, not sufficient: every deletion still carries its row-4 or row-5 reason
   and the user's approval (DT5).
 
 This changes `mutation-testing:audit`: two flags, `--record-mutants <file>` and
 `--replay-mutants <file>`, plus the no-diff recording scope. The spec's design contracts already
-name small changes in `mutation-testing` (spec:170-171). The record format is written once, in
-`mutation-testing` (`context/mutant-record.md`), and `testing` points at it. `mutant-gate.sh` exits
-2 on a missing or unknown header version, and cleanup checks that the installed audit skill
-documents `--record-mutants` before starting.
+name small changes in `mutation-testing` (spec:170-171). The record format and its comparator
+(`scripts/compare-records.sh`, the replay's compare step) live in `mutation-testing` and are private
+to it; `testing` reads only the replay report's gate line and newly surviving list.
 
 Recommended answer taken unattended (2026-09-30). Basis: `plugins/mutation-testing/skills/audit/SKILL.md`
 :37-43 (`--paths`, `--max`), :156-163 (one mutant per line; agent-applied under `tool: manual`),
@@ -188,20 +193,38 @@ Recommended answer taken unattended (2026-09-30). Basis: `plugins/mutation-testi
 invariant" (compare killed sets on one production commit, not scores) and "Scope of the mutation
 run" (a test-only change makes a diff-scoped run mutate nothing).
 
+Decided 2026-09-30 (user):
+
+- The comparator moves into `mutation-testing` as the replay's own compare step, so the record
+  format is private to that plugin. Dropped: the USER-RESERVED gate on the format, the v1 header,
+  the version-skew check, and the `col` column (one mutant per line needs no column). The
+  known-answer tests stay. Records live for one batch in `.work/`.
+- Bisection is deferred. On a lost kill, the batch is blocked and the candidate changes (the tests
+  that import the file) are listed; the user reverts. Switch condition: batches regularly show more
+  than 2 candidates.
+- The coverage before-and-after leg is deferred. Switch condition: a real batch shows a coverage
+  drop the mutation gate missed.
+- Release 2b's DT3 static mapping owns which production files the tests exercise. It replaces the
+  `--paths` glob proposal and is passed to the recording run without `--paths`; cleanup depends on
+  2b. Today `--exercised` excludes `--paths` and `--record-mutants` required `--paths`, so the
+  recording run accepts 2b's mapped scope instead.
+- Probe R3-P1 runs once, with `tool: manual`.
+
 ### DT7. Per-test kill attribution (resolved: not built)
 
 Decision: do not build per-test kill lists. The rule decides deletion and merge on behavior-level
 evidence (K and D), and Shi 2018 shows that mutant redundancy alone does not license deletion. The
 batch gate needs only the set comparison (DT6), which `mutation-testing:audit` supports once replay
-exists. When a kill is lost, DT6's bounded bisection names the responsible change by replaying one
-mutant per reverted change. It is used only to find what to revert, never to justify a deletion.
-Switch: a user asks for unique-kill counts in the batch report, or bisection proves too slow on real
-batches, and the configured tool exposes per-test kills (StrykerJS `disableBail` with `perTest`,
-PIT `fullMutationMatrix`).
+exists. When a kill is lost, DT6 lists the candidate changes and the user reverts. Switch: a user
+asks for unique-kill counts in the batch report, and the configured tool exposes per-test kills
+(StrykerJS `disableBail` with `perTest`, PIT `fullMutationMatrix`).
 
 Recommended answer taken unattended (2026-09-30). Basis: the Explore report found no per-test
 attribution in `mutation-testing:audit` (grep for `killedBy`, `killer`, `per-test`: no hits);
 RESEARCH-safety.md "Attribution needed for the per-test rule"; RESEARCH-decision-rule.md claim 3.
+
+Decided 2026-09-30 (user): bounded bisection is deferred (DT6). Switch condition: batches regularly
+show more than 2 candidates.
 
 ### DT8. Adapter and suite-type limits (resolved)
 
@@ -227,13 +250,16 @@ Decision: quarantine uses the framework's own skip form (from the adapter's `tes
 `body_skip` vocabulary), with a reason reading
 `test-change: quarantined <YYYY-MM-DD>: flaky, <evidence>`, where the date is 7 days out. The
 `test-change:` prefix is what `test-weaken` counts (DT10). Quarantines are applied before the
-mutation baseline (DT6). Each cleanup run lists quarantines in its folder whose date has passed, as
-fix-or-delete candidates. Delete still needs a row-4 reason. No new config key.
+mutation baseline (DT6). No new config key.
 
 Recommended answer taken unattended (2026-09-30). Basis: Fowler 2011 (limit quarantine "no longer
 than a week", RESEARCH-suite-types.md:79); Google Testing Blog 2016
 (<https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html>): quarantine can mask
 a real race, so it is bounded; spec:212-213 (`test_skip` and `body_skip` fields).
+
+Decided 2026-09-30 (user): quarantine the tests the user names, or the ones whose result flips
+during the audit's own baseline runs (DT3). The expired-quarantine sweep is deferred. Switch
+condition: a quarantine outlives its date in practice.
 
 ### DT10. Interplay with `test-weaken` (resolved)
 
@@ -275,7 +301,10 @@ PowerShell tool) and :34 (manual protocol); `mutation-testing:audit` SKILL.md:16
 
 ## Round 3: split mode
 
-### DT13. Where split mode lives and its flow (resolved)
+Deferred out of Release 3 by A16 (DT13). DT13-DT16 are kept as the design to use if it ships; PLAN
+"Deferred: split mode" holds the summary.
+
+### DT13. Where split mode lives and its flow (deferred by A16)
 
 Decision: split mode is a mode of `testing:write` (`/testing:write --split`), not a new skill. Its
 opt-in key is `userConfig.split_mode_enabled` (boolean, default false), effective only with `test_guards_enabled` on (DT14, one launcher). The flow:
@@ -305,7 +334,15 @@ context-separation RESEARCH-repo-scope.md option 1 ("Keeps vertical slicing");
 `plugins/testing/skills/write/SKILL.md` has no split, subagent or frozen-test
 content today (Explore report).
 
-### DT14. Freezing: how the implementer is kept off the tests (resolved; one Release 2 probe reused)
+Decided 2026-09-30 (user): split mode is deferred out of Release 3 by a new Brief amendment, A16.
+Switch condition: probe R2-P1 passes, and the Release 2 judge's calibration shows that main-session
+tests carry provenance defects the Release 1 hooks and the judge both miss. If it ships, the simpler
+form comes first: a done-time `git diff --quiet <freeze-sha> -- <files>` check, which detects an
+edit rather than preventing it. The test-writer agent, the validity check (DT15), the
+`split_mode_enabled` key, the freeze hook (DT14), probe R3-P3 and the Q4 clarification move to PLAN
+"Deferred: split mode".
+
+### DT14. Freezing: how the implementer is kept off the tests (deferred with DT13)
 
 Plugin subagents cannot carry `hooks` or `permissionMode` frontmatter, so the lock cannot live in an
 agent file. Decision: a new plugin hook, `test-freeze.sh`, on PreToolUse `Write|Edit`. It uses the
@@ -354,7 +391,7 @@ Further limits, from the devil's-advocate pass (2026-09-30):
   `session_id` (unconfirmed). The skill states that `/clear` ends split mode, and the deny message
   names the list file and the release command, `/testing:write --split --end`.
 
-### DT15. Validity check before freezing (resolved)
+### DT15. Validity check before freezing (deferred with DT13)
 
 Decision: a written test is frozen only when all three hold:
 
@@ -370,7 +407,7 @@ Recommended answer taken unattended (2026-09-30). Basis:
 `.work/tautological-tests/context-separation/RESEARCH.md` open decision 2 (ExecCritic and arXiv
 2606.16062: unvalidated LLM-written tests are often wrong); spec:52-53 (Q3).
 
-### DT16. Keeping the test-writer from reading the implementation (directional)
+### DT16. Keeping the test-writer from reading the implementation (deferred with DT13)
 
 Direction: the writer's isolation rests on a fresh context, a brief carrying only the spec and
 signatures, no Bash, and DT15. Nothing stops it reading an existing implementation file with Read.
@@ -391,20 +428,19 @@ of separate authorship is not settled).
 
 Decision: test at the seams that already exist, driven through their command lines:
 
-- New `plugins/testing/skills/cleanup/scripts/mutant-gate.sh <before.tsv> <after.tsv>`: prints the
-  newly surviving mutants and exits non-zero when any remain. This is the one deterministic new
-  logic in cleanup; a `.test.sh` covers it with known-answer cases.
-- `plugins/testing/hooks/test-freeze.sh` and the `test-pretool.sh` dispatcher: hook JSON in,
-  decision out, through `test-freeze.test.sh` and `test-pretool.test.sh`, as for
-  `test-weaken.test.sh`. `freeze-list.sh` is covered inside `test-freeze.test.sh`, since the writer
-  and the hook must resolve the same file.
-- `gen-hook-filters.sh --check` (existing) for the new rows.
+- New `plugins/mutation-testing/scripts/compare-records.sh <before> <after>`, the replay's compare
+  step: prints the newly surviving mutants and exits non-zero when any remain. This is the one
+  deterministic new logic the gate needs; a `.test.sh` covers it with known-answer cases.
 - The classifier and the replay are agent behavior, covered by skill evals (`evals/evals.json`,
   validated by `/skill-quality:check validate-evals`), not unit tests.
 
 Recommended answer taken unattended (2026-09-30). Basis: spec:387-392 (Release 1 test boundaries
 are the scripts' command lines); `testing:plan` classification table (seam altitude), applied by
 judgment.
+
+Decided 2026-09-30 (user): the comparator lives in `mutation-testing` (DT6), and the split-mode
+seams (`test-freeze.sh`, `test-pretool.sh`, `freeze-list.sh`, the regenerated rows) move to PLAN
+"Deferred: split mode" with DT13.
 
 ### DT18. Configuration, extension and observability (resolved)
 
@@ -421,8 +457,13 @@ Decision:
 Recommended answer taken unattended (2026-09-30). Basis: `plugins/testing/.claude-plugin/plugin.json`
 userConfig (`test_guards_enabled`, `stdin_read_timeout` today, Explore report); spec:43 (Q1).
 
+Decided 2026-09-30 (user): no new `.claude/*` config file. Issue #5606 makes a docs convention file
+with a CLAUDE.md pointer the default config location, and any cleanup config reads the testing
+config wherever #5606 puts it. The `split_mode_enabled` key and the `test-freeze` deny log leave
+Release 3 with DT13.
+
 ## Dependency order
 
-DT1 orders the work. DT6 needs two `mutation-testing:audit` flags before the cleanup gate works.
-DT14 reuses Release 2 probe R2-P1. DT2 needs the user's decision on A15 before Release 3 is called
-done.
+DT1 orders the work. DT6 needs Release 2b's exercised scope (PR #5603) and two
+`mutation-testing:audit` flags before the cleanup gate works. A15 (DT2) and A16 (DT13) are decided
+and go into the spec with the next PR that edits it.
