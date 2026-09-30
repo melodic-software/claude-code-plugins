@@ -77,6 +77,36 @@ class TestKeywords(unittest.TestCase):
             self.err({"id": "v", "content": "x"}, schema.load("visual"))
         )
 
+    def test_visual_grouping_fields(self):
+        base = {"id": "v", "format": "svg", "content": "x"}
+        vis = schema.load("visual")
+        fields = {"group": "g", "order": 1.5, "primary": True, "label": "A"}
+        self.assertIsNone(self.err({**base, **fields}, vis))
+        for key, bad in (
+            ("group", 1),
+            ("order", "1"),
+            ("primary", "yes"),
+            ("label", 2),
+        ):
+            self.assertIn(key, self.err({**base, key: bad}, vis))
+
+    def test_visual_ops_need_their_fields(self):
+        ops = schema.load("ops")
+        visual = {"id": "v", "format": "svg", "content": "x"}
+        ok = [
+            {"op": "replace-visual", "visual": visual},
+            {"op": "archive-visual", "ids": ["v"], "why": "old"},
+        ]
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        for op in ok:
+            self.assertIsNone(check(op))
+        self.assertIsNotNone(check({"op": "replace-visual"}))
+        self.assertIsNotNone(check({"op": "archive-visual", "ids": [], "why": "x"}))
+        self.assertIsNotNone(check({"op": "archive-visual", "ids": ["v"]}))
+
 
 class TestShippedSchemas(unittest.TestCase):
     def test_v21_sample_files_without_schema_version_validate(self):

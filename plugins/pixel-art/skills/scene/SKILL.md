@@ -47,7 +47,8 @@ file beside the output:
 - Audio, when given: put `/*WAV:relative/file.wav*/null` in the template. `embed.py` inlines a
   `data:audio/wav;base64,...` URL (the output stays one file). Play it with WebAudio: this plugin
   starts it on the first click and rewinds the scene clock on that click, so the picture and the
-  loop share a start. Browser behavior and its record: `scene-canvas.md` Audio.
+  loop share a start. Also set `audio` on `window.__pixelScene` to that same URL so `--record` can
+  mux it. Browser behavior and its record: `scene-canvas.md` Audio.
 
 A worked example is `${CLAUDE_PLUGIN_ROOT}/examples/campfire/scene.html` (title card, dithered sky,
 parallax, fire particles, walking character, typed dialogue); copy the folder into the working
@@ -74,7 +75,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/capture.py" <out-dir>/<name>.html --at 0,
 ```
 
 Exit 0: read each `shot-<n>.png` and, when present, treat `scene.webm` as the shareable
-recording (video only unless the scene exposes an `audioStream`, see Deliver). Every round, list each done criterion in `brief.md` as pass or fail with a one-line reason, and
+recording (with the scene's audio when `audio` is set and `ffmpeg` is present, see Deliver). Every
+round, list each done criterion in `brief.md` as pass or fail with a one-line reason, and
 check silhouettes against the background, palette contrast, beat timing, text legibility, stray
 non-integer or smoothed pixels. Fix, rebuild, re-run the same command. Stop when every done
 criterion passes, or after the round budget (typically 2 to 4) with the failing criteria named.
@@ -93,10 +95,10 @@ present), grade whatever criteria the script can speak to, mark the rest fail wi
 
 Report the HTML path, the gallery `index.html`, and when capture wrote one, `scene.webm`, as full
 paths, converted to a host path when the session runs in WSL (`wslpath -w`). A GIF export of a
-scene is not produced here: GIF carries no audio and the scene is code. `--record` writes video
-only unless the scene exposes a gesture-free `window.__pixelScene.audioStream` aligned to the seek
-clock. The campfire example does not (its audio starts only on a click that `capture.py` never
-sends), so its WebM is silent.
+scene is not produced here: GIF carries no audio and the scene is code. When the scene sets
+`window.__pixelScene.audio` to its WAV URL, `--record` loops that WAV from scene time 0 under the
+recording with `ffmpeg`, trimmed to the recording length. Without `ffmpeg` the WebM is video only and `capture.py` prints a note.
+`audioStream` is the live `MediaRecorder` path and is not aligned to the seek clock.
 
 ## Next
 
