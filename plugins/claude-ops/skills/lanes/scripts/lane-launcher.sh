@@ -127,6 +127,8 @@
 #
 # Exit codes:
 #   0  ok
+#   1  a refresh step (pull / marketplace update) failed, or a lane could not be
+#      launched or stopped (per-lane errors name it; the other lanes still ran)
 #   3  invalid argument / malformed config
 #   4  prerequisite missing (claude or jq), or repo / config could not be resolved
 
@@ -268,13 +270,13 @@ parse_args() {
       break
       ;;
     -*)
-      err "unknown option: $1"
+      err "unknown option: $1 (see --help)"
       exit 3
       ;;
     *)
       # A bare token before the action is an unknown action; after it, a lane.
       if ((seen_action)); then TARGET_LANES+=("$1"); else
-        err "unknown action: $1"
+        err "unknown action: $1 (want: start restart status stop)"
         exit 3
       fi
       ;;
@@ -1072,7 +1074,7 @@ main() {
   status) action_status ;;
   stop) action_stop ;;
   *)
-    err "unknown action: $ACTION"
+    err "unknown action: $ACTION (want: start restart status stop)"
     exit 3
     ;;
   esac

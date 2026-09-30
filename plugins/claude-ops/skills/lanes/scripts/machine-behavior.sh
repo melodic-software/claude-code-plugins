@@ -31,11 +31,16 @@
 #                   specific ids a lane runs to keep the block tight.
 #   --repo DIR      Repo root for the worktree inventory (default: the git
 #                   toplevel of the current directory).
+#   --max-worktrees N
+#                   List at most N worktrees (default 50; 0 lists all).
+#                   `worktree-count` always carries the full count, and a
+#                   `... N more` line follows a truncated list.
 #   --help
 #
 # Output (stdout): a formatted text block, printed verbatim by the lane. It is
 # greppable line-by-line (each fact on its own `key: value` line) and embeds
-# directly into a telemetry-comment body. No JSON surface — nothing parses this.
+# directly into a telemetry-comment body, whose size telemetry-upsert.sh caps at
+# 64 KiB, hence the worktree cap. No JSON surface — nothing parses this.
 #
 # Fields that cannot be resolved degrade to an explicit `unavailable` marker
 # rather than aborting: this is telemetry, and a partial block is more useful to
@@ -69,14 +74,10 @@ require_value() { # <flag> <value>
   exit 3
 }
 
-type -P jq >/dev/null 2>&1 || {
-  err "jq not found (required)"
-  exit 4
-}
-
 INSTALLED_JSON="${MACHINE_BEHAVIOR_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
 
 REPO=""
+MAX_WORKTREES=50
 declare -a WANT_PLUGINS=()
 while (($#)); do
   case "$1" in
@@ -98,16 +99,37 @@ while (($#)); do
     REPO="${1#*=}"
     shift
     ;;
+  --max-worktrees)
+    require_value "$1" "${2:-}"
+    MAX_WORKTREES="$2"
+    shift 2
+    ;;
+  --max-worktrees=*)
+    MAX_WORKTREES="${1#*=}"
+    shift
+    ;;
   -h | --help)
     usage
     exit 0
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
 done
+
+[[ "$MAX_WORKTREES" =~ ^[0-9]+$ ]] || {
+  err "--max-worktrees requires a non-negative integer, got: $MAX_WORKTREES"
+  exit 3
+}
+MAX_WORKTREES=$((10#$MAX_WORKTREES))
+
+# After the parse loop, so `--help` answers on a machine without jq.
+type -P jq >/dev/null 2>&1 || {
+  err "jq not found (required)"
+  exit 4
+}
 
 # --- Repo resolution ---------------------------------------------------------
 if [[ -n "$REPO" ]]; then
@@ -244,9 +266,13 @@ printf 'current-worktree: %s\n' "$CURRENT_WT"
 printf 'worktree-count: %s\n' "${#WT_LINES[@]}"
 if ((${#WT_LINES[@]})); then
   printf 'worktrees:\n'
-  for wt_line in "${WT_LINES[@]}"; do
+  shown=${#WT_LINES[@]}
+  ((MAX_WORKTREES > 0 && shown > MAX_WORKTREES)) && shown=$MAX_WORKTREES
+  for wt_line in "${WT_LINES[@]:0:shown}"; do
     printf '  %s  [%s]\n' "${wt_line%%|*}" "${wt_line#*|}"
   done
+  ((shown < ${#WT_LINES[@]})) &&
+    printf '  ... %d more (--max-worktrees 0 lists all)\n' "$((${#WT_LINES[@]} - shown))"
 fi
 printf 'plugin-versions:\n'
 plugin_versions

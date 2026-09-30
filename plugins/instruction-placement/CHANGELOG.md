@@ -3,12 +3,28 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.1] - 2026-09-30
+## [0.16.2] - 2026-09-30
 
 ### Changed
 
 - **`migrate` sources record the observed Cursor, Grok Build and Muse Code loader behavior.** The parked-install record is replaced by the results of running the loader recipe against each tool, with the bullets that stay open and their reasons. `verification.md` carries the recipe and expected results, and the record cites the upstream pages that exist
   ([#4283](https://github.com/melodic-software/claude-code-plugins/issues/4283)).
+
+## [0.16.1] - 2026-09-30
+
+### Fixed
+
+- `migrate`, `check`, `setup`, the README, `verified-mechanics.md` and `render-index.sh` now agree that `/memory` lists a directly read `AGENTS.md` from v2.1.280 and that no `InstructionsLoaded` hook fires. The shim-deletion eval case states the same.
+- The `index-drift` test runs the hook body on a rules-tree Write payload instead of exiting at the hot-path guard ([#3713](https://github.com/melodic-software/claude-code-plugins/issues/3713)).
+
+### Added
+
+- The README lists Node.js on `PATH` as a requirement, and `setup check` probes `node`, since every hook row launches through `node hooks/exec-bash.mjs`. `audit`, `check` and `delta` name `/instruction-placement:realign` in a `## Next` section.
+
+### Changed
+
+- `migrate/reference/sources.md` keeps one Current fleet grade record. The install-dependent loader test record for [#4283](https://github.com/melodic-software/claude-code-plugins/issues/4283) states the pending owner decision instead of an encoded choice.
+- The CI-canary record for [#4282](https://github.com/melodic-software/claude-code-plugins/issues/4282) names knowledge-corpus run `36666844023` (2026-09-30, `claude-code-action` v1.0.235, CLI 2.1.283), where a lone `AGENTS.md` loaded in both sessions. The owner chose that re-run on #4282, so cutover condition 2 is no longer marked provisional. `cutover-check.test.sh` expects the new run id.
 
 ## [0.16.0] - 2026-09-29
 

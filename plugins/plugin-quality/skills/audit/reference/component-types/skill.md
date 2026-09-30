@@ -36,6 +36,14 @@ The `context: fork` and cloud-scoping claims above are verified 2026-09-06 again
 and "Skills in Cowork and cloud sessions"). Recheck when either section stops carrying its
 statement, or when a release note names `context: fork` or skill loading in cloud sessions.
 
+## Categories
+
+- **Errors:** a step that does not do what the skill text says, or a false result the skill reported.
+- **Improvements:** behavior the skills page or this skill's own contract implies and the skill does not do.
+- **Quality of life:** friction while invoking or reading the result (a command the session cannot run, a report that hides the detail the operator needs).
+- **Standards:** the `invocation-mode`, `seam-phrasing`, and `untrusted-content` probes.
+- **Emitted findings:** when the skill is an audit, review, or scan that reports findings to a user, sample those findings and grade each.
+
 ## Reproduce
 
 Invoke it on a realistic prompt; confirm it triggers when it should and follows its own workflow.

@@ -59,6 +59,17 @@ it never fires for steps the agent can perform itself.
   warn visibly and land in the closing to-do summary instead of failing the
   run. Wizards whose values live only in `.env` never touch `gh`.
 
+## Unattended secrets
+
+A script `/wizard:unattended` authors resolves each secret in this order, first hit wins:
+environment variable, a file the author names, a `Microsoft.PowerShell.SecretManagement` vault,
+then a hidden prompt. The vault rung is skipped silently when the module or the name is absent,
+and it uses only a string secret. It reads every registered vault, so a locked vault can prompt
+during a dry run. There is no native macOS Keychain or `pass` rung yet. Names declared with
+`-Secrets` on `Invoke-UnattendedRun` resolve once, before the first stage, so every hidden prompt
+comes up front. An undeclared name falls back to the same ladder at first use. The result JSON
+lists declared names, never values.
+
 ## Ephemeral by default
 
 A wizard is built for one run: save it to a scratch or `scripts/` path, run it,
