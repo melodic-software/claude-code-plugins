@@ -160,6 +160,7 @@ fixture_files() {
   go) echo cm-sample.go ;;
   dotnet) echo CmSample.cs ;;
   other) echo cm-notes.md ;;
+  *) ;;
   esac
 }
 
