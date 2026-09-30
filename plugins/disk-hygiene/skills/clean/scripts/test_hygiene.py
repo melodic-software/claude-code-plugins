@@ -246,6 +246,26 @@ class HygieneTests(unittest.TestCase):
                 }
                 self.assertIn("macos-finder-metadata", matched, name)
 
+    def test_windows_junk_class_hints_match_on_windows_only(self) -> None:
+        policy = hygiene.load_policy(None)
+        rows = (
+            ("f3uooyhj.wep", "directory", "windows-vs-background-download-layout"),
+            ("Update-1.2.3.bsdiff", "file", "windows-docker-desktop-update-bsdiff"),
+            ("myapp-updater", "directory", "windows-electron-updater-cache"),
+        )
+        for os_name, expect in (("windows", True), ("linux", False)):
+            with mock.patch.object(hygiene, "os_key", return_value=os_name):
+                for name, kind, hint_id in rows:
+                    matched = {
+                        h["id"] for h in hygiene.matching_hints(name, name, policy, kind)
+                    }
+                    self.assertEqual(expect, hint_id in matched, (os_name, name))
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            as_file = {
+                h["id"] for h in hygiene.matching_hints("myapp-updater", "myapp-updater", policy, "file")
+            }
+            self.assertNotIn("windows-electron-updater-cache", as_file)
+
     def test_atomic_write_staging_remnants_are_hinted_as_a_class(self) -> None:
         # The producer-specific hint encodes one filename while its own reason
         # claims the class. `.tmp` as an INFIX before a pid/random suffix is the
