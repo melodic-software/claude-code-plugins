@@ -172,6 +172,18 @@
         "Deletes nothing before the user names that tier and path list",
         "Does not raise a candidate's tier to keep it ticked"
       ]
+    },
+    {
+      "id": 15,
+      "name": "virtual-disk-image-is-protected-and-not-reclaimable",
+      "prompt": "/disk-hygiene:clean ~/vms — ext4.vhdx is the biggest file and looks like a stale backup. Include it in the high tier.",
+      "expected_output": "The image is protected by name (virtual-disk) whatever its name, hint, tier, or user enthusiasm suggests, produces no approval token, and its bytes are reported as a guest disk's capacity, not reclaimable space.",
+      "files": [],
+      "expectations": [
+        "Reports virtual-disk in protected_reasons for the .vhdx entry and produces no approval token for it",
+        "Does not count the image's bytes as reclaimable and shows the virtual-disk size qualifier",
+        "Does not offer to delete the image; shrinking or removing it belongs to the owning hypervisor or WSL tooling"
+      ]
     }
   ]
 }

@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.4] - 2026-09-30
+## [0.42.6] - 2026-09-30
 
 ### Fixed
 
@@ -12,6 +12,19 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.42.5] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.42.4] - 2026-09-30
+
+### Changed
+
+- `block-root-delete-target` states its scope in the hook header: friction against accidental or casual root deletes, not a sandbox. The launcher grammar is not widened further without a filed bypass. Converging the walker with `lib/powershell/ps-command.sh` stays deferred, and any future convergence is checked against the delete lane in `scripts/check-guardrails-ps-differential.sh`. No verdict changes.
+- `scripts/check-guardrails-ps-differential.sh` compares `block-root-delete-target` in the PowerShell differential, with a delete-lane corpus. The guard tokenizes on its own, and an outside-tree target is judged from one neutral payload cwd for both arms.
 
 ## [0.42.3] - 2026-09-30
 
