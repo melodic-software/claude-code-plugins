@@ -271,17 +271,20 @@ historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
 - **Basis**: headless runs on one Linux host with cursor-agent `2026.09.28-64d2043`
   (`cursor-agent -p --mode ask --trust`), grok `1.0.41 (4220f3b224a6)` (`grok -p --tools ""`
   with `GROK_FOLDER_TRUST=0`, and `grok inspect --json`), and Muse Code `1.4.1 (1.4.1-R4503.1)`
-  (`muse exec --trust-workspace --disable-shell --disable-write`). The recipe tree sat outside
-  every repository: root `AGENTS.md`, `CLAUDE.md` with an `@`-import, nested `AGENTS.md` and
-  `CLAUDE.md`, `.cursor/rules` `.md` and `.mdc`, `.claude/CLAUDE.md`, symlinked instruction
-  files, files of 32,784 to 1,048,596 bytes, a 12-level nest, and eight name variants, each with
-  its own random canary, in a git copy and a non-git copy. Each tool was asked to quote every
-  canary it saw without reading files. Each result is one model sample except where repeats
-  agreed; the raw transcripts were not committed.
+  (`muse exec --trust-workspace --disable-shell --disable-write`). The tree, prompt,
+  invocations and expected results are in
+  [`reference/verification.md`](verification.md#the-loader-recipe-for-other-tools); the raw
+  transcripts are not committed. Each result is one model sample except where repeats agreed.
+- **Upstream pointers**: Cursor rules, `https://cursor.com/docs/rules` (fetched 2026-09-30, HTTP
+  200, mentions `AGENTS.md`); Grok Build, `https://docs.x.ai/build/overview` (fetched
+  2026-09-30, HTTP 200, mentions `AGENTS.md`). Neither page states the loader semantics above,
+  which is why they are recorded as observed. Muse Code: no public documentation or issue
+  tracker was found, so its results rest on the recipe alone.
 - **As of**: 2026-09-29.
 - **Recheck trigger**: a new release of any of the three tools, a host that can run the
-  editor, a Team plan, a Windows host, or `strace`, which would settle the open bullets, or
-  any change to the recipe in [`reference/verification.md`](verification.md).
+  editor, a Team plan, a Windows host, or `strace`, which would settle the open bullets, either
+  upstream page stating loader behavior, or any change to the recipe in
+  [`reference/verification.md`](verification.md#the-loader-recipe-for-other-tools).
 
 ## The canary recipe
 
