@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.76.0] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` caps `unreferenced_versions` in the JSON report.** The report lists at
+  most 25 entries and adds `unreferenced_versions_total` and `unreferenced_versions_truncated`;
+  `--versions-out <file>` writes the full list. The schema is `claude-install-state/4`, and
+  `SKILL.md` documents the capped contract.
+
 ## [0.75.1] - 2026-09-30
 
 ### Changed
