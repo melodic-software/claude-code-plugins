@@ -65,7 +65,7 @@ fi
 if [[ "$shape" = marketplace ]]; then
   emit "plugins" "$(count_dirs plugins)" 'plugins/*/'
   emit "plugin skills (excl. vendor)" "$(find plugins -mindepth 4 -maxdepth 4 -path 'plugins/*/skills/*/SKILL.md' -not -path '*/vendor/*' 2>/dev/null | count_lines)" 'plugins/*/skills/*/SKILL.md'
-  emit "plugin skill spokes (excl. vendor)" "$(find plugins -path 'plugins/*/skills/*' -name '*.md' -not -name SKILL.md -not -path '*/vendor/*' -not -path '*/evals/*' 2>/dev/null | count_lines)" 'plugins/*/skills/**/*.md'
+  emit "plugin skill spokes (excl. vendor)" "$(find plugins -path 'plugins/*/skills/*' -name '*.md' -not -name SKILL.md -not -path '*/vendor/*' -not -path 'plugins/*/skills/*/evals/*' 2>/dev/null | count_lines)" 'plugins/*/skills/**/*.md'
   emit "plugin agents" "$(find plugins -mindepth 3 -maxdepth 3 -path 'plugins/*/agents/*.md' 2>/dev/null | count_lines)" 'plugins/*/agents/*.md'
   emit "plugin hook dirs" "$(find plugins -mindepth 2 -maxdepth 2 -type d -name hooks 2>/dev/null | count_lines)" 'plugins/*/hooks/**'
   emit "plugin READMEs" "$(find plugins -mindepth 2 -maxdepth 2 -name README.md 2>/dev/null | count_lines)" 'plugins/*/README.md'
