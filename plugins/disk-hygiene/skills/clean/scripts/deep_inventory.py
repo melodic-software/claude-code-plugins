@@ -29,14 +29,26 @@ from __future__ import annotations
 
 import datetime as dt
 import functools
-import json
 import os
 import re
 import stat
+import sys
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundled module)
+    INSTALLED_PLUGINS,
+    ORPHAN_SWEEP_DAYS,
+    load_registry,
+    orphan_marker,
+    resolve,
+)
 
 try:
     import pwd
@@ -91,12 +103,6 @@ LINK_PRODUCERS = (
 )
 # Group 1 is the numeric part, group 2 the "-" of a prerelease or the "+" of build metadata.
 VERSION_RE = re.compile(r"^v?(\d+(?:\.\d+)*)(?:([-+])[\w.+-]+)?$")
-# Days after an update or uninstall that Claude Code removes an orphaned plugin
-# version, counted from its `.orphaned_at` marker. Basis:
-# https://code.claude.com/docs/en/plugins/loading.md ("Cleanup of previous versions"),
-# verified 2026-09-30; recheck when that section or a Claude Code changelog entry
-# changes the window.
-ORPHAN_SWEEP_DAYS = 14
 _TOKEN = r"[\w.@/+-]+"
 _NAMED_TOOL = re.compile(
     rf"(?:managed|owned) by (?:the )?({_TOKEN}(?: {_TOKEN}){{0,2}})"
@@ -340,35 +346,17 @@ def superseded_versions(
     return rows
 
 
-def _install_paths(data: object) -> list[str]:
-    if isinstance(data, dict):
-        own = data.get("installPath")
-        found = [own] if isinstance(own, str) else []
-        return found + [p for v in data.values() for p in _install_paths(v)]
-    if isinstance(data, list):
-        return [p for v in data for p in _install_paths(v)]
-    return []
+def _read_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
+    """Read a bounded amount of text from a regular file under ``root``.
 
-
-def _resolve(path: str | Path) -> Path | None:
-    try:
-        return Path(path).expanduser().resolve()
-    except (OSError, RuntimeError):
-        return None
-
-
-def _orphan_marker(version: Path, now: float) -> dict[str, Any] | None:
-    """The age of a version's ``.orphaned_at`` marker (epoch milliseconds), or None."""
-    try:
-        epoch = int((version / ".orphaned_at").read_text(encoding="utf-8")) / 1000
-        age = (now - epoch) / DAY
-        return {
-            "orphaned_at": _iso(epoch),
-            "marker_age_days": round(age, 1),
-            "past_sweep_window": age >= ORPHAN_SWEEP_DAYS,
-        }
-    except (OSError, ValueError, OverflowError):
-        return None
+    A cached plugin controls the paths below the cache, so a link is never
+    followed out of ``root``. The registry itself may be a link.
+    """
+    path = root / relpath
+    if relpath != INSTALLED_PLUGINS and (path.is_symlink() or not path.is_file()):
+        raise OSError(f"{relpath} is not a regular file")
+    with path.open(encoding="utf-8", errors="replace") as fh:
+        return fh.read(limit)
 
 
 def _orphan_reason(registry: str, marker: dict[str, Any] | None, sweeping: bool) -> str:
@@ -413,22 +401,13 @@ def plugin_cache_versions(claude_dir: Path, now: float) -> list[dict[str, Any]]:
     ]
     if not paths:
         return []
-    registry = claude_dir / "plugins" / "installed_plugins.json"
-    referenced: set[Path] = set()
-    doubt = ""
-    try:
-        data = json.loads(registry.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        data, doubt = None, f"{registry.name} unreadable ({type(exc).__name__})"
-    if not doubt and not (
-        isinstance(data, dict) and isinstance(data.get("plugins"), dict)
-    ):
-        doubt = f"{registry.name} has no `plugins` object"
-    if not doubt:
-        referenced = {p for p in map(_resolve, _install_paths(data)) if p is not None}
-        cache_resolved = _resolve(cache)
-        if data["plugins"] and not any(cache_resolved in p.parents for p in referenced):
-            doubt = f"no installPath in {registry.name} lies under {cache}"
+    registry = claude_dir / INSTALLED_PLUGINS
+
+    def read(rel: str) -> str:
+        return _read_guarded(claude_dir, rel)
+
+    known = load_registry(read, claude_dir, registry.name)
+    doubt = known.doubt
     rows = []
     for path in paths:
         producer = path.parent.name
@@ -442,7 +421,7 @@ def plugin_cache_versions(claude_dir: Path, now: float) -> list[dict[str, Any]]:
                     **common,
                 )
             )
-        elif _resolve(path) in referenced:
+        elif resolve(path) in known.referenced:
             rows.append(
                 make_row(
                     path,
@@ -453,12 +432,12 @@ def plugin_cache_versions(claude_dir: Path, now: float) -> list[dict[str, Any]]:
                 )
             )
         else:
-            marker = _orphan_marker(path, now)
+            marker = orphan_marker(read, path.relative_to(claude_dir).as_posix(), now)
             rows.append(
                 make_row(
                     path,
                     disposition="CANDIDATE",
-                    reason=_orphan_reason(registry.name, marker, bool(data["plugins"])),
+                    reason=_orphan_reason(registry.name, marker, known.installs),
                     evidence=marker,
                     **common,
                 )
