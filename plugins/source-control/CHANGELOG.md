@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.30] - 2026-09-29
+
+### Changed
+
+- **`commit` and `pull-request` descriptions open with a presence-gated routing clause for the
+  native surfaces their Boundary sections cover.** `commit` routes a plain commit to the bundled
+  `commit` skill and a commit-push-PR request to the built-in `/commit-push-pr` command when either
+  resolves in the session, and keeps a request to commit and nothing more. `pull-request` routes a
+  one-shot PR with no draft or body contract to the bundled `pr` skill or `/commit-push-pr`, and
+  keeps the lifecycle.
+
 ## [0.62.29] - 2026-09-29
 
 ### Added

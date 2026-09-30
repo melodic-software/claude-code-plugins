@@ -1,5 +1,5 @@
 ---
-description: "Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
+description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer it for a one-shot PR with no draft or body contract; this skill for the lifecycle. Orchestrate the full PR lifecycle: prep (review + verify), create as a draft, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args]"
