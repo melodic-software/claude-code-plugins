@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.71.3] - 2026-09-30
+## [0.71.4] - 2026-09-30
 
 ### Changed
 
@@ -11,6 +11,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `native-drift:<kind>:<surface>:<component>` key already finds every item (on GitHub,
   `gh issue list --search '"native-drift:" in:body'`), so the label step and its two recorded facts
   are gone.
+
+## [0.71.3] - 2026-09-29
+
+### Changed
+
+- The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
 
 ## [0.71.2] - 2026-09-29
 
