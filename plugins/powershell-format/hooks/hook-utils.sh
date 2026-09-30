@@ -758,7 +758,8 @@ hook::_physical_prime() {
 # for a given candidate list: one cygpath process, plus a second only when a
 # mixed answer carries an 8.3 `~`. A cygpath that fails, or answers with the
 # wrong number of lines, adds nothing, which leaves the POSIX candidates as
-# they were.
+# they were. `--no-drive` stops after the environment and POSIX spellings, so a
+# caller's lexical pre-match spawns no process.
 _HOOK_TEMP_CANDS=()
 _HOOK_TEMP_WIN_KEY=""
 _HOOK_TEMP_WIN=()
@@ -774,6 +775,7 @@ hook::_temp_root_candidates() {
     __hu_seen="$__hu_seen|$__hu_cand|"
     _HOOK_TEMP_CANDS+=("$__hu_cand")
   done
+  [[ "${1:-}" == --no-drive ]] && return 0
   case "${OSTYPE:-}" in
   msys* | cygwin* | win32) ;;
   *) return 0 ;; # POSIX hosts: the candidates above are the whole set

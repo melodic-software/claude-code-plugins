@@ -508,7 +508,10 @@ spd_temp_declines() {
   # temp candidate's spelling. It may over-match (costing resolver processes)
   # and never decides alone. A short-name spelling must match a candidate's own
   # spelling, which is the only one it can carry, so a miss spends no resolver.
-  hook::_temp_root_candidates
+  # The cygpath drive spellings cost a process each on Windows, so only a
+  # short-name spelling pays for them here; any other target pre-matches on the
+  # environment's spellings and gets the full set after a hit.
+  if ((short)); then hook::_temp_root_candidates; else hook::_temp_root_candidates --no-drive; fi
   shopt -q nocasematch && nocase=1
   shopt -s nocasematch
   if ((!short)); then
@@ -525,6 +528,7 @@ spd_temp_declines() {
   done
   ((nocase)) || shopt -u nocasematch
   ((hit)) || return 1
+  if ((spd_win && !short)); then hook::_temp_root_candidates; fi
   # 3. Root gate: the spellings block-hook-bypass's _norm_path accepts, minus the
   # unnormalized ones and a filesystem or drive root.
   [[ -n "$r" ]] || return 1
