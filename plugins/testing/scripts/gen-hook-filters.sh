@@ -10,6 +10,10 @@
 # Write call (probes.md). A glob with no slash matches the basename at any
 # depth (gitignore syntax).
 #
+# PostToolUse also gets one Bash row with no `if`: a Bash `if` matches
+# the command string, not the files the call changed (probes.md), so
+# test-scan-bash.sh filters the payload's changed files by the same globs.
+#
 # Usage: gen-hook-filters.sh [--check]
 #   (no arg)  rewrite hooks/hooks.json
 #   --check   exit 1 when hooks/hooks.json differs from what would be written
@@ -40,10 +44,20 @@ json="$(jq -R . <<<"$globs" | jq -s '. as $globs | def rows($script; $status): [
     }]
   }];
   {
-    description: "Names what a Write or Edit to a test file removes, and scans the written file for tests that cannot fail (opt-in: test_guards_enabled).",
+    description: "Names what a Write or Edit to a test file removes, and scans the written file, or a test file a Bash call changed, for tests that cannot fail (opt-in: test_guards_enabled).",
     hooks: {
       PreToolUse: rows("test-weaken.sh"; "Checking the edit for removed assertions or skipped tests..."),
-      PostToolUse: rows("test-scan.sh"; "Scanning the test file for tests that cannot fail...")
+      PostToolUse: (rows("test-scan.sh"; "Scanning the test file for tests that cannot fail...") + [{
+        matcher: "Bash",
+        hooks: [{
+          type: "command",
+          command: "node",
+          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--require-true", "TEST_GUARDS_ENABLED",
+            "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan-bash.sh"],
+          timeout: 10,
+          statusMessage: "Scanning test files the command changed..."
+        }]
+      }])
     }
   }')" || exit 2
 

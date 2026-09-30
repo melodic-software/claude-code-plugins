@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.18] - 2026-09-30
+
+### Fixed
+
+- **Dropped the filler "in order to" from the `explore` skill body and `reference/workflow.md`.** Wording only; behavior is unchanged.
+
 ## [0.25.17] - 2026-09-30
 
 ### Added

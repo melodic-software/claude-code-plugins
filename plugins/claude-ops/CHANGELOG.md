@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.2] - 2026-09-30
+
+### Fixed
+
+- **`audit-native-overlap generate` marks a `native description:` evidence line that carries an
+  em dash with an `ai-slop-ignore` comment.** The description is quoted verbatim, so the dash stays
+  and the ai-slop audit skips that line instead of reporting it. A multi-line description is marked
+  on each physical line that carries a dash. Authored evidence lines are never marked.
+
 ## [0.77.1] - 2026-09-30
 
 ### Changed
