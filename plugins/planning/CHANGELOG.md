@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
 
+## [0.47.7] - 2026-09-29
+
+### Fixed
+
+- **A group summary that predates questions added to its group is flagged.** Writing a group `summary` records the group's question ids as `summaryOf`. `round.py add` and `add-round` warn when a question lands in a group whose summary was written for a different set, and the page marks that summary Stale until it is rewritten ([#5451](https://github.com/melodic-software/claude-code-plugins/issues/5451)).
+
 ## [0.47.6] - 2026-09-29
 
 ### Fixed
