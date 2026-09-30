@@ -9,6 +9,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **A SessionStart notice warns when `node` is missing.** Every guard launches through `node`, so a host without it enforced nothing silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README Requirements section documents the row.
 
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
 ## [0.43.0] - 2026-09-30
 
 ### Added

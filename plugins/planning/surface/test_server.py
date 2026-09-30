@@ -1353,6 +1353,40 @@ class TestTerminalStale(WaitCase):
         self.assertEqual(self.states(), {"A": "open", "B": "stale"})
 
 
+class TestAnswered(WaitCase):
+    """`answered` is true when a page or terminal decision counts; `state` stays dependency staleness."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"), question("B"), question("C"))
+
+    def answered(self):
+        return {
+            q["id"]: (q.get("answered"), q.get("state"))
+            for q in self.state()["questions"]["questions"]
+        }
+
+    def test_1_unanswered_is_false(self):
+        self.assertEqual(self.answered()["A"], (False, "open"))
+
+    def test_2_terminal_decision_is_answered_and_state_stays_open(self):
+        rc, out = self.rp("record-terminal", "A", "--decision", "accept")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.answered()["A"], (True, "open"))
+
+    def test_3_page_accept_is_answered(self):
+        code, data = self.post({"id": "B", "kind": "accept"})
+        self.assertEqual(code, 200, data)
+        self.assertEqual(self.answered()["B"], (True, "open"))
+        self.assertEqual(self.answered()["C"], (False, "open"))
+
+    def test_4_reopen_is_not_answered(self):
+        for kind in ("accept", "reopen"):
+            code, data = self.post({"id": "C", "kind": kind})
+            self.assertEqual(code, 200, data)
+        self.assertEqual(self.answered()["C"], (False, "open"))
+
+
 class TestConfirm(WaitCase):
     """The `confirm` event: ticks one commitment, records no decision, needs handling."""
 
