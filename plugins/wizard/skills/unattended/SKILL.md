@@ -49,12 +49,17 @@ Copy [template.ps1](template.ps1). Leave the library above `# STAGES` unchanged.
 Replace the example `Invoke-UnattendedRun` body with the procedure, using only
 these helpers:
 
-- `Invoke-UnattendedRun -ResultDirectory -Stages -Irreversible <names>`. Runs the
-  stages and writes the result. `-Irreversible` is the declared list of
+- `Invoke-UnattendedRun -ResultDirectory -Stages -Irreversible <names> -Secrets <declarations>`.
+  Runs the stages and writes the result. `-Irreversible` is the declared list of
   irreversible steps, for example `'wsl --unregister Ubuntu-26.04'`. It is
   printed to the transcript before the stages run (`irreversible actions:
   none` when empty; not under `-Test`) and recorded as `irreversible_actions`,
-  on success and on failure.
+  on success and on failure. `-Secrets` is the declared list of secrets, each
+  `@{ Name = 'API_TOKEN'; FilePath = 'C:\ops\token.txt' }` (`FilePath` is
+  optional). Every declared name resolves once, before the first stage, so the
+  human answers every hidden prompt up front and the rest of the run is
+  unattended. The names are printed (`secrets: none` when empty; not under
+  `-Test`) and recorded as `secrets`, names only, on success and on failure.
 - `Assert-Elevation -Mode Required` or `Forbidden`. Elevation is a constraint
   with two failure directions.
 - `Assert-NotInside -Name <wsl-distro>`. The script must not be running inside
@@ -63,8 +68,14 @@ these helpers:
   script running inside that distro; emit PowerShell so it runs on the Windows
   host.
 - `Resolve-UnattendedSecret -Name <ENV> -FilePath <optional>`. First hit wins:
-  environment variable, then the file, then one hidden prompt. The value is
-  redacted out of the transcript.
+  environment variable, then the file, then the platform credential store, then
+  one hidden prompt. The store rung is Windows
+  `Microsoft.PowerShell.SecretManagement` (DPAPI-backed vaults such as
+  SecretStore) and is skipped silently when the module or the name is absent;
+  macOS Keychain and `pass` are not supported. A name declared in `-Secrets`
+  returns the value resolved before the first stage. An undeclared name runs the
+  ladder at this call, with its own prompt. The value is redacted out of the
+  transcript.
 - `Assert-PriorResult -Path <result-latest.json>`. Do not start until the
   previous script's result is `ok`.
 - `Add-Preflight -Name -Test -Fix`. Fail before later steps, and carry the
@@ -107,10 +118,10 @@ these helpers:
 
 Set the result directory to a path the agent can read after the human runs the
 script. The envelope is `cutover.result/1`: per-step `status` and `detail`,
-`mode`, `warnings`, `held_resources`, `irreversible_actions`, `transcript`, and
-a `result-latest.json` copy. The schema string is unchanged, and
-`irreversible_actions` and `mode` are additive fields: read their absence in an
-older result as an empty list and `run`.
+`mode`, `warnings`, `held_resources`, `irreversible_actions`, `secrets`,
+`transcript`, and a `result-latest.json` copy. The schema string is unchanged,
+and `irreversible_actions`, `secrets` and `mode` are additive fields: read their
+absence in an older result as an empty list and `run`.
 
 #### Order and unknowns
 
@@ -140,20 +151,21 @@ preview never replaces a real run's `result-latest.json`.
   `delta` array holds only the steps that would run plus failed preflights.
   With both switches, `-Test` wins.
 - The result gains `mode` (`run`, `whatif`, `test`) and, in a dry run,
-  `planned` with the counts `steps`, `resources` and `irreversible`.
+  `planned` with the counts `steps`, `resources`, `irreversible` and `secrets`.
 
 Read-only helpers run in every mode, so a missing prerequisite fails a dry run
 with no side effects: `Assert-Elevation`, `Assert-NotInside`,
 `Assert-PriorResult`, `Add-Preflight`, `Assert-ParsedState`,
-`Invoke-NativeUtf8`, and the `-Done` probe of `Invoke-IdempotentStep`. Each
+`Invoke-NativeUtf8`, the `-Done` probe of `Invoke-IdempotentStep`, and the
+environment, file and store rungs of secret resolution. Each
 probe, preflight test and wrapped read must only read.
 
 Mutating helpers skip their blocks and record a `would-run` step, or `skipped`
 when `-Done` is already true: `Invoke-IdempotentStep -Action`,
 `Use-GuardedResource` (Take, Prove and Release), `Confirm-Irreversible` (no
-prompt), `Wait-ForState` (no polling), and `Resolve-UnattendedSecret` (no prompt
-and no hidden read; it records `would prompt` when neither the environment nor
-the file resolves).
+prompt), `Wait-ForState` (no polling), and secret resolution, declared or not (no prompt
+and no hidden read; each name that the environment, the file and the store all
+miss records a `would prompt` step and yields the placeholder `<NAME>`).
 
 A dry run does not exercise success detection inside a step: no Prove block or
 `Wait-ForState` predicate runs, so it checks the plan and the prerequisites, not
@@ -193,7 +205,8 @@ real run, read `result-latest.json`. Do not ask them to paste the transcript.
   because the state it waits for follows a mutation the dry run skipped;
   `Use-GuardedResource` never lists the resource
   in `held_resources`, because nothing was taken; `Resolve-UnattendedSecret`
-  returns the placeholder `<NAME>` when it would prompt; `Confirm-Irreversible`
+  and a declared secret return the placeholder `<NAME>` when they would prompt;
+  `Confirm-Irreversible`
   still refuses an undeclared name, before it would prompt. A `-Done` probe that
   throws fails a dry run as it fails a real one, so write probes that tolerate a
   target that does not exist yet.
