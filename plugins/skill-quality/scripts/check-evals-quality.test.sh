@@ -468,6 +468,20 @@ else
   fail "Q10 must not flag precise items (rc=$rc): $out"
 fi
 
+f="$(make_evals q10-ident '{
+  "skill_name": "q10-ident",
+  "evals": [
+    {"id": 1, "prompt": "a", "expectations": ["Sets is_correctly_configured to true", "Writes good_output.txt"]}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '(Q10)' <<<"$out"; then
+  pass "Q10: an evaluative word inside an identifier stays silent"
+else
+  fail "Q10 must not flag identifiers (rc=$rc): $out"
+fi
+
 f="$(make_evals q10-q7 '{
   "skill_name": "q10-q7",
   "evals": [

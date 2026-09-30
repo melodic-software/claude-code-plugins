@@ -120,7 +120,7 @@ VAGUE_RE='^(the )?(output|response|result|it) (is|looks|seems) (good|correct|rig
 # Q10: strongly evaluative words that leave a criterion's standard undefined.
 # Whole-word, case-insensitive. "well", "clear", "relevant", "quality" and
 # "effective" are left out: they are mostly technical terms in this corpus.
-EVALUATIVE_RE='(?<![A-Za-z])(good|appropriate|reasonable|properly|correctly|useful|helpful|adequate|sensible)(?![A-Za-z])'
+EVALUATIVE_RE='(?<![A-Za-z0-9_])(good|appropriate|reasonable|properly|correctly|useful|helpful|adequate|sensible)(?![A-Za-z0-9_])'
 # Q9: lexical signal that a case pins behavior the skill must NOT exhibit.
 # Deliberately lenient (matches inside longer words/phrases): under-warning
 # beats noise for an advisory check.
