@@ -1121,7 +1121,7 @@ run_pwsh "PS: literal is the sc alias (blocked — #4234)" \
   '$w='"'"'sc'"'"'; & $w f.txt x' 2
 # shellcheck disable=SC2016
 run_pwsh "PS: literal is a module-qualified writer (blocked — #4234)" \
-  '$w='"'"'Microsoft.PowerShell.Management\Set-Content'"'"'; & $w f.txt x' 2
+  '$w='"'"'Microsoft.PowerShell.Management\Set-Content'"'"'; & $w f.txt x' 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
 # shellcheck disable=SC2016
 run_pwsh "PS: literal is a writer script path (blocked — #4234)" \
   '$w='"'"'C:/tools/Out-File.ps1'"'"'; & $w f.txt x' 2
@@ -1158,6 +1158,9 @@ run_pwsh "PS: braced call target (blocked — #4234)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: Set-Variable reassignment (blocked — #4234)" \
   '$w='"'"'bash'"'"'; sv w '"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: set alias of Set-Variable by name (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $n='"'"'Set-Content'"'"'; set w $n; & $w f.txt x' 2
 # shellcheck disable=SC2016
 run_pwsh "PS: foreach loop variable reassignment (blocked — #4234)" \
   '$w='"'"'bash'"'"'; foreach ($w in '"'"'Set-Content'"'"') { & $w f.txt x }' 2

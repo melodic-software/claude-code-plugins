@@ -1163,7 +1163,7 @@ ps::computed_call_var_resolves_to_literal() {
   local re_asg=$'^[ \t]*=[ \t]*\'([^\']*)\'[ \t]*([;\r\n]|$)'
   local re_stmt=$'(^|[;\r\n])[ \t]*$'
   local re_call='(^|[[:space:]\;\{\}\(\|\&=])[.\&][[:space:]]*$'
-  local re_byname='(^|[^a-z0-9_-])(set-variable|sv|new-variable|nv|get-variable|gv|clear-variable|clv|remove-variable|rv|set-item|si)([^a-z0-9_-]|$)'
+  local re_byname='(^|[^a-z0-9_-])(set-variable|set|sv|new-variable|nv|get-variable|gv|clear-variable|clv|remove-variable|rv|set-item|si)([^a-z0-9_-]|$)'
   local re_commonvar='[[:space:]]-(outvariable|ov|pipelinevariable|pv|errorvariable|ev|warningvariable|wv|informationvariable|iv)([[:space:]]|:|$)'
   [[ "$v" =~ ^[a-z_][a-z0-9_]*$ ]] || return 1
   case "$v" in
