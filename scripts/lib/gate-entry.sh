@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# GE_MODE, GE_REF, GE_PATHS, and GE_DISCOVERY are the caller's result record.
+# GE_MODE, GE_REF, and GE_PATHS are the caller's result record.
 # shellcheck disable=SC2034
 # Shared entry for repo-tooling gates under scripts/. Sourced, never executed.
 #
@@ -13,6 +13,15 @@
 # substitution) signals this shell on USR2. The trap exits 2, so the #3377
 # shape — an unresolvable ref swallowed as an empty target list — cannot
 # report a pass. --all and --paths never consult a ref.
+#
+# Adoption: classify and finish are used by check-shell-portability,
+# check-skill-portability, and check-skill-precompute-compose. Only require_base
+# is used by check-guardrails-ps-differential. affected-tests,
+# check-changed-skills, check-docs-only, check-changelog-parity,
+# check-contract-slice-prune, check-skill-description-voice,
+# check-stale-base-overlap, and check-vendor-version-bump still dispatch modes
+# and map exits themselves; the
+# #3413 triage brief scoped out adding modes to other gates.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/gate-entry.sh is sourced-only\n' >&2
@@ -108,26 +117,18 @@ gate_entry::classify() {
 
 # gate_entry::collect_changed <out-array> <base> [changed_files::into args...]
 # Fills <out-array> from the shared diff. A resolvable base with no changes
-# returns 0 and sets GE_DISCOVERY=empty. A failed diff or an unresolvable
-# base exits 2 and sets GE_DISCOVERY=failed. The two are not the same result.
+# returns 0 with an empty array. A failed diff or an unresolvable base exits 2.
+# The two are not the same result.
 gate_entry::collect_changed() {
   local _ge_out_name="$1"
   local _ge_base="$2"
   shift 2
-  GE_DISCOVERY=failed
   gate_entry::require_base "$_ge_base"
   # Pass the caller's array name straight through. A nameref in this frame
   # would sit between changed_files::into and that array, and a nameref that
   # points at a nameref comes back empty.
   if ! changed_files::into "$_ge_out_name" "$_ge_base" "$@"; then
-    GE_DISCOVERY=failed
     gate_entry::fatal
-  fi
-  local -n _ge_paths_out="$_ge_out_name"
-  if ((${#_ge_paths_out[@]} == 0)); then
-    GE_DISCOVERY=empty
-  else
-    GE_DISCOVERY=populated
   fi
   return 0
 }

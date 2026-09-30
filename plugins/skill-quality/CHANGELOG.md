@@ -3,7 +3,7 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.14] - 2026-09-29
+## [0.24.15] - 2026-09-29
 
 ### Fixed
 
@@ -16,6 +16,13 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   `measure-invocation.sh score` rejects `--method` with no value and removes its temp directory on
   every exit path; `compare` and `emit-plugin-eval` exit 2 (the documented usage/environment code)
   instead of 1 for an input or write failure. No other exit code or output line changes.
+
+## [0.24.14] - 2026-09-29
+
+### Changed
+
+- **`check`: `validate-evals` states its scope.** It checks structure and lint only; `/evals:design`
+  says when a no-skill baseline arm is required and `/evals:plugin-eval` runs it.
 
 ## [0.24.13] - 2026-09-29
 
