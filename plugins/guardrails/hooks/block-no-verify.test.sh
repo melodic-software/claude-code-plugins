@@ -418,6 +418,30 @@ run_pwsh "PS env: assignment quoted in a double-quoted message (allowed)" \
 run "\$env:LEFTHOOK=0 on the Bash tool is not a hook-manager assignment (allowed)" \
   "echo \$env:LEFTHOOK=0; git commit -m x" 0
 
+# --- Same-command git alias carrying a bypass flag -----------------------------
+# A definition must precede its use in the command; a definition alone is allowed.
+while IFS='|' read -r label cmd want; do
+  run "alias: $label" "$cmd" "$want"
+  run_pwsh "PS alias: $label" "$cmd" "$want"
+done <<'EOF'
+commit -n via ; (blocked)|git config alias.c 'commit -n'; git c -m x|2
+commit --no-verify via && (blocked)|git config alias.c 'commit --no-verify' && git c -m x|2
+push --no-verify (blocked)|git config alias.p 'push --no-verify'; git p|2
+shell alias body (blocked)|git config alias.c '!git commit -n'; git c -m x|2
+user -n on a plain alias (blocked)|git config alias.c commit; git c -n -m x|2
+user -n on a shell alias (blocked)|git config alias.c '!git commit'; git c -n -m x|2
+alias of an alias (blocked)|git config alias.a 'commit -n'; git config alias.b a; git b -m x|2
+--global definition (blocked)|git config --global alias.c 'commit -n'; git c -m x|2
+hooksPath global before the alias (blocked)|git config alias.c commit; git -c core.hooksPath=/x c -m x|2
+hook-manager env before the alias (blocked)|git config alias.c commit; LEFTHOOK=0 git c -m x|2
+m consumes n (allowed)|git config alias.c 'commit -m n'; git c|0
+definition alone (allowed)|git config alias.c 'commit -n'|0
+benign alias (allowed)|git config alias.s status; git s|0
+use before definition (allowed)|git c -m x; git config alias.c 'commit -n'|0
+later definition wins (allowed)|git config alias.c 'commit -n'; git config alias.c commit; git c -m x|0
+alias loop terminates (allowed)|git config alias.c c; git c|0
+EOF
+
 # --- ps::git_command_is_readonly — the `readonly-ok` sink scope (SECURITY) -----
 # This guard is the ONLY caller that passes `readonly-ok`, so it is the only place
 # a wrongly-classified subcommand is observable. Every case below carries a SINK

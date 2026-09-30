@@ -183,6 +183,68 @@ block() {
   exit 2
 }
 
+# Same-command git aliases: `git config alias.NAME VALUE` records the definition
+# (a later definition wins); a later segment invoking NAME is re-checked as the
+# spliced argv, so `git c` with alias.c = `commit -n` is `git commit -n`. A
+# `!` value is a shell command, re-parsed with the caller's arguments appended.
+# Aliases defined by an earlier command or in a config file are not visible here.
+ALIAS_NAMES=()
+ALIAS_VALUES=()
+ALIAS_DEPTH=0
+
+# Record one alias definition from the words after `config`.
+alias_record() {
+  local key
+  local -a pos=()
+  while (($# > 0)); do
+    case "$1" in
+    -f | --file | --blob | -t | --type | --default) shift ;;
+    -*) ;;
+    *) pos+=("$1") ;;
+    esac
+    shift
+  done
+  ((${#pos[@]} >= 2)) || return 0
+  key="${pos[0],,}"
+  [[ "$key" == alias.?* ]] || return 0
+  ALIAS_NAMES+=("${key#alias.}")
+  ALIAS_VALUES+=("${pos[1]}")
+}
+
+# $1 subcommand, $2 its index, then the segment argv. The locals reach the
+# callbacks below through bash's dynamic scope and are restored when a nested
+# alias returns.
+alias_expand() {
+  local name="${1,,}" idx=$2 i v
+  local -a ALIAS_HEAD ALIAS_TAIL
+  shift 2
+  ALIAS_HEAD=("${@:1:idx}")
+  ALIAS_TAIL=("${@:idx+2}")
+  ((ALIAS_DEPTH < 5)) || return 0 # git itself refuses an alias loop
+  for ((i = ${#ALIAS_NAMES[@]} - 1; i >= 0; i--)); do
+    [[ "${ALIAS_NAMES[i]}" == "$name" ]] || continue
+    v="${ALIAS_VALUES[i]}"
+    ((ALIAS_DEPTH++))
+    if [[ "$v" == '!'* ]]; then
+      hook::bash_parse_segments "${v:1}" alias_recheck_shell
+    else
+      hook::bash_parse_segments "git $v" alias_recheck
+    fi
+    ((ALIAS_DEPTH--))
+    return 0
+  done
+}
+
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+alias_recheck() {
+  check_segment "${ALIAS_HEAD[@]}" "${@:2}" ${ALIAS_TAIL[@]+"${ALIAS_TAIL[@]}"}
+}
+
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+alias_recheck_shell() {
+  check_segment "$@" ${ALIAS_TAIL[@]+"${ALIAS_TAIL[@]}"}
+}
+
 # Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
 # when the segment is a real `git commit`/`git push` carrying a bypass token.
 # Parsing spine (tokenizer, git resolver, subcommand walk) lives in
@@ -211,7 +273,17 @@ check_segment() {
   nseg=${#w[@]}
   sub=$HOOK_GITINV_SUB
   sub_idx=$HOOK_GITINV_SUB_IDX
-  [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
+  case "$sub" in
+  commit | push) ;;
+  config)
+    alias_record "${w[@]:sub_idx+1}"
+    return 0
+    ;;
+  *)
+    alias_expand "$sub" "$sub_idx" "${w[@]}"
+    return 0
+    ;;
+  esac
 
   # core.hooksPath is checked only on git config arguments (collected by the
   # subcommand walk from -c/--config/--config-env), never commit messages or
