@@ -9,7 +9,7 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Changed
 
-- **`audit` / Phase 5:** route approved settings and `.mcp.json` edits through `update-config` with
+- **`audit` / Phase 5:** route approved `settings.json` and `settings.local.json` edits through `update-config` with
   the `[Self-Modification]` handshake, and document the two auto-mode refusals
   (`.claude/audit-pass.md` as `[Instruction Poisoning]`, the `audit-engine.sh` re-run as
   `[Self-Modification]`) with the operator fallback
