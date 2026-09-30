@@ -18,7 +18,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 cd "$here" || exit 1
 files=()
-for f in server.py round.py round.sh watch.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
+for f in server.py round.py round.sh watch.sh wake.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
   [[ -f "$f" ]] && files+=("$f")
 done
 
@@ -141,6 +141,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_c1.js")" >"$tmp/ui_c1.out" 2>&1
   bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --force >/dev/null
   # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
+  bash "$here/round.sh" --dir "$c" revise Q1 --commit "Uses a private cache" --commit "Runs on every commit" --force >/dev/null
   bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
