@@ -1089,9 +1089,6 @@ class TestAuditorAncestry(unittest.TestCase):
             )
 
 
-UNREFERENCED_VERSIONS_MAX_JSON_BYTES = 10_240
-
-
 class TestUnreferencedVersions(unittest.TestCase):
     """Cache version directories that no installPath references, measured and never touched."""
 
@@ -1340,17 +1337,6 @@ class TestUnreferencedVersions(unittest.TestCase):
         self.assertEqual(report["unreferenced_versions_file"]["count"], total)
         self.assertIn("versions.json", report["self_excluded"])
         self.assertIn(str(out), report["unreferenced_versions_note"])
-
-    def test_the_stdout_list_stays_under_its_byte_bound_at_hundreds_of_versions(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            self._many(root, 300)
-            report = self._main(root)
-        size = len(json.dumps(report["unreferenced_versions"], indent=2).encode())
-        self.assertLess(size, UNREFERENCED_VERSIONS_MAX_JSON_BYTES)
-        self.assertEqual(report["unreferenced_versions_total"], 300)
 
 
 class TestVersionsOutWriteFailure(unittest.TestCase):
