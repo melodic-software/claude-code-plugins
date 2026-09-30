@@ -81,8 +81,8 @@
 # LIVENESS IS ASSERTED, NOT ASSUMED. The extractor keys on a marker line, and a
 # marker that stops matching would make every block empty and every comparison
 # trivially equal — a gate that passes forever over surfaces it no longer
-# reads. So the source block is checked against the five bullet labels the
-# floor is made of before any consumer is compared, an empty extraction fails,
+# reads. So the source block is checked against the bullet labels the floor
+# is made of before any consumer is compared, an empty extraction fails,
 # and a marker occurring more than once in a file fails as ambiguous rather
 # than resolving to the first hit. The repo-wide scan carries the same burden
 # of proof, and a search that silently returned nothing would report a clean
@@ -179,6 +179,7 @@ BULLETS=(
   "**Pause end:**"
   "**Staleness rule:**"
   "**Drain-then-pause:**"
+  "**Account switch:**"
 )
 
 # The first line of the floor block, in both plain and blockquoted form.
