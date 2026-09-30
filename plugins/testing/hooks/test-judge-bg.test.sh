@@ -140,6 +140,37 @@ for mode in fail hang; do
 done
 check "the hang guard ends a hanging judge" '((SECONDS - began < 15))'
 
+# The hang guard needs no coreutils timeout (stock macOS has none; on Git Bash
+# only Windows' timeout.exe may resolve): with neither timeout nor gtimeout on
+# PATH the judge still runs, and a hanging one is ended with its whole process
+# group.
+NOTO="$TMP/no-timeout-bin"
+mkdir -p "$NOTO"
+IFS=: read -ra dirs <<<"$PATH"
+for d in "${dirs[@]}"; do
+  for x in "$d"/*; do
+    b="${x##*/}"
+    [[ -x "$x" && ! -e "$NOTO/$b" && "$b" != timeout && "$b" != gtimeout ]] && ln -s "$x" "$NOTO/$b"
+  done
+done
+check "the test PATH has no timeout or gtimeout" '! PATH="$NOTO" command -v timeout && ! PATH="$NOTO" command -v gtimeout'
+stub_reset
+W="$REPO/src/notimeout.test.ts"
+js_file "$W" notimeout
+record s1 w-noto "$W" "$(blocks notimeout:1:3:5)"
+payload s1 w-noto "$W" | PATH="$NOTO" bash "$HOOK"
+assert_contains "without timeout on PATH the judge runs and its verdict lands" "$(verdict_of s1 notimeout)" '"verdict":"PASS"'
+stub_reset
+W="$REPO/src/notimeout-hang.test.ts"
+js_file "$W" nothang
+record s1 w-noto2 "$W" "$(blocks nothang:1:3:5)"
+rm -f "$STUB_DIR/hang.pid"
+began=$SECONDS
+payload s1 w-noto2 "$W" | PATH="$NOTO" STUB_MODE=hang TEST_JUDGE_RUN_TIMEOUT=1 bash "$HOOK"
+check "without timeout on PATH a hanging judge is ended within the bound" '((SECONDS - began < 10)) && [[ -z "$(verdict_of s1 nothang)" ]]'
+check "and its child dies with it (the whole process group)" '[[ -s "$STUB_DIR/hang.pid" ]] && ! kill -0 "$(cat "$STUB_DIR/hang.pid")" 2>/dev/null'
+check "and the lock is released" '[[ -z "$(find "$DATA/locks" -type f)" ]]'
+
 # A run that hits the malfunction budget gives UNKNOWN with that reason.
 stub_reset
 B="$REPO/src/budget.test.ts"

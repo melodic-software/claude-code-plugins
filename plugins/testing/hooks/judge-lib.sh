@@ -73,7 +73,7 @@ judge::session_set() {
 # judge::load: set INFOS to one compact JSON object per file the session set's
 # records name: the file, its repository, whether any record says "whole file"
 # (blocks:null), the block names and ordinals the writes created or changed,
-# the first recorded cant-fail-ok: count, the changed lines (the hint for a
+# the first recorded cant-fail-ok: count (0 when that write created the file), the changed lines (the hint for a
 # whole-file bash harness), the writers (session and agent ids) and the last
 # writer's session (the owner of its verdicts).
 judge::load() {
@@ -89,7 +89,7 @@ judge::load() {
       repo: (map(.repo | strings) | .[0] // null),
       whole: any(.[]; .blocks == null),
       names: ([.[].blocks | arrays | .[] | "\(.ordinal) \(.name)"] | unique),
-      base_ok: (sort_by(.written_at) | .[0].ok_markers // 0),
+      base_ok: (sort_by(.written_at) | .[0] | if .create == true then 0 else .ok_markers // 0 end),
       lines: ([.[].lines | arrays | .[]] | unique),
       writers: ([.[] | {sid, agent: (.agent_id // "")}] | unique),
       owner: (sort_by(.written_at) | .[-1].sid)}' 2>/dev/null)
@@ -100,7 +100,7 @@ judge::load() {
 # changed-line hint for a whole-file key. A block is in doubt when a write
 # created or changed it, when a write's blocks are unknown (all blocks), or
 # when it holds or sits under a cant-fail-ok: marker and the file's count rose
-# above the first recorded one. A file the scanner cannot list, or whose lexer
+# above the first recorded one (a created file starts from 0). A file the scanner cannot list, or whose lexer
 # lost sync, is one whole-file key. A missing file is logged and skipped.
 judge::derive() {
   local file whole base_ok names lines tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
@@ -382,7 +382,7 @@ judge::section1() {
 # them and their relay markers. A key left without a verdict gets a failed
 # attempt.
 judge::run() {
-  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner n budget raw sys prompt tbin rc kh c
+  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner n budget raw sys prompt rc kh here
   IFS=$'\t' read -r file repo owner < <(jq -r '[.file, (.repo // ""), (.owner // "")] | @tsv' <<<"$info")
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
   [[ -n "$repo" && -d "$repo" ]] || repo="${file%/*}"
@@ -402,28 +402,23 @@ judge::run() {
     return 0
   fi
   sys="$(cat "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)"$'\n\n'"$(judge::section1)"
-  # coreutils timeout (gtimeout on a Homebrew macOS): it runs the judge in its
-  # own process group and signals the whole group. Windows' own timeout.exe
-  # takes no --version and is rejected.
-  tbin=""
-  for c in timeout gtimeout; do
-    c="$(command -v "$c")" && "$c" --version >/dev/null 2>&1 && tbin="$c" && break
-  done
   prompt="Judge these test blocks in $file (block <ordinal> <start>-<end> <name>):"$'\n'"$(sed -n 's/^[^ ]* /block /p' <<<"$keys")"
   [[ -z "$hint" ]] || prompt+=$'\n'"Changed lines in this file, a hint to where the new tests are: $hint"
-  if [[ "$sys" != *"## 1. "* || -z "$tbin" ]]; then
-    rc="no timeout command"
-    [[ -n "$tbin" ]] || judge::log "no timeout or gtimeout on PATH: the judge cannot run"
-    [[ "$sys" == *"## 1. "* ]] || rc="the judge prompt or test-value section 1 is missing"
+  if [[ "$sys" != *"## 1. "* ]]; then
+    rc="the judge prompt or test-value section 1 is missing"
   else
     touch "$DATA/runs/$PKEY/$SID/$BASHPID-$RANDOM"
-    (cd "$repo" && TEST_JUDGE_ACTIVE=1 exec "$tbin" -k 5 "$t" "${TEST_JUDGE_CMD:-claude}" -p --model "$MODEL" \
+    # The hang guard is the process-group watchdog, not coreutils timeout.
+    here="$PWD"
+    cd "$repo" || return 0
+    testing::run_bounded "$t" "$raw" "$raw.err" env TEST_JUDGE_ACTIVE=1 "${TEST_JUDGE_CMD:-claude}" -p --model "$MODEL" \
       --system-prompt "$sys" --tools Read,Grep,Glob \
       --allowedTools "Read($repo/**)" "Grep($repo/**)" "Glob($repo/**)" \
       --settings '{"disableAllHooks":true}' --setting-sources "" --strict-mcp-config \
       --disable-slash-commands --effort "$EFFORT" --max-budget-usd "$budget" \
-      --no-session-persistence --output-format json "$prompt") >"$raw" 2>"$raw.err" </dev/null
-    rc=$?
+      --no-session-persistence --output-format json "$prompt" </dev/null
+    rc=$SCAN_RC
+    cd "$here" || :
     grep -q '"error_max_budget_usd"' "$raw" 2>/dev/null && judge::log "malfunction: judge run on $file hit its \$$budget budget"
     judge::harvest "$raw" || rc="judge exited $rc with no usable result"
   fi
@@ -545,7 +540,7 @@ judge::findings() {
       | ($v | map(select(.verdict == "FLAG"))) as $f
       | "---\ntype: review-findings\ndate: \(now | todate)\nbranch: \(if $branch == "" then "none" else $branch end)\n---\n\n## Findings\n\n"
       + "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n"
-      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel):\(.value.start) | testing:test-judge | \($rule): test \(.value | tname | esc) takes its expected value from the implementation: \(.value.source | esc) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel) \(.value | tname | esc) |\n"] | join(""))
+      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel):\(.value.start) | testing:test-judge | \($rule): test \(.value | tname | esc) takes its expected value from the implementation: \(.value.source | esc) (threshold: a FLAG verdict, every quote found in the file, its diff applies to this file alone) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel) \(.value | tname | esc) |\n"] | join(""))
       + "\n## Surfaces\n\nRan: [testing:test-judge — \($v | length) test block(s) judged; findings: \($rule) \($f | length); declined (judged PASS): \($rule) \($v | map(select(.verdict == "PASS")) | length); UNKNOWN: \($v | map(select(.verdict == "UNKNOWN")) | length)]. Returned no result: [none].\n"
       + "\n## Verdicts\n\nEach verdict below is the judge'"'"'s output, quoted as data. Nothing here has been applied.\n"
       + ([$v[] | "\n### \(.verdict) \(rel) \(tname) (lines \(.start)-\(.end))\n\n"

@@ -69,7 +69,12 @@ file="$(sed -n '1s/^Judge these test blocks in \(.*\) (block .*$/\1/p' <<<"$prom
 rel="${file#"$PWD"/}"
 case "${STUB_MODE:-ok}" in
 fail) exit 1 ;;
-hang) sleep 60; exit 0 ;;
+hang)
+  sleep 60 &
+  echo $! >"$STUB_DIR/hang.pid"
+  wait
+  exit 0
+  ;;
 budget) echo '{"type":"result","subtype":"error_max_budget_usd","is_error":true}'; exit 1 ;;
 garbage) echo 'not json'; exit 0 ;;
 esac
@@ -117,13 +122,13 @@ subagent() {
 }
 
 # record <sid> <id> <file> <blocks json|null> [agent] [lines json|null] [ok markers] [written_at]:
-# the session record test-scan writes for one write.
+# the session record test-scan writes for one write; CREATE=true marks it a create.
 record() {
   local d="$DATA/sessions/$PKEY/$1"
   mkdir -p "$d"
   jq -n --arg f "$3" --arg r "$REPO" --argjson b "$4" --arg a "${5:-}" --argjson l "${6:-null}" \
-    --argjson ok "${7:-0}" --arg w "${8:-$(date -u +%FT%TZ)}" \
-    '{file: $f, repo: $r, agent_id: (if $a == "" then null else $a end), create: false, blocks: $b,
+    --argjson ok "${7:-0}" --arg w "${8:-$(date -u +%FT%TZ)}" --argjson c "${CREATE:-false}" \
+    '{file: $f, repo: $r, agent_id: (if $a == "" then null else $a end), create: $c, blocks: $b,
       lines: $l, ok_markers: $ok, written_at: $w}' >"$d/$2.json"
 }
 # blocks <name:ordinal:start:end>...: a blocks array.

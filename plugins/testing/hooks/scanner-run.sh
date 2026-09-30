@@ -36,16 +36,31 @@ testing::data_dir() {
 }
 
 # testing::run_scanner <seconds> <out file> <scanner arg>...: run $SCANNER with
-# stdout and stderr to <out file> and set SCAN_RC. It runs in its own process
-# group (set -m), so the timeout signals the whole group and an awk the
-# scanner started dies with it; a timed-out run leaves SCAN_RC above 128.
+# stdout and stderr to <out file> under testing::run_bounded.
+testing::run_scanner() {
+  local t="$1" out="$2"
+  shift 2
+  testing::run_bounded "$t" "$out" - bash "$SCANNER" "$@"
+}
+
+# testing::run_bounded <seconds> <out file> <err file|-> <command>...: run the
+# command with stdout to <out file> and stderr to <err file> (- : the out file)
+# and set SCAN_RC. It needs no coreutils timeout, which stock macOS lacks and
+# Git Bash may resolve to Windows' timeout.exe. The command runs in its own
+# process group (set -m), so the timeout signals the whole group and an awk
+# the scanner or a tool the judge started dies with it; a group member that
+# ignores TERM gets KILL 5 s later. A timed-out run leaves SCAN_RC above 128.
 # Every process here is reaped by its parent: an orphan goes to PID 1, which
 # in a container without an init never reaps it.
-testing::run_scanner() {
-  local t="$1" out="$2" pid watchdog
-  shift 2
+testing::run_bounded() {
+  local t="$1" out="$2" err="$3" pid watchdog
+  shift 3
   set -m
-  bash "$SCANNER" "$@" >"$out" 2>&1 &
+  if [[ "$err" == - ]]; then
+    "$@" >"$out" 2>&1 &
+  else
+    "$@" >"$out" 2>"$err" &
+  fi
   pid=$!
   set +m
   (
@@ -64,6 +79,11 @@ testing::run_scanner() {
       done
     fi
     kill -TERM -- "-$pid"
+    for _ in $(seq 1 50); do
+      kill -0 -- "-$pid" || exit
+      sleep 0.1
+    done
+    kill -KILL -- "-$pid"
   ) >/dev/null 2>&1 &
   watchdog=$!
   wait "$pid"

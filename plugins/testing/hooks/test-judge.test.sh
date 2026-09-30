@@ -57,6 +57,11 @@ check "the findings file is a review-findings file for this branch" \
   '[[ "$(sed -n 2p "$findings")" == "type: review-findings" && "$(sed -n 4p "$findings")" == "branch: feat/judge-test" ]]'
 assert_contains "the FLAG is a findings row at its repo-relative line" "$(cat "$findings")" \
   "| 1 | SUGGESTION |  | src/add.test.ts:3 | testing:test-judge | testing/judge/rule-restated-expectation: test adds flag"
+assert_contains "the FLAG row leads with the rule id and the fired threshold" "$(cat "$findings")" \
+  "testing/judge/rule-restated-expectation: test adds flag takes its expected value from the implementation: stub (threshold: a FLAG verdict, every quote found in the file, its diff applies to this file alone)"
+assert_contains "the FLAG row's remedy: an independent expected value, the diff shown not applied" "$(grep '^| 1 |' "$findings")" \
+  "| Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, src/add.test.ts adds flag |"
+check "the remedy is not offered for the PASS verdict: one findings row" '[[ "$(grep -c "^| [0-9]* | SUGGESTION" "$findings")" == 1 && "$(grep -c "Replace the expected value" "$findings")" == 1 ]]'
 assert_contains "the findings file carries the proposed diff" "$(cat "$findings")" "+test('adds flag', () => { // judged"
 assert_contains "and the PASS verdict with its evidence" "$(cat "$findings")" "> test('subtracts', () => {"
 stop s1
@@ -220,6 +225,8 @@ for mode in badquote otherfile; do
 done
 f="$(field .reason | sed -n 's/.*Findings: \(.*\)\. Show the user.*/\1/p')"
 assert_contains "the reason for a diff touching another file is recorded" "$(cat "$f")" "the proposed diff touches another file"
+check "a FLAG that fails validation reaches no findings row and offers no remedy" \
+  '[[ "$(grep -c "^| [0-9]* | SUGGESTION" "$f")" == 0 && "$(grep -c "Replace the expected value" "$f")" == 0 ]]'
 assert_contains "the reason for a quote not in the file is recorded" "$(cat "$REPO"/.work/reviews/feat-judge-test/*)" "a quoted line is not in the file"
 
 # An untouched test in an edited file is not in doubt; a new cant-fail-ok:
@@ -235,6 +242,20 @@ stop s10
 check "an untouched test in an edited file is not in doubt" '[[ "$(stub_args 1)" != *untouched* ]]'
 check "the edited test and the one with a new cant-fail-ok: marker are" \
   '[[ "$(stub_args 1)" == *"block 1 6-8 edited"* && "$(stub_args 1)" == *"block 1 9-11 marked"* ]]'
+
+# In a file the session created there is no earlier count: a marker inside a
+# block or on the line above it puts that block in doubt, even when the create
+# record's own count already includes it.
+transcript s11 claude-sonnet-5
+C="$REPO/src/created.test.ts"
+js_file "$C" plain above inside
+awk 'NR == 6 { print "// cant-fail-ok: the vendor documents 3" } NR == 10 { $0 = $0 " // cant-fail-ok: external limit" } 1' \
+  "$C" >"$C.new" && mv "$C.new" "$C"
+CREATE=true record s11 w1 "$C" "$(blocks plain:1:3:5)" "" null 2
+stub_reset
+stop s11
+check "a new file: a marker on the line above a block puts it in doubt" '[[ "$(stub_args 1)" == *"block 1 7-9 above"* ]]'
+check "a new file: a marker inside a block puts it in doubt" '[[ "$(stub_args 1)" == *"block 1 10-12 inside"* ]]'
 
 # The judge model: defaults, fallback, validation, and a class that differs
 # from every writer.
