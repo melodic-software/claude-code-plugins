@@ -152,6 +152,12 @@ run "a backslash drive path fails portable-paths" 1 "$TMP/backslash.md" 'path-hi
 { good_plan; printf '\n```\ncd %s\n```\n' "$HOME_PATH"; } >"$TMP/home.md"
 run "a home path fails even inside a code fence" 1 "$TMP/home.md" 'criterion=portable-paths status=fail'
 
+{ good_plan; for _ in $(seq 25); do printf 'Clone into %s\n' "$HOME_PATH"; done; } >"$TMP/manyhits.md"
+run "many path hits are counted in full" 1 "$TMP/manyhits.md" 'criterion=portable-paths status=fail hits=25'
+run "the truncation line names the remainder" 1 "$TMP/manyhits.md" '^path-hit-truncated=5$'
+shown="$(bash "$SUT" "$TMP/manyhits.md" 2>&1 | grep -c '^path-hit=')"
+if [[ "$shown" -eq 20 ]]; then pass "exactly 20 path-hit lines are printed"; else fail "exactly 20 path-hit lines are printed (got $shown)"; fi
+
 { good_plan; printf '\nFor example %s <!-- path-example -->\n' "$DRIVE_PATH"; } >"$TMP/annotated.md"
 run "an annotated example path passes" 0 "$TMP/annotated.md" 'criterion=portable-paths status=pass hits=0'
 

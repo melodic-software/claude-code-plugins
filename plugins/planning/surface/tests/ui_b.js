@@ -39,6 +39,34 @@ async page => {
   const ev2 = await events();
   ok("Accept all saved an accept for N3", ev2[ev2.length - 1].id === "N3" && ev2[ev2.length - 1].kind === "accept");
 
+  // Accept all and have agents check them: per round, one accept-audit event
+  await page.click('.seg [data-view="rounds"]'); await page.waitForTimeout(300);
+  const secCount = (await page.$$('.sec[data-key^="r:"]')).length;
+  const auditBtns = await page.$$('[data-auditround]');
+  ok("audit button only on rounds with opened recommended questions", auditBtns.length < secCount, auditBtns.length + " of " + secCount);
+  ok("no audit button while no round has an open recommended question", auditBtns.length === 0);
+  await page.evaluate(() => document.querySelector(".qbtn[data-q=\"N3\"]").click()); await page.waitForTimeout(200);
+  await page.click("[data-act=\"reopen\"]"); await page.waitForTimeout(700);
+  const ab = await page.$("[data-auditround]");
+  const auditRound = ab ? await ab.getAttribute("data-auditround") : "";
+  ok("audit button appears for a round with an opened recommended question", !!ab && /agents check/.test(ab ? await ab.textContent() : ""));
+  if (ab) {
+    // A question carrying a typed note is left out of the audit dialog, which sends no notes
+    await page.fill("#note", "before we lock it in"); await page.waitForTimeout(200);
+    await ab.click(); await page.waitForTimeout(200);
+    ok("audit dialog leaves out a question with a typed note and never shows the note", await page.evaluate(() => { const b = document.getElementById("dlgBody"); const lo = b.querySelector(".left-out"); return document.getElementById("dlg").open && !!lo && /they carry a note/.test(lo.innerText) && /N3/.test(lo.innerText) && ![...b.querySelectorAll("li b")].some(x => x.textContent === "N3") && !/before we lock it in/.test(b.innerText); }));
+    await page.click("#dlgCancel"); await page.waitForTimeout(200);
+    await page.fill("#note", ""); await page.waitForTimeout(200);
+    await ab.click(); await page.waitForTimeout(200);
+    ok("audit dialog says agents check and commitments stay unconfirmed", await page.evaluate(() => document.getElementById("dlg").open && /Agents will then check/.test(document.getElementById("dlgBody").innerText) && /Commitments stay unconfirmed/.test(document.getElementById("dlgBody").innerText) && document.getElementById("dlgBody").querySelectorAll("li").length > 0));
+    const na = (await events()).filter(e => e.kind === "accept-audit").length;
+    await page.click("#dlgOk"); await page.waitForTimeout(900);
+    const aud = (await events()).filter(e => e.kind === "accept-audit");
+    ok("audit posts exactly one accept-audit event with the round and items", aud.length === na + 1 && aud[aud.length - 1].alt === auditRound && aud[aud.length - 1].items.length > 0 && aud[aud.length - 1].items.every(i => i.id && typeof i.contentRev === "number"), JSON.stringify(aud[aud.length - 1]));
+    ok("audit toasts the accepted result", /Accepted \d/.test(await page.textContent("#toast")), await page.textContent("#toast"));
+  }
+  await page.click('.seg [data-view="groups"]'); await page.waitForTimeout(200);
+
   // completion screen
   await page.keyboard.press("w"); await page.waitForTimeout(300);
   ok("completion screen when all are answered", /All answered/.test(await page.textContent(".done-h")), await page.textContent(".done-h"));

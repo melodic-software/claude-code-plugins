@@ -5,6 +5,36 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.54.0] - 2026-09-30
+
+### Changed
+
+- **The docs fetcher is canonical in `lib/fetch-docs.sh` and takes `--profile <name>`.** A profile
+  names a publisher's index URL, page path prefix, raw-channel suffix and content types; `anthropic`
+  is the default and the only one defined, so existing callers behave as before.
+  `scripts/fetch-docs.sh` is a byte-identical copy of the canonical file, kept in step by
+  `scripts/sync-fetch-docs.sh` (run in CI). The test seam variables are renamed to
+  `FETCH_DOCS_FIXTURE_DIR`, `FETCH_DOCS_INDEX_URL` and `FETCH_DOCS_CLAUDE_BIN`; `audit-engine.sh`
+  and `check-doc-citations.sh` use the new names.
+
+## [0.53.6] - 2026-09-30
+
+### Changed
+
+- **`audit` / Phase 5:** route approved `settings.json` and `settings.local.json` edits through `update-config` with
+  the `[Self-Modification]` handshake, and document the two auto-mode refusals
+  (`.claude/audit-pass.md` as `[Instruction Poisoning]`, the `audit-engine.sh` re-run as
+  `[Self-Modification]`) with the operator fallback
+  ([#5376](https://github.com/melodic-software/claude-code-plugins/issues/5376)).
+
+## [0.53.5] - 2026-09-29
+
+### Changed
+
+- **`unhobble`: listing description trimmed to 500 characters or fewer.** Quoted triggers are
+  kept; the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.53.4] - 2026-09-29
 
 ### Fixed

@@ -3,6 +3,53 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.66.0] - 2026-09-30
+
+### Added
+
+- **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, each case has a `skill-fired` grader, and each case seeds a repository through `--scaffold`.
+
+## [0.65.5] - 2026-09-30
+
+### Fixed
+
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites run on Windows Git Bash instead of skipping.** Their fixtures now build temp dirs with `native_mktemp_dir` in `scripts/test-helpers.sh`, which returns the `cygpath -m` form native git stores, so an `includeIf` path resolves. The gate suite skips, with a reason, when the temp root contains whitespace. The scripts under test are unchanged.
+
+## [0.65.4] - 2026-09-30
+
+### Changed
+
+- **`worktree` refreshes the nesting-invariant stamp from an authenticated probe run** on Claude Code 2.1.285
+  ([#5318](https://github.com/melodic-software/claude-code-plugins/issues/5318)). The owning-parent leak seen on 2.1.224 does not reproduce on dot-nested, plain-nested or external placement; an unrelated enclosing repo's scoped rule still loads. The expired-stamp marker is gone and the expiry moves to 2.1.305 or 2026-12-29.
+
+## [0.65.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `commit` and `/commit-push-pr` bullets in `commit`, the `pr`, `/commit-push-pr` and
+  `/autofix-pr` bullets in `pull-request`, and the `/autofix-pr` bullet in `babysit-prs` keep the
+  provenance class, what the surface does and how it is invoked, in the native-references template
+  form.
+
+## [0.65.2] - 2026-09-30
+
+### Fixed
+
+- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** A body under 16000 characters is split through a here-string, so the validator creates no file it must remove. A longer body goes through one `pr-linkage-lines.<pid>` file that is removed right after the read. The gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
+## [0.65.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.65.0] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` drops a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet, and the lane latches the account of the snapshot that tripped the pause, not the account `.claude.json` names at pause entry. The paused wait (`reference/paused-wait.md`) reads `.oauthAccount.emailAddress` at pause entry and on each wake and Monitor tick. On a change it clears the latch when the new account is below the pause threshold, re-latches at or above it, and drops the latch and runs reactive-only when no fresh snapshot attributes the new account. It records the event in cycle telemetry. The account read falls back to `shasum -a 256` where `sha256sum` is absent and rejects a value that is not email-shaped, and the tee file is read once so the fingerprint and the windows come from the same snapshot. A fresh snapshot with one plausible window resumes when that window is below the threshold. Four evals cover the unknown-windows drop on a wake, a switch found at pause entry, an unattributed trip that stays paused, and a switch with one plausible window.
+
 ## [0.64.1] - 2026-09-29
 
 ### Changed

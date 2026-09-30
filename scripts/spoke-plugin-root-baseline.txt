@@ -54,16 +54,7 @@ plugins/context-guard/skills/setup/reference/legacy-statusline-detect.md 2
 plugins/context-guard/skills/setup/reference/statusline-edit.md 3
 plugins/context-guard/skills/setup/reference/unwrap-before-compose.md 1
 plugins/context7/skills/lookup/context/update.md 3
-plugins/discovery/skills/explore/reference/dispatch.md 14
-plugins/discovery/skills/explore/reference/workflow.md 9
-plugins/discovery/skills/research/context/artifact-shape.md 2
-plugins/discovery/skills/research/context/discipline.md 2
-plugins/discovery/skills/research/context/dispatch.md 22
-plugins/discovery/skills/research/context/gotchas.md 4
-plugins/discovery/skills/research/context/phases.md 1
-plugins/discovery/skills/trace-intent/context/artifact-shape.md 2
-plugins/discovery/skills/trace-intent/context/dispatch.md 11
-plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 3
+plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 1
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7
 plugins/disk-hygiene/skills/clean/reference/unsupported-platform-handoff.md 2
 plugins/dometrain/skills/sync/context/update.md 2
@@ -88,7 +79,7 @@ plugins/overengineering/skills/audit/context/surface-walk.md 3
 plugins/overengineering/skills/delta/context/baseline-model.md 2
 plugins/overengineering/skills/delta/context/recurring-wiring.md 1
 plugins/planning/skills/interview/context/loop.md 4
-plugins/planning/skills/interview/context/surface.md 3
+plugins/planning/skills/interview/context/surface.md 2
 plugins/planning/skills/plan/context/close-out.md 4
 plugins/playbooks/skills/skill-authoring/reference/authoring-checklist.md 1
 plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1

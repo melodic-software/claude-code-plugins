@@ -22,7 +22,8 @@
 #
 # Uses the fixtures under ../evals/fixtures (changelog-sample.md, ledger-marker.md),
 # per-case fixture git repositories, and a PATH-stub `claude` so no real CLI or
-# network is touched. Every invocation passes --changelog, so curl is never run.
+# network is touched. Invocations pass --changelog or feed the fetcher through
+# FETCH_DOCS_FIXTURE_DIR, so the network is never reached.
 
 set -uo pipefail
 
@@ -180,6 +181,30 @@ assert_contains "no-fetch: range not computed with the reason" "$OUT" "range: no
 run_in "$REPO_BODY" --no-fetch
 assert_contains "no-fetch: no marker still recommends the recheck" "$OUT" "recommend: no read marker. Run a docs-conformance recheck"
 
+# --- Case 8b: fetch through the plugin fetcher, fixture-fed ---------------------------
+FX="$TMP/fx-present"
+mkdir -p "$FX"
+printf -- '- [Claude Code changelog](https://code.claude.com/docs/en/changelog.md): Release notes\n' >"$FX/llms.txt"
+cp "$CHANGELOG" "$FX/changelog.md"
+OUT="$(cd "$EMPTY" && FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
+RC=$?
+assert_eq "fixture fetch: exit 0" 0 "$RC"
+assert_contains "fixture fetch: range computed" "$OUT" "range: 2.1.261"
+assert_not_contains "fixture fetch: not reported as failed" "$OUT" "not computed"
+FX="$TMP/fx-missing"
+mkdir -p "$FX"
+printf -- '- [Claude Code changelog](https://code.claude.com/docs/en/changelog.md): Release notes\n' >"$FX/llms.txt"
+OUT="$(cd "$EMPTY" && FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
+RC=$?
+assert_eq "fixture missing page: exit 0" 0 "$RC"
+assert_contains "fixture missing page: not computed with the manifest reason" "$OUT" "range: not computed (fetch of the changelog page failed (fixture-missing)"
+FX="$TMP/fx-unlisted"
+mkdir -p "$FX"
+printf -- '- [Other](https://code.claude.com/docs/en/skills.md): x\n' >"$FX/llms.txt"
+cp "$CHANGELOG" "$FX/changelog.md"
+OUT="$(cd "$EMPTY" && FETCH_DOCS_FIXTURE_DIR="$FX" bash "$SCRIPT" --ledger "$LEDGER" 2>"$TMP/stderr")"
+assert_contains "fixture unlisted slug: not computed" "$OUT" "range: not computed (fetch of the changelog page failed"
+
 # --- Case 9: wrong page identity is refused ------------------------------------------
 printf '# Extend Claude with skills\n\n<Update label="9.9.9" description="x">\n  * item\n</Update>\n' >"$TMP/other-page.md"
 run_in "$EMPTY" --ledger "$LEDGER" --changelog "$TMP/other-page.md"
@@ -226,6 +251,7 @@ assert_contains "warn: an explicit range past the installed version warns agains
 run_in "$EMPTY" --bogus
 assert_eq "args: unknown argument exits 3" 3 "$RC"
 assert_contains "args: unknown argument named" "$ERR" "unknown argument: --bogus"
+assert_contains "args: unknown argument points at --help" "$ERR" "(see --help)"
 run_in "$EMPTY" --changelog "$TMP/does-not-exist.md"
 assert_eq "args: unreadable changelog exits 3" 3 "$RC"
 run_in "$EMPTY" --cap-items ten --changelog "$CHANGELOG"

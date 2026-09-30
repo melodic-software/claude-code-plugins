@@ -1289,9 +1289,10 @@ else
 fi
 
 # --- Missing jq in a config-less repo: opt-in decided first, so NO notice ----
-# The opt-in gate's contract is "no config, no run, no notice", and a
+# The per-edit hook's opt-in contract is "no config, no run, no notice", and a
 # prerequisite notice is still a notice: a repository that never opted into
-# Markdown formatting must not be nagged to install jq for it. The assertion
+# Markdown formatting must not be nagged to install jq for it. (The SessionStart
+# probe is outside this contract; it reports a missing markdownlint-cli2.) The assertion
 # above pins the inverse (config present + jq absent -> notice), so the pair
 # distinguishes suppression from a hook that simply stopped warning.
 PD_NO_JQ_NOCFG="$(mktemp -d "$WORK/pd.XXXXXX")"
@@ -2042,13 +2043,7 @@ if [[ $RC_T -eq 0 ]]; then ok "telemetry/stub-sink: hook exit 0"; else fail "tel
 if [[ -s "$TEL_FILE" ]]; then
   ok "telemetry/stub-sink: envelope received"
   # Validate all 7 required common fields
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL_FILE" >/dev/null 2>&1; then
-      ok "telemetry/envelope: $field present"
-    else
-      fail "telemetry/envelope: $field missing. file=$(cat "$TEL_FILE")"
-    fi
-  done
+  if check_envelope "$TEL_FILE"; then ok "telemetry/envelope: matches envelope schema"; else fail "telemetry/envelope: does not match envelope schema. envelope=$(cat "$TEL_FILE")"; fi
   # status must be "ok"
   TEL_STATUS="$(jq -r '.status' "$TEL_FILE")"
   if [[ "$TEL_STATUS" == "ok" ]]; then ok "telemetry/envelope: status ok"; else fail "telemetry/envelope: status expected ok, got $TEL_STATUS"; fi

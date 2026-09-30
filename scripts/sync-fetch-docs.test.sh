@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Unit tests for sync-fetch-docs.sh. The cases, the fixture builders and the
+# wordings live in scripts/lib/sync-cluster-suite.sh, shared with the sibling
+# sync-<cluster>.test.sh suites; this file is the cluster's constants and the
+# entry point the plugin and CI gates resolve by filename.
+set -uo pipefail
+
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# shellcheck source=lib/test-harness.sh
+. "$SELF_DIR/lib/test-harness.sh"
+# shellcheck source=lib/sync-cluster-suite.sh
+. "$SELF_DIR/lib/sync-cluster-suite.sh"
+
+sync_cluster_suite::run \
+  --script "$SELF_DIR/sync-fetch-docs.sh" \
+  --canonical 'lib/fetch-docs.sh' \
+  --copy 'plugins/claude-config/scripts/fetch-docs.sh' \
+  --extra-copy 'plugins/claude-ops/scripts/fetch-docs.sh' \
+  --v1 '#!/usr/bin/env bash\necho fetch\n' \
+  --v2 '#!/usr/bin/env bash\necho fetch v2\n' \
+  --drift '# drifted\n' \
+  --unknown-flag-arm \
+  --unchanged-bump-arm
+
+test_harness::report

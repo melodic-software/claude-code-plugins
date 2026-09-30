@@ -1,0 +1,11 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative on a machine surface. A script constant restates the product's per-entry listing cap, and the comment above it carries the whole record: the claim, both basis pages, an ISO as-of date, and a recheck trigger naming an observable event.",
+    "carve_outs": "Conforming pointer or record applies, and it is the reason there is no finding. Carve-outs are evaluated before any criterion, so no criterion is graded here. The trigger is an event a reader can check: either page moving the default.",
+    "rubric": "Not graded. Had it been, R4 would FAIL: all four parts are present, the basis is a specific URL, and the trigger is observable.",
+    "carries": "This case fails a run that flags a constant in code because a script cannot follow a pointer. The record is the conforming restatement shape for a surface that cannot fetch at runtime, and the surface saying so is part of its evidence.",
+    "stamp_window": "The record's as-of date sits inside the configured expiry window today. Once it ages past that window the deterministic stamp rule reports it, which is a different rule and class from this one; re-stamp the case text from the live source when that happens."
+  }
+}

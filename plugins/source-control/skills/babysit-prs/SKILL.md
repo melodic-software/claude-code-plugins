@@ -404,10 +404,9 @@ Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5
 Both watch a pull request and push fixes to it, so "watch my PR and fix what breaks" can land on
 either.
 
-- **`/autofix-pr` (built-in command).** Ships with Claude Code rather than as a marketplace
-  plugin. Spawns a cloud session that watches the current branch's PR and pushes fixes when CI
-  fails or reviewers comment, and keeps running after the local session ends. It is reserved for
-  the person to run; the model does not invoke it.
+- **`/autofix-pr` (built-in command)**: spawns a cloud session that watches the current branch's PR
+  and pushes fixes when CI fails or reviewers comment, and keeps running after the local session
+  ends. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** A fleet pass over the person's open PRs from the local
   session, under tiered autonomy, with deterministic gates on every mutation; the safe tier never
   resolves threads or merges.
