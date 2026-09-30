@@ -620,9 +620,15 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
         with (
             mock.patch.object(merge, "evaluate", side_effect=fake_evaluate),
             mock.patch.object(
-                sys, "argv",
-                ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner",
-                 *flags],
+                sys,
+                "argv",
+                [
+                    "babysit_merge.py",
+                    "owner/repo#1",
+                    "--allowed-owners",
+                    "owner",
+                    *flags,
+                ],
             ),
             contextlib.redirect_stdout(io.StringIO()),
             mock.patch("sys.stderr", new=io.StringIO()),
@@ -637,8 +643,10 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
     def test_repo_pair_leaves_the_flag_pair_in_force(self) -> None:
         _, settle = self._run(
             {"owner/repo": self.REPO_PAIR},
-            "--review-bot-logins", REVIEWER,
-            "--review-settle-minutes", "10",
+            "--review-bot-logins",
+            REVIEWER,
+            "--review-settle-minutes",
+            "10",
         )
         self.assertEqual(
             settle,
@@ -650,8 +658,10 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
     def test_repo_reviewer_reviewing_the_head_does_not_clear_the_hold(self) -> None:
         _, settle = self._run(
             {"owner/repo": self.REPO_PAIR},
-            "--review-bot-logins", REVIEWER,
-            "--review-settle-minutes", "10",
+            "--review-bot-logins",
+            REVIEWER,
+            "--review-settle-minutes",
+            "10",
         )
         for review in (
             _review(HEAD, login="github-actions"),
@@ -674,8 +684,10 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
     def test_half_declared_repo_pair_leaves_the_flag_pair_in_force(self) -> None:
         _, settle = self._run(
             {"owner/repo": "## babysit_review_settle_minutes\n1\n"},
-            "--review-bot-logins", REVIEWER,
-            "--review-settle-minutes", "10",
+            "--review-bot-logins",
+            REVIEWER,
+            "--review-settle-minutes",
+            "10",
         )
         self.assertEqual(
             settle,
@@ -691,7 +703,8 @@ class RepoSettlePairReachesEvaluate(SettleHarness):
         with (
             mock.patch.object(merge, "evaluate", evaluate),
             mock.patch.object(
-                sys, "argv",
+                sys,
+                "argv",
                 ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner"],
             ),
             contextlib.redirect_stdout(out),
