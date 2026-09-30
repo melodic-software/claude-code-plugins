@@ -504,10 +504,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function decisionOf(q){
     const page = S.resp.responses[q.id], term = q.terminal;
     const c = [page && Object.assign({src: "page"}, page), term && Object.assign({src: "terminal"}, term)].filter(x => x && x.updatedAt);
-    c.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    const d = c[0] || null; // a decision recorded before Claude set it aside no longer counts: a page one by seq, a terminal one by rev, an older terminal one by time
-    if (d && (d.seq != null && q.setAsideSeq != null ? d.seq <= q.setAsideSeq : d.rev != null && q.setAsideRev != null ? d.rev <= q.setAsideRev : q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt))) d.aside = true;
-    return d;
+    // a decision recorded before Claude set it aside no longer counts: a page one by seq, a terminal one by rev, an older terminal one by time
+    c.forEach(d => { if (d.seq != null && q.setAsideSeq != null ? d.seq <= q.setAsideSeq : d.rev != null && q.setAsideRev != null ? d.rev <= q.setAsideRev : q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt)) d.aside = true; });
+    c.sort((a, b) => (a.aside ? 1 : 0) - (b.aside ? 1 : 0) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    return c[0] || null;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
   function stateOf(q){ // a hold wins over a recorded decision
@@ -1013,7 +1013,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function fillNote(){
     const q = Q[S.sel]; if (!q) { $("note").value = ""; grow($("note")); return; }
     const draft = lsGet("draft:" + q.id, null), d = decisionOf(q);
-    $("note").value = draft !== null ? draft : ((d && d.text) || "");
+    $("note").value = draft !== null ? draft : ((d && !d.aside && d.text) || "");
     grow($("note"));
   }
   function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
@@ -1622,7 +1622,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q && !S.conflict && !S.armed && !$("note").value.trim()) S.snap[q.id] = snapOf(q); // not answering yet: follow the latest wording
     renderHeader(); renderRail(changed);
     const typing = document.activeElement === $("note");
-    if (!typing && !S.busy && q && lsGet("draft:" + S.sel, null) === null) fillNote();
+    const dn = q && lsGet("draft:" + q.id, null) === null ? decisionOf(q) : null, prefilled = !!dn && dn.aside && !!dn.text && $("note").value.trim() === String(dn.text).trim();
+    if (!S.busy && q && lsGet("draft:" + S.sel, null) === null && (!typing || prefilled)) fillNote(); // a prefill of a decision Claude set aside clears even while the note has focus
     renderDetail({flash: changed.includes(S.sel)});
     if (S.fly && (S.fly !== "settings")) {
       const nt = $("noteText"), keep = nt && document.activeElement === nt;
