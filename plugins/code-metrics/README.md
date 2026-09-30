@@ -140,7 +140,7 @@ test's `tmp_path` directories instead of keeping the last three runs under `$TMP
 To measure them, run the same command under coverage.py from this directory:
 
 ```shell
-python3 -m coverage run -m pytest -q && python3 -m coverage json
+python3 -m coverage run -m pytest -q -o tmp_path_retention_policy=none && python3 -m coverage json
 ```
 
 The `.coveragerc` here sets `source = .`, so every module under the plugin is reported whether or
