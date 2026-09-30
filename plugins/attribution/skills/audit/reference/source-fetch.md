@@ -90,17 +90,15 @@ upstream says now, and drift since that date is exactly what this audit exists t
 
 The rule, stated so no judge has to improvise it:
 
-- **The finding caps at `source-fetched-similar` and is never fix-eligible**, whatever the
-  fingerprint module reports. `fingerprint-confirmed` requires an identity-checked live fetch
-  because fix eligibility rests on current upstream state, which a snapshot cannot establish.
-  Stale evidence licenses no edit.
+- **The finding caps at `vendored-snapshot`, a report-only tier, and is never fix-eligible**,
+  whatever the fingerprint module reports. `fingerprint-confirmed` requires an identity-checked
+  live fetch because fix eligibility rests on current upstream state, which a snapshot cannot
+  establish. Stale evidence licenses no edit. A paraphrase or summary stays `llm-suspected`, as
+  it does against a live source. The tier has its own row in `reference/rubric.md` "Tier
+  mapping".
 - **Record `source.route: vendored-snapshot`** and name, in the finding: the snapshot path, its
   declared upstream ref, its sync date, and each live fetch that failed with how it failed. The
   human report must be able to say the basis was a committed copy, not a live read.
-- **The tier is borrowed knowingly.** `source-fetched-similar` is worded for a fetched source; a
-  snapshot basis is admitted under it as the strongest report-only tier, and the recorded route
-  is what keeps the report honest about the difference. This rule caps the tier and leaves the
-  table in `reference/rubric.md` unchanged.
 - **The follow-up is human.** Recommend re-running the candidate when upstream is reachable
   again or the snapshot re-syncs; do not hold the finding open waiting for either.
 
@@ -147,10 +145,14 @@ loops rather than to save money. All are config keys (`.claude/attribution.json`
 **Under `sweep`, both are scoped to the sweep rather than to one invocation.** The ceiling is
 spent across the whole sweep, so a resumed sweep restores its spend from the sweep ledger instead
 of starting again at zero, and the cache is likewise the sweep's: a resume re-validates an entry
-before reusing it, because a page fetched before the interruption may have changed since. Neither
-happens on its own. The ledger at `.work/<topic-slug>/sweep-ledger.md` is prose the run keeps by
-hand, no script writes or reads it, and it is checkout-local, so a sweep resumed in a different
-checkout has no spend and no cache to restore and is a new sweep. `SKILL.md` "Sweep" and
+before reusing it, because a page fetched before the interruption may have changed since. The
+ledger at `.work/<topic-slug>/sweep-ledger.md` is where both live, and `scripts/sweep-ledger.sh`
+keeps it: `spend` adds fetches to the total, `cache-add` and `cache-check` record and look up a
+source, and `status` exits non-zero once the total reaches `corpus_fetch_ceiling`. The run still
+has to call them, and the script checks arithmetic, never whether a fetch was worth spending. The
+ledger is checkout-local, so a sweep resumed in a different checkout has no spend and no cache to
+restore and is a new sweep, and a ledger copied there is refused. The cache entries are the run's
+own record, and `emit-findings.sh` never reads the ledger. `SKILL.md` "Sweep" and
 `reference/dispositions.md` "Sweep closure" carry the resume rules and the entry's fields.
 
 Exhausting a budget produces the neutral outcome, not a failure and not a negative verdict:
