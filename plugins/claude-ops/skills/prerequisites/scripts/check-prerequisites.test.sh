@@ -175,5 +175,23 @@ expect_eq "non-JSON listing exits 2" 2 "$rc"
 expect_eq "non-JSON listing prints no table" "" "$out"
 expect_has "non-JSON listing writes an error to stderr" 'claude plugin list --json' "$(cat "$WORK/stderr")"
 
+out="$(bash "$SCRIPT" --help 2>"$WORK/stderr")"
+rc=$?
+expect_eq "--help exits 0" 0 "$rc"
+expect_has "--help prints the usage on stdout" 'check-prerequisites.sh --plugin-root' "$out"
+expect_has "--help lists the exit codes" '2 on a usage error' "$out"
+expect_eq "--help writes nothing to stderr" "" "$(cat "$WORK/stderr")"
+
+out="$(bash "$SCRIPT" --bogus 2>&1)"
+rc=$?
+expect_eq "unknown argument exits 2" 2 "$rc"
+expect_has "unknown argument names --help" '(see --help)' "$out"
+
+mkdir -p "$WORK/nopython"
+out="$(PATH="$WORK/nopython" "$BASH" "$SCRIPT" --plugin-root "$WORK/plugin-a" 2>&1)"
+rc=$?
+expect_eq "python3 missing exits 2" 2 "$rc"
+expect_has "python3 missing is named" 'python3 is required' "$out"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
