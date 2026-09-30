@@ -37,10 +37,12 @@ engine plan:
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
-   `--path` takes one path and may not repeat. For the multi-path reporting form, write the
-   approved list to `<run-dir>/handoff-paths.json` as
-   `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
-   `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
+   `--path` is repeatable: pass it once per approved path to report several paths in one call,
+   with no file write. Each path gets its own verdict, and the paths must not overlap. The
+   `--paths` file form reports the same way from
+   `{"version": 1, "paths": ["relative/exact.tmp"]}` written to
+   `<run-dir>/handoff-paths.json` and passed as `--paths "<run-dir>/handoff-paths.json"`. The
+   engine takes exactly one of `--path` and `--paths`, never both.
 
    **A file you write into `<run-dir>` is a protected-path write.** The run directory sits under
    `${CLAUDE_PLUGIN_DATA}`, which is `~/.claude/plugins/data/<id>/` in the default configuration,

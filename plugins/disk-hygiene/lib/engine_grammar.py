@@ -236,14 +236,14 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
-            # Single-use on purpose: one inline path per call is the
-            # verify-one-delete-one form, with no file write in between.
             Flag(
                 "--path",
+                repeatable=True,
                 metavar="RELATIVE",
                 example="relative/exact.tmp",
                 help=(
-                    "one snapshot-relative approved path, inline; the per-deletion form"
+                    "snapshot-relative approved path, inline; repeatable; "
+                    "one path is the per-deletion form"
                 ),
             ),
             Flag("--vcs-evidence", example="vcs-evidence.json"),

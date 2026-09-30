@@ -5932,6 +5932,82 @@ class HandoffVerifyTests(unittest.TestCase):
                         "approved path", json.loads(output.getvalue())["error"]
                     )
 
+    def handoff_verify_inline_all(
+        self, temporary: str, relatives: list[str]
+    ) -> tuple[int, dict[str, Any]]:
+        argv = ["handoff-verify", "--snapshot", str(Path(temporary) / "snapshot.json")]
+        for relative in relatives:
+            argv += ["--path", relative]
+        handle, vcs = self.clear_probe_mocks()
+        output = io.StringIO()
+        with handle, vcs, redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_handoff_verify_repeated_inline_path_matches_the_paths_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, names = self.five_file_snapshot(temporary)
+            self.assertEqual(
+                self.handoff_verify_cli(temporary, names[:2]),
+                self.handoff_verify_inline_all(temporary, names[:2]),
+            )
+            status, payload = self.handoff_verify_inline_all(temporary, names[:2])
+            self.assertEqual(0, status)
+            self.assertEqual(names[:2], [item["path"] for item in payload["verdicts"]])
+            (root / names[1]).write_text("changed after approval", encoding="utf-8")
+            status, payload = self.handoff_verify_inline_all(temporary, names[:2])
+            self.assertEqual(3, status)
+            self.assertEqual(
+                ["clear", "drifted"], [item["verdict"] for item in payload["verdicts"]]
+            )
+
+    def test_handoff_verify_repeated_inline_path_keeps_the_file_form_validation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            cases = [
+                ([names[0], "../junk1.tmp"], "approved path"),
+                ([names[0], "absent.tmp"], "approved path"),
+                ([names[0], "/junk1.tmp"], "approved path"),
+                ([names[0], names[0]], "overlap"),
+            ]
+            for relatives, message in cases:
+                with self.subTest(paths=relatives):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        argv = [
+                            "handoff-verify",
+                            "--snapshot",
+                            str(Path(temporary) / "snapshot.json"),
+                        ]
+                        for relative in relatives:
+                            argv += ["--path", relative]
+                        status = hygiene.main(argv)
+                    self.assertEqual(2, status)
+                    self.assertIn(message, json.loads(output.getvalue())["error"])
+
+    def test_handoff_verify_path_and_paths_are_mutually_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            paths_path = Path(temporary) / "handoff-paths.json"
+            paths_path.write_text(
+                json.dumps({"version": 1, "paths": names[:1]}), encoding="utf-8"
+            )
+            argv = [
+                "handoff-verify",
+                "--snapshot",
+                str(Path(temporary) / "snapshot.json"),
+                "--path",
+                names[1],
+                "--path",
+                names[2],
+                "--paths",
+                str(paths_path),
+            ]
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                hygiene.build_parser().parse_args(argv)
+
     def five_file_snapshot(self, temporary: str) -> tuple[Path, list[str]]:
         root = Path(temporary) / "target"
         root.mkdir()
@@ -11853,7 +11929,11 @@ class EngineGrammarTests(unittest.TestCase):
                     for flag in spec.flags:
                         if not flag.takes_value and (flag.required or optionals):
                             self.assertTrue(getattr(namespace, flag.dest), flag.name)
-                        if flag.repeatable and optionals:
+                        if (
+                            flag.repeatable
+                            and optionals
+                            and flag.name not in self.grouped(spec)
+                        ):
                             self.assertEqual(
                                 [self.value(flag), self.value(flag)],
                                 getattr(namespace, flag.dest),
@@ -12009,12 +12089,16 @@ class EngineGrammarTests(unittest.TestCase):
                     with self.subTest(subcommand=spec.name, flag=name):
                         namespace = self.parse(spec.name, words)
                         self.assertEqual(
-                            self.value(flag), getattr(namespace, flag.dest)
+                            [self.value(flag)] if flag.repeatable else self.value(flag),
+                            getattr(namespace, flag.dest),
                         )
                         for other in group:
                             if other != name:
                                 other_flag = spec.flag(other)
-                                self.assertIsNone(getattr(namespace, other_flag.dest))
+                                self.assertEqual(
+                                    [] if other_flag.repeatable else None,
+                                    getattr(namespace, other_flag.dest),
+                                )
                         self.assertEqual(spec.name, self.classify(spec.name, words))
 
     def test_neither_consumer_takes_two_members_of_one_group(self) -> None:
@@ -12041,6 +12125,42 @@ class EngineGrammarTests(unittest.TestCase):
             with self.subTest(subcommand=spec.name):
                 self.assertIsNone(self.classify(spec.name, words))
                 self.refuse_parse(spec.name, words)
+
+    def handoff_words(self, *members: list[str]) -> list[str]:
+        spec = self.grammar.subcommand("handoff-verify")
+        return [
+            *(word for chunk in self.required_chunks(spec) for word in chunk),
+            *(word for member in members for word in member),
+            *self.data_root_chunk(spec),
+        ]
+
+    def test_guard_and_parser_admit_a_repeated_handoff_verify_path(self) -> None:
+        words = self.handoff_words(
+            ["--path", "a/one.tmp"], ["--path", "b/two.tmp"], ["--path", "c/three.tmp"]
+        )
+        self.assertEqual(
+            ["a/one.tmp", "b/two.tmp", "c/three.tmp"],
+            self.parse("handoff-verify", words).path,
+        )
+        self.assertEqual("handoff-verify", self.classify("handoff-verify", words))
+
+    def test_guard_and_parser_refuse_a_handoff_verify_path_beside_paths(self) -> None:
+        for members in (
+            (["--path", "a/one.tmp"], ["--path", "b/two.tmp"], ["--paths", "p.json"]),
+            (["--paths", "p.json"], ["--path", "a/one.tmp"], ["--path", "b/two.tmp"]),
+        ):
+            words = self.handoff_words(*members)
+            with self.subTest(members=members):
+                self.assertIsNone(self.classify("handoff-verify", words))
+                self.refuse_parse("handoff-verify", words)
+
+    def test_guard_refuses_a_repeated_handoff_verify_path_that_is_not_literal(
+        self,
+    ) -> None:
+        for bad in ("", "--paths", "-x"):
+            words = self.handoff_words(["--path", "a/one.tmp"], ["--path", bad])
+            with self.subTest(value=bad):
+                self.assertIsNone(self.classify("handoff-verify", words))
 
     def test_grammar_rejects_a_malformed_one_of_group(self) -> None:
         flags = (

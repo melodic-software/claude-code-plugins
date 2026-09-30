@@ -4530,8 +4530,8 @@ def main(argv: list[str] | None = None) -> int:
         snapshot = load_json(Path(args.snapshot))
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                {"version": SCHEMA_VERSION, "paths": [args.path]}
-                if args.path is not None
+                {"version": SCHEMA_VERSION, "paths": args.path}
+                if args.path
                 else load_json(Path(args.paths)),
                 entry_map(snapshot),
             )
