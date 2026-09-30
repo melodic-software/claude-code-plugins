@@ -867,6 +867,28 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertIsNone(result["approval_token"])
 
+    def test_preview_probes_a_disk_image_candidate_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("Dev.vhdx")]}
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", return_value=None
+                ) as probe,
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                probe.reset_mock()
+                result = hygiene.preview(snapshot, plan)
+            probe.assert_called_once()
+            self.assertIn("virtual-disk", result["candidates"][0]["blockers"])
+
     def test_linux_loop_probe_reads_backing_files_and_mountinfo(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)
@@ -5535,6 +5557,26 @@ class HandoffVerifyTests(unittest.TestCase):
             mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
             mock.patch.object(hygiene, "tracked_blocker", return_value=None),
         )
+
+    def test_disk_image_candidate_is_probed_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", return_value=None
+                ) as probe,
+                handle,
+                vcs,
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                probe.reset_mock()
+                result = hygiene.handoff_verify(snapshot, ["Dev.vhdx"])
+            probe.assert_called_once()
+            self.assertEqual("contested", result["verdicts"][0]["verdict"])
+            self.assertIn("virtual-disk", result["verdicts"][0]["reasons"])
 
     @staticmethod
     def create_checkout(root: Path) -> Path:

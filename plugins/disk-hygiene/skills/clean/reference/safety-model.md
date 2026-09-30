@@ -85,12 +85,22 @@ bounded conditions.
     platform. An unanswered probe never reads as detached;
   - nothing more for a detached image, which keeps only `virtual-disk`.
 
-  Windows asks `Get-DiskImage` through a PowerShell call bounded at 20 seconds. It knows only
-  VHD, VHDX, and optical images, so a `.vmdk`, `.vdi`, or `.qcow2`, and an image another process
-  holds open, such as a running distro's `ext4.vhdx`, reads as unverified. Linux, WSL included,
-  reads `/sys/block/loop*/loop/backing_file` and the loop devices' mounts, so under WSL only
-  Linux loop attachments are visible, never the Windows host's. macOS has no probe and always
-  reads as unverified;
+  Windows asks `Get-DiskImage` through a PowerShell call bounded at 20 seconds. Linux, WSL
+  included, reads `/sys/block/loop*/loop/backing_file` and the loop devices' mounts, so under WSL
+  only Linux loop attachments are visible, never the Windows host's. macOS has no probe and always
+  reads as unverified.
+
+  **Claim:** `Get-DiskImage` is documented for virtual hard disk and ISO images, so for a `.vmdk`,
+  `.vdi`, `.qcow2`, or `.img` the Windows route may error (`virtual-disk-attach-unverified`) or
+  answer not attached (bare `virtual-disk`); what it returns for those formats, and for an image
+  another process holds open, such as a running WSL distro's `ext4.vhdx`, has not been observed.
+  The image keeps `virtual-disk` and the block either way. **Basis:** the cmdlet's page
+  `https://learn.microsoft.com/en-us/powershell/module/storage/get-diskimage?view=windowsserver2025-ps`,
+  fetched whole as rendered HTML: "Gets one or more disk image objects (virtual hard disk or ISO)"
+  and "reports whether the specified ISO or VHD file is currently attached"; its image-path
+  examples are an `.iso` and a `.vhdx`, and the page names no VMDK, VDI, QCOW2, or IMG. No
+  Windows host has run this route. **As of:** 2026-09-29. **Recheck:** the operator's Windows pilot (an attached VHDX, a
+  `.vmdk`, and a running WSL distro's `ext4.vhdx`), or that page naming more image formats;
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;

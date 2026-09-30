@@ -3598,7 +3598,12 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             current = target.joinpath(*PurePosixPath(name).parts)
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
-            blockers.extend(hard_protection(current, target, exact_names, known_mounts))
+            # The candidate itself is in expected_paths and was judged above; a
+            # second call would spawn the attach probe again for an image.
+            if name != relative:
+                blockers.extend(
+                    hard_protection(current, target, exact_names, known_mounts)
+                )
             matches = consumer_protection_matches(current, target, globs)
             if matches:
                 blockers.append("consumer-protected-path")
@@ -4039,18 +4044,22 @@ def handoff_verify(
                     )
                     if not identity_matches:
                         drifted.add("changed-since-scan")
-                current_protections = hard_protection(
-                    current, target, exact_names, known_mounts
-                )
-                if evidence_verified:
-                    current_protections = evidence_adjusted_protections(
-                        current_protections,
-                        current,
-                        target,
-                        repository_paths,
-                        exact_names,
+                # The candidate itself is in expected_paths and its protections
+                # were added above; a second call would spawn the attach probe
+                # again for an image.
+                if name != relative:
+                    current_protections = hard_protection(
+                        current, target, exact_names, known_mounts
                     )
-                contested.update(current_protections)
+                    if evidence_verified:
+                        current_protections = evidence_adjusted_protections(
+                            current_protections,
+                            current,
+                            target,
+                            repository_paths,
+                            exact_names,
+                        )
+                    contested.update(current_protections)
                 matches = consumer_protection_matches(current, target, globs)
                 if matches:
                     contested.add("consumer-protected-path")
