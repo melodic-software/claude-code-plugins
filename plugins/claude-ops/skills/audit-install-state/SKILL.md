@@ -86,7 +86,8 @@ it read by content carries `content_read: true` with the paths opened. Everythin
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-install-state/scripts/install_state.py" \
-  --samples 3 --csv ./claude-install-listing.csv > ./claude-install-report.json
+  --samples 3 --csv ./claude-install-listing.csv --versions-out ./claude-install-versions.json \
+  > ./claude-install-report.json
 ```
 
 Write both artifacts **outside** the target root (`${CLAUDE_PLUGIN_DATA}` resolves *inside* it and
@@ -95,7 +96,8 @@ destination inside the root is unavoidable, pass it as `--csv` and the engine ex
 `self_excluded`. **Always pass `--csv`**: it is the only artifact carrying per-file rows, and
 without it `csv.path` is `null` and the run must not be described as covering every file.
 `--authored-threshold` only decides which entries the JSON *labels* `per-file` versus `rolled-up`.
-Other flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`), `--samples N` (default
+`--versions-out <path>` writes the complete `unreferenced_versions` list (Phase 3) and is excluded
+the same way. Other flags: `--root <path>` (else `$CLAUDE_CONFIG_DIR`, else `~/.claude`), `--samples N` (default
 2; use 3+ on a busy machine). Python 3.11+ is the only requirement. The header records
 `engine_version` and the exact `invocation`, so a report reproduces from itself.
 
@@ -155,11 +157,16 @@ its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attri
 no `installPath` in `plugins/installed_plugins.json` references, largest first, with `bytes`, the
 `.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true at 14
 days or more). A directory with no marker has `orphaned_at: null` and is never past the window: the
-sweep is documented as starting from the marker, so it has no removal date. When the registry is missing, unparsable, or belongs to another root, the
-list is empty and `unreferenced_versions_note` says why; an empty list then means "not checked",
-not "none". The list is a report, not a deletion list, and removing anything stays with
-`/disk-hygiene:clean`. That skill treats the cache as managed state and leaves version directories
-to the product's own sweep; do not remove them by hand.
+sweep is documented as starting from the marker, so it has no removal date. The report keeps only
+the 25 largest, so this field stays under 10 KiB of JSON however many versions accumulate.
+`unreferenced_versions_total` is the full count and `unreferenced_versions_truncated` is true when
+the list was cut; never report the list length as the total. `--versions-out` writes the complete
+list as a JSON file, and `unreferenced_versions_file` then records its `path` and `count`. When the
+registry is missing, unparsable, or belongs to another root, the list is empty and
+`unreferenced_versions_note` says why; an empty list then means "not checked", not "none". The list
+is a report, not a deletion list, and removing anything stays with `/disk-hygiene:clean`. That
+skill treats the cache as managed state and leaves version directories to the product's own sweep;
+do not remove them by hand.
 
 A running session keeps the plugin version it loaded, so hook, guard, and denial messages can name
 the previous version's path after an update. Restart the session to pick up the new version; the
