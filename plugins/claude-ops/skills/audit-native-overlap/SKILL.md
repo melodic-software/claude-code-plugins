@@ -253,7 +253,9 @@ somewhere by construction.
 bundled skill in this row's lane" qualifies; a bare date does not. That bar is the upstream-drift
 convention's, and this skill's self-check enforces trigger *presence* only. Deciding whether an
 event actually fired is a session act performed by the report, because an offline gate cannot
-re-fetch an upstream basis.
+re-fetch an upstream basis. After each release, `/claude-ops:changelog apply` judges the part an
+extraction observes (a row's surface removed or renamed, its class, its markers) and files a
+recheck item per fired row, plus one per new candidate with no store row.
 
 ## Dismissals
 

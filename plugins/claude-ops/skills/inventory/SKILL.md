@@ -250,7 +250,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --self-che
 It prints one verdict line and exits `0` ok, `1` broken, `3` degraded, so it works as a CI gate, a
 loop-lane step, or a post-update check without parsing JSON. `2` is left to argparse for a usage
 error, so a mistyped flag can never be mistaken for a degraded run. The natural trigger is a CLI release:
-`/claude-ops:changelog` already ingests those, and this is the check to run when it reports one.
+`/claude-ops:changelog apply` runs it after integrating one, with a `--docs` extraction it diffs
+against the previous run's, and files a work item when the verdict is not `ok`.
 
 **What a maintainer actually updates.** Most releases need no change. Registrar names are
 discovered, not hardcoded, and the bundle is found by export name rather than layout. When a run
