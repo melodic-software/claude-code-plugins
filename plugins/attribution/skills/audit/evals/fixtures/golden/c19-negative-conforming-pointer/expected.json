@@ -1,0 +1,10 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative. The passage tells the reader which upstream page owns the field set and to read it at audit time, and states no field, limit or default itself.",
+    "carve_outs": "Conforming pointer applies: the passage names the source in place of stating the fact. The fetch-at-read-time instruction is what a pointer is for.",
+    "rubric": "Not graded. Had it been, R1 or R2 would FAIL: there is no stated value or enumeration for the owner to change.",
+    "carries": "A source page that lists many fields is on hand, and a run that nominates the passage for sitting next to that list has confused proximity with restatement."
+  }
+}

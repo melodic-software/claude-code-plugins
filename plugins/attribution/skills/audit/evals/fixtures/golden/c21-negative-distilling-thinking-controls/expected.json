@@ -1,0 +1,10 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative. A chapter whose stated job is to distill a named vendor guide states the model's thinking default. Its own Sources section names the guide and lists, per source, the topics drawn from it, including the adaptive-thinking default.",
+    "carve_outs": "Distilling-file surface applies. The attribution line that enumerates the fact is the Sources bullet for the guide: 'adaptive-thinking default'. It is quoted from the file, so the carve-out holds; without that line the fact would be a candidate.",
+    "rubric": "Not graded. Had it been, R1 to R3 would hold and the surface's purpose alone would not clear it: the carve-out rests on the enumerating line, not on the file's job.",
+    "carries": "This case fails a run that flags a distilling file for stating the facts it exists to distill. The excerpt omits any four-part record on purpose, so the carve-out that clears it is the distilling-surface one and not the conforming-record one."
+  }
+}
