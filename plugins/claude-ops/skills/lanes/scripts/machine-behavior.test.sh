@@ -219,6 +219,11 @@ assert_contains "cap says how many were dropped" "$out" "... 2 more (--max-workt
 out="$(run --max-worktrees 0)"
 assert_contains "0 lists every worktree" "$out" "/repos/wt-detached  [(detached)]"
 assert_not_contains "0 prints no truncation line" "$out" "more (--max-worktrees"
+out="$(run --max-worktrees 08 2>&1)"
+assert_not_contains "a zero-padded cap is decimal, not octal" "$out" "value too great"
+assert_contains "a zero-padded cap above the count lists every worktree" "$out" "/repos/wt-detached  [(detached)]"
+out="$(run --max-worktrees 01)"
+assert_contains "a zero-padded cap of 1 still truncates" "$out" "... 2 more (--max-worktrees 0 lists all)"
 out="$(run --max-worktrees=three 2>&1)"
 rc=$?
 assert_eq "--max-worktrees rejects a non-integer" 3 "$rc"

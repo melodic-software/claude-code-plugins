@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.71.0] - 2026-09-29
+## [0.72.0] - 2026-09-30
 
 ### Changed
 
@@ -27,6 +27,21 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - `inventory.py`, `install_state.py`, `audit_skill_visibility.py`, `overlap.py` and
   `native_drift.py` report an unwritable or unreadable path or a malformed `--now` as one stderr
   line and exit 2 (1 for `overlap.py`), and the visibility churn probe has a 15 s timeout.
+
+## [0.71.0] - 2026-09-29
+
+### Added
+
+- **`CC_OTEL_HOT_MAX_MB` caps each hot OTEL store file.** `prune-otel-store.sh` applies the size cap
+  as a fallback when age-based pruning alone leaves a hot file over the limit, because the
+  collector's file exporter appends and cannot rotate.
+- **`probe-observability-state.sh --otel-store` reports cold size and last-prune age**, beside the
+  per-file hot sizes it already printed.
+
+### Changed
+
+- **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
+  exporter's append-only limit, replacing the earlier cold-store estimate.
 
 ## [0.70.0] - 2026-09-29
 

@@ -123,6 +123,7 @@ done
   err "--max-worktrees requires a non-negative integer, got: $MAX_WORKTREES"
   exit 3
 }
+MAX_WORKTREES=$((10#$MAX_WORKTREES))
 
 # After the parse loop, so `--help` answers on a machine without jq.
 type -P jq >/dev/null 2>&1 || {
