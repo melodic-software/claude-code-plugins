@@ -610,14 +610,15 @@ _NUMBER_RE = re.compile(
 )
 
 
-def _number_value(text: str) -> float | None:
-    """The value of a JavaScript numeric literal, or None for anything else."""
+def _number_value(text: str) -> int | float | None:
+    """The value of a JavaScript numeric literal, or None for anything else.
+    A radix literal stays an exact integer, however large."""
     if not _NUMBER_RE.fullmatch(text):
         return None
     text = text.replace("_", "").rstrip("n")
     try:
-        return float(int(text, 0)) if re.match(r"[-+]?0[xXoObB]", text) else float(text)
-    except ValueError:
+        return int(text, 0) if re.match(r"[-+]?0[xXoObB]", text) else float(text)
+    except (ValueError, OverflowError):
         return None
 
 
@@ -1427,7 +1428,12 @@ def _declaration(
     pattern = pattern_for(ident)
     found = None
     for m in pattern.finditer(src, lo, at):
-        found = m
+        # Visible from the reader: at the module's top level, or in a block
+        # that also holds the reader. A binding local to an unrelated
+        # function is not the one `at` reads.
+        block = braces.enclosing(m.start())
+        if block is None or block[0] < at < block[1]:
+            found = m
     if found is None:
         later = pattern.search(src, at, hi)
         found = later if later is not None and later_ok(later) else None

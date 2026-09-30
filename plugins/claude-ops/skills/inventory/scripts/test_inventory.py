@@ -1449,6 +1449,19 @@ class TestModuleScopedResolution(unittest.TestCase):
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
         self.assertEqual(_tool(src, "Lazy")["description"], "later")
 
+    def test_a_binding_local_to_another_function_is_not_visible(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function outer(){let zz="WRONG"}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return zz}});"
+            'var zz="REAL";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_huge_bigint_does_not_abort_the_run(self) -> None:
+        big = "0x1" + "0" * 400 + "n"
+        src = f'var Qz="Probe";$t({{name:Qz,maxResultSizeChars:1,description:{big}||"F"}});'
+        self.assertEqual(_tool(src, "Probe")["description"], "")
+
     def test_an_eager_call_does_not_read_a_later_binding(self) -> None:
         src = _modules(
             'var Qz="Probe";function dd(){return zz}'
