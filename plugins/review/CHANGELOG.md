@@ -10,7 +10,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`security-reviewer` applies the instruction-surface deletion lens.** The agent behind
   `/review:quality-gate` security mode and `/review:fanout` now judges a deleted, narrowed or
   softened standing instruction by consequence and reads the instruction exception register, as the
-  CI `security-review` skill already did, so local and CI review no longer differ on such a diff.
+  CI `security-review` skill already did, so wherever the agent is dispatched local and CI review
+  judge such a diff the same way.
 
 ## [0.33.9] - 2026-09-29
 
