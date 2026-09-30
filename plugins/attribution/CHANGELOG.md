@@ -32,14 +32,19 @@
   | restated-fact | 6 | 6 | 0 | 0 | 0 | 1.00 | 1.00 | not measured |
   | hard negatives | 15 | 0 | 2 | 0 | 13 | n/a | n/a | n 2, 2 tn |
 
+  `score-golden.sh` charges a case to the class its `expected.json` records, not to the class the
+  panel returned: a finding on a recorded negative is a false positive in the hard-negatives row,
+  and a recorded near-verbatim case that the panel calls another class is one false negative and
+  one false positive in the near-verbatim row.
+
   **Near-verbatim crossed `min_n_per_class` and its gate is binding, and it fails the 0.95
   precision bar** (0.92, one false positive in thirteen), so it is not fix-eligible. The
   hard-negative class also crossed the gate. No class is declared fix-eligible.
 
   **Where the panel disagreed with a recorded expectation.** None of the expectations was changed.
   - `c26` returned `verbatim` where the fixture records `near-verbatim`, on the same lines: the
-    case reproduces the source's three rules word for word, so the class disagreement counts as a
-    false negative and a false positive.
+    case reproduces the source's three rules word for word. It is the near-verbatim row's one
+    false negative and one false positive.
   - `c23` and `c36`, recorded as negatives, each returned a `near-verbatim` finding. For `c36`
     the panel read the stamped record as covering only the two numbers it claims, not the
     sentences lifted beside them. For `c23` it found inline attributions with no URL or as-of
