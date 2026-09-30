@@ -8,6 +8,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Changed
 
 - **The deep inventory's `plugin-cache-version` rows come from a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `claude-ops`, so the install-state audit and the deep inventory apply one rule for which cache versions are unreferenced, including the guarded read of `installed_plugins.json`. `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge.
+
 ## [0.41.0] - 2026-09-30
 
 ### Added
