@@ -65,8 +65,8 @@ says" below.
 ## The relay boundary, and why the script enforces it
 
 **Only fingerprint-confirmed copy findings and the two deterministic stamp rules enter the
-file.** Judgment verdicts go to the human report only: `source-fetched-similar`,
-`llm-suspected`, and the neutral outcome `not-found`. They have no crosswalk row to look a tier up
+file.** Judgment verdicts go to the human report only: `vendored-snapshot`,
+`source-fetched-similar`, `llm-suspected`, and the neutral outcome `not-found`. They have no crosswalk row to look a tier up
 from, and a relay row is an instruction to a remediation surface, not a place to record a
 suspicion.
 
@@ -204,9 +204,9 @@ already gives a verdict name spelled in a `note`. It has to be: a `verdict.tier`
 llm-suspected nomination was overruled" is a review note, and withholding the
 fingerprint-confirmed copy that carries it is the same drop as reading a `tier` key at any depth.
 
-**Five names, and one reader for every question about a WELL-FORMED record.** The three withheld
-verdicts, counting both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier
-a copy finding may be relayed on. The searched-surfaces refusal, the withhold predicate and the
+**One reader for every question about a WELL-FORMED record.** It knows the withheld verdicts,
+counting both spellings of the neutral one, plus `fingerprint-confirmed`, the one tier a copy
+finding may be relayed on. The searched-surfaces refusal, the withhold predicate and the
 eligibility test all ask that one reader. A record that is not an object is the stated exception:
 it has no declared tier for any of them to read, so the boundary withholds it on a verdict name
 appearing anywhere inside it and the schema check never runs on it. Refusing a whole sidecar

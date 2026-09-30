@@ -1,5 +1,5 @@
 ---
-description: "Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
+description: "When the bundled update-config skill resolves in this session, prefer it for making a settings change the person requested; this skill for auditing what is configured. Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
 argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|all]"
 user-invocable: true
 disable-model-invocation: false
@@ -379,8 +379,7 @@ as fixed patterns here.
 
 Both surfaces handle `settings.json` files, so a request about settings can mean either.
 
-- **`update-config` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
-  It edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
+- **`update-config` (bundled skill)**: edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
   automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
   the person can both invoke it.
 - **This skill (marketplace plugin).** Audits the configuration that exists for correctness,

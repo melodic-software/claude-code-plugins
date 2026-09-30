@@ -136,6 +136,7 @@ WINDOWS_OS_ROOT_FILE_NAMES = {
 }
 LINUX_OS_ROOT_FILE_NAMES = {
     "swapfile",
+    "swap.img",
 }
 LINUX_OS_ROOT_FILE_GLOBS = (
     "vmlinuz*",
@@ -353,7 +354,7 @@ def glob_matches(subject: str, pattern: str) -> bool:
     return fnmatch.fnmatchcase(subject.casefold(), pattern.casefold())
 
 
-_ABSOLUTE_GLOB = re.compile(r"^(?:[A-Za-z]:[\\/]|/)")
+_ABSOLUTE_GLOB = re.compile(r"^(?:[A-Za-z]:[\\/]|/|\\\\)")
 
 
 def protection_glob_pattern(entry: Any) -> str | None:
@@ -367,38 +368,85 @@ def protection_glob_pattern(entry: Any) -> str | None:
     return None
 
 
+def protection_glob_entry(entry: Any) -> dict[str, str] | None:
+    """A usable protection entry as ``{glob}`` or ``{glob, reason}``, else None.
+
+    ``reason`` is kept only when it is a non-empty string, because a snapshot's
+    policy block is JSON read back from disk and is not re-validated.
+    """
+    pattern = protection_glob_pattern(entry)
+    if pattern is None:
+        return None
+    reason = entry.get("reason") if isinstance(entry, dict) else None
+    if isinstance(reason, str) and reason:
+        return {"glob": pattern, "reason": reason}
+    return {"glob": pattern}
+
+
+def merge_protection_matches(matches: Iterable[dict[str, str]]) -> list[dict[str, str]]:
+    """Matched protection entries, deduplicated and sorted by glob then reason."""
+    unique = {(match["glob"], match.get("reason", "")): match for match in matches}
+    return [unique[key] for key in sorted(unique)]
+
+
+def protection_matches_field(
+    matches: Iterable[dict[str, str]],
+) -> dict[str, list[dict[str, str]]]:
+    """The optional ``protection_matches`` sibling field, empty when nothing matched.
+
+    Every lane that reports the ``consumer-protected-path`` blocker spreads this
+    into the record it already emits, so a record with no consumer match keeps
+    exactly the shape it had before.
+    """
+    merged = merge_protection_matches(matches)
+    return {"protection_matches": merged} if merged else {}
+
+
 def protection_glob_is_absolute(pattern: str) -> bool:
-    """True when the glob is an absolute POSIX path or a drive-letter path."""
+    """True for an absolute POSIX, drive-letter, or UNC glob."""
     return bool(_ABSOLUTE_GLOB.match(pattern))
 
 
-def consumer_path_protected(path: Path, target: Path, globs: Iterable[Any]) -> bool:
-    """True when a consumer protection glob covers *path*.
+def consumer_protection_matches(
+    path: Path, target: Path, globs: Iterable[Any]
+) -> list[dict[str, str]]:
+    """The consumer protection entries that cover *path*, empty when none do.
 
     A relative glob matches the path relative to the scan target. A glob that
-    starts with ``/`` or a drive letter matches ``path.as_posix()``, so a
-    standing overlay can protect a tree regardless of which parent is scanned.
-    An absolute glob also matches with ``\\`` read as ``/``, so a native
-    Windows spelling covers the forward-slash subject. Object entries
-    contribute their ``glob`` field.
+    starts with ``/``, a drive letter, or ``\\\\`` (UNC) matches
+    ``path.as_posix()``, so a standing overlay can protect a tree regardless of
+    which parent is scanned. An absolute glob is also tried with ``\\`` read as
+    ``/`` on both the glob and the path, so a native Windows or UNC spelling
+    covers the forward-slash subject.
+
+    Every covering entry is returned, not the first: ``{"glob": ...}`` as
+    written in the policy, plus ``"reason"`` when an object entry carried one,
+    sorted and deduplicated.
     """
     try:
         relative = path.relative_to(target).as_posix()
     except ValueError:
         relative = path.as_posix()
     absolute = path.as_posix()
+    absolute_subjects = (absolute, absolute.replace("\\", "/"))
+    matches: list[dict[str, str]] = []
     for entry in globs:
-        pattern = protection_glob_pattern(entry)
-        if not pattern:
+        match = protection_glob_entry(entry)
+        if match is None:
             continue
+        pattern = match["glob"]
         if protection_glob_is_absolute(pattern):
-            if glob_matches(absolute, pattern) or glob_matches(
-                absolute, pattern.replace("\\", "/")
-            ):
-                return True
-        elif glob_matches(relative, pattern):
-            return True
-    return False
+            patterns = (pattern, pattern.replace("\\", "/"))
+            covered = any(
+                glob_matches(subject, candidate)
+                for subject in absolute_subjects
+                for candidate in patterns
+            )
+        else:
+            covered = glob_matches(relative, pattern)
+        if covered:
+            matches.append(match)
+    return merge_protection_matches(matches)
 
 
 def _validate_protection_glob_entry(entry: Any) -> None:
@@ -786,7 +834,7 @@ def baseline_protected_name_globs() -> tuple[str, ...]:
     no exact name can cover it, and a consumer cannot cover it either:
     ``additional_protected_path_globs`` relative globs match a path relative to
     the scan target, so they protect such a root only when the target happens
-    to be its parent. An absolute glob (``/`` or a drive letter) matches the
+    to be its parent. An absolute glob (``/``, a drive letter, or UNC) matches the
     absolute path and does not need that parent, but it still cannot name a
     tenant-specific OneDrive folder the overlay does not know. Protection that
     must hold for every target without a known absolute path ships in the
@@ -1750,11 +1798,12 @@ def root_child_skip_reason(
 ) -> str | None:
     """Why an immediate child must not be offered or audited.
 
-    On an OS-managed volume root, mirrors the volume-root guard (OS-owned /
-    hidden / system / reparse) and fails closed on anything ambiguous (#2588).
-    Regular files use the same admission ladder as directories; non-regular
-    types are withheld as ``not-regular-file-or-directory``. On any other
-    target (#4221), only directories can be selected, and hidden and
+    On any volume root, OS-managed or not (a Windows Dev Drive), mirrors the
+    volume-root guard (OS-owned / hidden / system / reparse) and fails closed
+    on anything ambiguous (#2588). Regular files use the same admission ladder
+    as directories; non-regular types are withheld as
+    ``not-regular-file-or-directory``. On a target that is not a volume root
+    (#4221), only directories can be selected, and hidden and
     OS-owned-by-volume-name children stay selectable so a depth-1 home audit
     can re-inventory approved directories without walking the rest of the home.
     """
@@ -1822,12 +1871,12 @@ def enumerate_root_children(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """List immediate children into admitted vs skipped buckets.
 
-    Enumerates the target once and never recurses. On an OS-managed volume
-    root, admitted entries are regular files or directories that cleared every
-    root-children exclusion. On any other target, admitted entries are
-    directories only. ``strict_volume_root`` keeps the OS-owned / hidden /
-    system ladder that an OS-managed volume root needs; any other target drops
-    those so approved home children stay selectable.
+    Enumerates the target once and never recurses. On a volume root,
+    OS-managed or not, admitted entries are regular files or directories that
+    cleared every root-children exclusion. On any other target, admitted
+    entries are directories only. ``strict_volume_root`` keeps the OS-owned /
+    hidden / system ladder that every volume root needs; a target that is not
+    a volume root drops those so approved home children stay selectable.
     """
     exact_names = set(policy["protected_exact_names"])
     os_owned = volume_root_os_owned_names()
@@ -1985,9 +2034,10 @@ def scan_tree(
             protections = hard_protection(path, target, exact_names, known_mounts)
             if path.name.casefold() in VCS_NAMES:
                 repositories.append(path.parent.resolve())
-            if consumer_path_protected(
+            consumer_matches = consumer_protection_matches(
                 path, target, policy["additional_protected_path_globs"]
-            ):
+            )
+            if consumer_matches:
                 protections.append("consumer-protected-path")
             try:
                 if is_linkish(path):
@@ -2064,6 +2114,7 @@ def scan_tree(
                         **data,
                         "hints": matching_hints(relative, path.name, policy, kind),
                         "protected_reasons": sorted(set(protections)),
+                        **protection_matches_field(consumer_matches),
                     }
                 )
             if len(entries) % 25_000 == 0:
@@ -2144,7 +2195,7 @@ def scan_tree(
     }
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
-        payload["rollup_precision"] = "exact" if not truncated else "partial"
+        payload["rollup_precision"] = "partial" if unknown_paths else "exact"
     if root_children is not None:
         payload["root_children_mode"] = True
         payload["root_children_selected"] = list(root_children)
@@ -2382,20 +2433,21 @@ def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
     )
 
 
-def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[str]:
-    """Consumer protection glob patterns a snapshot's policy recorded.
+def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[dict[str, str]]:
+    """Consumer protection entries a snapshot's policy recorded.
 
     Read from the snapshot rather than from live policy on purpose: an approved
     snapshot must stay previewable under the protections it was scanned with.
-    Object members contribute their ``glob`` string; other shapes are dropped
-    so the three validation lanes cannot differ on a hand-edited policy block.
+    Each entry is ``{glob}`` or ``{glob, reason}``; other shapes are dropped so
+    the validation lanes cannot differ on a hand-edited policy block.
     """
-    patterns: list[str] = []
-    for entry in snapshot.get("policy", {}).get("additional_protected_path_globs", []):
-        pattern = protection_glob_pattern(entry)
-        if pattern:
-            patterns.append(pattern)
-    return patterns
+    entries = (
+        protection_glob_entry(entry)
+        for entry in snapshot.get("policy", {}).get(
+            "additional_protected_path_globs", []
+        )
+    )
+    return [entry for entry in entries if entry is not None]
 
 
 def validate_plan(
@@ -2704,8 +2756,6 @@ def same_removal_identity(path: Path, entry: dict[str, Any]) -> bool:
         info = path.lstat()
     except OSError:
         return False
-    if entry.get("kind") == "directory":
-        return same_object_identity(info, entry)
     return same_stat_identity(info, entry)
 
 
@@ -3461,14 +3511,17 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 blockers.append("filesystem-state-unverified")
         if current_paths != expected_paths:
             blockers.append("changed-since-scan")
+        consumer_matches: list[dict[str, str]] = []
         for name in expected_paths:
             entry = entries[name]
             current = target.joinpath(*PurePosixPath(name).parts)
             if not same_identity(current, entry):
                 blockers.append("changed-since-scan")
             blockers.extend(hard_protection(current, target, exact_names, known_mounts))
-            if consumer_path_protected(current, target, globs):
+            matches = consumer_protection_matches(current, target, globs)
+            if matches:
                 blockers.append("consumer-protected-path")
+                consumer_matches.extend(matches)
         if "truncated-not-inventoried" in blockers:
             # Same rationale as the current_descendants short-circuit above: a
             # truncated candidate can never leave "blocked" state, so skip the
@@ -3512,6 +3565,7 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 "handle_state": state,
                 "handle_detail": detail,
                 "blockers": blockers,
+                **protection_matches_field(consumer_matches),
             }
         )
         blocked = blocked or bool(blockers)
@@ -3615,7 +3669,7 @@ def verify_emptied_container(
     entries: dict[str, dict[str, Any]],
     exact_names: set[str],
     known_mounts: set[Path],
-    globs: list[str],
+    globs: list[dict[str, str]],
     truncated_paths: set[str],
 ) -> dict[str, Any]:
     """Verdict for one container the approved removals would empty, read-only.
@@ -3652,7 +3706,8 @@ def verify_emptied_container(
     if not same_object_identity(info, entries[relative]):
         drifted.add("changed-since-scan")
     contested.update(hard_protection(path, target, exact_names, known_mounts))
-    if consumer_path_protected(path, target, globs):
+    consumer_matches = consumer_protection_matches(path, target, globs)
+    if consumer_matches:
         contested.add("consumer-protected-path")
     expected_paths = subtree_names(relative, entries)
     current_paths: set[str] | None = None
@@ -3701,6 +3756,7 @@ def verify_emptied_container(
         "path": relative,
         "verdict": verdict,
         "reasons": sorted(drifted) + sorted(contested),
+        **protection_matches_field(consumer_matches),
     }
 
 
@@ -3739,6 +3795,7 @@ def handoff_verify(
             path = target.joinpath(*PurePosixPath(relative).parts)
             drifted: set[str] = set()
             contested: set[str] = set()
+            consumer_matches: list[dict[str, str]] = []
             evidence_result: dict[str, Any] | None = None
             candidate_pure = PurePosixPath(relative)
             candidate_evidence = {
@@ -3913,8 +3970,10 @@ def handoff_verify(
                         exact_names,
                     )
                 contested.update(current_protections)
-                if consumer_path_protected(current, target, globs):
+                matches = consumer_protection_matches(current, target, globs)
+                if matches:
                     contested.add("consumer-protected-path")
+                    consumer_matches.extend(matches)
             if not truncated or evidence_inventory_eligible:
                 # A hung git (TimeoutExpired) must degrade to this one path's
                 # contested verdict, not abort the whole run with no verdicts —
@@ -3940,6 +3999,7 @@ def handoff_verify(
                 "path": relative,
                 "verdict": verdict,
                 "reasons": sorted(drifted) + sorted(contested),
+                **protection_matches_field(consumer_matches),
             }
             if evidence_result is not None:
                 item["vcs_evidence"] = evidence_result
@@ -4086,7 +4146,7 @@ def anchored_remove(
 
 
 def apply_nothing_removed_report(
-    plan: dict[str, Any], target: Path, skipped: list[dict[str, str]]
+    plan: dict[str, Any], target: Path, skipped: list[dict[str, Any]]
 ) -> dict[str, Any]:
     """An apply report for a run that removed nothing and skipped every candidate."""
     return {
@@ -4132,13 +4192,16 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                     "path": item["path"],
                     "outcome": "protected",
                     "detail": ", ".join(by_path[item["path"]]["blockers"]),
+                    **protection_matches_field(
+                        by_path[item["path"]].get("protection_matches", [])
+                    ),
                 }
                 for item in candidates
             ],
         )
     before = shutil.disk_usage(target).free
     removed: list[dict[str, Any]] = []
-    skipped: list[dict[str, str]] = []
+    skipped: list[dict[str, Any]] = []
     logical_removed = 0
     reclaimable_removed = 0
     target_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -4196,7 +4259,8 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 baseline_protected_names(),
                 fresh_mounts,
             )
-            if consumer_path_protected(path, target, globs):
+            consumer_matches = consumer_protection_matches(path, target, globs)
+            if consumer_matches:
                 fresh_protections.append("consumer-protected-path")
             fresh_vcs = tracked_blocker(path, target)
             if fresh_vcs:
@@ -4207,6 +4271,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                         "path": relative,
                         "outcome": "protected",
                         "detail": ", ".join(sorted(set(fresh_protections))),
+                        **protection_matches_field(consumer_matches),
                     }
                 )
                 continue
@@ -4377,7 +4442,7 @@ def main(argv: list[str] | None = None) -> int:
                     target,
                     policy,
                     known_mounts,
-                    strict_volume_root=os_managed and volume_root,
+                    strict_volume_root=volume_root,
                 )
                 # This status and large-target-confirmation-required name the
                 # documented next step, so they exit 0 and `status` carries the
@@ -4397,7 +4462,7 @@ def main(argv: list[str] | None = None) -> int:
                         selection_note = (
                             "Re-run with --root-children and one or more "
                             "explicit --root-child NAME flags naming admitted "
-                            "immediate directories of this target; a general "
+                            "immediate children of this target; a general "
                             "'clean everything' is not selection. Selected "
                             "children are inventoried into one snapshot "
                             "without walking the rest of the target."
