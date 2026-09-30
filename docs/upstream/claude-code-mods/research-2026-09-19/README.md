@@ -1,8 +1,9 @@
 # Research snapshot, 2026-09-19
 
-A frozen copy of the verified research report on Claude Code mods: the hub
-[`research.md`](research.md) and its ten sidecars. Nothing here is updated in place. A later run
-writes a new dated folder beside this one.
+A dated snapshot of the verified research report on Claude Code mods: the hub
+[`research.md`](research.md) and its ten sidecars. Its claims are not updated in place: a later run
+writes a new dated folder beside this one. The only edits since capture are the mechanical
+deviations listed at the end.
 
 ## What it was verified against
 
@@ -25,7 +26,9 @@ The external sources those lanes cite are indexed in [sources.md](../sources.md)
 
 Links between the hub and its sidecars resolve inside this folder.
 
-Two deviations from a byte-exact copy, both mechanical: the hub's non-resolving links were flattened
-to plain text as described above, and three sidecars carry a leading
+Three deviations from a byte-exact copy, all mechanical: the hub's non-resolving links were
+flattened to plain text as described above, three sidecars carry a leading
 `<!-- markdownlint-disable MD049 -->` because verbatim staff quotes inside them use underscore
-emphasis. No claim text was changed.
+emphasis, and em dashes in the snapshot's own prose were replaced with other punctuation so the
+folder could join `scripts/em-dash-purged-paths.txt`. No claim text was changed, and no quote of
+staff or upstream text was altered.
