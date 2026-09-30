@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.1] - 2026-09-30
+## [0.34.2] - 2026-09-30
 
 ### Fixed
 
@@ -13,6 +13,15 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
   optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
   tokens, and states that `--project-dir` is optional.
+
+## [0.34.1] - 2026-09-30
+
+### Fixed
+
+- **The manual-lane handoff says not to empty the bin after a recycle**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Step 2 of the
+  gated manual lane now says not to empty the Recycle Bin or Trash after a recycle: emptying it
+  would make any recycled removal permanent and is the container-wide operation step 3 forbids.
 
 ## [0.34.0] - 2026-09-30
 
