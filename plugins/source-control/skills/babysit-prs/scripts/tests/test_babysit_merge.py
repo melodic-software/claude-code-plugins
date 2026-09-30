@@ -1503,15 +1503,15 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         return code, json.loads(out.getvalue()), method
 
     def test_repo_block_label_added_to_the_userconfig_set_blocks_merge(self) -> None:
-        labelled = _pr(labels=[{"name": "repo-veto"}])
+        labeled = _pr(labels=[{"name": "repo-veto"}])
         RepoConfigFake({}).install(self)
-        code, result = self._run_real_gate("owner/repo#1", labelled, *self.TIER_FLAGS)
+        code, result = self._run_real_gate("owner/repo#1", labeled, *self.TIER_FLAGS)
         self.assertEqual((code, result["ready"]), (0, True), result["blockers"])
 
         RepoConfigFake(
             {"owner/repo": "## babysit_merge_block_labels\n- repo-veto\n"}
         ).install(self)
-        code, result = self._run_real_gate("owner/repo#1", labelled, *self.TIER_FLAGS)
+        code, result = self._run_real_gate("owner/repo#1", labeled, *self.TIER_FLAGS)
         self.assertEqual((code, result["ready"]), (10, False))
         self.assertEqual(result["autopilotMergeTier"]["blockingLabels"], ["repo-veto"])
 
