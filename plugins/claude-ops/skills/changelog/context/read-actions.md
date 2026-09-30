@@ -65,8 +65,8 @@ flag. Without `--changelog` it fetches the raw changelog itself by the route bel
 ## Fetch route
 
 The changelog page is `https://code.claude.com/docs/en/changelog.md`, the raw-markdown channel. Read
-it by rung 1 of the upstream-drift convention's fetch route: `curl` the `.md` to a file and search
-the file locally. A summarizing fetch truncates a page this long and a truncated read supports no
+it by rung 1 of the upstream-drift convention's fetch route, through the plugin's fetcher, which
+writes the `.md` to a file and a manifest beside it; search the file locally. A summarizing fetch truncates a page this long and a truncated read supports no
 absence claim, so never report a version "absent from the changelog" from anything but a complete
 local copy. The script and this action both check the body's first heading, which reads
 `# Claude Code changelog`; a retired slug can serve another page's bytes under a 200, and a body
@@ -84,8 +84,9 @@ Page-specific shape, the only facts this skill keeps about the page:
 Slice a release or range out of the local copy with the block boundaries:
 
 ```bash
-curl -fsSL https://code.claude.com/docs/en/changelog.md -o "$TMPDIR/changelog.md"
-awk '/<Update label="2.1.261"/,/^<\/Update>/' "$TMPDIR/changelog.md"
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --out "$TMPDIR/docs" changelog
+jq -r '.pages[0] | "\(.state) \(.reason)"' "$TMPDIR/docs/manifest.json"
+awk '/<Update label="2.1.261"/,/^<\/Update>/' "$TMPDIR/docs/changelog.md"
 ```
 
 ## Action: fetch
