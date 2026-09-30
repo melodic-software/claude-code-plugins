@@ -39,6 +39,9 @@ mk_plugin() {
   [[ "$changelog" == "yes" ]] && printf '# Changelog\n' >"$repo/plugins/$name/CHANGELOG.md"
 }
 
+# ship_change <repo> [plugin]: change a shipped file, so a bump has a release.
+ship_change() { printf 'change %s\n' "$RANDOM" >>"$1/plugins/${2:-alpha}/README.md"; }
+
 # ============================ --check (static) =============================
 
 # versioned plugin WITH a changelog -> passes
@@ -206,6 +209,7 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+ship_change "$repo"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
 rm -rf "$repo"
@@ -267,6 +271,7 @@ printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude
   done
   printf '\n## [1.0.0]\n'
 } >"$repo/plugins/alpha/CHANGELOG.md"
+ship_change "$repo"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if command -v gawk >/dev/null 2>&1; then
   mkdir -p "$repo/bin"
@@ -306,6 +311,7 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+ship_change "$repo"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump adding a NEW '## [x.y.z]' entry (absent at base) passes --check-bump"; else fail "newly-added entry wrongly failed"; fi
 rm -rf "$repo"
@@ -338,6 +344,7 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.0.1+build.1" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.0.1+build.1]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+ship_change "$repo"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "SemVer build-metadata version with a proper entry passes (no regex leak)"; else fail "build-metadata version wrongly failed"; fi
 rm -rf "$repo"
@@ -703,6 +710,7 @@ main="$(git -C "$repo" rev-parse HEAD)"
 git -C "$repo" checkout -q -b pr "$fork"
 printf '{ "name": "alpha", "version": "1.2.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [1.2.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+ship_change "$repo"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps past the advance to 1.2.0'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
@@ -720,6 +728,7 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "0.10.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
 printf '# Changelog\n\n## [0.10.0]\n\n## [0.9.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+ship_change "$repo"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
@@ -1215,6 +1224,7 @@ repeated_body_case() {
   base="$(git -C "$repo" rev-parse HEAD)"
   printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
   printf '# Changelog\n\n## [1.1.0]\n\n%s\n\n%s' "$new_body" "$base_entries" >"$repo/plugins/alpha/CHANGELOG.md"
+  ship_change "$repo"
   git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
   out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
   rc=$?
@@ -1244,5 +1254,91 @@ if [[ $rc -eq 0 ]]; then ok "same prose with different fenced content passes --c
 
 repeated_body_case $'## [1.0.0]\n\n'"$long_body"$'\n\n```sh\nrun one\n```\n' "$long_body"$'\n\n```sh\nrun one\n```'
 if [[ $rc -eq 1 ]]; then ok "same prose with identical fenced content fails --check-bump"; else fail "identical fence not caught: rc=$rc out='$out'"; fi
+
+# ------------------- --check-bump shared sync and pointers -----------------
+# bump_case <change-fn>: alpha and beta at 1.0.0 with a long 1.0.0 body; the
+# change set is whatever <change-fn> writes under $repo. Sets rc and out.
+bump_case() {
+  mk_repo repo
+  git_init_test_repo "$repo"
+  local p
+  for p in alpha beta; do
+    mk_plugin "$repo" "$p" 1.0.0 yes
+    printf '# Changelog\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/$p/CHANGELOG.md"
+  done
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+  local base
+  base="$(git -C "$repo" rev-parse HEAD)"
+  "$1"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm change
+  out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+  rc=$?
+  rm -rf "$repo"
+}
+# bump <plugin> <version> <body> [older-entries]: manifest bump plus a new top entry.
+bump() {
+  printf '{ "name": "%s", "version": "%s" }\n' "$1" "$2" >"$repo/plugins/$1/.claude-plugin/plugin.json"
+  printf '# Changelog\n\n## [%s]\n\n%s\n\n%s## [1.0.0]\n\n%s\n' "$2" "$3" "${4:-}" "$long_body" >"$repo/plugins/$1/CHANGELOG.md"
+}
+no_op_list() { printf '%s\n' "$1" >"$repo/scripts/changelog-no-op-bumps.txt"; }
+
+# One shared-library sync writes the same one-line entry into every carrier.
+sync_line='- **Shared launcher sync: exec-bash.mjs finds bash on PATH, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.'
+sync_both() {
+  local p
+  for p in alpha beta; do
+    bump "$p" 1.0.1 "$sync_line"
+    ship_change "$repo" "$p"
+  done
+}
+bump_case sync_both
+if [[ $rc -eq 0 ]]; then ok "one identical sync entry across carriers passes --check-bump"; else fail "cross-carrier sync entry wrongly failed: rc=$rc out='$out'"; fi
+
+# A released repeat rewritten as a 'No change: repeats ...' pointer is an edit
+# to a released entry, never an added one, so the repeat rule does not judge it.
+pointer() {
+  bump alpha 1.1.0 '- A distinct release.' $'## [1.0.1]\n\n- No change: repeats the 1.0.0 entry (already released by #1).\n\n'
+  ship_change "$repo"
+}
+bump_case pointer
+if [[ $rc -eq 0 ]]; then ok "a 'No change: repeats' pointer entry passes --check-bump"; else fail "pointer entry wrongly failed: rc=$rc out='$out'"; fi
+
+# ------------------------ --check-bump bump without change -----------------
+re_release() { bump alpha 1.1.0 '- Re-release.'; }
+bump_case re_release
+if [[ $rc -eq 1 && "$out" == *"BUMP WITHOUT CHANGE: alpha went 1.0.0 -> 1.1.0"* ]]; then
+  ok "a bump touching only plugin.json and CHANGELOG.md fails --check-bump"
+else
+  fail "empty bump not caught: rc=$rc out='$out'"
+fi
+
+sanctioned() {
+  re_release
+  no_op_list alpha@1.1.0
+}
+bump_case sanctioned
+if [[ $rc -eq 0 ]]; then ok "a re-release named in changelog-no-op-bumps.txt passes"; else fail "sanctioned re-release wrongly failed: rc=$rc out='$out'"; fi
+
+other_version() {
+  re_release
+  no_op_list alpha@1.0.9
+}
+bump_case other_version
+if [[ $rc -eq 1 && "$out" == *"BUMP WITHOUT CHANGE"* ]]; then ok "an opt-out for another version does not excuse the bump"; else fail "opt-out leaked across versions: rc=$rc out='$out'"; fi
+
+synced() {
+  re_release
+  mkdir -p "$repo/plugins/alpha/hooks"
+  echo x >"$repo/plugins/alpha/hooks/hook-utils.sh"
+}
+bump_case synced
+if [[ $rc -eq 0 ]]; then ok "a bump with a synced file under the plugin passes"; else fail "sync bump wrongly failed: rc=$rc out='$out'"; fi
+
+manifest_edit() {
+  re_release
+  printf '{ "name": "alpha", "version": "1.1.0", "description": "changed" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+}
+bump_case manifest_edit
+if [[ $rc -eq 0 ]]; then ok "a bump with a non-version plugin.json edit passes"; else fail "manifest edit wrongly failed: rc=$rc out='$out'"; fi
 
 test_harness::report

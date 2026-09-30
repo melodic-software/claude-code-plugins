@@ -153,6 +153,9 @@ The autonomous per-cycle item budget is a separate, driving-loop concern, the
 body's own arithmetic. `work_loop_no_progress_threshold` (default 3) sets how
 many consecutive no-progress cycles the lane tolerates before raising its
 stall escalation. It escalates and keeps looping, never stops on a stall.
+`work_loop_in_flight_stale_days` (default 14) is the age, from the PR's
+`createdAt`, past which an open closing PR stops silently excluding its
+candidate: the lane escalates it and the drain report names it.
 
 `lane_instance` is this machine's writer identity for loop-lane telemetry. It
 suffixes each lane's telemetry sentinel marker
@@ -190,6 +193,7 @@ reads it from.
 | `work_loop_item_cap_floor` | number<br>*min 1* | `1` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_FLOOR` | Lower bound the work-loop lane's adaptive item cap can drop to on dirty items. |
 | `work_loop_frontier_item_cap_ceiling` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_FRONTIER_ITEM_CAP_CEILING` | Quota guard for frontier-capability-tier items in the work-loop lane: items carrying capability-tier: frontier run at concurrency 1 and their adaptive cap is bounded by this ceiling instead of the general one. Keep it at or below work_loop_item_cap_ceiling. The frontier tier is read from the provider-permissioned label only; absent label = general tier (fail-closed). |
 | `work_loop_no_progress_threshold` | number<br>*min 1* | `3` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_NO_PROGRESS_THRESHOLD` | Consecutive no-progress cycles (actionable work in view, no item advanced and no PR opened) before the work-loop lane raises its stall escalation. The lane escalates and keeps looping; it never stops on a stall. Idle cycles with nothing actionable neither count nor reset. |
+| `work_loop_in_flight_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_IN_FLIGHT_STALE_DAYS` | A candidate whose open closing PR (draft or ready) was created more than this many days ago stops being silently excluded: the work-loop lane escalates it to the attended queue with the escalation marker, and the drain report names it. The value is an age taken from the PR's createdAt; the lane stores no state for it. |
 
 ### How to set these
 
