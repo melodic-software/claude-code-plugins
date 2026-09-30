@@ -1443,12 +1443,12 @@ block_bypass() {
 #   - scratch_target_exempt grants it, `\` folded to `/` and case-folded as the
 #     Bash lane's segment scan delivers its targets.
 _bbh_ps_write_exempt() {
-  local cmd="$1" lc s n=0 cmdlet="" t i ch v="" r="" have=0 inq=0 j k start=-1 end
+  local cmd="$1" lc n=0 cmdlet="" t i ch v="" r="" have=0 inq=0 j k start=-1 end
   local a op_r="" op_v="" op_n=0
   local -a tv=() tr=()
   ((PS_REDUCTION_UNTRUSTED)) && return 1
   case "$cmd" in
-  *[\$\`\(\)\{\}@\&\"\;#\<]* | *$'\n'* | *$'\r'*) return 1 ;;
+  *[\$\`\(\)\{\}@\&\"\;#'<']* | *$'\n'* | *$'\r'*) return 1 ;;
   *) ;; # no refused character
   esac
   ps::has_special_constructs "$cmd" && return 1
@@ -1456,23 +1456,8 @@ _bbh_ps_write_exempt() {
   ps::has_launcher "$cmd" && return 1
   lc="${cmd,,}"
   [[ "$lc" == *io.file* || "$lc" == *streamwriter* ]] && return 1
-  local re='(^|[^a-z0-9_-])(set-content|add-content|out-file|tee-object|ac|tee|sc|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+)([^a-z0-9_-]|$)'
-  s="$lc"
-  while [[ "$s" =~ $re ]]; do
-    n=$((n + 1))
-    cmdlet="${BASH_REMATCH[2]}"
-    s="${s#*"${BASH_REMATCH[0]}"}"
-  done
   t="${lc//>>/>}"
   t="${t//[^>]/}"
-  if ((n == 1 && ${#t} == 0)); then
-    case "$cmdlet" in
-    out-file | set-content | add-content | ac | tee-object | tee | export-csv | epcsv | export-clixml) ;;
-    *) return 1 ;;
-    esac
-  elif ((n != 0 || ${#t} != 1)); then
-    return 1
-  fi
   # Split into words, `|` and `>` markers, keeping each word's raw spelling.
   # A marker's raw form is the bare character; a quoted `'|'` word keeps quotes.
   for ((i = 0; i <= ${#cmd}; i++)); do
@@ -1507,6 +1492,22 @@ _bbh_ps_write_exempt() {
     esac
   done
   ((inq)) && return 1
+  # Count write forms over whole words, so a destination whose name contains a
+  # cmdlet or alias spelling (`out-file.csv`, a `tee` folder) is not a second form.
+  local re='^(set-content|add-content|out-file|tee-object|ac|tee|sc|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+)$'
+  for ((k = 0; k < ${#tv[@]}; k++)); do
+    [[ "${tv[k],,}" =~ $re ]] || continue
+    n=$((n + 1))
+    cmdlet="${BASH_REMATCH[1]}"
+  done
+  if ((n == 1 && ${#t} == 0)); then
+    case "$cmdlet" in
+    out-file | set-content | add-content | ac | tee-object | tee | export-csv | epcsv | export-clixml) ;;
+    *) return 1 ;;
+    esac
+  elif ((n != 0 || ${#t} != 1)); then
+    return 1
+  fi
   if [[ -z "$cmdlet" ]]; then
     for ((k = 0; k < ${#tr[@]}; k++)); do
       [[ "${tr[k]}" == '>' ]] || continue

@@ -2014,8 +2014,16 @@ expect_both "dispatched parity: PowerShell Export-Csv into plugin data allowed" 
   --command "Get-ChildItem | Export-Csv -Path $PSD/out.csv" -- \
   CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
 # Destinations outside every exempt root, or not literal, keep the block.
-run_pwsh_cwd "PS exempt: C:\\Windows\\System32 destination blocks" \
-  'Get-ChildItem | Export-Csv -Path C:\Windows\System32\x.csv' 2
+run_pwsh_cwd "PS exempt: ProgramData destination blocks" \
+  'Get-ChildItem | Export-Csv -Path C:\ProgramData\x.csv' 2
+run_pwsh_cwd "PS exempt: destination named out-file.csv counts as one write" \
+  "Get-ChildItem | Export-Csv -Path $PSD/out-file.csv" 0
+run_pwsh_cwd "PS exempt: destination under a tee folder counts as one write" \
+  "Get-ChildItem | Export-Csv -Path $PSD/tee/ac/report.csv" 0
+run_pwsh_cwd "PS exempt: second write form still blocks" \
+  "Get-ChildItem | Export-Csv -Path $PSD/a.csv | Out-File $PSD/b.txt" 2
+run_pwsh_cwd "PS exempt: redirect with a tee-named destination is one write" \
+  "Get-ChildItem > $PSD/tee.txt" 0
 run_pwsh_cwd "PS exempt: project-root destination blocks" \
   "Get-ChildItem | Out-File -FilePath $PROJ/out.txt" 2
 run_pwsh_cwd "PS exempt: relative destination blocks" \
