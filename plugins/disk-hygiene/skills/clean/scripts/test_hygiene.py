@@ -8135,13 +8135,54 @@ class GuardTests(unittest.TestCase):
             with self.subTest(label):
                 self.assertIn(expected, guard._engine_mismatch_reason(command, root))
 
+    def test_engine_mismatch_reason_names_the_engine_operand_of_a_mention(
+        self,
+    ) -> None:
+        engine = guard._display_path(guard._engine_script_path())
+        for command in (f'grep foo "{engine}"', f'cat "{engine}"'):
+            with self.subTest(command):
+                reason = guard._engine_mismatch_reason(command, "/data/root")
+                self.assertIn("is the engine path", reason)
+                self.assertIn(command.split()[0], reason)
+                self.assertNotIn("not this hook's Python", reason)
+        plugin_root = guard._engine_script_path().parents[3]
+        relative = guard._engine_script_path().relative_to(plugin_root).as_posix()
+        with chdir_context(plugin_root):
+            reason = guard._engine_mismatch_reason(f"grep foo {relative}", "/data/root")
+        self.assertIn("resolves to the engine from the current directory", reason)
+        self.assertIn(relative, reason)
+
+    def test_engine_mismatch_reason_names_only_the_operator_present(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        python = self.python_command()
+        head = f'"{python}" "{script}" scan --target t --output s --data-root /d'
+        cases = {
+            "pipe": (f"{head} | tail", "a pipe"),
+            "redirect": (f"{head} > out", "a redirect"),
+            "semicolon": (f"{head}; echo", "a ';'"),
+            "substitution": (f"{head} $(id)", "a substitution or expansion"),
+            "backslash": (f"{head} a\\b", "a backslash"),
+            "quote": (f'{head} a"b"', "a quote that does not wrap a whole word"),
+        }
+        for label, (command, expected) in cases.items():
+            with self.subTest(label):
+                reason = guard._engine_mismatch_reason(command, "/d")
+                self.assertIn(expected, reason)
+                for other, (_, phrase) in cases.items():
+                    if other != label:
+                        self.assertNotIn(phrase, reason)
+
+    def test_operator_labels_cover_the_characters_the_literal_parser_rejects(
+        self,
+    ) -> None:
+        self.assertEqual(
+            set(guard._OPERATOR_LABELS), set(guard._SHELL_EXPANSION_OR_OPERATOR_CHARS)
+        )
+
     def test_engine_gate_defers_the_read_only_forms_the_denial_advertises(self) -> None:
         engine = guard._display_path(guard._engine_script_path())
         relative = "plugins/disk-hygiene/skills/clean/scripts/hygiene.py"
-        with tempfile.TemporaryDirectory() as tmp:
-            previous = os.getcwd()
-            os.chdir(tmp)
-            self.addCleanup(os.chdir, previous)
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in (
                 f"git show origin/main:{relative}",
                 "git grep foo -- hygiene.py",
@@ -8156,6 +8197,23 @@ class GuardTests(unittest.TestCase):
                 f"grep foo {relative} | tail",
             ):
                 self.assertTrue(guard._engine_gate_relevant(command, "Bash"), command)
+
+    def test_engine_gate_gates_a_relative_word_that_resolves_to_the_engine(
+        self,
+    ) -> None:
+        engine = guard._engine_script_path()
+        plugin_root = engine.parents[3]
+        relative = engine.relative_to(plugin_root).as_posix()
+        rev_form = f"git show origin/main:{relative}"
+        cases = (
+            (engine.parent, "rg foo hygiene.py"),
+            (engine.parent, "git grep foo -- hygiene.py"),
+            (plugin_root, f"grep foo {relative}"),
+        )
+        for cwd, command in cases:
+            with self.subTest(cwd=cwd.name, command=command), chdir_context(cwd):
+                self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+                self.assertFalse(guard._engine_gate_relevant(rev_form, "Bash"))
 
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
         """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.

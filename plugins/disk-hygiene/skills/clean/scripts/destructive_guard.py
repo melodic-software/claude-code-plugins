@@ -1927,30 +1927,81 @@ def _bash_allowlist_disclosure(authority: str | None) -> str:
     )
 
 
-def _engine_mismatch_reason(command: str, authority: str | None) -> str:
-    """One sentence naming the first stage at which ``classify_exact_engine_command`` refuses.
+_OPERATOR_LABELS = {
+    char: label
+    for chars, label in (
+        ("|", "a pipe"),
+        ("<>", "a redirect"),
+        (";", "a ';'"),
+        ("&", "an '&'"),
+        ("$`(){}", "a substitution or expansion"),
+        ("*?[]~", "a glob or tilde"),
+        ("\r\n\t", "a newline or tab"),
+        ("!#", "a '!' or '#'"),
+    )
+    for char in chars
+}
 
-    Deny path only. It walks the classifier's stages in the classifier's order
-    and never decides anything: the caller has already denied.
+
+def _unparsable_reason(command: str) -> str:
+    """Name the first thing in ``command`` that ``_literal_shell_words`` rejects."""
+    for char in command:
+        if char in _OPERATOR_LABELS:
+            culprit = f"{_OPERATOR_LABELS[char]} ({char!r})"
+            break
+    else:
+        culprit = (
+            "a backslash"
+            if "\\" in command
+            else "a quote that does not wrap a whole word, or a non-space whitespace character"
+        )
+    return f"The command contains {culprit}, so it is not one plain literal invocation."
+
+
+def _resolves_to_engine(word: str) -> bool:
+    key = _script_path_key(word)
+    return key is not None and key == _script_path_key(str(_engine_script_path()))
+
+
+def _engine_mismatch_reason(command: str, authority: str | None) -> str:
+    """One sentence naming what ``classify_exact_engine_command`` refuses.
+
+    Deny path only; the caller has already denied and this decides nothing. It
+    walks the classifier's stages in order, except that an engine operand of a
+    command that is not the hook's Python is named first: that word is what the
+    gate acts on, whatever the command's length.
     """
     tokens = _literal_shell_words(command)
     if tokens is None:
+        return _unparsable_reason(command)
+    python_ok = _is_current_python(tokens[0])
+    operand = (
+        None
+        if python_ok
+        else next((word for word in tokens[1:] if _resolves_to_engine(word)), None)
+    )
+    if operand is not None:
+        named = (
+            "is the engine path"
+            if os.path.isabs(operand)
+            else "resolves to the engine from the current directory"
+        )
         return (
-            "The command is not one plain literal invocation: a pipe, redirect, "
-            ";, &, substitution, glob, or backslash, or a quote that does not "
-            "wrap a whole word, makes it unparsable."
+            f"{engine_grammar.clip_token(operand)} {named}, and only a call "
+            f'through "{_display_python()}" may name it; '
+            f"{engine_grammar.clip_token(tokens[0])} is not that interpreter."
         )
     if len(tokens) < 3:
         return (
             f"The command has {len(tokens)} word(s); an engine call is "
             "<hook python> <engine script> <subcommand> <flags>."
         )
-    if not _is_current_python(tokens[0]):
+    if not python_ok:
         return (
             f"{engine_grammar.clip_token(tokens[0])} is not this hook's Python; "
             f'the interpreter must be "{_display_python()}".'
         )
-    if _script_path_key(tokens[1]) != _script_path_key(str(_engine_script_path())):
+    if not _resolves_to_engine(tokens[1]):
         return (
             f"{engine_grammar.clip_token(tokens[1])} is not the bundled engine "
             f'"{_display_path(_engine_script_path())}".'
