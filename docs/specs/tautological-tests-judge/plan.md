@@ -111,7 +111,7 @@ Housekeeping:
 - `test -f docs/specs/tautological-tests-judge/plan.md && ! test -e docs/topics/tautological-tests-judge` passes.
 - `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0.
 
-### Phase 2: Block listing and session state (DT8, DT13) [TODO]
+### Phase 2: Block listing and session state (DT8, DT13) [DONE]
 
 Scanner: `cant-fail-scan.sh` has no block-listing output (`--inventory` prints counts only), so add
 `--blocks`, printing `block <file>:<start>-<end> <ordinal> <name>` from `close_block()` for each
