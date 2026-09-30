@@ -72,8 +72,8 @@ unset CODE_METRICS_DISABLE_BUNDLED
 out="$(PATH="$STUBS:$EMPTY_PATH" bash "$SCRIPT" --json --all "$SOURCES")"
 rc=$?
 assert_eq "--json exits 0" 0 "$rc"
-assert_doc "--json prints a code-metrics/v1 document for audit-complexity" "$out" \
-  'd["schema"]=="code-metrics/v1" and d["skill"]=="audit-complexity" and d["run"]'
+assert_doc "--json prints a code-metrics/v2 document for audit-complexity" "$out" \
+  'd["schema"]=="code-metrics/v2" and d["skill"]=="audit-complexity" and d["run"]'
 assert_doc "cyclomatic cites ISO/IEC 5055 8.2.117 at a reference of 20" "$out" \
   'any(t["measure"]=="cyclomatic" and t["reference"]==20 and "8.2.117" in t["provenance"] for t in d["thresholds"])'
 assert_doc "cognitive and halstead_difficulty have no reference" "$out" \
@@ -105,8 +105,8 @@ assert_contains "markdown states that a reference is not a bar" "$out" "never a 
 assert_contains "markdown carries the Labels column" "$out" "| File | Function | Lane | Labels |"
 assert_contains "markdown names the persisted document" "$out" "Full document: $CODE_METRICS_REPORT_DIR/audit-complexity-"
 doc_path="$(printf '%s\n' "$out" | sed -n 's/^Full document: //p')"
-"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); raise SystemExit(0 if d["schema"]=="code-metrics/v1" and d["skill"]=="audit-complexity" else 1)' "$doc_path"
-assert_eq "the persisted document is the code-metrics/v1 JSON the markdown was rendered from" 0 "$?"
+"$PY" -c 'import json,sys; d=json.load(open(sys.argv[1])); raise SystemExit(0 if d["schema"]=="code-metrics/v2" and d["skill"]=="audit-complexity" else 1)' "$doc_path"
+assert_eq "the persisted document is the code-metrics/v2 JSON the markdown was rendered from" 0 "$?"
 err="$(PATH="$STUBS:$EMPTY_PATH" CODE_METRICS_REPORT_DIR=/proc/code-metrics-cannot-write bash "$SCRIPT" --all "$SOURCES" 2>&1 >/dev/null)"
 rc=$?
 assert_eq "an unwritable report directory does not fail the run" 0 "$rc"

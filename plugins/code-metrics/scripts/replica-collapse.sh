@@ -2,7 +2,7 @@
 # Sourced by the dispatcher and by every entry point that assembles a document
 # of its own: apply the sanctioned-replication registries the resolved
 # configuration names (`scope.registries`, or `duplication.registries` as the
-# older name) to a `code-metrics/v1` document, so one collapse rule serves
+# older name) to a `code-metrics/v2` document, so one collapse rule serves
 # every audit and a report assembled outside the dispatcher (audit-coverage's
 # join) is collapsed the same way.
 #

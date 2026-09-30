@@ -4,6 +4,45 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.4.1] - 2026-09-29
+
+**Patch.** Docs-only clarification: rule 2 now says that, at equal tier and agreement count, an
+omitted-`Confidence` detector row ranks below a reviewer's `low` row in a merged report, and that this
+is a deliberate result of the rule.
+No producer's output and no rule changes.
+
+## [3.4.0] - 2026-09-29
+
+**Minor.** `testing/audit/rule-recomputed-derived` moves from IMPORTANT to SUGGESTION. A derived
+expectation can fail (an `add` that subtracts fails `expect(add(a, b)).toBe(a + b)`), so it is not a
+can't-fail test; its weakness is that it repeats the algorithm, so a mistake the test and the code
+share passes green and no specified value is checked. The row now argues SUGGESTION's catch-all, as
+the weak-oracle row does. A tier change on an existing row is a minor bump under this file's rule.
+
+## [3.3.0] - 2026-09-29
+
+**Minor.** Three `claude-config:audit-instructions` lane-fed rows now follow that plugin's
+`reference/criteria.md`, and the 3.1.3 entry's output claim is corrected. This is a minor bump
+rather than a patch because the I32 row gains a second tier: a tier change on one arm of an
+existing row is a judgment under this file's rule, and a patch would understate it. No
+producer-owned field's rule, coexistence obligation, or enforceability verdict moves, so it is not
+major.
+
+- **`rule-migration-relative-phrasing` (I31) and `rule-spoke-self-description` (I33)** named their
+  surfaces as a `context/`, `reference/`, or `references/` spoke. Each row now points at
+  `criteria.md`'s `### I31` or `### I33` for the surfaces, which reach further than that list, and
+  its `reason=outside-rule-surfaces` decline refers to the same surfaces.
+- **`rule-route-to-absent-skill` (I32)** mapped every emitted row to CRITICAL. `criteria.md`'s
+  `### I32` has two arms: the marketplace arm (a `Location` under `plugins/`) stays CRITICAL, and
+  the user and project arm is IMPORTANT. The row argues the second from the reason `### I32` gives
+  for that arm's `warning` severity, that one session's skill listing is not every session's, and
+  cites `criteria.md` as the authority for the tier. The producer's adopter row states the same
+  split.
+- **Correction to 3.1.3.** That entry says no producer's output changes. Each producer's own output
+  is unchanged, but `review:fanout` now ranks a row with an omitted `Confidence` after a reviewer's
+  `low`, so a merged report holding both orders them differently than it did before 3.1.3. The
+  3.1.3 entry is left as released.
+
 ## [3.2.0] - 2026-09-28
 
 **Minor, additive.** Four crosswalk rows admit `claude-config:audit-instructions`'s lane-selected

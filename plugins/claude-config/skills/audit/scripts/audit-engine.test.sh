@@ -252,6 +252,20 @@ assert_eq "case 3: a Read pattern on a Bash matcher is not covered" "0" "$(jq '[
 assert_eq "case 3: manifest recorded" "1" "$(jq '.coverage_manifests | length' <<<"$out")"
 assert_eq "case 3: a plugin with no manifest declares no dependencies" "0" "$(jq '[.rows[] | select(.claim=="dependencies-unread:guard@mkt")] | length' <<<"$out")"
 
+# --- Case 3b: the live-hook info row for the push ask-gate still says an ask rule blocks unattended lanes ---
+m="$(make_machine manifest-ask)"
+mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
+printf '%s\n' '{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)"]},"enabledPlugins":{"guard@mkt":true},"extraKnownMarketplaces":{"mkt":{"source":{"source":"directory","path":"../mkt"}}}}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"name":"mkt","plugins":[{"name":"guard","source":"./plugins/guard"}]}' >"$m/mkt/.claude-plugin/marketplace.json"
+printf '%s\n' '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"\"${CLAUDE_PLUGIN_ROOT}\"/hooks/git.sh"}]}]}}' >"$m/mkt/plugins/guard/hooks/hooks.json"
+printf '%s\n' '{"schemaVersion":1,"coverage":[{"hook":"hooks/git.sh","event":"PreToolUse","matcher":"Bash","decision":"block","families":["destructive-bash-deny"],"patterns":["Bash(git push *)"],"levers":[]}]}' >"$m/mkt/plugins/guard/hooks/coverage.json"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$m/mkt/plugins/guard/hooks/git.sh"
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+push_ask="$(jq -r '.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)") | .detail' <<<"$out")"
+assert_contains "case 3b: the live-hook row is used" "$push_ask" "a live PreToolUse hook already blocks it"
+assert_contains "case 3b: the live-hook row says an ask rule blocks unattended lanes" "$push_ask" "auto-denied under dontAsk"
+
 # --- Case 4: a suppression lever makes the manifest coverage not live ----------
 m="$(make_machine lever)"
 mkdir -p "$m/mkt/.claude-plugin" "$m/mkt/plugins/guard/hooks"
@@ -804,12 +818,23 @@ while [[ $# -gt 0 ]]; do
   *) url="$1"; shift ;;
   esac
 done
-[[ -f "$CURL_SHIM_SRC/${url##*/}" ]] || exit 22
-cp "$CURL_SHIM_SRC/${url##*/}" "$out"
-# -w '%{url_effective}': where the body came from, after any redirect.
+name="${url##*/}"
+src="$CURL_SHIM_SRC/$name"
+[[ -f "$src" ]] || exit 22
+cp "$src" "$out"
+# A <name>.status or <name>.ctype sidecar overrides the HTTP status or content type.
+status=200
+[[ -f "$src.status" ]] && status="$(cat "$src.status")"
+ctype="text/markdown; charset=utf-8"
+[[ "$name" == llms.txt ]] && ctype="text/plain; charset=utf-8"
+[[ -f "$src.ctype" ]] && ctype="$(cat "$src.ctype")"
+# The final URL, after any redirect.
 effective="$url"
 [[ -n "${CURL_SHIM_REDIRECT:-}" && "$url" == *settings-reference.md ]] && effective="$CURL_SHIM_REDIRECT"
-[[ "$wfmt" == '%{url_effective}' ]] && printf '%s' "$effective"
+wfmt="${wfmt//%\{http_code\}/$status}"
+wfmt="${wfmt//%\{url_effective\}/$effective}"
+wfmt="${wfmt//%\{content_type\}/$ctype}"
+printf '%s' "$wfmt"
 exit 0
 EOF
 chmod +x "$m/shim/curl"
@@ -838,6 +863,39 @@ rm -f "$m/curl.log" "$m/served/llms.txt"
 out=$(fetch_run) || true
 assert_eq "case 31: an index that fails to fetch is unread" "unread fetch-failed" "$(jq -r '.docs.index | "\(.state) \(.reason)"' <<<"$out")"
 assert_eq "case 31: and no page is requested after it" "1" "$(wc -l <"$m/curl.log" | tr -d ' ')"
+
+# The fetcher's manifest fields ride into the --json record of a fetched page.
+printf '%s\n' '# Docs' '- [All settings](https://docs.test/docs/en/settings-reference.md): keys' >"$m/served/llms.txt"
+rm -f "$m/curl.log"
+out=$(fetch_run) || true
+page_json="$(jq -c '.docs.pages[] | select(.slug=="settings-reference")' <<<"$out")"
+assert_eq "case 31: a fetched page records its sha256" "$(sha256sum <"$m/served/settings-reference.md" | cut -d" " -f1)" "$(jq -r '.sha256' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its content type" "text/markdown; charset=utf-8" "$(jq -r '.content_type' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its line count" "$(awk 'END { print NR }' "$m/served/settings-reference.md")" "$(jq -r '.lines' <<<"$page_json")"
+assert_eq "case 31: a fetched page records its byte count" "$(wc -c <"$m/served/settings-reference.md" | tr -d ' ')" "$(jq -r '.bytes' <<<"$page_json")"
+assert_eq "case 31: a fetched page records when it was read" "1" "$(jq -r '.retrieved | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$") | if . then 1 else 0 end' <<<"$page_json")"
+assert_eq "case 31: a fetched page carries no failure reason" "" "$(jq -r '.reason' <<<"$page_json")"
+assert_eq "case 31: the index records its sha256 too" "$(sha256sum <"$m/served/llms.txt" | cut -d" " -f1)" "$(jq -r '.docs.index.sha256' <<<"$out")"
+
+# A 404 or a text/html body is unread, and every row resting on the page stays
+# not-inspectable.
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"max",zzBogusKey:1}' >"$m/project/.claude/settings.json"
+for bad in status ctype; do
+  rm -f "$m/served/settings-reference.md.status" "$m/served/settings-reference.md.ctype"
+  if [[ $bad == status ]]; then
+    printf '404' >"$m/served/settings-reference.md.status"
+    want="http-404"
+  else
+    printf 'text/html; charset=utf-8' >"$m/served/settings-reference.md.ctype"
+    want="unexpected-content-type"
+  fi
+  out=$(fetch_run) || true
+  assert_eq "case 31 ($bad): the page is unread with the reason" "unread $want" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.reason)"' <<<"$out")"
+  assert_eq "case 31 ($bad): the page has no hash" "null" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | .sha256' <<<"$out")"
+  assert_eq "case 31 ($bad): the key row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="key-page-not-fetched:zzBogusKey") | .status' <<<"$out")"
+  assert_eq "case 31 ($bad): the value row is not inspectable" "not-inspectable" "$(jq -r '.rows[] | select(.claim=="effortLevel:max") | .status' <<<"$out")"
+done
+rm -f "$m/served/settings-reference.md.status" "$m/served/settings-reference.md.ctype"
 
 # --- Case 32: a read page that does not parse fails closed --------------------
 # A soft 404 arrives as a page with a body and no key headings. Read at face

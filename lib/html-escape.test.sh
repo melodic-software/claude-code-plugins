@@ -33,7 +33,7 @@ const work = process.argv[3];
 const helperUrl = pathToFileURL(`${root}/lib/html-escape.mjs`).href;
 const builderPath = `${root}/plugins/review/skills/pr-explainer/scripts/build-explainer.mjs`;
 const builderUrl = pathToFileURL(builderPath).href;
-const { escapeHtml, validateRenderedPage } = await import(helperUrl);
+const { escapeHtml, stampPage, validateRenderedPage } = await import(helperUrl);
 const { buildExplainerPage } = await import(builderUrl);
 
 let failed = 0;
@@ -136,10 +136,67 @@ const forged = page.replace(
   "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 );
 check(
-  "a forged generator marker is flagged",
+  "a stale or zeroed marker digest is flagged",
   validateRenderedPage(forged).failures.includes("marker-digest"),
   validateRenderedPage(forged).failures.join(","),
 );
+
+// Anyone can recompute the digest, so a restamped page is judged by the
+// structural scan alone.
+const restampedSafe = validateRenderedPage(stampPage(hand));
+check(
+  "a hand-written page with a recomputed digest passes on structure alone",
+  restampedSafe.ok,
+  restampedSafe.failures.join(","),
+);
+const restampedHostile = validateRenderedPage(
+  stampPage(hand.replace("</body>", "<script>alert(1)</script></body>")),
+);
+check(
+  "a hostile page with a recomputed digest fails on structure alone",
+  restampedHostile.failures.includes("tag:script") &&
+    !restampedHostile.failures.some((item) => item.startsWith("marker")),
+  restampedHostile.failures.join(","),
+);
+
+// Style text is raw CSS: none of these carries an HTML-significant character,
+// yet each fetches a resource or runs code.
+const hostileCss = [
+  "@import url(https://evil.example/x.css);",
+  "body{background:url(//evil.example/p.gif)}",
+  "body{background:URL(//evil.example/p.gif)}",
+  "body{background:u\\72l(//evil.example/p.gif)}",
+  "@IMPORT url(//evil.example/x.css);",
+  "body{width:expression(alert(1))}",
+];
+for (const css of hostileCss) {
+  const styled = stampPage(hand.replace("</head>", `<style>${css}</style></head>`));
+  const styledVerdict = validateRenderedPage(styled);
+  check(
+    `resource-loading CSS is flagged: ${css}`,
+    styledVerdict.failures.includes("style"),
+    styledVerdict.failures.join(","),
+  );
+}
+// A browser ends style text at `</style` followed by space, slash or `>`, and
+// runs an unclosed style element to end of file.
+const evilCss = "body{background:url(//evil.example/x)}";
+for (const [label, styleBlock] of [
+  ["</style x>", `<style>${evilCss}</style x>`],
+  ["</style/>", `<style>${evilCss}</style/>`],
+  ["no close tag", `<style>${evilCss}`],
+]) {
+  const verdict = validateRenderedPage(stampPage(hand.replace("</head>", `${styleBlock}</head>`)));
+  check(
+    `resource-loading CSS is flagged with ${label}`,
+    verdict.failures.includes("style"),
+    verdict.failures.join(","),
+  );
+}
+const plainCss = validateRenderedPage(
+  stampPage(hand.replace("</head>", "<style>body { color: #141413; }</style></head>")),
+);
+check("plain CSS in a style element passes", plainCss.ok, plainCss.failures.join(","));
 
 const tampered = page.replace("</body>", "<script>alert(1)</script></body>");
 check(

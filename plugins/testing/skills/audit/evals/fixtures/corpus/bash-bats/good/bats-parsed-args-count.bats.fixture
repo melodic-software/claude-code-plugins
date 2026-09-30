@@ -1,0 +1,23 @@
+#!/usr/bin/env bats
+# good-for: rule-constant-restatement
+# A command runs between the source line and the check, so the uppercase name
+# holds that command's output rather than a constant.
+
+@test "parse_args sets the count" {
+  source lib.sh
+  parse_args --count 3
+  assert_equal "$COUNT" 3
+}
+
+@test "greet fills the greeting" {
+  printf -v GREETING '%s' "$(greet world)"
+  assert_equal "$GREETING" hello-world
+}
+
+@test "parse_args sets the count, on one line" {
+  source lib.sh; parse_args --count 3; assert_equal "$COUNT" 3
+}
+
+@test "greet fills the greeting, on one line" {
+  printf -v GREETING '%s' "$(greet world)" && assert_equal "$GREETING" hello-world
+}

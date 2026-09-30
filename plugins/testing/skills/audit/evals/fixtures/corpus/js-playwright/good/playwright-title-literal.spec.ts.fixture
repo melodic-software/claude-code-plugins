@@ -1,0 +1,8 @@
+// good-for: rule-recomputed-expectation
+// The repaired twin: the title is stated, and the web-first matcher retries.
+import { expect, test } from '@playwright/test';
+
+test('checkout page has the right title', async ({ page }) => {
+  await page.goto('/checkout');
+  await expect(page).toHaveTitle('Checkout | Acme');
+});

@@ -23,24 +23,28 @@
 # destructive spellings an agent might fumble and route them through the clean
 # skill's confirmation gate. The durable destructive-op boundary is the consumer's own
 # settings.json permissions.deny plus their git hooks, which apply independent
-# of clean-session state. Known coverage gaps are accepted, not patched reactively.
+# of clean-session state. Coverage is whatever is_destructive() lists.
 #
-# Branch and remote-branch deletion are an accepted coverage gap, not a defect
-# (#3852, 2026-09-28). Claim: this net does not match `git branch -D`/`-d` or
-# `git push --delete`. Local deletion goes through git-branch-delete.sh after
-# the confirmation gate; remote deletion is not a sanctioned skill path. Basis:
-# is_destructive() below, SKILL.md section 4.2, and git-branch-delete.sh.
-# Recheck: git-branch-delete.sh stops being the only sanctioned local-delete
-# path, or a paid slice adds those patterns with an ack path that does not
-# duplicate the confirmation gate.
+# Branch deletion. Claim: as of 2026-09-29 this net matches bare
+# `git branch -D`/`-d`/`--delete`, and `git push --delete`, `push -d` and
+# `git push origin :ref` (also `+:ref`). A push with --dry-run/-n is a preview and is allowed.
+# The CLEAN_GUARD_ACK path lifts these blocks like every other, and the
+# ack-prefixed spelling is the documented way to run a bare `git branch -D`
+# during a clean session. Spellings the patterns do not parse (a global option
+# with a separate value, an alias) are not blocked. Local deletion through
+# git-branch-delete.sh runs `git update-ref -d`, so the confirmed path does not
+# go through these patterns. Basis: is_destructive() below and the branch and
+# push block cases in destructive-guard.test.sh. Recheck: is_destructive()
+# changes.
 #
-# The skill's own mutating scripts are in the net only in their --apply
-# spelling (clean-caches, clean-build, git-prune, git-tree-reset,
-# git-tree-reset-batch, remove-path, clean-batch). A dry-run stays allowed so
-# the confirmation gate can still run. `git worktree remove` with a force flag
-# is in the net too: the skill does not own worktree removal, and a force
-# remove during a clean session is the accidental spelling the audit recorded.
-# The ack prefix still lifts either block after the confirmation gate.
+# Apply scripts and forced worktree removal. Claim: as of 2026-09-29 the guard
+# matches the seven mutating scripts of the clean skill (clean-caches,
+# clean-build, git-prune, git-tree-reset, git-tree-reset-batch, remove-path,
+# clean-batch) in their --apply spelling, and `git worktree remove` with a
+# force flag. A dry-run of those scripts is allowed so the confirmation gate can
+# still run, and the ack prefix lifts either block after the gate. Basis:
+# is_destructive() below and section 2e of destructive-guard.test.sh. Recheck:
+# is_destructive() changes.
 
 set -uo pipefail
 
@@ -59,13 +63,13 @@ fi
 # rm's recursive (-r/-R/--recursive) and force (-f/--force) flags are matched
 # independently, so separated, reordered, capitalized, and long spellings are
 # caught — not only the adjacent -rf cluster. git's destructive subcommands
-# tolerate global options (-C <path>, -c <cfg>, --git-dir=…) between `git` and
-# the subcommand. git clean keys on the force flag (-f/--force) only: -x/-X/-d
+# tolerate global options (-C <path>, -c <cfg>, --git-dir=…, flag-only ones such
+# as --no-pager) between `git` and the subcommand. git clean keys on the force flag (-f/--force) only: -x/-X/-d
 # without force are git no-ops, so blocking them (including dry-run -nx) is a
 # false positive.
 is_destructive() {
   local cmd="$1"
-  local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+)*'
+  local gopt='((-C|-c)[[:space:]]+[^[:space:]]+[[:space:]]+|--[a-zA-Z-]+=[^[:space:]]+[[:space:]]+|(-[pP]|--[a-zA-Z-]+)[[:space:]]+)*'
   local force_re='[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([^[:alnum:]_-]|$)'
   if grep -qE '(^|[[:space:];&|(])rm[[:space:]]' <<<"$cmd" &&
     grep -qE '[[:space:]]-[a-zA-Z]*[rR]|[[:space:]]--recursive([[:space:]]|=|$)' <<<"$cmd" &&
@@ -87,6 +91,21 @@ is_destructive() {
     grep -qE "$force_re" <<<"$cmd"; then
     return 0
   fi
+  # Branch deletion: a -d/-D short-flag cluster or --delete after `branch`, in the
+  # same statement (a `;`, `&` or `|` ends it, so `xargs -d` after a pipe is not read).
+  if grep -qE "git[[:space:]]+${gopt}branch[[:space:]]([^;&|]*[[:space:]])?['\"]?(--delete|-[a-zA-Z]*[dD])" <<<"$cmd"; then
+    return 0
+  fi
+  # Remote deletion: `push --delete`, a -d cluster, or a `:ref` or `+:ref` refspec.
+  # A dry-run (--dry-run, or an -n cluster with no -o push option) in the same push
+  # statement is a preview and stays allowed.
+  local push
+  while IFS= read -r push; do
+    if grep -qE "[[:space:]](['\"]?(--delete|-[a-np-zA-Z]*d)|['\"]?[+]?['\"]?:[^[:space:]'\"])" <<<"$push" &&
+      ! grep -qE '[[:space:]](--dry-run|-[a-np-zA-Z]*n[a-np-zA-Z]*)([[:space:]]|$)' <<<"$push"; then
+      return 0
+    fi
+  done < <(grep -oE "git[[:space:]]+${gopt}push[[:space:]][^;&|]*" <<<"$cmd")
   grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|git[[:space:]]+${gopt}stash[[:space:]]+(drop|clear)([[:space:]]|$)|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"
 }
 

@@ -5,6 +5,34 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [9.4.0] - 2026-09-29
+
+Additive, minor. Section 6 records that the account-identity resolution is built on all three
+sides. No topology, escalation-contract, or tier-vocabulary change, and no §4 loop-layer invariant
+changed: the account-switch rule lives in the §6 rate-limit guard floor.
+
+- **Reader-side invalidation is built (§6).** Lanes read `.oauthAccount.emailAddress` directly from
+  `.claude.json` while paused and drop a latched pause on an account change when the new account is
+  below the pause threshold. The latched account is the account of the snapshot that tripped the
+  pause. The obligation is a MUST in the guard's reader contract.
+- **Unknown windows drop the latch too.** When no fresh tee snapshot attributes the new account, its
+  windows are unknown, so the lane drops the latch and runs reactive-only, the outcome the staleness
+  rule already gives unknown windows. This goes past dropping only when the new account is below
+  the threshold.
+- **Lane-floor re-audit is satisfied.** The floor block moved to every carrier together and the
+  drift gate enforces it.
+- **Known gap narrowed.** Unattributable switches (absent tee field, unreadable state file, a
+  tripping snapshot with no `account.email`) remain.
+
+## [9.3.1] - 2026-09-29
+
+Patch, docs only. No topology, escalation-contract, tier-vocabulary, or loop-layer invariant changed.
+
+- **Background-job launch mode no longer states a harness behavior.** The [9.3.0] bullet restated a
+  harness claim that was never verified. The convention now states no launch-mode condition: it
+  keeps the tracker marker as the escalation of record and the no-`EnterWorktree` rule, and points
+  at the work-loop skill paragraph that owns the launch-mode text.
+
 ## [9.3.0] - 2026-09-28
 
 Additive, minor. Documents background-job launch mode for the escalation record write; no topology,

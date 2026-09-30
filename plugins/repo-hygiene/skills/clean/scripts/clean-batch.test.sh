@@ -339,6 +339,40 @@ else
   fail "all tier plan REPO+GITDIR" "both" "$(cat "$APLAN")"
 fi
 
+# --- 8b. scan tier: read-only inventory, no plan, no apply ---
+SC1="$(mkrepo scan1)"
+SC2="$(mkrepo scan2)"
+SC3="$(mkrepo scan3)"
+t1="$(cd "$SC1" && bash "$SCRIPT_DIR/scan.sh" | sed -n 's/^Total reclaimable: //p')"
+t2="$(cd "$SC2" && bash "$SCRIPT_DIR/scan.sh" | sed -n 's/^Total reclaimable: //p')"
+out="$(bash "$BATCH" --tier scan --repo "$SC1" "$SC2" --skip scan3 --skip nosuchrepo)"
+rc=$?
+assert_exit "scan tier exits 0" 0 "$rc"
+assert_contains "scan announces fleet scan" "$out" "Fleet Clean (scan)"
+assert_contains "scan per-repo outcome" "$out" "Outcome: scanned"
+assert_contains "scan sums the per-repo totals" "$out" "Summary: repos=2 planned=0 bytes=$((t1 + t2)) skipped=0 blocked=0"
+assert_not_contains "scan writes no batch plan" "$out" "BatchPlan:"
+assert_contains "scan reports an unmatched skip" "$out" "UnmatchedSkip: nosuchrepo"
+assert_file_exists "scan leaves the cache" "$SC1/.pytest_cache/x"
+assert_file_exists "scan leaves the build dir" "$SC1/bin/b"
+out="$(bash "$BATCH" --tier scan --repo "$SC1" "$SC3" --skip scan3 --repo "$TEST_TMPDIR/not-a-dir")"
+assert_contains "scan honors the skip list" "$out" "skip-list (scan3)"
+assert_contains "scan reports a non-repo input as blocked" "$out" "Reason: not-a-directory"
+assert_contains "scan counts skipped and blocked" "$out" "skipped=1 blocked=1"
+rc=0
+out="$(bash "$BATCH" --tier scan --apply --repo "$SC1" 2>&1)" || rc=$?
+assert_exit "scan with --apply exits 2" 2 "$rc"
+assert_contains "scan --apply refusal names the tier" "$out" "--tier scan is read-only"
+rc=0
+bash "$BATCH" --tier scan --repo "$SC1" --batch-plan "$TEST_TMPDIR/scan.plan" >/dev/null 2>&1 || rc=$?
+assert_exit "scan with --batch-plan exits 2" 2 "$rc"
+assert_file_absent "scan --batch-plan wrote nothing" "$TEST_TMPDIR/scan.plan"
+rc=0
+bash "$BATCH" --tier scan >/dev/null 2>&1 || rc=$?
+assert_exit "scan with no repos exits 2" 2 "$rc"
+out="$(bash "$BATCH" --tier bogus --repo "$SC1" 2>&1)" || true
+assert_contains "unknown-tier message lists scan" "$out" "use scan|caches|build|git|all"
+
 # --- 9. --repos-from / --skip-from source-open contract (#3482) ---
 # A trailing blank is ordinary EOF success; only a missing/unopenable named
 # source is "file not found". Empty input is success at the helper and surfaces
@@ -422,6 +456,41 @@ rc=0
 git_out="$(bash "$BATCH" --tier git --repo "$PROG_REPO" 2>/dev/null)" || rc=$?
 assert_exit "git dry-run exits 0" 0 "$rc"
 assert_not_contains "git tier does not pay preflight" "$git_out" "PreflightScope:"
+
+# --- nothing-to-do outcome, summary table, --batch-plan on dry-run ---
+mkclean() {
+  git init "$1" >/dev/null 2>&1
+  git -C "$1" config user.email t@example.com
+  git -C "$1" config user.name Test
+  git -C "$1" commit --allow-empty -m init >/dev/null 2>&1
+}
+CLEAN="$TEST_TMPDIR/cleanrepo"
+mkclean "$CLEAN"
+out="$(bash "$BATCH" --tier caches --repo "$CLEAN" 2>/dev/null)"
+assert_contains "clean repo reports nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_not_contains "clean repo is not would-clean" "$out" "Outcome: would-clean"
+assert_contains "clean repo summary keeps counting" "$out" "Summary: repos=1 planned=0"
+
+DIRTY="$(mkrepo mixdirty)"
+CLEAN2="$TEST_TMPDIR/cleanrepo2"
+mkclean "$CLEAN2"
+out="$(bash "$BATCH" --tier caches --repo "$DIRTY" "$CLEAN2" 2>/dev/null)"
+assert_contains "mixed fleet has would-clean" "$out" "Outcome: would-clean"
+assert_contains "mixed fleet has nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_contains "summary table header" "$out" "Repo | Outcome | Paths | Bytes"
+assert_contains "table row for the dirty repo" "$out" "$DIRTY | would-clean | "
+assert_contains "table row for the clean repo" "$out" "$CLEAN2 | nothing-to-do | 0 | "
+
+GT="$(mkrepo gitnew)"
+git -C "$GT" worktree add "$TEST_TMPDIR/gitnew-wt" -b wt2 >/dev/null 2>&1
+out="$(bash "$BATCH" --tier git --repo "$GT" "$TEST_TMPDIR/gitnew-wt" 2>/dev/null)"
+assert_contains "git tier new store is would-clean" "$out" "$GT | would-clean | "
+assert_contains "git tier sibling worktree is deduped" "$out" "deduped with a sibling worktree"
+assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT | nothing-to-do"
+assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
+
+help_out="$(bash "$BATCH" --help)"
+assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "clean-batch.test.sh: all passed"

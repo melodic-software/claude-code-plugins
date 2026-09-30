@@ -13,7 +13,18 @@
     "format": {"$ref": "#/$defs/format"},
     "kind": {"$ref": "#/$defs/format"},
     "content": {"type": ["string", "object", "array"]},
-    "file": {"type": "string"}
+    "file": {"type": "string"},
+    "label": {"type": "string", "description": "A short tab name; the page falls back to `title`, then `id`"},
+    "group": {"type": "string", "description": "Visuals that share a group are alternatives or versions of one another"},
+    "order": {"type": "number"},
+    "primary": {"type": "boolean", "description": "At most one live primary visual per group within a scope"},
+    "archived": {
+      "type": "object",
+      "required": ["why", "at"],
+      "additionalProperties": false,
+      "properties": {"why": {"type": "string"}, "at": {"type": "string"}},
+      "description": "Set by archive-visual; the page never shows an archived visual"
+    }
   },
   "allOf": [
     {"anyOf": [{"required": ["format"]}, {"required": ["kind"]}]},

@@ -1,7 +1,10 @@
 # Promotion-evidence trusted seam. Implementation plan (#4588)
 
-User-approved plan required before code changes. This document settles scope and phases; it does
-not wire the seam.
+Status: Phase 1 approved by the owner. Phases 2-3 are unapproved and are re-decided after the
+bootstrap contract is reviewed. Phases 2 and 3 are not implemented.
+
+Each phase needs the owner's approval before its code changes. This document sets scope and phases;
+Phase 1 does not wire the seam.
 
 ## Problem
 
@@ -18,10 +21,23 @@ classes.
 - **Claim:** Closing #4588 requires a cross-plugin implementation (babysit-loop cycle step +
   autonomy `check-security-binding.mjs` invocation + operator bootstrap documentation), not a
   prose-only update to the fail-closed paragraph.
-- **Basis:** Issue [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588);
-  `check-security-binding.mjs` evaluation mode requires `--probe-evidence-root` for probe evidence;
-  setup skill "Agent-unwritable bootstrap for security resolution".
-- **As of:** 2026-09-28.
+- **Basis:**
+  - Issue [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588).
+  - `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs`: usage line 12 names
+    `--evidence` and `--probe-evidence-root`; `verifyProbeTranscript` (line 1310) returns the
+    fail-closed reason "no --probe-evidence-root configured" at lines 1316-1317 when the root is
+    null.
+  - `plugins/autonomy/skills/setup/SKILL.md`: "Agent-unwritable bootstrap for security
+    resolution" (line 214).
+  - `plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.mjs`: builds each
+    fixture argv with `--probe-evidence-root` (line 80) and `--evidence` (line 81).
+  - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition" (line 22), whose promotion gate
+    reads at lines 45-50.
+  - `prompts/loops/loop-lane-prompts.md`: `{{MERGE}}` guidance (lines 75-80), "2. Merge lane"
+    (line 628), and the "C2 auto-merge may lack its promotion evidence" known gap (line 1248).
+- **As of:** 2026-09-29.
+- **Recheck:** issue #4588 changing state, or any cited file changing the quoted usage line,
+  fail-closed message, bootstrap section, fixture argv, or step 3 promotion gate.
 
 ## Exit criteria (from #4588)
 

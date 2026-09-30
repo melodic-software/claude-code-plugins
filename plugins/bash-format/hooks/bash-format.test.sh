@@ -48,32 +48,8 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# make_sink <body> -> path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, not a command-with-args, so tests point it at a stub.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [tries] -> block until <file> is non-empty (the
-# fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    if [[ -s "$f" ]]; then
-      return 0
-    fi
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 new_repo() {
   local r="$1"
@@ -757,7 +733,17 @@ EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 ]]; then
-  HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
+  # The one row outside this gate is the SessionStart prerequisite probe, exec
+  # form behind the bash_format_enabled launcher gate, which is asserted on its
+  # own here.
+  ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
+  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "BASH_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
+  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "BASH_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
+  if [[ "$PROBE_COUNT" == "1" ]]; then
+    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true BASH_FORMAT_ENABLED"
+  else
+    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true BASH_FORMAT_ENABLED, found $PROBE_COUNT"
+  fi
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
@@ -806,6 +792,104 @@ if [[ $HAVE_SHFMT -eq 1 ]]; then
   else
     fail "gitignored + opt-in: not formatted: $(cat "$REPO_IGN/.work/scratch.sh")"
   fi
+fi
+
+# --- Notice text is bound to prerequisites.json --------------------------------
+# The hook does not read the manifest at run time (parse cost on the per-edit hot
+# path), so this case is the binding: the manifest declares shfmt and shellcheck,
+# and each tool's missing-binary notice call states that tool's name, check and
+# install, verbatim.
+PLUGIN_ROOT="${HOOK_DIR%/*}"
+MANIFEST="$PLUGIN_ROOT/prerequisites.json"
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
+  if jq -e '(.tools | map(.name) | sort) == ["shellcheck", "shfmt"]' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: declares exactly shfmt and shellcheck"
+  else
+    fail "manifest: expected tools shfmt and shellcheck: $(cat "$MANIFEST")"
+  fi
+  # assert_hook_states <tool> <field> <needle> <haystack>
+  assert_hook_states() {
+    if [[ -n "$3" ]] && grep -qF -- "$3" <<<"$4"; then
+      ok "manifest binding: $1 notice states the manifest's $2 ($3)"
+    else
+      fail "manifest binding: $1 notice does not state the manifest's $2 (needle='$3')"
+    fi
+  }
+  for MF_TOOL in shfmt shellcheck; do
+    case "$MF_TOOL" in
+    shfmt) NOTICE_VAR=SHFMT_NOTICE ;;
+    *) NOTICE_VAR=SC_NOTICE ;;
+    esac
+    IFS=$'\t' read -r MF_CHECK MF_INSTALL < <(jq -r --arg n "$MF_TOOL" '.tools[] | select(.name == $n) | [.check, .install] | @tsv' "$MANIFEST")
+    NOTICE_CALL="$(sed -n "/hook::tool_missing_notice_to $NOTICE_VAR/,/[^\\\\]\$/p" "$HOOK")"
+    assert_hook_states "$MF_TOOL" name "'$MF_TOOL'" "$NOTICE_CALL"
+    assert_hook_states "$MF_TOOL" check "$MF_CHECK" "$NOTICE_CALL"
+    assert_hook_states "$MF_TOOL" install "$MF_INSTALL" "$NOTICE_CALL"
+  done
+else
+  fail "manifest binding needs jq and $MANIFEST"
+fi
+
+# --- SessionStart probe honors bash_format_enabled ----------------------------
+# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
+# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
+# holds the system tools and neither shfmt nor shellcheck. The gate is
+# `--run-if-unset-or-true` in exec-bash.mjs, so a row without it prints the
+# notice for a disabled plugin. A missing node fails the suite instead of
+# skipping the cases: every hook row launches through it.
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [[ -z "$NODE_BIN" ]]; then
+  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
+else
+  PG_WORK="$(mktemp -d)"
+  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      ln -s "$exe" "$PG_WORK/sysbin/$base"
+    done
+  done
+  PG_ARGS=()
+  while IFS= read -r pg_arg; do
+    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+
+  # run_probe <value|__unset__> -> run the row with bash_format_enabled set to <value> (or unset).
+  run_probe() {
+    local v="$1"
+    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED)
+    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=$v")
+    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
+        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
+  }
+
+  OUT_PG=$(run_probe false)
+  RC_PG=$?
+  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
+    ok "probe-gate: bash_format_enabled=false -> exit 0 and no notice"
+  else
+    fail "probe-gate: bash_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
+  fi
+  for v in __unset__ true; do
+    label="bash_format_enabled=$v"
+    [[ "$v" == "__unset__" ]] && label="bash_format_enabled unset"
+    OUT_PG=$(run_probe "$v")
+    RC_PG=$?
+    pg_ok=1
+    while IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL; do
+      [[ "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]] || pg_ok=0
+    done < <(jq -r '.tools[] | [.name, .check, .install] | @tsv' "$MANIFEST")
+    if [[ $RC_PG -eq 0 && $pg_ok -eq 1 ]]; then
+      ok "probe-gate: $label -> notices name each tool, its check and the install line"
+    else
+      fail "probe-gate: $label should print a missing-tool notice per tool (rc=$RC_PG out=$OUT_PG)"
+    fi
+  done
+  rm -rf "${PG_WORK:?}"
 fi
 
 echo

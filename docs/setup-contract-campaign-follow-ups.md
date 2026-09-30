@@ -1,48 +1,43 @@
 # Setup-contract campaign follow-ups (#3138)
 
-Recorded positions on the four follow-ups surfaced by the #3111 / #3112 / #3113 / #3127
-campaign and bundled in [#3138](https://github.com/melodic-software/claude-code-plugins/issues/3138).
-This is not an unpaid fleet sweep. Each row is adopt (the position is the close) or defer
-(work remains, but the parent issue does not stay open as a campaign).
+The four follow-ups from the #3111 / #3112 / #3113 / #3127 campaign, bundled in
+[#3138](https://github.com/melodic-software/claude-code-plugins/issues/3138), and how each is
+settled.
 
-**Claim:** The four follow-ups are settled as the table below. No toolchain bump, no
-Windows suite rewrite, no `CLAUDE_PLUGIN_ROOT` call-site fleet, and no
-`check-drive-root-litter.sh` scope change ships in this record.
+**Claim:** `${CLAUDE_PLUGIN_ROOT}` expands in a skill body but stays literal in a `context/` file
+read via `Read`, and the Bash tool's environment does not carry it. The `worktree` skill therefore
+resolves the scripts directory in `SKILL.md` and its `context/` files use `<scripts-dir>`. The
+Claude Code pin follows the Dependabot policy in `.github/dependabot.yml`. The two worktree suites
+skip on Windows Git Bash hosts. `scripts/check-drive-root-litter.sh` stays a host-wide advisory
+scan.
 
-**Basis:** #3138 (filed 2026-08-23; triage 2026-08-23 against `main` at `393658c`;
-decision-ready split 2026-09-06). Origin/main 2026-09-28: root `package.json` pins
-`@anthropic-ai/claude-code` at **2.1.282**; ADR 0007 plus the plugins reference document
-`${CLAUDE_PLUGIN_ROOT}` substitution in skill and agent content; `worktree-root-doctor.test.sh`
-and `worktree-add-containment-gate.test.sh` still have no Windows host-skip (unlike #3683's
-Git Bash path-form suites); `scripts/check-drive-root-litter.sh` is already a host-wide
-advisory scan (ADR 0003; `DRIVE_ROOT_LITTER_IGNORE_SINKS` opt-out). This Cursor cloud
-agent has `CLAUDE_PLUGIN_ROOT` unset as a Bash-tool env var, which does not make skill-body
-interpolations inert.
+**Basis:** the `worktree` `SKILL.md` "Scripts directory (resolved)" line holds the measured probe
+(two headless `claude -p` runs on Claude Code 2.1.284); `.github/dependabot.yml` lines 49-51 (the
+daily schedule for the executable compatibility dependency) and 53-59 (the cooldown, with
+`@anthropic-ai/claude-code` excluded); the host gate at the top of
+`plugins/source-control/scripts/worktree-root-doctor.test.sh` and
+`plugins/source-control/hooks/worktree-add-containment-gate.test.sh`, which cite
+[#5350](https://github.com/melodic-software/claude-code-plugins/issues/5350); the
+"ADVISORY BY DEFAULT" header of `scripts/check-drive-root-litter.sh`.
 
-**As of:** 2026-09-28.
+**As of:** 2026-09-29, Claude Code 2.1.284.
 
-**Recheck:** `package.json` pin lags a measured CLI used for a version-stamped claim; a
-Windows host re-runs the two worktree suites and files a support-or-skip issue; the plugins
-reference drops skill/agent content substitution; or a maintainer wires
-`check-drive-root-litter.sh` into a required live lane.
+**Recheck:** a Claude Code release note that changes plugin-variable substitution or the Bash tool
+environment; a change to the Dependabot Claude Code entry; #5350 landing Windows support for the
+two suites; a maintainer wiring `check-drive-root-litter.sh` into a required live lane.
 
 ## Positions
 
-| Follow-up | Position | Adopt / defer |
-| --- | --- | --- |
-| 1. `CLAUDE_PLUGIN_ROOT` liveness | Substitution in skill, agent, hook, MCP, LSP, monitor, and `allowed-tools` content is the documented contract ([plugins reference](https://code.claude.com/docs/en/plugins-reference#environment-variables); ADR 0007, updated 2026-08-04). Unset as a Bash-tool environment variable is a different surface and does not make `${CLAUDE_PLUGIN_ROOT}/scripts/...` lines in skill markdown inert: the harness expands those before the model sees them. Call sites in `worktree` `context/status.md` and `context/audit.md` stay as written. No fleet rewrite. | **adopt** (record the distinction; no call-site change) |
-| 2. Toolchain pin vs measured CLI | Original gap was pin **2.1.238** against measured 2.1.240 / 2.1.241 (#3113). Origin/main now pins **2.1.282**. Policy: the CI pin tracks the toolchain this repo's gates and empirical work run against; do not leave it lagging a version-stamped claim. No lag-policy doc beyond this row. | **adopt** (gap dissolved; pin-tracks-work) |
-| 3. Windows worktree test failures | Last measured 2026-08-23 on a Windows host: `worktree-root-doctor.test.sh` 9 failures, `worktree-add-containment-gate.test.sh` 2 failures, confirmed against pristine base. Those suites still have no host-skip. #3683 host-skipped other Git Bash path-form suites, not these two. Fix direction (Windows support vs an explicit platform guard) needs a Windows host and a product call. | **defer** (capability-gated; file a child when an operator has a Windows host) |
-| 4. `check-drive-root-litter.sh` machine-state sensitivity | The script is a host-wide advisory scan of drive roots, not a repo-scoped gate. That is already the design: header "ADVISORY BY DEFAULT"; [windows-path-emit](conventions/windows-path-emit/README.md) "The detection net"; ADR 0003. Non-Windows is a reported no-op. Operators with a deliberate `C:\tmp` set `DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp`. Do not scope it to the repo; the defect it detects is host litter. | **adopt** (reaffirm host-wide advisory) |
+| Follow-up | Position |
+| --- | --- |
+| 1. `CLAUDE_PLUGIN_ROOT` liveness | Fixed at the call sites. A `context/` file is read as raw bytes, so the token reaches Bash literal and the command exits 127. `worktree/SKILL.md` carries the resolved scripts directory, and `context/status.md`, `audit.md`, `cleanup.md` and `create.md` call helpers through `<scripts-dir>`, to be substituted before a command reaches Bash. |
+| 2. Toolchain pin vs measured CLI | `.github/dependabot.yml` lines 49-51 keep the pin on a daily schedule, and lines 53-59 exclude `@anthropic-ai/claude-code` from the cooldown so bumps arrive immediately. No separate lag policy. |
+| 3. Windows worktree test failures | Both suites host-skip on Windows Git Bash with a visible SKIP line naming [#5350](https://github.com/melodic-software/claude-code-plugins/issues/5350). Real Windows support is that issue's work and needs a Windows host. |
+| 4. `check-drive-root-litter.sh` machine-state sensitivity | A host-wide advisory scan of drive roots, not a repo-scoped gate: the script header says "ADVISORY BY DEFAULT" and [windows-path-emit](conventions/windows-path-emit/README.md) "The detection net" describes the host fingerprint it detects. Non-Windows is a reported no-op. An operator with a deliberate `C:\tmp` sets `DRIVE_ROOT_LITTER_IGNORE_SINKS=tmp`. |
 
 ## What this close is not
 
-- Not a fleet sweep of interpolating call sites.
-- Not a `package.json` bump (already current).
-- Not Windows support or a platform guard for the two worktree suites.
+- Not a fleet sweep of interpolating call sites beyond the `worktree` `context/` files.
+- Not a `package.json` bump or a change to the Dependabot policy.
+- Not Windows support for the two worktree suites; #5350 owns that.
 - Not promoting `check-drive-root-litter.sh` into a required live lane.
-
-## Prior requests
-
-- #3138 (2026-09-28): drain shipper records adopt/defer positions and closes the campaign
-  parent. Item 3 remains available as a future Windows-host child, not as this umbrella.

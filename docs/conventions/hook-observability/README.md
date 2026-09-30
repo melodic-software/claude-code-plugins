@@ -99,7 +99,8 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
   routing such content to `additionalContext` anyway is the mirror-image defect, because an
   instruction the model cannot act on still shapes what it does.
 
-  **Carve-out, admitted only on all three conditions together.** This is a conjunction, never a
+  **Carve-out, admitted only on all three conditions together (one owner-approved exception is
+  recorded under Conformance).** This is a conjunction, never a
   judgment call, because a soft "when it seems important" is exactly the drift the closing bullet
   guards:
 
@@ -233,12 +234,10 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
 
 - **Not a diagnosis of host-level `PostToolUse` dispatch failure.** When every matching
   `PostToolUse` ends `hook_cancelled` and no formatter runs, the three surfaces above never
-  emit. That case is recorded in [`docs/formatter-path-probes.md`](../../formatter-path-probes.md)
-  against
-  [#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549): not a general
-  2.1.x product regression (Linux 2.1.258 completes), remaining probe is Windows-host
-  `claude --debug`. This convention does not grow a timeout or a substitute channel for a hook
-  that never ran.
+  emit. [`docs/formatter-path-probes.md`](../../formatter-path-probes.md) holds the status and
+  the recheck for that case, filed as
+  [#3549](https://github.com/melodic-software/claude-code-plugins/issues/3549). This convention
+  does not grow a timeout or a substitute channel for a hook that never ran.
 - **Not a new telemetry schema.** The envelope shape is `hook-telemetry`'s concern; this doc only
   states the adoption requirement.
 - **Not a blanket "add systemMessage everywhere" rule.** Scoped narrowly to the
@@ -301,14 +300,15 @@ Fleet audits check, per wired producer hook:
   `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session and agent (renewed every eighth skip) on a broad
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
-  satisfies all three carve-out conditions, and its model-channel counterpart asserts no operator
-  presence. Not mechanically gated, but reviewed per hook. As of this writing two sites in the
-  fleet are admitted this way: `context-guard`'s `zone-crossing-inject.sh`, and `guardrails`'
-  `block-hook-bypass.sh` operator-lever notice (#4679). That notice lists switches only the operator
-  may flip (condition 1); stderr separately carries the verdict and the agent's remedy, names an
-  operator option only as the operator's to set, and never says the operator has seen anything
-  (condition 2 and the delivery rule); and it fires once
-  per session and agent, with the latch's renewal declined (condition 3). Every other call site is
+  satisfies all three carve-out conditions, or is the one owner-approved exception named below,
+  and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. One site in the fleet meets all three:
+  `context-guard`'s `zone-crossing-inject.sh`. One further site is admitted by owner-approved
+  exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
+  switches only the operator may flip (condition 1); stderr separately carries the verdict and the
+  agent's remedy, names an operator option only as the operator's to set, and never says the
+  operator has seen anything (condition 2 and the delivery rule). It fires once per session and
+  agent, with the latch's renewal declined, which limits repetition but is not a state transition,
+  so it does not satisfy condition 3 and is admitted by the exception. Every other call site is
   a prerequisite skip or a content-mutation notice, so a third one is a signal to re-read the three
   conditions rather than to follow the precedent.
 - Every path on which the hook rewrote file content names what it changed on the user channel,

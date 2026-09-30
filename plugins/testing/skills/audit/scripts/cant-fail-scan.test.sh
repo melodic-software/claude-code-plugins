@@ -4,6 +4,7 @@
 # explicitly, so each is consumed by a grader (check-orphaned-fixtures.sh's
 # contract), and every script the driver loads is named as a whole token so the
 # affected-tests mapping reaches this suite from any of them.
+# shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
@@ -375,7 +376,7 @@ assert_not_contains "the scaffold's forbidOnly idiom passes (an expression is pr
 assert_contains "the projects[] spread sits below depth 1 and does not decline the config" "$out" "rule-flaky-passes-suite"
 assert_contains "smoke.spec.ts is the examined test file of the scaffold tree" "$out" "test files: 1 examined of 1 enumerated"
 assert_contains "config findings are advisory in --check" "$out" "advisory in --check (use --strict"
-assert_contains "the advisory note counts the config rules apart from mock-only-oracle" "$out" "mock-only-oracle 0, playwright config rules 1."
+assert_contains "the advisory note counts the config rules apart from mock-only-oracle" "$out" "mock-only-oracle 0, playwright config rules 1, advisory adapters (bash-bats, bash-harness) 0."
 assert_contains "coverage reports the config denominator" "$out" \
   "playwright configs: 1 examined of 1 enumerated (0 shadowed, 0 without a recognizable config object, 0 unreadable)"
 assert_contains "an advisory-only config finding still passes the gate" "$out" "PASS: no gating findings"
@@ -753,6 +754,61 @@ assert_exit "--file on a missing path refuses (exit 2)" 2 "$rc"
 run_file --file
 assert_exit "--file without a value refuses (exit 2)" 2 "$rc"
 
+# --lines: report only findings whose test block overlaps the named lines, so an
+# edit hook stays quiet on blocks the edit never touched (hook-precision rule 1).
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12
+assert_contains "--lines keeps the finding of the block it touches" "$out" "cant-fail-js.test.js:11: test 'adds numbers'"
+assert_not_contains "--lines drops a finding in an untouched block" "$out" "cant-fail-js.test.js:8:"
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 7
+assert_contains "--lines keeps a line-scoped finding when its block is touched elsewhere" "$out" "cant-fail-js.test.js:8:"
+assert_not_contains "--lines keeps only that block" "$out" "cant-fail-js.test.js:11:"
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 3,25-26 --count
+assert_matches "--lines takes a list of lines and ranges" "$out" '^1$'
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 1-4 --count
+assert_matches "--lines outside every block reports nothing" "$out" '^0$'
+printf '%s\n' "import { test, expect } from 'vitest';" "" "test('adds', () => {" \
+  "  sum(1, 2);" "  expect(sum(1, 2)).toBe(sum(1, 2)); });" >"$TMP_ROOT/closing.test.ts"
+run_file --file "$TMP_ROOT/closing.test.ts" --lines 4 --count
+assert_matches "--lines keeps a finding on the block's closing line" "$out" '^1$'
+printf '%s\n' "public class T {" "  [Fact]" "  public void Adds()" "    => Assert.Equal(Sum(1, 2), Sum(1, 2));" "}" \
+  >"$TMP_ROOT/ClosingTests.cs"
+run_file --file "$TMP_ROOT/ClosingTests.cs" --lines 3 --count
+assert_matches "--lines keeps a C# expression body's finding when the signature line is touched" "$out" '^1$'
+printf '%s\n' "def test_a():" "    foo()" "" "def test_b():" "    assert foo() == 1" >"$TMP_ROOT/test_ranges.py"
+run_file --file "$TMP_ROOT/test_ranges.py" --lines 4 --count
+assert_matches "--lines does not stretch a Python block onto the next def" "$out" '^0$'
+run_file --file "$TMP_ROOT/test_ranges.py" --lines 2 --count
+assert_matches "--lines reports the Python block it touches" "$out" '^1$'
+run_file --lines 12
+assert_exit "--lines without --file refuses (exit 2)" 2 "$rc"
+run_file --file "$FIX/positive/cant-fail-js.test.js" --lines 12x
+assert_exit "--lines with a malformed list refuses (exit 2)" 2 "$rc"
+
+# --inventory: per-line counts of test starts, assertion tokens and skip
+# markers, and the literal side of each equality, for texts judged with the
+# adapter and config of the --file path (the test-weaken hook's two sides).
+printf '%s\n' "import { test, expect } from 'vitest';" "test('adds', () => {" "  expect(sum(1, 2)).toBe(3);" \
+  "  // expect(gone()).toBe(1);" "});" "test.skip('later', () => {});" >"$TMP_ROOT/inv.test.ts"
+printf '%s\n' "  expect(sum(1, 2)).toBe(3);" "  assert.equal(f(x), 'a b');" >"$TMP_ROOT/inv-frag.txt"
+run_file --file "$TMP_ROOT/inv.test.ts" --inventory "$TMP_ROOT/inv.test.ts" --inventory "$TMP_ROOT/inv-frag.txt"
+assert_exit "--inventory completes (exit 0)" 0 "$rc"
+assert_matches "--inventory counts a test start" "$out" $'^1\ttest\t1\ttest\\(.adds'
+assert_matches "--inventory counts an assertion token" "$out" $'^1\tassertion\t1\texpect\\(sum\\(1, 2\\)\\)\\.toBe\\(3\\);$'
+assert_not_contains "--inventory ignores a commented-out assertion" "$out" "gone()"
+assert_matches "--inventory counts a skip marker" "$out" $'^1\tskip\t1\ttest\\.skip'
+assert_matches "--inventory reads the second text under its own index" "$out" $'^2\tassertion\t1\texpect'
+assert_matches "--inventory gives an equality's actual and literal sides" "$out" $'^2\texpect\tsum\\(1,2\\)\t3$'
+assert_matches "--inventory reads a call2 equality" "$out" $'^2\texpect\tf\\(x\\)\t\'ab\'$'
+assert_not_contains "--inventory prints no finding or block record" "$out" $'B\t'
+printf '%s\n' "const s = \`abc" "  expect(a).toBe(1);" >"$TMP_ROOT/inv-open.txt"
+run_file --file "$TMP_ROOT/inv.test.ts" --inventory "$TMP_ROOT/inv-open.txt"
+assert_matches "--inventory marks a text the lexer ends inside" "$out" $'^1\tunjudged$'
+run_file --inventory "$TMP_ROOT/inv.test.ts"
+assert_exit "--inventory without --file refuses (exit 2)" 2 "$rc"
+run_file --file "$SCRIPT_DIR/cant-fail-scan.sh" --inventory "$TMP_ROOT/inv.test.ts"
+assert_exit "--inventory on a file no adapter claims completes (exit 0)" 0 "$rc"
+assert_not_contains "--inventory on an unclaimed file prints no inventory" "$out" $'1\t'
+
 # --- adapter-load.awk: the YAML-subset adapter loader --------------------------
 # Driven through awk directly. Output is one `id<TAB>key<TAB>value` record per
 # scalar and per list item; anything outside the subset exits 2 naming the file
@@ -832,12 +888,15 @@ assert_contains "loader names the duplicate id" "$out" "duplicate adapter id: ba
 rc=0
 out="$(awk -f "$LOAD" "$SCRIPT_DIR"/../adapters/*.yaml 2>&1)" || rc=$?
 assert_exit "every shipped adapter loads (exit 0)" 0 "$rc"
-for id in js-jest js-vitest py-pytest cs-xunit; do
+# Named by file so affected-tests.sh maps each adapter to this suite.
+for f in bash-bats.yaml bash-harness.yaml cs-mstest.yaml cs-nunit.yaml cs-xunit.yaml go-testing.yaml \
+  js-jest.yaml js-node-test.yaml js-playwright.yaml js-vitest.yaml pwsh-pester.yaml py-pytest.yaml py-unittest.yaml; do
+  id="${f%.yaml}"
   assert_contains "shipped adapter $id loads" "$out" "$id${TAB}language${TAB}"
 done
-load_yaml rs.yaml $'id: rs\nlanguage: js\ndelegation: [x]\n'
+load_yaml rs.yaml $'id: rs\nlanguage: js\nadditional_test_blocks: [x]\n'
 assert_exit "loader rejects a reserved, unimplemented field (exit 2)" 2 "$rc"
-assert_contains "loader says the field is reserved" "$err" "delegation is reserved"
+assert_contains "loader says the field is reserved" "$err" "additional_test_blocks is reserved"
 load_yaml nt.yaml $'id: nt\nlanguage: js\nfiles: [a]\n'
 assert_exit "loader rejects an adapter that claims files with no test_start (exit 2)" 2 "$rc"
 assert_contains "loader says test_start is missing" "$err" "nt.yaml: claims files but has no test_start"
@@ -846,6 +905,15 @@ rc=0
 out="$(awk -f "$LOAD" "$ADIR/empty.yaml" "$ADIR/base.yaml" 2>&1)" || rc=$?
 assert_exit "loader rejects an empty test_start overriding an inherited one (exit 2)" 2 "$rc"
 assert_contains "loader names the adapter left without a matcher" "$out" "empty.yaml: claims files but has no test_start"
+load_yaml fm.yaml $'id: fm\nlanguage: js\nblock_model: file\n'
+assert_exit "loader rejects the file model outside bash (exit 2)" 2 "$rc"
+assert_contains "loader names the unsupported model" "$err" "block_model file is not supported for language js"
+load_yaml ad.yaml $'id: ad\nlanguage: bash\nadvisory: yes\n'
+assert_exit "loader rejects an advisory value other than true or false (exit 2)" 2 "$rc"
+assert_contains "loader states the advisory values" "$err" "advisory is true or false"
+load_yaml rf.yaml $'id: rf\nlanguage: js\nrules_off: [flaky-passes-suite]\n'
+assert_exit "loader rejects a rules_off slug no test adapter can turn off (exit 2)" 2 "$rc"
+assert_contains "loader says rules_off takes test-body rule slugs" "$err" "test-body rule slugs"
 load_yaml rv.yaml $'id: rv\nlanguage: js\nequality.receiver: [toBe]\n'
 assert_exit "loader rejects a receiver entry without a wrapper (exit 2)" 2 "$rc"
 assert_contains "loader states the receiver form" "$err" "<wrapper>.<matcher>"
@@ -878,6 +946,799 @@ run_file --file "$PREC/plain.test.ts"
 assert_contains "no detect match falls back to the first adapter in load order" "$out" "adapter: js-jest"
 run_file --file "$SCRIPT_DIR/cant-fail-scan.sh"
 assert_contains "an unclaimed file names no adapter" "$out" "adapter: none"
+# cs-mstest and cs-nunit sort before cs-xunit but carry detect lists; a C# file
+# none of them detects falls to the claimant with no detect list.
+printf 'public class ATests\n{\n    [Fact]\n    public void A()\n    {\n        Assert.True(true);\n    }\n}\n' >"$PREC/ATests.cs"
+run_file --file "$PREC/ATests.cs"
+assert_contains "no detect match prefers the claimant with no detect list" "$out" "adapter: cs-xunit"
+
+# --- bash lexer: the masker keeps sync, or the file reports nothing -----------
+# A desynced masker hides every later assertion, which under the file model is
+# a false zero-assertion; each case would fire if the masker got it wrong.
+SH="$TMP_ROOT/sh"
+mkdir -p "$SH"
+printf 'cat <<EOF\npass is only text here\nEOF\necho done\n' >"$SH/heredoc.test.sh"
+run_file --file "$SH/heredoc.test.sh"
+assert_finding_count "a heredoc body is text, not an assertion" 1
+printf 'cat <<-'"'"'EOF'"'"'\n\tpass is only text here\n\tEOF\necho done\n' >"$SH/heredoc-dash.test.sh"
+run_file --file "$SH/heredoc-dash.test.sh"
+assert_finding_count "a quoted <<- heredoc ends at its tab-indented terminator" 1
+printf '[ $# -eq 0 ] || fail "takes no arguments"\n' >"$SH/argc.test.sh"
+run_file --file "$SH/argc.test.sh"
+assert_finding_count "\$# is not a comment" 0
+printf 'x=$(cat <<<'"'"'not json'"'"')\npass "after the here-string"\n' >"$SH/herestring.test.sh"
+run_file --file "$SH/herestring.test.sh"
+assert_contains "a here-string does not open a heredoc" "$out" "test blocks parsed: 1;"
+printf '[[ ${#x[@]} -eq 1 ]] || fail "count"\n' >"$SH/length.test.sh"
+run_file --file "$SH/length.test.sh"
+assert_finding_count "\${#x} is not a comment" 0
+printf 'v="$(echo "it'"'"'s")"\npass "after the substitution"\n' >"$SH/subst.test.sh"
+run_file --file "$SH/subst.test.sh"
+assert_contains "quotes nest inside \$( ) inside a double-quoted string" "$out" "test blocks parsed: 1;"
+assert_finding_count "a nested quote does not hide a later assertion" 0
+printf 'gate_test::run_suite "$DIR" test_x.py\n' >"$SH/gate.test.sh"
+run_file --file "$SH/gate.test.sh"
+assert_finding_count "gate_test::run_suite delegates the assertions" 0
+printf 'exec node "$DIR/x.test.mjs"\n' >"$SH/exec.test.sh"
+run_file --file "$SH/exec.test.sh"
+assert_finding_count "exec running a suite file delegates the assertions" 0
+printf 'echo "never closed\necho done\n' >"$SH/open.test.sh"
+run_file --file "$SH/open.test.sh"
+assert_finding_count "a string still open at end of file reports nothing" 0
+assert_contains "the coverage block counts a file whose lexer lost sync" "$out" "files whose lexer lost sync (not judged): 1"
+printf 'echo done\n' >"$SH/none.test.sh"
+run_file --file "$SH/none.test.sh"
+assert_finding_count "a harness with no assertion reports zero-assertion" 1
+run_file --file "$SH/none.test.sh" --check
+assert_exit "bash-harness findings are advisory in --check" 0 "$rc"
+assert_contains "the advisory note counts the advisory adapter" "$out" "advisory adapters (bash-bats, bash-harness) 1."
+run_file --file "$SH/none.test.sh" --check --strict
+assert_exit "--strict gates bash-harness findings" 1 "$rc"
+
+# --- corpus: one test per file, exact rule sets --------------------------------
+# Each file is stored as <real name>.fixture so no test runner, linter or
+# enumerator treats a planted defect as a real suite; the loop scans a copy
+# under the real name. A bad file's `expect: <rule-id>` lines are the exact
+# rule set --file must report; a good file must report none. The adapter
+# that claims the copy must be the one its directory names.
+CORPUS="$FIX/corpus"
+corpus_files=(
+  bash-bats/bad/bats-greet-against-itself.bats.fixture
+  bash-bats/bad/bats-greet-prints-only.bats.fixture
+  bash-bats/bad/bats-greet-run-unchecked.bats.fixture
+  bash-bats/bad/bats-last-bang-or-true.bats.fixture
+  bash-bats/bad/bats-page-source-text.bats.fixture
+  bash-bats/bad/bats-retry-limit-restated.bats.fixture
+  bash-bats/good/bats-config-removed-last-bang.bats.fixture
+  bash-bats/good/bats-greet-against-literal.bats.fixture
+  bash-bats/good/bats-greet-asserts-output.bats.fixture
+  bash-bats/good/bats-greet-run-status.bats.fixture
+  bash-bats/good/bats-greet-skipped.bats.fixture
+  bash-bats/good/bats-greet-test-command.bats.fixture
+  bash-bats/good/bats-init-writes-config.bats.fixture
+  bash-bats/good/bats-parsed-args-count.bats.fixture
+  bash-bats/good/bats-repaired-oracles.bats.fixture
+  bash-harness/bad/bracket-status-dropped.test.sh.fixture
+  bash-harness/bad/deploy-source-text.test.sh.fixture
+  bash-harness/bad/prints-only.test.sh.fixture
+  bash-harness/bad/retry-limit-restated.test.sh.fixture
+  bash-harness/bad/sort-against-itself.test.sh.fixture
+  bash-harness/good/fail-and-exit.test.sh.fixture
+  bash-harness/good/failure-counter-arith-exit.test.sh.fixture
+  bash-harness/good/failure-counter.test.sh.fixture
+  bash-harness/good/node-driver-heredoc.test.sh.fixture
+  bash-harness/good/pwsh-selftest.test.sh.fixture
+  bash-harness/good/python-in-variable.test.sh.fixture
+  bash-harness/good/repaired-oracles.test.sh.fixture
+  bash-harness/good/sort-against-literal.test.sh.fixture
+  bash-harness/good/sources-test-harness.test.sh.fixture
+  cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
+  cs-mstest/bad/OrderDiscountIfTests.cs.fixture
+  cs-mstest/bad/OrderIsNotNullTests.cs.fixture
+  cs-mstest/bad/OrderLinesSumTests.cs.fixture
+  cs-mstest/bad/OrderPlacementTests.cs.fixture
+  cs-mstest/bad/OrderReceiptVerifyTests.cs.fixture
+  cs-mstest/bad/OrderSourceTextTests.cs.fixture
+  cs-mstest/bad/OrderTotalFormatTests.cs.fixture
+  cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
+  cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
+  cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
+  cs-mstest/good/OrderRepaired4bTests.cs.fixture
+  cs-mstest/good/OrderRepairedOraclesTests.cs.fixture
+  cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
+  cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
+  cs-nunit/bad/CartCheckoutThatAsyncTests.cs.fixture
+  cs-nunit/bad/CartDiscountTests.cs.fixture
+  cs-nunit/bad/CartIsNotNullTests.cs.fixture
+  cs-nunit/bad/CartPlaceOrderCatchTests.cs.fixture
+  cs-nunit/bad/CartPurchaseTests.cs.fixture
+  cs-nunit/bad/CartReceiptVerifyTests.cs.fixture
+  cs-nunit/bad/CartRefundTests.cs.fixture
+  cs-nunit/bad/CartSourceTextTests.cs.fixture
+  cs-nunit/bad/CartTotalSumTests.cs.fixture
+  cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
+  cs-nunit/good/CartDiscountLiteralTests.cs.fixture
+  cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
+  cs-nunit/good/CartExportIgnoredTests.cs.fixture
+  cs-nunit/good/CartPurchaseAssertedTests.cs.fixture
+  cs-nunit/good/CartRepaired4bTests.cs.fixture
+  cs-nunit/good/CartRepairedOraclesTests.cs.fixture
+  cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/InvoiceLinesLoopTests.cs.fixture
+  cs-xunit/bad/InvoiceNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceOverloadedHelperTests.cs.fixture
+  cs-xunit/bad/InvoiceRecursiveOverloadTests.cs.fixture
+  cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
+  cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
+  cs-xunit/bad/InvoiceTaskNamedHelperTests.cs.fixture
+  cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
+  cs-xunit/bad/InvoiceTotalTests.cs.fixture
+  cs-xunit/bad/PageSourceTextTests.cs.fixture
+  cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
+  cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
+  cs-xunit/good/HttpStatusFieldTests.cs.fixture
+  cs-xunit/good/InvoiceMailerTests.cs.fixture
+  cs-xunit/good/InvoiceOverloadDelegatesTests.cs.fixture
+  cs-xunit/good/InvoicePendingTests.cs.fixture
+  cs-xunit/good/InvoiceRepaired4bTests.cs.fixture
+  cs-xunit/good/InvoiceRepairedOraclesTests.cs.fixture
+  cs-xunit/good/InvoiceTotalFluentTests.cs.fixture
+  cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
+  cs-xunit/good/InvoiceVerifyHelperTests.cs.fixture
+  cs-xunit/good/OrderPricedHelperTests.cs.fixture
+  cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
+  cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  go-testing/bad/go_add_deepequal_derived_test.go.fixture
+  go-testing/bad/go_handler_source_text_test.go.fixture
+  go-testing/bad/go_query_diff_itself_test.go.fixture
+  go-testing/bad/go_render_snapshot_test.go.fixture
+  go-testing/bad/go_rows_loop_unchecked_test.go.fixture
+  go-testing/bad/go_slugify_logs_mismatch_test.go.fixture
+  go-testing/bad/go_slugify_runs_test.go.fixture
+  go-testing/bad/go_user_nil_check_test.go.fixture
+  go-testing/good/go_cart_helper_test.go.fixture
+  go-testing/good/go_codec_fuzz_test.go.fixture
+  go-testing/good/go_export_skipped_test.go.fixture
+  go-testing/good/go_hash_bench_test.go.fixture
+  go-testing/good/go_log_branches_test.go.fixture
+  go-testing/good/go_query_diff_literal_test.go.fixture
+  go-testing/good/go_repaired_4b_test.go.fixture
+  go-testing/good/go_repaired_oracles_test.go.fixture
+  go-testing/good/go_slugify_checked_test.go.fixture
+  js-jest/bad/jest-cart-total-reduce.test.ts.fixture
+  js-jest/bad/jest-checkout-calls-payment-verbatim.test.ts.fixture
+  js-jest/bad/jest-checkout-calls-payment.test.ts.fixture
+  js-jest/bad/jest-checkout-source-text.test.ts.fixture
+  js-jest/bad/jest-create-user-defined-verbatim.test.ts.fixture
+  js-jest/bad/jest-discount-runs.test.ts.fixture
+  js-jest/bad/jest-parse-error-in-catch.test.ts.fixture
+  js-jest/bad/jest-receipt-snapshot.test.ts.fixture
+  js-jest/bad/jest-slug-itself.test.js.fixture
+  js-jest/bad/jest-split-call-runs.test.ts.fixture
+  js-jest/bad/jest-sync-call-count.test.ts.fixture
+  js-jest/bad/jest-upload-limit-restated.test.ts.fixture
+  js-jest/bad/jest-user-resolves-unawaited.test.ts.fixture
+  js-jest/good/jest-codemod-testfixtures.test.ts.fixture
+  js-jest/good/jest-discount-checked.test.ts.fixture
+  js-jest/good/jest-repaired-4b.test.ts.fixture
+  js-jest/good/jest-repaired-oracles.test.ts.fixture
+  js-jest/good/jest-slug-literal.test.js.fixture
+  js-jest/good/jest-split-call.test.ts.fixture
+  js-node-test/bad/node-test-config-rejects-unawaited.test.mjs.fixture
+  js-node-test/bad/node-test-context-assert.test.mjs.fixture
+  js-node-test/bad/node-test-csv-itself.test.mjs.fixture
+  js-node-test/bad/node-test-page-source-text.test.mjs.fixture
+  js-node-test/bad/node-test-parse-throws-any.test.mjs.fixture
+  js-node-test/bad/node-test-post-limit-restated.test.mjs.fixture
+  js-node-test/bad/node-test-price-runs.test.mjs.fixture
+  js-node-test/bad/node-test-rows-foreach-unchecked.test.mjs.fixture
+  js-node-test/bad/node-test-total-reduce.test.mjs.fixture
+  js-node-test/good/node-test-context-skip.test.mjs.fixture
+  js-node-test/good/node-test-csv-literal.test.mjs.fixture
+  js-node-test/good/node-test-destructured.test.js.fixture
+  js-node-test/good/node-test-helper-asserts.test.cjs.fixture
+  js-node-test/good/node-test-price-checked.test.mjs.fixture
+  js-node-test/good/node-test-repaired-4b.test.mjs.fixture
+  js-node-test/good/node-test-repaired-oracles.test.mjs.fixture
+  js-node-test/good/node-test-suite-skip.test.mjs.fixture
+  js-node-test/good/node-test-todo-option.test.mjs.fixture
+  js-node-test/good/node-test-userscript-vm.test.mjs.fixture
+  js-playwright/bad/playwright-banner-if-visible.spec.ts.fixture
+  js-playwright/bad/playwright-login-clicks.spec.ts.fixture
+  js-playwright/bad/playwright-nav-aria-snapshot.spec.ts.fixture
+  js-playwright/bad/playwright-page-size-restated.spec.ts.fixture
+  js-playwright/bad/playwright-page-source-text.spec.ts.fixture
+  js-playwright/bad/playwright-saved-unawaited.spec.ts.fixture
+  js-playwright/bad/playwright-title-itself.spec.ts.fixture
+  js-playwright/bad/playwright-token-truthy.spec.ts.fixture
+  js-playwright/good/playwright-body-skip.spec.ts.fixture
+  js-playwright/good/playwright-configured-expect.spec.ts.fixture
+  js-playwright/good/playwright-describe-fixme.spec.ts.fixture
+  js-playwright/good/playwright-login-asserted.spec.ts.fixture
+  js-playwright/good/playwright-poll.spec.ts.fixture
+  js-playwright/good/playwright-repaired-4b.spec.ts.fixture
+  js-playwright/good/playwright-repaired-oracles.spec.ts.fixture
+  js-playwright/good/playwright-soft-step.spec.ts.fixture
+  js-playwright/good/playwright-title-literal.spec.ts.fixture
+  js-vitest/bad/vitest-add-recomputed.test.ts.fixture
+  js-vitest/bad/vitest-cart-runs.test.ts.fixture
+  js-vitest/bad/vitest-duration-itself.test.ts.fixture
+  js-vitest/bad/vitest-helper-chain-silent.test.ts.fixture
+  js-vitest/bad/vitest-invoice-inline-snapshot.test.ts.fixture
+  js-vitest/bad/vitest-limit-against-itself.test.ts.fixture
+  js-vitest/bad/vitest-loop-over-empty-mapped-literal.test.ts.fixture
+  js-vitest/bad/vitest-order-total-recomputed.test.ts.fixture
+  js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture
+  js-vitest/bad/vitest-post-limit-restated.test.ts.fixture
+  js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
+  js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture
+  js-vitest/bad/vitest-session-truthy.test.ts.fixture
+  js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
+  js-vitest/good/vitest-cart-checked.test.ts.fixture
+  js-vitest/good/vitest-duration-literal.test.ts.fixture
+  js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
+  js-vitest/good/vitest-helper-chain-throws.test.ts.fixture
+  js-vitest/good/vitest-length-invariant.test.ts.fixture
+  js-vitest/good/vitest-loop-over-literal-probes.test.ts.fixture
+  js-vitest/good/vitest-parsed-config-fields.test.ts.fixture
+  js-vitest/good/vitest-poll-helper-rejects.test.ts.fixture
+  js-vitest/good/vitest-repaired-4b.test.ts.fixture
+  js-vitest/good/vitest-repaired-oracles.test.ts.fixture
+  js-vitest/good/vitest-split-call-options.test.ts.fixture
+  planted/bad/PlantedShouldAloneTests.cs.fixture
+  planted/bad/PlantedSumRecomputedTests.cs.fixture
+  planted/bad/PlantedUnawaitedAsyncTests.cs.fixture
+  planted/bad/planted-constant-restatement.test.ts.fixture
+  planted/bad/planted-no-assertion.test.ts.fixture
+  planted/bad/planted-reduce-recomputed.test.ts.fixture
+  planted/bad/planted-self-identity.test.ts.fixture
+  planted/bad/planted-source-text.test.ts.fixture
+  planted/bad/planted-unawaited-expect.spec.ts.fixture
+  planted/bad/test_planted_constant.py.fixture
+  planted/bad/test_planted_sum_recomputed.py.fixture
+  planted/bad/test_planted_tuple_assert.py.fixture
+  pwsh-pester/bad/pester-module-source-text.Tests.ps1.fixture
+  pwsh-pester/bad/pester-report-invoke-only.Tests.ps1.fixture
+  pwsh-pester/bad/pester-report-not-empty.Tests.ps1.fixture
+  pwsh-pester/bad/pester-rows-foreach-unchecked.Tests.ps1.fixture
+  pwsh-pester/bad/pester-sum-against-itself.Tests.ps1.fixture
+  pwsh-pester/bad/pester-sum-bare-comparison.Tests.ps1.fixture
+  pwsh-pester/bad/pester-sum-writes-host.Tests.ps1.fixture
+  pwsh-pester/bad/pester-total-measure-derived.Tests.ps1.fixture
+  pwsh-pester/good/pester-continued-comparison.Tests.ps1.fixture
+  pwsh-pester/good/pester-exit-code.Tests.ps1.fixture
+  pwsh-pester/good/pester-repaired-4b.Tests.ps1.fixture
+  pwsh-pester/good/pester-repaired-oracles.Tests.ps1.fixture
+  pwsh-pester/good/pester-report-invoke-and-value.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-against-literal.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-context-skip.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-foreach-table.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-it-skip.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-set-itresult.Tests.ps1.fixture
+  pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
+  py-pytest/bad/test_pytest_limit_restated.py.fixture
+  py-pytest/bad/test_pytest_order_fixture_literal.py.fixture
+  py-pytest/bad/test_pytest_parametrize_split_runs.py.fixture
+  py-pytest/bad/test_pytest_price_recomputed.py.fixture
+  py-pytest/bad/test_pytest_price_sum_recomputed.py.fixture
+  py-pytest/bad/test_pytest_render_snapshot.py.fixture
+  py-pytest/bad/test_pytest_rows_loop_unchecked.py.fixture
+  py-pytest/bad/test_pytest_slugify_runs.py.fixture
+  py-pytest/bad/test_pytest_split_signature_runs.py.fixture
+  py-pytest/bad/test_pytest_total_tuple_assert.py.fixture
+  py-pytest/bad/test_pytest_user_not_none.py.fixture
+  py-pytest/bad/test_pytest_views_source_text.py.fixture
+  py-pytest/good/test_pytest_ast_parse_source.py.fixture
+  py-pytest/good/test_pytest_deterministic_report.py.fixture
+  py-pytest/good/test_pytest_exec_tool_script.py.fixture
+  py-pytest/good/test_pytest_helper_check_returncode.py.fixture
+  py-pytest/good/test_pytest_length_invariant.py.fixture
+  py-pytest/good/test_pytest_loaded_config_fields.py.fixture
+  py-pytest/good/test_pytest_price_literal.py.fixture
+  py-pytest/good/test_pytest_raises.py.fixture
+  py-pytest/good/test_pytest_repaired_4b.py.fixture
+  py-pytest/good/test_pytest_repaired_oracles.py.fixture
+  py-pytest/good/test_pytest_skip_marker.py.fixture
+  py-pytest/good/test_pytest_skipif_split.py.fixture
+  py-pytest/good/test_pytest_skipped_class.py.fixture
+  py-pytest/good/test_pytest_slugify.py.fixture
+  py-pytest/good/test_pytest_snapshot_local.py.fixture
+  py-pytest/good/test_pytest_split_signature.py.fixture
+  py-pytest/good/test_pytest_try_fail.py.fixture
+  py-pytest/good/test_pytest_unittest_mock.py.fixture
+  py-unittest/bad/test_unittest_after_skipped_class.py.fixture
+  py-unittest/bad/test_unittest_config_recomputed.py.fixture
+  py-unittest/bad/test_unittest_deliver_awaits.py.fixture
+  py-unittest/bad/test_unittest_limit_restated.py.fixture
+  py-unittest/bad/test_unittest_notify_called_once_with.py.fixture
+  py-unittest/bad/test_unittest_other_class_helper.py.fixture
+  py-unittest/bad/test_unittest_parse_except_only.py.fixture
+  py-unittest/bad/test_unittest_parse_raises_exception.py.fixture
+  py-unittest/bad/test_unittest_render_snapshot.py.fixture
+  py-unittest/bad/test_unittest_slugify_runs.py.fixture
+  py-unittest/bad/test_unittest_total_recomputed.py.fixture
+  py-unittest/bad/test_unittest_views_source_text.py.fixture
+  py-unittest/good/test_unittest_config_literal.py.fixture
+  py-unittest/good/test_unittest_deterministic_call.py.fixture
+  py-unittest/good/test_unittest_raises.py.fixture
+  py-unittest/good/test_unittest_repaired_4b.py.fixture
+  py-unittest/good/test_unittest_repaired_oracles.py.fixture
+  py-unittest/good/test_unittest_self_helper_asserts.py.fixture
+  py-unittest/good/test_unittest_skipped_class.py.fixture
+  py-unittest/good/test_unittest_skiptest.py.fixture
+  py-unittest/good/test_unittest_skipunless.py.fixture
+  py-unittest/good/test_unittest_skipunless_split.py.fixture
+  py-unittest/good/test_unittest_slugify.py.fixture
+)
+on_disk="$(cd "$CORPUS" && find . -type f -name '*.fixture' | sed 's|^\./||' | sort)"
+listed="$(printf '%s\n' "${corpus_files[@]}" | sort)"
+if [[ "$on_disk" == "$listed" ]]; then
+  pass "every corpus file is listed, and every listed file exists"
+else
+  fail "corpus list matches disk" "$(diff <(printf '%s\n' "$listed") <(printf '%s\n' "$on_disk"))"
+fi
+# A `reads: <path>` file reads a source file by a static path: its copy sits in
+# test/ under a fresh git repository that tracks a stub at <path>, so the
+# driver's tracked-file check can keep the read. planted/ is no adapter's
+# directory, so its files name their adapter in an `adapter: <id>` header.
+reads_n=0
+for rel in "${corpus_files[@]}"; do
+  base="${rel##*/}"
+  copy="$TMP_ROOT/corpus/${rel%/*}/${base%.fixture}"
+  reads="$(sed -n 's/.*reads: \([^ ]*\).*/\1/p' "$CORPUS/$rel")"
+  if [[ -n "$reads" ]]; then
+    reads_n=$((reads_n + 1))
+    repo="$TMP_ROOT/corpus-reads/$reads_n"
+    copy="$repo/test/${base%.fixture}"
+    mkdir -p "$repo/test" "$(dirname "$repo/$reads")"
+    printf 'stub\n' >"$repo/$reads"
+    git -C "$repo" init -q
+    git -C "$repo" add -- "$reads"
+  fi
+  mkdir -p "${copy%/*}"
+  cp "$CORPUS/$rel" "$copy"
+  run_file --file "$copy"
+  claim="$(sed -n 's/.*adapter: \([a-z-]*\).*/\1/p' "$CORPUS/$rel")"
+  [[ -n "$claim" ]] || claim="${rel%%/*}"
+  assert_contains "corpus $rel: claimed by $claim" "$out" "adapter: $claim"
+  want="$(sed -n 's/.*expect: \(rule-[a-z-]*\).*/\1/p' "$copy" | sort -u | paste -sd, -)"
+  got="$(printf '%s\n' "$out" | sed -n 's|^finding \[testing/audit/\(rule-[a-z-]*\)\].*|\1|p' | sort -u | paste -sd, -)"
+  if [[ "$got" == "$want" ]]; then
+    pass "corpus $rel: reports exactly [${want}]"
+  else
+    fail "corpus $rel: exact rule set" "want [$want], got [$got]"
+  fi
+  # An `exempt: <rule>` file fires that rule under cant-fail-ok:, which the
+  # scan counts rather than drops.
+  if grep -q 'exempt: rule-' "$copy"; then
+    assert_contains "corpus $rel: the annotated finding is counted as exempt" "$out" "exempted findings (cant-fail-ok): 1"
+  fi
+done
+
+# --- report-only rules: print, never gate -------------------------------------
+# inert-assertion, constant-restatement and source-text-read are reported and
+# counted, and gate neither --check nor --check --strict.
+RO="$TMP_ROOT/report-only"
+# ro_repo <dir> <tracked source>...: a git repository tracking stub sources.
+ro_repo() {
+  local dir="$1" src
+  shift
+  mkdir -p "$dir/test"
+  git -C "$TMP_ROOT" init -q -b report-only "${dir#"$TMP_ROOT"/}"
+  for src in "$@"; do
+    mkdir -p "$(dirname "$dir/$src")"
+    printf 'export const X = 1;\n' >"$dir/$src"
+    git -C "$dir" add -- "$src"
+  done
+}
+ro_repo "$RO/inert"
+cp "$CORPUS/py-pytest/bad/test_pytest_total_tuple_assert.py.fixture" "$RO/inert/test/test_pytest_total_tuple_assert.py"
+ro_repo "$RO/constant"
+cp "$CORPUS/js-vitest/bad/vitest-post-limit-restated.test.ts.fixture" "$RO/constant/test/vitest-post-limit-restated.test.ts"
+ro_repo "$RO/source" app/pitch-detail.tsx
+cp "$CORPUS/js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture" "$RO/source/test/vitest-pitch-detail-source-order.test.ts"
+for pair in inert:rule-inert-assertion constant:rule-constant-restatement source:rule-source-text-read; do
+  dir="$RO/${pair%%:*}" rule="${pair#*:}"
+  run_scan "$dir" --check
+  assert_exit "(a) --check passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+  assert_contains "(a) --check names $rule report-only" "$out" "report-only and never gate --check, --strict included"
+  run_scan "$dir" --check --strict
+  assert_exit "(a) --check --strict passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check --strict still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+done
+# (c) the whole-tree walk, not --file, resolves the read against the tracked source.
+run_scan "$RO/source"
+assert_contains "(c) a whole-tree run reports the T2 read of its tracked source" "$out" \
+  "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
+git -C "$RO/source" rm -q --cached app/pitch-detail.tsx
+run_scan "$RO/source"
+assert_not_contains "(c) the same read of an untracked file is no finding" "$out" "rule-source-text-read"
+
+# (b) a file the test wrote itself, and reads through a glob or a directory
+# walk, are never a source-text read, though the sources they reach are tracked.
+ro_repo "$RO/policy" src/limits.ts src/gen.ts scripts/deploy.sh
+printf '%s\n' "import { globSync, readFileSync, readdirSync, writeFileSync } from 'fs';" \
+  "import { join } from 'path';" "import { tmpdir } from 'os';" \
+  "test('reads back what it wrote', () => {" "  const out = join(tmpdir(), 'gen.ts');" \
+  "  writeFileSync(out, 'x');" "  expect(readFileSync(out, 'utf8')).toBe('x');" "});" \
+  "test('no debugger in any source', () => {" "  for (const f of globSync('src/*.ts')) {" \
+  "    expect(readFileSync(f, 'utf8')).not.toContain('debugger');" "  }" \
+  "  readdirSync('src').forEach((f) => expect(readFileSync('src/limits.ts', 'utf8')).toBeTruthy());" "});" \
+  >"$RO/policy/test/policy.test.ts"
+printf '%s\n' '#!/usr/bin/env bash' 'set -uo pipefail' 'REPO="$(cd "$(dirname "$0")/.." && pwd)"' \
+  'TMP="$(mktemp -d)"' 'cp "$REPO/scripts/deploy.sh" "$TMP/deploy.sh"' \
+  'grep -q pipefail "$TMP/deploy.sh" || fail "copy"' \
+  'for f in "$REPO"/scripts/*.sh; do grep -q pipefail "$f" || fail "$f"; done' \
+  'find "$REPO/src" -name "*.ts" -exec grep -L x {} + >/dev/null' 'pass policy' >"$RO/policy/test/policy.test.sh"
+run_scan "$RO/policy"
+assert_contains "(b) the policy tree was examined" "$out" "test files: 2 examined of 2 enumerated"
+assert_not_contains "(b) a self-written file, a glob and a walk are never a source-text read" "$out" "rule-source-text-read"
+
+# (d) a contract constant under cant-fail-ok: is exempt, and counted.
+printf '%s\n' "import { X_POST_CHARACTER_LIMIT } from '../src/post';" \
+  "test('the API caps posts at 280', () => {" "  // cant-fail-ok: the 280 limit is fixed by the X API contract" \
+  "  expect(X_POST_CHARACTER_LIMIT).toBe(280);" "});" >"$RO/contract.test.ts"
+run_file --file "$RO/contract.test.ts"
+assert_not_contains "(d) an annotated constant restatement is not reported" "$out" "rule-constant-restatement"
+assert_contains "(d) the annotated constant restatement is counted as exempt" "$out" "exempted findings (cant-fail-ok): 1"
+
+# Remedies, pinned per scope: each rule's Action is asserted where it fires,
+# and asserted absent where the advice would not apply.
+# remedy <corpus copy> <rule>: the Action text of that rule's finding.
+remedy() {
+  run_file --file "$1"
+  printf '%s\n' "$out" | sed -n "s|^finding \[testing/audit/$2\].*Action: ||p" | head -1
+}
+C="$TMP_ROOT/corpus"
+a="$(remedy "$C/js-playwright/bad/playwright-saved-unawaited.spec.ts" rule-inert-assertion)"
+assert_contains "inert remedy (js) says to await the matcher" "$a" "await (or return) the async matcher"
+assert_not_contains "inert remedy (js) offers no Python tuple advice" "$a" "tuple"
+a="$(remedy "$C/cs-xunit/bad/InvoiceShouldAloneTests.cs" rule-inert-assertion)"
+assert_contains "inert remedy (cs) names await and a chained matcher" "$a" "chain a matcher after .Should()"
+assert_not_contains "inert remedy (cs) offers no bats advice" "$a" '$status'
+a="$(remedy "$C/py-pytest/bad/test_pytest_total_tuple_assert.py" rule-inert-assertion)"
+assert_contains "inert remedy (python) says to drop the tuple and use assert_*" "$a" "assert_called_once_with"
+assert_not_contains "inert remedy (python) never says await" "$a" "await"
+a="$(remedy "$C/bash-bats/bad/bats-greet-run-unchecked.bats" rule-inert-assertion)"
+assert_contains "inert remedy (bash) says to check what run captured" "$a" 'check what run captured ($status'
+assert_not_contains "inert remedy (bash) never says await" "$a" "await"
+a="$(remedy "$C/pwsh-pester/bad/pester-sum-bare-comparison.Tests.ps1" rule-inert-assertion)"
+assert_contains "inert remedy (pwsh) says to pipe to Should" "$a" "Should -Be 5"
+assert_not_contains "inert remedy (pwsh) never says await" "$a" "await"
+a="$(remedy "$C/go-testing/bad/go_slugify_logs_mismatch_test.go" rule-inert-assertion)"
+assert_contains "inert remedy (go) says to fail with t.Errorf" "$a" "t.Errorf or t.Fatalf"
+assert_not_contains "inert remedy (go) never says await" "$a" "await"
+for f in js-jest/bad/jest-upload-limit-restated.test.ts py-pytest/bad/test_pytest_limit_restated.py \
+  bash-bats/bad/bats-retry-limit-restated.bats; do
+  a="$(remedy "$C/$f" rule-constant-restatement)"
+  assert_contains "constant remedy ($f) asserts behavior or records a contract constant" "$a" \
+    "Assert the behavior that uses the constant"
+  assert_contains "constant remedy ($f) names the cant-fail-ok: exemption" "$a" "cant-fail-ok: <why>"
+  assert_not_contains "constant remedy ($f) is not the inert remedy" "$a" "Make the assertion evaluate"
+done
+while IFS= read -r f; do
+  a="$(remedy "$f" rule-source-text-read)"
+  assert_contains "source remedy (${f##*/}) says to exercise the code" "$a" "Exercise the code (render it, call it, run it)"
+  assert_contains "source remedy (${f##*/}) routes policy tests to a glob or walk" "$a" "a glob or a directory walk"
+  assert_not_contains "source remedy (${f##*/}) never offers the cant-fail-ok escape" "$a" "cant-fail-ok"
+done < <(find "$TMP_ROOT/corpus-reads" -path '*/test/*' \( -name 'jest-checkout-source-text.test.ts' \
+  -o -name 'test_pytest_views_source_text.py' -o -name 'deploy-source-text.test.sh' \) | sort)
+# The findings file carries the per-rule tier: change detectors below the can't-fail rules.
+cp "$CORPUS/py-pytest/bad/test_pytest_total_tuple_assert.py.fixture" "$RO/constant/test/test_pytest_total_tuple_assert.py"
+cp "$CORPUS/js-vitest/bad/vitest-pitch-detail-source-order.test.ts.fixture" "$RO/constant/test/vitest-pitch-detail-source-order.test.ts"
+mkdir -p "$RO/constant/app"
+printf 'x\n' >"$RO/constant/app/pitch-detail.tsx"
+git -C "$RO/constant" add app/pitch-detail.tsx
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" || rc=$?
+assert_exit "--findings persists report-only findings" 0 "$rc"
+assert_matches "an inert-assertion row is IMPORTANT with high confidence" "$out" \
+  '^\| [0-9]+ \| IMPORTANT \| high \| test/test_pytest_total_tuple_assert.py:8 \|'
+assert_matches "a constant-restatement row is SUGGESTION with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| SUGGESTION \|  \| test/vitest-post-limit-restated.test.ts:10 \|'
+assert_matches "a source-text-read row is SUGGESTION with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| SUGGESTION \|  \| test/vitest-pitch-detail-source-order.test.ts:12 \|'
+assert_contains "Surfaces counts the report-only rules" "$out" \
+  "report-only findings (never gate --check): testing/audit/rule-inert-assertion 1, testing/audit/rule-constant-restatement 1, testing/audit/rule-source-text-read 1"
+
+# --- Phase 4b report-only rules -------------------------------------------------
+# (a) conditional-assertion, recomputed-derived, snapshot-only and weak-oracle
+# print, and gate neither --check nor --check --strict.
+for pair in cond:rule-conditional-assertion:js-vitest/bad/vitest-rows-loop-unchecked.test.ts \
+  derived:rule-recomputed-derived:py-pytest/bad/test_pytest_price_sum_recomputed.py \
+  snap:rule-snapshot-only:js-jest/bad/jest-receipt-snapshot.test.ts \
+  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs; do
+  IFS=: read -r name rule rel <<<"$pair"
+  ro_repo "$RO/$name"
+  cp "$CORPUS/$rel.fixture" "$RO/$name/test/${rel##*/}"
+  run_scan "$RO/$name" --check
+  assert_exit "(a) --check passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+  assert_contains "(a) --check names $rule report-only" "$out" "report-only and never gate --check, --strict included"
+  run_scan "$RO/$name" --check --strict
+  assert_exit "(a) --check --strict passes a tree whose only finding is $rule (exit 0)" 0 "$rc"
+  assert_contains "(a) --check --strict still prints the $rule finding" "$out" "finding [testing/audit/$rule]"
+done
+
+# Each "gives 0 findings" case below runs beside a control: the same body
+# without the exemption fires, so the silent run cannot pass vacuously.
+# b4 <file> <line>...: write a test file under $B4 from its lines.
+B4="$TMP_ROOT/b4"
+mkdir -p "$B4"
+b4() {
+  local f="$B4/$1"
+  shift
+  printf '%s\n' "$@" >"$f"
+  run_file --file "$f"
+}
+
+# (b) the snapshot-only finding says to review the snapshot as code, and an
+# image comparison is never a snapshot finding.
+b4 aria.spec.ts "import { expect, test } from '@playwright/test';" "test('nav', async ({ page }) => {" \
+  "  await expect(page.getByRole('navigation')).toMatchAriaSnapshot();" "});"
+assert_contains "(b) control: an aria snapshot alone fires snapshot-only" "$out" "rule-snapshot-only"
+assert_contains "(b) the finding says snapshot is the only oracle: review it as code" "$out" \
+  "snapshot is the only oracle: review it as code"
+b4 shot.spec.ts "import { expect, test } from '@playwright/test';" "test('nav', async ({ page }) => {" \
+  "  await expect(page).toHaveScreenshot();" "});"
+assert_contains "(b) the screenshot test was parsed" "$out" "test blocks parsed: 1;"
+assert_finding_count "(b) a toHaveScreenshot test gives 0 findings" 0
+
+# (c) a derived expectation in a property-test file, or in a Playwright file,
+# gives 0 findings; the same body elsewhere fires.
+DERIVED_JS=("test('adds', () => {" "  expect(add(a, b)).toBe(a + b);" "});")
+b4 derived.test.ts "import { expect, test } from 'vitest';" "${DERIVED_JS[@]}"
+assert_contains "(c) control: the vitest body fires recomputed-derived" "$out" "rule-recomputed-derived"
+b4 derived-fc.test.ts "import { expect, test } from 'vitest';" "import fc from 'fast-check';" "${DERIVED_JS[@]}" \
+  "test('commutes', () => {" "  fc.assert(fc.property(fc.integer(), fc.integer(), (a, b) => add(a, b) === add(b, a)));" "});"
+assert_finding_count "(c) the same body in a fast-check file gives 0 findings" 0
+b4 derived.spec.ts "import { expect, test } from '@playwright/test';" "${DERIVED_JS[@]}"
+assert_contains "(c) the Playwright file was parsed" "$out" "test blocks parsed: 1;"
+assert_finding_count "(c) the same body in a js-playwright file gives 0 findings" 0
+b4 test_derived.py "def test_adds():" "    assert add(a, b) == a + b"
+assert_contains "(c) control: the pytest body fires recomputed-derived" "$out" "rule-recomputed-derived"
+b4 test_derived_given.py "from hypothesis import given, strategies as st" "" "" "@given(st.integers(), st.integers())" \
+  "def test_adds(a, b):" "    assert add(a, b) == a + b"
+assert_finding_count "(c) the same body under @given gives 0 findings" 0
+GO_DERIVED=("func TestAdd(t *testing.T) {" "	if !reflect.DeepEqual(Add(a, b), a+b) {" "		t.Error(a, b)" "	}" "}")
+b4 derived_test.go "package calc" "" 'import "reflect"' "" "${GO_DERIVED[@]}"
+assert_contains "(c) control: the go body fires recomputed-derived" "$out" "rule-recomputed-derived"
+b4 derived_quick_test.go "package calc" "" 'import (' '	"reflect"' '	"testing/quick"' ')' "" "${GO_DERIVED[@]}"
+assert_finding_count "(c) the same body in a testing/quick file gives 0 findings" 0
+
+# (d) an assertion inside a loop over a result, with a length check, gives 0
+# findings; without the check it fires.
+LOOP_JS=("  const rows = await activeUsers();" "  for (const row of rows) {" "    expect(row.active).toBe(true);" "  }" "});")
+b4 loop.test.ts "import { expect, it } from 'vitest';" "it('rows', async () => {" "${LOOP_JS[@]}"
+assert_contains "(d) control: the loop alone fires conditional-assertion" "$out" "rule-conditional-assertion"
+b4 loop-checked.test.ts "import { expect, it } from 'vitest';" "it('rows', async () => {" "  expect(await activeUsers()).toHaveLength(2);" \
+  "${LOOP_JS[@]}"
+assert_finding_count "(d) the same loop after a length check gives 0 findings" 0
+
+# (e) toBeDefined beside a value assertion gives 0 findings; alone it fires.
+b4 defined.test.ts "import { expect, it } from 'vitest';" "it('user', async () => {" "  const user = await createUser('ada');" \
+  "  expect(user).toBeDefined();" "});"
+assert_contains "(e) control: toBeDefined alone fires weak-oracle" "$out" "rule-weak-oracle"
+b4 defined-beside.test.ts "import { expect, it } from 'vitest';" "it('user', async () => {" "  const user = await createUser('ada');" \
+  "  expect(user).toBeDefined();" "  expect(user.name).toBe('ada');" "});"
+assert_finding_count "(e) toBeDefined beside a value assertion gives 0 findings" 0
+
+# Remedies for the four rules, asserted in each language they fire in here.
+for f in js-vitest/bad/vitest-rows-loop-unchecked.test.ts py-unittest/bad/test_unittest_parse_except_only.py \
+  cs-nunit/bad/CartPlaceOrderCatchTests.cs; do
+  a="$(remedy "$C/$f" rule-conditional-assertion)"
+  assert_contains "conditional remedy ($f) makes every path assert" "$a" "Make every path assert"
+  assert_contains "conditional remedy ($f) asks for a length check before a loop" "$a" "assert the length of a result before looping over it"
+  assert_not_contains "conditional remedy ($f) is not the inert remedy" "$a" "Make the assertion evaluate"
+done
+for f in js-vitest/bad/vitest-order-total-recomputed.test.ts py-unittest/bad/test_unittest_total_recomputed.py \
+  cs-mstest/bad/OrderLinesSumTests.cs pwsh-pester/bad/pester-total-measure-derived.Tests.ps1; do
+  a="$(remedy "$C/$f" rule-recomputed-derived)"
+  assert_contains "derived remedy ($f) states the value independently" "$a" "State the expected value independently"
+  assert_not_contains "derived remedy ($f) is not the self-identical remedy" "$a" "recomputing it with the same expression"
+done
+for f in js-jest/bad/jest-receipt-snapshot.test.ts py-pytest/bad/test_pytest_render_snapshot.py \
+  go-testing/bad/go_render_snapshot_test.go; do
+  a="$(remedy "$C/$f" rule-snapshot-only)"
+  assert_contains "snapshot remedy ($f) reviews it and adds a literal" "$a" "Review the snapshot as code"
+  assert_not_contains "snapshot remedy ($f) never removes the snapshot" "$a" "remove"
+done
+for f in js-jest/bad/jest-create-user-defined-verbatim.test.ts py-unittest/bad/test_unittest_parse_raises_exception.py \
+  go-testing/bad/go_user_nil_check_test.go pwsh-pester/bad/pester-report-not-empty.Tests.ps1; do
+  a="$(remedy "$C/$f" rule-weak-oracle)"
+  assert_contains "weak remedy ($f) asks for the exact value or exception" "$a" "Assert the value the code should produce"
+  assert_not_contains "weak remedy ($f) is not the zero-assertion remedy" "$a" "passes vacuously"
+done
+
+# The findings file carries the tiers: conditional is can't-fail; derived,
+# snapshot-only and weak-oracle can fail.
+for name in cond derived snap weak; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
+rc=0
+out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" || rc=$?
+assert_exit "--findings persists the 4b report-only findings" 0 "$rc"
+assert_matches "a conditional-assertion row is IMPORTANT with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| IMPORTANT \|  \| test/vitest-rows-loop-unchecked.test.ts:10 \|'
+assert_matches "a recomputed-derived row is SUGGESTION with Confidence omitted" "$out" \
+  '^\| [0-9]+ \| SUGGESTION \|  \| test/test_pytest_price_sum_recomputed.py:9 \|'
+assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/jest-receipt-snapshot.test.ts:8 \|'
+assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
+assert_contains "Surfaces counts the 4b report-only rules" "$out" \
+  "testing/audit/rule-conditional-assertion 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
+
+# (e), and 4b (f): every rule id the scanner can emit, the seven report-only
+# rules included, has a positive evals.json expectation.
+EVALS="$SCRIPT_DIR/../evals/evals.json"
+expected="$(jq -r '.evals[] | .expected_output, .expectations[]' "$EVALS")"
+emitted="$({
+  grep -ohE 'emit\([^,]*, "[a-z-]+"' "$SCRIPT_DIR/cant-fail-scan.awk" "$SCRIPT_DIR/runner-config-scan.awk"
+  grep -ohE 'slug=[a-z-]+' "$SCRIPT_DIR/cant-fail-scan.sh"
+} | sed -E 's/.*[" =]([a-z-]+)"?$/\1/' | sort -u)"
+if [[ "$(printf '%s\n' "$emitted" | grep -c .)" -ge 12 ]]; then
+  pass "(e) the emitted rule ids were extracted from the engines"
+else
+  fail "(e) the emitted rule ids were extracted from the engines" "got: $emitted"
+fi
+while IFS= read -r slug; do
+  assert_contains "(e) evals.json expects testing/audit/rule-$slug" "$expected" "testing/audit/rule-$slug"
+done <<<"$emitted"
+
+# --- corpus grid: GRID.md rows and pair cells ---------------------------------
+GRIDCHK="$SCRIPT_DIR/check-corpus-grid.sh"
+rc=0
+out="$(bash "$GRIDCHK" 2>&1)" || rc=$?
+assert_exit "the shipped corpus satisfies GRID.md" 0 "$rc"
+[[ "$rc" -eq 0 ]] || printf '%s\n' "$out" >&2
+G="$TMP_ROOT/grid"
+mkdir -p "$G/corpus/a/bad" "$G/corpus/a/good" "$G/adapters"
+printf 'id: a\n' >"$G/adapters/a.yaml"
+printf '| Adapter | rule-x |\n|---|---|\n| a | pair |\n' >"$G/corpus/GRID.md"
+printf '# expect: rule-x\n' >"$G/corpus/a/bad/b.fixture"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_exit "a pair cell with no good file fails the grid" 1 "$rc"
+assert_contains "the grid names the missing good file" "$out" "a: pair cell for rule-x has no good file with 'good-for: rule-x'"
+printf '# good-for: rule-x\n' >"$G/corpus/a/good/g.fixture"
+printf 'id: b\n' >"$G/adapters/b.yaml"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_exit "an adapter with no GRID.md row fails the grid" 1 "$rc"
+assert_contains "the grid names the rowless adapter" "$out" "adapter b has no GRID.md row"
+printf '| b | maybe |\n' >>"$G/corpus/GRID.md"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_contains "a cell that is neither pair nor n/a fails the grid" "$out" "b: cell for rule-x is 'maybe'"
+printf '| Adapter | rule-x |\n|---|---|\n| a | pair |\n| b | n/a: no such shape |\n' >"$G/corpus/GRID.md"
+rc=0
+bash "$GRIDCHK" "$G/corpus" "$G/adapters" >/dev/null 2>&1 || rc=$?
+assert_exit "pair cells with both files and n/a cells pass the grid" 0 "$rc"
+printf '\n| Id | Rule or judge |\n|---|---|\n| T3 | judge |\n' >>"$G/corpus/GRID.md"
+rc=0
+out="$(bash "$GRIDCHK" "$G/corpus" "$G/adapters" 2>&1)" || rc=$?
+assert_exit "a second table after the Adapter grid is not read as adapter rows" 0 "$rc"
+assert_not_contains "the second table's rows are never named as adapters" "$out" "T3"
+
+# --- .claude/testing.yaml: the config cascade ---------------------------------
+# HOME and CLAUDE_PROJECT_DIR are pinned per run: a developer's own layers must
+# not change what these cases see.
+CFG="$TMP_ROOT/cfg"
+CFG_HOME="$TMP_ROOT/cfg-home"
+mkdir -p "$CFG/.claude" "$CFG/src" "$CFG/build/t" "$CFG_HOME"
+git -C "$CFG" init -q
+printf "import { it } from 'vitest';\nit('adds', () => {\n  add(1, 2);\n});\n" >"$CFG/src/bad.test.ts"
+printf "import { it, expect } from 'vitest';\nit('adds', () => {\n  expect(add(1, 2)).toBeDefined();\n});\n" >"$CFG/src/weak.test.ts"
+printf 'package x\n\nimport "testing"\n\nfunc TestSum(t *testing.T) {\n\tSum(1, 2)\n}\n' >"$CFG/src/sum_test.go"
+cp "$CFG/src/bad.test.ts" "$CFG/src/bad.it.ts"
+cp "$CFG/src/bad.test.ts" "$CFG/build/t/built.test.ts"
+cfg_scan() {
+  rc=0
+  out="$(env -u CLAUDE_PROJECT_DIR HOME="$CFG_HOME" CANT_FAIL_SCAN_ROOT="$CFG" bash "$SCAN" "$@" 2>&1)" || rc=$?
+}
+cfg_set() { printf '%s\n' "$@" >"$CFG/.claude/testing.yaml"; }
+
+cfg_scan
+assert_finding_count "no config: the zero-assertion, weak-oracle and Go findings" 3
+cfg_set 'paths:' "  exclude: ['**/*.test.ts']"
+cfg_scan
+assert_finding_count "paths.exclude '**/*.test.ts' drops both .test.ts files" 1
+assert_contains "the coverage block counts the excluded files" "$out" "excluded by paths.exclude: 2"
+cfg_scan --file "$CFG/src/bad.test.ts"
+assert_finding_count "--file of an excluded path reports nothing" 0
+assert_contains "and examines nothing" "$out" "test files: 0 examined"
+hook_out="$(printf '{"hook_event_name":"PostToolUse","tool_name":"Write","session_id":"s","tool_use_id":"cfg-1","tool_input":{"file_path":"%s"},"tool_response":{"type":"create","structuredPatch":[]}}' "$CFG/src/bad.test.ts" |
+  env -u CLAUDE_PROJECT_DIR HOME="$CFG_HOME" CLAUDE_PLUGIN_DATA="$TMP_ROOT/cfg-data" CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true \
+    bash "$SCRIPT_DIR/../../../hooks/test-scan.sh" 2>&1)"
+if [[ -z "$hook_out" ]]; then pass "test-scan.sh prints nothing for an excluded test file"; else fail "test-scan.sh prints nothing for an excluded test file" "$hook_out"; fi
+cfg_set 'adapters:' '  disable: [go-testing]'
+cfg_scan
+assert_finding_count "adapters.disable drops the Go file" 2
+assert_contains "the Go file is not even enumerated" "$out" "go 0)"
+cfg_set 'adapters:' '  enable: [go-testing]'
+cfg_scan
+assert_finding_count "adapters.enable runs only the listed adapters" 1
+cfg_set 'rules:' '  rule-zero-assertion: off'
+cfg_scan --check
+assert_finding_count "rules off drops the finding" 1
+assert_exit "with no gating finding left, --check passes" 0 "$rc"
+cfg_set 'rules:' '  rule-zero-assertion: warn'
+cfg_scan --check
+assert_finding_count "rules warn still reports" 3
+assert_exit "but never gates --check" 0 "$rc"
+cfg_set 'rules:' '  rule-zero-assertion: warn' '  testing/audit/rule-weak-oracle: error'
+cfg_scan --check
+assert_exit "rules error gates a report-only rule" 1 "$rc"
+assert_contains "and counts one gating finding" "$out" "FAIL: 1 gating finding(s)."
+cfg_set 'extend:' '  js-vitest:' "    files: ['*.it.ts']"
+cfg_scan
+assert_finding_count "extend.js-vitest.files claims a new glob" 4
+assert_contains "the audit names the glob no hook row covers" "$out" "*.it.ts"
+cfg_set 'paths:' "  include: ['build/**/*.test.ts']"
+cfg_scan
+assert_finding_count "paths.include reaches a pruned directory" 4
+assert_contains "the included file is reported" "$out" "build/t/built.test.ts"
+cfg_set 'rules:' '  test-weaken-block: error'
+cfg_scan --file "$CFG/src/bad.test.ts" --inventory "$CFG/src/bad.test.ts"
+assert_exit "rules.test-weaken-block is a valid key" 0 "$rc"
+assert_matches "--inventory prints the resolved test-weaken-block level" "$out" $'^rule\ttest-weaken-block\terror$'
+assert_matches "and the inventory beside it" "$out" $'^1\ttest\t1\t'
+cfg_set 'paths:' "  exclude: ['**/*.test.ts']"
+cfg_scan --file "$CFG/src/bad.test.ts" --inventory "$CFG/src/bad.test.ts"
+assert_not_contains "--inventory of an excluded path prints no inventory" "$out" $'1\ttest'
+cfg_set 'rules:' '  rule-no-such: off'
+cfg_scan
+assert_exit "an invalid config refuses the scan" 2 "$rc"
+# A disabled adapter's file is silenced, never handed to a sibling that also
+# claims its name: js-jest claims *.test.ts, py-unittest test_*.py.
+cfg_hook() {
+  printf '{"hook_event_name":"PostToolUse","tool_name":"Write","session_id":"s","tool_use_id":"%s","tool_input":{"file_path":"%s"},"tool_response":{"type":"create","structuredPatch":[]}}' "$1" "$2" |
+    env -u CLAUDE_PROJECT_DIR HOME="$CFG_HOME" CLAUDE_PLUGIN_DATA="$TMP_ROOT/cfg-data" CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true \
+      bash "$SCRIPT_DIR/../../../hooks/test-scan.sh" 2>&1
+}
+printf 'def test_x():\n    add(1, 2)\n' >"$CFG/src/test_x.py"
+cfg_set 'adapters:' '  disable: [js-vitest, py-pytest]'
+cfg_scan --file "$CFG/src/bad.test.ts"
+assert_contains "disable js-vitest: a vitest file is not handed to js-jest" "$out" "test files: 0 examined"
+cfg_scan --file "$CFG/src/test_x.py"
+assert_contains "disable py-pytest: a pytest file is not handed to py-unittest" "$out" "test files: 0 examined"
+cfg_scan
+assert_not_contains "and the audit reports neither" "$out" "bad.test.ts"
+assert_not_contains "nor the pytest file" "$out" "test_x.py"
+hook_out="$(cfg_hook cfg-dis-1 "$CFG/src/bad.test.ts")$(cfg_hook cfg-dis-2 "$CFG/src/test_x.py")"
+if [[ -z "$hook_out" ]]; then pass "test-scan.sh is silent on both"; else fail "test-scan.sh is silent on both" "$hook_out"; fi
+cfg_set 'adapters:' '  enable: [js-jest]'
+cfg_scan --file "$CFG/src/bad.test.ts"
+assert_contains "an enable allowlist without js-vitest silences a vitest file too" "$out" "test files: 0 examined"
+rm -f "$CFG/src/test_x.py"
+# rules error: a report-only rule that now gates is not called report-only.
+cfg_set 'rules:' '  rule-weak-oracle: error'
+cfg_scan --check
+assert_not_contains "a rule at error is left out of the report-only note" "$out" "weak-oracle 1"
+# A UTF-8 byte-order mark at the start of a layer is not part of its first key.
+printf '\357\273\277paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.yaml"
+cfg_scan
+assert_exit "a layer starting with a UTF-8 BOM loads" 0 "$rc"
+assert_finding_count "and applies" 2
+# The team layer is the scanned repository's own, not CLAUDE_PROJECT_DIR's:
+# a sibling worktree or repository uses its own config.
+OTHER="$TMP_ROOT/cfg-other"
+mkdir -p "$OTHER/.claude" "$OTHER/src"
+git -C "$OTHER" init -q
+cp "$CFG/src/bad.test.ts" "$OTHER/src/bad.test.ts"
+printf 'adapters:\n  disable: [js-vitest]\n' >"$OTHER/.claude/testing.yaml"
+rm -f "$CFG/.claude/testing.yaml"
+rc=0
+out="$(CLAUDE_PROJECT_DIR="$CFG" HOME="$CFG_HOME" bash "$SCAN" --file "$OTHER/src/bad.test.ts" 2>&1)" || rc=$?
+assert_contains "a file in another repository gets that repository's team layer" "$out" "test files: 0 examined"
+rc=0
+out="$(CLAUDE_PROJECT_DIR="$OTHER" HOME="$CFG_HOME" bash "$SCAN" --file "$CFG/src/bad.test.ts" 2>&1)" || rc=$?
+assert_contains "and CLAUDE_PROJECT_DIR's layer does not leak into it" "$out" "rule-zero-assertion"
+rm -f "$CFG/.claude/testing.yaml"
+mkdir -p "$CFG_HOME/.claude"
+printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG_HOME/.claude/testing.yaml"
+cfg_scan
+assert_finding_count "the user-global layer applies" 2
+rm -f "$CFG_HOME/.claude/testing.yaml"
 
 # --- the whole suite again under mawk -----------------------------------------
 # A gawk-only pass does not count: the engine must hold under mawk as well.

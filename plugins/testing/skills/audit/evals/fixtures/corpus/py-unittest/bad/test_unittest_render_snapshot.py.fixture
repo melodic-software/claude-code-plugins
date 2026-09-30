@@ -1,0 +1,10 @@
+# expect: rule-snapshot-only
+# snapshottest's stored snapshot is the only oracle.
+from snapshottest import TestCase
+
+from app.render import render_order
+
+
+class RenderTests(TestCase):
+    def test_render_order(self):
+        self.assertMatchSnapshot(render_order({"id": 7, "total": 15}))

@@ -2,9 +2,18 @@
 # Worktree fact record for source-control. Sourced by the scripts; run directly
 # with `list` to print the record (see the end of this file).
 #
-# One porcelain parse, one lock-reason codec, and one TSV row schema. Callers
-# read WT_FACT_* after worktree_facts_parse_z. An empty column is `-`, applied
-# once for every argument, so a new column cannot shift the row.
+# For the shell surfaces: one porcelain parse, one lock-reason encoder, and one TSV
+# row schema. Callers read WT_FACT_* after worktree_facts_parse_z. An empty
+# column is `-`, applied once for every argument, so a new column cannot shift
+# the row. The one other reader is skills/babysit-prs/scripts/prune_babysit_worktrees.py,
+# which parses porcelain itself because it runs in Python.
+
+# The host name a lock reason carries; worktree_reason_lane's host is compared with this.
+worktree_host_name() {
+  local host="${HOSTNAME:-}"
+  [[ -n "$host" ]] || host="$(hostname 2>/dev/null || printf 'unknown-host')"
+  printf '%s' "$host"
+}
 
 # worktree_lock_reason CREATOR [SESSION]
 # CREATOR is the script name that arms the lock (worktree-create.sh or
@@ -12,10 +21,7 @@
 # worktree_reason_is_ours matches. Without one, the reason names no session.
 worktree_lock_reason() {
   local creator="$1" sid="${2:-}" host utc
-  host="${HOSTNAME:-}"
-  if [[ -z "$host" ]]; then
-    host="$(hostname 2>/dev/null || printf 'unknown-host')"
-  fi
+  host="$(worktree_host_name)"
   utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   if [[ -n "$sid" ]]; then
     printf '%s: lane active on %s session %s since %s; unlock when the owning lane is done' \
@@ -32,22 +38,28 @@ worktree_reason_is_ours() {
   [[ -n "$sid" && "$reason" == *"session ${sid} since"* ]]
 }
 
-# Decode a porcelain `locked` value. Quoted reasons drop the wrapping quotes
-# and unescape \\ and \n.
-worktree_decode_lock_reason() {
-  local raw="$1"
-  if [[ "$raw" == \"*\" ]]; then
-    raw="${raw#\"}"
-    raw="${raw%\"}"
-    raw="${raw//\\n/$'\n'}"
-    raw="${raw//\\\\/\\}"
-  fi
-  printf '%s' "$raw"
+# Prints `<host> <session-id>` from a reason shaped `lane active on <host> session <sid> since`
+# (what worktree_lock_reason writes with a session). Fails for any other reason, including
+# a session-less one. The session id charset is the one worktree-claim.sh accepts, so it is
+# safe inside a file-name pattern.
+worktree_reason_lane() {
+  local re='lane active on ([^ ]+) session ([A-Za-z0-9._:-]+) since'
+  [[ "$1" =~ $re ]] || return 1
+  printf '%s %s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+}
+
+# `git worktree list -z` first shipped in git 2.36.0 (its RelNotes: "introducing
+# NUL terminated output format with -z"). Older git rejects the flag; callers fail
+# closed and append this note to their error.
+WORKTREE_LIST_Z_GIT_FLOOR="2.36.0"
+worktree_list_z_floor_note() {
+  printf 'worktree list -z needs git >= %s; installed: %s' \
+    "$WORKTREE_LIST_Z_GIT_FLOOR" "$(git --version 2>/dev/null || printf 'git not found')"
 }
 
 # Read NUL-delimited `git worktree list --porcelain -z` from FILE.
 # Fills WT_FACT_PATH, WT_FACT_HEAD, WT_FACT_BRANCH, WT_FACT_BARE (yes|no),
-# WT_FACT_LOCKED (decoded reason, empty when unlocked or locked without one),
+# WT_FACT_LOCKED (raw reason, as `-z` emits it, empty when unlocked or locked without one),
 # WT_FACT_IS_LOCKED (yes|no, set for a reasonless lock too), WT_FACT_LINKED (yes|no), WT_FACT_PRUNABLE (yes|no).
 # The first record consumes the main slot, including a bare hub, so a later
 # linked worktree is never reported as the main checkout.
@@ -106,7 +118,7 @@ worktree_facts_parse_z() {
       is_locked=yes
       ;;
     "locked "*)
-      locked="$(worktree_decode_lock_reason "${line#locked }")"
+      locked="${line#locked }"
       is_locked=yes
       ;;
     "prunable" | "prunable "*) prunable="yes" ;;
@@ -156,7 +168,7 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   porcelain="$(mktemp)" || exit 4
   trap 'rm -f "$porcelain"' EXIT
   git -C "${2:-.}" worktree list --porcelain -z >"$porcelain" || {
-    echo "error: git worktree list failed in ${2:-.}" >&2
+    echo "error: git worktree list failed in ${2:-.} ($(worktree_list_z_floor_note))" >&2
     exit 4
   }
   worktree_facts_parse_z "$porcelain"

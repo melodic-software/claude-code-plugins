@@ -14,14 +14,6 @@ rule, genre rubric, or cascade keys.
   repository's files stay in place until those lanes are wired through the
   helper. No boundary-rule, genre, or cascade-key change.
 
-## Interactive userConfig smoke test, 2026-09-28
-
-- **Parked until a CLI host funds the interactive smoke (#3604).** The
-  visualization `medium` dial's set / persist / clear path stays unrun. The
-  unset path remains the documented literal-token behavior. This park keeps
-  gating the grandfathered-surface fleet sweep (#3603). No boundary-rule,
-  genre, or cascade-key change.
-
 ## Template vendoring, 2026-09-28
 
 - **Whole-page vendoring of the 31 html-effectiveness corpus templates is

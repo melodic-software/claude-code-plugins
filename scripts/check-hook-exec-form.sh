@@ -138,7 +138,7 @@ fi
 # test in scripts/check-hook-exec-form.test.sh — never a data-file edit.
 #
 # `bash` stays off this list. A bash-scripted row uses `"command": "node"` and
-# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds Git Bash
+# `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`), which finds a real bash
 # and never the WSL relay. Option gates are `--require-true` and
 # `--run-if-unset-or-true` on that launcher, not a shell command line.
 #   Claim: exec form offers no portable `command` that names Git Bash. `command`
@@ -148,11 +148,13 @@ fi
 #     CLAUDE_PLUGIN_ROOT, CLAUDE_PLUGIN_DATA and `${user_config.*}`, none of
 #     which names a shell. The gate-legal route is the `node` launcher above,
 #     not an allowlist entry for `bash`.
-#   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields" and
-#     "Exec form and shell form"; the EFTYPE and WSL-relay spawns observed in
-#     (#3708); upstream https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form `args`
-#     dropped, the hook still routed through bash.exe) open.
-#   As of: 2026-09-28.
+#   Basis: https://code.claude.com/docs/en/hooks, "Command hook fields", the
+#     `shell` row, verbatim: "Ignored when `args` is set". "Exec form and shell
+#     form" resolves `command` on PATH and, on Windows, to a real executable.
+#     https://github.com/anthropics/claude-code/issues/90495 (Windows exec-form
+#     `args` dropped, the hook still routed through bash.exe): open, last
+#     updated 2026-08-29.
+#   As of: 2026-09-29.
 #   Recheck: the hooks reference adds a shell or interpreter placeholder for
 #     exec form, or stops ignoring `shell` when `args` is set; or #90495 closes.
 EXEC_NAME_ALLOWLIST=(node)
@@ -413,18 +415,26 @@ NON-BLOCKING error, so a PreToolUse guard wired this way silently enforces
 nothing (#1416: 73 recorded runs, every one a hook_non_blocking_error, while
 the guard was believed live).
 
-Fix it the way #2570 did — shell form: the whole command line in `command`, no
-`args`, and `shell: bash` so Claude Code resolves Git Bash itself instead of
-doing a PATH lookup:
+For a bash-scripted hook, run the script through the node launcher: `node` is
+the bare name this gate allows, and the launcher finds a real bash itself, never
+the WSL relay. The launcher comes first in `args`, then the script, then the
+script's own arguments:
 
-    "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh\" --flag",
-    "shell": "bash"
+    "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+             "${CLAUDE_PLUGIN_ROOT}/hooks/guard.sh", "--flag"]
+
+Each carrying plugin has its own hooks/exec-bash.mjs, copied from
+lib/exec-bash.mjs by scripts/sync-exec-bash.sh. An option gate is a launcher
+flag placed before the script: `--require-true NAME` or
+`--run-if-unset-or-true NAME`.
 
 Or keep exec form and give `command` a ${CLAUDE_PLUGIN_ROOT}-rooted or absolute
 path to a real executable: a binary, not a script. On Windows exec form has no
 shell to read a `#!` line, so a `.sh` path as `command` fails to spawn (EFTYPE).
-A bash-scripted hook therefore stays shell form as above; a Node script can use
-`"command": "node"` with the script path in `args`.
+
+This gate does not inspect shell form (the whole command line in `command`, no
+`args`, `shell: bash`), so a hook written that way is not flagged.
 REMEDY
   exit 1
 fi

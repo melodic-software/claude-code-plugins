@@ -3,6 +3,138 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-09-30
+
+### Added
+
+- **`git-branch-audit.sh` proves a branch landed without a PR record (#5230).** When the PR map
+  has no entry, it runs `git cherry` against the default branch (every commit equivalent; skipped
+  for a branch with a merge commit, which `git cherry` does not list), then a tree-equality check
+  against the default branch, then the patch-id of the branch's whole diff (a squash), before
+  falling to REVIEW or LOSSY. A proof makes the branch LIKELY-SAFE with a `Landed:` line, recorded
+  in a new `landed` column of the tip capture, and `git-branch-delete.sh` runs the same proof
+  again at delete time in place of its remote-reachability check, so a landed branch is deletable
+  through the audit's own capture. The squash check writes one unreferenced loose object per
+  branch it reaches, which `git gc` prunes.
+- **`git-branch-audit.sh` prints a `MainCheckout:` block** with the branch or detached state, the
+  dirty file count, and any merge, revert, rebase, cherry-pick or bisect in progress, naming the
+  file that shows it. It describes the checkout the audit runs from, a linked worktree when it
+  runs from one; an operation in another worktree is not detected. It emits no deletable tier
+  (`SAFE`, `LIKELY-SAFE` or `LOSSY`) while an operation is in progress, and
+  `git-branch-delete.sh` refuses to delete then.
+
+## [0.14.0] - 2026-09-29
+
+### Changed
+
+- **The clean skill's destructive guard also matches bare branch and remote-branch deletion (#3852).**
+  `git branch -D`/`-d`/`--delete`, `git push --delete`, `git push -d` and `git push origin :ref` (also `+:ref`)
+  are blocked while the skill is active; a push with `--dry-run`/`-n` is allowed. The
+  `CLEAN_GUARD_ACK` prefix lifts the block and is the documented way to run one during a clean
+  session. The guard is a best-effort net over command text: option spellings it does not parse,
+  aliases, and disabling the guard still bypass it. `git-branch-delete.sh` deletes with
+  `git update-ref -d`, so the confirmed path is unaffected. The guard header, `SKILL.md`, and
+  README state the new coverage.
+- **The guard's global-option prefix accepts flag-only options (`-p`, `-P`, `--no-pager`).** The
+  `clean`, `reset --hard`, `checkout --`, `stash drop`/`clear` and `worktree remove` patterns share
+  it, so `git --no-pager clean -fd` and the other destructive forms are now blocked after those
+  options too.
+
+## [0.13.1] - 2026-09-29
+
+### Fixed
+
+- **`clean` preflight `RUNTIME_PROCS` lists only processes in the repositories being cleaned (#5217).** A `dotnet`, `aspire`, or MCP-server process counts when its working directory or command line is under a passed ROOT (the invoking repository when none), and each line is tagged `[repo: <ROOT>]`. Matches elsewhere on the machine are counted in the new `RUNTIME_PROCS_UNATTRIBUTED` line instead of being reported as risks. Without `/proc` (Windows, macOS) `RUNTIME_PROCS` is machine-wide and marked `(unscoped)`; the invoking process chain is never listed.
+
+## [0.13.0] - 2026-09-29
+
+### Added
+
+- **`git-branch-audit.sh` reports a merged-PR tip that is an ancestor of the merged head as `SAFE` (5a)**
+  ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)). When a branch's PR merged
+  but the local tip differs from `headRefOid`, and the head commit exists locally and contains the tip,
+  every local commit was in the merged PR. One batched ancestry pass answers it for all such branches; a
+  head commit absent from the clone stays `REVIEW`.
+- **Each branch record carries a `Family:` line** (`agent`, `claude`, `plan`, `stranded`, `pre-wipe`, or
+  `none`), read from the branch name. It is information only and changes no tier.
+
+## [0.12.0] - 2026-09-29
+
+### Added
+
+- **`clean-batch.sh` dry-run reports `Outcome: nothing-to-do` for a repo with nothing to reclaim.**
+  A repo that plans no paths and adds no new git object store no longer
+  reads as `would-clean`. `Summary:` counts are unchanged.
+- **`clean-batch.sh` dry-run prints a `Repo | Outcome | Paths | Bytes` table** before `BatchPlan:`
+  and `Summary:`, one row per repo including skipped and blocked ones.
+
+### Changed
+
+- **`--batch-plan FILE` is documented for `--dry-run` as well as `--apply`.** It picks a stable
+  plan path; the default is a temporary directory.
+- **Fleet branch audits route to `/repo-fleet-hygiene:audit`.** `clean-batch.md` and `SKILL.md`
+  say so, and the `allowed-tools` comment notes the `TipCapture` file `git-branch-audit.sh`
+  writes under the git common dir.
+
+## [0.11.2] - 2026-09-29
+
+### Fixed
+
+- **`clean` `**Arguments.**` line leads with the argument hint,** so the hint and the line agree.
+
+## [0.11.1] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
+## [0.11.0] - 2026-09-29
+
+### Added
+
+- **`clean-batch.sh --tier scan` inventories many repositories read-only (#3346).** It runs
+  `scan.sh` per selected repo with the shared repo selection and skip list, prints
+  `Outcome: scanned` per repo, and closes with `Summary: repos=N planned=0 bytes=K`. It writes
+  no plan; `--apply` and `--batch-plan` with it are usage errors. `resolve-clean-action.sh`
+  gains `scan-batch`, `scan-fleet`, and `inventory-batch`.
+- **`git-branch-audit.sh` and `git-stash-audit.sh` audit many repositories (#3346).** Both take
+  `--repo`, `--repos-from`, `--skip`, and `--skip-from`, print a `Repo: <path>` block per repo,
+  audit linked worktrees that share a git common dir once, report a skipped or failing repo
+  without stopping the rest, and close with `FleetSummary:`. `--capture-file` with more than one
+  repo is a usage error. Deletion stays per repo.
+- **The branch audit reports a WORKTREE branch's checkout path on a `Worktree:` line (#3346).**
+  The `git` action hands those branches to `/source-control:worktree cleanup --dry-run` and
+  re-audits; a clone blocked by being off the default branch is pointed at
+  `/repo-fleet-hygiene:sync`, shown as a command, not run.
+
+### Changed
+
+- **`git-branch-audit.sh` reads its facts in bulk (#3346).** One `for-each-ref`, two
+  `rev-list --stdin` passes, and one worktree read replace about six git processes per branch
+  (1404 to 110 git calls on a 242-branch fixture, stdout unchanged). A branch whose bulk record
+  cannot be trusted, or a pass that fails, takes the per-branch commands, so a verdict does not
+  depend on the path.
+
+### Fixed
+
+- **The clean skill's single-repo apply steps carry the `CLEAN_GUARD_ACK` prefix (#3346).**
+  `git-prune.sh`, `git-tree-reset.sh`, `remove-path.sh`, and the tree-batch step were shown
+  bare although the guard blocks `--apply` without it. `git-tree-reset.md` now says so, and the
+  duplicated argument list in `SKILL.md` points at the action router.
+
+### Documentation
+
+- **The guard's header, `SKILL.md`, and README state what the guard matches and leave the
+  branch-deletion question open (#3852).** They no longer call `git branch -D`/`-d` and
+  `git push --delete` a settled gap or make unsourced claims about them. Guard behavior and its
+  assertions are unchanged.
+- **The clean skill documents the host permission layer that sits above the ack prefix (#3346).**
+- **`setup check` and the README declare `node` (#3708).** Every hook row runs
+  `node hooks/exec-bash.mjs`, and Claude Code's native binary does not ship Node, so without it
+  the guard does not launch. `setup check` gains a `node` row probed through Bash, and its bash
+  lookup names the `PATH` step.
+- **Reflowed the 0.10.55 bullet** on the `clean-batch.sh` preflight (whitespace only).
+
 ## [0.10.57] - 2026-09-28
 
 ### Fixed
@@ -32,8 +164,9 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 - **`clean-batch.sh` runs `preflight.sh` once before a caches/build/all dry-run
   and prints `Progress:` on stderr (#3346).** `preflight.sh` takes optional
   roots, and the batch passes its target repositories, so `RECENT_BUILD` covers
-  them wherever the batch runs from. The git-only tier does not run preflight. Apply does not run it again. Progress is `N/M <path>` on dry-run
-  and `apply N <path>` on apply.
+  them wherever the batch runs from. The git-only tier does not run preflight.
+  Apply does not run it again. Progress is `N/M <path>` on dry-run and
+  `apply N <path>` on apply.
 
 ## [0.10.54] - 2026-09-28
 

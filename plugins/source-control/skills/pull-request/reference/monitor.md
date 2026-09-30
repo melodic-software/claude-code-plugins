@@ -31,7 +31,7 @@ Phase 3 is an **async event loop**, not a sequential pipeline. After every push 
 
 **If `CLAUDE_CODE_REMOTE=true` (cloud session):**
 
-Establish a baseline poll: `gh pr checks <N>` (REST check-runs when more than one worker polls, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s in a blocking loop until all readiness gates pass.
+Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr checks <N>` is for a one-off read only, per §3.1 "Polling CI from more than one worker") + the three comment-surface fetches (per-iteration checklist steps C1-C3) every 60-90s in a blocking loop until all readiness gates pass.
 
 **If local CLI session (`CLAUDE_CODE_REMOTE` not set or `false`):** skip this section. Event delivery is handled by the push-channel primary path (§3.0.05) when available, otherwise by the Monitor watch (§3.0.1).
 
@@ -228,7 +228,7 @@ the values you mean, never on the complement:
 After each push, run this loop until convergence (**every** check in a terminal state + all comments addressed):
 
 1. **Mergeable pre-check (MANDATORY before polling):** `gh pr view <N> --json mergeable,mergeStateStatus` FIRST. If `mergeable == "CONFLICTING"`, GitHub will NOT trigger workflows. Integrate the default branch (merge-forward first, per the stale-branch recovery rule in §3.2), resolve conflicts, push, and restart the loop. Only proceed to CI polling when `mergeable == "MERGEABLE"`. **Never blame the platform for missing CI runs before checking this.**
-2. **Poll CI:** `gh pr checks <N>` (REST check-runs instead when more than one worker polls, per "Polling CI from more than one worker" below) every 30s (the standard monitor cadence), max 15 minutes per cycle. Never `--watch`; before the first wait, report each pending job as queued or running per "Waiting on a pending check" below. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
+2. **Poll CI:** every 30s (the standard monitor cadence), max 15 minutes per cycle, with the §3.0.1 REST read; `gh pr checks <N>` is for a one-off read only, never a loop ("Polling CI from more than one worker" below). Never `--watch`; before the first wait, report each pending job as queued or running per "Waiting on a pending check" below. **Wait for ALL checks to reach a terminal state** (pass/fail/skipped) before suggesting merge, no exceptions, regardless of PR type. Never merge while any check is still pending or in_progress
 3. **Check for new comments:** on each poll, also fetch new review comments (`gh api --paginate "repos/<owner>/<repo>/pulls/<N>/comments?per_page=100"`)
 4. **Process comments immediately:** if a bot comments while CI is still running, start evaluating/researching that comment now. Don't wait for CI
 5. **On CI failure:** route to 3.2 (research-driven fix)
@@ -304,12 +304,16 @@ The two states call for different action, so the report names which one it is:
 - **Queued behind a busy pool:** the wait is a capacity property of the runner fleet, and nothing on
   the branch shortens it. Keep the cadence above, report the queue state when it changes rather than
   on every poll, and raise capacity with whoever owns the pool instead of touching the change.
-- **Queued with no online runner for the label, or queued past the stuck threshold:** nothing will
-  pick it up. Route it per the babysit-prs
-  [stuck-checks reference](../../babysit-prs/reference/stuck-checks.md) (`stuck_queued`).
+- **Queued with no online runner for the label:** nothing will pick it up. Route it per the
+  babysit-prs [stuck-checks reference](../../babysit-prs/reference/stuck-checks.md)
+  (`stuck_queued`). Age past the stuck threshold routes it there only when occupancy is unreadable
+  or shows a free online runner matching the label: a job queued behind a busy pool stays a
+  capacity report however long it waits (a 63-minute queue on `9/9 busy` is still capacity).
 
 **Claim:** a long CI wait must poll REST on a fixed schedule and must not use `gh pr checks
---watch`; a `pending` check is reported as queued or running before the wait starts.
+--watch`; a `pending` check is reported as queued or running before the wait starts; a queued job
+is routed as stuck only when no online runner matches its label, or when occupancy is unreadable
+or shows a free matching runner past the threshold, never on age alone while the pool is busy.
 **Basis:** `gh pr checks --help` (`--interval` default 10) on gh 2.99.0; [Workflow
 jobs](https://docs.github.com/en/rest/actions/workflow-jobs) (`status`, `labels`, `runner_name`);
 [Self-hosted runners](https://docs.github.com/en/rest/actions/self-hosted-runners) (`busy`,

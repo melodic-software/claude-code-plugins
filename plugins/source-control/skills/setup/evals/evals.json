@@ -273,6 +273,32 @@
         "Cleanup is gated: --clean source-control-r001 without --i-migrated is refused; only after the successor prose is followed and the operator confirms does --clean source-control-r001 --i-migrated run",
         "After cleanup the emptied ## convention_source heading is also removed and a detection re-run is clean (exit 0); a repo without the pointer line yields no source-control-r001 finding"
       ]
+    },
+    {
+      "id": 22,
+      "name": "check-at-home-root-reports-team-and-overlay-not-applicable",
+      "prompt": "/source-control:setup check\n\nThe session's project root is the operator's home directory, which contains ~/.claude/source-control.md and no repository of its own.",
+      "expected_output": "Resolves the config root, classifies it as home, and reports the team layer and the personal overlay as not applicable with the reason `project root is the home directory (or an ancestor of it)`. Resolves user-global only and never presents ~/.claude/source-control.md as the team layer, since at home the two paths are the same file. The effective-configuration table shows user-global as the only winning layer, and the git tracked/ignored probes are not run.",
+      "files": [],
+      "expectations": [
+        "Reports team and overlay as not applicable and names the reason: project root is the home directory (or an ancestor of it)",
+        "Resolves user-global only and does not read ~/.claude/source-control.md a second time as the team layer",
+        "Shows user-global as the only layer that can win in the effective-configuration table",
+        "Runs no git ls-files, git check-ignore, or trackedness probe against the home directory"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "apply-at-home-root-refuses-team-and-local-but-writes-user",
+      "prompt": "/source-control:setup apply layer=team subject_pattern=Conventional Commits\n\nThe session's project root is the operator's home directory. Afterwards the operator re-runs with layer=user.",
+      "expected_output": "layer=team refuses before writing anything: at home the team path and ~/.claude/source-control.md are the same file, so a team write would edit the operator's personal config under a team label. The refusal names the reason (`project root is the home directory (or an ancestor of it)`) and offers layer=user. layer=local refuses for the same reason. The re-run with layer=user writes ~/.claude/source-control.md, runs no git command against it, and reports the resulting effective merge.",
+      "files": [],
+      "expectations": [
+        "Refuses layer=team at a home project root without writing any file",
+        "Names the reason (project root is the home directory or an ancestor of it) and offers layer=user",
+        "layer=local is refused for the same reason",
+        "layer=user writes ~/.claude/source-control.md and runs no git check-ignore, git status, or git add against it"
+      ]
     }
   ]
 }

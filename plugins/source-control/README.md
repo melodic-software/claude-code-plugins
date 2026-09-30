@@ -113,6 +113,12 @@ report), `cleanup`
 destructive branch deletion for the user), `audit` (configuration health,
 including linked worktrees with no lock reason).
 
+Supported interface: `scripts/worktree-create.sh --existing-branch <name>` checks out
+an existing local branch into a new worktree instead of creating one, and cannot be
+combined with `--base-ref`. Exit codes are listed in the script header. Known
+consumer: `/repo-fleet-hygiene:sync`. A consumer outside this plugin must locate the
+script through the installed plugin root, never a monorepo-relative path.
+
 ### `/source-control:setup`
 
 `check` (read-only, default) reports the effective commit-subject / PR-title
@@ -215,7 +221,9 @@ path. Unset `HOOK_TELEMETRY_SINK` → no-op.
 
 The MCP-surface sibling of `pr-body-linkage-gate`: a `PreToolUse` hook on the
 GitHub MCP server's `create_pull_request` / `update_pull_request` tools, which
-is how cloud/remote sessions, where the `gh` CLI doesn't exist, open PRs.
+is how cloud/remote sessions, where the `gh` CLI doesn't exist, open PRs. It
+covers both the `mcp__github__<tool>` names and the
+`mcp__plugin_<plugin>_github__<tool>` names of a plugin-bundled server.
 Same contract, same authority (a workflow in the consuming repository's own
 `.github/workflows/` that `uses:` the `pr-contract` composite step), same
 block-with-the-fix-named behavior. The MCP payload hands over the body as a plain JSON field, so the
@@ -243,9 +251,16 @@ creates; this hook is the route for the adds that bypass the helper.
 Existing reasons are never rewritten. The lock is a claim other agents
 can read; it does not block concurrent writes (git-worktree(1)).
 
+The worktree scripts (`worktree-claim.sh`, `landed-work.sh`, `worktree-facts.sh list`)
+require git 2.36.0 or newer for `git worktree list --porcelain -z`; on older git they
+fail closed with a message naming the floor and the installed version.
+
 `scripts/worktree-claim.sh report` lists unclaimed linked worktrees;
 `check-enter <path> --session-id <id>` surfaces a foreign live claim and
-stops. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
+stops; `release <path> --session-id <id>` unlocks a claim this session armed
+and refuses a foreign one; `stale <path>` is a read-only test (exit 0) that a
+claim's session has no live transcript on this host, which `cleanup` combines
+with a merged or landed branch before offering to remove a locked worktree. Set `worktree_add_claim_gate_enabled` to `false` to turn the hook
 off; the script remains the documented gate.
 
 This hook and its `PreToolUse` sibling `worktree-add-containment-gate` are registered
@@ -287,7 +302,12 @@ fails when a gate feeds its payload to a reader by here-string.
 
 ## Works in any repo
 
-- **Self-contained.** Everything runs on `git`, `gh` (authenticated), `jq`,
+- **Node.js on PATH.** Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's
+  native binary neither ships nor uses Node
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the
+  hooks do not launch and the PR-linkage and worktree gates are not enforced. The setup `check`
+  reports whether `node` resolves.
+- **Self-contained.** Everything else runs on `git`, `gh` (authenticated), `jq`,
   and Bash scripts bundled under `${CLAUDE_PLUGIN_ROOT}` (Git Bash on native
   Windows); `unzip` is additionally required by the CI-log fetch path
   (`fetch-failed-logs`), which exits with a remediation message when it is
@@ -347,6 +367,9 @@ repo's owner.
 | `babysit_advisory_fix_round_cap` | number | 100 |
 | `babysit_worker_concurrency_cap` | number | 10 |
 | `babysit_worktree_root` | directory | `worktrees/` under the plugin data dir |
+| `promotion_evidence_binding` | file | no promotion-evidence bootstrap; every promotable cell stays effective-unpromoted (absolute path to the security binding document, outside the target repository, read-only to the lane; contract: [promotion-evidence-bootstrap.md](skills/babysit-loop/reference/promotion-evidence-bootstrap.md)) |
+| `promotion_evidence_root` | directory | no probe evidence root; every promotable cell stays effective-unpromoted (absolute path to the protected `--probe-evidence-root` directory, outside the target repository, read-only to the lane) |
+| `promotion_evidence_source` | file | no evidence source; every promotable cell stays effective-unpromoted (absolute path to the operator-published epoch-scoped events file, outside the target repository, read-only to the lane) |
 | `worktree_root` | directory | `worktrees/` under the plugin data dir (external root for `/source-control:worktree create`; never inside a repository or a repository-discovery root) |
 | `worktree_stale_days` | number | 14 (staleness threshold for `/source-control:worktree status`) |
 | `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
@@ -357,9 +380,10 @@ repo's owner.
 
 The commit-subject / PR-title convention is separate: run
 **`/source-control:setup`** to interview your repo and write the
-`source-control.md` config. Idempotent and safe to re-run. Add
-the recursive `.claude/**/*.local.*` line to your `.gitignore` so the personal overlay layer stays
-out of version control (no skill here edits your `.gitignore`).
+`source-control.md` config. Idempotent and safe to re-run. `apply layer=team`
+appends the recursive `.claude/**/*.local.*` line to your `.gitignore` when it is missing, so the
+personal overlay layer stays out of version control; `layer=local` never edits `.gitignore` and
+fails with a recommendation when the overlay is exposed.
 Remaining optional environment variables:
 
 | Variable | Used by | Effect |
@@ -383,7 +407,7 @@ reads it from.
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's loop-lane telemetry, per the loop-lane convention's lane-instance identity rule. It becomes the suffix of the babysit-loop telemetry sentinel marker (`source-control:babysit-loop@<id>`), so each concurrently running lane instance owns its own comment and none can overwrite another's durable state. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$, be stable across restarts, and be distinct across concurrent instances; two lanes on one machine each need an explicit value. Absent: the sanitized lowercased hostname. The value appears verbatim in tracker comments. Set an opaque id if a machine name should not be published in a public tracker. |
 | `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Block a `gh pr create`/`gh pr edit` whose statically-readable PR body would fail the repository's required PR-contract check (missing a closing keyword, or a missing/empty `## Summary`, `## Fix`, `## Verification`, or `## Related` section). Enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step; a body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Block a GitHub MCP create_pull_request/update_pull_request whose PR body would fail the repository's required PR-contract check (closing keyword plus non-empty `## Summary`, `## Fix`, `## Verification`, and `## Related`), the MCP-surface sibling of pr-body-linkage-gate, covering cloud/remote sessions that open PRs without the gh CLI. Same policy scope: enforced only in a repository whose .github/workflows carry a workflow that uses the pr-contract composite step, and only for the repository the origin remote names. |
-| `worktree_add_containment_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED` | Block a raw Bash `git worktree add` whose resolved target lands inside a git repository, meaning a working tree or a .git / bare directory, with a message naming the configured external root (worktreeroot.path git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, verified". |
+| `worktree_add_containment_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED` | Block a raw Bash `git worktree add` whose resolved target lands inside a git repository, meaning a working tree or a .git / bare directory, with a message naming the configured external root (worktreeroot.path git config key, then the worktree_root plugin option, then the plugin data dir). Blocks ONLY the nesting class: a conforming target passes silently, with no advisory, and a target the hook cannot resolve statically (dynamic path, prior cd, unreadable payload) always passes. The nesting invariant's measurement, disputed arms and expiry live in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, dated measurement". |
 | `worktree_add_claim_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CLAIM_GATE_ENABLED` | After a raw Bash `git worktree add`, lock the parsed add target with a session-distinct claim (host + session id + timestamp). Only that path is claimed, not every currently unlocked linked worktree, so two concurrent adds cannot steal each other's trees. Existing reasons, including the worktree-create.sh helper string, are never rewritten. The lock is a claim other agents can read, not a write mutex. Turning this OFF leaves plain-add trees unclaimed; `scripts/worktree-claim.sh report` still lists them and `check-enter` still surfaces a foreign live claim. Kill switch only: worktree_add_claim_gate_enabled. |
 | `worktree_create_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED` | Redirect a WorktreeCreate away from Claude Code's default location, which may be inside the repository, to the configured worktree_root. Turning this OFF does NOT hand placement back to Claude Code: a WorktreeCreate hook has no 'not applicable' channel, and measured on Claude Code 2.1.228, a non-zero exit and an exit-0-without-a-path both fail the creation. That is why `false` makes the gate refuse out loud, and every harness-driven creation path (`claude --worktree`, a subagent with `isolation: "worktree"`, a background session) fails with a message naming the real stand-downs. To let Claude Code place worktrees itself, set `worktree.bgIsolation` to `"none"` in settings, or disable this plugin. Probe, verbatim harness output and the as-of stamp: `skills/worktree/fixtures/README.md`. |
 | `babysit_watched_owners` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WATCHED_OWNERS` | GitHub owners (users/orgs) babysit-prs may act under. Absent: the current repo's owner is inferred per run. |
@@ -409,7 +433,10 @@ reads it from.
 | `babysit_advisory_fix_round_cap` | number | `100` | `CLAUDE_PLUGIN_OPTION_BABYSIT_ADVISORY_FIX_ROUND_CAP` | Per-PR cap on advisory-only fix rounds (never caps blocking defects). |
 | `babysit_worker_concurrency_cap` | number | `10` | `CLAUDE_PLUGIN_OPTION_BABYSIT_WORKER_CONCURRENCY_CAP` | Maximum per-PR workers dispatched concurrently in one cycle. |
 | `babysit_worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WORKTREE_ROOT` | Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir. |
-| `worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir, which the skill supplies explicitly rather than reading from the environment (not per-plugin in a Bash-tool subprocess). Deliberately outside the repository tree AND outside repository-discovery roots such as a ghq root, which a checkout-relative default would land inside. Never the in-repo .claude/worktrees/ default, whose nested placement the nesting invariant forbids. That claim is stated, measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, verified". |
+| `promotion_evidence_binding` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING` | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads (the binding argument of the autonomy plugin's check-security-binding.mjs). It must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no promotion-evidence bootstrap is configured and every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_ROOT` | Absolute path to the directory passed as --probe-evidence-root: the protected evidence surface the seam resolves isolation probe transcripts against. It must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no probe evidence root is configured and every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_source` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_SOURCE` | Absolute path to the epoch-scoped promotion-evidence events file passed as --evidence, published by an operator-side process the lane can read but not write. It must sit outside the target repository and every lane worktree. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no evidence source is configured and every promotable cell stays effective-unpromoted. |
+| `worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path OUTSIDE every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir, which the skill supplies explicitly rather than reading from the environment (not per-plugin in a Bash-tool subprocess). Deliberately outside the repository tree AND outside repository-discovery roots such as a ghq root, which a checkout-relative default would land inside. Never the in-repo .claude/worktrees/ default, whose nested placement the nesting invariant forbids. That claim is stated, measured, dated and given an expiry in exactly one place: `skills/worktree/SKILL.md` § "The nesting invariant, dated measurement". |
 | `worktree_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORKTREE_STALE_DAYS` | Days since last commit before /worktree status classifies a worktree as stale |
 | `fetch_logs_max_bytes` | number<br>*min 1* | `52428800` | `CLAUDE_PLUGIN_OPTION_FETCH_LOGS_MAX_BYTES` | Abort a CI-log ZIP fetch larger than this |
 | `branch_issue_pattern` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN` | Deprecated: set `branch_issue_pattern` on the layered .claude/source-control.md surface instead; this value is read only as a fallback. POSIX ERE for extracting the numeric GitHub issue number from the current branch name; the LAST capture group holds it and must resolve to digits (Closes #N honors only a numeric issue). Set this for a non-default branch scheme that places the number differently, e.g. '^\[^/\]+/(\[0-9\]+)-' for 'alice/1234-slug' or '-(\[0-9\]+)$' for 'feat/add-widget-1234'. Absent: the built-in '<type>/<N>-<slug>' (and routine-issue-<N>) convention. |

@@ -37,19 +37,18 @@
 # WHAT IS NOT HERE. Plugin surfaces still carrying em dashes are absent by
 # definition, and are the campaign's remaining work. Also absent on purpose:
 # docs/adr/** (decision records are a historical account, not prose to restyle),
-# plugins/*/skills/*/vendor/** (vendored third-party text, which the repo's own
-# vendor-docs-are-not-style rule puts out of scope), the per-source ledgers
-# docs/upstream/*.md (each records one third-party source and quotes it at
-# length, so the source's own punctuation rides along), and the eval fixtures
-# under plugins/ai-slop/skills/audit/evals/, which contain the tells they exist
-# to test.
+# plugins/*/skills/*/vendor/** (vendored third-party text is upstream content,
+# not this repository's prose), and the eval fixtures under
+# plugins/ai-slop/skills/audit/evals/, which contain the tells they exist to
+# test. The per-source ledgers docs/upstream/*.md are unpurged campaign
+# backlog, not exempt: their own prose is first-party and joins this list once
+# purged, and what they quote from upstream stays byte-exact inside
+# ai-slop-ignore-marked regions.
 #
-# docs/upstream/ IS NOT A VENDOR TREE, and the boundary there is authorship,
-# not path. Its files are this repository's own provenance records and research
-# trails about upstream sources. What they quote from upstream is third-party
-# text and stays byte-exact, inside an ai-slop-ignore-marked region when it
-# carries an em dash. Their own prose is first-party and joins this list once
-# purged, like any other surface. The unlisted ones are unpurged, not exempt.
+# docs/upstream/ IS NOT A VENDOR TREE, and the boundary is authorship, not
+# path. Vendored third-party text (plugins/*/skills/*/vendor/** and verbatim
+# upstream quotes) is out of scope. First-party prose under docs/upstream/ is
+# in scope whatever its path. The unlisted ones are unpurged, not exempt.
 # docs/upstream/claude-code-mods/ is not a third-party ledger: it is this
 # repository's own evidence trail for ADR 0035, so its live documents and the
 # dated research snapshot are declared below.

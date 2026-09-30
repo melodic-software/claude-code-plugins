@@ -3,6 +3,44 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-09-29
+
+### Added
+
+- **`-Secrets` on `Invoke-UnattendedRun`** ([#5315](https://github.com/melodic-software/claude-code-plugins/issues/5315)).
+  Declared secrets resolve once before the first stage, so the human answers every hidden prompt
+  up front. An undeclared name still resolves at first use. The `cutover.result/1` envelope gains
+  a names-only `secrets` field and dry-run `planned` gains a `secrets` count.
+- **A credential-store rung in `Resolve-UnattendedSecret`**: environment, then file, then a
+  `Microsoft.PowerShell.SecretManagement` vault (skipped silently when absent), then a hidden
+  prompt. Only a string secret is used; a `PSCredential`, hashtable or `byte[]` secret is skipped
+  with a warning. Declaring a name twice in `-Secrets` fails the run. A native macOS Keychain and
+  `pass` rung are not yet supported.
+
+## [0.3.0] - 2026-09-29
+
+### Added
+
+- **`Wait-ForState`** and **`Use-GuardedResource -TolerateTakeExit`** in the `/wizard:unattended`
+  library ([#4199](https://github.com/melodic-software/claude-code-plugins/issues/4199)). Poll the
+  outcome of a request instead of trusting its exit code: a request that exits nonzero while the
+  state is reached becomes a warning, and the proof that follows is the only gate.
+- **`-Irreversible` on `Invoke-UnattendedRun`**, an `irreversible_actions` field in the
+  `cutover.result/1` envelope (schema string unchanged), and a `Confirm-Irreversible` that refuses
+  an undeclared step or any step while a guarded resource is still held.
+- **`Assert-ParsedState`** and **`Invoke-NativeUtf8`**: an empty parse is a stop, not "already
+  absent", and `wsl.exe` output is read as UTF-8.
+- **`-WhatIf` and `-Test` dry-run modes** on the unattended template. `-WhatIf` narrates the plan and
+  its blast radius; `-Test` writes only the result directory, whose JSON gains `mode`, `planned`
+  and `delta`.
+
+### Changed
+
+- `Use-GuardedResource` requires `-Prove` to emit a truthy last value or throw. A false result, no
+  output or a nonzero native exit keeps the resource held instead of releasing it.
+- `/wizard:unattended` documents its PowerShell 7 requirement in the hand-off and the README, and
+  `Assert-NotInside` is documented as a `WSL_DISTRO_NAME` check only.
+
 ## [0.2.11] - 2026-09-28
 
 ### Added

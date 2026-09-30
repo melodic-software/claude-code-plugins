@@ -3,6 +3,24 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-09-29
+
+### Added
+
+- The manifest declares the `pwsh` prerequisite, a SessionStart probe prints a notice when it is missing, and `/powershell-format:check` reports whether it resolves without installing.
+
+## [0.8.8] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
+## [0.8.7] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
 ## [0.8.6] - 2026-09-29
 
 ### Fixed

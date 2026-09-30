@@ -62,21 +62,27 @@ choice, the mandatory redaction pass, the handoff-file write, and the rails resu
 in the shared engine doc
 [`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md).
 Walk it top to bottom; do not restate or improvise any of its steps. The launched agent receives
-exactly the resume prompt that sits between the rails (full path: it follows the prompt's Read
-directive to the handoff file; prompt-only: the remaining-work bullets travel inline). On the full
+exactly the resume prompt that sits between the resume region's rails (full path: it follows the
+prompt's Read directive to the handoff file; prompt-only: the remaining-work bullets travel
+inline). On the full
 path the file is shape 2: `save_point.py validate <file>` must exit 0 before anything launches
 (an unfinished skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched
-from), and the launch payload is the between-rails text of `save_point.py emit <file>`, the lines
+from), and the launch payload is the between-rails text of the resume region of
+`save_point.py emit <file>` (the region headed by the `/clear`, then copy instruction), the lines
 from the `Read @` directive through the last `Next:` headline, taken from that output and never
-retyped. The same bytes the file's `## Resume prompt` section stores are what the agent gets.
+retyped. The same bytes the file's `## Resume prompt` section stores for that region are what the
+agent gets. When the prompt also holds a goal region (headed by the `Type /goal` instruction),
+that region is never passed: arming a goal inside a detached agent is a new behavior to decide on
+its own merits, the same reasoning as the `/loop` transfer note in the engine doc. The goal
+region stays in the emitted prompt for the operator's own paste.
 
 ## Delivery: background-agent launch
 
 **Output order: position panel, then the rails prompt, then the launch report.** The panel (engine
 doc, "Emit the position panel") leads; the operator is walking away while an agent keeps working,
 so the one thing they should not have to reconstruct is where the work stood when they left. It is
-screen output only: **the launched agent receives exactly the text between the rails and never a
-line of the panel**, which keeps the payload identical to what a manual `/clear`-and-paste would
+screen output only: **the launched agent receives exactly the text between the resume region's
+rails and never a line of the panel**, which keeps the payload identical to what a manual `/clear`-and-paste would
 produce.
 
 The rails prompt from the engine doc is still emitted before the launch (transparency + manual
@@ -123,7 +129,8 @@ fallback), then:
    runs inside a linked git worktree, where isolation is skipped per the same page.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
    First write the prompt, exactly as emitted between the rails, to a temporary file with the
-   Write tool (full path: the between-rails lines of the `save_point.py emit <file>` output;
+   Write tool (full path: the between-rails lines of the resume region of the
+   `save_point.py emit <file>` output, never the goal region;
    prompt-only: the block as emitted; never inline it in the command: prompt content is
    untrusted session text, and any inline embedding, a heredoc, an escaped string, hands crafted
    content a path out of the quoting and into the shell). `<topic>` = the resolved, sanitized
@@ -194,11 +201,41 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `rev-parse` result, failing or `false`, and any hook whose absence is not established → state
   unknown, no launch, same fallback
 - [ ] Background agent launched with the rails prompt (`claude --bg --name …`), the payload being
-  the between-rails text of `save_point.py emit <file>` on the full path (validated first, exit 0
-  quoted) or the emitted block on prompt-only, and the launch result reported (including any
-  non-inherited flags mirrored or worth flagging), OR the non-zero exit reported with fallback to
+  the between-rails text of the resume region of `save_point.py emit <file>` on the full path
+  (validated first, exit 0 quoted; a goal region, when present, excluded) or the emitted block on
+  prompt-only, and the launch result reported (including any non-inherited flags mirrored or worth
+  flagging), OR the non-zero exit reported with fallback to
   `/clear`-then-paste
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
+
+## Boundary, native Claude Code surfaces
+
+Three built-in commands also keep work moving off this terminal, so "continue in the background"
+can mean any of them.
+
+- **`/subtask`, `/fork`, `/background` (built-in commands, alias `/bg`).** Ship with Claude Code
+  rather than as a marketplace plugin. `/subtask <task>` sends a subagent off with the full
+  conversation and returns its result here. `/fork` copies the conversation into a new background
+  session while this one keeps working. `/background [prompt]` detaches this session itself and
+  frees the terminal. None writes a save-point. All three are reserved for the person to run; the
+  model does not invoke them.
+- **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
+  tree, and launches a fresh `claude --bg` session seeded only with the rails resume prompt, so
+  the continuation carries no conversation history and survives on disk.
+
+**Routing.** At the start of the run, offer them to the person: you can run `/background` to
+detach this session as it is, `/fork` to copy it into a background session, or `/subtask` for a
+side task whose result should come back here, instead of or alongside this skill. Prefer this
+skill when the continuation should start clean from a durable save-point. An unattended run
+records the offer in its output instead of asking.
+
+**Mutation gate.** This skill writes the save-point and launches one session, only on explicit
+request. It never runs a native command on the person's behalf.
+
+**Availability is never assumed.** All three are gated; `/subtask` is absent when agent view is
+turned off, and `/fork` then behaves differently. This section states what to do when they
+resolve, never that they are present. The four-part records live in
+[reference/native-surfaces.md](reference/native-surfaces.md).
 
 ## Gotchas
 

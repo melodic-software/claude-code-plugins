@@ -68,13 +68,14 @@
     {
       "id": 6,
       "name": "autonomous-fresh-context-verifier-before-done",
-      "prompt": "/implementation:implement-dispatch — autonomous run. Phase 3's workers have returned and their acceptance criteria look met; mark the phase DONE.",
-      "expected_output": "In autonomous mode, before marking the phase [DONE] it dispatches a fresh-context verifier subagent that checks the phase's acceptance criteria against the actual diff — a separate agent, never the producing context auditing itself — and surfaces that result in the response before ending the turn. It still runs the Step 4 phase-boundary ritual, scaled to residency: plan marks, a DEVIATIONS.md entry, and mark-then-commit when it stays resident, and the full ritual when it clears, switches model or domain, or ends the run.",
+      "prompt": "/implementation:implement-dispatch — autonomous run. Phase 3 changes behavior (a new validation branch in the order intake path); its workers have returned and their acceptance criteria look met; mark the phase DONE.",
+      "expected_output": "In autonomous mode, because phase 3 changes behavior, before marking the phase [DONE] it dispatches a fresh-context verifier subagent that checks the phase's acceptance criteria against the actual diff — a separate agent, never the producing context auditing itself — and surfaces that result in the response before ending the turn. It still runs the Step 4 phase-boundary ritual, scaled to residency: plan marks, a DEVIATIONS.md entry, and mark-then-commit when it stays resident, and the full ritual when it clears, switches model or domain, or ends the run.",
       "files": [],
       "expectations": [
         "Dispatches a separate fresh-context verifier subagent before marking the phase DONE (not the producing context self-auditing)",
         "The verifier checks acceptance criteria against the actual diff, and its result is surfaced in the response before the turn ends",
-        "At a resident boundary runs plan marks, a DEVIATIONS.md entry, and mark-then-commit, keeping the full /implementation:implement Step 4 ritual (handoff, status summary, resume prompt) for a clear, a model or domain switch, or run end"
+        "At a resident boundary runs plan marks, a DEVIATIONS.md entry, and mark-then-commit, keeping the full /implementation:implement Step 4 ritual (handoff, status summary, resume prompt) for a clear, a model or domain switch, or run end",
+        "A mechanical, behavior-preserving phase is verified by the orchestrator from the diff plus the build/test signal, with no verifier spawn, in every mode"
       ]
     },
     {
@@ -143,6 +144,20 @@
         "Runs no more than two worker rows at once, so the six rows run as sequential waves",
         "Does NOT apply the internal 3-5 default while the operator option is configured",
         "States that a --wave-cap argument, had one been passed, would take precedence over the operator option"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "post-phase-source-commit-gets-fresh-verifier",
+      "prompt": "/implementation:implement-dispatch — autonomous run, no human in the turn cycle. Every numbered phase is marked [DONE]. The orchestrator then made one more source edit in the main window, a bug fix to a helper, and is about to push the branch and open the PR.",
+      "expected_output": "Dispatches implementation:phase-verifier over the post-phase diff with the orchestrator's rationale withheld, spawns no worker, and neither pushes nor opens the PR until the verdict returns; an INCONCLUSIVE verdict is not treated as a pass.",
+      "files": [],
+      "expectations": [
+        "Dispatches implementation:phase-verifier as a fresh-context pass over the post-phase diff before pushing or opening a PR",
+        "Withholds the orchestrator's rationale and reasoning from the verifier's brief",
+        "Spawns no worker for the post-phase change",
+        "Does NOT push or create the PR before the verifier's verdict returns",
+        "Does NOT treat an INCONCLUSIVE verdict as a pass"
       ]
     }
   ]

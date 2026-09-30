@@ -3,6 +3,28 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-09-29
+
+### Added
+
+- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/ruff-format:check` reports whether the binaries resolve without installing.
+
+### Changed
+
+- The missing `ruff` notice latches once per session, shared by all agents, instead of once per session and agent, and keeps the install route when it renews every eighth skip. The SessionStart probe uses the same latch key as the PostToolUse notice (`ruff-format-ruff`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The `jq` notice is unchanged.
+
+## [0.7.8] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
+## [0.7.7] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
 ## [0.7.6] - 2026-09-29
 
 ### Fixed

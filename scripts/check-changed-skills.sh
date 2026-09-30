@@ -39,12 +39,15 @@ cd "$SCRIPT_DIR/.." || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
-BASE="${1:?usage: check-changed-skills.sh <base-ref>}"
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 
-if ! changed_files::verify_base "$BASE"; then
-  printf 'Error: base ref %s is not a valid commit\n' "$BASE" >&2
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! gate_entry::classify "$@" || [[ "$GE_MODE" != base ]]; then
+  echo "usage: check-changed-skills.sh <base-ref>" >&2
   exit 2
 fi
+BASE="$GE_REF"
 
 CHECKER="${CHECK_SKILL_BIN:-plugins/skill-quality/scripts/check-skill.sh}"
 if [[ ! -f "$CHECKER" ]]; then
@@ -173,8 +176,9 @@ done
 
 if ((checked == 0)); then
   echo "No changed skills under plugins/*/skills/ — nothing to gate."
-  exit 0
+  gate_entry::finish 0
 fi
 
 printf '\n%d skill(s) checked, %d failed.\n' "$checked" "$failed"
 ((failed == 0))
+gate_entry::finish $?

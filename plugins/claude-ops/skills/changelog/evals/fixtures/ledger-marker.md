@@ -15,4 +15,4 @@ runs from it to the newest published release.
 
 | Decision | Items | Owner surface | Was stated / is true | Record |
 |---|---|---|---|---|
-| Read/Edit deny over Bash covers redirect targets | 257-052 | `required-permissions.md` | recognized readers only / also redirect targets from 2.1.257 | open |
+| Read/Edit deny over Bash covers redirect targets | 2.1.257-052 | `required-permissions.md` | recognized readers only / also redirect targets from 2.1.257 | open |

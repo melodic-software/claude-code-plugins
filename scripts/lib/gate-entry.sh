@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# GE_MODE, GE_REF, GE_PATHS, and GE_DISCOVERY are the caller's result record.
+# GE_MODE, GE_REF, and GE_PATHS are the caller's result record.
 # shellcheck disable=SC2034
 # Shared entry for repo-tooling gates under scripts/. Sourced, never executed.
 #
@@ -13,6 +13,16 @@
 # substitution) signals this shell on USR2. The trap exits 2, so the #3377
 # shape — an unresolvable ref swallowed as an empty target list — cannot
 # report a pass. --all and --paths never consult a ref.
+#
+# Adoption: classify and finish are used by check-shell-portability,
+# check-skill-portability, check-skill-precompute-compose, check-changed-skills,
+# check-stale-base-overlap, check-vendor-version-bump, check-contract-slice-prune,
+# and check-changelog-parity. check-guardrails-ps-differential uses only
+# require_base. Three gates stay outside:
+#   check-docs-only                exits 0 on every fail-closed path, an
+#                                  unresolvable ref included, so the full suite runs
+#   affected-tests                 exits 0, 1, 2, or 3, not the 0/1/2 map above
+#   check-skill-description-voice  keeps its own dispatch and exit mapping
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/gate-entry.sh is sourced-only\n' >&2
@@ -67,11 +77,34 @@ gate_entry::require_base() {
 # GE_PATHS is the file list in paths mode. Returns 2 on a usage error and
 # does not exit, so the caller can print its own usage line. An unresolvable
 # base ref exits 2 from this shell. --all and --paths do not call git.
+#
+# A gate with its own flag modes sets GE_FLAGS before the call, one entry per
+# mode: "--check" takes no ref, "--check-bump:ref" takes one <base-ref>. Only
+# the declared flags are accepted then, not <base>, --all, or --paths. GE_MODE
+# is the flag, GE_REF the ref. GE_BAD_REF_MSG, when set, replaces the shared
+# diagnostic for an unresolvable ref.
 gate_entry::classify() {
   GE_MODE=""
   GE_REF=""
   GE_PATHS=()
   if (($# == 0)); then
+    return 2
+  fi
+  if [[ -n "${GE_FLAGS[*]-}" ]]; then
+    local _ge_spec
+    for _ge_spec in "${GE_FLAGS[@]}"; do
+      [[ "${_ge_spec%:ref}" == "$1" ]] || continue
+      GE_MODE="$1"
+      shift
+      if [[ "$_ge_spec" != *:ref ]]; then
+        (($# == 0)) || return 2
+        return 0
+      fi
+      (($# == 1)) || return 2
+      GE_REF="$1"
+      gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
+      return 0
+    done
     return 2
   fi
   case "$1" in
@@ -100,7 +133,7 @@ gate_entry::classify() {
       return 2
     fi
     GE_MODE=base
-    gate_entry::require_base "$GE_REF"
+    gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
     ;;
   esac
   return 0
@@ -108,26 +141,18 @@ gate_entry::classify() {
 
 # gate_entry::collect_changed <out-array> <base> [changed_files::into args...]
 # Fills <out-array> from the shared diff. A resolvable base with no changes
-# returns 0 and sets GE_DISCOVERY=empty. A failed diff or an unresolvable
-# base exits 2 and sets GE_DISCOVERY=failed. The two are not the same result.
+# returns 0 with an empty array. A failed diff or an unresolvable base exits 2.
+# The two are not the same result.
 gate_entry::collect_changed() {
   local _ge_out_name="$1"
   local _ge_base="$2"
   shift 2
-  GE_DISCOVERY=failed
   gate_entry::require_base "$_ge_base"
   # Pass the caller's array name straight through. A nameref in this frame
   # would sit between changed_files::into and that array, and a nameref that
   # points at a nameref comes back empty.
   if ! changed_files::into "$_ge_out_name" "$_ge_base" "$@"; then
-    GE_DISCOVERY=failed
     gate_entry::fatal
-  fi
-  local -n _ge_paths_out="$_ge_out_name"
-  if ((${#_ge_paths_out[@]} == 0)); then
-    GE_DISCOVERY=empty
-  else
-    GE_DISCOVERY=populated
   fi
   return 0
 }

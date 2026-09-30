@@ -39,6 +39,97 @@ ok() {
   PASS=$((PASS + 1))
 }
 
+# --- Notice text is bound to prerequisites.json --------------------------------
+# The hook does not read the manifest at run time (parse cost on the per-edit hot
+# path), so this case is the binding: the manifest has exactly one tool, ruff,
+# and the hook's missing-binary notice call and .venv walk state that tool's
+# name, check, install and local_bin, verbatim.
+MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
+if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
+  if jq -e '(.tools | length) == 1 and .tools[0].name == "ruff" and .tools[0].local_bin == ".venv/bin/ruff"' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: exactly one tool, ruff, at .venv/bin/ruff"
+  else
+    fail "manifest: expected one tool named ruff with local_bin .venv/bin/ruff: $(cat "$MANIFEST")"
+  fi
+  IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .local_bin, .check, .install] | @tsv' "$MANIFEST")
+  NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to RUFF_NOTICE/,/[^\\]$/p' "$HOOK")"
+  WALK_FN="$(sed -n '/^ruff_venv_bin_here()/,/^}/p' "$HOOK")"
+  # assert_hook_states <field> <needle> <haystack>
+  assert_hook_states() {
+    if [[ -n "$2" ]] && grep -qF -- "$2" <<<"$3"; then
+      ok "manifest binding: hook states the manifest's $1 ($2)"
+    else
+      fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
+    fi
+  }
+  assert_hook_states name "'$MF_NAME'" "$NOTICE_CALL"
+  assert_hook_states check "$MF_CHECK" "$NOTICE_CALL"
+  assert_hook_states install "$MF_INSTALL" "$NOTICE_CALL"
+  assert_hook_states local_bin "$MF_LOCAL" "$WALK_FN"
+else
+  fail "manifest binding needs jq and $MANIFEST"
+fi
+
+# --- SessionStart probe honors ruff_format_enabled -----------------------------
+# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
+# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
+# holds the system tools and no ruff. The gate is `--run-if-unset-or-true` in
+# exec-bash.mjs, so a row without it prints the notice for a disabled plugin.
+# Needs no real Ruff. A missing node fails the suite instead of skipping the
+# cases: every hook row launches through it.
+PLUGIN_ROOT="${HOOK_DIR%/*}"
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [[ -z "$NODE_BIN" ]]; then
+  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
+else
+  PG_WORK="$(mktemp -d)"
+  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != ruff && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      ln -s "$exe" "$PG_WORK/sysbin/$base"
+    done
+  done
+  PG_ARGS=()
+  while IFS= read -r pg_arg; do
+    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$PLUGIN_ROOT/prerequisites.json")
+
+  # run_probe <value|__unset__> -> run the row with ruff_format_enabled set to <value> (or unset).
+  run_probe() {
+    local v="$1"
+    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED)
+    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=$v")
+    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
+        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
+  }
+
+  OUT_PG=$(run_probe false)
+  RC_PG=$?
+  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
+    ok "probe-gate: ruff_format_enabled=false -> exit 0 and no notice"
+  else
+    fail "probe-gate: ruff_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
+  fi
+  for v in __unset__ true; do
+    label="ruff_format_enabled=$v"
+    [[ "$v" == "__unset__" ]] && label="ruff_format_enabled unset"
+    OUT_PG=$(run_probe "$v")
+    RC_PG=$?
+    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]]; then
+      ok "probe-gate: $label -> notice names $PG_NAME, $PG_CHECK and the install line"
+    else
+      fail "probe-gate: $label should print the missing-ruff notice (rc=$RC_PG out=$OUT_PG)"
+    fi
+  done
+  rm -rf "${PG_WORK:?}"
+fi
+
 # Resolve a real Ruff binary. .venv/bin/ruff shims in each fixture forward to
 # this. Skip the suite when none is available.
 if [[ -n "${RUFF_TEST_BIN:-}" && -x "${RUFF_TEST_BIN}" ]]; then
@@ -46,8 +137,10 @@ if [[ -n "${RUFF_TEST_BIN:-}" && -x "${RUFF_TEST_BIN}" ]]; then
 elif command -v ruff >/dev/null 2>&1; then
   REAL_RUFF="$(command -v ruff)"
 else
-  echo "SKIP: no Ruff binary (set RUFF_TEST_BIN or put ruff on PATH) -- ruff-format hook tests skipped"
-  exit 0
+  echo "SKIP: no Ruff binary (set RUFF_TEST_BIN or put ruff on PATH) -- remaining ruff-format hook tests skipped"
+  echo "PASS=$PASS FAIL=$FAIL"
+  [[ $FAIL -eq 0 ]]
+  exit
 fi
 
 WORK="$(mktemp -d)"
@@ -55,32 +148,8 @@ UNRELATED="$(mktemp -d)"
 cleanup() { rm -rf "$WORK" "$UNRELATED"; }
 trap cleanup EXIT
 
-# make_sink <body> -> path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, not a command-with-args, so tests point it at a stub.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [tries] -> block until <file> is non-empty (the
-# fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    if [[ -s "$f" ]]; then
-      return 0
-    fi
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # new_ruff_repo <dir> [config_body] -> init a git repo with a .venv ruff shim
 # and (unless config_body is the literal NO_CONFIG) a ruff.toml.
@@ -600,7 +669,17 @@ EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 ]]; then
-  HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
+  # The one row outside this gate is the SessionStart prerequisite probe, exec
+  # form behind the ruff_format_enabled launcher gate, which is asserted on its
+  # own here.
+  ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
+  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
+  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "RUFF_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
+  if [[ "$PROBE_COUNT" == "1" ]]; then
+    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true RUFF_FORMAT_ENABLED"
+  else
+    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true RUFF_FORMAT_ENABLED, found $PROBE_COUNT"
+  fi
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"

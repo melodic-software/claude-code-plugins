@@ -36,7 +36,7 @@
 #
 # `restore --all` IS THE ABANDON PATH, NOT THE CLOSE PATH. It is for walking the
 # whole experiment back to its pre-strip state, discarding the result. Closing an
-# experiment normally is the opposite: the surfaces the ledger did not defend
+# experiment normally is the opposite: the editorial surfaces the ledger did not defend
 # STAY retired, which is the finding the experiment was run to produce, so a
 # close never calls it. Reaching the pre-strip state means both halves: a name the
 # ref has is checked out over whatever is on disk, since a file the experiment

@@ -3,6 +3,100 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-09-29
+
+### Added
+
+- `map-data` reads an Entity Framework chain whose `HasForeignKey` takes a lambda, whose entity
+  is configured in an `IEntityTypeConfiguration<T>` class, or whose one-to-many navigations are
+  lambdas resolved from the entity classes. Requiredness falls back to the foreign-key
+  property's declared type when `IsRequired` is absent, so `int?` is optional and `int` is
+  required; an `IsRequired` argument other than `true` or `false` refuses the record. A chain
+  still outside the subset refuses the record and names the property on stderr.
+
+## [0.15.0] - 2026-09-29
+
+### Added
+
+- `map-dependencies` reads Node workspaces and `file:`/`workspace:` dependencies,
+  Go `replace` and `go.work`, Python path references and uv workspaces, Rust
+  workspace members and `path =` dependencies, and Gradle `include` and
+  `project(...)` references and Maven `<modules>`, from readers under `lib/`.
+  Every edge cites its file and declaration; a manifest shape a reader does not
+  handle is reported as `unread-manifest`.
+- `dependency-graph.sh` runs every reader whose manifests are present and
+  merges them into one record; each node carries its own `ecosystem`.
+- `SKILL.md` lists the ecosystems read and the ones declined (Ruby, PHP).
+
+### Changed
+
+- `map-components` no longer counts a stray manifest as a deployable: a project no
+  internal edge touches, in an ecosystem no linked project and no .NET project
+  shares (a tooling `package.json`, a requirements file). A .NET tree with one
+  still charts its host, and the report says how many were set aside.
+
+## [0.14.0] - 2026-09-29
+
+### Removed
+
+- `map-states` and its extractor, renderer, tests, and evals. Its README, config
+  reference, `map-landscape`, catalog, and tag references are removed with it.
+
+## [0.13.0] - 2026-09-29
+
+### Added
+
+- `dependency-graph.sh` takes `--generated-on` and `--out`; `map-dependencies`
+  writes its record through `--out`. With no `--generated-on`, it and
+  `collect-context.sh` stamp the HEAD commit date, so a rerun on one commit is
+  byte-identical.
+- `map-components`, `map-containers`, `map-context`, and `map-deployment` carry
+  verification records for the C4-PlantUML and LikeC4 syntax they emit. Their
+  LikeC4 blocks are diffed against goldens under `lib/likec4-golden/` that pass
+  `likec4 validate`; C4-PlantUML output is still not run through PlantUML.
+- Shared helpers under `lib/`: `config-assignments.awk`, `family-records.sh`
+  (the family's record and rendering names), `github-remote.sh` (one
+  github.com origin parser), and `record-layout.sh`.
+
+### Changed
+
+- `map-states` fails closed: it refuses Stateless features it cannot draw,
+  computes confidence instead of always reporting high, and marks a targeted
+  state with no outgoing permit `terminal_inferred`, not a dead end.
+- `map-flow` follows a call only through the receiver's declared type, emits
+  hops in call order, accepts `Type.Method` and an HTTP verb as the entry, and
+  binds a `Map*` route to the handler it names.
+- `map-deployment` detects Helm by `Chart.yaml`, refuses a layered Compose base
+  and override, recognizes ARM, `*.tfvars`, `*.tf.json`, and `*.tf` as declining
+  tools, and validates `--diff` names. The diff reports parameters present in one
+  environment only, Kubernetes parameters, ports, and `valueFrom` references,
+  labels secret changes `secret-differs`, and lists the kinds it compares.
+- `map-containers` excludes test projects from deployables, identifies a SQL
+  store by host, port, and database, drops a `FROM` digest, emits one shared edge
+  per owner pair, and flags tracked files that differ from HEAD.
+- `map-context` draws an external system only for an integration key, reads a
+  `.db` or `.sqlite` data source as a local file, and screens actor lines with
+  the shared secret detector.
+- `map-data` draws one-to-one relations as `||--o|` or `|o--o|`, reads more
+  uniqueness declarations, uses the declared referenced column in DBML, replays
+  `ALTER TABLE`, and no longer lets an unreadable losing tier block the winner.
+- `map-events` resolves dotted type names against enclosing namespaces and
+  usings, and scopes a `ReceiveEndpoint` queue to its own block.
+- The .NET reference reader reads whole tags, skips commented-out references,
+  scans `Directory.Build.props` and `.targets`, and reports tags it cannot read.
+  The cycle search runs in linear time.
+- Argument hints: `--dialect` on the three C4 skills; `--live` removed from
+  `map-data` and `map-deployment`, where it was always refused.
+- Descriptions of `map-landscape`, `improve`, `record-decision`, `map-context`,
+  `map-components`, and `map-containers` are trimmed to the use case, the
+  routing phrases, and the main sibling redirect. The plugin's shared listing
+  estimate drops from 6647 to 5364 characters.
+
+### Removed
+
+- `map-components`' `component-graph.sh`. The skill reads `dependency-graph.json`
+  or runs `dependency-graph.sh`; a record without a `result` key exits 1.
+
 ## [0.12.5] - 2026-09-28
 
 ### Changed

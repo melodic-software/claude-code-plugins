@@ -1,0 +1,11 @@
+#!/usr/bin/env bats
+# good-for: rule-zero-assertion
+# run -1 fails the test unless greet exits with status 1.
+
+setup() {
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+}
+
+@test "greet with no name exits with a usage error" {
+  run -1 greet
+}

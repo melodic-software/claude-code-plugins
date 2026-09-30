@@ -2,6 +2,9 @@
 # Shared helpers for the /attribution:audit scripts (sourceable; not invoked
 # directly).
 
+# shellcheck source=../../../lib/config-root.sh
+source "${BASH_SOURCE[0]%/*}/../../../lib/config-root.sh"
+
 # require_opt_value <script> <option> [value ...]: refuse an option whose value
 # is missing, empty, or another option. The script name is a parameter because
 # each caller names itself in its own diagnostics; exit 2 is the usage code
@@ -30,20 +33,26 @@ json_str() {
 # cascade in refinement order, user-global then team then overlay, skipping a
 # layer that is not present. The config root is a parameter because it is
 # resolved differently per script (CLAUDE_PROJECT_DIR over a corpus root that
-# each one finds its own way).
+# each one finds its own way). Config-cascade step 2: a home or non-repo root has
+# no team or overlay layer.
 cfg_layers_init() {
   local config_root="$1"
   CFG_LAYERS=()
   cfg_layer_add "${HOME:-/nonexistent}/.claude" attribution.json
+  [[ "$(config_root_classify "$config_root")" == repo ]] || return 0
   cfg_layer_add "$config_root/.claude" attribution.json
   cfg_layer_add "$config_root/.claude" attribution.local.json
 }
 
-# cfg_layer_add <dir> <name>: append <dir>/<name> when present. A layer holding
-# only the legacy provenance file name is never read; it draws one warning.
+# cfg_layer_add <dir> <name>: append <dir>/<name> when present and not already a
+# layer (two paths naming one file are read once). A layer holding only the
+# legacy provenance file name is never read; it draws one warning.
 cfg_layer_add() {
-  local dir="$1" name="$2" legacy="$1/provenance${2#attribution}"
+  local dir="$1" name="$2" legacy="$1/provenance${2#attribution}" layer
   if [[ -f "$dir/$name" ]]; then
+    for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
+      config_root_paths_same "$layer" "$dir/$name" && return 0
+    done
     CFG_LAYERS+=("$dir/$name")
   elif [[ -f "$legacy" ]]; then
     echo "warning: legacy config $legacy is not read; rename it to $dir/$name" >&2

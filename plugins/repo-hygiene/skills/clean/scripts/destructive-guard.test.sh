@@ -224,9 +224,9 @@ assert_contains "ungated tool block reason names the guard" "$ungated_reason" "d
 assert_contains "ungated tool block reason says there is no ack path" "$ungated_reason" "no acknowledgement path"
 assert_not_contains "ungated tool block reason offers no ack spelling" "$ungated_reason" "CLEAN_GUARD_ACK"
 
-# --- 2e. Apply scripts and forced worktree removal are in the net ---------------
-# Dry-run stays reachable. Branch deletion stays out (#3852). The ack prefix
-# still lifts an apply block after the confirmation gate.
+# --- 2e. Apply scripts, forced worktree removal and branch deletion are in the net
+# Dry-run stays reachable, including `git push --delete --dry-run`. The ack
+# prefix still lifts any of these blocks after the confirmation gate.
 
 for cmd in \
   "bash /d/plugins/clean-batch.sh --tier all --apply --batch-plan /tmp/p" \
@@ -246,7 +246,38 @@ for cmd in \
   "bash scripts/git-prune.sh --apply" \
   "git worktree remove --force /d/worktrees/x" \
   "git worktree remove -f /d/worktrees/x" \
-  "git -C /d/repo worktree remove --force /d/worktrees/x"; do
+  "git -C /d/repo worktree remove --force /d/worktrees/x" \
+  "git branch -D feature/x" \
+  "git branch -d feature/x" \
+  "git branch --delete --force x" \
+  "git branch -df x" \
+  "git branch -fd x" \
+  "git branch -vD x" \
+  "git -C /d/repo branch -D x" \
+  "git --no-pager branch -D x" \
+  "git -p branch -D x" \
+  "git --no-pager clean -fd" \
+  "git branch \"-d\" x" \
+  "git branch a b -D" \
+  "git branch --merged | xargs git branch -d" \
+  "git push origin --delete feature/x" \
+  "git push origin --delete refs/heads/feature/x" \
+  "git push --delete origin x" \
+  "git push -d origin x" \
+  "git push origin :feature/x" \
+  "git push origin :refs/heads/x" \
+  "git push origin ':feature/x'" \
+  "git -C /d/repo push origin --delete x" \
+  "git --no-optional-locks push origin --delete x" \
+  "git push origin +:refs/heads/x" \
+  "git push origin +:feature/x" \
+  "git push origin \"+:refs/heads/x\"" \
+  "git push origin '+:refs/heads/x'" \
+  "git push origin \"--delete\" x" \
+  "git push origin '--delete' x" \
+  "git push origin --delete -oconfirmed x" \
+  "git push --dry-run origin main; git push origin --delete x" \
+  "git push -d origin x; ls -n"; do
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
 done
 
@@ -255,17 +286,45 @@ for cmd in \
   "bash scripts/remove-path.sh --dry-run /d/repos/foo" \
   "bash scripts/git-tree-reset.sh --dry-run" \
   "git worktree remove /d/worktrees/x" \
-  "git branch -D feature/x" \
-  "git branch -d feature/x" \
-  "git push origin --delete feature/x" \
-  "git push origin --delete refs/heads/feature/x"; do
-  assert_exit "allows (outside the net): $cmd" 0 "$(guard_exit "$cmd")"
+  "git branch" \
+  "git branch -a" \
+  "git branch -r" \
+  "git branch -vv" \
+  "git branch --list" \
+  "git branch --list 'feature/*'" \
+  "git branch --show-current" \
+  "git branch --merged main" \
+  "git branch --sort=-committerdate" \
+  "git branch -m old new" \
+  "git branch -c old new" \
+  "git branch -u origin/main" \
+  "git branch feature-d" \
+  "git branch -a; ls -d /tmp" \
+  "git branch --merged | xargs -d x echo" \
+  "git -C /d/repo branch -a" \
+  "git --no-pager branch -a" \
+  "git push" \
+  "git push -oconfirmed origin main" \
+  "git push origin main" \
+  "git push origin HEAD:refs/heads/x" \
+  "git push -u origin feature-d" \
+  "git push --force-with-lease origin x" \
+  "git push --delete --dry-run origin x" \
+  "git push -d -n origin x" \
+  "git push -dn origin x" \
+  "git push origin :"; do
+  assert_exit "allows (not matched by is_destructive): $cmd" 0 "$(guard_exit "$cmd")"
 done
 
 assert_exit "ack prefix allows clean-batch --apply" 0 \
   "$(guard_exit "CLEAN_GUARD_ACK=1 bash scripts/clean-batch.sh --tier all --apply --batch-plan /tmp/p")"
 assert_exit "PowerShell ack allows remove-path --apply" 0 \
   "$(guard_exit "$ps_ack bash scripts/remove-path.sh --apply /d/repos/foo" PowerShell)"
+assert_exit "ack prefix allows git branch -D" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git branch -D x")"
+assert_exit "ack prefix allows git push --delete" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git push origin --delete x")"
+assert_exit "PowerShell ack allows git branch -D" 0 "$(guard_exit "$ps_ack git branch -D x" PowerShell)"
+assert_exit "PowerShell tool blocks git branch -D without the ack" 2 "$(guard_exit "git branch -D x" PowerShell)"
+assert_exit "Bash ack prefix grants nothing to git branch -D on an ungated tool" 2 "$(guard_exit "CLEAN_GUARD_ACK=1 git branch -D x" Foo)"
 
 # --- 3. Block reason reaches stderr ----------------------------------------------
 
@@ -320,6 +379,9 @@ nojq_exit() {
 if [[ "$(PATH="$NOJQ_DIR" "$NOJQ_DIR/bash" -c 'command -v jq >/dev/null 2>&1 && echo have-jq; echo ok' 2>/dev/null)" == "ok" ]]; then
   assert_exit "no jq: blocks raw destructive payload" 2 "$(nojq_exit "git clean -fdx")"
   assert_exit "no jq: blocks rm -rf payload" 2 "$(nojq_exit "rm -rf build/")"
+  assert_exit "no jq: blocks git branch -D payload" 2 "$(nojq_exit "git branch -D x")"
+  assert_exit "no jq: blocks git push --delete payload" 2 "$(nojq_exit "git push origin --delete x")"
+  assert_exit "no jq: benign push payload passes" 0 "$(nojq_exit "git push origin main")"
   assert_exit "no jq: benign payload passes" 0 "$(nojq_exit "git status")"
   assert_exit "no jq: ack prefix does NOT bypass (unverifiable)" 2 "$(nojq_exit "CLEAN_GUARD_ACK=1 git clean -fdx")"
   assert_exit "no jq: PowerShell ack does NOT bypass (unverifiable)" 2 "$(nojq_exit "$ps_ack Remove-Item -Recurse -Force obj")"

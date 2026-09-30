@@ -39,9 +39,9 @@ SKILLS=(clean)
 # READ-ONLY scripts are pre-approved. The mutating ones (clean-caches,
 # clean-build, git-prune, git-tree-reset[-batch], remove-path, clean-batch) must
 # keep routing through the permission flow, which is the gate that actually
-# covers them: the PreToolUse destructive guard matches destructive command
-# SHAPES and matches none of these six scripts, so withholding the grant is the
-# whole mechanism here, not a second line of defense.
+# covers them: the PreToolUse destructive guard matches these scripts only in
+# their --apply spelling, so the grant stays withheld and the guard is a
+# second line, not the gate.
 # Every one of them is bundled, executable, and invoked in the skill's
 # markdown — so without this allowlist a grant added for any of them would
 # satisfy every other check here and land silently.
@@ -127,8 +127,8 @@ for skill in "${SKILLS[@]}"; do
 
   # The frontmatter must not promise guard coverage the guard does not provide.
   # `--apply` on the mutating scripts and a forced `git worktree remove` are in
-  # the net. `git branch -D` and `git push --delete` are not (#3852). A comment
-  # that says the scripts "stay behind the PreToolUse destructive guard" without
+  # the net, as are bare `git branch -D`/`-d`/`--delete` and `git push --delete`.
+  # A comment that says the scripts "stay behind the PreToolUse destructive guard" without
   # naming `--apply` overstates a dry-run. The mention has to state both halves.
   if grep -qiE 'behind the (PreToolUse )?destructive guard' <<<"$at"; then
     fail "$skill: allowed-tools uses the overstated 'behind the destructive guard' claim"

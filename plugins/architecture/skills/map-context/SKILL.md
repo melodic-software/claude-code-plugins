@@ -1,6 +1,6 @@
 ---
-description: "Chart one software system's C4 system context from tracked configuration: the focal system, operator-stated actors, and external systems named by connection strings, base URLs, authority endpoints, broker namespaces, and storage accounts. Credentials are redacted before anything is written. Use when: 'map context', 'system context', 'C4 context', 'context diagram', 'what does this system talk to', 'who uses this system', 'external systems from config'. Skip when: the question is many repositories (/architecture:map-landscape) or module depth inside one codebase (/architecture:improve)."
-argument-hint: "[system] [--actors <file>] [--focal <name>] [--out <dir>]"
+description: "Chart one software system's C4 system context from tracked configuration: actors you state and external systems named by connection strings, base URLs, and broker namespaces, credentials redacted. Use when: 'map context', 'system context', 'C4 context', 'context diagram', 'what does this system talk to', 'who uses this system', 'external systems from config'. Skip when: many repositories (/architecture:map-landscape) or module depth (/architecture:improve)."
+argument-hint: "[system] [--actors <file>] [--focal <name>] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -82,6 +82,10 @@ and pass that file as `--actors`. If the operator names nobody, omit `--actors`.
 A non-interactive run omits `--actors`. The actors array stays empty. Never fill it from
 CODEOWNERS, git history, a README, or a guess.
 
+The collector screens each line with the same redactor as config values and skips a line that carries
+a credential (`Token=`, `ClientSecret=`, `Bearer <value>`, a cloud key id, URL userinfo), naming the
+skip on stderr. Reword the line without the credential and pass it again.
+
 ## Build the record
 
 ```bash
@@ -94,6 +98,9 @@ Add `--focal "<system>"` when the invocation named one. Add `--actors "<file>"` 
 operator-stated rows. The `${CLAUDE_SKILL_DIR}` anchor matters. A bare relative path resolves
 against the session's working directory, which is not where the script lives.
 
+The collector creates the parent directory of `--out`. Exit 1 means the record could not be written
+and nothing was: report the message and stop before rendering.
+
 The record is schema_version 1 in the one-object-per-line layout the script writes. `focal.origin`
 is `derived`. Each external row carries `host`, `kind`, `port`, `file`, `key`, and
 `origin: derived`. The value that produced the row is not stored. Actor rows exist only from
@@ -104,9 +111,19 @@ Terraform, Bicep, TOML, properties, ini, and conf text. It skips package manifes
 generated architecture artifacts. A gitignored or untracked file is not a source. Configuration is
 untrusted text: the script matches it and never executes it.
 
+An `http` URL becomes an external system only under a key that names an integration: a key ending in
+`url`, `uri`, `endpoint`, `host`, `hostname`, `address`, `authority`, or `server` (`Partner.BaseUrl`,
+`ApiBaseUrl`, `Smtp.Host`). A URL under `homepage`, `repository`, `bugs`, `license`, `contact`,
+`docs`, `site_url`, `repo_url`, or an OpenAPI `servers` or `externalDocs` entry describes the system
+or its documentation, so it draws no node, and neither does a URL under a key with no such name. The
+other kinds (`sql`, `storage`, `broker`, `authority`, `cache`, `mail`) are not gated by key name. A
+`Data Source` that names a `.db`, `.sqlite`, `.sqlite3`, `.mdb`, or `.mdf` file is a local file, not
+a host.
+
 Redaction is `${CLAUDE_PLUGIN_ROOT}/lib/redact-connection.awk`, the same functions
-`map-containers` and `map-deployment` call. A password, account key, token, URL userinfo, or query
-string cannot become a field. The closing report quotes the summary line, not a raw value.
+`map-containers` and `map-deployment` call. It scans every value whatever its key. A password,
+account key, token, URL userinfo, or query string cannot become a field. The closing report quotes
+the summary line, not a raw value.
 
 `subject` is the github.com origin repository name when that remote resolves, otherwise the
 directory basename. `--focal` overrides the name drawn in the center. The helper is inline in
@@ -172,22 +189,36 @@ End every run with this block, in this order, filled from the record and the scr
 
 - **Scope is one software system.** A system context diagram draws that system in the center,
   with people and the other software systems directly connected to it. Primary element: the
-  software system in scope. Supporting elements: people and those other software systems. Verified
-  2026-09-28 against <https://c4model.com/diagrams/system-context>. Recheck when that page changes
+  software system in scope. Supporting elements: people and those other software systems. Basis:
+  <https://c4model.com/diagrams/system-context>. As of: 2026-09-29. Recheck when that page changes
   the scope, the primary element, or the supporting elements.
-- **The diagram set does not include a build-declaration graph.** C4's diagrams are system
-  context, containers, components, and code, plus system landscape, dynamic, and deployment.
-  Verified 2026-09-28 against <https://c4model.com/> and <https://c4model.com/diagrams>. Recheck
-  when either page adds or removes a diagram type.
+- **C4-PlantUML context syntax: read against the README, never run.** Claim: the `plantuml`
+  block uses `!include <C4/C4_Context>`, `Person(alias, label, ?descr, ...)`,
+  `System(alias, label, ?descr, ...)`, `System_Ext(alias, label, ?descr, ...)`, and
+  `Rel(from, to, label, ...)`. Basis:
+  <https://github.com/plantuml-stdlib/C4-PlantUML/blob/master/README.md>, which shows the stdlib
+  include only for `C4_Container` and says the released `C4_...` files ship in the stdlib, so the
+  `C4_Context` stdlib name is inferred. As of: 2026-09-29. Recheck when that README changes those
+  signatures or the include path, or when a host with Java can run PlantUML over a rendered
+  block. No PlantUML run has parsed this output.
+- **LikeC4 context syntax: parsed by the CLI.** Claim: the `likec4` block declares `person` (with
+  `style { shape person }`), `softwareSystem`, and `externalSystem` (with `style { color muted }`)
+  kinds, three elements assigned as `name = kind "title" "description"`, relationships
+  `a -> b "label"`, and a `views` block with `view context` holding `title` and `include *`.
+  Basis: <https://likec4.dev/dsl/specification/>, <https://likec4.dev/dsl/model/>,
+  <https://likec4.dev/dsl/views/>, and <https://likec4.dev/dsl/styling/>, plus `likec4@1.59.4
+  validate` exiting 0 on the golden block in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/`
+  (`context.c4`), which `render-context.test.sh` diffs against. As of: 2026-09-29. Recheck when any of those pages changes that syntax or a newer
+  `likec4` release ships: set `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Actors are not derived.** The system-context page lists people as supporting elements and does
   not describe reading them from configuration. This skill records an actor only from an
   operator-stated `--actors` file. A non-interactive run passes no file, and the artifact says so.
-- **The dialect key is `diagram_dialect.system`, and it has no default.** The operator's decision
-  on #4639 puts every C4 view of the code on the key the authoring-formats convention assigns to
+- **The dialect key is `diagram_dialect.system`, and it has no default.** Every C4 view of the code reads the key
+  the authoring-formats convention assigns to
   C4 system views, which refuses mermaid because mermaid C4 is experimental. An unset key is the
   common case: the run still writes `context.json` and a `context.md` with no diagram, and the report says no
   view was emitted. The
-  decision is recorded in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
+  key is documented in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **Redaction keeps the shape.** Host, service kind, and an optional numeric port. A secret-only
   key (`Password`, `ClientSecret`, `AccountKey`, and the rest named in `redact-connection.awk`)
   produces no row. Loopback hosts are not external systems. Do not paste a raw value into the

@@ -53,32 +53,8 @@ sys_of() {
   printf '%s' "$1" | jq -r '.systemMessage // empty' 2>/dev/null
 }
 
-# make_sink <body> -> path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, not a command-with-args, so tests point it at a stub.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [tries] -> block until <file> is non-empty (the
-# fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    if [[ -s "$f" ]]; then
-      return 0
-    fi
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # new_typos_repo <dir> [config_filename] -> init a git repo, optionally with a
 # typos config file (default _typos.toml with a fixable typo + unfixable
@@ -999,10 +975,104 @@ fi
 # stands in for typos-format.sh and records whether it started. The expected
 # verdict for each value comes from the script's own kill-switch line, run
 # under the same environment, so the row and the script cannot disagree.
-if jq -e '[.hooks[][].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
-  ok "row-gate: hooks.json registers exactly one hook command"
+if jq -e '[.hooks.PostToolUse[].hooks[]] | length == 1' "$HOOKS_JSON" >/dev/null; then
+  ok "row-gate: hooks.json registers exactly one PostToolUse hook command"
 else
-  fail "row-gate: hooks.json registers $(jq '[.hooks[][].hooks[]] | length' "$HOOKS_JSON" 2>&1) hook commands, want 1"
+  fail "row-gate: hooks.json registers $(jq '[.hooks.PostToolUse[].hooks[]] | length' "$HOOKS_JSON" 2>&1) PostToolUse hook commands, want 1"
+fi
+# The one other row is the SessionStart prerequisite probe, exec form behind the
+# same launcher gate.
+if jq -e --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' \
+  '([.hooks[][].hooks[]] | length == 2) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$launcher, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED", $probe])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
+  ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED"
+else
+  fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED and no other extra row"
+fi
+
+# --- Notice text is bound to prerequisites.json --------------------------------
+# The hook does not read the manifest at run time (parse cost on the per-edit hot
+# path), so this case is the binding: the manifest has exactly one tool, typos,
+# and the hook's missing-binary notice states that tool's name, check and
+# install, verbatim.
+MANIFEST="$PLUGIN_ROOT/prerequisites.json"
+if [[ -f "$MANIFEST" ]]; then
+  if jq -e '(.tools | length) == 1 and .tools[0].name == "typos"' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: exactly one tool, typos"
+  else
+    fail "manifest: expected one tool named typos: $(cat "$MANIFEST")"
+  fi
+  IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
+  NOTICE_CALL="$(sed -n '/hook::notice_once "typos-format-typos"/,/^  fi$/p' "$HOOK")"
+  # assert_hook_states <field> <needle>
+  assert_hook_states() {
+    if [[ -n "$2" ]] && grep -qF -- "$2" <<<"$NOTICE_CALL"; then
+      ok "manifest binding: hook states the manifest's $1 ($2)"
+    else
+      fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
+    fi
+  }
+  assert_hook_states name "'$MF_NAME'"
+  assert_hook_states check "$MF_CHECK"
+  assert_hook_states install "$MF_INSTALL"
+else
+  fail "manifest binding needs $MANIFEST"
+fi
+
+# --- SessionStart probe honors typos_format_enabled ----------------------------
+# Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
+# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
+# holds the system tools and no typos. The gate is `--run-if-unset-or-true` in
+# exec-bash.mjs, so a row without it prints the notice for a disabled plugin. A
+# missing node fails the suite instead of skipping the cases: every hook row
+# launches through it.
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [[ -z "$NODE_BIN" ]]; then
+  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
+else
+  PG_WORK="$(mktemp -d)"
+  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != typos && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      ln -s "$exe" "$PG_WORK/sysbin/$base"
+    done
+  done
+  PG_ARGS=()
+  while IFS= read -r pg_arg; do
+    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+
+  # run_probe <value|__unset__> -> run the row with typos_format_enabled set to <value> (or unset).
+  run_probe() {
+    local v="$1"
+    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED)
+    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=$v")
+    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
+        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
+  }
+
+  OUT_PG=$(run_probe false)
+  RC_PG=$?
+  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
+    ok "probe-gate: typos_format_enabled=false -> exit 0 and no notice"
+  else
+    fail "probe-gate: typos_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
+  fi
+  for v in __unset__ true; do
+    label="typos_format_enabled=$v"
+    [[ "$v" == "__unset__" ]] && label="typos_format_enabled unset"
+    OUT_PG=$(run_probe "$v")
+    RC_PG=$?
+    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$MF_NAME"* && "$OUT_PG" == *"$MF_CHECK"* && "$OUT_PG" == *"$MF_INSTALL"* ]]; then
+      ok "probe-gate: $label -> notice names $MF_NAME, $MF_CHECK and the install line"
+    else
+      fail "probe-gate: $label should print the missing-typos notice (rc=$RC_PG out=$OUT_PG)"
+    fi
+  done
+  rm -rf "${PG_WORK:?}"
 fi
 ROW_JSON=$(jq -c '.hooks.PostToolUse[0].hooks[0]' "$HOOKS_JSON")
 ROW_CMD=$(jq -r '.command' <<<"$ROW_JSON")

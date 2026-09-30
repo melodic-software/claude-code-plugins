@@ -1,0 +1,13 @@
+# expect: rule-inert-assertion
+# A bare comparison returns a bool that Pester discards; only Should throws.
+BeforeAll {
+    . $PSScriptRoot/Sum.ps1
+}
+
+Describe 'Get-Sum' {
+    It 'adds two numbers' {
+        $result = Get-Sum 2 3
+        $result -eq 5
+        $result | Should -BeOfType [int]
+    }
+}

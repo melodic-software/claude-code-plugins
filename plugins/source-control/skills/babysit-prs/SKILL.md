@@ -139,6 +139,12 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 never merged autonomously in ANY tier, the merge gate refuses it absent `--allow-dependency`,
 which is passed only on an explicit user instruction to merge that specific PR.
 
+**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge") is held in ANY tier:
+the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
+label is held the same way: the gate blocks on that label unconditionally, and `--block-labels`
+adds further labels in the autopilot merge tier. The PR is reported and left unmerged. The
+hyphenated label name in a body is not a hold.
+
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
 autopilot: zero-blocker drafts always route through a worker (see Fan out). The ready flip
@@ -393,6 +399,33 @@ suspicious state changes such as missing permissions, changed branch protection,
 conflicts, or a head SHA that moved during work. When nothing materially changed, stay silent.
 Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5.3.
 
+## Boundary, the built-in `/autofix-pr` command
+
+Both watch a pull request and push fixes to it, so "watch my PR and fix what breaks" can land on
+either.
+
+- **`/autofix-pr` (built-in command).** Ships with Claude Code rather than as a marketplace
+  plugin. Spawns a cloud session that watches the current branch's PR and pushes fixes when CI
+  fails or reviewers comment, and keeps running after the local session ends. It is reserved for
+  the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** A fleet pass over the person's open PRs from the local
+  session, under tiered autonomy, with deterministic gates on every mutation; the safe tier never
+  resolves threads or merges.
+
+**Routing.** When the person wants one PR watched after this session ends, offer it to the
+person: you can run `/autofix-pr` instead of or alongside this skill for that PR. Prefer this
+skill for the fleet, for tiered merge authority, and for anything the gates must prove. An
+unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** Both push to the PR branch. When `/autofix-pr` runs on a PR this skill also
+works, fetch before each fix commit and skip a finding the cloud session already fixed. This skill
+never runs `/autofix-pr` on the person's behalf.
+
+**Availability is never assumed.** The command registers hidden and gated, and needs `gh` and
+cloud-session access; this section states what to do when the person can run it, never that it is
+present. The four-part records live in
+[reference/native-autofix-pr.md](reference/native-autofix-pr.md).
+
 ## Gotchas
 
 - **Survey-without-classifying is the primary failure.** A run can report completion having
@@ -432,5 +465,6 @@ Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5
 | [reference/autopilot.md](reference/autopilot.md) | Running the autopilot tier: its per-PR steps, exclusions, draft handling, widened scopes. |
 | [reference/worktrees.md](reference/worktrees.md) | Creating, reusing, or pruning a per-PR worktree before dispatching a worker. |
 | [reference/feedback.md](reference/feedback.md) | A PR carries review comments needing classification and disposition, or the PR is a bot's and its taxonomy decides the handling. |
+| [reference/native-autofix-pr.md](reference/native-autofix-pr.md) | Checking the basis of the `/autofix-pr` Boundary section, or its recheck trigger fired. |
 | [reference/independent-resolution.md](reference/independent-resolution.md) | A current bot thread is addressed but this context may not retire it. |
 | [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md) | Running the per-PR checklist for real, or briefing a worker: the compact checklist above is a skeleton over this. |

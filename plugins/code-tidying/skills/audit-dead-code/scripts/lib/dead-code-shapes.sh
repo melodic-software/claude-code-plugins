@@ -37,7 +37,7 @@ dc_trim_excerpt() {
 dc_shape_tier() {
   case "$1" in
   py-unreachable | go-unused-unexported | unreferenced-symbol) printf '1' ;;
-  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | unreferenced-file) printf '2' ;;
+  ts-unused-file | ts-unused-export | ts-unused-type | ts-unused-enum-member | py-unused-symbol | ts-unreferenced-symbol | unreferenced-file) printf '2' ;;
   *) printf '3' ;;
   esac
 }
@@ -55,27 +55,61 @@ dc_is_excluded_path() {
   return 1
 }
 
+# Lowercase extensions of source files with no symbol detector. Add one here,
+# space-separated, to classify it.
+DC_NOLANE_EXTS=" rs cs fs fsx vb java kt kts scala rb php c h cc cpp cxx hpp hh hxx swift lua ex exs erl hs ml mli dart pl pm zig nim clj cljs groovy vue svelte sql pyi r tf proto m mm s asm sol "
+
 # In-skill fallback glob table. A consumer repo that ships
 # .claude/ecosystems/<eco>.yaml has richer globs; this table is the common path
 # because most repos do not. `install-hint` is deliberately not consumed — it
 # names an ecosystem's lint tools, never a dead-code detector.
 #
-# `nolane` is a source file this roster has no symbol detector for (Rust, .NET,
-# and the other extensions below). The grep lane can still report it as
-# `unreferenced-file`. `other` is not source (docs, manifests, markup) and is
-# outside the coverage total.
+# `nolane` is a source file this roster has no symbol detector for: an extension
+# in DC_NOLANE_EXTS (Rust, .NET, and the rest), or an extensionless file whose
+# line-1 shebang names an interpreter other than a shell. The grep lane can still
+# report it as `unreferenced-file`. An extensionless file with a shell shebang is
+# `shell`. `other` is not source (docs, manifests, markup, an extensionless file
+# with no shebang) and is outside the coverage total.
 dc_lang_of_path() {
+  local base="${1##*/}" line word interp=''
+  local -a words
   case "${1,,}" in
   *.ts | *.tsx | *.mts | *.cts | *.js | *.jsx | *.mjs | *.cjs) printf 'ts' ;;
   *.py) printf 'py' ;;
   *.go) printf 'go' ;;
   *.sh | *.bash) printf 'shell' ;;
   *.ps1 | *.psm1) printf 'pwsh' ;;
-  *.rs | *.cs | *.fs | *.fsx | *.vb | *.java | *.kt | *.kts | *.scala | *.rb | *.php | \
-    *.c | *.h | *.cc | *.cpp | *.cxx | *.hpp | *.hh | *.hxx | *.swift | *.lua | *.ex | *.exs | \
-    *.erl | *.hs | *.ml | *.mli | *.dart | *.pl | *.pm | *.zig | *.nim | *.clj | *.cljs | \
-    *.groovy | *.vue | *.svelte | *.sql | *.pyi | *.r | *.tf | *.proto | *.m | *.mm) printf 'nolane' ;;
-  *) printf 'other' ;;
+  *)
+    if [[ "$base" == *.* ]]; then
+      base="${base,,}"
+      if [[ "$DC_NOLANE_EXTS" == *" ${base##*.} "* ]]; then printf 'nolane'; else printf 'other'; fi
+    elif [[ -f "$1" && -r "$1" ]]; then
+      { IFS= read -r line || true; } <"$1"
+      line="${line//$'\r'/}"
+      if [[ "$line" == '#!'* ]]; then
+        read -ra words <<<"${line#'#!'}"
+        local skip=0
+        for word in ${words[@]+"${words[@]}"}; do
+          if ((skip)); then
+            skip=0
+            continue
+          fi
+          case "$word" in -u | -C | --unset | --chdir) skip=1 ;; *) ;; esac
+          interp="${word##*/}"
+          [[ "$interp" == env || "$word" == -* || "$word" == *=* ]] || break
+        done
+        case "$interp" in
+        sh | bash | dash | zsh | ksh) printf 'shell' ;;
+        '' | env) printf 'other' ;;
+        *) printf 'nolane' ;;
+        esac
+      else
+        printf 'other'
+      fi
+    else
+      printf 'other'
+    fi
+    ;;
   esac
 }
 
@@ -481,28 +515,36 @@ dc_knip_config_module() {
 # ---------------------------------------------------------------------------
 
 # Emit `<line><TAB><name><TAB><text>` for every symbol DEFINITION in one file.
-# The extractor set is this lane's declared coverage: shell functions and
-# PowerShell functions. Names under three characters are dropped — at that
-# length the reference search is noise, not evidence.
+# The extractor set is this lane's declared coverage: shell functions,
+# PowerShell functions, and function, class, const, let, and var declarations in
+# JS/TS (with or without `export`). Names under three characters are dropped:
+# at that length the reference search is noise, not evidence.
 dc_symbol_defs() {
   local file="$1" lang="$2"
   local line name num=0
   local sh_paren='^[[:space:]]*(function[[:space:]]+)?([A-Za-z_][A-Za-z0-9_:.-]*)[[:space:]]*\(\)[[:space:]]*\{'
   local sh_kw='^[[:space:]]*function[[:space:]]+([A-Za-z_][A-Za-z0-9_:.-]*)'
   local ps_kw='^[[:space:]]*[Ff]unction[[:space:]]+([A-Za-z_][A-Za-z0-9_-]*)'
+  local ts_decl='^[[:space:]]*(export[[:space:]]+)?(default[[:space:]]+)?(async[[:space:]]+)?(function[*]?|class|const|let|var)[[:space:]]+([A-Za-z_$][A-Za-z0-9_$]*)'
   while IFS= read -r line || [[ -n "$line" ]]; do
     num=$((num + 1))
     line="${line//$'\r'/}"
     name=""
-    if [[ "$lang" == 'shell' ]]; then
+    case "$lang" in
+    shell)
       if [[ $line =~ $sh_paren ]]; then
         name="${BASH_REMATCH[2]}"
       elif [[ $line =~ $sh_kw ]]; then
         name="${BASH_REMATCH[1]}"
       fi
-    elif [[ $line =~ $ps_kw ]]; then
-      name="${BASH_REMATCH[1]}"
-    fi
+      ;;
+    ts)
+      [[ $line =~ $ts_decl ]] && name="${BASH_REMATCH[5]}"
+      ;;
+    *)
+      [[ $line =~ $ps_kw ]] && name="${BASH_REMATCH[1]}"
+      ;;
+    esac
     [[ -n "$name" ]] || continue
     ((${#name} >= 3)) || continue
     printf '%s\t%s\t%s\n' "$num" "$name" "$(dc_trim_excerpt "$line")"

@@ -3,6 +3,101 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-09-29
+
+### Fixed
+
+- **The PowerShell mutation-word check relieves quoted words only for allow-listed commands.** A deletion word inside a quoted literal (a commit message, a search term, an issue body) no longer prompts when every command head is on the allow-list of commands that never run their string arguments and the line has no comment, subexpression, here-string, backtick, call operator, or member call. Any other line still gets the plain word match. The operator handoff tells operators to pass `gh` bodies with `--body-file` and to prefer single-quoted literals.
+
+## [0.29.0] - 2026-09-29
+
+### Added
+
+- **Protection matches are reported**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). The scan entry,
+  the preview candidate, the `handoff-verify` and emptied-container verdicts, and an `apply` skip
+  carry `protection_matches`: every covering protection entry as `{glob}` or `{glob, reason}`,
+  sorted and deduplicated. The field is absent when nothing matched; the `consumer-protected-path`
+  blocker string and `SCHEMA_VERSION` are unchanged.
+
+### Fixed
+
+- **A UNC protection glob is absolute** ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). A glob spelled with a leading double backslash was
+  classified as relative, so it matched nothing. The matcher now reads backslashes as separators on
+  both glob and path, so a UNC glob covers a UNC path and not a sibling share.
+- **`--root-children` keeps the strict ladder on every volume root**
+  ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). On a volume root
+  that is not OS-managed (a Windows Dev Drive) the scan fell into the relaxed listing meant for home
+  directories and offered `System Volume Information`, `$Recycle.Bin`, hidden and OS-owned names. This
+  changes the 0.27.1 behavior on such a root; a target that is not a volume root keeps the relaxed
+  directory listing.
+- **`/swap.img` is withheld as OS-owned**
+  ([#4000](https://github.com/melodic-software/claude-code-plugins/issues/4000)). The Linux OS-owned
+  root-file set named only `swapfile` and the `vmlinuz`/`initrd.img` globs.
+- **`rollup_precision` reads `partial` when any subtree failed to scan**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). A `--sizes-only`
+  scan with an unreadable directory, a mount-state error or a not-walked entry reported `exact`.
+- **Setup and clean wording no longer contradicts itself.** The setup skill said manual handoff
+  applies only under `--execute`; it applies after an execution request and explicit approval
+  ([#4214](https://github.com/melodic-software/claude-code-plugins/issues/4214)). The clean skill said
+  never to delete outside the engine while describing the manual lane; it now says never to delete
+  without a clear `handoff-verify` verdict
+  ([#4227](https://github.com/melodic-software/claude-code-plugins/issues/4227)).
+- **The Stop detector stays silent when the transcript file is missing.** It printed "did not run;
+  fail-open" on stderr; it now exits 0 with no output, as it does for a missing `transcript_path`.
+  An unexpected exception still prints the fail-open line.
+
+### Changed
+
+- **`node` and bash are declared prerequisites.** Every hook runs `node hooks/exec-bash.mjs`, so
+  the README Requirements list Node.js on `PATH` and a bash the launcher can find, and
+  `/disk-hygiene:setup check` FAILs when either is missing. The README failure table gains the
+  launcher row: the hook fails to launch, the user sees a hook error notice, the guard is not
+  enforced, and the model is not told; the Stop detector cannot report it. Setup and the README
+  say the launcher also finds bash on `PATH`.
+- **The README states the launch form and the volume-root file rule without release history.**
+
+- **`--quiet`, `--root-children`/`--root-child` and `--sizes-only` detail** moved from the `clean`
+  skill body into `reference/scan-flags.md`. The skill keeps the parse contract and one line per
+  flag; no rule changed.
+- **Documentation states current behavior.** `--sizes-only` skips the large-scan question, does not
+  stop at VCS or protected directories, and has no entry cap
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). The README, worker
+  brief and safety model separate the plugin engine gate (fires in subagents) from the skill belt
+  (reach inconsistent, [#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)),
+  describe the no-interpreter launcher behavior without history, and qualify the four-gate statements
+  with the `accept_unpublished` acknowledgement. The README's "Relationship to other tools" heading is
+  restored. The `engine_context.py` and `destructive_guard.py` docstrings match the code.
+- **Records repaired.** The safety model and skill body state #3855 as closed, drop recheck triggers
+  that can no longer fire, and remove the unsourced settings write-path claim from the
+  `extraKnownMarketplaces` record. The standing "ranking stays a model instruction" record for
+  [#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858) is removed from
+  `SKILL.md` and the safety model; #3858 stays parked (owner decision).
+- **Released entries corrected in place.** 0.28.9: "Option A:" relabeled "The recorded decision:".
+  0.28.2: version-serialization sentence removed. 0.28.1: added the `kind`, `logical_size`, `mtime`
+  and `attributes` fields the entry omitted. 0.27.0: "Volume-root behavior is unchanged" replaced
+  with the non-volume scope statement. 0.26.3: version-serialization and operator-park sentences
+  removed. 0.28.5: added a line saying the version was never released on its own and its change
+  shipped in 0.28.6.
+
+## [0.28.19] - 2026-09-29
+
+### Changed
+
+- **clean tests:** the closed-stderr repair test marks its `os.write(2, b"")` probe with `cant-fail-ok:`, so the can't-fail scanner counts it as a deliberate exemption instead of a zero-assertion finding. Test-only.
+
+## [0.28.18] - 2026-09-29
+
+### Fixed
+
+- **`clean` argument hint covers every flag.** The hint keeps `[--execute]`, `[--max-depth <N>]`, `[--sizes-only]`, and `[--policy <file>]`, and an `[options]` placeholder stands for `--confirmed-large-scan`, `--quiet`, and `--root-children` with `--root-child <name>`. The `**Arguments.**` line leads with the hint and keeps the complete flag list after it.
+
+## [0.28.17] - 2026-09-29
+
+### Fixed
+
+- **Shared launcher sync: `exec-bash.mjs` finds bash on `PATH`, runs through a symlinked path, and names the hook that did not run.** A launch failure prints one stderr line naming the script.
+
 ## [0.28.16] - 2026-09-28
 
 ### Fixed
@@ -81,7 +176,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Changed
 
 - **No disk-full emergency lane; every pass stays a cautious tidiness pass**
-  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). Option A:
+  ([#3855](https://github.com/melodic-software/claude-code-plugins/issues/3855)). The recorded decision:
   none of the three rules (tidiness-over-bytes, one-tier preview-and-approval,
   patterns-are-hints) yields under pressure, and regenerable-at-a-cost is not an engine
   signal. Changing nothing is the recorded answer, so the next audit does not re-file it.
@@ -106,6 +201,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ## [0.28.5] - 2026-09-28
 
+This version was never released on its own: its change shipped in 0.28.6, together with the 0.28.6 fix.
+
 ### Changed
 
 - Hook rows that were a `bash` command line now launch as exec form: `"command": "node"` and `hooks/exec-bash.mjs`, then the same script and arguments ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). `node` is the gate-legal Windows executable. The launcher finds Git Bash and never `System32\\bash.exe`. A row that needs a shell stays shell form.
@@ -118,7 +215,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#3857](https://github.com/melodic-software/claude-code-plugins/issues/3857)). The #1116
   reversal trigger has not fired. The safety model quotes it and records the four-part
   2026-09-28 re-affirmation. Per-primitive re-gating is a new design question. No code
-  change. Version is 0.28.2 so it serializes after 0.28.1 on main.
+  change.
 
 ## [0.28.1] - 2026-09-28
 
@@ -131,8 +228,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `not-regular-file-or-directory`. On any other target, files stay `not-a-directory`. A per-platform OS-owned file
   name set withholds `pagefile.sys` / `/swapfile` / `vmlinuz*` and kin. Stdout groups
   `root_children_skipped` by reason with counts; `empty_file_count` sits beside
-  `empty_directory_count` on every scan. When `Users`/`home` is withheld, the note names the
-  current user's home as a separate target.
+  `empty_directory_count` on every scan. Each `root_children` listing row carries `kind`,
+  `logical_size` and `mtime`, plus `attributes` on Windows; a row whose `lstat`
+  fails carries none of them. When `Users`/`home` is withheld, the note names the current user's
+  home as a separate target.
 
 ## [0.28.0] - 2026-09-28
 
@@ -166,7 +265,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#4221](https://github.com/melodic-software/claude-code-plugins/issues/4221)). After a bounded
   depth-1 home audit, re-run against the home path with `--root-children` and explicit
   `--root-child` names to fully inventory approved top-level directories into one snapshot without
-  walking the whole home. Volume-root behavior is unchanged (OS-managed roots only).
+  walking the whole home. On a non-volume target only directories are admitted; hidden and volume-OS-named
+  directories stay selectable there.
 
 ## [0.26.4] - 2026-09-28
 
@@ -181,9 +281,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **Ranking signals stay a model instruction, not an engine primitive**
   ([#3858](https://github.com/melodic-software/claude-code-plugins/issues/3858)). The
   provenance mandate (tier, location sensitivity, provenance strength over byte totals)
-  stays in the skill body. No coded ranker on the destructive surface. Operator park
-  2026-09-27: keep attended, stay parked. Version is 0.26.3 so it serializes after
-  #4669 (0.26.1) and #3857 (0.26.2).
+  stays in the skill body. No coded ranker on the destructive surface.
 
 ## [0.26.0] - 2026-09-28
 

@@ -59,21 +59,134 @@ clean_worktree_branches() {
   git -C "$1" worktree list --porcelain 2>/dev/null | grep '^branch' | sed 's|^branch refs/heads/||' | tr -d '\r' || true
 }
 
+# clean_worktree_path <repo_root> <branch>: print the path of the worktree that
+# has <branch> checked out (empty when none does). Reads the same porcelain
+# listing as clean_worktree_branches, so the audit's WORKTREE verdict and the
+# path it reports cannot disagree.
+clean_worktree_path() {
+  git -C "$1" worktree list --porcelain 2>/dev/null | tr -d '\r' |
+    awk -v ref="branch refs/heads/$2" '/^worktree /{p=substr($0,10)} $0==ref{print p; exit}'
+}
+
+# clean_worktree_branch_paths <repo_root>: print `<branch><TAB><path>` for each
+# branch checked out in a worktree, from one read of the same porcelain listing:
+# the branch set clean_worktree_branches prints, each with the path
+# clean_worktree_path prints (the first worktree listing it). The branch audit
+# reads this once instead of running clean_worktree_path per WORKTREE branch.
+clean_worktree_branch_paths() {
+  git -C "$1" worktree list --porcelain 2>/dev/null | tr -d '\r' |
+    awk '/^worktree /{p=substr($0,10)} /^branch refs\/heads\//{b=substr($0,19); if (!(b in seen)) {seen[b]=1; print b "\t" p}}'
+}
+
 # clean_loss_count <repo_root> <branch>: print the number of commits on
 # refs/heads/<branch> reachable from no remote-tracking ref and no tag; exit
 # non-zero when git could not count. `--not --remotes --tags` is git's own idiom
 # for "unpushed anywhere": it negates every ref under refs/remotes/ and
 # refs/tags/, and nothing else, so another local branch, HEAD, and the
 # refs/repo-hygiene/deleted/ pins are not places the work is considered to
-# persist. One spelling for the branch audit's LOSSY verdict and the delete
-# path's live re-check, so the two can never disagree about what a deletion
-# loses.
+# persist. The delete path's live re-check runs this per branch; the branch
+# audit computes the same count for every branch at once with
+# clean_unreached_counts and runs this only where that pass fails, so the two
+# cannot disagree about what a deletion loses (the audit suite holds them equal
+# on every fixture branch).
 clean_loss_count() {
   local n
   n="$(git -C "$1" rev-list --count "refs/heads/$2" --not --remotes --tags 2>/dev/null)" || return 1
   n="${n%$'\r'}"
   [[ "$n" =~ ^[0-9]+$ ]] || return 1
   printf '%s' "$n"
+}
+
+# clean_unreached_counts <repo_root> <rev>...: read commit ids, one per line,
+# from stdin and print `<id> <n>` for each, where n is what
+# `git rev-list --count <id> --not <rev>...` prints for that id. One
+# `rev-list --parents --stdin --not <rev>...` lists every commit the ids reach
+# and <rev>... does not, with its parents; an id's n is the size of its ancestry
+# inside that list, which is the per-id count, not an estimate. Every id must be
+# a commit. Exit non-zero when git fails; the caller then counts per id.
+# ponytail: one ancestry walk per id, O(ids x listed commits); memoize shared
+# chains if a repository's unmerged history makes that slow.
+clean_unreached_counts() {
+  local repo_root="$1" ids graph
+  shift
+  IFS= read -r -d '' ids || true
+  ids="${ids%$'\n'}"
+  [[ -n "$ids" ]] || return 0
+  graph="$(printf '%s\n' "$ids" | git -C "$repo_root" rev-list --parents --stdin --not "$@" 2>/dev/null)" || return 1
+  printf '%s\n--\n%s\n' "$ids" "$graph" | awk '
+    !mark && $0 == "--" { mark = 1; next }
+    !mark { id[$1] = 1; next }
+    NF { parents[$1] = substr($0, length($1) + 2) }
+    END {
+      for (t in id) {
+        n = 0
+        if (t in parents) {
+          sp = 0; stack[sp++] = t; seen[t] = t
+          while (sp > 0) {
+            c = stack[--sp]; n++
+            k = split(parents[c], ps, " ")
+            for (i = 1; i <= k; i++) {
+              p = ps[i]
+              if ((p in parents) && seen[p] != t) { seen[p] = t; stack[sp++] = p }
+            }
+          }
+        }
+        print t, n
+      }
+    }'
+}
+
+# clean_landed_proof <repo_root> <default_branch> <branch>: succeed, printing the
+# proof, when origin/<default_branch> already holds refs/heads/<branch>'s work
+# under other SHAs; exit 1 with nothing printed otherwise (every failed or
+# missing signal is "no proof"). The branch audit records the proof in its
+# capture and the delete path re-runs this live, so a captured proof is never
+# taken on trust. A branch with no net change from its merge-base has no work to
+# prove (empty patches all share one patch-id), so it proves nothing. In order:
+#   1. `git cherry` prints a line per commit the branch has that origin/<default>
+#      lacks, `-` when an equivalent patch is there; all `-` means a rebase or
+#      cherry-pick merge landed every commit. It does not list merge commits, so
+#      a branch with any skips this step: a merge's own conflict resolution can
+#      sit in no commit main holds, and only the whole-tree steps below see it.
+#   2. The branch's tree is origin/<default>'s tree: the work landed as commits
+#      split differently, which neither cherry nor a single patch-id matches.
+#   3. A squash lands the whole diff as one commit, so the branch's tree is
+#      re-committed onto the merge-base and looked up the same way. That
+#      `commit-tree` writes one unreferenced loose object (no ref; `git gc`
+#      prunes it), the only write the proof makes.
+# ponytail: each `git cherry` patch-ids every commit on origin/<default> since
+# the merge-base, up to two runs per branch; one `rev-list | diff-tree -p |
+# patch-id` pass per merge-base would serve every branch if that gets slow.
+clean_landed_proof() {
+  local repo_root="$1" base="origin/$2" ref="refs/heads/$3" out mb merges synth rc=0
+  local -a trees
+  mb="$(git -C "$repo_root" merge-base "$base" "$ref" 2>/dev/null | tr -d '\r')"
+  [[ -n "$mb" ]] || return 1
+  git -C "$repo_root" diff --quiet "$mb" "$ref" 2>/dev/null || rc=$?
+  [[ $rc -eq 1 ]] || return 1
+  merges="$(git -C "$repo_root" rev-list --merges --max-count=1 "$base..$ref" 2>/dev/null)" || return 1
+  if [[ -z "$merges" ]]; then
+    out="$(git -C "$repo_root" cherry "$base" "$ref" 2>/dev/null | tr -d '\r')"
+    if [[ -n "$out" ]] && ! grep -qv '^-' <<<"$out"; then
+      printf 'landed by patch-id (git cherry)'
+      return 0
+    fi
+  fi
+  mapfile -t trees < <(git -C "$repo_root" rev-parse "$ref^{tree}" "$base^{tree}" 2>/dev/null | tr -d '\r')
+  if [[ ${#trees[@]} -eq 2 && "${trees[0]}" == "${trees[1]}" ]]; then
+    printf 'landed as identical content (tree equals %s)' "$base"
+    return 0
+  fi
+  synth="$(GIT_AUTHOR_NAME=landed-proof GIT_AUTHOR_EMAIL=landed-proof@localhost \
+    GIT_COMMITTER_NAME=landed-proof GIT_COMMITTER_EMAIL=landed-proof@localhost \
+    git -C "$repo_root" commit-tree "$ref^{tree}" -p "$mb" -m landed-proof 2>/dev/null | tr -d '\r')"
+  [[ -n "$synth" ]] || return 1
+  out="$(git -C "$repo_root" cherry "$base" "$synth" 2>/dev/null | tr -d '\r')"
+  if [[ "$out" == -* && "$out" != *$'\n'* ]]; then
+    printf 'landed as a squash (tree patch-id)'
+    return 0
+  fi
+  return 1
 }
 
 # clean_pr_map <outfile> <json_fields> — fetch the repository's pull-request map

@@ -46,6 +46,7 @@ Existing:
 | `check-skill.sh:609` (check 1) | A declared `name` must equal its directory | script | same |
 | `scripts/check-docs-naming.sh` | Lower-kebab `docs/` file names, case collisions | script | `ci.yml:788` |
 | `scripts/check-adr-numbers.sh` + `scripts/adr-numbers-baseline.txt` | No two `docs/adr/` records share a number, beyond the baselined pairs | script | `ci.yml`, step `adr_numbers` |
+| `scripts/check-spoke-plugin-root.sh` + `scripts/spoke-plugin-root-baseline.txt` | No skill spoke (`context/`, `reference/`, `references/`) contains `${CLAUDE_PLUGIN_ROOT}`, beyond the per-file counts in the baseline | script | `ci.yml`, step `spoke_plugin_root` |
 | `plugins/naming/skills/name-it-better/SKILL.md:61,103-104,127-135` | Generates names: verb for an action, a "collision vocabulary" in the brief, three blind generators | judgment | no |
 | `docs/glossary.md` + `/domain-driven-design:curate-language` | The repo's resolved vocabulary (`glossary.md:1-10`) | curated doc | no |
 
@@ -116,7 +117,8 @@ Existing:
 | `scripts/check-skill-portability.sh:330-342` + `skill-portability-tokens.txt` | A fixed branch, forge, ecosystem or remote in an agnostic skill; `portability-ok` / `portability-scope` escapes | script, changed files | `ci.yml:1345` |
 | `scripts/validate-plugin-contracts.mjs:22-26,263,266` + `org-agnosticism-tokens.txt` | Publisher ids, `MELODIC_*` keys, marketplace-bound setup | script | through `validate-plugins.sh` |
 | `validate-plugin-contracts.mjs:275` | No `npx` or runtime downloads in hooks | script | same |
-| `scripts/check-shell-portability.sh` + `shell-portability-tokens.txt` | GNU-only shell constructs in `.sh` files and skill markdown | script, changed files (`--all` is not in CI) | `ci.yml:1368` |
+| `scripts/check-shell-portability.sh` + `shell-portability-tokens.txt` | GNU-only shell constructs in `.sh` files and skill markdown | script, changed files (`--all` and `--awk-probe` are not in CI) | `ci.yml:1368` |
+| `scripts/check-shell-portability.sh --awk-probe SUITE...` + `scripts/lib/awk-probe.sh` | A `*.test.sh` whose exit differs between two distinct awk implementations (`awk -v` escape divergence; the fix is `ENVIRON[]`) | script, manual; needs two distinct awks (gawk plus mawk) on PATH, else it exits 2 | no |
 | `scripts/check-hook-userconfig-argv.sh` | Bare `${user_config.*}` in hook configs | script | `ci.yml:803` |
 | `plugins/claude-config/skills/audit-permission-grants` | Machine paths and tilde paths in grants | script (`permission-rule-check.sh`) | no |
 | `/docs-hygiene:audit-encapsulation` | Paths into another skill's or plugin's private files (`docs/plugin-philosophy.md:406-419`) | skill | no |
