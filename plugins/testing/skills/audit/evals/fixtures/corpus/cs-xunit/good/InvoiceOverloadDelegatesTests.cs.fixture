@@ -1,0 +1,18 @@
+// good-for: rule-zero-assertion
+// ShouldTotal has two overloads. The one-argument overload delegates to the
+// two-argument one, which asserts, so every overload the test could call
+// asserts.
+using Xunit;
+
+public sealed class InvoiceOverloadDelegatesTests
+{
+    [Fact]
+    public void Total_IsComputed() => ShouldTotal(new Invoice(10m, 2));
+
+    private static void ShouldTotal(Invoice invoice) => ShouldTotal(invoice, 20m);
+
+    private static void ShouldTotal(Invoice invoice, decimal expected)
+    {
+        Assert.Equal(expected, invoice.Total);
+    }
+}

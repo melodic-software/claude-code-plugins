@@ -10798,6 +10798,7 @@ class GuardTests(unittest.TestCase):
                     return 2
 
             guard._discard_stream(_ClosedFdStream())
+            # cant-fail-ok: the probe raises OSError when fd 2 was left closed
             os.write(2, b"")
         finally:
             os.dup2(saved, 2)

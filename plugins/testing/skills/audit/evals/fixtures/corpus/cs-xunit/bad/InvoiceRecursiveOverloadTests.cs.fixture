@@ -1,0 +1,21 @@
+// expect: rule-zero-assertion
+// The one-argument overload only recurses on itself and never reaches the
+// two-argument overload that asserts, so the test asserts nothing.
+using Xunit;
+
+public sealed class InvoiceRecursiveOverloadTests
+{
+    [Fact]
+    public void Lines_AreVisited() => Visit(3);
+
+    private static void Visit(int n)
+    {
+        if (n <= 0) return;
+        Visit(n - 1);
+    }
+
+    private static void Visit(int n, string label)
+    {
+        Assert.True(n >= 0, label);
+    }
+}

@@ -10,7 +10,10 @@
 # LAYERS, per the config-cascade convention: user-global
 # (~/.claude/docs-hygiene.json), team (<root>/.claude/docs-hygiene.json), and a
 # gitignored personal overlay (<root>/.claude/docs-hygiene.local.json), applied
-# in that order over the bundled defaults.
+# in that order over the bundled defaults. When --root is the home directory (or
+# an ancestor of it) or is not inside a git working tree, there is no team or
+# overlay layer, and `paths` reports both as not-applicable; a team or overlay
+# path that is the user-global file is likewise reported and read once.
 #
 # MERGE IS PER KEY OF `file_names`, and three classes decide how:
 #
@@ -132,14 +135,38 @@ fi
 
 USER_LAYER=""
 [[ -n "$USER_HOME_DIR" ]] && USER_LAYER="$USER_HOME_DIR/.claude/docs-hygiene.json"
+
+# Config-cascade step 2: a root that is the home directory or an ancestor of it,
+# or that is not inside a git working tree, has no team or overlay layer, and a
+# team or overlay path that is the user-global file is not read a second time.
+# The home is --home, not the inherited $HOME, so a fixture is classified against
+# the directory it names.
+# shellcheck source=../lib/config-root.sh
+. "$SCRIPT_DIR/../lib/config-root.sh"
+ROOT_CLASS="$(HOME="$USER_HOME_DIR" config_root_classify "$ROOT")"
 TEAM_LAYER="$ROOT/.claude/docs-hygiene.json"
 OVERLAY_LAYER="$ROOT/.claude/docs-hygiene.local.json"
+TEAM_SKIP=""
+OVERLAY_SKIP=""
+if [[ "$ROOT_CLASS" != repo ]]; then
+  TEAM_SKIP="not-applicable: $ROOT_CLASS root"
+  OVERLAY_SKIP="$TEAM_SKIP"
+else
+  config_root_paths_same "$TEAM_LAYER" "$USER_LAYER" && TEAM_SKIP="same file as the user-global layer"
+  config_root_paths_same "$OVERLAY_LAYER" "$USER_LAYER" && OVERLAY_SKIP="same file as the user-global layer"
+fi
+[[ -n "$TEAM_SKIP" ]] && TEAM_LAYER=""
+[[ -n "$OVERLAY_SKIP" ]] && OVERLAY_LAYER=""
 
 if [[ "$ACTION" = paths ]]; then
   for pair in "user-global:$USER_LAYER" "team:$TEAM_LAYER" "overlay:$OVERLAY_LAYER"; do
     name="${pair%%:*}"
     path="${pair#*:}"
-    if [[ -z "$path" ]]; then
+    if [[ "$name" = team && -n "$TEAM_SKIP" ]]; then
+      printf '%s\t-\t%s\n' "$name" "$TEAM_SKIP"
+    elif [[ "$name" = overlay && -n "$OVERLAY_SKIP" ]]; then
+      printf '%s\t-\t%s\n' "$name" "$OVERLAY_SKIP"
+    elif [[ -z "$path" ]]; then
       printf '%s\t-\tno-home\n' "$name"
     elif [[ -f "$path" ]]; then
       printf '%s\t%s\tpresent\n' "$name" "$path"

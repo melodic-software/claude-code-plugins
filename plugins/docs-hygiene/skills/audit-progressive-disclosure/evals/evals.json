@@ -95,6 +95,22 @@
         "The existence question is routed to /docs-hygiene:audit-derivability",
         "Only loading-structure findings are claimed by this skill"
       ]
+    },
+    {
+      "id": 8,
+      "name": "upstream-owned-rule-routes-to-owner",
+      "prompt": "Audit the always-loaded rule evals/fixtures/synced-rule/.claude/rules/pr-body-contract.md (relative to the skill directory) for progressive-disclosure defects. The repo root for ownership checks is evals/fixtures/synced-rule. The file is named explicitly as the audit target, so the default skip of evals/fixtures paths does not apply to it.",
+      "expected_output": "The rule is relevant only at pull-request time, so it looks like a tier-mismatch, but the README lists it as synced from an upstream standards repo and docs/adr/0007 records the decision to keep it always-loaded. The finding is kept with an upstream disposition that names the owner (acme/standards) and cites the README and ADR 0007. No local move, demotion, or edit is proposed. Any Tier 3 row's Treatment cell reads 'awareness only'.",
+      "files": [
+        "evals/fixtures/synced-rule/.claude/rules/pr-body-contract.md",
+        "evals/fixtures/synced-rule/README.md",
+        "evals/fixtures/synced-rule/docs/adr/0007-pr-body-rule-always-loaded.md"
+      ],
+      "expectations": [
+        "The finding carries an upstream disposition that names acme/standards as the owner and cites the README sync inventory and ADR 0007",
+        "No local move, demotion, scoping, or edit of the rule is proposed",
+        "No Tier 3 row carries a treatment; its Treatment cell reads 'awareness only'"
+      ]
     }
   ]
 }
