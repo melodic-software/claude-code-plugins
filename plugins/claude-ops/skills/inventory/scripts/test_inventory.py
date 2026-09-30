@@ -1241,6 +1241,26 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(rec["description"], "REAL")
         self.assertNotIn("description_variants", rec)
 
+    def test_a_resolvable_argument_binds_its_parameter(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Other";function ff(x,y){return`Use ${x} ${y}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL",g())});'
+            "$t({name:Rz,maxResultSizeChars:1,description:ff(Qz)});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use REAL …")
+        self.assertEqual(_tool(src, "Other")["description"], "Use Probe …")
+
+    def test_a_mixed_left_operand_keeps_its_truthy_variants(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:(f?"REAL":"")||"FALLBACK"});'
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description_variants"], ["REAL", "FALLBACK"])
+
+    def test_a_concatenation_keeps_every_combination(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:"A"+(f?"X":"Y")+"B"});'
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description"], "AYB")
+        self.assertEqual(rec["description_variants"], ["AXB", "AYB"])
+
     def test_a_nullish_fallback_keeps_an_empty_string(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:""??"FALLBACK"});'
         self.assertEqual(_tool(src, "Probe")["description"], "")

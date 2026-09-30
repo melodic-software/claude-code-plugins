@@ -21,7 +21,9 @@ from __future__ import annotations
 import argparse
 import bisect
 import functools
+import itertools
 import json
+import math
 import os
 import platform
 import re
@@ -30,7 +32,8 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
@@ -592,6 +595,11 @@ _NON_STRING_WORDS = frozenset(
 _JS_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v"}
 _ESCAPE_RE = re.compile(r"\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[\s\S])")
 _MAX_HOPS = 6
+_MAX_COMBINATIONS = 16
+# The names a function body cannot read from the bundle: each parameter maps
+# to None (a runtime value) or to the values its call site passed.
+Scope = Mapping[str, "list[str] | None"]
+NO_SCOPE: Scope = MappingProxyType({})
 _NONSTRING = object()
 
 
@@ -784,7 +792,7 @@ def _scan(
     block: bool,
     hops: int,
     anchor: int | None,
-    shadow: frozenset[str] = frozenset(),
+    shadow: Scope = NO_SCOPE,
     deferred: bool = False,
 ) -> int:
     """Collect the string values an expression (or a function body) yields.
@@ -909,7 +917,7 @@ def _operand(
     *,
     hops: int,
     anchor: int | None,
-    shadow: frozenset[str] = frozenset(),
+    shadow: Scope = NO_SCOPE,
     deferred: bool = False,
 ) -> int:
     """Read one operand in value position; record it when it is a string value.
@@ -928,6 +936,9 @@ def _operand(
             params = shadow | _param_names(src[i + 1 : close - 1])
             return _arrow_body(src, braces, k + 2, n, acc, **{**kw, "shadow": params})
     parts: list[Any] = []
+    # A call or a group can also yield a non-string (`void 0`, `null`) this
+    # reader does not record, so its values never settle a fallback.
+    computed = False
     while True:
         i = _skip_ws(src, i, n)
         if i >= n:
@@ -940,6 +951,7 @@ def _operand(
         elif c == "(":
             close = _match_close(src, braces, i, n)
             # `(x()?a:b)` yields both branches.
+            computed = True
             parts.append(_sub_value(src, braces, i + 1, close - 1, acc, **kw))
             i = close
         elif c == "[":
@@ -954,7 +966,12 @@ def _operand(
                 return _operand(src, braces, k, n, acc, **kw)
             if src.startswith("=>", k):
                 return _arrow_body(
-                    src, braces, k + 2, n, acc, **{**kw, "shadow": shadow | {word}}
+                    src,
+                    braces,
+                    k + 2,
+                    n,
+                    acc,
+                    **{**kw, "shadow": shadow | {word: None}},
                 )
             if word in _NON_STRING_WORDS:
                 i = _skip_ws(src, j, n)
@@ -967,6 +984,7 @@ def _operand(
                 parts.append(_NONSTRING)
             else:
                 chain, i = _read_chain(src, braces, i, n)
+                computed = computed or any(e[0] == "call" for e in chain)
                 parts.append(_resolve_chain(src, braces, chain, i, acc, **kw))
         elif c == "!" or c.isdigit():
             i = _ident_end(src, i + 1)
@@ -992,19 +1010,26 @@ def _operand(
         if p is _NONSTRING:
             values = []
     elif len(parts) > 1 and any(isinstance(p, (str, list)) and p for p in parts):
-        values = [
-            "".join(
-                p
-                if isinstance(p, str)
-                else (p[-1] if isinstance(p, list) and p else _ELLIPSIS)
-                for p in parts
-            )
+        choices = [
+            [p]
+            if isinstance(p, str)
+            else (p if isinstance(p, list) and p else [_ELLIPSIS])
+            for p in parts
         ]
+        # Every combination of the parts' values, the fallthrough last; past
+        # the cap, the fallthrough alone.
+        if math.prod(len(c) for c in choices) > _MAX_COMBINATIONS:
+            choices = [[c[-1]] for c in choices]
+        values = ["".join(combo) for combo in itertools.product(*choices)]
     if fallback:
         # `a||b`: when every value `a` can take is a non-empty string, `b`
-        # never shows, so it is skipped; otherwise `b` is read as a value.
+        # never shows, so it is skipped; otherwise `b` is read as a value
+        # after the values of `a` that are non-empty strings.
         # `a??b` tests only null and undefined, so any string `a` keeps it.
-        if not values or (src.startswith("||", i) and not all(values)):
+        if computed or not values or (src.startswith("||", i) and not all(values)):
+            for v in values or []:
+                if v:
+                    _add_static(acc, v)
             return i
         while src.startswith(("||", "??"), i):
             i = _operand(src, braces, _skip_ws(src, i + 2, n), n, _Values(), **kw)
@@ -1031,22 +1056,22 @@ def _add_static(acc: _Values, text: str) -> None:
         acc.add(text)
 
 
-def _param_names(text: str) -> frozenset[str]:
+def _param_names(text: str) -> Scope:
     """Every identifier in a parameter list: each is a runtime value.
 
     Destructuring keys (`{tools:n}`) and default-value callees are included
     too; shadowing an extra name only leaves more unresolved, never less.
     """
-    return frozenset(re.findall(_IDENT, text))
+    return {name: None for name in re.findall(_IDENT, text)}
 
 
-def _params_before(src: str, body_open: int) -> frozenset[str]:
+def _params_before(src: str, body_open: int) -> Scope:
     """The parameters of the method or function whose body opens at `body_open`."""
     j = body_open - 1
     while j >= 0 and src[j] in " \t\r\n":
         j -= 1
     if j < 0 or src[j] != ")":
-        return frozenset()
+        return NO_SCOPE
     depth, k = 0, j
     while k >= 0 and j - k < 4096:
         ch = src[k]
@@ -1090,7 +1115,7 @@ def _read_string(
     *,
     hops: int,
     anchor: int | None,
-    shadow: frozenset[str],
+    shadow: Scope,
     deferred: bool = False,
 ) -> tuple[str, int, set[str]]:
     """A string or template literal: (text, index past it, how it was read).
@@ -1197,7 +1222,7 @@ def _arrow_body(
     *,
     hops: int,
     anchor: int | None,
-    shadow: frozenset[str] = frozenset(),
+    shadow: Scope = NO_SCOPE,
     deferred: bool = False,
 ) -> int:
     acc.via.add("arrow")
@@ -1228,7 +1253,7 @@ def _read_chain(
             i = j
         elif src.startswith("(", i):
             j = _match_close(src, braces, i, n)
-            chain.append(("call", src[i + 1 : j - 1].strip()))
+            chain.append(("call", src[i + 1 : j - 1].strip(), i))
             i = j
         elif src.startswith("[", i):
             j = _match_close(src, braces, i, n)
@@ -1379,7 +1404,7 @@ def _function_pattern(ident: str) -> re.Pattern[str]:
 
 def _function_body(
     src: str, braces: BraceMap, ident: str, at: int
-) -> tuple[int, frozenset[str]] | None:
+) -> tuple[int, Scope, str] | None:
     """The `{` of `function ident(...){...}` and its parameter names.
 
     A single-character name is usually function-local; it resolves only to
@@ -1397,7 +1422,7 @@ def _function_body(
         ]
         if len(top) != 1:
             return None
-        return top[0].end() - 1, _param_names(top[0].group(1))
+        return top[0].end() - 1, _param_names(top[0].group(1)), top[0].group(1)
     if len(_chunk_starts(src)) == 1:
         found = _declaration(src, braces, ident, at, _function_pattern)
         found = found or _function_pattern(ident).search(src, at)
@@ -1405,7 +1430,45 @@ def _function_body(
         found = _declaration(src, braces, ident, at, _function_pattern)
     if found is None:
         return None
-    return found.end() - 1, _param_names(found.group(1))
+    return found.end() - 1, _param_names(found.group(1)), found.group(1)
+
+
+def _bound_arguments(
+    src: str,
+    braces: BraceMap,
+    params: str,
+    open_paren: int,
+    *,
+    hops: int,
+    shadow: Scope,
+) -> dict[str, list[str]]:
+    """Each plain parameter mapped to the values its call-site argument
+    resolves to; a destructured or defaulted list binds nothing."""
+    names = [p.strip() for p in params.split(",")] if params.strip() else []
+    if hops <= 0 or not all(re.fullmatch(_IDENT, p) for p in names):
+        return {}
+    close = _match_close(src, braces, open_paren, len(src)) - 1
+    starts = _split_args(src, braces, open_paren + 1)
+    out: dict[str, list[str]] = {}
+    for k, name in enumerate(names[: len(starts)]):
+        stop = (starts[k + 1] if k + 1 < len(starts) else close) - 1
+        while stop >= starts[k] and src[stop] in " \t\r\n,":
+            stop -= 1
+        if stop < starts[k]:
+            continue
+        value = _sub_value(
+            src,
+            braces,
+            starts[k],
+            stop + 1,
+            _Values(),
+            hops=hops,
+            anchor=None,
+            shadow=shadow,
+        )
+        if value:
+            out[name] = value
+    return out
 
 
 def _resolve_chain(
@@ -1417,17 +1480,21 @@ def _resolve_chain(
     *,
     hops: int,
     anchor: int | None,
-    shadow: frozenset[str] = frozenset(),
+    shadow: Scope = NO_SCOPE,
     deferred: bool = False,
 ) -> list[str] | None:
     """The string values a constant, a call, or a member read yields.
 
-    A call is followed into its function declaration whatever its arguments:
-    the declaration's parameters are shadowed, so what depends on them
-    stays a runtime value while the rest of the body resolves.
+    A call is followed into its function declaration whatever its arguments.
+    A plain parameter takes the values its argument resolves to at the call
+    site; every other parameter is a runtime value, so what depends on it
+    stays unresolved while the rest of the body resolves.
     """
     ident = chain[0][1]
-    if hops <= 0 or ident in shadow:
+    if ident in shadow:
+        bound = shadow[ident]
+        return bound if bound is not None and len(chain) == 1 else None
+    if hops <= 0:
         return None
     at = anchor if anchor is not None else pos
     sub = _Values()
@@ -1452,6 +1519,14 @@ def _resolve_chain(
         close = None if fn is None else braces.pairs.get(fn[0])
         if fn is None or close is None:
             return None
+        scope = fn[1]
+        if len(chain) == 2:
+            scope = {
+                **scope,
+                **_bound_arguments(
+                    src, braces, fn[2], chain[1][2], hops=hops - 1, shadow=shadow
+                ),
+            }
         _scan(
             src,
             braces,
@@ -1461,7 +1536,7 @@ def _resolve_chain(
             block=True,
             hops=hops - 1,
             anchor=None,
-            shadow=fn[1],
+            shadow=scope,
             # A function-valued field is read through a getter: deferred.
             deferred=deferred or len(chain) == 1,
         )
