@@ -687,38 +687,60 @@ The `apply` verb stays closed. A write that installs something is an optional su
 never a new verb and never implied by bare `apply`. Subaction **names** stay locally informative;
 the fleet does not converge onto one spelling (#3574).
 
-Three sanctioned name shapes, picked by what the write actually installs:
+Four sanctioned shapes, picked by what the write installs and where it lands. The name follows the
+write and stays locally informative; the shape does not follow the name.
 
-| Shape | When | Live examples |
+| Shape | When | Live subactions: command and scope |
 |---|---|---|
-| Tool-named | the write installs one named tool through the consumer's existing package manager | `install-ruff`, `install-biome` |
-| Class-named | the write provisions a dependency class or a CLI, not one tool name | `install-deps`, `install-build-deps`, `install-cli`, `install-lint` |
-| Object-named | the write installs a named hook or file | `install-commit-msg`, `install-pre-commit-content` |
+| Consumer-repo dependency | the write adds one named tool to the consumer's own repo through the repo's package manager, so the manifest or lockfile records it | `install-ruff` (dev-dependency add through the repo's Python manager, for example `uv add --dev ruff`, into an environment the repo already has), `install-biome` (`@biomejs/biome` dev dependency: `pnpm add -D`, `yarn add -D`, `bun add -d` or `npm install --save-dev`), `install-lint` (`markdownlint-cli2` dev dependency, same managers) |
+| Machine-global CLI | the write installs the one CLI the plugin exists to drive, into the machine's global package prefix | `install-cli`: context7 `npm install -g ctx7@latest`, playwright `npm install -g @playwright/cli` |
+| Plugin-owned dependencies | the write provisions the plugin's own runtime: node dependencies under `${CLAUDE_PLUGIN_DATA}` plus a Playwright Chromium build, and touches nothing in the consumer's repo or the global npm prefix; where the browser and any OS packages land is stated per subaction | `install-deps` (knowledge: `setup-deps.mjs` for video-digest and course-digest, node dependencies plus Chromium, the browser in `${CLAUDE_PLUGIN_DATA}/ms-playwright` unless `PLAYWRIGHT_BROWSERS_PATH` is set), `install-build-deps` (ai-briefing: `npm ci` in a staged `runtime/build` under the data dir, then `npx playwright install --only-shell chromium`, which on Linux is `npx playwright install --with-deps --only-shell chromium`; the skill sets no `PLAYWRIGHT_BROWSERS_PATH`, so the browser goes to Playwright's default per-user cache, and `--with-deps` installs OS packages machine-wide) |
+| Hook file | the write copies a named hook script into the operator's personal `.git/hooks/` | `install-commit-msg` (`hooks/commit-msg` and `hooks/guardrails-resolve-convention.sh`), `install-pre-commit-content` (`hooks/pre-commit` and `hooks/guardrails-content-lib/`) |
 
-A new install subaction picks one of those three. It does not invent a fourth grammar, and it does
-not rename a sibling to match.
+A new install subaction fits one of those four by what it writes. It does not invent a fifth, and it
+does not rename a sibling to match. Names are not one grammar: `install-cli` and `install-lint` each
+install one named tool, while `install-deps` and `install-build-deps` name a class.
 
-**Refusal template.** A setup that declines to install uses this shape, not a plugin-specific
-rationale: print the consumer-run command; do not invent `apply install-<tool>` to paper over the
-gap; name every reason that applies; at least one always does.
+**Refusal template.** A setup whose hook only calls a tool on the consumer's files, and which has no
+install path recorded in the consumer's repo, declines to install. It uses this shape, not a
+plugin-specific rationale: print the consumer-run command; do not invent `apply install-<tool>` to
+paper over the gap; name every reason that applies; at least one always does.
 
-1. The artifact is machine-global (for example `$GOPATH/bin`), not a project-scoped dependency.
-2. The only install command is unpinned (`@latest`), so it is not idempotent.
-3. The tool has no per-repo dependency-manager path (cargo/Homebrew/a pre-built binary, not a
-   lockfile).
+1. The hook resolves the tool on `PATH`, so the install it can use is machine-level (a global bin
+   directory such as `$GOPATH/bin`, cargo, Homebrew, a pre-built binary); a dependency recorded
+   through the repo's package manager, such as a `go.mod` tool line, is not one the hook finds.
+2. The tool publishes several official install methods, so choosing one is the consumer's call.
 
-`go-format` (no `install-goimports`) and `typos-format` (no `install-typos`) are the current
-refusals. They stay; they are not defects against a missing subaction.
+The discriminator is the preamble, not the install command. A plugin that exists to drive a CLI
+(context7's `ctx7`, playwright's `@playwright/cli`) installs it machine-globally under the
+Machine-global CLI shape. A plugin whose hook only runs a tool over the consumer's files
+(go-format's `goimports`, typos-format's `typos`) refuses under the list above, though that tool is
+also its subject. A machine-global or `@latest` install is not itself a reason to refuse.
 
-- **Claim:** install subaction names stay tool-named, class-named, or object-named; refusal names
-  the reasons that apply from the list; the fleet is not renamed onto one spelling.
-- **Basis:** #3574. Live `argument-hint` values on `setup/SKILL.md` (sampled 2026-09-28):
-  `install-ruff`, `install-biome`, `install-lint`, `install-cli`, `install-deps`,
-  `install-build-deps`, `install-commit-msg`, `install-pre-commit-content`. Tokens such as
-  `install-hint` and `install-browser` are not setup subactions.
-- **As of:** 2026-09-28.
-- **Recheck:** a setup skill grows a fourth name shape, or a maintainer converges the fleet onto
-  one spelling.
+`go-format` (no `install-goimports`: the hook resolves `PATH` only, reason 1) and `typos-format` (no
+`install-typos`: cargo, Homebrew, Conda, pacman or a pre-built binary, reasons 1 and 2) are the
+current refusals. They stay; they are not defects against a missing subaction.
+
+- **Claim:** install subactions fall into four shapes by what they install (consumer-repo
+  dependency, machine-global CLI, plugin-owned dependencies, hook file); names are not converged;
+  a refusal names the reasons that apply from the list and never excludes a sanctioned subaction.
+- **Basis:** #3574. What each live subaction installs: `plugins/ruff-format/skills/setup/SKILL.md`
+  (`install-ruff`), `plugins/biome-format/skills/setup/SKILL.md` (`install-biome`),
+  `plugins/markdown-format/skills/setup/SKILL.md` (`install-lint`),
+  `plugins/context7/skills/setup/SKILL.md` and `plugins/playwright/skills/setup/SKILL.md`
+  (`install-cli`, the two `npm install -g` commands above),
+  `plugins/knowledge/skills/setup/SKILL.md` (`install-deps`),
+  `plugins/ai-briefing/skills/setup/SKILL.md` (`install-build-deps`: the Linux `--with-deps`
+  branch and the absence of `PLAYWRIGHT_BROWSERS_PATH`),
+  `plugins/guardrails/skills/setup/context/install-commit-msg.md` and
+  `plugins/guardrails/skills/setup/context/install-pre-commit-content.md` (hook files). The
+  refusals: `plugins/go-format/skills/setup/SKILL.md` and
+  `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
+  `install-browser` are not setup subactions.
+- **As of:** 2026-09-29.
+- **Recheck:** a setup skill adds an install subaction that fits none of the four shapes, a live
+  subaction changes what or where it installs, or a maintainer converges the fleet onto one
+  spelling.
 
 ## Prerequisites and failure behavior
 
@@ -1220,7 +1242,9 @@ name is not the same underlying value across models):
   tool schema, 2026-07-29), so it structurally inherits the session level and its floor is the
   session baseline; promoting such a lane to a named agent is how it gains the pin (a required
   effort pin satisfies the named-agent bar's pin clause). `planning:plan-reviewer` pins `medium`
-  by the [recorded exception](#named-agent-bar). An orchestrator skill
+  by the [recorded exception](#named-agent-bar), and `implementation:phase-verifier`,
+  `review:ci-log-auditor`, and `review:doc-drift-detector` pin `medium` because each checks
+  against binary criteria ([pinned agents](#effort-tiers)). An orchestrator skill
   whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
   pin governs the orchestrating conversation, and whether it propagates to subagents spawned
   while the skill is active is undocumented, so treat propagation as unknown alongside the cache
@@ -1310,18 +1334,23 @@ name is not the same underlying value across models):
 
 **Pinned `effort: high` agents.**
 
-- **Claim:** Fourteen named agents pin `effort: high` so a session tuned down for cost does not
-  silently cheapen consequential workers, and one more pins `effort: medium`. There is no
+- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
+  silently cheapen consequential workers, and four pin `effort: medium`: `plan-reviewer` by its
+  recorded exception, and `phase-verifier`, `ci-log-auditor`, and `doc-drift-detector` because
+  each checks against binary criteria. The lowering is owner-decided Option B, narrow, at
+  `medium` and not `low`, because a low-effort executor stops detecting that it is stuck.
+  `security-reviewer` and `architecture-guardian` stay `high`. There is no
   per-invocation `effort` on Agent-tool dispatch, so a frontmatter pin is what holds a named
   agent's lane. The `CLAUDE_CODE_EFFORT_LEVEL` environment variable overrides every pin at once
   for the whole session (the environment variable still wins, per above), and a `maxEffortLevel`
   or organization effort cap limits any pin above the cap. Both act on the whole session; neither
   cited page documents a per-lane or per-plugin lever.
 - **Basis:** The agent definitions on origin/main (2026-09-29). `effort: high`: `implementation`
-  `implementer` and `phase-verifier`; `discovery` `explorer`, `researcher`, `intent-tracer`, and
-  `research-verifier`; `review` `code-reviewer`, `architecture-guardian`, `ci-log-auditor`,
-  `doc-drift-detector`, `ecosystem-specialist`, and `security-reviewer`; `plugin-quality`
-  `auditor`; `songwriting` `object-writer`. `effort: medium`: `planning` `plan-reviewer`. Issue
+  `implementer`; `discovery` `explorer`, `researcher`, `intent-tracer`, and
+  `research-verifier`; `review` `code-reviewer`, `architecture-guardian`,
+  `ecosystem-specialist`, and `security-reviewer`; `plugin-quality`
+  `auditor`; `songwriting` `object-writer`. `effort: medium`: `implementation` `phase-verifier`;
+  `review` `ci-log-auditor` and `doc-drift-detector`; `planning` `plan-reviewer`. Issue
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) is the source of
   the filed list of eleven, which omits `auditor`, `object-writer`, and `research-verifier`. The
   Agent-tool gap is stated in this section ("a generic Agent-tool dispatch carries no effort
@@ -1336,8 +1365,8 @@ name is not the same underlying value across models):
   tasks ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
   [effort](https://platform.claude.com/docs/en/build-with-claude/effort), same fetch date).
 - **As of:** 2026-09-29.
-- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer lowers or
-  drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
+- **Recheck:** a checker pinned `medium` misses a defect its `high` pin caught, the Agent tool gains
+  a per-invocation `effort` parameter, a maintainer lowers or drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,

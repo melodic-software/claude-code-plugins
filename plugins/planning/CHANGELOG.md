@@ -3,11 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.6] - 2026-09-29
+## [0.47.8] - 2026-09-29
 
 ### Fixed
 
 - **The interview surface docs say how to read the watcher's JSON after a wake.** The wake notification carries only the output-file path and exit status. On exit 0 the session Reads the file and takes its last line, falling back to `tail -n 1` when Read reports a partial view; on a nonzero exit it reads the diagnostic and follows the exit-specific recovery. A verification record with an upstream pointer backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+
+## [0.47.7] - 2026-09-29
+
+### Fixed
+
+- **A group summary that predates questions added to its group is flagged.** Writing a group `summary` records the group's question ids as `summaryOf`. `round.py add` and `add-round` warn when a question lands in a group whose summary was written for a different set, and the page marks that summary Stale until it is rewritten ([#5451](https://github.com/melodic-software/claude-code-plugins/issues/5451)).
+
+## [0.47.6] - 2026-09-29
+
+### Fixed
+
+- **The interview surface's carry chip reads "carried N rounds" and explains itself on hover.** It no longer repeats the state word ("Open open 2 rounds"), and its tooltip says the question was asked that many rounds before the stage's latest round and is still unanswered ([#5449](https://github.com/melodic-software/claude-code-plugins/issues/5449)).
 
 ## [0.47.5] - 2026-09-29
 
