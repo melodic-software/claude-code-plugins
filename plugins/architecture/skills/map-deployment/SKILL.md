@@ -401,7 +401,10 @@ End every run with this block, in this order:
   an env list built by an expression records no parameters. A container app, Cloud Run service, or
   Kubernetes workload whose containers are a `dynamic` block or an expression places one container
   named for the resource, its image `unresolved:dynamic container` (`containers` for Cloud Run) or
-  `unresolved:container`; a `dynamic` block beside plain ones adds a second, `<name>.dynamic`.
+  `unresolved:container`; a `dynamic` block beside plain ones adds a second, `<name>.dynamic`. An
+  ECS task definition with no `container_definitions` places one container, its image
+  `unresolved:container_definitions`. A resource with an empty body (`resource "aws_s3_bucket" "b" {}`)
+  is placed or listed as unmapped like any other.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:

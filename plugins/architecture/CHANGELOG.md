@@ -21,6 +21,10 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   for the resource with an unresolved image, so it no longer disappears from the
   drawing. A `dynamic` block beside plain container blocks adds a second
   container named `<name>.dynamic`.
+- A Terraform resource with an empty body (`resource "aws_s3_bucket" "b" {}`, in
+  `.tf` or `.tf.json`) is placed or listed in `unmapped` like any other resource.
+  An `aws_ecs_task_definition` with no `container_definitions` places one
+  container with the image `unresolved:container_definitions`.
 - A Terraform `helm_release` or a Pulumi `kubernetes:helm.sh/` resource declines
   Helm, so the record is refused as `partial-read` instead of drawing the rest
   of the repository.

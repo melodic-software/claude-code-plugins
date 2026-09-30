@@ -2152,6 +2152,42 @@ unm_fixture tf-expr-containers main.tf $'resource "azurerm_container_app" "x" {\
 unm_check "$TEST_TMPDIR/unm-tf-expr-containers"
 assert_contains "a container list that is an expression places one container" "$unm_rec" '"container":"x","env":"default","tool":"terraform","node":"default","compute":"","image":"unresolved:container"'
 
+# A resource with an empty body has no attribute rows, and is still placed or listed.
+tf_empty_bucket=$'resource "aws_s3_bucket" "b" {}'
+unm_fixture tf-empty main.tf "$tf_empty_bucket"
+unm_check "$TEST_TMPDIR/unm-tf-empty"
+assert_contains "a root of only an empty-body resource is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the empty-body bucket is listed" "$unm_rec" '{"tool":"terraform","type":"aws_s3_bucket","evidence":"main.tf"}'
+assert_contains "the empty-body bucket is counted" "$unm_sum" "unmapped=1"
+
+unm_fixture tf-empty-null main.tf $'resource "null_resource" "n" {\n  triggers = {}\n}'
+unm_check "$TEST_TMPDIR/unm-tf-empty-null"
+assert_contains "a resource whose only content is an empty map is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the null_resource is listed" "$unm_rec" '{"tool":"terraform","type":"null_resource","evidence":"main.tf"}'
+
+unm_fixture tf-empty-mixed main.tf "$tf_ecs"$'\n'"$tf_empty_bucket"
+unm_check "$TEST_TMPDIR/unm-tf-empty-mixed"
+assert_contains "a mixed root with an empty-body bucket is drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "the empty-body bucket is listed beside the placed container" "$unm_rec" '{"tool":"terraform","type":"aws_s3_bucket","evidence":"main.tf"}'
+assert_contains "the placed container is counted" "$unm_sum" "placements=1"
+assert_contains "only the bucket is unmapped" "$unm_sum" "unmapped=1"
+
+unm_fixture tf-empty-json main.tf.json '{"resource":{"aws_s3_bucket":{"b":{}}}}'
+unm_check "$TEST_TMPDIR/unm-tf-empty-json"
+assert_contains "a .tf.json root of only an empty-body resource is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the .tf.json empty-body bucket is listed" "$unm_rec" '{"tool":"terraform","type":"aws_s3_bucket","evidence":"main.tf.json"}'
+
+unm_fixture tf-empty-json-mixed main.tf.json '{"resource":{"azurerm_container_app":{"j":{"name":"j","template":{"container":{"name":"j","image":"acme/j:1"}}}},"aws_s3_bucket":{"b":{}}}}'
+unm_check "$TEST_TMPDIR/unm-tf-empty-json-mixed"
+assert_contains "a mixed .tf.json root is drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "the .tf.json empty-body bucket is listed beside the container" "$unm_rec" '{"tool":"terraform","type":"aws_s3_bucket","evidence":"main.tf.json"}'
+assert_contains "the .tf.json container is counted" "$unm_sum" "placements=1"
+
+unm_fixture tf-empty-taskdef main.tf $'resource "aws_ecs_task_definition" "t" {}'
+unm_check "$TEST_TMPDIR/unm-tf-empty-taskdef"
+assert_contains "an empty task definition places one container with an unresolved image" "$unm_rec" '"container":"t","env":"default","tool":"terraform","node":"default","compute":"","image":"unresolved:container_definitions"'
+assert_contains "the empty task definition is counted as a placement" "$unm_sum" "placements=1"
+
 unm_fixture cfn-eks t.yaml $'AWSTemplateFormatVersion: "2010-09-09"\nResources:\n  Cluster:\n    Type: AWS::EKS::Cluster\n    Properties: {}\n  Fn:\n    Type: AWS::Lambda::Function\n    Properties: {}'
 unm_check "$TEST_TMPDIR/unm-cfn-eks"
 assert_contains "a CloudFormation template that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'

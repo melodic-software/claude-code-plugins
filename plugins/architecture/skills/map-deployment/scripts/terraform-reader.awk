@@ -5,7 +5,8 @@
 #
 # One tokenizer reads native HCL and the JSON syntax alike into flat rows of
 # path, kind, value. Kinds: s a string (it may hold ${} interpolations), l a
-# number or bool, x a traversal such as var.name, u anything else. A string that
+# number or bool, x a traversal such as var.name, u anything else, b a resource
+# block's own header, so a resource with an empty body is still found. A string that
 # is one whole interpolation, and a heredoc or container_definitions string
 # holding JSON, is read as the expression inside it. jsonencode() is read
 # through; every other function, operator, for-expression, conditional, local
@@ -136,6 +137,7 @@ function skip_sep() { while (T[P] == "nl" || (T[P] == "p" && V[P] == ",")) P++ }
 function is_p(k, v) { return T[k] == "p" && V[k] == v }
 
 function parse_body(prefix, closer,    key, path, k) {
+  if (prefix ~ /^resource\.[^.]+\.[^.]+\.$/) row(substr(prefix, 1, length(prefix) - 1), "b", "")
   while (!bad) {
     skip_sep()
     if (T[P] == "EOF") { if (closer != "") bad = 1; return }
@@ -392,7 +394,7 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
   d = S_dir[sc]
   for (k = 1; k <= DN[d]; k++) {
     r = DR[d, k]
-    if (RP[r] !~ /^resource\.[^.]+\.[^.]+\./) continue
+    if (RP[r] !~ /^resource\.[^.]+\.[^.]+(\.|$)/) continue
     split(RP[r], parts, ".")
     key = parts[2] "." parts[3]
     if ((sc SUBSEP key) in done) continue
@@ -427,7 +429,7 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
       reps = ((sc SUBSEP name) in svc_reps) ? svc_reps[sc, name] : "undeclared"
       cl = ((sc SUBSEP name) in svc_cl) ? svc_cl[sc, name] : ""
       n = groups(d, pre, "^container_definitions\\[[0-9]+\\]\\.", gs)
-      if (n == 0 && field(d, pre, "container_definitions")) place(sc, name, resolve(sc, FK, FV, 0), reps, "", cl, res_file[sc, key])
+      if (n == 0) place(sc, name, field(d, pre, "container_definitions") ? resolve(sc, FK, FV, 0) : unresolved("container_definitions"), reps, "", cl, res_file[sc, key])
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, cl, "", "^(environment|secrets)\\[[0-9]+\\]\\.", "^valueFrom$", "^portMappings\\[[0-9]+\\]\\.", "containerPort", res_file[sc, key])
     } else if (type == "azurerm_container_app") {
