@@ -45,6 +45,7 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import threading
 import time
@@ -1946,46 +1947,45 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             "exact guarded command shapes, not PowerShell. To READ the engine "
             "source, use non-shell file tools.",
         )
+    verdict = functools.partial(_powershell_mutation_verdict, command=command)
     if _POWERSHELL_VB_FILESYSTEM_DELETE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged Microsoft.VisualBasic.FileIO.FileSystem "
             "DeleteFile/DeleteDirectory (Recycle Bin / FileIO deletion).",
         )
     shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
     if shell_app_recycle_bin is not None:
-        return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
+        return verdict(enabled, shell_app_recycle_bin)
     match = _POWERSHELL_MUTATION_WORDS.search(_powershell_mutation_word_text(command))
     if match:
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             f'disk-hygiene flagged the mutation spelling "{match.group(0)}".',
         )
     if _POWERSHELL_NEW_ITEM_FORCE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged New-Item -Force (truncates an existing file).",
         )
     if _POWERSHELL_OUTPUT_REDIRECT.search(
         command
     ) or _POWERSHELL_APPEND_REDIRECT.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged shell output redirection (may overwrite a file).",
         )
     if _POWERSHELL_DOTNET_DELETE.search(command):
-        return _powershell_mutation_verdict(
-            enabled, "disk-hygiene flagged a .NET Delete call."
-        )
+        return verdict(enabled, "disk-hygiene flagged a .NET Delete call.")
     qualified = _POWERSHELL_QUALIFIED_DELETE.search(command)
     if qualified:
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged the module-qualified deletion spelling "
             f'"{qualified.group(0)}".',
         )
     if _POWERSHELL_ROBOCOPY_PURGE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged a robocopy mirror/purge/move invocation "
             "(mass deletion via mirroring).",
@@ -1993,17 +1993,73 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     return None
 
 
-def _powershell_mutation_verdict(enabled: bool, flagged: str) -> tuple[str, str]:
-    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt."""
+def _display_text(value: str) -> str:
+    """``value`` with control characters escaped, for the ``ask`` reason text.
+
+    A newline or escape byte inside a path taken from a command or a plan file
+    would otherwise restructure the prompt the person reads before approving.
+    """
+    return "".join(
+        char if char.isprintable() else char.encode("unicode_escape").decode()
+        for char in value
+    )
+
+
+# Quoted literals and unquoted drive-letter paths. Double-quoted text that
+# interpolates (`$` or a backtick) is not a literal and is filtered afterward.
+_POWERSHELL_LITERAL_PATH = re.compile(
+    r"""'([^']*)'|"([^"]*)"|(?<![\w'"])([A-Za-z]:[\\/][^\s'"`;|(){}]*)"""
+)
+
+
+def _powershell_literal_paths(command: str) -> list[str]:
+    """Path-shaped literals in ``command``, in order and de-duplicated.
+
+    Informational only: it feeds the ``ask`` reason text and never a verdict, so
+    a miss or a false hit changes what the prompt shows, not what is decided.
+    """
+    found: list[str] = []
+    for match in _POWERSHELL_LITERAL_PATH.finditer(command):
+        value = next(group for group in match.groups() if group is not None).strip()
+        if (
+            value
+            and not value.startswith("-")
+            and not any(char in value for char in "$`\r\n")
+            and ("\\" in value or "/" in value or re.match(r"[A-Za-z]:", value))
+        ):
+            found.append(value)
+    return list(dict.fromkeys(found))
+
+
+def _powershell_mutation_verdict(
+    enabled: bool, flagged: str, command: str = ""
+) -> tuple[str, str]:
+    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt.
+
+    The prompt also lists the literal paths the command names when they can be
+    read from it; any failure keeps the generic text.
+    """
     if not enabled:
         return (
             "deny",
             f"{flagged} Disk-hygiene execution is disabled (audit-only mode), so "
             "deletions are blocked on every lane.",
         )
+    try:
+        paths = _powershell_literal_paths(command)
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        paths = []
+    named = (
+        f" The command contains {len(paths)} path-shaped literal(s), which may not "
+        "be every path it acts on: "
+        + "; ".join(_display_text(path) for path in paths)
+        + "."
+        if paths
+        else ""
+    )
     return (
         "ask",
-        f"{flagged} Confirm only if this is the explicitly approved manual "
+        f"{flagged}{named} Confirm only if this is the explicitly approved manual "
         "handoff and the command touches exactly the paths you approved.",
     )
 
@@ -2566,6 +2622,71 @@ def _settle(
     return 0
 
 
+_APPLY_ASK_GENERIC_REASON = (
+    "disk-hygiene is ready to apply one exact, previewed tier. Confirm this "
+    "final mutation prompt only if it matches the tier and paths you just approved."
+)
+_APPLY_PLAN_READ_LIMIT = 1 << 20
+_APPLY_SNAPSHOT_READ_LIMIT = 16 << 20
+
+
+def _read_json_file(path: str, limit: int) -> object:
+    """Parse one regular JSON file of at most ``limit`` bytes, else ``None``.
+
+    Never raises. The size check happens on the bytes actually read, and a
+    non-regular file (a FIFO would block) is refused before it is opened.
+    """
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
+        with open(path, "rb") as handle:
+            data = handle.read(limit + 1)
+        return None if len(data) > limit else json.loads(data)
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        return None
+
+
+def _apply_ask_reason(command: str) -> str:
+    """Tier, count, and every path of the plan an apply command names.
+
+    Text only. Any missing or malformed plan returns the generic reason, so the
+    caller's ``ask`` verdict never depends on what this reads.
+    """
+    try:
+        words = _literal_shell_words(command) or []
+        flags = {
+            flag: words[index + 1]
+            for index, flag in enumerate(words[:-1])
+            if flag in {"--plan", "--snapshot"}
+        }
+        plan = _read_json_file(flags["--plan"], _APPLY_PLAN_READ_LIMIT)
+        candidates = plan["candidates"]  # type: ignore[index]
+        tier = plan["tier"]  # type: ignore[index]
+        paths = [candidate["path"] for candidate in candidates]
+        if not (
+            isinstance(tier, str)
+            and paths
+            and all(isinstance(path, str) for path in paths)
+        ):
+            return _APPLY_ASK_GENERIC_REASON
+        snapshot = _read_json_file(flags["--snapshot"], _APPLY_SNAPSHOT_READ_LIMIT)
+        target = snapshot.get("target") if isinstance(snapshot, dict) else None
+        where = (
+            f"under {_display_text(target)}"
+            if isinstance(target, str)
+            else "(snapshot-relative; the snapshot target could not be read)"
+        )
+        return (
+            f"disk-hygiene is ready to apply one exact, previewed tier: {_display_text(tier)}, "
+            f"{len(paths)} path(s) {where}:\n"
+            + "\n".join(f"- {_display_text(path)}" for path in paths)
+            + "\nConfirm this final mutation prompt only if it matches the tier "
+            "and paths you just approved."
+        )
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        return _APPLY_ASK_GENERIC_REASON
+
+
 def _decide(command: str, tool_name: str, start: float) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
@@ -2652,7 +2773,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             start,
             "ask",
             "exact-engine-apply",
-            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
+            _apply_ask_reason(command),
         )
     denied_by_kill_switch = command_kind == "apply"
     return _settle(
