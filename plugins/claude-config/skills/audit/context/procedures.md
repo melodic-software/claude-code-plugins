@@ -64,8 +64,8 @@ built-in `update-config` skill, except orphan-`false` plugin removal, which stay
 is the consent. Two operations are refused in auto mode: writing `.claude/audit-pass.md`
 (`[Instruction Poisoning]`) and re-running `scripts/audit-engine.sh` for the after-fix summary
 (`[Self-Modification]`). The fallback for each is the operator applying the edit or running the
-re-run and pasting the output back; never retry around the refusal. The verification record for the category names is in
-[SKILL.md](../SKILL.md) "Refusals in auto mode".
+re-run and pasting the output back; never retry around the refusal. The verification record for the
+category names is in [SKILL.md](../SKILL.md) "Refusals in auto mode".
 
 **The judgment on a baseline deny addition, stated.** Two things have to be checked before the rule is
 added, and neither is mechanical:

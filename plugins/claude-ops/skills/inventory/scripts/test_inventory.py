@@ -1478,6 +1478,29 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertEqual(block["status"], "unavailable")
 
 
+class TestOutFailure(unittest.TestCase):
+    def test_unwritable_out_is_a_clean_usage_error(self) -> None:
+        import contextlib
+        import io
+
+        with tempfile.TemporaryDirectory() as d:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = inv.main(
+                    [
+                        "--disk-only",
+                        "--config-dir",
+                        d,
+                        "--project-dir",
+                        d,
+                        "--out",
+                        str(pathlib.Path(d) / "missing" / "inventory.json"),
+                    ]
+                )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot write --out", err.getvalue())
+
+
 TOOLS_DOCS = """# Tools reference
 
 | Tool | Description | Permission required |
@@ -1566,6 +1589,14 @@ class TestToolsDocsCrosscheck(unittest.TestCase):
 
     def test_a_page_without_the_table_is_broken(self) -> None:
         self.assertEqual(self._block("# Tools\n\nNo table.\n")["status"], "broken")
+
+    def test_unmatched_table_rows_never_reach_a_later_section(self) -> None:
+        unwrapped = TOOLS_DOCS.replace("`Bash`", "Bash").replace("`Read`", "Read")
+        unwrapped = unwrapped.replace("`Task`", "Task").replace(
+            "`TaskOutput`", "TaskOutput"
+        )
+        self.assertEqual(self.dc.parse_tools_table(unwrapped), {})
+        self.assertEqual(self._block(unwrapped)["status"], "broken")
 
     def test_an_unhealthy_lane_degrades_the_block(self) -> None:
         report = dict(self.report)

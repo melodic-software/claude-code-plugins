@@ -330,7 +330,8 @@ For each user-approved fix:
    through the built-in `update-config` skill, not a direct write; the one exception is orphan-`false`
    plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
    check still runs. In auto mode a settings edit needs the `[Self-Modification]` handshake: the
-   classifier asks, and the user's explicit approval of that fix is the consent. Done when the target file carries the change and nothing else in it moved.
+   classifier asks, and the user's explicit approval of that fix is the consent. Done when the
+   target file carries the change and nothing else in it moved.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
    revert that edit before touching the next one.
 3. Report what changed, as the file, the key, and the before and after values. Done when every

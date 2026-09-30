@@ -3,6 +3,22 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-09-29
+
+### Added
+
+- The manifest declares its prerequisites, a SessionStart probe prints a notice when one is missing, and `/typos-format:check` reports whether the binary resolves without installing.
+
+### Changed
+
+- The SessionStart probe uses the same latch key as the PostToolUse missing-`typos` notice (`typos-format-typos`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal. The notice also names `/typos-format:check`.
+
+## [0.7.9] - 2026-09-29
+
+### Changed
+
+- The setup skill's install refusal cites the shared refusal reasons in `docs/plugin-philosophy.md` instead of a plugin-specific rationale.
+
 ## [0.7.8] - 2026-09-29
 
 ### Changed

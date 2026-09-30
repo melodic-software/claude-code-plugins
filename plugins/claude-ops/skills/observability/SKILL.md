@@ -1,5 +1,5 @@
 ---
-description: "Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a quick plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and anything the local telemetry stores hold. Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]"
@@ -39,6 +39,11 @@ run it before reading either probe's output into a report, and pass `--root` whe
 root is not the default.
 OTEL collector :4318: !`bash -c 'source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh" && port_status 4318' 2>/dev/null || echo unknown`
 OTEL store: !`bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --otel-store 2>/dev/null || echo "unknown"`
+
+The OTEL store lines are the three hot files (`<name>:<bytes>B` or `absent`), then `cold:<bytes>B (<n> files)`
+or `cold:absent`, then `last-prune:<UTC time> (<age>)` or `last-prune:never`. A report states hot size (sum of
+the three files), cold size and last-prune age, and flags `last-prune:never` or an age over about 2 days
+(`2d` or more): the scheduled prune is not firing (see [context/operator-setup-retention.md](context/operator-setup-retention.md)).
 
 ## Purpose
 
@@ -201,8 +206,8 @@ retention in effect" section, the six probe lines verbatim.
 One native surface also answers "where did my tokens go", and the two get conflated whenever a
 session feels expensive:
 
-- **`explain-usage` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
-  It explains where the current session's tokens went, with one simple chart in plain language.
+- **`explain-usage` (bundled skill)**: explains where the current session's tokens went, with one
+  simple chart in plain language.
   The model and the person can both invoke it where it resolves.
 - **This skill (marketplace plugin).** Reads locally captured telemetry (the OTEL store, the hook
   event log, ccusage) across sessions: trends, cost, hook latency, which hooks fired, and a

@@ -183,10 +183,29 @@ item's class sits within the effective rung **and** its promotable cell is **eff
 C2 at `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy`, never C4/C5. Before
 any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
 fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines.
-Report each bound-to-effective pair at cycle start. The three-arm resolver, what counts as
+Report each bound-to-effective pair at cycle start. The operator-supplied surfaces the seam needs
+are in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
+report-only lane-start preflight names each missing one, and the seam still returns no qualified
+read, so every cell stays effective-unpromoted. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.
+
+## Promotion-evidence bootstrap options (substituted at load)
+
+The option values below substitute when this skill loads. Treat an empty value, or one still
+written as a `${user_config.…}` placeholder, as unset. The lane reads these options from this block
+only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/source-control.md`
+or any other repository file. The reasons and their verification record are in
+[reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
+which also says what each surface must be. The lane-start preflight in
+[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block.
+
+| Option | Value |
+| --- | --- |
+| `promotion_evidence_binding` | `${user_config.promotion_evidence_binding}` |
+| `promotion_evidence_root` | `${user_config.promotion_evidence_root}` |
+| `promotion_evidence_source` | `${user_config.promotion_evidence_source}` |
 
 ## do-not-merge
 
@@ -221,9 +240,20 @@ notification silently. The record path is relative to **this session's checkout*
 `<owner/repo>` names another repository the notification reaches the *launching* project's endpoint
 and the target's tracked hook is never consulted (§2 owns why): **launching from the target
 repository's own checkout is required, not preferred, whenever that repository's endpoint is the
-one that must hear.** A background launch loses the record; the convention's
+one that must hear.** Launch a background lane from inside an isolated linked worktree to keep
+the record; the convention's
 [Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
 paragraph owns why. Telemetry is the report surface, never the escalation channel.
+
+Verification record for the launch advice. Claim: a background session launched inside a linked
+git worktree keeps the record Write in place. Basis: Claude Code skips its pre-edit move into an
+isolated worktree when "the session is already inside a linked git worktree, whether Claude
+created it under `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
+(<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>), and a `claude --bg`
+probe from such a worktree wrote the record there (the work-loop skill's "Background-job launch
+mode" verification record carries the probe). As of 2026-09-29. Recheck trigger: that docs
+section changes its skip rules, or a Claude Code release note changes background-session
+isolation.
 
 A non-convergence, round-cap, or pause-the-loop escalation carries one extra precondition before
 it may be raised: read the actual content of every unresolved review thread first
@@ -271,7 +301,7 @@ block, re-read at every cycle start:
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
  "rate_limit_latch":false,"guard_mode":"proactive","lane_instance":"melo-lap-001",
  "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
- "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
+ "latched_account":null,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
 ```
@@ -282,6 +312,11 @@ budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cy
 is **per-instance**, the marker partitions the block, so each measures *this* instance's experience
 rather than an average of two lanes'. The four instance fields carry the collision check that
 partition depends on; it and the `instance:` cycle-report line are the reference's.
+
+`latched_account` is the fingerprint of the account that tripped the pause, recorded with
+`paused_until` at pause entry (never the address; this comment is public). It is `null` or absent
+when the lane is not paused or the tripping snapshot could not attribute the account.
+[reference/paused-wait.md](reference/paused-wait.md) owns the format.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the tee, not
@@ -313,13 +348,29 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
-  fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
-  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries an **`account.email` field when the writer could attribute the observation**, so a write
-  is still the signal that the windows changed under you (account switch, another session's
-  refresh).
+  fresh snapshot stays valid through the pause unless the account changes (see **Account switch**;
+  no refresh happens while paused). While paused, a consumer **must** arm a session Monitor on the
+  tee file and re-evaluate on every write: the file carries an **`account.email` field when the
+  writer could attribute the observation**, so a write is still the signal that the windows changed
+  under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
+- **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
+  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
+  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
+  the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
+  with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
+  every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
+  re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
+  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
+  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
+  latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
+  missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
+  print, log, or interpolate the email or the state file (`.claude.json` holds account state); parse
+  it with a JSON parser only and treat the value as untrusted.
 
 Two further reader-contract rules apply alongside the floor (outside the byte-audited block):
 
@@ -338,7 +389,13 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
 
 A trip additionally latches `rate_limit_latch` in durable state: while it is set the lane schedules
 at the idle ceiling and starts no new mutating work; clear it on a fresh healthy snapshot after the
-pause end.
+pause end, or on an account switch that resumes the lane.
+
+While paused, apply the floor's **Account switch** bullet at pause entry, on every wake, and on every
+Monitor tick. The steps, the `latched_account` fingerprint written at pause entry, and the telemetry
+event are owned by [reference/paused-wait.md](reference/paused-wait.md). A resume clears
+`rate_limit_latch`, `paused_until`, and `latched_account` together; a future `paused_until` left
+behind is misread as a live pause.
 
 ## Subagents
 
@@ -369,6 +426,10 @@ daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same s
 cycle-budget or seven-day-expiry hit, write a restart-request into the telemetry state block and
 stop the loop cleanly, the budget restarts the session, never ends the loop, and every budget hit
 is a manual-restart state, per the convention.
+
+## Next
+
+`/work-items:attend-queue` for the escalations this lane raised and the human queue they join.
 
 ## Gotchas
 

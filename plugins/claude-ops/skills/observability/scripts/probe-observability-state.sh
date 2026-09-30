@@ -40,10 +40,15 @@
 #   EMPTY (no hook-event emitter wired, or no hooks fired yet)
 #   INVALID root (<value>): the hooks write nothing
 #
-# --otel-store output (stdout, three lines — one per store file, in order
-# cc-logs.json, cc-metrics.json, cc-traces.json):
+# --otel-store output (stdout, five lines — one per store file, in order
+# cc-logs.json, cc-metrics.json, cc-traces.json, then the cold tier and the
+# last prune):
 #   <name>:<bytes>B
 #   <name>:absent
+#   cold:<bytes>B (<n> files) | cold:absent
+#   last-prune:<ISO-8601 UTC> (<age, e.g. 3h or 2d>) | last-prune:never
+# The stamp is <store>/.last-prune, written by prune-otel-store.sh at the end of
+# every successful non-dry run.
 #
 # --pipeline output (stdout, six lines, fixed order and labels; read-only, it
 # never heals the guard):
@@ -136,14 +141,14 @@ while (($#)); do
     exit 0
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
 done
 
 if [[ -z "$MODE" ]]; then
-  err "a mode is required: --hook-events, --otel-store or --pipeline"
+  err "a mode is required: --hook-events, --otel-store or --pipeline (see --help)"
   exit 3
 fi
 
@@ -191,6 +196,8 @@ case "$MODE" in
   ;;
 --otel-store)
   STORE="${CC_OTEL_STORE:-$(repo_root)/.claude/observability/otel}"
+  # Same Windows backslash normalization as prune-otel-store.sh.
+  case "${OSTYPE:-}" in msys* | cygwin* | win*) STORE="${STORE//\\//}" ;; *) ;; esac
   for name in cc-logs.json cc-metrics.json cc-traces.json; do
     if [[ -f "$STORE/$name" ]]; then
       printf '%s:%sB\n' "$name" "$(wc -c <"$STORE/$name" 2>/dev/null || echo 0)"
@@ -198,6 +205,34 @@ case "$MODE" in
       printf '%s:absent\n' "$name"
     fi
   done
+  cold_bytes=0
+  cold_files=0
+  shopt -s nullglob
+  for f in "$STORE"/cold/*.parquet; do
+    cold_bytes=$((cold_bytes + $(wc -c <"$f" 2>/dev/null || echo 0)))
+    cold_files=$((cold_files + 1))
+  done
+  shopt -u nullglob
+  if ((cold_files)); then
+    printf 'cold:%sB (%s files)\n' "$cold_bytes" "$cold_files"
+  else
+    printf 'cold:absent\n'
+  fi
+  stamp=""
+  [[ -f "$STORE/.last-prune" ]] && read -r stamp <"$STORE/.last-prune" 2>/dev/null
+  stamp="${stamp%$'\r'}"
+  stamp_epoch=""
+  if [[ -n "$stamp" ]]; then
+    stamp_epoch="$(date -u -d "$stamp" +%s 2>/dev/null || date -j -u -f %Y-%m-%dT%H:%M:%SZ "$stamp" +%s 2>/dev/null || true)"  # portability-ok: BSD date -j fallback on the same line
+  fi
+  if [[ -n "$stamp_epoch" ]]; then
+    age=$(($(date +%s) - stamp_epoch))
+    ((age < 0)) && age=0
+    if ((age >= 172800)); then age_txt="$((age / 86400))d"; else age_txt="$((age / 3600))h"; fi
+    printf 'last-prune:%s (%s)\n' "$stamp" "$age_txt"
+  else
+    printf 'last-prune:never\n'
+  fi
   ;;
 --pipeline)
   PROJECT="$(repo_root)"

@@ -1,9 +1,10 @@
 # Promotion-evidence trusted seam. Implementation plan (#4588)
 
-Status: proposed, awaiting owner approval (issue 4588 reopened). Nothing here is implemented.
+Status: Phase 1 approved by the owner. Phases 2-3 are unapproved and are re-decided after the
+bootstrap contract is reviewed. Phases 2 and 3 are not implemented.
 
-User-approved plan required before code changes. This document proposes scope and phases; it does
-not wire the seam.
+Each phase needs the owner's approval before its code changes. This document sets scope and phases;
+Phase 1 does not wire the seam.
 
 ## Problem
 

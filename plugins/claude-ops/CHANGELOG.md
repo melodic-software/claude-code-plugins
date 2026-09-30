@@ -3,6 +3,88 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.72.0] - 2026-09-30
+
+### Changed
+
+- **Bundled scripts follow the using-scripts checklist.** Failures now surface as one stderr line
+  and a specific exit code instead of a traceback or a silent exit 0, `--help` no longer depends on
+  `jq`, `gh` or `git`, and unknown-argument errors end with `(see --help)`.
+- **`clean.sh` exits 1** when a file could not be pruned or the OTEL delegate failed, and exits 2 on
+  an empty or missing value flag. An empty `--keep-days` used to remove every session file.
+  `--dry-run` reports a file it would skip because a line is not valid JSON.
+- **`check-all.sh` exits 2 without `gh` or `jq`**; it used to exit 0 with every row `FETCH_FAILED`.
+- **`check-prerequisites.sh --help` writes to stdout**, and a missing `python3` exits 2 with a named
+  message.
+- **`overlap.py detect --out` writes its `wrote <path>` line to stderr**; stdout is empty.
+- **`registry_manager.py`** gains an opt-in top-level `--dry-run` and no longer creates the data
+  directory on a read; a non-object `registry.json` or a failed write exits 2 with a message.
+- **`machine-behavior.sh` caps the `worktrees:` list at 50** and gains `--max-worktrees N` (`0`
+  lists all); `worktree-count` is unchanged.
+- **`sync-run.sh` runs the `claude` CLI with stdin closed**, so a marketplace-declared-command
+  confirmation fails and is journaled instead of waiting for input.
+- **`fleet-state.sh` and `cache-content-check.sh` accept `--help`**; it used to exit 2.
+- `inventory.py`, `install_state.py`, `audit_skill_visibility.py`, `overlap.py` and
+  `native_drift.py` report an unwritable or unreadable path or a malformed `--now` as one stderr
+  line and exit 2 (1 for `overlap.py`), and the visibility churn probe has a 15 s timeout.
+
+## [0.71.3] - 2026-09-29
+
+### Changed
+
+- The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
+
+## [0.71.2] - 2026-09-29
+
+### Changed
+
+- **`observability`'s description opens with a presence-gated routing clause for the bundled
+  `explain-usage` skill.** It routes a quick plain-language breakdown of this session's tokens to
+  `explain-usage` and keeps cross-session trends, cost, hooks, and anything the local telemetry
+  stores hold, the split its Boundary section states.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `doctor` bullets in `audit-install-state`, `audit-performance` and
+  `audit-skill-visibility`, and the `explain-usage` bullet in `observability`, keep the provenance
+  class, what the surface does and how it is invoked, in the native-references template form.
+
+## [0.71.1] - 2026-09-29
+
+### Fixed
+
+- **`changelog apply` Phase 7 files nothing in a repository with no overlap store**: `overlap.py
+  self-check` exits `3` there in report-only mode, which the phase read as a passing run, so it
+  filed tracker items and replaced the baseline. `native_drift.py diff` now marks such a run
+  `report_only`, moves its items to `unfiled`, and the phase keeps the previous baseline.
+- **`native_drift.py` rejects wrong-shaped JSON with exit `2`**: a summary, detect report, store
+  or inventory that parsed but lacked its shape (a top-level `[]`, a string where an object
+  belongs) raised a traceback with exit `1`.
+- **`native_drift.py` hardens its inputs and the facts it hands a filed body**: leaf types
+  (aliases, markers, descriptions, store row names and classes, candidate keys), the store's and
+  the detect report's schema and required fields, deeply nested JSON and oversized integer
+  literals all exit `2`, and any type error left over exits `2` rather than a traceback. Each fact
+  is one line without backticks, and each item carries a `quote` block that sets every fact in a
+  code span, so upstream text cannot forge a `Drift key:` line and suppress a filing. `diff` has
+  no default for `report_only`.
+- **`inventory --docs` stops reading the tools table at the next heading**: when the table's rows
+  stopped matching (tool names without backticks), the parser read on through the page and took a
+  later backticked row as the table, reporting every tool `undocumented` instead of the block
+  `broken`.
+
+## [0.71.0] - 2026-09-29
+
+### Added
+
+- **`CC_OTEL_HOT_MAX_MB` caps each hot OTEL store file.** `prune-otel-store.sh` applies the size cap
+  as a fallback when age-based pruning alone leaves a hot file over the limit, because the
+  collector's file exporter appends and cannot rotate.
+- **`probe-observability-state.sh --otel-store` reports cold size and last-prune age**, beside the
+  per-file hot sizes it already printed.
+
+### Changed
+
+- **`operator-setup-retention.md` states measured store sizes**, the hot size cap and the file
+  exporter's append-only limit, replacing the earlier cold-store estimate.
+
 ## [0.70.0] - 2026-09-29
 
 ### Changed

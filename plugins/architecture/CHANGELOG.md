@@ -3,6 +3,78 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-09-30
+
+### Added
+
+- `map-containers` reads search-index stores (Elasticsearch, OpenSearch, Azure AI
+  Search) from connection configuration and labels them with their technology.
+- `map-containers` draws a cited `uses` edge from a deployable to another
+  deployable in the same system when a configured base URL or endpoint resolves to
+  it. An endpoint that resolves to nothing stays an external reference. Only an
+  `http` or `https` URL is an endpoint, and a URL with no port matches a compose
+  service declaring 80 for `http` and 443 for `https`.
+
+### Changed
+
+- `redact-connection.awk` takes an opt-in `redact_local_http` for the local HTTP
+  endpoint values the new edges read: an http shape may name a bare service name
+  or a loopback host and carries its URL scheme in the scheme column, and a `;`
+  after the userinfo ends a URL authority for every URL shape, so
+  `map-containers` now reads a store URL such as
+  `redis://cache.example.com:6379;x`. With it set, a URL whose authority ends at
+  an unencoded `?`, `#`, or whitespace with an `@` after it yields no row. A
+  caller that does not set it is unchanged. No-leak fixtures cover userinfo,
+  query tokens, and a `;` inside userinfo.
+
+## [0.16.1] - 2026-09-29
+
+### Changed
+
+- **`map-landscape` description** fits the 500-character listing target. The trigger `chart our
+  repositories` is dropped (`map our landscape` carries the same intent); the other triggers and
+  the Skip-when route are kept, and the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.16.0] - 2026-09-29
+
+### Added
+
+- `map-data` reads an Entity Framework chain whose `HasForeignKey` takes a lambda, whose entity
+  is configured in an `IEntityTypeConfiguration<T>` class, or whose one-to-many navigations are
+  lambdas resolved from the entity classes. Requiredness falls back to the foreign-key
+  property's declared type when `IsRequired` is absent, so `int?` is optional and `int` is
+  required; an `IsRequired` argument other than `true` or `false` refuses the record. A chain
+  still outside the subset refuses the record and names the property on stderr.
+
+## [0.15.0] - 2026-09-29
+
+### Added
+
+- `map-dependencies` reads Node workspaces and `file:`/`workspace:` dependencies,
+  Go `replace` and `go.work`, Python path references and uv workspaces, Rust
+  workspace members and `path =` dependencies, and Gradle `include` and
+  `project(...)` references and Maven `<modules>`, from readers under `lib/`.
+  Every edge cites its file and declaration; a manifest shape a reader does not
+  handle is reported as `unread-manifest`.
+- `dependency-graph.sh` runs every reader whose manifests are present and
+  merges them into one record; each node carries its own `ecosystem`.
+- `SKILL.md` lists the ecosystems read and the ones declined (Ruby, PHP).
+
+### Changed
+
+- `map-components` no longer counts a stray manifest as a deployable: a project no
+  internal edge touches, in an ecosystem no linked project and no .NET project
+  shares (a tooling `package.json`, a requirements file). A .NET tree with one
+  still charts its host, and the report says how many were set aside.
+
+## [0.14.0] - 2026-09-29
+
+### Removed
+
+- `map-states` and its extractor, renderer, tests, and evals. Its README, config
+  reference, `map-landscape`, catalog, and tag references are removed with it.
+
 ## [0.13.0] - 2026-09-29
 
 ### Added
