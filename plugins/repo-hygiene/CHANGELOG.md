@@ -3,6 +3,53 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-09-30
+
+### Changed
+
+- **The batch plan defaults to a durable per-repo-set directory (#5215).** `clean-batch.sh` without
+  `--batch-plan` now writes the plan and manifests to `clean-batch/<tier>-<key>` under
+  `${CLAUDE_PLUGIN_DATA}`, else `~/.claude/plugins/data/repo-hygiene`, instead of a `mktemp`
+  directory. Each dry-run writes a new `run.*` directory under its tier, repo set and skip list, so
+  a later dry-run never replaces a plan already confirmed, and removes that set's `run.*`
+  directories older than 14 days. `--batch-plan FILE` still overrides.
+
+### Added
+
+- **The batch dry-run lists the planned paths per repo (#5215).** Each repo's paths print largest
+  first, read from the manifests apply consumes, capped at 20 per repo by the new
+  `--list-paths-max N`, with an `N more, see plan file: <path>` tail when the cap truncates.
+
+## [0.16.0] - 2026-09-30
+
+### Added
+
+- **`git-branch-audit.sh --remote-families` reports `refs/remotes/origin/*` by branch family (#5220).**
+  Each family (pre-wipe, claude, plan, stranded, agent-`<hex>` and the rest) gets a count, an owner,
+  a stated retention rule and a per-branch verdict. A remote branch is landed when its tip equals
+  or is an ancestor of the `headRefOid` of a merged PR, which covers squash merges. The mode is
+  read-only and deletes nothing; a branch that is unlanded and on no other ref is KEEP-UNIQUE.
+
+## [0.15.0] - 2026-09-30
+
+### Added
+
+- **`git-branch-audit.sh` proves a branch landed without a PR record (#5230).** When the PR map
+  has no entry, it runs `git cherry` against the default branch (every commit equivalent; skipped
+  for a branch with a merge commit, which `git cherry` does not list), then a tree-equality check
+  against the default branch, then the patch-id of the branch's whole diff (a squash), before
+  falling to REVIEW or LOSSY. A proof makes the branch LIKELY-SAFE with a `Landed:` line, recorded
+  in a new `landed` column of the tip capture, and `git-branch-delete.sh` runs the same proof
+  again at delete time in place of its remote-reachability check, so a landed branch is deletable
+  through the audit's own capture. The squash check writes one unreferenced loose object per
+  branch it reaches, which `git gc` prunes.
+- **`git-branch-audit.sh` prints a `MainCheckout:` block** with the branch or detached state, the
+  dirty file count, and any merge, revert, rebase, cherry-pick or bisect in progress, naming the
+  file that shows it. It describes the checkout the audit runs from, a linked worktree when it
+  runs from one; an operation in another worktree is not detected. It emits no deletable tier
+  (`SAFE`, `LIKELY-SAFE` or `LOSSY`) while an operation is in progress, and
+  `git-branch-delete.sh` refuses to delete then.
+
 ## [0.14.0] - 2026-09-29
 
 ### Changed

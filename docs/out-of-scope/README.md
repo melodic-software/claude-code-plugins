@@ -1,11 +1,9 @@
-# Rejected-concept ledger (consumer convention)
+# Rejected-concept ledger
 
-Optional per consuming repository. This marketplace keeps one copy at the repo root so
-`work-items:triage` and `work-items:track add` can match incoming requests against settled
-rejections without re-litigating them.
+One file per rejection, matched and appended to as the `/work-items:triage` "Rejected-concept
+ledger" step defines. The ledger records rejections only, never built features or deferred work: a
+deferral, a park, or an open question is an open tracker item.
 
-One file per concept under this directory. Each file records the decision, rationale, revisit
-trigger, and a "Prior requests" log (append-only).
-
-This repository is single-operator today; entries here are publisher-side decisions that also
-apply to marketplace consumers who adopt the ledger shape.
+Two entries are agent proposals the owner has not ruled on, not settled rejections:
+`machine-profile.md` (#4666) and `shared-surface-instruction-governance.md` (#3568). Each says so in
+its own text, and the owner's ruling on that issue confirms, reverses, or removes the entry.

@@ -3,6 +3,70 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.73.1] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` files native-drift items without a `native-drift` label.** The body's
+  `native-drift:<kind>:<surface>:<component>` key already finds every item (on GitHub,
+  `gh issue list --state all --limit 1000 --search '"native-drift:" in:body'`), so the label step and its two recorded facts
+  are gone.
+
+## [0.73.0] - 2026-09-30
+
+### Added
+
+- **`hook_events_max_bytes` option** (default 10 MiB) sets the size at which the telemetry sink
+  rotates the shared `hook-events.jsonl`. It reaches the sink only when a claude-ops hook emits the
+  envelope; an emitter in another plugin that runs the sink keeps the default.
+
+### Fixed
+
+- **The shared `hook-events.jsonl` no longer grows without bound.** The telemetry sink now rotates
+  it to `hook-events.jsonl.1` (replacing any older `.1`) under its existing append lock once it
+  passes `hook_events_max_bytes`, so the pair stays near twice that. Rotation runs whether or not
+  the per-session event log is enabled, which the SessionEnd retention sweep never covered for this
+  file. `observability` clean and its state probe treat the rotated file like the live one, and the
+  README and observability references describe the cap. `clean` prunes the rotated file under the
+  live file's lock, so a concurrent rotation cannot be overwritten by the pruned copy.
+
+## [0.72.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.72.0] - 2026-09-30
+
+### Changed
+
+- **Bundled scripts follow the using-scripts checklist.** Failures now surface as one stderr line
+  and a specific exit code instead of a traceback or a silent exit 0, `--help` no longer depends on
+  `jq`, `gh` or `git`, and unknown-argument errors end with `(see --help)`.
+- **`clean.sh` exits 1** when a file could not be pruned or the OTEL delegate failed, and exits 2 on
+  an empty or missing value flag. An empty `--keep-days` used to remove every session file.
+  `--dry-run` reports a file it would skip because a line is not valid JSON.
+- **`check-all.sh` exits 2 without `gh` or `jq`**; it used to exit 0 with every row `FETCH_FAILED`.
+- **`check-prerequisites.sh --help` writes to stdout**, and a missing `python3` exits 2 with a named
+  message.
+- **`overlap.py detect --out` writes its `wrote <path>` line to stderr**; stdout is empty.
+- **`registry_manager.py`** gains an opt-in top-level `--dry-run` and no longer creates the data
+  directory on a read; a non-object `registry.json` or a failed write exits 2 with a message.
+- **`machine-behavior.sh` caps the `worktrees:` list at 50** and gains `--max-worktrees N` (`0`
+  lists all); `worktree-count` is unchanged.
+- **`sync-run.sh` runs the `claude` CLI with stdin closed**, so a marketplace-declared-command
+  confirmation fails and is journaled instead of waiting for input.
+- **`fleet-state.sh` and `cache-content-check.sh` accept `--help`**; it used to exit 2.
+- `inventory.py`, `install_state.py`, `audit_skill_visibility.py`, `overlap.py` and
+  `native_drift.py` report an unwritable or unreadable path or a malformed `--now` as one stderr
+  line and exit 2 (1 for `overlap.py`), and the visibility churn probe has a 15 s timeout.
+
+## [0.71.3] - 2026-09-29
+
+### Changed
+
+- The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
+
 ## [0.71.2] - 2026-09-29
 
 ### Changed
