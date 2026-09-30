@@ -55,7 +55,11 @@ The audits delete no branch and change no working-tree file. Besides the
 capture, the branch audit's landed-proof squash check writes one unreferenced
 loose object per branch it reaches, which `git gc` prunes.
 Deletion is not batched: run the delete from inside the audited repo, with that
-repo's `TipCapture:` path.
+repo's `TipCapture:` path. A branch audit across a fleet of repositories is
+`/repo-fleet-hygiene:audit`. Per repository, add `--read-only` to write no capture
+and no object (the squash check runs in a throwaway object directory), or `--remote`
+to audit the live `origin` branches against merged PRs (a tip that differs from its
+merged PR's head is `MERGED-DRIFT`).
 
 ```shell
 ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh --repos-from -

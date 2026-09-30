@@ -3,6 +3,12 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.10] - 2026-09-30
+
+### Changed
+
+- README and `/biome-format:setup check` state that the SessionStart probe does not look for a `biome.json`, so it reports a missing Biome in every repository where the plugin is enabled, including one that never opted in. Only the per-edit hook's skip notice is opt-in gated.
+
 ## [0.7.9] - 2026-09-30
 
 ### Changed

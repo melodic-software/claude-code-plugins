@@ -9,6 +9,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, each case has a `skill-fired` grader, and each case seeds a repository through `--scaffold`.
 
+## [0.65.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `commit` and `/commit-push-pr` bullets in `commit`, the `pr`, `/commit-push-pr` and
+  `/autofix-pr` bullets in `pull-request`, and the `/autofix-pr` bullet in `babysit-prs` keep the
+  provenance class, what the surface does and how it is invoked, in the native-references template
+  form.
+
 ## [0.65.2] - 2026-09-30
 
 ### Fixed
