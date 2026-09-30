@@ -161,6 +161,19 @@
         "The skill recognizes that removing a detached-HEAD worktree loses its commits immediately, with no branch ref left to recover from",
         "It does not report the worktree as having no unpushed work on the basis of a --branches query"
       ]
+    },
+    {
+      "id": 14,
+      "name": "cleanup-offers-stale-lock-behind-the-gate",
+      "prompt": "/worktree cleanup — one worktree is locked, its PR merged last week, and the session that locked it is long gone. Clean it up.",
+      "expected_output": "The locked worktree is classed Stale lock, not the never-a-candidate Locked row, because its branch's PR is merged (or landed-work.sh reports landed) and `worktree-claim.sh stale <path>` exits 0. It is presented as a candidate with the lock reason and the evidence line, and only on explicit confirmation is it unlocked with `git worktree unlock <path>` and then removed plainly. A lock without that proof stays Locked. `--force --force` is never used.",
+      "files": [],
+      "expectations": [
+        "A locked worktree with a merged PR is treated as a candidate only after worktree-claim.sh stale <path> exits 0, not on the merged PR alone",
+        "The candidate is presented with the lock reason and the stale evidence, and nothing is unlocked or removed before explicit confirmation",
+        "Removal is git worktree unlock followed by a plain remove; --force --force is never used",
+        "When stale exits 1 the worktree stays classified as Locked and is not offered for removal"
+      ]
     }
   ]
 }
