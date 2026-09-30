@@ -20,3 +20,11 @@ printf 'export const other = 2;\n' > src/other.ts
 printf 'scratch\n' > notes.txt
 
 git worktree add -q ../eval-linked -b feat/linked main
+
+git stash push -q -u -m eval-wip
+git checkout -q main
+printf 'export const extra = 1;\n' > src/extra.ts
+git add src/extra.ts
+git commit -q -m "chore: advance main"
+git checkout -q fix/null-user
+git stash pop -q

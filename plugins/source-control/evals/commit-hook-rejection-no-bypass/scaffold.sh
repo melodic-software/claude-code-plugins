@@ -20,3 +20,12 @@ printf 'export const other = 2;\n' > src/other.ts
 printf 'scratch\n' > notes.txt
 
 git worktree add -q ../eval-linked -b feat/linked main
+
+cat > .git/hooks/commit-msg <<'HOOK'
+#!/usr/bin/env bash
+head -n1 "$1" | grep -Eq '^(feat|fix|docs|chore|refactor|test)(\([^)]+\))?: .+' || {
+  echo "commit-msg: subject must be a Conventional Commits subject" >&2
+  exit 1
+}
+HOOK
+chmod +x .git/hooks/commit-msg

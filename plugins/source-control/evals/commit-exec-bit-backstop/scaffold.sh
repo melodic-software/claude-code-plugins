@@ -20,3 +20,8 @@ printf 'export const other = 2;\n' > src/other.ts
 printf 'scratch\n' > notes.txt
 
 git worktree add -q ../eval-linked -b feat/linked main
+
+for n in build lint release; do
+  printf '#!/usr/bin/env bash\necho %s\n' "$n" > "tools/$n.sh"
+  chmod -x "tools/$n.sh"
+done
