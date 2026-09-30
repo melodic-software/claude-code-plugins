@@ -11,7 +11,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 CASE_NUM=0
-EXPECTED_CASES=18
+EXPECTED_CASES=21
 
 pass() { CASE_NUM=$((CASE_NUM + 1)); printf 'PASS: %s\n' "$1"; }
 fail() {
@@ -118,6 +118,20 @@ git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/bare-lock" -b bare-lock
 git -C "$TEST_TMPDIR/repo" worktree lock "$TEST_TMPDIR/bare-lock"
 listed="$(bash "$SCRIPT_DIR/worktree-facts.sh" list "$TEST_TMPDIR/repo" | awk -F'\t' -v p="$TEST_TMPDIR/bare-lock" '$1 == p {print $6 "|" $7}')"
 assert_eq "list: a reasonless lock reads locked=yes, lock_reason=-" "$listed" "yes|-"
+
+# The session parser reads what the encoder writes, and only that.
+assert_eq "reason_lane: host and session id come back" "$(worktree_reason_lane "$helper_reason")" "testhost sess-owner"
+no_session_reason="$(HOSTNAME=testhost worktree_lock_reason worktree-create.sh)"
+if worktree_reason_lane "$no_session_reason" >/dev/null; then
+  fail "reason_lane: a session-less reason has no lane" "no match" "$no_session_reason"
+else
+  pass "reason_lane: a session-less reason has no lane"
+fi
+if worktree_reason_lane "unlock when done" >/dev/null; then
+  fail "reason_lane: free text has no lane" "no match" "match"
+else
+  pass "reason_lane: free text has no lane"
+fi
 
 echo "---"
 if [[ "$FAILED" -eq 0 && "$CASE_NUM" -eq "$EXPECTED_CASES" ]]; then
