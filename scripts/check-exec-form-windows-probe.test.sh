@@ -4,6 +4,9 @@
 # shellcheck disable=SC2016
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-exec-form-windows-probe.sh"
 GATE="$SELF_DIR/check-hook-exec-form.sh"
@@ -315,7 +318,7 @@ EOF
   # spawn half; the launcher half needs a real node, so it gets the real one.
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-  winnode="$(mktemp -d)"
+  winnode="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   cat >"$winnode/node" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in *launcher-probe.cjs*) exec "$REAL_NODE" "$@" ;; esac
@@ -342,7 +345,7 @@ fi
 # --- a required spawn with node hidden fails closed -------------------------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-hidden="$(mktemp -d)"
+hidden="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 # Keep jq and python (and uv, the PyYAML fallback), drop node.
 mkdir -p "$hidden/bin"
 for tool in bash jq python3 python uv; do
@@ -361,7 +364,7 @@ rm -rf "$f" "$hidden"
 # --- live probe: healthy fake claude, dropped args, and missing claude ------
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-bin="$(mktemp -d)"
+bin="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 cat >"$bin/claude" <<'EOF'
 #!/usr/bin/env bash
 settings=""
@@ -391,7 +394,7 @@ rm -rf "$f" "$bin"
 
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-bin="$(mktemp -d)"
+bin="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 cat >"$bin/claude" <<'EOF'
 #!/usr/bin/env bash
 echo 'SyntaxError: Unexpected token :' >&2
@@ -410,7 +413,7 @@ rm -rf "$f" "$bin"
 
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
-hidden="$(mktemp -d)/bin"
+hidden="$(mktemp -d "$TMP_ROOT/d.XXXXXX")/bin"
 mkdir -p "$hidden"
 for tool in bash jq python3 python uv node; do
   src="$(command -v "$tool" 2>/dev/null || true)"

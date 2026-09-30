@@ -23,15 +23,3 @@ plugins/work-items/tools/work-item-tracker/adapters/local-markdown/renew-lease.t
 plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh
 plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.test.sh
 plugins/work-items/tools/work-item-tracker/conformance/bindings/local-markdown.test.sh
-scripts/affected-tests.test.sh
-scripts/check-changed-skills.test.sh
-scripts/check-contract-slice-prune.test.sh
-scripts/check-detector-eval-coverage.test.sh
-scripts/check-discriminating-test-skips.test.sh
-scripts/check-docs-only.test.sh
-scripts/check-exec-form-windows-probe.test.sh
-scripts/check-shell-portability.test.sh
-scripts/gen-hook-event-registry.test.sh
-scripts/lib/changed-files.test.sh
-scripts/lib/gate-entry.test.sh
-scripts/lib/read-list.test.sh
