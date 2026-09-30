@@ -91,8 +91,10 @@ run in this session) and saved to the packet.
 
 ## Research gate
 
-A suggested change (a remediation the item proposes, as opposed to a defect it reports) carries a
-readiness label, decided at step 4:
+Every load-bearing claim in the item carries a `research:` line in the ledger
+(`reference/categories.md`); a claim without a checked tier record is stated as an open question.
+A suggested change (a remediation the item proposes, as opposed to a defect it reports) also
+carries a readiness label, decided at step 4:
 
 1. Run `/discovery:research` on the change when the discovery plugin is installed: the question is
    whether current authoritative sources support the change.
