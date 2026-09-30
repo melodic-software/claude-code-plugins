@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.1] - 2026-09-30
+
+### Fixed
+
+- **The surface warns beside Wrap up while assumptions are still open.** The hint shows the count of unconfirmed assumptions next to the existing understanding-not-confirmed line ([#5460](https://github.com/melodic-software/claude-code-plugins/issues/5460)).
+
 ## [0.48.0] - 2026-09-29
 
 ### Added
