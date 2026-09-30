@@ -3,11 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.2] - 2026-09-29
+## [0.47.4] - 2026-09-29
 
 ### Fixed
 
-- **The interview surface docs say to read the watcher's JSON from the task output file.** The wake notification carries only the output-file path and exit status, so the session reads that file and takes its last line. A verification record backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+- **The interview surface docs say how to read the watcher's JSON after a wake.** The wake notification carries only the output-file path and exit status. On exit 0 the session takes the last line of that file with `tail -n 1` (Read cuts long lines); on a nonzero exit it reads the diagnostic and follows the exit-specific recovery. A verification record with an upstream pointer backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
+
+## [0.47.2] - 2026-09-29
+
+### Added
+
+- **`draft-goal-condition` carries a Boundary section for the built-in `/goal` command.** The skill drafts the condition; the person runs `/goal <condition>` with it, and the model never sets a goal.
+- **`plan` carries a Boundary section for the built-in `/plan` command.** Plan mode stays the person's permission-mode switch, offered where Plan Mode Integration already suggests it; the skill keeps the persisted, approval-gated plan.
 
 ## [0.47.1] - 2026-09-29
 

@@ -23,7 +23,9 @@ match.
 3. Apply the role label in the **same** label edit as any label removals the outcome requires.
 
 `attend-queue` matches on author **and** marker prefix. Suppress duplicate markers from the same
-write identity, never from marker text alone.
+write identity, never from marker text alone, and only while the item still wears the role label:
+an item an operator has answered and returned to the frontier has no standing escalation, so a
+later escalation of it posts a fresh marker.
 
 Loop-lane escalation record files (`.claude/lane-escalations/…`) are optional exhaust; the tracker
 item plus marker comment is the escalation of record when the record write fails (see
