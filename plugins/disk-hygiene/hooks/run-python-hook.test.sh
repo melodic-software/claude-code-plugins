@@ -537,7 +537,7 @@ nopy_guard "$engine_payload" --marker-root "$NOPY_DIR/data" --launch-marker guar
   "$GUARD" --mode engine-gate
 assert_eq "engine-gate without python denies a command naming the engine" "2" "$NOPY_RC"
 assert_contains "the engine deny says the guard could not run" "could not run" "$NOPY_ERR"
-assert_contains "the engine deny names the remedy" "/disk-hygiene:setup check" "$NOPY_ERR"
+assert_contains "the engine deny names the remedy" "/disk-hygiene:check" "$NOPY_ERR"
 assert_eq "the engine deny prints no allow-shaped stdout" "" "$NOPY_OUT"
 
 # shellcheck disable=SC2016  # a literal PowerShell variable, deliberately unexpanded
@@ -614,7 +614,7 @@ CONTEXT_OUT="$(
 )"
 assert_eq "the clean expansion is blocked without python" "block" \
   "$(jq -r '.decision // ""' <<<"$CONTEXT_OUT" 2>/dev/null)"
-assert_contains "the expansion block names the remedy" "/disk-hygiene:setup check" \
+assert_contains "the expansion block names the remedy" "/disk-hygiene:check" \
   "$(jq -r '.reason // ""' <<<"$CONTEXT_OUT" 2>/dev/null)"
 
 # --- happy path execs the target script when python is available ---
