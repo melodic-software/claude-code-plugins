@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.3] - 2026-09-30
+
+### Changed
+
+- **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work. The message is the only change: the guard matches and denies exactly as before.
+
 ## [0.29.1] - 2026-09-29
 
 ### Fixed
