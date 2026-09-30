@@ -3,6 +3,25 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.9] - 2026-09-29
+
+### Changed
+
+- **`ci-log-auditor` and `doc-drift-detector` pin `effort: medium`, down from `high`.** Both check
+  against binary criteria, so the extra effort bought cost without changing the verdict.
+  `code-reviewer`, `security-reviewer`, `architecture-guardian` and `ecosystem-specialist` stay at
+  `high`.
+
+## [0.33.8] - 2026-09-29
+
+### Security
+
+- **`pr-explainer` page validator rejects resource-loading CSS.** Inside `<style>`, `url(`,
+  `@import`, `expression(` and any backslash escape now fail the page; before, a page could load
+  a remote stylesheet or image with no HTML-significant character. The module comment no longer
+  claims the generator marker proves a page came from the builder: anyone can recompute the digest,
+  so a stamped page is judged by the structural scan alone.
+
 ## [0.33.7] - 2026-09-29
 
 ### Changed

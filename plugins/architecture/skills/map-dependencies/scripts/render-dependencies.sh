@@ -19,7 +19,8 @@
 #   unread_files=<f> cycles=<c> aggregated=<yes|no> drawn_edges=<d>
 #
 # membership counts unresolved solution members. unread_files counts files
-# with reference tags the collector did not turn into an edge.
+# with reference tags or manifest declarations the collector did not turn into
+# an edge.
 #
 # The flowchart is mermaid `flowchart` in both landscape_dialect settings.
 # This script does not read the dialect. External package nodes are collapsed
@@ -260,6 +261,7 @@ function add_line(s) { md = md s "\n" }
     node_name[nn] = json_string_after_key($0, "name")
     node_path[nn] = json_string_after_key($0, "path")
     node_kind[nn] = json_string_after_key($0, "kind")
+    node_eco[json_string_after_key($0, "ecosystem")] = 1
     if (node_kind[nn] == "package") pkg_label[id] = node_name[nn]
   } else {
     cn++
@@ -280,8 +282,10 @@ function add_line(s) { md = md s "\n" }
   fn++
   finding_kind[fn] = json_string_after_key($0, "kind")
   finding_evidence[fn] = json_string_after_key($0, "evidence")
-  if (finding_kind[fn] == "unread-reference-tags") unread_n++
-  else membership_n++
+  if (finding_kind[fn] == "unread-reference-tags" || finding_kind[fn] == "unread-manifest") {
+    fpath = json_string_after_key($0, "path")
+    if (!(fpath in unread_seen)) { unread_seen[fpath] = 1; unread_n++ }
+  } else membership_n++
   next
 }
 END {
@@ -356,6 +360,14 @@ END {
     add_line("")
     add_line("- Result: ok")
     add_line("- Ecosystem: " ecosystem)
+    if (ecosystem == "mixed") {
+      eco_n = 0
+      for (k in node_eco) eco_list[++eco_n] = k
+      sort_at(eco_list, eco_n)
+      eco_names = ""
+      for (i = 1; i <= eco_n; i++) eco_names = eco_names (i > 1 ? ", " : "") eco_list[i]
+      add_line("- Ecosystems read: " eco_names)
+    }
     add_line("- Node threshold: " threshold)
     if (message != "") {
       add_line("")
