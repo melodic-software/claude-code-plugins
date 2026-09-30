@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.6] - 2026-09-30
+## [0.43.1] - 2026-09-30
 
 ### Changed
 
@@ -11,6 +11,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - `secret-pattern-detection` pre-matches a Windows write target against the environment's temp spellings and adds the `cygpath` drive spellings only after a hit, so a write outside temp spawns no resolver process.
 - **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
 - The `block-hook-bypass`, `secret-pattern-detection`, `run-guards` and `coverage-manifest` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
+
+## [0.43.0] - 2026-09-30
+
+### Added
+
+- **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
 
 ## [0.42.5] - 2026-09-30
 
