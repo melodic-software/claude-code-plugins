@@ -1885,13 +1885,21 @@ fi
 # value_documented <value> <accepted>: whether the value is one of the accepted
 # lines. A whole-string match: grep would read a multi-line value as several
 # patterns and pass "bogus<newline>high" on its second line. An accepted line
-# holding a <placeholder>, such as custom:<slug>, matches any text in its place.
+# holding a <placeholder>, such as custom:<slug>, matches nonempty text in its
+# place; one followed by a literal character stops before that character.
 value_documented() {
-  local v="$1" a pat
+  local v="$1" a pat rest
+  shopt -s extglob
   [[ -n "$v" && "$v" != *$'\n'* ]] || return 1
   while IFS= read -r a; do
     if [[ "$a" == *'<'*'>'* ]]; then
-      pat="${a//<[^>]*>/*}"
+      pat="" rest="$a"
+      while [[ "$rest" =~ ^([^<]*)\<[^\>]*\>(.*)$ ]]; do
+        pat+="${BASH_REMATCH[1]}"
+        rest="${BASH_REMATCH[2]}"
+        if [[ -n "$rest" ]]; then pat+="+([!${rest:0:1}])"; else pat+='?*'; fi
+      done
+      pat+="$rest"
       # shellcheck disable=SC2053
       [[ "$v" == $pat ]] && return 0
     elif [[ "$v" == "$a" ]]; then

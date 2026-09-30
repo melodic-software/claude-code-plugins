@@ -1518,6 +1518,9 @@ assert_eq "case 52: an in-set value in the user file is ok" "ok" "$(jq -r '.rows
 assert_eq "case 52: a custom:<slug> theme matches its placeholder entry" "ok" "$(jq -r '.rows[] | select(.claim=="theme:custom:mine") | .status' <<<"$out")"
 assert_eq "case 52: a key the fixture page does not document has no row" "0" "$(jq '[.rows[] | select(.claim | startswith("promptCacheTtl:"))] | length' <<<"$out")"
 assert_eq "case 52: settings.local.json values are never echoed" "0" "$(jq '[.rows[] | select(.claim=="editorMode:secret-value")] | length' <<<"$out")"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {theme:"custom:"}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: an empty placeholder match is flagged" "finding" "$(jq -r '.rows[] | select(.claim=="theme:custom:") | .status' <<<"$out")"
 
 # A list with a bullet that is not a literal value (a pattern) is open: the literals are
 # not the whole set, so a value outside them is not flagged. The same list without that
