@@ -1838,6 +1838,12 @@ if command -v jq >/dev/null 2>&1; then
   assert_contains "expired pre-wipe with unique commits: kept" "$(rf_field pre-wipe/old-unique Retention) $(rf_field pre-wipe/old-unique Reason)" "KEEP-UNIQUE tip is 200d old, past the 30d retention for pre-wipe; not landed and no other ref holds the tip"
   assert_contains "agent branch with no worktree and a landed PR: candidate" "$(rf_field agent-abc123 Retention) $(rf_field agent-abc123 Landed)" "CANDIDATE PR #14 merged, its head is the tip"
   assert_contains "agent branch checked out in a worktree: kept" "$(rf_field agent-def456 Retention) $(rf_field agent-def456 Reason)" "KEEP checked out in worktree"
+  assert_contains "summary counts each family" "$rf_out" "Families: agent=2 claude=1 plan=1 stranded=1 pre-wipe=3 none=4"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$rf_bin/gh"
+  rf_nopr_out="$(cd "$RF" && PATH="$rf_bin:$PATH" bash "$AUDIT" --remote-families)"
+  assert_contains "failed PR lookup is announced" "$rf_nopr_out" "PRDataUnavailable:"
+  assert_contains "expired branch is undetermined when the PR map is missing" "$(awk '$0 == "RemoteBranch: pre-wipe/old-held" { p = 1; next } /^RemoteBranch: / { p = 0 } p && /^Retention: / { print; exit }' <<<"$rf_nopr_out")" "KEEP-UNDETERMINED"
+  assert_not_contains "no branch is a candidate without the PR map" "$rf_nopr_out" "Retention: CANDIDATE"
   assert_not_contains "remote mode writes no TipCapture line" "$rf_out" "TipCapture:"
   assert_not_contains "remote mode reports no deletion" "$rf_out" "Deleted:"
   if [[ "$(git -C "$RF" for-each-ref --format='%(refname) %(objectname)')" == "$refs_before" ]]; then

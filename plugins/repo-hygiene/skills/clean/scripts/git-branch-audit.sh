@@ -291,7 +291,10 @@ declare -A PR_NUM=()
 declare -A PR_REFOID=()
 PR_MAP_FILE="$(mktemp 2>/dev/null)" || PR_MAP_FILE="${TMPDIR:-/tmp}/clean-pr-map.$$"
 trap 'rm -f "$PR_MAP_FILE"' EXIT
-clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number,headRefOid'
+PR_MAP_STATUS="$(clean_pr_map "$PR_MAP_FILE" 'headRefName,state,number,headRefOid')"
+[[ -n "$PR_MAP_STATUS" ]] && printf '%s\n' "$PR_MAP_STATUS"
+PR_MAP_INCOMPLETE=0
+[[ "$PR_MAP_STATUS" == *PRDataUnavailable* || "$PR_MAP_STATUS" == *PRDataTruncated* ]] && PR_MAP_INCOMPLETE=1
 if [[ -f "$PR_MAP_FILE" ]]; then
   while IFS=$'\t' read -r head state num refoid; do
     [[ -z "$head" ]] && continue
@@ -323,7 +326,7 @@ branch_family() {
 remote_families_report() {
   local v line name tip otype ts age_days family days state pr_line landed num oid head refoid
   local verdict why expired unique_out n_total=0 n_cand=0 n_keep=0 n_unique=0 n_unknown=0 n_na=0
-  local -A open_pr=() merged_prs=() wt=()
+  local -A open_pr=() merged_prs=() wt=() n_fam=()
   for v in CLEAN_RETENTION_PREWIPE_DAYS CLEAN_RETENTION_CLAUDE_DAYS CLEAN_RETENTION_PLAN_DAYS CLEAN_RETENTION_STRANDED_DAYS; do
     if ! [[ "${!v}" =~ ^[0-9]+$ ]]; then
       echo "git-branch-audit.sh: $v must be a whole number of days, got '${!v}'" >&2
@@ -351,6 +354,7 @@ remote_families_report() {
     n_total=$((n_total + 1))
     age_days=$(((now - ts) / 86400))
     family="$(branch_family "$name")"
+    n_fam["$family"]=$((${n_fam[$family]:-0} + 1))
 
     # Landed: a MERGED PR on this head whose head is the tip, or has the tip as
     # an ancestor (commits pushed after the merge are not landed).
@@ -408,7 +412,9 @@ remote_families_report() {
       esac
     fi
     if [[ $expired -eq 1 ]]; then
-      if [[ -n "$landed" ]]; then
+      if [[ $PR_MAP_INCOMPLETE -eq 1 ]]; then
+        verdict=KEEP-UNDETERMINED why+="; PR data is incomplete, so an open PR cannot be ruled out"
+      elif [[ -n "$landed" ]]; then
         verdict=CANDIDATE why+="; landed"
       elif ! unique_out="$(git -C "$REPO_ROOT" rev-list -n 1 "$tip" --not --exclude="refs/remotes/origin/$name" --all 2>/dev/null)"; then
         verdict=KEEP-UNDETERMINED why+="; could not check whether another ref holds the tip"
@@ -438,6 +444,8 @@ remote_families_report() {
     --format='%(refname)%1f%(objectname)%1f%(objecttype)%1f%(committerdate:unix)' 2>/dev/null | tr -d '\r')
   printf 'RemoteSummary: branches=%s candidate=%s keep=%s keep-unique=%s keep-undetermined=%s no-rule=%s\n' \
     "$n_total" "$n_cand" "$n_keep" "$n_unique" "$n_unknown" "$n_na"
+  printf 'Families: agent=%s claude=%s plan=%s stranded=%s pre-wipe=%s none=%s\n' \
+    "${n_fam[agent]:-0}" "${n_fam[claude]:-0}" "${n_fam[plan]:-0}" "${n_fam[stranded]:-0}" "${n_fam[pre-wipe]:-0}" "${n_fam[none]:-0}"
 }
 [[ $REMOTE_FAMILIES -eq 1 ]] && {
   remote_families_report
