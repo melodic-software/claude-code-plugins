@@ -271,8 +271,9 @@ docs and are deliberately decoupled from this number.
 
 Recorded here whether or not ratified. Listing a deviation documents that it exists and diverges; it
 does not by itself bless it. Ratifying one, as #649 did for the policy-floor precedence-inversion
-class above, moves it from observed to sanctioned. Ruling on each remaining deviation (correct the
-surface, or amend this contract) is a separate human-gated decision.
+class above and [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) did for the layer locations below, moves it from observed to sanctioned. Ruling
+on each remaining deviation (correct the surface, or amend this contract) is a separate human-gated
+decision.
 
 **Ratified as a sanctioned exception class, one axis only:**
 
@@ -280,15 +281,52 @@ surface, or amend this contract) is a separate human-gated decision.
   above (ratified by #649). Personal layers may add or tighten only; the team-tracked layer wins a
   direct conflict, with provenance reported. Conformant to that class, not a tolerated deviation.
   **This ratification covers the precedence axis alone.** `standards` also diverges on layer *location*
-  (see Declared, below), which #649 did not rule on and which remains observed.
+  (see Declared, below), which #649 did not rule on and [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) ratifies separately.
 
 **Declared**, meaning the surface states its divergence and why:
 
 - **`standards` locates its layers outside `.claude/`.** Its team and overlay layers live at
-  `<standards_dir>/` (default `docs/standards/`) with a setup-owned in-directory `.gitignore`, rather
-  than the contract's `${CLAUDE_PROJECT_DIR}/.claude/<name>` and `*.local.*` paths, deliberately,
-  because writes under `.claude/` are permission-guarded. **Observed, not ratified:** #649 ruled the
-  precedence axis only; the location model is a separate, still-open ruling.
+  `<standards_dir>/` (default `docs/standards/`), rooted by the `standards_dir` key of
+  `.claude/standards.yaml`, with a setup-owned in-directory `.gitignore`, rather than the contract's
+  `${CLAUDE_PROJECT_DIR}/.claude/<name>` and `*.local.*` paths. Ratified in place as a declared
+  exception ([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md), #3577). The pointer file that roots it stays the sanctioned relocation
+  mechanism for a surface that needs a configurable root; it is not a fleet rule.
+  - **Claim:** `standards` keeps its team layer and overlay at `<standards_dir>/`; the location
+    is a declared exception, not drift.
+  - **Basis:** [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) on the owner decision on #3577; the existing `.claude/standards.yaml` pointer
+    already roots the directory, so no new mechanism is needed.
+  - **As of:** 2026-09-29.
+  - **Recheck:** a web-session measurement shows plugin-owned `.claude/<name>` writes are fine
+    everywhere and a consumer reports confusion, or Claude Code changes protected-path handling.
+- **`songwriting` reads template overrides from `songwriting/templates/`.** The consumer's prompt
+  templates live at `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/<name>.md`, outside
+  `.claude/`. The craft skills check that path before the bundled
+  `context/pat-pattison/templates/<name>.md`, and `/songwriting:setup` scaffolds, inventories and
+  removes them. The files are prose the consumer authors and reads, not settings, and they sit
+  beside the consumer's other `songwriting/` artifacts. The surface has one consumer layer, the
+  tracked team file, over the bundled default: no user-global layer and no overlay. [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) rules on the
+  location only.
+  - **Claim:** the override path stays under `songwriting/`; the location is a declared exception.
+  - **Basis:** [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md); `plugins/songwriting/skills/setup/SKILL.md` "The two surfaces"; the path the
+    `rhyme`, `song-form`, `meter-prosody`, `co-write`, `metaphor`, `diagnose`, `object-writing`,
+    `practice` and `workflow` skills check.
+  - **As of:** 2026-09-29.
+  - **Recheck:** a template override becomes a settings-shaped file (keyed values rather than
+    prose), or the setup skill starts writing under `.claude/`.
+- **`work-items` reads its recurring schedule from `.github/recurring-schedule.json`.** The file
+  is a tracked, team-shared JSON schedule outside `.claude/`, used by the
+  `/work-items:track` actions, `/work-items:work` candidate discovery, and `/work-items:setup`,
+  which writes an empty skeleton on `apply`; the Implementers row lists each reader and writer. `.github/` holds the workflow tooling that reconciles the
+  schedule against the tracker items it files. The surface has one layer, the team's: no
+  user-global layer and no overlay. It is separate from the tracker binding at the repo root
+  (ADR 0015). [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) rules on the location only.
+  - **Claim:** the schedule stays at `.github/recurring-schedule.json`; the location is a declared
+    exception.
+  - **Basis:** [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md); `plugins/work-items/reference/tracker-seam.md` "Recurring schedule";
+    `plugins/work-items/skills/setup/SKILL.md`.
+  - **As of:** 2026-09-29.
+  - **Recheck:** the schedule gains a personal overlay or user-global layer, or the reconciling
+    automation moves out of `.github/`.
 - **`autonomy` exempts its security axes.** Layers refine additively as the contract requires, except
   that no repo-local value may supply or override a security axis at all, a stricter rule than this
   contract, in the direction of safety.
@@ -358,6 +396,8 @@ conformance.
 | `topic-docs` | team only | single-layer |
 | `repo-fleet-hygiene` | `--config` then team then user-global | whole-file, no per-key |
 | `work-items` | overlay on the allowlist | per-key overlay |
+| `work-items` (recurring schedule) | team only | single-layer |
+| `songwriting` | project override over the bundled default | whole-file per template, no per-key |
 | `ai-slop` | later layer | per-key (lists replace) |
 | `docs-hygiene` | later layer; team on named policy-floor keys | per-key |
 | `rendered-views` | later layer | per-key |
@@ -395,14 +435,16 @@ layers → `team, via pointer line`, who wins → `team via pointer line`, merge
 | `bugs` | `.claude/bugs.md` | all three | later layer | lanes concatenate; `## Gotchas` concatenates; `filing_posture` nearest-wins | conforms; `lanes` concatenate and deduplicate by lane `name`, with a declared empty-list opt-out that also drops the bundled defaults, and `filing_posture` is a nearest-wins scalar. A `## Gotchas` section outside the YAML fence concatenates across layers and is pre-computed by `/bugs:scan` and `/bugs:write`. Keys owned by the plugin's `reference/config.md`, which also partitions them from the plugin's `output_dir` `userConfig` option. That option is never a key in this surface, and a layer declaring it is reported as an inert unknown key. Written (team layer only) by `/bugs:setup apply`, read by `/bugs:scan` |
 | `github` | `.claude/github/` (`routing.yaml` per-key override, `conventions.md` concatenating) | all three | team on write-posture keys; later layer otherwise | per-key (`routing.yaml`); concatenate (`conventions.md`) | conforms; policy-floor inversion on write-posture routing keys, declared in the plugin's `change-routing.md` |
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | later layer except security axes | declared | declared deviation |
-| `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | team on conflict (policy-floor) | add/tighten | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` still observed, not ratified |
+| `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | team on conflict (policy-floor) | add/tighten | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` ratified in place as a declared exception ([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md)) |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | team over user-global; `--policy` replaces both | additive standing layers | declared deviation; no overlay layer |
 | `ai-briefing` | `.claude/ai-briefing/` | team only | team only | no overlay | declared deviation; team-only, no local overlay (#3580). Named profile selection (`--profile`, `active_profile`, or `.claude/ai-briefing/<name>/`) is profile selection, not a `*.local.*` cascade layer. `sources.md`, optional `audience.md`, and optional `brand.json` are tracked profile files in the selected directory, not personal overlays |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | team only; residual wholesale if no `## Merge semantics` | per-section when declared | declared deviation; no user-global or `*.local.*` overlay (#723). Team layer over a bundled default. A project lane declaring `## Merge semantics` merges per-section with its bundled lane (`Scope` per-section override, watch-for patterns additive, per `docs-prose` #701 and `shell-tooling` #724). Residual deviation: a project lane that declares nothing still resolves project-only wholesale, the first-match fallback retained in #701 so unmigrated consumer lanes keep working, undeclared at the layer that takes it. Personal variation is limited to lane names the team does not track, an uncommitted `.claude/tidy-lanes/<lane>.md` never added to the index; gitignoring a path the team already tracks does not make it personal |
 | `code-metrics` | `.claude/code-metrics.yaml` | all three | later layer | per-key | conforms; per-key override, declared because every value is a scalar or a closed list (`scope.exclude` and `lanes.<lane>.collectors.<measure>` replace whole). Unknown keys inert. Keys owned by [`plugins/code-metrics/reference/config.md`](../../../plugins/code-metrics/reference/config.md). Written (team layer only) by `/code-metrics:setup apply`; read by every audit skill. The consumer's `.claude/ecosystems/<lane>.yaml` files are a separate convention (ecosystem-commands); this surface does not absorb them. **Claim:** the plugin already implements this row. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and merge form". **As of:** 2026-09-28. **Recheck:** when that section adds a layer, changes merge form, or starts owning an ecosystem-commands key |
 | `topic-docs` | `.claude/topic-docs.yaml` | team only | team only | single-layer | single-layer |
 | `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | user-global + team | `--config` then team then user-global | whole-file, no per-key | declared deviation; whole-file precedence (explicit `--config` > team > user-global fallback), no per-key merge, no overlay layer (#1099) |
-| `work-items` | `.work-item-tracker.json` (repo root) | team + local overlay | overlay on the allowlist | per-key overlay | declared deviation ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)): layers live at the repo root, not under `.claude/` (precedent: `standards` location); overlay (`.work-item-tracker.local.json`) merges per-key over a deny-by-default allowlist (lease TTL, jira/linear/gitea auth identity, `docs`); deliberately no user-global layer, since a cross-repo personal rung would reopen the per-user provider trap the allowlist forecloses. Anchors at the repo root (`CLAUDE_PROJECT_DIR`, else git toplevel), no CWD climb. The overlay's gitignore line is outside the `.claude/**/*.local.*` one-liner, so `/work-items:setup apply` appends it, announced, a declared exception to the recommend default (ADR 0015) |
+| `work-items` | `.work-item-tracker.json` (repo root) | team + local overlay | overlay on the allowlist | per-key overlay | declared deviation ([ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md)): layers live at the repo root, not under `.claude/`; overlay (`.work-item-tracker.local.json`) merges per-key over a deny-by-default allowlist (lease TTL, jira/linear/gitea auth identity, `docs`); deliberately no user-global layer, since a cross-repo personal rung would reopen the per-user provider trap the allowlist forecloses. Anchors at the repo root (`CLAUDE_PROJECT_DIR`, else git toplevel), no CWD climb. The overlay's gitignore line is outside the `.claude/**/*.local.*` one-liner, so `/work-items:setup apply` appends it, announced, a declared exception to the recommend default (ADR 0015) |
+| `work-items` (recurring schedule) | `.github/recurring-schedule.json` | team only | team only | single-layer | declared deviation ([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md)): the schedule lives under `.github/`, not `.claude/`, tracked and team-shared with no user-global layer and no overlay. Written by `track add` and `track recheck`; read by `track audit`, `done`, `due`, `search` and `stats`, by `work` candidate discovery, and by `setup`, which also writes it; anchors at `CLAUDE_PROJECT_DIR`, else git toplevel. Separate from the tracker binding row above |
+| `songwriting` | `songwriting/templates/pat-pattison/<name>.md` | team only, over a bundled default | project override over the bundled default | whole-file per template, no per-key | declared deviation ([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md)): the override path is under `songwriting/`, not `.claude/`. One tracked team file per template wins whole over `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/templates/<name>.md`, the first match, and freezes that template against plugin updates; no user-global layer and no overlay. The ADR rules on location only. Written by `/songwriting:setup apply`, read by the craft skills |
 | `ai-slop` | `.claude/ai-slop.json` | all three | later layer | per-key (lists replace) | conforms; per-key override, resolved by `/ai-slop:audit` (user-global, team, `.claude/ai-slop.local.json` overlay). Four list keys are additive-by-replacement rather than merged (`vocab_add` / `vocab_remove` tune the shipped word list, `phrase_add` / `phrase_remove` the shipped model-era phrase roster; the later layer's list wins per key). No policy-floor class: every key is a taste dial over prose style, and a personal overlay that silences a rule weakens nothing another surface depends on. Keys owned by `/ai-slop:setup`; `_comment` is an allowed free-text annotation, not drift |
 | `docs-hygiene` | `.claude/docs-hygiene.json` | all three | later layer; team on named policy-floor keys | per-key | conforms; per-key override on `file_names.*`, with a policy-floor class on `tiers`, `generated`, `sweep_exclude`, `sweep_exclude_sites`, and the three `exempt_*` keys: a personal layer may ADD entries and never remove them, and `generated` is team-layer only. Those keys decide what `/docs-hygiene:realign-file-names` does to a tree (which files are frozen, which reference forms are rewritten, and which shell command runs after a move), so narrowing one from a single machine would weaken a team decision, while adding a scope root or an exemption weakens nothing and stays open. `rule`, `regex`, and `redirect_map` are nearest-wins. Keys owned by [`plugins/docs-hygiene/reference/config.md`](../../../plugins/docs-hygiene/reference/config.md), which also partitions them from plugin `userConfig` (this plugin declares none, so a layer naming one is an inert unknown key). Written by `/docs-hygiene:setup apply`, resolved by `plugins/docs-hygiene/scripts/resolve-config.sh` |
 | `rendered-views` | `.claude/rendered-views.md` | all three | later layer | per-key | conforms; per-key override on `medium`, no policy-floor class (taste dial, the `ai-slop` precedent). Keys owned by [`rendered-views`](../rendered-views/README.md), which also partitions them from plugin `userConfig` dials (never keys in this surface; a layer declaring one is reported as an inert unknown key). Resolved by `visualization:visualize` (wave-1 exemplar) |
@@ -431,12 +473,15 @@ model-run skill with no reader script, so the rule lives in the skill text.
 | `bugs` | implements | `scripts/concat-gotchas.sh` classifies its root inline (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) with the same rule and skips a team or overlay path that is the user-global file; it does not source the resolver |
 | `docs-hygiene` | implements | `scripts/resolve-config.sh` sources its `lib/config-root.sh` copy and classifies `--root` (else the git toplevel of the current directory) against `--home`; `paths` reports team and overlay as not-applicable at a `home` or `non-repo` root, and a team or overlay path that is the user-global file is read once |
 | `ai-slop` | implements | `skills/audit/scripts/detect.sh` sources its `lib/config-root.sh` copy and classifies its root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`, else `pwd`) before the team and overlay reads; a team or overlay file that is the user-global file is read once |
+| `attribution` | implements | `skills/audit/scripts/lib.sh` sources its `lib/config-root.sh` copy; `cfg_layers_init` skips team and overlay unless `config_root_classify` returns `repo`, and skips a layer that `config_root_paths_same` matches to the user-global file |
 | `code-metrics` | not yet | `scripts/resolve-config.py`: `git rev-parse --show-toplevel`, else the current directory; `CLAUDE_PROJECT_DIR` is not consulted |
 | `disk-hygiene` | not yet | the clean engine takes the team file from `--project-dir`; no root classification |
 | `repo-fleet-hygiene` | not yet | `audit-fleet.sh`: `--project-dir`, else `CLAUDE_PROJECT_DIR`; `setup-config.sh`: `CLAUDE_PROJECT_DIR`, else `$PWD` |
-| `work-items` | not yet | `tools/work-item-tracker/lib/binding.sh` (`wit_project_root`): `CLAUDE_PROJECT_DIR`, else git toplevel; no user-global layer, so the home-root collision does not arise for the binding file |
+| `work-items` | not yet | `tools/work-item-tracker/lib/binding.sh` (`wit_project_root`): `CLAUDE_PROJECT_DIR`, else git toplevel; no user-global layer, so the home-root collision does not arise for the binding file. The recurring schedule is read inline as `${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/.github/recurring-schedule.json` by every consumer the Implementers row lists, with no user-global layer either |
+| `songwriting` | prose only | model-run skills read `${CLAUDE_PROJECT_DIR}/songwriting/templates/pat-pattison/`; no reader script and no user-global layer |
 | `autonomy` | not yet | hooks anchor at `CLAUDE_PROJECT_DIR` (`hooks/hook-utils.sh`); `binding.json` has no shared reader script |
 | `plugin-quality`, `architecture`, `authoring-formats` | not yet | each plugin's `lib/resolve-convention-home.sh`: `--root`, else `CLAUDE_PROJECT_DIR`, else git toplevel, else the current directory; team-only via pointer line, no user-global layer to collide with |
+| `topic-docs` | not yet | team-only single layer, so no user-global file to collide with; `session-flow/hooks/observer-arm.sh` passes the cwd-relative `.claude/topic-docs.yaml` to the `parse-concern-value.sh` scalar parser, with no root classification |
 | `ai-briefing`, `code-tidying` | prose only | team-only surfaces read by model-run skills |
 
 Migrating a single-layer surface is one change against that surface's own plugin, not a fleet-wide
@@ -451,11 +496,14 @@ fleet used to ship, `.claude/*.local.*`, `.claude/ecosystems/*.local.*`, and
 surface but collectively defeated the one-line promise: a consumer running
 three plugins was asked for three lines, and the non-recursive spellings
 would silently miss a nested overlay if their surface ever grew a folder.
-Three deliberate exceptions remain: the bare `*.local.md` inside the
+The recursive `.claude/**/*.local.*` line is the canonical spelling
+([ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md)). Each surface adopts it when its setup is next touched, with no separate
+migration. Five deliberate exceptions remain: the bare `*.local.md` inside the
 setup-owned `<standards_dir>/.gitignore` (a dedicated ignore file scoped to
 the standards root, not the consumer's `.gitignore`); `work-items`' repo-root
 `.work-item-tracker.local.json` line (ADR 0015; outside `.claude/` entirely);
-and `ai-briefing`, which is team-only and recommends no overlay line at all
-(#3580). This contract does not retroactively rewrite narrow lines already
-written into consumer repositories. The recursive line simply supersedes
-them where both exist.
+`ai-briefing`, which is team-only and recommends no overlay line at all
+(#3580); `songwriting`; and the `work-items` recurring schedule, both team-only
+too and recommending no overlay line. This contract does not retroactively
+rewrite narrow lines already written into consumer repositories. The
+recursive line simply supersedes them where both exist.
