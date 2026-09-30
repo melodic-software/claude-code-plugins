@@ -36,11 +36,14 @@ A name with no such token or with several is unknown. `normalize` moves a handof
 `.slots.json` sidecar) or running-retro file that sits in the wrong directory into `handoffs/` or
 `running-retros/`; it never deletes and refuses to overwrite. `clean` removes only items of a known
 kind that are not in flight. Both are dry runs that print exact absolute paths until `--apply`, and
-neither modifies content git tracks: each refuses a memory root whose `.gitignore` lacks a line `*`,
-and every command rejects a memory root that is the repository root. An unknown item, such as
-another tool's own folder, is always reported and always kept, as is every entry of another skill's
-concern dir (`reviews/`, `exports/`, `overengineering/`, `enforceability/`, `docs-hygiene/`,
-`lanes/`), which that skill reads back. An item is in flight when a slice's `INDEX.md` `status:` (or
+neither modifies content git tracks: each refuses a memory root whose `.gitignore` lacks a line `*`.
+Every command rejects a memory root that is the repository root, and one outside the repository
+whose `.gitignore` lacks that line. A handoff or running-retro file is that kind wherever it sits in
+the root, `handoffs/`, or `running-retros/`; the misplaced ones are what `normalize` moves. An
+unknown item, such as another tool's own folder, is always reported and always kept, as is every
+entry of another skill's concern dir (`reviews/`, `exports/`, `overengineering/`,
+`enforceability/`, `docs-hygiene/`, `lanes/`), which that skill reads back. An item is in flight
+when a slice's `INDEX.md` `status:` (or
 a child slice's) is anything but `done`, a checklist has an unfinished stage, a `.git` file or
 directory sits under it (a clone or worktree), it changed within the window (default 14 days), a
 later handoff that is itself kept names it, or a handoff or running-retro names an issue or PR (a

@@ -17,9 +17,11 @@ Usage:
 A relative `--memory-dir` resolves against the repository top level. Kinds come
 from the layout in `reference/topic-docs.md`:
 
-    handoff        `handoffs/<TS>-handoff-<topic>.md`, with its `.slots.json`
-                   sidecar as part of the same item
-    running-retro  `running-retros/<TS>-running-retro-<topic>.md`
+    handoff        a `<TS>-handoff-<topic>.md` file, with its `.slots.json`
+                   sidecar as part of the same item. `handoffs/` is its place;
+                   one in the root or in `running-retros/` is a misplaced handoff
+    running-retro  a `<TS>-running-retro-<topic>.md` file, in `running-retros/`
+                   or misplaced the same way
     slice          `<slug>/` holding an `INDEX.md`
     checklist      `<slug>/` holding a `workflow-checklist.md` and no `INDEX.md`
     scratch        any other entry whose name carries exactly one issue or PR
@@ -70,11 +72,14 @@ outside the root. The root's `.gitignore` self-ignore file is never touched.
 `normalize` and `clean` never modify content git tracks: they refuse the whole
 memory root unless its `.gitignore` holds a line `*` (`$HOME/.work` excepted),
 and refuse any item with a tracked path under it. Every command rejects a
-memory root that is the repository root.
+memory root that is the repository root, and an existing one outside the
+repository whose `.gitignore` lacks a line `*`: `memory_dir` comes from a
+repo-controlled file and `report` is pre-approved, so neither may walk an
+arbitrary directory.
 
 Exit codes:
     all     2 usage, `--link-state` unreadable or not a JSON object, or a
-            memory root that is the repository root
+            memory root that is rejected as above
     report  0 printed
     others  0 dry run, or every planned action applied
             1 an action was refused or failed
@@ -210,14 +215,15 @@ def _classify(path: Path, parent_kind: str | None) -> tuple[str, Path | None]:
     """(kind, file whose text names the issues and PRs it is about)."""
     if path.is_symlink():
         return "unknown", None
-    if parent_kind == "handoff":
-        ok = save_point.HANDOFF_NAME_RE.match(path.name) and path.is_file()
-        return ("handoff", path) if ok else ("unknown", None)
-    if parent_kind == "running-retro":
-        ok = RETRO_NAME_RE.match(path.name) and path.is_file()
-        return ("running-retro", path) if ok else ("unknown", None)
     if parent_kind == "concern":
         return "concern", None
+    if path.is_file():
+        if save_point.HANDOFF_NAME_RE.match(path.name):
+            return "handoff", path
+        if RETRO_NAME_RE.match(path.name):
+            return "running-retro", path
+    if parent_kind:
+        return "unknown", None
     if path.is_dir():
         if (path / SLICE_INDEX).is_file():
             return "slice", None
@@ -313,6 +319,15 @@ def inventory(root: Path, label: str) -> list[Item]:
             )
         )
 
+    def visit(path: Path, parent_kind: str | None) -> None:
+        # a handoff's sidecar is part of the handoff, wherever the pair sits
+        if (slots := SLOTS_RE.match(path.name)) and _plain_file(
+            path.with_name(f"{slots[1]}.md")
+        ):
+            return
+        kind, link_file = _classify(path, parent_kind)
+        add(path, kind, link_file)
+
     for entry in entries:
         if entry.name == SELF_IGNORE:
             continue
@@ -324,17 +339,9 @@ def inventory(root: Path, label: str) -> list[Item]:
                 "running-retros": "running-retro",
             }.get(entry.name, "concern")
             for child in sorted(entry.iterdir()):
-                if (
-                    parent_kind == "handoff"
-                    and (slots := SLOTS_RE.match(child.name))
-                    and _plain_file(entry / f"{slots[1]}.md")
-                ):
-                    continue
-                kind, link_file = _classify(child, parent_kind)
-                add(child, kind, link_file)
+                visit(child, parent_kind)
             continue
-        kind, link_file = _classify(entry, None)
-        add(entry, kind, link_file)
+        visit(entry, None)
     return items
 
 
@@ -450,7 +457,9 @@ def mark_in_flight(
 
 def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[str]]:
     """The roots to inventory. Raises ValueError for a memory root that is the
-    repository root: every top-level `INDEX.md` directory there would be a slice."""
+    repository root (every top-level `INDEX.md` directory there would be a slice),
+    and for an existing one outside the repository without the self-ignore guard
+    (`memory_dir` comes from a repo-controlled file, so `/etc` must not be walked)."""
     notes: list[str] = []
     top = save_point._git_toplevel(Path.cwd())
     declared = (
@@ -471,6 +480,16 @@ def resolve_roots(memory_dir: str | None) -> tuple[list[tuple[str, Path]], list[
             raise ValueError(
                 f"memory root {memory.as_posix()} is the repository root; "
                 "it must be a dedicated directory below it"
+            )
+        if (
+            (top is None or not memory.is_relative_to(top.resolve()))
+            and memory.is_dir()
+            and not _self_ignored(memory)
+        ):
+            raise ValueError(
+                f"memory root {memory.as_posix()} is outside the repository and "
+                f"lacks the self-ignore guard: {(memory / SELF_IGNORE).as_posix()} "
+                "must contain a line '*'"
             )
     home = os.environ.get("HOME") or os.environ.get("USERPROFILE") or str(Path.home())
     roots: list[tuple[str, Path]] = []

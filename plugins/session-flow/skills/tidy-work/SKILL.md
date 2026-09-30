@@ -31,7 +31,7 @@ Nothing runs unless the user invokes this skill.
 |---|---|
 | `report` (default) | Read-only inventory: path, age, size, kind, in-flight or stale, per item; a scratch entry also shows the issue or PR its name carries and that item's state |
 | `normalize` | Moves misplaced known-kind items into the standard layout. Never deletes, never overwrites an existing target |
-| `clean` | Removes items that are a known kind and not in flight; a scratch entry only once the issue or PR its name carries is closed or merged |
+| `clean` | Removes items that are a known kind and not in flight. A stale handoff, running retro, `done` slice, or finished checklist needs no issue or PR to go; a scratch entry goes only once the issue or PR its name carries is closed or merged |
 
 Pass `--days N` (default 14) to change the recency window. Pass `--offline` to treat every linked
 issue or PR as unknown, which counts as in flight; without it the script asks `gh` for the open
@@ -98,6 +98,9 @@ No flag overrides any of these.
   is the repository root.
 - **Does not touch a path outside the resolved memory roots**, and does not follow a symlink
   that leaves one.
+- **Does not inventory an arbitrary directory.** `memory_dir` comes from a file the repository
+  controls, and `report` is pre-approved, so every action rejects an existing memory root outside
+  the repository unless its `.gitignore` holds a line `*`, the guard the handoff writer requires.
 - **Does not write a handoff or make git state durable**; those are `/session-flow:handoff` and
   `/session-flow:clean-stop`.
 

@@ -520,6 +520,38 @@ def test_root_equivalent_memory_dir_is_rejected_by_every_command(env):
     assert snapshot(repo, home) == before
 
 
+def test_memory_root_outside_the_repository_needs_the_self_ignore_guard(env):
+    tmp, home, repo = env
+    outside = tmp / "outside"
+    write(outside / "secret-notes.txt", "x")
+    before = snapshot(repo, home, outside)
+    for command in ("report", "normalize", "clean"):
+        for memory_dir in (str(outside), "../outside"):
+            args = ["--memory-dir", memory_dir]
+            if command != "report":
+                args.append("--apply")
+            result = run_tidy(env, command, *args)
+            assert result.returncode == 2, (command, memory_dir, result.stdout)
+            assert "outside the repository" in result.stderr
+            assert "self-ignore guard" in result.stderr
+            assert "secret-notes" not in result.stdout
+    assert snapshot(repo, home, outside) == before
+    write(outside / ".gitignore", "*\n")
+    payload = json.loads(
+        run_cli(env, "--json", "--offline", "--memory-dir", str(outside)).stdout
+    )
+    assert [
+        Path(i["path"]).name for i in payload["items"] if i["root"] == "memory"
+    ] == ["secret-notes.txt"]
+
+
+def test_absent_memory_root_outside_the_repository_is_an_empty_report(env):
+    tmp, _, _ = env
+    result = run_cli(env, "--json", "--offline", "--memory-dir", str(tmp / "absent"))
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["items"] == []
+
+
 def test_memory_root_without_the_self_ignore_guard_is_never_modified(env):
     build(env)
     _, home, repo = env
@@ -599,6 +631,36 @@ def test_normalize_dry_run_changes_nothing(env):
         f"would move: {work / HANDOFF_STALE} -> {work / 'handoffs' / HANDOFF_STALE}"
     )
     assert expected in result.stdout
+
+
+def test_report_classifies_every_file_normalize_would_move(env):
+    misplace(env)
+    items = report(env, "--offline")
+    assert items[HANDOFF_STALE]["kind"] == "handoff"
+    assert SIDECAR_STALE not in items
+    assert items[RETRO]["kind"] == "running-retro"
+    assert items[RETRO2]["kind"] == "running-retro"
+    assert items["notes.txt"]["kind"] == "unknown"
+    moved = [
+        Path(line.removeprefix("would move: ").split(" -> ")[0]).name
+        for line in normalize(env).stdout.splitlines()
+        if line.startswith("would move: ")
+    ]
+    assert sorted(moved) == sorted([HANDOFF_STALE, SIDECAR_STALE, RETRO, RETRO2])
+    assert all(items[name]["kind"] != "unknown" for name in moved if name in items)
+
+
+def test_clean_removes_a_stale_misplaced_handoff_with_its_sidecar(env):
+    misplace(env)
+    _, _, repo = env
+    work = repo / ".work"
+    age(work / HANDOFF_STALE, 60)
+    age(work / SIDECAR_STALE, 60)
+    result = clean(env, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert not (work / HANDOFF_STALE).exists()
+    assert not (work / SIDECAR_STALE).exists()
+    assert (work / "notes.txt").exists()
 
 
 def test_normalize_apply_moves_without_deleting_and_skips_unknown(env):
