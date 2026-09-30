@@ -103,6 +103,21 @@ Decision: test-scan appends one line `{file, agent_id, rules, lines}` to
 `marks/`. Stop only in v1, if probe 1 shows subagent calls carry the parent `session_id`;
 SubagentStop is deferred.
 
+Amended 2026-09-30 (probe R2-P8): `/clear` and a fork start a new `session_id` whose SessionStart
+payload names no parent, while `cwd` and the transcript directory stay the same (probe logs
+`p5-hooks.jsonl`); `--resume` keeps the id. State is therefore keyed by project, then session:
+`$DATA/sessions/<pkey>/<session_id>/`, `$DATA/verdicts/<pkey>/<session_id>/` and
+`$DATA/relayed/<pkey>/<session_id>/`, where `<pkey>` hashes the project directory
+(`CLAUDE_PROJECT_DIR`, else the payload `cwd`, which follows a Bash `cd`) and the transcript
+directory. On SessionStart `source` `clear` or `fork` the SessionStart hook writes a successor
+marker; that session's Stop hook then treats the in-doubt blocks, verdicts and relay markers of
+every other session under the same key whose last write falls within the hour before the marker as
+the session's own (DT13's "the session" includes its `/clear` and fork predecessors). Sessions idle
+longer stay with the SessionStart catch-up, whose one-hour rule sets the window (judgment).
+`CLAUDE_PROJECT_DIR` is logged in the SessionStart, PreToolUse and Stop hook environments
+(`*-hooks.jsonl`); PostToolUse is unprobed. Known limit: two live sessions in one directory, one of
+which clears, can adopt the other's writes from the hour before the clear.
+
 ### DT9. Calibration set: schema, size, bar (resolved)
 
 Schema, one row per test: id, source (seed id, corpus fixture, repo path), language, file and test

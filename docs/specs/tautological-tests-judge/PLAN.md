@@ -123,31 +123,44 @@ write inserts a test above. Every reader re-runs `--blocks` on the current file,
 name and ordinal, and hashes its current text. A bash-harness file is one key (path plus whole-file
 sha); the changed ranges travel with it as a hint to the judge.
 
+Session state is keyed by project, then session (probe R2-P8: `/clear` and a fork start a new
+`session_id` with no parent link, but keep the same `cwd` and transcript directory). The project key
+`<pkey>` is the first 16 hex characters of the sha256 of the project directory, a newline, and
+`dirname(transcript_path)`; the project directory is `CLAUDE_PROJECT_DIR`, else the payload `cwd`,
+never the per-call `cwd` alone, which follows a Bash `cd`. The transcript directory alone is not
+enough: its name encodes the path lossily (`/` and `.` both become `-`).
+
 `plugins/testing/hooks/test-scan.sh` passes `--blocks` and writes one file per scanned write,
-`$DATA/sessions/<session_id>/<tool_use_id>.json` (one file per write, so parallel writers never
-interleave), including the scanner error and timeout paths; only the gitignored and 0-examined skips
+`$DATA/sessions/<pkey>/<session_id>/<tool_use_id>.json` (one file per write, so parallel writers
+never interleave), including the scanner error and timeout paths; only the gitignored and 0-examined skips
 (test-scan.sh:42-44, :110) write nothing. Fields: `file`, `repo` (the file's git toplevel),
 `agent_id`, `create`, `blocks` (`[{name, ordinal, start, end}]` for the blocks this write created or
 changed; `null` on scanner failure, meaning "whole file"), `ok_markers` (count of `cant-fail-ok:` in
 the file), and `written_at`.
 
-- Session id must match `^[A-Za-z0-9_-]+$`, else no write.
-- Prune `$DATA/sessions/` files older than 7 days beside the `marks/` prune (test-scan.sh:63).
-- Prune `$DATA/{verdicts,locks,relayed,attempts,slots}/` on the same 7-day rule.
+- Session id must match `^[A-Za-z0-9_-]+$`, and `transcript_path` must be set, else no write.
+- Prune files older than 7 days under `$DATA/sessions/` (every depth, then empty directories)
+  beside the `marks/` prune (test-scan.sh:63).
+- Prune `$DATA/{verdicts,locks,relayed,attempts,slots,successors}/` on the same 7-day rule.
 - `cant-fail-scan.test.sh`: one `--blocks` case per adapter family (brace JS and C#, C# `=>` body,
   indent Python, bats `@test`, Pester `It`, Go, bash-harness whole file), asserting start, end and
   ordinal; two blocks with one name get ordinals 1 and 2.
 - `test-scan.test.sh`, Red first: create records every block; edit records only the edited block;
   a clean file still records its blocks; scanner timeout records `blocks:null`; marker count
   recorded; two parallel writes give two files; gitignored path and `../x` or empty ids write
-  nothing.
+  nothing; project key: two session ids with the same project directory and transcript directory
+  write under one `<pkey>`, a different transcript directory gives another, a payload `cwd` changed
+  by `cd` with `CLAUDE_PROJECT_DIR` set keeps the key, and a missing `transcript_path` writes
+  nothing; a file under a nested `sessions/<pkey>/<session_id>/` older than 7 days is pruned.
 
 **Sanity Check:**
 
 - `bash plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` and
   `bash plugins/testing/skills/audit/scripts/parity-check.sh` exit 0, locally and under
   `docker run ubuntu:24.04` (gawk 5.2.1).
-- `bash plugins/testing/hooks/test-scan.test.sh` exits 0.
+- `bash plugins/testing/hooks/test-scan.test.sh` exits 0, and
+  `grep -c 'pkey' plugins/testing/hooks/test-scan.test.sh` returns at least 1 (the project-key
+  cases exist).
 - Every suite `bash scripts/affected-tests.sh` prints for the touched files exits 0.
 
 ### Phase 3: Background judge, Stop relay, SessionStart catch-up (DT2-DT4, DT10, DT12-DT16) [TODO]
@@ -158,12 +171,20 @@ Shared pieces:
   the current file (Phase 2); a bash-harness file is one key. A block is in doubt when a session
   write created or changed it, or its file's `cant-fail-ok:` count rose above the first recorded
   count (DT13). A verdict whose sha matches the current text stays valid when lines shift.
-- Ledger: `$DATA/verdicts/<session_id>/<key-hash>.json`, written to a temp file in the same
+- Ledger: `$DATA/verdicts/<pkey>/<session_id>/<key-hash>.json` (`<pkey>` from Phase 2), written to a temp file in the same
   directory and renamed. Lock: `$DATA/locks/<key-hash>` via noclobber, holding `pid host start`;
   stale when older than the judge timeout plus 30 s, or when `kill -0` fails on the same host
   (Windows: age only); a stale lock is broken and counted as one failed attempt. Every lock holder
   re-checks for a verdict after acquiring. Attempts: `$DATA/attempts/<key-hash>`. Relayed:
-  `$DATA/relayed/<session_id>`.
+  `$DATA/relayed/<pkey>/<session_id>/<key-hash>`, one marker per verdict key, mirroring the ledger.
+- Successor adoption (probe R2-P8, DT8 amendment): `test-judge-start.sh` writes
+  `$DATA/successors/<pkey>/<session_id>` holding the start time when the SessionStart `source` is
+  `clear` or `fork`. A session with that marker treats as its own the session files, ledger verdicts
+  and relay markers of every other session under the same `<pkey>` whose last write falls within the
+  hour before the marker, so a verdict relayed before a `/clear` is not relayed again after it.
+  Older sessions stay with the SessionStart catch-up (last write over an hour old), so the two
+  windows do not overlap. A `startup` or `resume` session adopts nothing (`--resume` keeps its
+  `session_id`).
 - Accuracy first, runaway guards only (user, 2026-09-30). No cap limits how thoroughly one run
   judges: Anthropic's cost guidance treats output caps and budgets as levers that trade quality for
   cost, and says to raise a cap a run hits rather than accept truncation (platform.claude.com
@@ -265,7 +286,14 @@ Tests, Red first:
   unattended mode gives no block; a malformed state file is skipped; scanner exit 2 and a crash in
   the script both end in exit 0; `TEST_JUDGE_ACTIVE=1` exits at once.
 - `test-judge-start.test.sh`: an unrelayed verdict from an old session is named once; a relayed one
-  is not; one from a session active in the last hour is not; another repo's is not.
+  is not; one from a session active in the last hour is not; another repo's is not; `source` `clear`
+  and `fork` write the successor marker, `startup` and `resume` do not.
+- `test-judge.test.sh`, successor cases: after a `clear` marker, the predecessor's in-doubt block is
+  judged and its unrelayed verdict relayed; a verdict the predecessor already relayed is not relayed
+  again; a session without a marker adopts nothing; a sibling session whose last write postdates the
+  marker is not adopted; a session whose last write is over an hour before the marker is not adopted
+  and the catch-up names its verdicts instead; a `startup` session relays its own verdict even when
+  an older session relayed one for identical block text.
 
 Other files:
 
@@ -300,15 +328,15 @@ Other files:
 - Manual probe R2-P12 in the scratch repo, once from `--plugin-dir` and once from an installed copy:
   writing `expect(add(a, b)).toBe(a + b)` gives a ledger verdict before the Stop, one forced turn
   carrying it, and the counts in a `systemMessage`; a hand-computed literal gives PASS; an ignored
-  forced turn is not repeated. `grep -c '^| R2-P12 |.*holds' docs/specs/tautological-tests/probes.md` returns 1.
+  forced turn is not repeated. `grep -cE '^\| R2-P12 \|.*\| holds \|' docs/specs/tautological-tests/probes.md` returns 1.
 - Manual probe R2-P13: a scripted 5-turn TDD session writing about 15 tests; records forced turns,
   judge runs discarded or superseded, judge cost and the longest Stop wait. It holds when forced
   turns are at most one per task end, superseded runs are at most a third of runs (else the debounce
   default is raised and re-measured), and the longest Stop wait is under 60 s.
-  `grep -c '^| R2-P13 |.*holds' docs/specs/tautological-tests/probes.md` returns 1.
+  `grep -cE '^\| R2-P13 \|.*\| holds \|' docs/specs/tautological-tests/probes.md` returns 1.
 - Manual probe R2-P14 through `/fleet:reach` on a Windows host (user-gated at run time): holds when
   an idle Stop takes under 500 ms and a Stop with 5 in-doubt tests and ready verdicts takes under
-  2 s. `grep -c '^| R2-P14 |.*holds' docs/specs/tautological-tests/probes.md` returns 1.
+  2 s. `grep -cE '^\| R2-P14 \|.*\| holds \|' docs/specs/tautological-tests/probes.md` returns 1.
 
 ### Phase 4: Calibration set and first measurement (DT1, DT9, DT13) [TODO]
 
@@ -363,8 +391,12 @@ Other files:
 
 **Sanity Check:**
 
-- `grep -c '\[TODO\]' docs/specs/tautological-tests-judge/PLAN.md` returns 0.
-- `git grep -n 'docs/topics/tautological-tests-judge'` returns nothing.
+- `grep -cE '^### Phase [0-9]+:' docs/specs/tautological-tests-judge/PLAN.md` equals
+  `grep -cE '^### Phase [0-9]+:.*\[DONE\]$' docs/specs/tautological-tests-judge/PLAN.md` (every
+  phase heading is `[DONE]`; the Phase 5 bullet's "stays `[TODO]`" is prose, not a tag).
+- `git grep -n 'docs/topics/tautological-tests-judge' -- ':(exclude)docs/specs/tautological-tests-judge/PLAN.md' ':(exclude)docs/specs/tautological-tests-judge/design/design-threads.md'`
+  returns nothing (those two files name the old path only as history: the graduation step, its
+  Phase 1 check, DT5 and this check itself).
 
 ## Blast radius
 
@@ -400,6 +432,14 @@ by git revert. Hook infrastructure, a model-spending background process and undo
   rename; no deletion diffs; an adversarial calibration stratum.
   Unprobed assumptions carried into Phase 1: grandchild survival when node is killed, Read outside
   cwd in `-p`, which credential `-p` bills, MSYS append behavior (removed by one file per write).
+- Review (2026-09-30, after Phase 1): probe R2-P8 failed (`/clear` and fork start a new
+  `session_id` with no parent link; the p5 probe logs show the same `cwd` and transcript directory),
+  so Phase 2 keys session state by project key (project directory plus transcript directory) and
+  Phase 3 nests the ledger and relay markers under it, with a `clear` or `fork` successor adopting
+  sessions whose last write is within the hour before it started (DT8 amendment). Sanity Checks fixed: Phase 5's `git grep` matched this plan's
+  own history lines and its `[TODO]` count matched Phase 5's prose, so neither could pass; the
+  R2-P12 to R2-P14 greps now anchor on the verdict column; Phase 2 asserts the project-key cases
+  exist.
 
 ## Execution shape
 
