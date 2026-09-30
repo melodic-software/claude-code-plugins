@@ -29,8 +29,9 @@ even when some other root ran, unless another lane took it. The grep lane takes 
 `package.json` root owns, so a full run covers it and only `--lane knip` leaves it listed.
 `skipped` stays the missing-or-uninvocable binary state.
 
-Source files with no lane are the extensions `dc_lang_of_path` classifies as `nolane` (Rust, .NET,
-JVM, Ruby, C and C++, and the other extensions named there). Docs, JSON, YAML, and other
+Source files with no lane are the extensions in `DC_NOLANE_EXTS` (Rust, .NET, JVM, Ruby, C and
+C++, and the others listed there) and extensionless files whose shebang names a non-shell
+interpreter. The grep lane covers them when it runs. Docs, JSON, YAML, and other
 non-source paths are not in the coverage total.
 
 ### knip: TS/JS

@@ -1,5 +1,5 @@
 ---
-description: "Audit local CLAUDE.md, AGENTS.md, rules, skills, agents, hook text for instructions current models no longer need, misstated Claude Code behavior, and cross-surface conflicts. Report-only. Use when: 'audit instructions', 'instruction audit', 'are my instructions holding the model back', 'too prescriptive', 'stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'which instruction wins'. Missing text: audit-prompting-postures."
+description: "When the bundled claude-api skill resolves in this session, prefer its prompt-audit for a model migration, a target-model change, or any pass over application-code prompts; this skill for the standing audit of Claude Code instruction surfaces, cross-surface conflicts, and misstated Claude Code behavior, and both when a sweep wants both. Audit local CLAUDE.md, AGENTS.md, rules, skills, agents, hook text for instructions current models no longer need, misstated Claude Code behavior, and cross-surface conflicts. Report-only. Use when: 'audit instructions', 'instruction audit', 'are my instructions holding the model back', 'too prescriptive', 'stale Claude Code behavior', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions', 'which instruction wins'. Missing text: audit-prompting-postures."
 argument-hint: "[scope] [--target-model <version>] [--opinion] [--persist-findings] [--unattended]"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
@@ -88,10 +88,9 @@ repository's tracker, never in-place edits; absent such a declaration, no exclus
 One native surface audits prompts for the same anti-pattern families this catalog names, and the
 two are routinely conflated:
 
-- **`claude-api` (bundled skill), `prompt-audit` subcommand.** Ships with Claude Code rather than
-  as a marketplace plugin. It audits the whole prompt surface of the working directory, application
-  code that calls the Claude API included, against the current model's documented anti-patterns,
-  and produces a report with a proposed diff that it applies when asked. Its catalog is the
+- **`claude-api` (bundled skill), `prompt-audit` subcommand**: audits the whole prompt surface of
+  the working directory, application code that calls the Claude API included, against the current
+  model's documented anti-patterns, and produces a report with a proposed diff that it applies when asked. Its catalog is the
   vendor's own migration guidance, refreshed with the model.
 - **This skill (marketplace plugin).** A standing, report-only audit of locally-owned Claude Code
   instruction surfaces against the versioned I-catalog in [reference/criteria.md](reference/criteria.md):
@@ -117,8 +116,7 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 
 `/doctor prompt-audit` also audits these files for outdated or conflicting instructions.
 
-- **`doctor` (bundled skill, alias `checkup`).** Ships with Claude Code rather than as a marketplace
-  plugin; its `prompt-audit` subcommand audits `CLAUDE.md` files, skills, agents, and commands for
+- **`doctor` (bundled skill, alias `checkup`)**: its `prompt-audit` subcommand audits `CLAUDE.md` files, skills, agents, and commands for
   older-model prompting patterns. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Report-only catalog audit that adds over-prescription with
   target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.

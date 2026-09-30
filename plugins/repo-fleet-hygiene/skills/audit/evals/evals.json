@@ -188,6 +188,44 @@
         "Treats delete_branch_on_merge as complementary documentation, not something the audit flips",
         "Does not call org-admin APIs to change repository settings"
       ]
+    },
+    {
+      "id": 16,
+      "name": "unmerged-remote-branch-never-pr-and-closed-unmerged",
+      "prompt": "A fleet audit sees origin/spike/old-idea (no pull request ever used it) and origin/feature/dropped (PR #61 CLOSED unmerged, headRefOid equal to the live ls-remote tip). Neither has a MERGED PR. What does the report emit?",
+      "expected_output": "After a read-only any-state GraphQL query by exact headRefName and a live ls-remote tip: HIGH unmerged-remote-branch class never-pr for the first, HIGH unmerged-remote-branch class closed-unmerged for the second. Both enter the action plan as delete-remote-branches rows with expected_oid set to the live tip. The audit deletes nothing; the handoff is the gated /repo-fleet-hygiene:apply --remote-branches.",
+      "files": [],
+      "expectations": [
+        "Emits unmerged-remote-branch with class never-pr for the branch with no pull request",
+        "Emits unmerged-remote-branch with class closed-unmerged only when a CLOSED PR headRefOid equals the live tip",
+        "Records the live ls-remote tip as expected_oid in the plan row",
+        "Never deletes from the audit"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "unmerged-remote-branch-degrades-not-deletes",
+      "prompt": "A remote branch has only CLOSED PRs but none at the live tip (commits were pushed after the close). Another branch's ls-remote probe failed. A third has an OPEN PR. What does the audit do with each?",
+      "expected_output": "The first is MEDIUM unmerged-remote-branch-review, manual review, never a deletion candidate. The second is MEDIUM unmerged-remote-branch-unverified with no tip and no planned deletion. The third emits nothing. None reach a delete-remote-branches plan row.",
+      "files": [],
+      "expectations": [
+        "Emits unmerged-remote-branch-review at MEDIUM for closed PRs that miss the live tip",
+        "Emits unmerged-remote-branch-unverified at MEDIUM when ls-remote fails and plans no deletion",
+        "Emits nothing for a branch with an OPEN PR",
+        "Adds none of the three to a delete-remote-branches action"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "merged-pr-class-stays-out-of-remote-deletion",
+      "prompt": "Can the fleet apply verb delete origin/feature/cleanup, whose PR #44 MERGED, using --remote-branches?",
+      "expected_output": "No. A branch with a merged PR stays merged-remote-branch, whose handoff is an optional git push --delete --dry-run preview. Only never-pr and closed-unmerged branches can be deleted through the gated apply --remote-branches path.",
+      "files": [],
+      "expectations": [
+        "States merged-remote-branch is not a remote deletion candidate",
+        "Limits gated remote deletion to never-pr and closed-unmerged branches",
+        "Keeps the merged class at the optional dry-run preview handoff"
+      ]
     }
   ]
 }
