@@ -65,7 +65,7 @@ When the first wake prompts for permission, offer the user one allow rule per co
 | `reply` | `id`, `text`, `seq`, `kind` (`reply`, `rephrase`, `note`), `rec` + `why` + `affects`, `handled`, `force` | Answer an ask or rephrase; `rec` revises the recommendation |
 | `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `seq`, `affects`, `force` | Reword a question |
 | `note-reply` | `text`, `seq` | Answer a note in Notes to Claude; with no `seq`, post a closing probe there |
-| `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups |
+| `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups; writing a `summary` records the group's current question ids as `summaryOf`, and the page marks the summary Stale once the members differ, so rewrite the summary after adding questions |
 | `meta` | `set` (`title`, `eyebrow`, `stages`, `next`) | Merge into `meta`; other meta keys stay |
 | `archive` | `ids`, `why` | Take off-path questions out of the open count |
 | `replace-visual` | `visual` | Swap in a full visual object for the top-level visual with the same id; an unknown id is refused |
@@ -193,7 +193,7 @@ Rules R-A to R-K:
 
 ## Wording lint
 
-Every question states its decision in plain words. Before `add-round`, scan each title, recommendation and basis for bare ids (`[A-Z]+[0-9]+`) and coined terms, and define each inline or spell it out. `round.py` warns on a bare id that names no question in the file and on a recommendation or basis over the length budget (R12); treat a warning as a rewrite.
+Every question states its decision in plain words. Before `add-round`, scan each title, recommendation and basis for bare ids (`[A-Z]+[0-9]+`, other than version labels such as `V1`) and coined terms, and define each inline or spell it out. `round.py` warns on a bare id (other than a version label) that names no question in the file and on a recommendation or basis over the length budget (R12); treat a warning as a rewrite.
 
 ## Offers
 

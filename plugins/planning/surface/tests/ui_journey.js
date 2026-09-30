@@ -150,6 +150,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
+    const chip = await page.$$eval(".qbtn .chip.hot", els => els.map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
+    ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
     await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
     await tap("#notice [data-go]", 400);
@@ -330,6 +332,18 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("activity that lands while the tab is hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
     await setHidden(false); await page.waitForTimeout(200);
     ok("showing the tab again restores the plain title", await page.title() === base, await page.title());
+  }
+  if (PHASE === 10) { // Activity panel left open, then the tab is hidden
+    await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300);
+    const base = await text("#title");
+    await setHidden(true); await page.waitForTimeout(200);
+    ok("hiding the tab with the Activity panel open adds no badge", await page.title() === base && await page.$eval("#fly", el => el.classList.contains("open")), await page.title());
+  }
+  if (PHASE === 11) { // the shell added activity while the tab was hidden and the panel open
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));
