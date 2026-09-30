@@ -9,6 +9,7 @@ import importlib.util
 import inspect
 import io
 import json
+import re
 import shutil
 import subprocess
 import tempfile
@@ -350,16 +351,26 @@ RUNNERS = (
     "asyncio.create_subprocess",
 )
 REGISTRY_COMMANDS = tuple(
-    part.strip()
+    verb
     for entry in REGISTRY["entries"]
     for command in (entry["read_only_command"], entry["destructive_native_command"])
     for part in (command or "").split(";")
-    if part.strip()
+    if (verb := part.partition("<")[0].strip())
 )
+HOOKS_JSON = PLUGIN / "hooks" / "hooks.json"
+ACTIONS = re.compile(
+    r"\b(?:rm|rmdir|unlink|rimraf|rmSync|unlinkSync|Remove-Item|child_process)\b"
+    r"|\s-delete\b"
+)
+# What the launchers already do: remove a cache temp file, spawn bash.
+LAUNCHER_ACTIONS = {
+    PLUGIN / "hooks" / "run-python-hook.sh": 2,
+    PLUGIN / "hooks" / "exec-bash.mjs": 1,
+}
 SHIPPED = sorted(
     path
     for path in PLUGIN.rglob("*")
-    if path.suffix in CODE_SUFFIXES
+    if (path.suffix in CODE_SUFFIXES or path == HOOKS_JSON)
     and "__pycache__" not in path.parts
     and not path.name.startswith("test_")
     and ".test." not in path.name
@@ -391,17 +402,27 @@ def uses(tree: ast.AST) -> set[str]:
 def violations(path: Path, source: str) -> list[str]:
     """What a shipped file does that only the engine's apply lane may do.
 
-    Deleting, running a registry command, naming the registry, and reaching the
-    apply lane without the CLI's gates are all found by name. Outside the engine
-    a process runner is also a violation.
+    Deleting, running a registry command, naming the registry or its tools, and
+    reaching the apply lane without the CLI's gates are all found by name.
+    Outside the engine and the telemetry emitter a process runner is also a
+    violation. A non-Python file is checked for deletion verbs beyond the
+    launchers' pinned count.
     """
+    hits: set[str] = set()
     text, found = source, set()
     if path.suffix == ".py":
         tree = ast.parse(source)
         if path == ENGINE_PATH:
             tree = without_apply_lane(tree)
         text, found = ast.unparse(tree), uses(tree)
-    hits = {
+        hits |= {
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant) and node.value in REGISTRY_TOOLS
+        }
+    elif len(actions := ACTIONS.findall(source)) > LAUNCHER_ACTIONS.get(path, 0):
+        hits.update(actions)
+    hits |= {
         name
         for name in found
         if name == "os.remove" or name.rpartition(".")[2] in DELETIONS
@@ -417,10 +438,12 @@ def violations(path: Path, source: str) -> list[str]:
 class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
     """Any destructive path is the engine's: its tier, exact-list and token gates.
 
-    The scan is static. It reads every shipped file, test files excepted; a
-    non-Python file is checked by name only. It cannot see `getattr`, `eval`,
-    `importlib` or a command assembled at run time. Widening what a file may do
-    is an edit to the constants above, in review.
+    The scan is static. It reads every shipped file, test files excepted. A
+    non-Python file is checked for registry names, commands and deletion verbs,
+    not for every process it starts. It cannot see `getattr`, `eval`,
+    `importlib` or a command assembled at run time, and a move or overwrite is
+    not counted as a deletion. Widening what a file may do is an edit to the
+    constants above, in review.
     """
 
     def test_no_shipped_file_deletes_names_the_registry_or_reaches_the_apply_lane(
@@ -439,6 +462,7 @@ class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
         for source in (
             "import subprocess\nsubprocess.run(entry['destructive_native_command'])\n",
             "import subprocess as sp\nsp.run(['pulumi'])\n",
+            "def f():\n    run(['docker', 'image', 'prune'])\n",
             "from os import unlink\nunlink(path)\n",
             "import shutil\nshutil.rmtree(path)\n",
             "import hygiene\nhygiene.apply_plan(snapshot, plan)\n",
@@ -447,8 +471,17 @@ class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
         for source in (
             "jq -r '.entries[].destructive_native_command' owner-registry.json | sh\n",
             "docker image prune --force\n",
+            "pulumi plugin rm v3.1.0\n",
+            'rm -rf "$HOME/.pulumi"\n',
+            "find ~/.pulumi -delete\n",
         ):
             self.assertNotEqual([], violations(SCRIPTS / "parallel.sh", source), source)
+        self.assertNotEqual(
+            [],
+            violations(
+                ENGINE_PATH, "def preview():\n    run(['pulumi', 'plugin', 'rm'])\n"
+            ),
+        )
 
     def test_the_apply_lane_and_the_telemetry_emitter_are_not(self) -> None:
         lane = (
@@ -465,6 +498,9 @@ class OnlyTheApplyLaneDestroysTest(unittest.TestCase):
             [],
             violations(TELEMETRY_PATH, "import subprocess\nsubprocess.Popen(['x'])\n"),
         )
+        launcher = PLUGIN / "hooks" / "run-python-hook.sh"
+        self.assertEqual([], violations(launcher, "rm -f a\nrm -f b\n"))
+        self.assertNotEqual([], violations(launcher, "rm -f a\nrm -f b\nrm -f c\n"))
 
 
 class EngineSourceTest(unittest.TestCase):
