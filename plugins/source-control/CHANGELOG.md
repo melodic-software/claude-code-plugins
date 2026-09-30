@@ -13,6 +13,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The `userConfig` values for seven of those keys are a fallback:** the merge method, block labels, extra dependency-manager logins, approval-downgrade logins, review trigger phrase, review gate context and CI gateway context. Each use prints one stderr note per key per process. The fallback is removed in a later minor release, no earlier than 90 days after this one. `babysit_skip_downgrade_logins` keeps its `userConfig` value as its only additive source, so it is not deprecated and prints no note.
 
+## [0.64.1] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` states the isolated-worktree launch recommendation for background lanes** instead of saying a background launch loses the escalation record
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
