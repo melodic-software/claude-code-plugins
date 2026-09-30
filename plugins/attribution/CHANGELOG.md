@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1] - 2026-09-30
+
+### Fixed
+
+- **Removed the em dash in `skills/audit/context/persist-findings.md`.** Wording only; behavior is unchanged.
+
 ## [0.7.0] - 2026-09-29
 
 ### Added

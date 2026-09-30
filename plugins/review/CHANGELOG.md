@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.1] - 2026-09-30
+
+### Fixed
+
+- **Removed the em dashes in `reference/standards-contract.md`.** Wording only; behavior is unchanged.
+
 ## [0.34.0] - 2026-09-29
 
 ### Changed

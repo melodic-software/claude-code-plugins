@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.14] - 2026-09-30
+
+### Fixed
+
+- **Removed the em dashes in the `explore` skill body and `reference/workflow.md`.** Wording only; behavior is unchanged.
+
 ## [0.25.13] - 2026-09-30
 
 ### Changed
