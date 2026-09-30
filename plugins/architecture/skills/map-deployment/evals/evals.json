@@ -85,14 +85,14 @@
     },
     {
       "id": 7,
-      "name": "layered-compose-refuses",
-      "prompt": "/architecture:map-deployment\n\nTracked files are compose.yaml and compose.override.yaml at the repository root. Nothing else declares infrastructure.",
-      "expected_output": "The record reason is layered-compose. No environment named override is drawn, and no diagram is written.",
+      "name": "layered-compose-merges",
+      "prompt": "/architecture:map-deployment\n\nTracked files are compose.yaml (api image ghcr.io/acme/api:1) and compose.override.yaml (api image ghcr.io/acme/api:2) at the repository root. Nothing else declares infrastructure.",
+      "expected_output": "The record status is drawn with one environment named default holding the api service at the override image. No environment named override is drawn.",
       "narration": true,
       "expectations": [
-        "The artifact states layered-compose",
-        "Does not present override as an environment",
-        "No deployment diagram is written"
+        "The record status is drawn, not refused",
+        "One environment is drawn, and it is not named override",
+        "The api service is shown with the override image ghcr.io/acme/api:2"
       ]
     },
     {

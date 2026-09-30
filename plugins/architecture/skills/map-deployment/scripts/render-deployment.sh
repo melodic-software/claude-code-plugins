@@ -127,7 +127,7 @@ summary="$(
       if (r == "not-a-git-repository") return "The subject is not a git repository, so tracked IaC cannot be separated from untracked files. No diagram was drawn."
       if (r == "compose-unreadable" || r == "kubernetes-unreadable") return "A shipped manifest used a construct this adapter does not read (a tab, or a template marker in a name, image, namespace, replicas, or kind field). No diagram was drawn."
       if (r == "containers-unreadable") return "containers.json was present and is not a schema_version 1 catalog. It was not half-read. No diagram was drawn."
-      if (r == "layered-compose") return "A Compose base file sits beside an override or variant file in one directory. The layers merge into one environment and this adapter does not merge them. No diagram was drawn."
+      if (index(r, "compose-not-mergeable:") == 1) return "The named Compose file has no declared place in a merge (a variant beside a base with no COMPOSE_FILE order, an override with no base, a second base) or uses a !reset or !override tag this adapter does not merge. It was not guessed. No diagram was drawn."
       if (r == "unknown-environment") return "A requested environment (--env or --diff) is not in the record. No diagram was drawn."
       return "The record refused to draw a diagram."
     }

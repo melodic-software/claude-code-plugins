@@ -584,20 +584,112 @@ commit_all "$repo9"
 bash "$COLLECT" --repo "$repo9" --out "$TEST_TMPDIR/tmpl-name.json" --generated-on 2026-09-28
 assert_contains "a templated manifest name is refused, not half-read" "$(cat "$TEST_TMPDIR/tmpl-name.json")" '"reason": "kubernetes-unreadable"'
 
-# Layered Compose is refused, never read as environments.
-for layered in "compose.yaml compose.override.yaml" "docker-compose.yml docker-compose.prod.yml" "compose.yaml compose.prod.yaml" "compose.override.yaml"; do
-  repoL="$TEST_TMPDIR/layered"
+# A base file and its override merge into one environment named for the directory.
+leak_override="OverrideSecret555"
+repoL="$TEST_TMPDIR/layered"
+init_repo "$repoL"
+mkdir -p "$repoL/deploy/prod"
+cat >"$repoL/deploy/prod/compose.yaml" <<EOF
+services:
+  api:
+    image: ghcr.io/acme/api:1.0.0
+    ports:
+      - "8080:8080"
+    networks:
+      - app
+    environment:
+      LOG_LEVEL: info
+      REGION: eu
+    deploy:
+      replicas: 1
+  worker:
+    image: ghcr.io/acme/worker:1.0.0
+networks:
+  app:
+    driver: bridge
+EOF
+cat >"$repoL/deploy/prod/compose.override.yaml" <<EOF
+services:
+  api:
+    image: ghcr.io/acme/api:2.0.0
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - LOG_LEVEL=debug
+      - PASSWORD=${leak_override}
+    deploy:
+      replicas: 3
+  cron:
+    image: ghcr.io/acme/cron:1.0.0
+networks:
+  app:
+    internal: true
+EOF
+commit_all "$repoL"
+bash "$COLLECT" --repo "$repoL" --out "$TEST_TMPDIR/layered.json" --generated-on 2026-09-28
+layerrec="$(cat "$TEST_TMPDIR/layered.json")"
+assert_contains "base plus override draws" "$layerrec" '"status": "drawn"'
+assert_contains "base plus override is one environment named for the directory" "$layerrec" '{"environment":"prod","tool":"compose","evidence":"deploy/prod/compose.yaml, deploy/prod/compose.override.yaml"}'
+assert_equals "no environment is named override" "$(grep -c '"environment":"' "$TEST_TMPDIR/layered.json")" "1"
+assert_contains "the override image wins" "$layerrec" '"container":"api","env":"prod","tool":"compose","node":"app","compute":"prod/api","image":"ghcr.io/acme/api:2.0.0","replicas":"3","ports":"8080:8080,9090:9090"'
+assert_contains "a service only in the base stays" "$layerrec" '"container":"worker","env":"prod"'
+assert_contains "a service only in the override is added" "$layerrec" '"container":"cron","env":"prod"'
+assert_contains "an environment key set in both takes the override value" "$layerrec" '"parameter":"LOG_LEVEL","env":"prod","tool":"compose","container":"api","value":"debug"'
+assert_equals "an environment key set in both is one parameter" "$(grep -c '"parameter":"LOG_LEVEL"' "$TEST_TMPDIR/layered.json")" "1"
+assert_contains "a base-only environment key is kept" "$layerrec" '"parameter":"REGION","env":"prod","tool":"compose","container":"api","value":"eu"'
+assert_contains "an override-only secret parameter is redacted" "$layerrec" '"parameter":"PASSWORD","env":"prod","tool":"compose","container":"api","value":"","redacted":"yes"'
+assert_not_contains "a secret set only in the override does not leak" "$layerrec" "$leak_override"
+assert_contains "the override network exposure wins" "$layerrec" '"kind":"network","name":"app","detail":"internal"'
+bash "$RENDER" --record "$TEST_TMPDIR/layered.json" --out "$TEST_TMPDIR/layered-out" --dialect c4-plantuml >/dev/null
+layermd="$(cat "$TEST_TMPDIR/layered-out/deployment.md")"
+assert_not_contains "a secret set only in the override is not rendered" "$layermd" "$leak_override"
+
+# A file with no declared place in the merge is refused by name, never guessed.
+refuse_layers() {
+  local label="$1" want="$2" env_line="$3" f
+  shift 3
   rm -rf "$repoL"
   init_repo "$repoL"
-  for f in $layered; do
+  for f in "$@"; do
     printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repoL/$f"
   done
+  [[ -z "$env_line" ]] || printf '%s\n' "$env_line" >"$repoL/.env"
   commit_all "$repoL"
   bash "$COLLECT" --repo "$repoL" --out "$TEST_TMPDIR/layered.json" --generated-on 2026-09-28
   layerrec="$(cat "$TEST_TMPDIR/layered.json")"
-  assert_contains "layered compose [$layered] is refused" "$layerrec" '"reason": "layered-compose"'
-  assert_not_contains "layered compose [$layered] draws no environment" "$layerrec" '"environment":"'
-done
+  assert_contains "$label is refused by name" "$layerrec" "\"reason\": \"compose-not-mergeable:$want\""
+  assert_not_contains "$label draws no environment" "$layerrec" '"environment":"'
+}
+refuse_layers "a variant beside a base with no listed order" "docker-compose.prod.yml" "" docker-compose.yml docker-compose.prod.yml
+refuse_layers "a variant beside a base and override" "compose.prod.yaml" "" compose.yaml compose.override.yaml compose.prod.yaml
+refuse_layers "an override with no base" "compose.override.yaml" "" compose.override.yaml
+refuse_layers "a second base file" "docker-compose.yml" "" compose.yaml docker-compose.yml
+refuse_layers "a COMPOSE_FILE entry that is not tracked" "compose.gone.yaml" "COMPOSE_FILE=compose.yaml:compose.gone.yaml" compose.yaml
+refuse_layers "a variant the COMPOSE_FILE list leaves out" "compose.prod.yaml" "COMPOSE_FILE=compose.yaml" compose.yaml compose.prod.yaml
+
+# Variant files a tracked .env COMPOSE_FILE lists merge in that order.
+rm -rf "$repoL"
+init_repo "$repoL"
+printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n    environment:\n      MODE: base\n' >"$repoL/compose.yaml"
+printf 'services:\n  api:\n    image: ghcr.io/acme/api:2\n    environment:\n      MODE: prod\n' >"$repoL/compose.prod.yaml"
+printf 'services:\n  api:\n    image: ghcr.io/acme/api:3\n' >"$repoL/compose.hotfix.yaml"
+printf 'COMPOSE_FILE=compose.yaml:compose.prod.yaml:compose.hotfix.yaml\n' >"$repoL/.env"
+commit_all "$repoL"
+bash "$COLLECT" --repo "$repoL" --out "$TEST_TMPDIR/listed.json" --generated-on 2026-09-28
+listedrec="$(cat "$TEST_TMPDIR/listed.json")"
+assert_equals "listed variants are one environment" "$(grep -c '"environment":"' "$TEST_TMPDIR/listed.json")" "1"
+assert_contains "listed variants merge in the listed order" "$listedrec" '"image":"ghcr.io/acme/api:3"'
+assert_contains "a listed variant overrides an environment key" "$listedrec" '"parameter":"MODE","env":"default","tool":"compose","container":"api","value":"prod"'
+
+# A reset or override tag cannot be merged by this reader, so the file is refused by name.
+rm -rf "$repoL"
+init_repo "$repoL"
+printf 'services:\n  api:\n    image: x:1\n    ports:\n      - "80:80"\n' >"$repoL/compose.yaml"
+printf 'services:\n  api:\n    ports: !reset []\n' >"$repoL/compose.override.yaml"
+commit_all "$repoL"
+bash "$COLLECT" --repo "$repoL" --out "$TEST_TMPDIR/layered.json" --generated-on 2026-09-28
+assert_contains "a !reset tag is refused by file name" "$(cat "$TEST_TMPDIR/layered.json")" '"reason": "compose-not-mergeable:compose.override.yaml"'
 repoV="$TEST_TMPDIR/variants"
 init_repo "$repoV"
 printf 'services:\n  api:\n    image: ghcr.io/acme/api:1\n' >"$repoV/compose.staging.yaml"

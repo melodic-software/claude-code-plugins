@@ -15,9 +15,12 @@
 # .tf, .tfvars, .tf.json), ARM templates, Pulumi, Bicep, CloudFormation, Helm
 # (a Chart.yaml), and Kustomize are recognized and then the record is refused,
 # including when a shipped reader also matches, so the diagram is never a
-# partial read. A compose base file beside a compose.<x>.yaml override in one
-# directory is refused as layered-compose: the layers merge into one
-# environment and this reader does not merge them.
+# partial read. A compose base file and its compose.override.yaml, or the files
+# a tracked .env COMPOSE_FILE lists, merge in Compose merge order into one
+# environment named for the directory: scalars are overridden, ports and
+# networks append without duplicates, environment merges by key. Any other
+# file beside them, an override with no base, or a !reset or !override tag
+# refuses the record as compose-not-mergeable:<file>.
 #
 # A placement names the compute node it runs on (`compute`): a Compose service,
 # or a Kubernetes workload shared by its containers. `relationships` holds the
@@ -322,24 +325,6 @@ if [[ "$unshipped" -eq 1 ]]; then
   refuse "adapter-not-shipped"
 fi
 
-# A base file plus any variant in one directory is a merged stack, and a bare
-# override is one half of it. Environment-per-directory layouts never match.
-is_compose_base() {
-  case "$(basename "$1")" in
-  compose.yml | compose.yaml | docker-compose.yml | docker-compose.yaml) return 0 ;;
-  *) return 1 ;;
-  esac
-}
-: >"$TMP/compose-base-dirs.txt"
-while IFS= read -r rel || [[ -n "$rel" ]]; do
-  is_compose_base "$rel" && dirname "$rel" >>"$TMP/compose-base-dirs.txt"
-done <"$TMP/compose.txt"
-while IFS= read -r rel || [[ -n "$rel" ]]; do
-  is_compose_base "$rel" && continue
-  if [[ "$(basename "$rel")" == *override* ]] || grep -q -x -F "$(dirname "$rel")" "$TMP/compose-base-dirs.txt"; then
-    refuse "layered-compose"
-  fi
-done <"$TMP/compose.txt"
 if [[ "$shipped" -eq 0 ]]; then
   refuse "no-declared-iac"
 fi
@@ -364,17 +349,74 @@ env_of_compose() {
   esac
 }
 
-if [[ -s "$TMP/compose.txt" ]]; then
-  : >"$TMP/compose-replay.txt"
+# Compose merges a base file with its override, or the files a tracked .env
+# COMPOSE_FILE lists, in that order. The layers of one directory are one
+# environment named for the directory. Any other file beside them has no
+# declared place in the merge, so the record is refused naming it.
+in_dir() {
+  if [[ "$1" == "." ]]; then printf '%s' "$2"; else printf '%s/%s' "$1" "$2"; fi
+}
+: >"$TMP/compose-layers.txt"
+while IFS= read -r dir || [[ -n "$dir" ]]; do
+  files=()
   while IFS= read -r rel || [[ -n "$rel" ]]; do
+    [[ "$(dirname "$rel")" == "$dir" ]] && files+=("$rel")
+  done <"$TMP/compose.txt"
+  layers=()
+  envfile="$(in_dir "$dir" .env)"
+  if [[ -f "$repo/$envfile" && ! -L "$repo/$envfile" ]] && git -C "$repo" ls-files --error-unmatch -- "$envfile" >/dev/null 2>&1; then
+    listed="$(sed -n 's/^COMPOSE_FILE=//p' "$repo/$envfile" | tail -n 1 | tr -d "\"'\r")"
+    sep="$(sed -n 's/^COMPOSE_PATH_SEPARATOR=//p' "$repo/$envfile" | tail -n 1 | tr -d "\"'\r")"
+    if [[ -n "$listed" ]]; then
+      IFS="${sep:-:}" read -r -a entries <<<"$listed"
+      for entry in "${entries[@]}"; do
+        layer="$(in_dir "$dir" "$entry")"
+        grep -q -x -F -- "$layer" "$TMP/compose.txt" || refuse "compose-not-mergeable:$layer"
+        layers+=("$layer")
+      done
+    fi
+  fi
+  if [[ ${#layers[@]} -eq 0 ]]; then
+    for name in compose.yaml compose.yml docker-compose.yaml docker-compose.yml; do
+      layer="$(in_dir "$dir" "$name")"
+      grep -q -x -F -- "$layer" "$TMP/compose.txt" || continue
+      layers+=("$layer")
+      for ext in yaml yml; do
+        layer="$(in_dir "$dir" "${name%%.y*}.override.$ext")"
+        if grep -q -x -F -- "$layer" "$TMP/compose.txt"; then
+          layers+=("$layer")
+          break
+        fi
+      done
+      break
+    done
+  fi
+  if [[ ${#layers[@]} -gt 0 ]]; then
+    for rel in "${files[@]}"; do
+      printf '%s\n' "${layers[@]}" | grep -q -x -F -- "$rel" || refuse "compose-not-mergeable:$rel"
+    done
+    if [[ "$dir" == "." ]]; then layer_env=default; else layer_env="$(basename "$dir")"; fi
+    for rel in "${layers[@]}"; do
+      printf '%s\t%s\n' "$rel" "$layer_env" >>"$TMP/compose-layers.txt"
+    done
+  else
+    for rel in "${files[@]}"; do
+      [[ "$(basename "$rel")" == *override* ]] && refuse "compose-not-mergeable:$rel"
+      printf '%s\t%s\n' "$rel" "$(env_of_compose "$rel")" >>"$TMP/compose-layers.txt"
+    done
+  fi
+done < <(awk '{ if (sub(/\/[^\/]*$/, "")) print; else print "." }' "$TMP/compose.txt" | sort -u)
+
+if [[ -s "$TMP/compose-layers.txt" ]]; then
+  : >"$TMP/compose-replay.txt"
+  while IFS=$'\t' read -r rel env_name || [[ -n "$rel" ]]; do
     [[ -n "$rel" ]] || continue
-    env_name="$(env_of_compose "$rel")"
     {
       printf '%s\n' "-- MAPDEP FILE $rel $env_name"
       cat "$repo/$rel"
       printf '\n'
     } >>"$TMP/compose-replay.txt"
-  done <"$TMP/compose.txt"
+  done <"$TMP/compose-layers.txt"
   if ! awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/compose-flag" -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f - "$TMP/compose-replay.txt" <<<'
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function ind(s,    i) { i = 1; while (substr(s, i, 1) == " ") i++; return i - 1 }
@@ -393,31 +435,36 @@ if [[ -s "$TMP/compose.txt" ]]; then
       printf "{\"id\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"kind\":\"compute\",\"name\":\"%s\",\"detail\":\"%s\",\"evidence\":\"%s\"}\n", \
         jesc(env "/" svc), jesc(env), jesc(svc), jesc(img), jesc(evidence[env]) >> nodes
     }
-    BEGIN { env = ""; path = ""; bad = 0 }
+    function note_svc(e, s) { if (!((e SUBSEP s) in svc_seen)) { svc_seen[e SUBSEP s] = 1; svc_list[++svc_n] = e SUBSEP s } }
+    function append_unique(map, k, v) {
+      if ((k SUBSEP v) in uniq) return
+      uniq[k SUBSEP v] = 1
+      map[k] = (map[k] == "" ? v : map[k] "," v)
+    }
+    BEGIN { env = ""; path = ""; badmsg = "" }
     {
       raw = $0
       sub(/\r$/, "", raw)
       if (raw ~ /^-- MAPDEP FILE /) {
-        if (svc != "" && env != "") emit_place(env, svc)
         split(substr(raw, 15), bits, " ")
         path = bits[1]
         env = bits[2]
         remember_env(env)
-        evidence[env] = path
+        evidence[env] = (env in evidence ? evidence[env] ", " path : path)
         section = ""
         svc = ""
         key = ""
         next
       }
-      if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { bad = 1; next }
+      if (raw ~ /\t/ || (index(raw, "{{") > 0 && raw ~ /^[[:space:]-]*(name|image|namespace|replicas|kind):/)) { if (badmsg == "") badmsg = "compose-unreadable"; next }
       if (raw ~ /^[ ]*#/) next
       line = raw
       sub(/[ ]+#.*$/, "", line)
       content = trim(line)
       if (content == "") next
+      if (content ~ /(^|[[:space:]:])!(reset|override)([[:space:]]|$)/) { if (badmsg == "") badmsg = "compose-not-mergeable:" path; next }
       nind = ind(line)
       if (nind == 0) {
-        if (svc != "" && env != "") emit_place(env, svc)
         svc = ""
         if (content == "services:") { section = "services"; key = "" }
         else if (content == "networks:") { section = "networks"; key = "" }
@@ -425,9 +472,9 @@ if [[ -s "$TMP/compose.txt" ]]; then
         next
       }
       if (section == "services" && nind == 2 && content ~ /:$/ && content !~ /^-/) {
-        if (svc != "") emit_place(env, svc)
         svc = content
         sub(/:$/, "", svc)
+        note_svc(env, svc)
         key = ""
         next
       }
@@ -449,14 +496,14 @@ if [[ -s "$TMP/compose.txt" ]]; then
         v = content
         sub(/^-[[:space:]]*/, "", v)
         gsub(/^["'\'']|["'\'']$/, "", v)
-        portjoin[env SUBSEP svc] = (portjoin[env SUBSEP svc] == "" ? v : portjoin[env SUBSEP svc] "," v)
+        append_unique(portjoin, env SUBSEP svc, v)
         next
       }
       if (section == "services" && key == "networks" && content ~ /^-/) {
         v = content
         sub(/^-[[:space:]]*/, "", v)
         gsub(/^["'\'']|["'\'']$/, "", v)
-        netjoin[env SUBSEP svc] = (netjoin[env SUBSEP svc] == "" ? v : netjoin[env SUBSEP svc] "," v)
+        append_unique(netjoin, env SUBSEP svc, v)
         net_decl[env SUBSEP v] = 1
         next
       }
@@ -478,13 +525,14 @@ if [[ -s "$TMP/compose.txt" ]]; then
           gsub(/^["'\'']|["'\'']$/, "", val)
         }
         if (k != "") {
-          red = redact_secret(k, val) ? "yes" : "no"
-          shown = (red == "yes") ? "" : val
-          printf "{\"parameter\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"value\":\"%s\",\"redacted\":\"%s\",\"evidence\":\"%s\"}\n", \
-            jesc(k), jesc(env), jesc(svc), jesc(shown), red, jesc(path) >> params
-          if (red == "yes") secret_val[env SUBSEP svc SUBSEP k] = val
-          else plain_val[env SUBSEP svc SUBSEP k] = val
-          param_seen[env SUBSEP svc SUBSEP k] = 1
+          pk = env SUBSEP svc SUBSEP k
+          if (!(pk in param_seen)) param_list[++param_n] = pk
+          param_seen[pk] = 1
+          param_path[pk] = path
+          delete secret_val[pk]
+          delete plain_val[pk]
+          if (redact_secret(k, val)) secret_val[pk] = val
+          else plain_val[pk] = val
         }
         next
       }
@@ -498,16 +546,28 @@ if [[ -s "$TMP/compose.txt" ]]; then
         net = content
         sub(/:$/, "", net)
         net_decl[env SUBSEP net] = 1
-        net_exp[env SUBSEP net] = "published"
+        if (!((env SUBSEP net) in net_exp)) net_exp[env SUBSEP net] = "published"
         next
       }
       if (section == "networks" && content ~ /^internal:[[:space:]]*true/) {
         net_exp[env SUBSEP net] = "internal"
+      } else if (section == "networks" && content ~ /^internal:[[:space:]]*false/) {
+        net_exp[env SUBSEP net] = "published"
       }
     }
     END {
-      if (bad) { printf "compose-unreadable\n" > flag; exit 0 }
-      if (svc != "" && env != "") emit_place(env, svc)
+      if (badmsg != "") { print badmsg > flag; exit 0 }
+      for (i = 1; i <= svc_n; i++) {
+        split(svc_list[i], sp, SUBSEP)
+        emit_place(sp[1], sp[2])
+      }
+      for (i = 1; i <= param_n; i++) {
+        pk = param_list[i]
+        split(pk, sp, SUBSEP)
+        red = (pk in secret_val) ? "yes" : "no"
+        printf "{\"parameter\":\"%s\",\"env\":\"%s\",\"tool\":\"compose\",\"container\":\"%s\",\"value\":\"%s\",\"redacted\":\"%s\",\"evidence\":\"%s\"}\n", \
+          jesc(sp[3]), jesc(sp[1]), jesc(sp[2]), jesc(red == "yes" ? "" : plain_val[pk]), red, jesc(param_path[pk]) >> params
+      }
       for (e in seen_env) {
         printf "{\"environment\":\"%s\",\"tool\":\"compose\",\"evidence\":\"%s\"}\n", jesc(e), jesc(evidence[e]) >> envs
         for (nk in net_decl) {

@@ -93,8 +93,11 @@ Shipped readers, both when both are present:
 - Docker Compose (`compose.yaml`, `docker-compose.yml`, and `compose.<env>.yaml`). The environment
   is the filename suffix of `compose.<env>.yaml`, otherwise the parent directory name
   (`deploy/<env>/compose.yaml`), and `default` for a file at the repository root.
-  A base file with an override or variant file in the same directory (`compose.override.yaml`,
-  `compose.<x>.yaml`) is one merged stack, not two environments. It is refused as `layered-compose`.
+  A base file and its `compose.override.yaml`, or the files a tracked `.env` `COMPOSE_FILE` lists,
+  merge in Compose merge order into one environment named for the directory. Scalars (`image`,
+  `replicas`) are overridden, `ports` and `networks` append without duplicates, `environment`
+  merges by key. Any other file beside them (a variant with no listed order, an override with no
+  base, a second base) or a `!reset` or `!override` tag is refused as `compose-not-mergeable:<file>`.
   Environment-per-directory layouts are unaffected. Each service is a compute node, and its
   placement names it in `compute`.
 - Kubernetes manifests whose `kind` is Deployment, StatefulSet, DaemonSet, Service, or Ingress.
@@ -224,7 +227,7 @@ End every run with this block, in this order:
   parameter differs. It cannot show the value.
 - **Two tools are not half-read.** Seeing Terraform beside Compose refuses the whole record. A
   `main.tf` with only `module` blocks, a `.tfvars`, or an ARM template counts too.
-- **`override` is not an environment.** Compose layering is refused, never read as two environments.
+- **`override` is not an environment.** An override merges into its base's environment. A layer with no declared merge order is refused by name, never guessed.
 - **`--live` is a refusal.** Committed files are not silently substituted for a live comparison.
 - **A reformatted record is refused.** Render exits 1 and writes nothing.
 - **Tracked files only.** `git ls-files` is the source list. A tracked symlink is skipped, so it
