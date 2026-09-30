@@ -32,17 +32,18 @@ Run the argument-free probe first, before any engine call:
 
 Take `hook_python` and `data_root` from its one-line JSON. Every engine call needs the absolute
 `<hook-python>` and `--data-root`; a bare `python3` is rejected. When `hook_python` is not yet
-known, submit the probe once with bare `python`: the guard denies that read-only call and names its
-interpreter, so nothing from bare `python` is a result. Rerun the probe with the interpreter the
-denial names, and take `hook_python` and `data_root` only from a probe that ran under it. Never
-submit a scan to learn either value.
+known, submit the probe once with bare `python`. The probe reports `hook_python` as the interpreter
+it ran under, so that value is the guard's only if the guard's own interpreter ran it. The scan is
+admitted only under the guard's interpreter: if it is denied for that reason, the denial names the
+interpreter and ran nothing, so rerun the scan with the interpreter it names.
 
 - `data_root` is `null`: the install layout proved no data root and the guard denies every engine
   call. Report the audit as not run, submit no engine call, and stop.
 - The probe call is denied or left waiting for a person: report the audit as not run and stop. Do
   not scan without it.
-- `hook_python` is older than `MIN_PYTHON` in
-  [`hygiene.py`](../clean/scripts/hygiene.py): stop with that declared prerequisite.
+- The guard's interpreter is older than `MIN_PYTHON` in
+  [`hygiene.py`](../clean/scripts/hygiene.py): stop with that declared prerequisite. An older
+  `hook_python` from a bare-`python` probe is not that finding; the scan's admission settles it.
 - `effective` is `false` (audit-only): the scan still runs. State the configured value, and leave
   out the removal handoff in step 4. On `degraded: true`, say the configured value could not be read.
 
