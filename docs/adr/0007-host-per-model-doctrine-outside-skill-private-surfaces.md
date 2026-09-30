@@ -69,6 +69,16 @@ skill and agent content as substituting the placeholder anywhere it appears, so 
 substitution is a documented contract and the recheck trigger's "not documented" premise no longer
 holds; the probes above stand as corroboration.
 
+*Update (2026-09-29, Claude Code 2.1.284):* a fresh headless `claude -p` probe of a disposable
+`--plugin-dir` plugin, run twice with identical results, measured three surfaces. Skill body:
+`${CLAUDE_PLUGIN_ROOT}` expanded to the plugin root, and a relative path on the next line stayed
+literal. Hook command (`SessionStart`, token single-quoted so the shell could not expand it):
+literal; the variable was set in the hook process environment. Bash-tool environment: unset
+(`printenv CLAUDE_PLUGIN_ROOT` exited 1 with no output). The shell-form hook command does not show
+the inline substitution the plugins reference documents for hook commands ("anywhere in `command`
+and `args`"), while an exec-form `args` element carrying the token expanded to the plugin root in a
+separate probe on the same version.
+
 ## Decision
 
 Per-version model-adaptation chapters live at

@@ -10,7 +10,7 @@ Read the code before changing it. This skill builds the local knowledge a change
 
 Local counterpart to `/discovery:research` (external sources). Together: `/discovery:explore` for what IS, `/discovery:research` for what SHOULD BE.
 
-**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it**. `EnterPlanMode` is filtered out of every non-fork subagent unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, "unless the subagent's `permissionMode` is `plan`". The dated record for that harness behavior is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". `discovery:explorer` lists neither tool in its `tools` allowlist, so it holds neither either way. There the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
+**Plan-mode for high-risk exploration (optional, inline only)**: when exploring unfamiliar code in a high-blast-radius area (security boundaries, critical infrastructure, code you might accidentally modify mid-investigation), switch into plan mode for harness-level read-only protection. Routine exploration of well-understood code does not need this. **A dispatched run cannot switch into it**. `EnterPlanMode` is filtered out of every non-fork subagent unconditionally, and `ExitPlanMode` is filtered from every non-fork subagent too, "unless the subagent's `permissionMode` is `plan`". The dated record for that harness behavior is [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md), "Harness facts the dispatch design rests on". `discovery:explorer` lists neither tool in its `tools` allowlist, so it holds neither either way. There the read-only boundary is the agent's own instruction, honored deliberately rather than enforced by the harness.
 
 ## Scope
 
@@ -45,7 +45,7 @@ Code has context only git reveals, who changed it, when, why, and what else chan
 Understand how the pieces fit together before moving any of them.
 
 - **Directory layout**, if the project documents its repository structure, verify the doc matches reality; otherwise map the tree yourself
-- **Project references / imports**. Map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md`. Compose `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is installed, retaining fallback ecosystems the seam does not cover; otherwise the reference's fallback table)
+- **Project references / imports**. Map the dependency graph by grepping the ecosystem's import/reference token across its build-config files (per-ecosystem tokens: [`ecosystem-discovery.md`](ecosystem-discovery.md). Compose `/toolchain:check`'s covered-ecosystem set when the `toolchain` plugin is installed, retaining fallback ecosystems the seam does not cover; otherwise the reference's fallback table)
 - **Solution / workspace membership**. Check the repo's solution or workspace file at the root for what's included
 - **Layer boundaries**. Respect any dependency-direction rules the project declares
 - **Planned direction**. Cross-reference findings with any stated direction in the project's own `CLAUDE.md` or docs. Assess how changes must fit the repo's current state AND planned direction
@@ -54,7 +54,7 @@ Understand how the pieces fit together before moving any of them.
 
 Tests are executable documentation. They reveal intended behavior, edge cases, and existing coverage.
 
-- **Find test projects**. Glob the per-ecosystem test patterns in `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (`test-globs` / `test-content-grep` are explore-owned even when composing the toolchain seam)
+- **Find test projects**. Glob the per-ecosystem test patterns in [`ecosystem-discovery.md`](ecosystem-discovery.md) (`test-globs` / `test-content-grep` are explore-owned even when composing the toolchain seam)
 - **Co-located tests**. Check whether unit tests live next to their source (sibling test project, `__tests__/`, adjacent `_test.go`) or in a separate tree
 - **Cross-cutting tests**, a repo-root `tests/` for architecture, dependency, or naming-rule tests that span multiple libraries
 - **Test patterns**. Read existing tests (start with 2-3, scale to the number of distinct patterns in play) to understand naming conventions, assertion style, and fixture patterns before writing new ones
@@ -64,7 +64,7 @@ Tests are executable documentation. They reveal intended behavior, edge cases, a
 
 Build configuration constrains what's possible. Understand it before fighting it.
 
-- **Build configs**. Read the ecosystem's build / package / config files per `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (explore-owned `build-configs` even when composing the toolchain seam; resolved `project-discovery` / `anchor` locate roots)
+- **Build configs**. Read the ecosystem's build / package / config files per [`ecosystem-discovery.md`](ecosystem-discovery.md) (explore-owned `build-configs` even when composing the toolchain seam; resolved `project-discovery` / `anchor` locate roots)
 - **Analyzer / lint config**. `.editorconfig` for shared severity levels; ecosystem-specific analyzer/linter files
 - **Package versions**. Check the ecosystem's manifest (lockfile + central-version-management file if applicable)
 - **CI/CD**. `.github/workflows/` (or the project's CI equivalent) for what's validated on every PR
@@ -73,7 +73,7 @@ Build configuration constrains what's possible. Understand it before fighting it
 
 When the task involves tooling, MCP servers, or infrastructure:
 
-- **Installed versions**. Probe per `${CLAUDE_PLUGIN_ROOT}/skills/explore/reference/ecosystem-discovery.md` (explore-owned `runtime-version-cmd` even when composing the toolchain seam; `install-hint` is install prose, not a version probe)
+- **Installed versions**. Probe per [`ecosystem-discovery.md`](ecosystem-discovery.md) (explore-owned `runtime-version-cmd` even when composing the toolchain seam; `install-hint` is install prose, not a version probe)
 - **MCP server status**. Test with a read-only call before depending on it
 - **Worktree state**. `git worktree list`, current branch, uncommitted changes
 - **Local config**. Project-local settings for env vars and tokens (don't read secrets, just verify presence)
@@ -94,7 +94,7 @@ The resolved scope shapes the exploration focus. Read from `SKILL.md`'s `## Scop
 
 Multiple arguments combine: `/discovery:explore payments deps tests` explores that area's dependencies AND test coverage.
 
-> Surfacing the USER's unknown-unknowns before they work in unfamiliar territory, a better-prompt deliverable, not the `EXPLORE.md` artifact, is the sibling [`/discovery:blindspot`](${CLAUDE_PLUGIN_ROOT}/skills/blindspot/SKILL.md) skill.
+> Surfacing the USER's unknown-unknowns before they work in unfamiliar territory, a better-prompt deliverable, not the `EXPLORE.md` artifact, is the sibling [`/discovery:blindspot`](../../blindspot/SKILL.md) skill.
 
 ## Output format
 
@@ -106,6 +106,6 @@ Present exploration findings as:
 4. **Test coverage**. What's tested, what's not, what test patterns are used
 5. **Constraints**. Analyzers, conventions, layer rules, or CI gates that constrain the solution
 6. **Planned direction alignment**. How findings relate to any direction the project documents
-7. **Open questions**. Anything that needs clarification before proceeding, each with a one-line recommended default + escape hatch. **Inline, surface these to the USER. Dispatched, return them as `open_questions` in the payload and the parent surfaces them**. `AskUserQuestion` is filtered out of every non-fork subagent, so the payload is how they reach a human at all; the dated record is [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "Harness facts the dispatch design rests on". Either way, silent downstream resolution of a surfaced open question is an anti-pattern; the hand-off changes, the rule does not
+7. **Open questions**. Anything that needs clarification before proceeding, each with a one-line recommended default + escape hatch. **Inline, surface these to the USER. Dispatched, return them as `open_questions` in the payload and the parent surfaces them**. `AskUserQuestion` is filtered out of every non-fork subagent, so the payload is how they reach a human at all; the dated record is [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md), "Harness facts the dispatch design rests on". Either way, silent downstream resolution of a surfaced open question is an anti-pattern; the hand-off changes, the rule does not
 
 If invoked standalone, present findings directly. If invoked as part of a larger workflow, findings feed into subsequent research and planning steps.

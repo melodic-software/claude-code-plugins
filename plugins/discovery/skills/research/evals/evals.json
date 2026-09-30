@@ -393,8 +393,11 @@
         "The Topic: line does not contain the breadth=low token",
         "The envelope carries Source breadth: low although caller effort is high",
         "The envelope's Budget: line opens with low",
+        "The envelope's Turn budget: line reads 15",
         "Phase 3 and Phase 4 are skipped and named as skipped in the artifact",
-        "Does not treat breadth= as able to raise breadth or extend maxTurns"
+        "Does not treat breadth= as able to raise breadth or extend maxTurns",
+        "The Phase 1 cap for a named folder or artifact is a direct read of it first, then at most 6 web queries and fetches",
+        "A verifier FAIL on a verifier-owned row at low is recorded as a Gap, Conflicts entry or named verification fail, not resumed"
       ]
     }
   ]

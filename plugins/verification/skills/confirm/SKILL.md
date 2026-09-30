@@ -143,11 +143,10 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 Both answer "does this change actually work", so a request to verify a change can reach for
 either.
 
-- **`/verify` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Builds
-  and runs the project's app and drives the affected flow end to end, observing behavior rather
-  than relying on tests or type checks. When the repository has no project verify skill yet, it
-  bootstraps one, which writes files into the repository. Reserved for the person to run; the model
-  does not invoke it.
+- **`/verify` (bundled skill)**: builds and runs the project's app and drives the affected flow end
+  to end, observing behavior rather than relying on tests or type checks. When the repository has no
+  project verify skill yet, it bootstraps one, which writes files into the repository. Reserved for
+  the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The mechanical prerequisite, then outcome verification
   against the plan or intent by change type: the intent-match table, out-of-diff couplings, the
   evidence table, and an independent verdict.
