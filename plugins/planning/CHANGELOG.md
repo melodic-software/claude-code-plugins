@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.7] - 2026-09-29
+## [0.47.8] - 2026-09-30
 
 ### Fixed
 
 - **The surface warns beside Wrap up while assumptions are still open.** The hint shows the count of unconfirmed assumptions next to the existing understanding-not-confirmed line ([#5460](https://github.com/melodic-software/claude-code-plugins/issues/5460)).
+
+## [0.47.7] - 2026-09-29
+
+### Fixed
+
+- **A group summary that predates questions added to its group is flagged.** Writing a group `summary` records the group's question ids as `summaryOf`. `round.py add` and `add-round` warn when a question lands in a group whose summary was written for a different set, and the page marks that summary Stale until it is rewritten ([#5451](https://github.com/melodic-software/claude-code-plugins/issues/5451)).
 
 ## [0.47.6] - 2026-09-29
 
