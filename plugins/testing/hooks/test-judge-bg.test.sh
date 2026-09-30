@@ -136,9 +136,20 @@ for mode in fail hang; do
   STUB_MODE=$mode TEST_JUDGE_RUN_TIMEOUT=1 bg s1 "w-$mode" "$X"
   check "judge $mode: no verdict" '[[ -z "$(verdict_of s1 "$mode")" ]]'
   check "judge $mode: the lock is released" '[[ -z "$(find "$DATA/locks" -type f)" ]]'
-  check "judge $mode: counted as a failed attempt" '[[ "$(cat "$DATA"/attempts/* | grep -c "judge exited")" -ge 1 ]]'
+  why="judge exited"
+  [[ "$mode" == hang ]] && why="judge timed out"
+  check "judge $mode: counted as a failed attempt ($why)" '[[ "$(cat "$DATA"/attempts/* | grep -c "$why")" == 1 ]]'
 done
 check "the hang guard ends a hanging judge" '((SECONDS - began < 15))'
+
+# A run cut at its bound gives no verdict, even when the judge prints one
+# after the watchdog has killed its tools.
+stub_reset
+L2="$REPO/src/late.test.ts"
+js_file "$L2" late
+record s1 w-late "$L2" "$(blocks late:1:3:5)"
+STUB_SLEEP=5 TEST_JUDGE_RUN_TIMEOUT=1 bg s1 w-late "$L2"
+check "a run cut at its bound writes no verdict" '[[ "$(stub_calls)" == 1 && -z "$(verdict_of s1 late)" ]]'
 
 # The hang guard needs no coreutils timeout (stock macOS has none; on Git Bash
 # only Windows' timeout.exe may resolve): with neither timeout nor gtimeout on

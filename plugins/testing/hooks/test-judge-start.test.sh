@@ -58,10 +58,10 @@ start new5 startup
 assert_empty "another repository's verdict is not named" "$out"
 
 # `clear` and `fork` write the successor marker; `startup` and `resume` do not.
-for src in clear fork startup resume; do start "succ-$src" "$src"; done
+for src in clear fork startup resume compact; do start "succ-$src" "$src"; done
 check "clear writes the successor marker" '[[ "$(cat "$DATA/successors/$PKEY/succ-clear")" =~ ^[0-9]+$ ]]'
 check "fork writes the successor marker" '[[ -f "$DATA/successors/$PKEY/succ-fork" ]]'
-check "startup and resume do not" '[[ ! -e "$DATA/successors/$PKEY/succ-startup" && ! -e "$DATA/successors/$PKEY/succ-resume" ]]'
+check "startup, resume and compact do not (compact keeps its session id)" '[[ ! -e "$DATA/successors/$PKEY/succ-startup" && ! -e "$DATA/successors/$PKEY/succ-resume" && ! -e "$DATA/successors/$PKEY/succ-compact" ]]'
 
 out="$(payload x start "" '{"source": "clear"}' | CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED='' bash "$HOOK")"
 check "test_judge_enabled off: nothing" '[[ -z "$out" && ! -e "$DATA/successors/$PKEY/x" ]]'

@@ -31,7 +31,10 @@ All notable changes to the `testing` plugin are documented here. Format follows
   `test_judge_effort` (`medium`), and `test_judge_session_runs` (unset: no limit). Each judge run
   is bounded at 150 s by the same process-group watchdog that bounds the scanner (the plan's
   "timeout 150" is that bound, not the coreutils binary, which stock macOS lacks and Git Bash may
-  resolve to Windows' `timeout.exe`); the whole group gets TERM, then KILL. The README and
+  resolve to Windows' `timeout.exe`); the whole group gets TERM, then KILL, and a run cut at its
+  bound gives no verdict. Every wait in the Stop hook (a judge slot, a run, a background job)
+  ends at its 180 s bound, and tests not judged in time go to a background job and are shown at
+  the next task end. The README and
   `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
   reaches.
 

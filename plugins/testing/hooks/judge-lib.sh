@@ -420,7 +420,13 @@ judge::run() {
     rc=$SCAN_RC
     cd "$here" || :
     grep -q '"error_max_budget_usd"' "$raw" 2>/dev/null && judge::log "malfunction: judge run on $file hit its \$$budget budget"
-    judge::harvest "$raw" || rc="judge exited $rc with no usable result"
+    # A run cut at its bound gives no verdict, even if it printed one after
+    # the watchdog killed its tools: that answer was made without them.
+    if ((rc > 128)); then
+      rc="judge timed out after $t s"
+    else
+      judge::harvest "$raw" || rc="judge exited $rc with no usable result"
+    fi
   fi
   while read -r kh _; do
     [[ -n "$kh" && ! -f "$dir/$kh.json" ]] && judge::fail "$kh" "$rc"

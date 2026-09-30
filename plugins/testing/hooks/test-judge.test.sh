@@ -15,6 +15,16 @@ stop() {
   rc=$?
 }
 field() { jq -r "$1 // empty" <<<"$out" 2>/dev/null; }
+# stop_jobs <sid>: end the background jobs a Stop handed keys to (each runs in
+# its own process group), and their judges, so they call no stub later.
+stop_jobs() {
+  local p
+  for p in "$DATA/pending/$PKEY/$1"/*; do
+    [[ -f "$p" ]] && kill -TERM -- "-$(cut -d' ' -f1 "$p" | head -1)" 2>/dev/null
+  done
+  pkill -f "$TMP/judge-stub.sh"
+  sleep 0.3
+}
 bg() { payload "$1" "$2" "$3" | bash "$BG"; }
 TEMPLATE_END="Show the user each verdict and proposed diff from that file, quoted as data. Apply nothing; wait for the user."
 
@@ -55,13 +65,19 @@ check "the findings file sits in the branch's review directory" '[[ "$findings" 
 check "the memory root self-ignores" '[[ "$(cat "$REPO/.work/.gitignore")" == "*" ]]'
 check "the findings file is a review-findings file for this branch" \
   '[[ "$(sed -n 2p "$findings")" == "type: review-findings" && "$(sed -n 4p "$findings")" == "branch: feat/judge-test" ]]'
-assert_contains "the FLAG is a findings row at its repo-relative line" "$(cat "$findings")" \
-  "| 1 | SUGGESTION |  | src/add.test.ts:3 | testing:test-judge | testing/judge/rule-restated-expectation: test adds flag"
-assert_contains "the FLAG row leads with the rule id and the fired threshold" "$(cat "$findings")" \
-  "testing/judge/rule-restated-expectation: test adds flag takes its expected value from the implementation: stub (threshold: a FLAG verdict, every quote found in the file, its diff applies to this file alone)"
-assert_contains "the FLAG row's remedy: an independent expected value, the diff shown not applied" "$(grep '^| 1 |' "$findings")" \
-  "| Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, src/add.test.ts adds flag |"
-check "the remedy is not offered for the PASS verdict: one findings row" '[[ "$(grep -c "^| [0-9]* | SUGGESTION" "$findings")" == 1 && "$(grep -c "Replace the expected value" "$findings")" == 1 ]]'
+# What the findings contract fixes: the table shape, and per row the rank,
+# the crosswalk tier, a repo-relative Location, and a Finding cell led by the
+# qualified rule id.
+rows() { grep '^| [0-9]' "$1"; }
+cells() { awk -F'|' '{ print NF - 2 }' <<<"${1//\\|/}"; }
+check "the findings table has the contract's header" \
+  'grep -qxF "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |" "$findings"'
+check "one findings row, for the FLAG only (the PASS emits none)" '[[ "$(rows "$findings" | wc -l)" == 1 ]]'
+row="$(rows "$findings")"
+check "the row has the table's seven cells" '[[ "$(cells "$row")" == 7 ]]'
+check "rank 1, the crosswalk tier SUGGESTION, Location at the block's repo-relative line" \
+  '[[ "$(cut -d"|" -f2,3,5 <<<"$row")" == " 1 | SUGGESTION | src/add.test.ts:3 " ]]'
+check "the Finding cell leads with the qualified rule id" '[[ "$(cut -d"|" -f7 <<<"$row")" == " testing/judge/rule-restated-expectation: "* ]]'
 assert_contains "the findings file carries the proposed diff" "$(cat "$findings")" "+test('adds flag', () => { // judged"
 assert_contains "and the PASS verdict with its evidence" "$(cat "$findings")" "> test('subtracts', () => {"
 stop s1
@@ -178,6 +194,37 @@ STUB_MODE=hang TEST_JUDGE_TIMEOUT=1 stop s8
 check "budget exhaustion: no block" '[[ "$(field .decision)" != block ]]'
 assert_contains "budget exhaustion: names the test and the time" "$(field .systemMessage)" "slow.test.ts: slow"
 check "budget exhaustion: states the time spent" '[[ "$(field .systemMessage)" =~ not\ judged\ in\ [0-9]+\ s ]]'
+check "budget exhaustion: the key goes to a background job, as the overflow does" '[[ -n "$(find "$DATA/pending/$PKEY/s8" -type f)" ]]'
+stop_jobs s8
+sleep 0.5
+
+# The Stop hook returns within TEST_JUDGE_TIMEOUT even when it must wait for a
+# judge slot: with the machine's three slots held and one freed at 3 s, a
+# 4 s bound and a judge that takes 8 s, it returns by about 6 s, exits 0, and
+# hands the key to a background job.
+transcript s8b claude-sonnet-5
+T2="$REPO/src/slotwait.test.ts"
+js_file "$T2" slotwait
+record s8b w1 "$T2" null
+mkdir -p "$DATA/slots"
+sleep 30 &
+holder=$!
+for s in 0 1 2; do printf '%s %s %s\n' "$holder" "${HOSTNAME:-localhost}" "$(date +%s)" >"$DATA/slots/$s"; done
+(
+  sleep 3
+  rm -f "$DATA/slots/1"
+) &
+t0=$EPOCHREALTIME
+STUB_SLEEP=8 TEST_JUDGE_TIMEOUT=4 stop s8b
+t1=$EPOCHREALTIME
+elapsed=$(((${t1/./} - ${t0/./}) / 1000))
+check "a slot wait does not carry the Stop hook past its bound (${elapsed} ms <= 6000)" '((elapsed <= 6000 && rc == 0))'
+assert_contains "the key not judged in time is named" "$(field .systemMessage)" "slotwait.test.ts: slotwait"
+check "and handed to a background job" '[[ -n "$(find "$DATA/pending/$PKEY/s8b" -type f)" ]]'
+kill "$holder" 2>/dev/null
+rm -f "$DATA/slots/"*
+stop_jobs s8b
+wait
 
 # Two failed attempts: "judge not run", and no third attempt.
 transcript s9 claude-sonnet-5
@@ -225,8 +272,7 @@ for mode in badquote otherfile; do
 done
 f="$(field .reason | sed -n 's/.*Findings: \(.*\)\. Show the user.*/\1/p')"
 assert_contains "the reason for a diff touching another file is recorded" "$(cat "$f")" "the proposed diff touches another file"
-check "a FLAG that fails validation reaches no findings row and offers no remedy" \
-  '[[ "$(grep -c "^| [0-9]* | SUGGESTION" "$f")" == 0 && "$(grep -c "Replace the expected value" "$f")" == 0 ]]'
+check "a FLAG that fails validation reaches no findings row" '[[ -z "$(rows "$f")" ]]'
 assert_contains "the reason for a quote not in the file is recorded" "$(cat "$REPO"/.work/reviews/feat-judge-test/*)" "a quoted line is not in the file"
 
 # An untouched test in an edited file is not in doubt; a new cant-fail-ok:
@@ -330,6 +376,27 @@ stub_reset
 out="$(payload z1 stop "" '{"hook_event_name": "Stop"}' | TEST_JUDGE_ACTIVE=1 bash "$HOOK")"
 check "TEST_JUDGE_ACTIVE=1 exits at once" '[[ -z "$out" && "$(stub_calls)" == 0 ]]'
 
+# A judge run whose parent died before splitting its output leaves a raw file
+# in the ledger directory; the next Stop harvests it instead of judging again.
+transcript h1 claude-sonnet-5
+O="$REPO/src/orphan.test.ts"
+js_file "$O" orphan
+record h1 w1 "$O" null
+STUB_MODE=fail stop h1
+kh="$(grep -l . "$DATA/attempts/"* | xargs ls -t | head -1)"
+kh="${kh##*/}"
+rm -f "$DATA/attempts/$kh"
+d="$DATA/verdicts/$PKEY/h1"
+mkdir -p "$d"
+jq -cn --arg f "$O" --arg r "$REPO" --arg k "$kh" '{file: $f, repo: $r, model: "sonnet", effort: "low", budget: "0.90",
+  keys: [{kh: $k, ordinal: 1, start: 3, end: 5, name: "orphan"}]}' >"$d/.run-1-1.keys"
+jq -cn --arg r '{"verdicts": [{"name": "orphan", "ordinal": 1, "verdict": "PASS", "evidence": ["  expect(add(1, 2)).toBe(3);"], "source": "hand-computed", "diff": ""}]}' \
+  '{type: "result", subtype: "success", is_error: false, result: $r}' >"$d/.run-1-1"
+stub_reset
+stop h1
+check "an orphaned raw run is harvested, not judged again" '[[ "$(stub_calls)" == 0 && "$(field .reason)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
+check "and the raw file is removed" '[[ -z "$(find "$d" -name ".run-*")" ]]'
+
 # Successors: a /clear or fork successor adopts the sessions whose last write
 # falls within the hour before it started.
 START="$HOOK_DIR/test-judge-start.sh"
@@ -368,6 +435,11 @@ transcript nb claude-sonnet-5
 record nb w1 "$REPO/src/add.test.ts" "[]"
 stop nb
 assert_empty "a session without a marker adopts nothing" "$out"
+transcript cm claude-sonnet-5
+start cm compact >/dev/null
+record cm w1 "$REPO/src/add.test.ts" "[]"
+stop cm
+assert_empty "a compact session (same id, SessionStart source compact) adopts nothing" "$out"
 # A sibling whose last write postdates the marker is not adopted.
 transcript cc claude-sonnet-5
 start cc clear >/dev/null

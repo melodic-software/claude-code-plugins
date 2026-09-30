@@ -9,10 +9,11 @@
 #    or fork successor, its adopted predecessors) wrote.
 # 3. Keys with a verdict are ready; keys a live background job or lock holds
 #    are waited on; the rest are judged now, one run per file in parallel, at
-#    most 10 keys per Stop. Keys past that cap are handed to a detached
-#    test-judge-bg.sh job just before returning, and a job that dies leaves its
-#    keys to the next task end. All of it is bounded by TEST_JUDGE_TIMEOUT
-#    (default 180 s, below the hooks.json timeout of 240 s).
+#    most 10 keys per Stop. Keys past that cap, and keys the deadline left
+#    unjudged, are handed to a detached test-judge-bg.sh job just before
+#    returning, and a job that dies leaves its keys to the next task end. Every
+#    wait (slot, run, job) ends at TEST_JUDGE_TIMEOUT (default 180 s, below the
+#    hooks.json timeout of 240 s), so the hook returns within about 2 s of it.
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
 #    fixed template. Either way a systemMessage carries the counts and path.
@@ -46,6 +47,8 @@ source "$HOOK_DIR/judge-lib.sh"
 
 # Only the final document reaches stdout.
 exec 3>&1 >/dev/null 2>>"$JUDGE_LOG"
+LATE="$(mktemp -d)" || exit 0
+trap 'rm -rf "$LATE"; exit 0' EXIT
 emit() { [[ -z "$2" ]] || jq -cn --arg r "$1" --arg m "$2" 'if $r == "" then {} else {decision: "block", reason: $r} end + {systemMessage: $m}' >&3; }
 judge::session_set
 
@@ -106,11 +109,14 @@ state() {
 }
 for i in "${!KH[@]}"; do state "$i"; done
 
-# judge_now <file index> <seconds> <key index>...: one run over the file's
-# keys that this process can lock, under a machine slot; in a subshell.
+# judge_now <file index> <key index>...: one run over the file's keys that
+# this process can lock, under a machine slot; in a subshell. The slot wait
+# ends at the deadline and the run's bound is what is left after it, so the
+# run ends by the deadline. A key left without a verdict at the deadline is
+# marked late, for a background job.
 judge_now() {
-  local fx="$1" t="$2" i keys="" held=()
-  shift 2
+  local fx="$1" i t keys="" held=()
+  shift
   for i in "$@"; do
     judge::lock "${KH[$i]}" || continue
     held+=("$DATA/locks/${KH[$i]}")
@@ -119,9 +125,16 @@ judge_now() {
   done
   if [[ -n "$keys" ]] && judge::slot "$deadline"; then
     held+=("$SLOT")
-    judge::run "${INFOS[$fx]}" "$keys" "$t" "${HINTS[$fx]}"
+    judge::now
+    t=$((deadline - NOW))
+    ((t <= JUDGE_RUN_TIMEOUT)) || t=$JUDGE_RUN_TIMEOUT
+    ((t < 1)) || judge::run "${INFOS[$fx]}" "$keys" "$t" "${HINTS[$fx]}"
   fi
   rm -f ${held[@]+"${held[@]}"}
+  judge::now
+  if ((NOW >= deadline)); then
+    for i in "$@"; do judge::verdict "${KH[$i]}" || : >"$LATE/$i"; done
+  fi
 }
 
 # start: judge every free key now, one run per file, up to 10 keys per Stop.
@@ -130,7 +143,6 @@ start() {
   local fx i t ids
   judge::now
   t=$((deadline - NOW))
-  ((t <= JUDGE_RUN_TIMEOUT)) || t=$JUDGE_RUN_TIMEOUT
   for fx in "${!INFOS[@]}"; do
     ids=()
     for i in "${!KH[@]}"; do
@@ -149,7 +161,7 @@ start() {
     done
     ((${#ids[@]})) || continue
     planned=$((planned + 1))
-    judge_now "$fx" "$t" "${ids[@]}" </dev/null >/dev/null 2>&1 3>&- &
+    judge_now "$fx" "${ids[@]}" </dev/null >/dev/null 2>&1 3>&- &
   done
 }
 start
@@ -171,9 +183,14 @@ while :; do
   ((more)) || break
   sleep 0.5
 done
-wait
+# This Stop's own runs end by the deadline; wait for them no longer than that.
+while [[ -n "$(jobs -rp)" ]]; do
+  judge::now
+  ((NOW <= deadline + 1)) || break
+  sleep 0.2
+done
 
-relay="" marks=() waiting=() late=() notrun=() limit=()
+relay="" marks=() waiting=() late=() failed=() notrun=() limit=()
 for i in "${!KH[@]}"; do
   if judge::verdict "${KH[$i]}"; then
     relay+="$(judge::validate "$VERDICT")"$'\n'
@@ -183,15 +200,19 @@ for i in "${!KH[@]}"; do
   elif (($(judge::attempts "${KH[$i]}") >= 2)); then
     notrun+=("$i")
     marks+=("$SID/${KH[$i]}")
+  elif [[ "${ST[$i]}" == late || -e "$LATE/$i" ]]; then
+    ST[i]=over
+    late+=("$i")
   elif [[ "${ST[$i]}" == over ]] || judge::busy "${KFILE[$i]}" "${KH[$i]}"; then
     waiting+=("$i")
   else
-    late+=("$i")
+    failed+=("$i")
   fi
 done
 
-# Hand the keys past the cap to one detached job per file, after this Stop's
-# own runs, with its pending marker written before returning.
+# Hand the keys past the cap, and those the deadline left unjudged, to one
+# detached job per file, after this Stop's own runs, with its pending marker
+# written before returning.
 for fx in "${!INFOS[@]}"; do
   for i in "${!KH[@]}"; do
     [[ "${KF[$i]}" == "$fx" && "${ST[$i]}" == over ]] || continue
@@ -222,7 +243,8 @@ for m in ${marks[@]+"${marks[@]}"}; do
 done
 judge::now
 ((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(labels "${waiting[@]}"); the verdicts are shown at the next task end."
-((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged in $((NOW - began)) s: $(labels "${late[@]}"); the next task end tries again."
+((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged in $((NOW - began)) s: $(labels "${late[@]}"); a background job judges them and the verdicts are shown at the next task end."
+((${#failed[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the judge failed for $(labels "${failed[@]}"); the next task end tries again."
 ((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: judge not run for $(labels "${notrun[@]}") after 2 failed attempts; see $JUDGE_LOG."
 ((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the session's judge-run limit is reached: $(labels "${limit[@]}")."
 emit "$reason" "$msg"
