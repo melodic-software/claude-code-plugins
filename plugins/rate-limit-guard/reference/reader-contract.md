@@ -14,11 +14,12 @@ if `https://code.claude.com/docs/en/statusline` changes the `rate_limits` object
 observation under "Cloud / remote sessions" below if Claude Code ships statusline wiring or a
 persistent `~/.claude/rate-limit-guard/` filesystem inside cloud or remote-session containers,
 the shipped producer the "Documented residual" paragraph below names as the path to proactive
-mode there; and re-verify the `account` field's source under "Tee file shape" below if
-`.oauthAccount.emailAddress` moves or is renamed in `~/.claude.json`. That key is **internal CLI
-state**, not a documented surface: nothing upstream promises it, so the writer treats a missing or
-unrecognized value as "cannot attribute" and this contract expects the field to be absent whenever
-it does.
+mode there; and re-verify the `account` field's source under "Tee file shape" below, and the
+consumer read in the floor's "Account switch" bullet, if `.oauthAccount.emailAddress` moves or is
+renamed in `~/.claude.json`. That key is **internal CLI state**, not a documented surface: nothing
+upstream promises it, so the writer treats a missing or unrecognized value as "cannot attribute"
+and this contract expects the field to be absent whenever it does, and a reader that cannot read it
+keeps its latch.
 
 ## Operable floor (consumers inline these values verbatim)
 
@@ -28,13 +29,29 @@ it does.
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
-  fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
-  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries an **`account.email` field when the writer could attribute the observation**, so a write
-  is still the signal that the windows changed under you (account switch, another session's
-  refresh).
+  fresh snapshot stays valid through the pause unless the account changes (see **Account switch**;
+  no refresh happens while paused). While paused, a consumer **must** arm a session Monitor on the
+  tee file and re-evaluate on every write: the file carries an **`account.email` field when the
+  writer could attribute the observation**, so a write is still the signal that the windows changed
+  under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
+- **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
+  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
+  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
+  the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
+  with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
+  every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
+  re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
+  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
+  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
+  latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
+  missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
+  print, log, or interpolate the email or the state file (`.claude.json` holds account state); parse
+  it with a JSON parser only and treat the value as untrusted.
 
 ## Tee file shape
 
@@ -250,12 +267,15 @@ tooling sweeping the directory expects them:
   says **whose** windows it carries whenever the writer could attribute it, so a reader can detect
   the mismatch instead of being blind to it. The loop-lane convention §6 owns the framing. Of the
   three sides that design named (a writer-side field, reader-side invalidation of latched state, a
-  lane-floor re-audit), the writer-side field has landed as `account.email` above; the other two
-  are not built, and no consuming lane acts on the field yet. Two residuals keep this a gap rather
-  than an invariant: the field is **absent** whenever the writer could not attribute the
-  observation (four cases, listed under "Tee file shape"), and absence is indistinguishable from
-  "the writer never attributes on this platform"; and a reader that latched a `resets_at` before a
-  switch has no obligation yet to drop it.
+  lane-floor re-audit), the writer-side field has landed as `account.email` above; reader-side
+  invalidation is a **MUST**, taken from the direct `.claude.json` read in the floor's "Account
+  switch" bullet rather than from the tee; and the lane-floor re-audit is the drift gate's job,
+  which fails until every inlined copy carries the floor block (see "Consumers"). Two residuals
+  keep this a gap rather than an invariant: the field is **absent** whenever the writer could not
+  attribute the observation (four cases, listed under "Tee file shape"), and absence is
+  indistinguishable from "the writer never attributes on this platform"; and a reader that cannot
+  read `.oauthAccount.emailAddress` keeps its latch, so a switch it cannot attribute goes unseen
+  until the latched pause ends.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry, because Monitors is an experimental Claude Code component and this plugin takes no

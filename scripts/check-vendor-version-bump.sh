@@ -38,12 +38,8 @@ self="$(basename "$0")"
 
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
-
-if [[ "${1:-}" != "--check-bump" || -z "${2:-}" || $# -gt 2 ]]; then
-  echo "usage: $self --check-bump <base-ref>" >&2
-  exit 2
-fi
-base="$2"
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 
 # jq is how every manifest version is read below; without it the per-plugin
 # reads all come back empty, which the loop would misread as "new plugin,
@@ -54,10 +50,14 @@ if ! jq --version >/dev/null 2>&1; then
   exit 2
 fi
 
-if ! changed_files::verify_base "$base"; then
-  echo "$self: cannot resolve base ref: $base" >&2
+GE_FLAGS=("--check-bump:ref")
+GE_BAD_REF_MSG="$self: cannot resolve base ref: ${2-}"
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! gate_entry::classify "$@"; then
+  echo "usage: $self --check-bump <base-ref>" >&2
   exit 2
 fi
+base="$GE_REF"
 
 # One diff over the whole plugins/ tree, filtered structurally in the loop: a
 # git pathspec glob ('plugins/*/vendor/') matches `*` across slashes, so it
@@ -109,7 +109,7 @@ done
 
 if [[ ${#changed_plugins[@]} -eq 0 ]]; then
   echo "No plugin vendor/ tree changed vs $base; no version bumps required."
-  exit 0
+  gate_entry::finish 0
 fi
 
 # Base manifests are staged through a file rather than a command substitution.
@@ -168,7 +168,8 @@ done
 
 if [[ "$stale" -ne 0 ]]; then
   echo "Bump the version of every plugin whose vendor/ source changed — the version is the update cache key, so an unbumped plugin never delivers the change to consumers (ADR 0019, intra-plugin sharing)." >&2
-  exit 1
+  gate_entry::finish 1
 fi
 
 echo "Every plugin with a vendor/ change vs $base bumped its version."
+gate_entry::finish 0
