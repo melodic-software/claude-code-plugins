@@ -256,9 +256,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-sta
 Six fixed lines: `root:`, `guard:`, `sessions:`, `shared:`, `prune-pending:`, `envelope:`. Copy
 them into the report verbatim under "Toggles and retention in effect". The last line names two
 tiers: `envelope:` counts the rows the telemetry sink wrote for the audit hooks, the
-`source: "envelope"` rows in `sessions/*.jsonl` plus every line of the shared `hook-events.jsonl`,
-which follow the per-hook audit toggles and not the event-log switch, and `event log:` is the
-switch. A `WARN` on the
+`source: "envelope"` rows in `sessions/*.jsonl` plus every line of the shared `hook-events.jsonl`
+and its rotated `hook-events.jsonl.1`, which follow the per-hook audit toggles and not the
+event-log switch, and `event log:` is the switch. A `WARN` on the
 `prune-pending:` line (a moved-aside set older than 24 h) is a MEDIUM finding: the configured
 pre-prune command is not finishing, and `/claude-ops:observability clean` sweeps the set. A
 `guard: operator-edited` line is a HIGH finding: the hooks are refusing to write. The probe

@@ -143,7 +143,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **A model-invocable bundled workflow is recommended `route`, never `wrap`**, matching the store
   rule that rejects `wrap` on a bundled-workflow row.
 
-## [0.70.0] - 2026-09-29
+## [0.65.0] - 2026-09-29
 
 ### Added
 
