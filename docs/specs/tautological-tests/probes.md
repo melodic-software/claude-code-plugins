@@ -160,6 +160,18 @@ glob to keep the launcher from starting: one `node` start per Bash call. The rou
 measured above load 7; the direct arm alone reads 134-140 ms p95 at load 11-12, so the one-file
 margin is an idle-host figure.
 
+Budget figures, same host at a load of about 5.3. S is `bash -c :`; the four arms ran interleaved,
+50 samples, each one-file fire with its own `tool_use_id` (the per-call marker skips a repeated id).
+p50/p95: S 1.0/1.2 ms; option off 21.8/25.4 ms (22 S); no diff 30.1/33.7 ms (30 S); one-file diff
+115.5/127.6 ms (115 S). `scripts/hook-census.sh` spawns, process creations plus execs, three runs
+each with identical results: option off 1 (0 creations, 1 exec), no diff 3 (1 creation, 2 execs),
+one-file diff 96 (59 creations, 37 execs). The first two are the
+ceilings in `.performance/ratchets.json`. A mutant that runs `jq` before the script's substring
+test raised the no-diff count from 3 to 5, and `ratchet.py check` reported it above its ceiling.
+Versions: `bash=5.3.9(1)-release sh=/usr/bin/dash git 2.53.0 jq-1.8.2 strace 6.19`; strace came
+from an extracted `.deb`, not an installed package. The CI runner's versions differ, so its ratchet
+step is the confirmation.
+
 ## Release 2 probes
 
 Claude Code 2.1.285, WSL2, 2026-09-30. Each probe ran in its own scratch git repository under
