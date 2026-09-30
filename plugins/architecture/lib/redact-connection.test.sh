@@ -206,6 +206,8 @@ assert_equals "local http: a fragment with several words before the @ leaves no 
 assert_equals "local http: a URL list keeps a clean URL ahead of a credentialed one" "$(local_shape Services.Api.BaseUrl "http://orders-api:8080 https://u:p@api.example.com/x" 1 | cut -f1-3)" $'http\torders-api\t8080\nhttp\tapi.example.com\t'
 assert_equals "local http: a slash inside the query before the @ leaves no row" "$(local_shape Services.Api.BaseUrl "https://${leak_ep_tok}?redirect=/account@example.com" 1)" ""
 assert_equals "local http: a slash inside the fragment before the @ leaves no row" "$(local_shape Services.Api.BaseUrl "https://${leak_ep_tok}#next=/a/b@example.com" 1)" ""
+assert_not_contains "local http: a URL inside the query before the @ drops the token" "$(local_shape Services.Api.BaseUrl "https://${leak_ep_tok}?next=http://evil.example/path@example.com" 1)" "${leak_ep_tok,,}"
+assert_not_contains "local http: an app scheme inside the query before the @ drops the token" "$(local_shape Services.Api.BaseUrl "https://${leak_ep_tok}?redirect=android-app://com.example@evil.example" 1)" "${leak_ep_tok,,}"
 assert_equals "local http: a query with no @ still reads the host" "$(local_shape Services.Orders.BaseUrl "http://orders-api:8080?api-version=1" 1)" $'http\torders-api\t8080\t\t\thttp'
 assert_equals "local http: a ;-separated list is unread by default" "$(local_shape profiles.Api.applicationUrl "https://localhost:7001;http://localhost:5001" 0)" ""
 leak_semi_tok="semitok321"
