@@ -1,5 +1,13 @@
 # Changelog: evals
 
+## [0.3.6] - 2026-09-29
+
+### Changed
+
+- **`design`: says when a skill eval needs a no-skill baseline arm.** An `evals/evals.json` case grades
+  the skill's output only. A comparative or whole-plugin claim routes to `/evals:plugin-eval`, whose
+  with/without delta answers it.
+
 ## [0.3.5] - 2026-09-29
 
 ### Fixed
