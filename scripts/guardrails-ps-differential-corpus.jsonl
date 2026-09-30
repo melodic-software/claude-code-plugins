@@ -763,6 +763,7 @@
 "x | tee -FilePath out.txt"
 "{ Write-Host hi }; git reset --hard"
 "} Remove-Item -Recurse -Force C:\\"
+
 # HAND-WRITTEN: git reached by a literal name, a call operator, a launcher, a
 # here-string, or a commented here-string opener, plus git-free controls.
 "git reset --hard HEAD~1"
