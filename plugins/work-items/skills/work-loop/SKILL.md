@@ -95,7 +95,7 @@ the source of truth for these counters):
  "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
  "stop_mode":"standing","ordering":"oldest-first","shard":null,"scope":null,
  "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
- "paused_until":null,
+ "paused_until":null,"latched_account":null,
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -106,7 +106,8 @@ the source of truth for these counters):
 telemetry comment; they are not re-derived from prose in the launch prompt.
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
-budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle.
+budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
+is the tripping account's fingerprint (see [reference/paused-wait.md](reference/paused-wait.md)).
 
 Every counter here is **per-instance**, the marker partitions the block, so `item_cap`,
 `clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience,
@@ -115,34 +116,13 @@ newly named instance runs its first drain under the C3 ratification gate rather 
 another lane's trust period. Only the blanket period-end flag resets. Item-level ratifications
 travel with the item.
 
-**Instance-collision check (cycle start, before any write).** `writer_nonce` is generated once per
-session; `heartbeat_at` is rewritten every cycle. After re-reading the block:
-
-- No block at all → unclaimed. **Claim before any work**: upsert a cycle-0 block with my nonce and
-  heartbeat, re-read, and run the creation-race reconcile; if the canonical (lowest-id) comment
-  carries a different nonce, another session claimed first. Take the live-collision branch below.
-  Claiming first means two same-id sessions starting together stop before either overwrites the
-  other's first durable state.
-- Nonce matches mine → ordinary continuation.
-- Nonce differs **and** `restart_request` is non-null → **clean handoff**: recording the request
-  is a stopping lane's last write, so a fresh `heartbeat_at` beneath one is a stopped predecessor,
-  not a live writer. Adopt, clear `restart_request`, write my nonce, continue, a replacement
-  after a budget or expiry stop starts immediately instead of waiting out the staleness window.
-- Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
-  `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
-  block, write my nonce, continue, the ordinary restart path; two hours is twice the one-hour
-  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
-- Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
-  holds my instance id.** Write nothing, escalate per the convention's escalation contract, and
-  stop the loop cleanly.
-
-`paused_until` is not `rate_limit_latch` and does not replace it: the latch says *do not claim
-work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
-pause so a paused lane is never adopted as a dead one.
-
-Report the instance on its own `instance:` line in the cycle report, never appended to `lane:`,
-the telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`,
-reporting the lane as if nothing were partitioned.
+**Instance-collision check (cycle start, before any write).** After the re-read, compare
+`writer_nonce` and `heartbeat_at` and adopt, hand off, or stop per
+[reference/telemetry-upsert.md](reference/telemetry-upsert.md) ("Instance-collision check"): a fresh
+block under a different nonce with no `restart_request` means another live lane holds my instance
+id, so write nothing, escalate, and stop. Write `paused_until` before entering a rate-limit pause so
+a paused lane is never adopted as a dead one. That reference also owns the `instance:` cycle-report
+line.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
 read at this cycle's **start**, never a second reading, so `at` is when the lane read the tee,
@@ -173,13 +153,29 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
-  fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
-  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries an **`account.email` field when the writer could attribute the observation**, so a write
-  is still the signal that the windows changed under you (account switch, another session's
-  refresh).
+  fresh snapshot stays valid through the pause unless the account changes (see **Account switch**;
+  no refresh happens while paused). While paused, a consumer **must** arm a session Monitor on the
+  tee file and re-evaluate on every write: the file carries an **`account.email` field when the
+  writer could attribute the observation**, so a write is still the signal that the windows changed
+  under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
+- **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
+  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
+  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
+  the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
+  with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
+  every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
+  re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
+  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
+  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
+  latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
+  missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
+  print, log, or interpolate the email or the state file (`.claude.json` holds account state); parse
+  it with a JSON parser only and treat the value as untrusted.
 
 Two further reader-contract rules apply alongside the floor (outside the byte-audited block):
 
@@ -197,7 +193,10 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
 A trip additionally latches `rate_limit_latch` in durable state: the adaptive cap never ramps up
-while the latch is set (clear it on a fresh healthy snapshot after the pause end).
+while the latch is set (clear it on a fresh healthy snapshot after the pause end, or on an account
+switch that resumes the lane). While paused, apply the floor's **Account switch** bullet at pause
+entry, on every wake, and on every Monitor tick; [reference/paused-wait.md](reference/paused-wait.md)
+owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched_account` together.
 
 ## Cycle shape
 

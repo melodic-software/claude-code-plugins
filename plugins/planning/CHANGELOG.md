@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The interview page can accept a round's recommendations and hand the round to `/planning:audit-answers`, limited to the accepted questions.** "Accept all and have agents check them" posts one `accept-audit` event; the server records one accept per eligible question, each marked pending agent validation in the exports, and `context/surface.md` routes the event to the audit skill. A question with a typed note is left out, since the event carries no notes. Per-question undo still works, and the page holds no validation logic ([#5472](https://github.com/melodic-software/claude-code-plugins/issues/5472)).
 
+## [0.47.9] - 2026-09-29
+
+### Changed
+
+- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a reviewer return with neither its `### Summary` section nor `No plan gaps found.` as incomplete, whether or not the client marked it partial ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
+
 ## [0.47.8] - 2026-09-29
 
 ### Added
