@@ -1,5 +1,12 @@
 # Changelog: evals
 
+## [0.3.7] - 2026-09-30
+
+### Changed
+
+- **`plugin-eval`: `case-authoring.md` splits graders by expectation.** A mechanical expectation gets a
+  deterministic grader; a holistic one gets an `llm` judge.
+
 ## [0.3.6] - 2026-09-29
 
 ### Changed
