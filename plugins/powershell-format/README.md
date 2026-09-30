@@ -87,8 +87,8 @@ directory outside the project.
   is enabled and `powershell_format_enabled` is not false. `/powershell-format:check` is read-only
   and installs nothing.
 - The **PSScriptAnalyzer** module installed
-  (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet (same
-  not-applicable classification).
+  (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet, with no
+  probe notice.
 - A **`PSScriptAnalyzerSettings.psd1`** in your repo. That file is the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`

@@ -66,9 +66,10 @@ own and runs only when your repo has opted into Ruff.
 - A SessionStart probe reports a missing `ruff` once per session, from `prerequisites.json`, and
   the PostToolUse notice names the same install route. The two share one latch, so the probe's
   notice counts as the first and the first PostToolUse notice stays silent until the renewal.
-  The probe looks on `PATH` and at
-  `.venv/bin/ruff` under the working directory or up to eight ancestors of it; the edit hook also resolves a `.venv` ruff by
-  walking up from the edited file. Run `/ruff-format:check` to see what resolves; it is read-only
+  The probe looks on `PATH` and at `.venv/bin/ruff` under the working directory or up to seven of
+  its ancestors. The edit hook also resolves a `.venv` ruff by walking up from the edited file, and
+  accepts `.venv/Scripts/ruff.exe` there, so a Windows host whose only ruff is that file gets the
+  probe notice while edits still format. Run `/ruff-format:check` to see what resolves; it is read-only
   and installs nothing.
 - A **Ruff config** (`.ruff.toml`, `ruff.toml`, or `pyproject.toml` with
   `[tool.ruff]`) in the repo, the opt-in.

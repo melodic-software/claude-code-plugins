@@ -1,5 +1,5 @@
 {
-  "description": "Corrects spelling in prose and code after a write or edit.",
+  "description": "Corrects spelling in prose and code after a write or edit, and reports a missing typos at session start.",
   "hooks": {
     "PostToolUse": [
       {

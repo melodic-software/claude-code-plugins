@@ -1,5 +1,5 @@
 {
-  "description": "Formats Python with the pinned Ruff after a write or edit.",
+  "description": "Formats Python with the pinned Ruff after a write or edit, and reports a missing ruff at session start.",
   "hooks": {
     "PostToolUse": [
       {

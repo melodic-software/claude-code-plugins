@@ -15,7 +15,7 @@ Run the read-only check. Do not run `apply`. Do not install, download, or invoke
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Setup's pre-computed rows are not rendered when this skill reads the file, so run every probe (jq, node, ruff) via Bash. The SessionStart probe looks for `ruff` on PATH and at `.venv/bin/ruff` under the working directory or up to eight ancestors of it, while the edit hook also accepts `.venv/Scripts/ruff.exe` and walks up from the edited file. So also look for `.venv/bin/ruff` and `.venv/Scripts/ruff.exe` under the repository root, and report a `.venv` ruff as found even when PATH has none. Report the PASS/FAIL table. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Setup's pre-computed rows are not rendered when this skill reads the file, so run every probe (jq, node, ruff) via Bash. The SessionStart probe looks for `ruff` on PATH and at `.venv/bin/ruff` under the working directory or up to seven of its ancestors, while the edit hook also accepts `.venv/Scripts/ruff.exe` and walks up from the edited file. So also look for `.venv/bin/ruff` and `.venv/Scripts/ruff.exe` under the repository root, and report a `.venv` ruff as found even when PATH has none. Report the PASS/FAIL table. Stop.
 
 ## Next
 

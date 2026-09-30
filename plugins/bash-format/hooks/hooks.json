@@ -1,5 +1,5 @@
 {
-  "description": "Formats a shell script with shfmt and reports ShellCheck findings after a write or edit.",
+  "description": "Formats a shell script with shfmt and reports ShellCheck findings after a write or edit, and reports a missing shfmt or shellcheck at session start.",
   "hooks": {
     "PostToolUse": [
       {
