@@ -20,6 +20,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `tmp-producer` category reads `/tmp`, not `$TMPDIR`. `skills/clean/SKILL.md` and its references
   document the attended workflow.
 
+## [0.35.1] - 2026-09-30
+
+### Changed
+
+- **`safety-model.md` records how the `apply --execute` ask behaves under `bypassPermissions`**
+  ([#5609](https://github.com/melodic-software/claude-code-plugins/issues/5609)). A four-part
+  verification record states which modes were probed (headless default, `--bg` default, headless
+  `bypassPermissions`), which were not (interactive `bypassPermissions`, auto mode, the Windows
+  PowerShell tool), and what the official docs and upstream issues say.
+
 ## [0.35.0] - 2026-09-30
 
 ### Added
