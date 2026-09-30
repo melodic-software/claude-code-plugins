@@ -20,6 +20,8 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 
 4. **Staleness**: Compare last commit date to today. Default threshold: **14 days**. The configured override is `${user_config.worktree_stale_days}`. Use that value when it is a positive number, falling back to 14 when it is empty, invalid, or a literal unexpanded `${user_config.worktree_stale_days}` token.
 
+   **Reap age** (consumed by `cleanup`): hours since the last commit, `(now - %ct) / 3600` with `git log -1 --format=%ct <branch>` (epoch seconds; a detached worktree uses `git -C <worktree-path> log -1 --format=%ct HEAD`, since a bare `HEAD` resolves in the caller's checkout). The threshold is `${user_config.worktree_reap_after_hours}`. Use that value when it is a positive number, falling back to **48** when it is empty, invalid, or a literal unexpanded `${user_config.worktree_reap_after_hours}` token. An age that cannot be read counts as not past the threshold.
+
 5. **Stranded-work record**: age and PR state answer *is anyone still working here*; neither answers *would removing this destroy a commit*. Run the detection engine once per repository. It enumerates the worktrees itself and emits one TSV row per registered worktree:
 
    ```bash
