@@ -81,14 +81,24 @@ A merged PR whose head the local branch has moved off (priority 5a and 5b) is se
 
 **`Family:` line**, where the branch name says the branch came from. It is information for the report and never changes a tier, a loss count, or a deletion rule.
 
-| Family | Branch name | Source |
-|--------|-------------|--------|
-| `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees; `worktree-create.sh` uses the harness name as the branch |
-| `claude` | `claude/*` | Claude Code on the web |
-| `plan` | `plan/*` | named by hand |
-| `stranded` | `stranded/*` | named by hand |
-| `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
-| `none` | anything else | no known source |
+| Family | Branch name | Source | Owner | Retention (remote mode) |
+|--------|-------------|--------|-------|-------------------------|
+| `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees; `worktree-create.sh` uses the harness name as the branch | `/source-control:worktree cleanup` | no window; released once no worktree has it checked out |
+| `claude` | `claude/*` | Claude Code on the web | the session that pushed it | 30 days (`CLEAN_RETENTION_CLAUDE_DAYS`) |
+| `plan` | `plan/*` | named by hand | whoever named it | 90 days (`CLEAN_RETENTION_PLAN_DAYS`) |
+| `stranded` | `stranded/*` | named by hand | whoever named it | 30 days (`CLEAN_RETENTION_STRANDED_DAYS`) |
+| `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage | whoever pushed it | 30 days (`CLEAN_RETENTION_PREWIPE_DAYS`) |
+| `none` | anything else | no known source | not decided by family | none (`n/a`) |
+
+The `Retention` column is read only by the remote mode below; the local audit still reads the family for information alone.
+
+### Remote mode: `git-branch-audit.sh --remote-families`
+
+Reports `refs/remotes/origin/*` as last fetched (no fetch is run), skipping `origin/HEAD`, the default branch and the protected patterns. Per branch it prints the family, the PR-map state, `Landed:` and a `Retention:` verdict.
+
+- **Landed:** a merged PR on the branch whose `headRefOid` is the tip, or has the tip as an ancestor. Commits pushed after the merge are not landed. Without the PR map (`PRDataUnavailable:`) no branch reads as landed.
+- **Retention:** the family rule releases a branch when its tip is older than the window (committer date), or, for `agent`, when no worktree has it checked out. A released branch is `CANDIDATE` when it landed or another ref holds its tip, `KEEP-UNIQUE` when it did not land and no other ref holds the tip, and `KEEP-UNDETERMINED` when that check failed. An open PR, a checked-out worktree or a tip inside its window is `KEEP`; family `none` is `n/a`.
+- **Report only.** The mode writes no `TipCapture:` and gives `git-branch-delete.sh` nothing to act on. Remote deletion is out of scope: `TipCapture` and `git-branch-delete.sh` stay local-only, and a `CANDIDATE` is a report line for the owner named in the table.
 
 ## 4.6 Present report
 
