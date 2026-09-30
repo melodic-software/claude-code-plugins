@@ -4,6 +4,26 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.1] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep` `instruction-placement` persists declines** ([#5167](https://github.com/melodic-software/claude-code-plugins/issues/5167)).
+  The catalog entry runs `realign` whenever the audit reported a finding the user decided, accepted
+  or declined, so `realign` can write the `.claude/instruction-placement.md` suppression entry and
+  the next sweep stops re-proposing the decline. A step with no findings records only the skills
+  that ran. `reference/next.md` section 4 collects versions and `Playbook-Step` trailers only for
+  the skills that ran.
+
+## [0.15.0] - 2026-09-29
+
+### Added
+
+- **`repo-sweep` records a filed outcome** ([#5174](https://github.com/melodic-software/claude-code-plugins/issues/5174)).
+  `tick.sh <id> filed <issue-url> <skill@version>...` ticks a step whose only findings were fixed in
+  another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
+  `history.sh` adds no rerun exemption for it; only a changed skill version recommends one.
+
 ## [0.14.7] - 2026-09-29
 
 ### Changed

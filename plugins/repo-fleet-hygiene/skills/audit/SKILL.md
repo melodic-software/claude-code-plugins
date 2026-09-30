@@ -23,7 +23,8 @@ checkout resolution, fleet-scale evidence collection, rollup, and action-plan ro
 The collector produces the detailed read-only report described below, including the compact
 machine-readable rollup and action-plan artifact. Tell the user to run
 `/repo-fleet-hygiene:apply --plan-file <path>` (dry-run by default; `--apply` plus confirmation or
-`--yes` to mutate). Do not add an execute flag to this audit script.
+`--yes` to mutate; `--remote-branches` additionally opts in to per-branch remote deletion, which
+`--yes` never answers). Do not add an execute flag to this audit script.
 
 ## Non-negotiable boundary
 
@@ -72,9 +73,15 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 it in is what makes the project rung below reachable at all.
 
 If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
-shared no-scope ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current
-working directory when it is a Git checkout, else exit 3 naming every rung. A Git checkout in the
-working directory is a rung; the session project directory is not one on its own. Pass that guidance
+shared no-scope ladder: `--named` paths, then `ghq root --all` when `ghq` is installed, then the
+nearest of the 4 parents above the working directory's checkout (above the working directory itself
+outside a checkout) that directly holds 2 or more Git repositories, so a run inside one checkout
+covers its sibling fleet, then the checkout holding the working directory, else exit 3 naming every
+rung. A Git checkout in the working directory is a rung; the session project directory is not one
+on its own. **Claim:** `ghq root --all` prints every configured root. **Basis:** the
+[ghq README](https://github.com/x-motemen/ghq#usage) (`ghq root [--all]`; "Without '--all' option,
+the primary one is shown") and `ghq help root` on ghq 1.10.1 ("--all  Show all roots"). **As of:**
+2026-09-29. **Recheck:** the README's `root` entry drops or renames `--all`. Pass that guidance
 through rather than re-deriving a root yourself. Config resolution is the script's own ladder. Do not
 pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
@@ -184,6 +191,19 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    | `agent-<hex>` branches come from Claude Code subagent worktrees. | `plugins/source-control/scripts/worktree-create.sh` uses the harness-supplied name verbatim as the branch. | 2026-09-29 | The harness stops supplying `agent-<hex>` names, or that script changes how it names the branch. |
    | `claude/*` branches come from Claude Code on the web. | Observed on fleet remotes; <https://code.claude.com/docs/en/claude-code-on-the-web> names no branch prefix. | 2026-09-29 | That page names a branch prefix, or a `claude/*` branch turns up with another origin. |
 
+   **Unmerged remote branch:** a remote-tracking head with no `MERGED` PR row (not the default,
+   current, or worktree-attached branch) gets one more read-only GraphQL query for pull requests
+   whose `headRefName` is exactly that branch, in any state, plus `totalCount`. With a live
+   `ls-remote` tip: no PR at all and a complete list → `HIGH` `unmerged-remote-branch`, class
+   `never-pr`; only `CLOSED` PRs with one `headRefOid` equal to the live tip → `HIGH`, class
+   `closed-unmerged`. An `OPEN` or `MERGED` PR emits nothing. `ls-remote` failing → `MEDIUM`
+   `unmerged-remote-branch-unverified` (no tip, no deletion candidate). Only `CLOSED` PRs and none at
+   the live tip (commits pushed after close), or a `totalCount` above the returned page → `MEDIUM`
+   `unmerged-remote-branch-review`. Only the two `HIGH` classes reach the action plan, as
+   `delete-remote-branches` rows carrying the live tip as `expected_oid`, the remote's `remote_key`,
+   and the `github_repo` that apply rechecks. A branch whose only PR is merged stays
+   `merged-remote-branch` and is never a deletion candidate here.
+
 5. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
@@ -280,8 +300,10 @@ report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` 
 
 Related fleet contracts that remain separate:
 
-- merged remote branches carry a distinct safety gate: this skill reports them, and remote
-  deletion is not part of `/repo-fleet-hygiene:apply`.
+- merged remote branches carry a distinct safety gate: this skill reports them, and their deletion
+  is not part of `/repo-fleet-hygiene:apply`. Only never-PR and closed-unmerged remote branches can
+  be deleted, and only through `/repo-fleet-hygiene:apply --remote-branches` (per-branch prompt,
+  never bypassed by `--yes`, tip recorded first).
 
 ## Graceful degradation
 
@@ -326,6 +348,9 @@ Related fleet contracts that remain separate:
 |---|---|
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
 | `merged-remote-branch` | Optional preview only: `git push --delete --dry-run <remote> <branch>` in the canonical repository (never executed here). Enabling GitHub `delete_branch_on_merge` is complementary and owned by the repository's settings automation. This audit does not change it |
+| `unmerged-remote-branch` | Gated delete: `apply-plan.sh --plan-file <path> --apply --remote-branches` in the operator's own terminal, one prompt per branch, deleted only at the recorded tip; `/repo-fleet-hygiene:apply --remote-branches` from a session without a terminal only previews. Preview by hand: `git push --delete --dry-run <remote> <branch>` in the canonical repository |
+| `unmerged-remote-branch-unverified` | Confirm `git ls-remote --heads` works by hand, then rerun. No deletion is planned |
+| `unmerged-remote-branch-review` | Manual review of the branch and its closed PRs; never a deletion candidate |
 | `remote-branch-family` | None. Report only: no deletion and no deletion preview. Read the family, age and on-default fields and decide by hand |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |

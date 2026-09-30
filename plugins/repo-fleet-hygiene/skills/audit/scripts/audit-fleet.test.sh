@@ -398,6 +398,13 @@ for-each-ref)
     case "$base" in
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\norigin/feature/remote-only\tremote-only-tip\0\norigin/feature/stale-cached\tstale-cached-tip\0\norigin/feature/ls-fail\tls-fail-tip\0\n'
+      # Remote heads with no merged PR, one per unmerged-remote-branch path. feature/nested is
+      # attached to a worktree, so it is protected and never queried.
+      if [[ "${MOCK_UNMERGED_REMOTE:-}" == 1 ]]; then
+        for rb in never-pr closed closed-drift open race-merged np-ls-fail np-gone truncated gap nested; do
+          printf 'origin/feature/%s\t%s\0\n' "$rb" "cached-$rb"
+        done
+      fi
       # Family inventory (#5220): committer dates are unix seconds; 259260 s is 3 days and a minute.
       now_ts="$(date +%s)"
       printf 'origin/pre-wipe/x\tprewipe-tip\t%s\0\norigin/agent-1a2b3c\tagent-tip\t%s\0\norigin/scratch/other\tother-tip\t%s\0\n' \
@@ -472,6 +479,11 @@ ls-remote)
   refs/heads/feature/shared) printf 'sha-a\trefs/heads/feature/shared\n' ;;
   refs/heads/feature/moved-local) printf 'moved-local-tip\trefs/heads/feature/moved-local\n' ;;
   refs/heads/feature/moved-merged) printf 'moved-merged-tip\trefs/heads/feature/moved-merged\n' ;;
+  refs/heads/feature/never-pr) printf '%s\trefs/heads/feature/never-pr\n' "$(printf 'a%.0s' {1..40})" ;;
+  refs/heads/feature/closed) printf '%s\trefs/heads/feature/closed\n' "$(printf 'b%.0s' {1..40})" ;;
+  # Commits pushed after the PR closed: the live tip is not the closed PR's headRefOid.
+  refs/heads/feature/closed-drift) printf '%s\trefs/heads/feature/closed-drift\n' "$(printf 'd%.0s' {1..40})" ;;
+  refs/heads/feature/np-ls-fail) exit 7 ;;
   refs/heads/*) exit 0 ;;
   *) exit 96 ;;
   esac
@@ -585,6 +597,38 @@ api)
       name="${BASH_REMATCH[2]}"
     fi
     [[ -n "$owner" && -n "$name" ]] || exit 1
+    # Any-state PR evidence for remote heads: echo each h<N> alias back. Fixture value per
+    # headRefName: "<totalCount>;<STATE>|<headRefOid>|<number>;..." or NULL for a null payload.
+    if [[ "$query" == *'states:[OPEN,CLOSED,MERGED]'* ]]; then
+      a40() { printf "$1%.0s" {1..40}; }
+      json='{"data":{"rateLimit":{"cost":1,"nodeCount":1}'
+      rest="$query"
+      while [[ "$rest" =~ (h[0-9]+):repository\([^\)]*\)\{pullRequests\(headRefName:\"([^\"]+)\"(.*)$ ]]; do
+        alias="${BASH_REMATCH[1]}" head="${BASH_REMATCH[2]}" rest="${BASH_REMATCH[3]}"
+        case "$head" in
+        feature/closed) fixture="1;CLOSED|$(a40 b)|60" ;;
+        feature/closed-drift) fixture="1;CLOSED|$(a40 c)|61" ;;
+        feature/open) fixture="2;OPEN|$(a40 e)|62;CLOSED|$(a40 e)|63" ;;
+        feature/race-merged) fixture="1;MERGED|$(a40 f)|64" ;;
+        feature/truncated) fixture="150;CLOSED|$(a40 1)|65" ;;
+        feature/gap) fixture=NULL ;;
+        *) fixture=0 ;;
+        esac
+        if [[ "$fixture" == NULL ]]; then
+          json+=",\"$alias\":null"
+          continue
+        fi
+        nodes=""
+        IFS=';' read -r -a parts <<<"$fixture"
+        for part in "${parts[@]:1}"; do
+          IFS='|' read -r st oid num <<<"$part"
+          nodes+="${nodes:+,}{\"number\":$num,\"state\":\"$st\",\"headRefOid\":\"$oid\",\"url\":\"https://github.com/$owner/$name/pull/$num\"}"
+        done
+        json+=",\"$alias\":{\"pullRequests\":{\"totalCount\":${parts[0]},\"nodes\":[$nodes]}}"
+      done
+      printf '%s}}' "$json" | jq -r "$jq_filter"
+      exit
+    fi
     # Collect exact headRefName values from aliases (order preserved).
     heads=()
     rest="$query"
@@ -1023,6 +1067,110 @@ for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewh
     failures=$((failures + 1))
   fi
 done
+
+# Remote heads with no merged PR: never-pr and closed-unmerged are gated deletion candidates at the
+# live tip; drifted, open, merged, truncated, unverifiable, gone, protected, and gap heads are not.
+unmerged_out="$TMP/unmerged-remote.txt"
+unmerged_plan="$TMP/unmerged-plan.json"
+MOCK_UNMERGED_REMOTE=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail --plan-file "$unmerged_plan" >"$unmerged_out" 2>&1 || true
+unmerged_block() { grep -A4 -x -F "Target: $TMP/canonical-a :: origin/feature/$1" "$unmerged_out"; }
+if unmerged_block never-pr | grep -Fq "Finding: unmerged-remote-branch" &&
+  unmerged_block never-pr | grep -Fq "Confidence: HIGH" &&
+  unmerged_block never-pr | grep -Fq "Evidence: class never-pr"; then
+  printf 'PASS: remote head with no PR of any state is a HIGH never-pr candidate\n'
+else
+  printf 'FAIL: remote head with no PR of any state is a HIGH never-pr candidate\n' >&2
+  failures=$((failures + 1))
+fi
+if unmerged_block closed | grep -Fq "Confidence: HIGH" &&
+  unmerged_block closed | grep -Fq "Evidence: class closed-unmerged: GitHub PR #60 CLOSED unmerged"; then
+  printf 'PASS: closed PR at the live tip is a closed-unmerged candidate\n'
+else
+  printf 'FAIL: closed PR at the live tip is a closed-unmerged candidate\n' >&2
+  failures=$((failures + 1))
+fi
+for rb in closed-drift truncated; do
+  if unmerged_block "$rb" | grep -Fq "Finding: unmerged-remote-branch-review"; then
+    printf 'PASS: %s is manual review, not a candidate\n' "$rb"
+  else
+    printf 'FAIL: %s is manual review, not a candidate\n' "$rb" >&2
+    failures=$((failures + 1))
+  fi
+done
+if unmerged_block np-ls-fail | grep -Fq "Finding: unmerged-remote-branch-unverified" &&
+  unmerged_block np-ls-fail | grep -Fq "Confidence: MEDIUM"; then
+  printf 'PASS: ls-remote failure is a MEDIUM observation, not a candidate\n'
+else
+  printf 'FAIL: ls-remote failure is a MEDIUM observation, not a candidate\n' >&2
+  failures=$((failures + 1))
+fi
+for rb in open race-merged np-gone nested gap; do
+  assert_not_contains_file "remote head feature/$rb is not an unmerged-remote-branch finding" \
+    "Target: $TMP/canonical-a :: origin/feature/$rb" "$unmerged_out"
+done
+assert_not_contains_file "remote head with a merged PR at another tip is not an unmerged finding" \
+  "Target: $TMP/canonical-a :: origin/stale/changed" "$unmerged_out"
+assert_contains_file "null any-state payload is an evidence gap, never never-pr" \
+  "returned no PR count for one or more remote heads" "$unmerged_out"
+assert_contains_file "remote-branch handoff names the gated apply path" \
+  "apply-plan.sh gets --apply --remote-branches in an interactive terminal, one confirmation per branch" "$unmerged_out"
+if python3 - "$unmerged_plan" "$TMP/canonical-a" <<'PY'; then
+import json, sys
+plan, canonical = json.load(open(sys.argv[1])), sys.argv[2]
+remote = [a for a in plan["actions"] if a["operation"] == "delete-remote-branches"]
+assert len(remote) == 1 and remote[0]["phase"] == 3, remote
+got = {(b["branch"], b["class"], b["expected_oid"], b["pr_number"], b["pr_url"], b["remote"], b["canonical"])
+       for b in remote[0]["remote_branches"]}
+assert got == {
+    ("feature/never-pr", "never-pr", "a" * 40, None, None, "origin", canonical),
+    ("feature/closed", "closed-unmerged", "b" * 40, 60, "https://github.com/acme/repo-a/pull/60", "origin", canonical),
+}, got
+assert remote[0]["targets"] == [b["target"] for b in remote[0]["remote_branches"]]
+ident = {(b["remote_key"], b["github_repo"]) for b in remote[0]["remote_branches"]}
+assert ident == {("github.com/acme/repo-a", "acme/repo-a")}, ident
+PY
+  printf 'PASS: plan emits delete-remote-branches with class, expected_oid, and PR for exactly the candidates\n'
+else
+  printf 'FAIL: plan emits delete-remote-branches with class, expected_oid, and PR for exactly the candidates\n' >&2
+  failures=$((failures + 1))
+fi
+assert_not_contains "audit without remote candidates emits no remote-branch action" "delete-remote-branches"
+if bash "$SCRIPT" --apply-plan "$unmerged_plan" |
+  grep -Fq "remote branch: origin/feature/closed class=closed-unmerged expected_oid=$(printf 'b%.0s' {1..40})"; then
+  printf 'PASS: apply-plan preview renders each remote branch with its class and expected tip\n'
+else
+  printf 'FAIL: apply-plan preview renders each remote branch with its class and expected tip\n' >&2
+  failures=$((failures + 1))
+fi
+# The apply verb accepts the plan this audit wrote and, without its opt-in flag, skips every remote row.
+apply_remote_out="$TMP/apply-remote-rows.txt"
+apply_remote_rc=0
+bash "$SCRIPT_DIR/../../apply/scripts/apply-plan.sh" --plan-file "$unmerged_plan" >"$apply_remote_out" 2>&1 ||
+  apply_remote_rc=$?
+if [[ "$apply_remote_rc" -eq 0 ]] &&
+  [[ "$(grep -Fc "remote deletion requires --remote-branches" "$apply_remote_out")" -eq 2 ]]; then
+  printf 'PASS: apply-plan accepts the audit plan and skips its remote rows without --remote-branches\n'
+else
+  printf 'FAIL: apply-plan accepts the audit plan and skips its remote rows without --remote-branches (rc=%s)\n' \
+    "$apply_remote_rc" >&2
+  cat "$apply_remote_out" >&2
+  failures=$((failures + 1))
+fi
+# Every ls-remote failing leaves no remote candidate and no per-repository unverified row.
+unmerged_fail_out="$TMP/unmerged-all-fail.txt"
+MOCK_UNMERGED_REMOTE=1 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
+  HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
+  bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$unmerged_fail_out" 2>&1 || true
+if [[ "$(grep -c -F "Finding: ls-remote-fleet-unavailable" "$unmerged_fail_out")" == 1 ]] &&
+  ! grep -Eq "Finding: unmerged-remote-branch(-unverified)?$|delete-remote-branches" "$unmerged_fail_out"; then
+  printf 'PASS: all-fail ls-remote yields no remote candidate and withholds unverified rows\n'
+else
+  printf 'FAIL: all-fail ls-remote yields no remote candidate and withholds unverified rows\n' >&2
+  failures=$((failures + 1))
+fi
+
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
@@ -1252,7 +1400,7 @@ assert_display_value "ALM U+061C is escaped" $'alm\xd8\x9cx' \
 # with the consumed source named in the report header.
 assert_contains "explicit config named in header" "(explicit --config)"
 
-mkdir -p "$TMP/proj/.claude" "$TMP/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
+mkdir -p "$TMP/proj/.claude" "$TMP/iso/1/2/3/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
 cat >"$TMP/proj/.claude/repo-fleet-hygiene.conf" <<'LADDER'
 [fleet]
     repo = ../../discovered-a
@@ -1269,7 +1417,7 @@ else
   failures=$((failures + 1))
 fi
 
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/homeg" \
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/homeg" \
   bash "$SCRIPT" >"$ladder_out"
 if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then
   printf 'PASS: user-global config fallback consumed and named\n'
@@ -1308,8 +1456,8 @@ fi
 # No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
 # exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: zero-config no-scope run did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
@@ -1332,7 +1480,7 @@ fi
 # A Git project directory still does not become scope without config or CLI paths (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
   CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
+  bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
   printf 'FAIL: no-scope run with a Git project directory unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "no scope resolved" "$ladder_out"; then
@@ -1343,12 +1491,12 @@ else
 fi
 
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/discovered-a" "$SCRIPT" >"$ladder_out" 2>&1 &&
-  grep -Fq "Scope: cwd" "$ladder_out"; then
-  printf 'PASS: cwd checkout is the no-scope fallback\n'
+  grep -Fq "Scope: ancestor" "$ladder_out"; then
+  printf 'PASS: a checkout whose parent holds other repositories resolves that parent as the no-scope fallback\n'
 else
-  printf 'FAIL: cwd checkout is the no-scope fallback\n' >&2
+  printf 'FAIL: a checkout whose parent holds other repositories resolves that parent as the no-scope fallback\n' >&2
   failures=$((failures + 1))
 fi
 
@@ -1359,8 +1507,8 @@ cat >"$TMP/scopeless.conf" <<'SCOPELESS'
     maxDepth = 5
 SCOPELESS
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
-  CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
-  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
+  CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
+  bash -c 'cd "$1" && exec bash "$2" --config "$3"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" "$TMP/scopeless.conf" >"$ladder_out" 2>&1; then
   printf 'FAIL: scope-less config did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "scopeless.conf" "$ladder_out" && grep -Fq -- "--add fleet.root" "$ladder_out"; then
@@ -1377,7 +1525,7 @@ fi
 
 # The guidance belongs to the unresolved no-scope case only: an explicitly supplied bad path is a
 # typo, and the operator already knows how to pass a scope -- they just did.
-if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/noconf" >"$ladder_out" 2>&1; then
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/iso/1/2/3/noconf" >"$ladder_out" 2>&1; then
   printf 'FAIL: explicit --repo on a non-Git dir did not hard-fail\n' >&2
   failures=$((failures + 1))
 elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq -- "--config <file>" "$ladder_out"; then
@@ -1655,7 +1803,7 @@ else
   failures=$((failures + 1))
 fi
 # The argument is what the skill body substitutes, so it must win over a stale inherited env value.
-REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
 if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
   printf 'PASS: --project-dir argument overrides an inherited CLAUDE_PROJECT_DIR\n'
@@ -2493,6 +2641,33 @@ else
   printf 'PASS: run_ls_remote_probe rejects a non-allowlisted remote or ref\n'
 fi
 
+# The any-state GraphQL shape is admitted only with its own jq, and the widening keeps rejecting
+# mutations, a missing exact headRefName, and the search API's prefix-matching head: qualifier. Each
+# negative carries every other required substring, so only the named rule can reject it.
+any_q() {
+  printf 'query{h0:repository(owner:"acme",name:"repo-a"){pullRequests(%s){totalCount nodes{number state headRefOid url}}}%s}' "$1" "${2:-}"
+}
+any_admitted() {
+  gh_probe_allowed api graphql --hostname github.com -f "query=$1" --jq "${2:-$ANY_STATE_PR_GRAPHQL_JQ}"
+}
+shape_b='headRefName:"feature/x",first:100,states:[OPEN,CLOSED,MERGED]'
+admission_label=""
+any_admitted "$(any_q "$shape_b")" || admission_label="any-state shape rejected"
+any_admitted "$(any_q "$shape_b")" "$MERGED_PR_GRAPHQL_JQ" && admission_label="any-state shape with merged jq"
+any_admitted "$(any_q 'headRefName:"feature/x",first:1,states:[MERGED]')" &&
+  admission_label="merged shape with any-state jq"
+any_admitted "$(any_q "$shape_b" 'mutation{deleteRef(input:{refId:"x"}){clientMutationId}}')" &&
+  admission_label="mutation"
+any_admitted "$(any_q 'first:100,states:[OPEN,CLOSED,MERGED]')" && admission_label="missing headRefName"
+any_admitted "$(any_q "$shape_b" 's:search(query:"repo:acme/repo-a is:pr head:feature/x",type:ISSUE,first:100){issueCount}')" &&
+  admission_label="prefix search"
+if [[ -z "$admission_label" ]]; then
+  printf 'PASS: any-state GraphQL admission is paired with its jq and rejects mutation, missing headRefName, and prefix search\n'
+else
+  printf 'FAIL: any-state GraphQL admission: %s\n' "$admission_label" >&2
+  failures=$((failures + 1))
+fi
+
 # Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).
 if ! host_makes_symlinks; then
   printf 'SKIP: symlink discovery root — ln -s copies here, so the fixture would be an ordinary directory the collector is right to accept\n'
@@ -2658,12 +2833,11 @@ fi
 # for it: the result is never consumed for `.git`, because the nested-repository early return fires
 # first on the identical path and predicate, so the child loop that calls this never runs for a
 # directory holding a .git marker. Driving the collector instead would be green with or without the
-# arm. Extracted the same way as the helpers above, since the function lives after the
-# source-early-return guard. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
+# arm. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
 # omits it, while node_modules/vendor prove the configurable half still decides everything else.
 skip_name_probe="$(
-  SCRIPT="$SCRIPT" bash -c '
-    eval "$(sed -n "/^should_skip_dir_name()/,/^}/p" "$SCRIPT")"
+  DISCOVERY="$SCRIPT_DIR/../../../scripts/fleet-discovery.sh" bash -c '
+    source "$DISCOVERY"
     SKIP_NAMES=(node_modules)
     for name in .git node_modules vendor; do
       if should_skip_dir_name "$name"; then printf "%s-skip\n" "$name"; else printf "%s-walk\n" "$name"; fi

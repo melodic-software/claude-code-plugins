@@ -93,7 +93,9 @@ never combined with `&&` or other commands in one call. The record for these sha
    next sync: the repository's README or file inventory says it is synced, or `git blame` names
    a sync bot (an author ending in `-sync[bot]`). List findings on such files separately, never
    edit them here, and put the question of whether to draft an issue in the source repository
-   to the interview, filed only when the user asks. Copy the returned lines (answer lines,
+   to the interview, filed only when the user asks. When the agreed fix lives in another
+   repository, file the issue there after the user approves and keep the issue URL; section 4
+   ticks `filed <issue-url>`, never `no-findings`. Copy the returned lines (answer lines,
    `Deferred: Q<N> ...`, `Blocked: Q<N> ...`) verbatim into the step commit's `Scope decisions:`
    section. A `Blocked:` line, or a `Deferred:` line tagged USER-RESERVED, means ask the user
    that question before step 5, then record the user's answer beside that line in the section.
@@ -110,7 +112,7 @@ never combined with `&&` or other commands in one call. The record for these sha
      commit.
    - 0: continue.
 2. Versions: one `S/skill-version.sh --dir '<base-dir>' <plugin:skill>` call per
-   `plugin:skill` in the entry, where `<base-dir>` is the "Base directory for this skill" line
+   `plugin:skill` in the entry that ran (a skill the catalog note skips takes no call), where `<base-dir>` is the "Base directory for this skill" line
    the Skill tool printed when it loaded that skill, so the record names the version that ran.
    A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
    means the next step would load a different version: record stdout, and tell the user to run
@@ -122,18 +124,18 @@ never combined with `&&` or other commands in one call. The record for these sha
    step 4 questions and answers. Write them to `W/scope-decisions.md`, its body starting
    `repo-sweep scope decisions: <id>`, post them with `gh pr comment --body-file
    W/scope-decisions.md` (this session's own sweep PR only), then tick `declined <n>` where
-   `<n>` is the number of declined findings, never `no-findings`. Otherwise count findings the
+   `<n>` is the number of declined findings, never `no-findings`. When the agreed fix was filed in another repository (section 3 step 4), the outcome is `filed <issue-url>`. Otherwise count findings the
    skill marks report-only (tiers the procedure says never edit in this pass, such as
    `source-fetched-similar` or `not-found`). When that count is greater than zero, tick
    `report-only <n>` where `<n>` is that count. When there are zero findings of any kind, tick
    `no-findings`. The one call is `S/tick.sh <id> <outcome> <skill@version>...`; when the skill
    reported uncovered scope, use instead `S/tick.sh <id> --partial "<what was not covered>"
-   <outcome> <skill@version>...` for `declined <n>` or `report-only <n>`, or `S/tick.sh <id>
+   <outcome> <skill@version>...` for `declined <n>`, `report-only <n>` or `filed <issue-url>`, or `S/tick.sh <id>
    partial "<what was not covered>" <skill@version>...` for zero findings (one line, no
    commas), so partial never hides a findings count. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
-   final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,
+   final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill that ran,
    and the `Co-Authored-By:` trailer, so git parses them together. Push, then one tick call:
    `S/tick.sh <id> committed <short-sha> <skill@version>...`. When the skill reported uncovered
    scope, make that one call `S/tick.sh <id> --partial "<what was not covered>" committed

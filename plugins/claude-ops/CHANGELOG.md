@@ -3,6 +3,100 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.70.0] - 2026-09-29
+
+### Changed
+
+- **`audit-native-overlap` fingerprints the native side on the text detection scores**: each
+  registration's `description`, `argument_hint`, and `search_hint`, whitespace-collapsed. It hashed
+  the description alone, so a built-in tool with no description fingerprinted as an empty string
+  and a hint change never resurfaced its dismissal. Surfaces with no hints keep their fingerprint;
+  the stored dismissals were recomputed.
+
+## [0.69.0] - 2026-09-29
+
+### Added
+
+- **`inventory` has built-in subagent and tool lanes** (`builtin_agents`, `builtin_tools`), each
+  with its own integrity status and canaries (`general-purpose`, `Explore`, `Plan`,
+  `statusline-setup`; `Bash`, `Read`, `Edit`, `Write`, `WebFetch`). Agent types and tool names
+  resolve from their constants at runtime. Agents carry the roster status (`default`,
+  `conditional`, `absent`), tool lists and model; tools carry deferral, gating and search hints,
+  and factory-built tools are counted, not guessed.
+- **`inventory --docs` cross-checks tools** against the tools reference in a nested block with its
+  own status; `--tools-docs-file` reads the page from a file.
+- **`audit-native-overlap detect` scores built-in subagents and tools** as the `builtin-agent` and
+  `builtin-tool` classes when the inventory carries those lanes. The store accepts `route` only for
+  both.
+
+### Fixed
+
+- **`inventory --docs` parses table rows in linear time.** The tools and commands row regexes
+  backtracked super-linearly on long whitespace runs (seconds per row well under the 8,000-character
+  row cap); both now match only the first cell and split the rest with string methods, with the
+  same rows parsed from the live pages.
+
+## [0.68.0] - 2026-09-29
+
+### Added
+
+- **`changelog apply` files native-surface drift.** A new Phase 7 runs the inventory self-check, a
+  `--binary-only --docs` extraction, and overlap `detect` and `self-check`, then
+  `scripts/native_drift.py` diffs the result against the previous run's summary (kept at
+  `<memory_dir>/claude-code-changelog/native-surface-summary.json`): surfaces added, removed,
+  renamed or reclassified, invocability and marker changes, docs cross-check changes, and new
+  overlap candidates. It files one work item through `/work-items:track` per new candidate with no
+  store row or dismissal, per store row whose recheck trigger fired, and per degraded or broken
+  self-check; a self-check degraded only by a newer CLI proposes revalidation. Each item carries a
+  `native-drift:<kind>:<surface>:<component>` key that dedupes against open items. Unattended runs
+  file without asking; interactive runs list the items and file on one confirmation.
+- **Native-drift filing is bounded.** A summary written without a `detect` report records
+  `detect: null` and never becomes the candidate baseline, so it cannot make every candidate look
+  new. More than 10 items (`--max-items`) needs a person's confirmation; unattended runs file one
+  `batch-overflow` item instead. Dedupe matches the exact `Drift key: <key>` line (`has-key`), so a
+  key never matches its prefix siblings. Each fact is clipped to 300 characters and treated as
+  quoted data, and an optional input path that is not a file warns on stderr.
+
+## [0.67.0] - 2026-09-29
+
+### Added
+
+- **`audit-native-overlap` learns from dismissals.** A new `overlap.py dismiss` subcommand records
+  a human's ruling that a candidate pair is not an overlap, with its reason, the Claude Code
+  version it was ruled against, the date, and a fingerprint of each side's description. `detect`
+  suppresses a dismissed pair and counts it under `discovery.suppressed` until either description
+  changes, then lists it again flagged "resurfaced: description changed". A pair with a verdict
+  row never resurfaces. Every candidate now carries both fingerprints.
+- **The store takes an optional `dismissals` list.** The self-check validates each dismissal and
+  rejects one beside a verdict row for the same pair; `generate` renders a Dismissed section in
+  the registry view.
+- **Dismissals are checked every run and validated strictly.** `detect` checks every dismissal
+  against the current descriptions, including a pair that no longer scores above the discovery
+  cut, and lists one whose surface or component is gone under `discovery.dismissals_orphaned`.
+  `dismiss` accepts only a component this repo has, named by plain name segments. The store
+  rejects a path-like component name, a reason over 300 characters, and a version, date, or
+  fingerprint with trailing characters, and the Dismissed table escapes markdown in every cell.
+- **Eval cases** for `inventory` answering "is /foo real" under a degraded lane and classifying a
+  command the docs mark removed, and for `audit-native-overlap` recommending `suggest` for a
+  user-only surface and suppressing then resurfacing a dismissed pair.
+
+## [0.66.2] - 2026-09-29
+
+### Added
+
+- **`observability` carries a Boundary section for the bundled skill `explain-usage`.** When it
+  resolves, it answers where this session's tokens went in plain language; this skill keeps local
+  telemetry, cross-session trends, hooks, and cost.
+
+## [0.66.1] - 2026-09-29
+
+### Fixed
+
+- **`/claude-ops:audit-skill-visibility` resolves `bash` through `PATH` when enumerating managed
+  scope.** On Windows a bare `bash` reached the WSL relay in `System32` instead of Git Bash, so the
+  managed-scope read failed. The name now goes through `shutil.which`, and a missing `bash` reports
+  the managed scope as unreadable. The audit suite runs on `windows-2025` in CI again.
+
 ## [0.66.0] - 2026-09-29
 
 ### Added

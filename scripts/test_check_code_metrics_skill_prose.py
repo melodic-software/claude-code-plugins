@@ -68,6 +68,35 @@ class ProseGateTests(unittest.TestCase):
             self.assertEqual(len(problems), 1)
             self.assertIn("setup/SKILL.md", problems[0])
 
+    def _rewrap_duplication(self, root: Path, old: str, new: str) -> None:
+        path = root / "plugins/code-metrics/skills/audit-duplication/SKILL.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertIn(old, text)
+        path.write_text(text.replace(old, new), encoding="utf-8")
+
+    def test_a_rewrapped_paragraph_still_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._materialize(root)
+            self._rewrap_duplication(
+                root, "`duplication.max_size` (default", "`duplication.max_size`\n  (default"
+            )
+            self._rewrap_duplication(
+                root, "`duplication.max_lines` (default", "`duplication.max_lines`\n(default"
+            )
+            self.assertEqual(gate.check(root, DEFAULTS), [])
+
+    def test_a_rewrapped_wrong_value_still_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self._materialize(root)
+            self._rewrap_duplication(
+                root, "`duplication.max_size` (default `1mb`", "`duplication.max_size`\n(default `2mb`"
+            )
+            problems = gate.check(root, DEFAULTS)
+            self.assertEqual(len(problems), 1)
+            self.assertIn("max_size", problems[0])
+
     def test_the_shipped_tree_matches(self) -> None:
         defaults = json.loads(gate.DEFAULT_DEFAULTS.read_text(encoding="utf-8"))
         self.assertEqual(gate.check(gate.REPO_ROOT, defaults), [])
