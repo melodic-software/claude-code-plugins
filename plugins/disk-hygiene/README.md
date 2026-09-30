@@ -259,6 +259,12 @@ gets the relaxed directory listing.
 confirmation as an unbounded walk, sums through VCS and protected directories read-only, and has no
 entry cap.
 
+`--deep`, and a home-directory target without it, runs the read-only deep inventory before any
+scan: every entry with its producer, a disposition and a reason, where each `KEEP` names who
+produced the entry and what still uses it. It reports only and prepares no deletion; removing
+anything it lists still goes through scan, preview and the removal approval. Columns and
+categories: `skills/clean/reference/scan-flags.md`.
+
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
 

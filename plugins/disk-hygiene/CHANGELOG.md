@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.39.0] - 2026-09-30
+## [0.40.0] - 2026-09-30
 
 ### Added
 
@@ -17,6 +17,25 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   the operator, because the skill's Bash guard denies them, and by the resolved application
   executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
   manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
+
+## [0.39.0] - 2026-09-30
+
+### Added
+
+- **Read-only `inventory` subcommand with a deep mode**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
+  --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
+  a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
+  validated KEEP reason (exit 5 when the validator fails); without a readable `/proc`, rows that depend
+  on the process table are UNKNOWN, not CANDIDATE. A home-directory target, or any target with
+  `--deep`, runs it before any `scan`, so a bare `/disk-hygiene:clean ~` starts there. The engine
+  grammar declares the subcommand read-only, so the destructive guard admits it beside `catalog`.
+  A superseded version a symlink points at is kept, a release outranks its own prerelease, a
+  plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
+  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. The walk does not enter a bind mount on the
+  same device (read from `/proc/self/mountinfo`), an open file counts as use of a `/tmp` entry, and
+  the report is written to a temporary file and renamed only when the walk finishes.
+  `skills/clean/SKILL.md` and its references document the attended workflow.
 
 ## [0.38.0] - 2026-09-30
 

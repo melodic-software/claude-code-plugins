@@ -347,16 +347,20 @@ class RegistryGrantsNoApprovalTest(unittest.TestCase):
 PLUGIN = Path(__file__).resolve().parents[3]
 TELEMETRY_PATH = PLUGIN / "lib" / "hook_telemetry.py"
 EXECUTORS = {ENGINE_PATH, TELEMETRY_PATH}
+# The read-only inventory names products as /tmp producer labels. It stays subject to every
+# deletion and process-runner check; only the tool-name constant check is skipped for it.
+LABEL_ONLY = {SCRIPTS / "deep_inventory.py"}
 # The engine functions that may delete. `apply_plan` and `handoff_apply` are the two
 # lanes, each reached only from the CLI behind its own gates. `anchored_remove`, and
 # `purge_directory_contents` beneath it, are the removers both lanes share.
-# `write_text_atomic` removes only the temporary file it wrote itself.
+# `write_text_atomic` and `run_inventory` remove only the temporary file they wrote themselves.
 DELETERS = {
     "apply_plan",
     "handoff_apply",
     "anchored_remove",
     "purge_directory_contents",
     "write_text_atomic",
+    "run_inventory",
 }
 # The only function that may name a registry command or tool: `apply_plan` carries
 # the plan's owner claim, which `handoff_apply` has no parameter to receive.
@@ -449,7 +453,9 @@ def violations(path: Path, source: str) -> list[str]:
         hits |= {
             node.value
             for node in ast.walk(scanned)
-            if isinstance(node, ast.Constant) and node.value in REGISTRY_TOOLS
+            if isinstance(node, ast.Constant)
+            and node.value in REGISTRY_TOOLS
+            and path not in LABEL_ONLY
         }
     elif len(actions := ACTIONS.findall(source)) > LAUNCHER_ACTIONS.get(path, 0):
         hits.update(actions)
@@ -496,6 +502,15 @@ class OnlyTheEngineLanesDestroyTest(unittest.TestCase):
                 violations(path, path.read_text(encoding="utf-8")),
                 str(path.relative_to(PLUGIN)),
             )
+
+    def test_a_label_only_file_is_still_checked_for_deletion_and_runners(self) -> None:
+        for path in LABEL_ONLY:
+            self.assertEqual([], violations(path, "LABEL = 'codex'\n"))
+            for source in (
+                "import os\nos.remove('x')\n",
+                "import subprocess\nsubprocess.run(['codex'])\n",
+            ):
+                self.assertNotEqual([], violations(path, source), source)
 
     def test_a_parallel_path_is_flagged(self) -> None:
         elsewhere = SCRIPTS / "parallel.py"
@@ -634,14 +649,20 @@ class EngineSourceTest(unittest.TestCase):
             [argument.arg for argument in arguments.args],
         )
 
-    def test_write_text_atomic_removes_only_its_own_temporary_file(self) -> None:
-        removals = [
-            ast.unparse(node.func)
-            for node in ast.walk(self.function("write_text_atomic"))
-            if isinstance(node, ast.Call)
-            and ast.unparse(node.func).rpartition(".")[2] in DELETIONS | {"remove"}
-        ]
-        self.assertEqual(["temporary.unlink"], removals)
+    def test_the_temporary_file_writers_remove_only_their_own_temporary_file(
+        self,
+    ) -> None:
+        for writer, temporary in (
+            ("write_text_atomic", "temporary.unlink"),
+            ("run_inventory", "partial.unlink"),
+        ):
+            removals = [
+                ast.unparse(node.func)
+                for node in ast.walk(self.function(writer))
+                if isinstance(node, ast.Call)
+                and ast.unparse(node.func).rpartition(".")[2] in DELETIONS | {"remove"}
+            ]
+            self.assertEqual([temporary], removals, writer)
 
 
 class BaselinePolicyUnchangedTest(unittest.TestCase):
