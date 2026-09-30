@@ -27,7 +27,6 @@ plugins/claude-ops/skills/observability/context/operator-setup-retention.md
 plugins/claude-ops/skills/plugins/context/scope-semantics.md
 plugins/discovery/skills/explore/reference/ecosystem-discovery.md
 plugins/disk-hygiene/skills/clean/reference/safety-model.md
-plugins/disk-hygiene/skills/setup/SKILL.md
 plugins/docs-hygiene/skills/rename-references/context/apply.md
 plugins/docs-hygiene/skills/rename-references/context/audit.md
 plugins/docs-hygiene/skills/rename-references/context/audit-modes.md
