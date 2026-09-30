@@ -3,6 +3,18 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.70.1] - 2026-09-29
+
+### Fixed
+
+- **`changelog apply` Phase 7 files nothing in a repository with no overlap store**: `overlap.py
+  self-check` exits `3` there in report-only mode, which the phase read as a passing run, so it
+  filed tracker items and replaced the baseline. `native_drift.py diff` now marks such a run
+  `report_only`, moves its items to `unfiled`, and the phase keeps the previous baseline.
+- **`native_drift.py` rejects wrong-shaped JSON with exit `2`**: a summary, detect report, store
+  or inventory that parsed but lacked its shape (a top-level `[]`, a string where an object
+  belongs) raised a traceback with exit `1`.
+
 ## [0.70.0] - 2026-09-29
 
 ### Changed

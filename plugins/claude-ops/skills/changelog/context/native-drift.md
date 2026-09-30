@@ -24,8 +24,16 @@ python3 "<skill-dir>/scripts/native_drift.py" diff --current <ws>/summary.json -
 
 The self-check and `detect` exit `0` ok, `1` broken, `3` degraded; `3` is a passing run. When
 `detect` exits `1` with no output file, run `summarize` without `--detect`. `native_drift.py` exits
-`2` only on a missing or malformed input, and warns on stderr when an optional path it was given is
-not a file. After the report and the filing, copy `<ws>/summary.json` over `<prev>`, unless the
+`2` only on a missing or malformed input (unparsable, or JSON without its kind's shape), and warns
+on stderr when an optional path it was given is not a file.
+
+**Report-only.** With no store at `<store>`, `overlap.py self-check` exits `3` in report-only mode,
+and `diff` reads the same missing file as `"report_only": true`: `items` is empty, the would-be
+items are in `unfiled`, and `overflow` is null. Branch on that field, not on the exit code: report
+the drift, list `unfiled` as not filed, say the run was report-only because the repository has no
+overlap store, file nothing, and leave `<prev>` as it is.
+
+Otherwise, after the report and the filing, copy `<ws>/summary.json` over `<prev>`, unless the
 inventory self-check exited `1` or `summarize` ran without `--detect`: a broken extraction never
 becomes the baseline, and a summary without a detect report (`"detect": null`) does not know the
 candidates, so the old baseline stays. Its suite is `scripts/test_native_drift.py`, wrapped by

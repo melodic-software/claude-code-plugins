@@ -492,6 +492,72 @@ class CliTests(unittest.TestCase):
             report = json.loads(Path(out).read_text(encoding="utf-8"))
             self.assertFalse(report["store_present"])
             self.assertEqual(report["inventory"]["verdict"], "revalidate")
+            # No store is overlap self-check's report-only mode: nothing to file.
+            self.assertTrue(report["report_only"])
+            self.assertEqual((report["items"], report["overflow"]), ([], None))
+            self.assertEqual([i["kind"] for i in report["unfiled"]], ["revalidate"])
+
+    def test_present_store_files_items(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            summary, store, out = (
+                str(Path(tmp) / n) for n in ("s.json", "r.json", "d.json")
+            )
+            Path(summary).write_text(
+                json.dumps(native_drift.summarize(inventory(), None)), encoding="utf-8"
+            )
+            Path(store).write_text(json.dumps({"rows": []}), encoding="utf-8")
+            code = self.run_main(
+                "diff", "--current", summary, "--previous", summary,
+                "--store", store, "--self-check-exit", "3", "--out", out,
+            )  # fmt: skip
+            self.assertEqual(code, 0)
+            report = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertFalse(report["report_only"])
+            self.assertEqual(
+                ([i["kind"] for i in report["items"]], report["unfiled"]),
+                (["revalidate"], []),
+            )
+
+    def test_wrong_shaped_inputs_are_usage_errors(self):
+        summary = native_drift.summarize(inventory(), None)
+        cases = {
+            "--current": [[], {"schema": 2}, {**summary, "surfaces": []}],
+            "--previous": [[], {**summary, "integrity": "ok"}],
+            "--detect": [[], {"candidates": "x"}, {"candidates": [{"native": "x"}]}],
+            "--store": [[], {}, {"rows": ["x"]}, {"rows": [{"observation": "x"}]}],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / "s.json"
+            good.write_text(json.dumps(summary), encoding="utf-8")
+            bad = Path(tmp) / "bad.json"
+            for flag, payloads in cases.items():
+                for payload in payloads:
+                    bad.write_text(json.dumps(payload), encoding="utf-8")
+                    args = {"--current": str(good), flag: str(bad)}
+                    argv = ["diff", "--self-check-exit", "0"]
+                    for k, v in args.items():
+                        argv += [k, v]
+                    with self.subTest(flag=flag, payload=payload):
+                        self.assertEqual(self.run_main(*argv), 2)
+            inv = Path(tmp) / "inv.json"
+            for payload in (
+                [],
+                inventory(builtin_commands=[]),
+                inventory(integrity={"lanes": {"builtin_commands": "ok"}}),
+            ):
+                inv.write_text(json.dumps(payload), encoding="utf-8")
+                with self.subTest(inventory=payload):
+                    self.assertEqual(
+                        self.run_main("summarize", "--inventory", str(inv)), 2
+                    )
+            inv.write_text(json.dumps(inventory()), encoding="utf-8")
+            bad.write_text("[]", encoding="utf-8")
+            self.assertEqual(
+                self.run_main(
+                    "summarize", "--inventory", str(inv), "--detect", str(bad)
+                ),
+                2,
+            )
 
     def test_optional_path_that_is_not_a_file_warns(self):
         with tempfile.TemporaryDirectory() as tmp:

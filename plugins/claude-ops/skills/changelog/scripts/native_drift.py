@@ -23,14 +23,17 @@ Subcommands (standard library only; every input is a file the caller produced):
       missing previous summary is a baseline run: no surface diff, no new
       candidates, triggers on state still evaluated. More than --max-items
       items (default 10) adds an `overflow` item that stands for the batch.
-      Every fact is clipped to FACT_CHARS.
+      Every fact is clipped to FACT_CHARS. When `--store` names no file, the
+      run is report-only (`report_only: true`), the same condition under which
+      `overlap.py self-check` declares report-only mode: `items` is empty, the
+      would-be items are in `unfiled`, and there is no `overflow`.
 
   has-key --key <key> --body <body.txt>
       Whether a filed item's body holds the dedupe line for <key>: a line that,
       stripped of surrounding whitespace, is exactly `Drift key: <key>`.
 
 Exit: 0 report written, or has-key matched; 1 has-key found no match; 2 usage
-error or an unreadable or malformed input.
+error or an unreadable input, or one whose JSON lacks its kind's shape.
 Nothing here files, fetches, or edits: the skill body owns the filing.
 """
 
@@ -65,7 +68,79 @@ class InputError(Exception):
     pass
 
 
-def load(path: str | None, *, required: bool = True) -> Any:
+def _opt(value: Any, kind: type) -> bool:
+    return value is None or isinstance(value, kind)
+
+
+def _objects(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(v, dict) for v in value)
+
+
+def shape_error(kind: str, data: Any) -> str | None:
+    """Why a parsed input lacks the shape its kind needs, or None. Checks only
+    what the code below reads without a type guard."""
+    if not isinstance(data, dict):
+        return f"top level is {type(data).__name__}, not an object"
+    bad: list[str] = []
+    if kind == "inventory":
+        bad = [
+            k
+            for k in (*LANE_CLASS, "integrity", "docs_crosscheck")
+            if not _opt(data.get(k), dict)
+        ]
+        lanes = (data.get("integrity") or {}).get("lanes")
+        if not _opt(lanes, dict) or not all(
+            _opt(v, dict) for v in (lanes or {}).values()
+        ):
+            bad.append("integrity.lanes")
+    elif kind == "summary":
+        if data.get("schema") != SCHEMA:
+            return f"not a schema-{SCHEMA} native_drift summary"
+        integrity, surfaces, docs = (
+            data.get("integrity"),
+            data.get("surfaces"),
+            data.get("docs"),
+        )
+        if not isinstance(integrity, dict) or not _opt(integrity.get("lanes"), dict):
+            bad.append("integrity")
+        elif not _opt(integrity.get("advisories"), list) or not all(
+            isinstance(a, str) for a in integrity.get("advisories") or []
+        ):
+            bad.append("integrity.advisories")
+        if not isinstance(surfaces, dict) or not all(
+            isinstance(names, dict) and all(isinstance(r, dict) for r in names.values())
+            for names in surfaces.values()
+        ):
+            bad.append("surfaces")
+        if not _opt(docs, dict) or not _opt((docs or {}).get("names"), dict):
+            bad.append("docs")
+        bad += [
+            k
+            for k, t in (("detect", dict), ("candidates", list))
+            if not _opt(data.get(k), t)
+        ]
+    elif kind == "detect":
+        bad = [k for k in ("discovery", "integrity") if not _opt(data.get(k), dict)]
+        candidates = data.get("candidates") or []
+        if not _objects(candidates) or not all(
+            _opt(c.get("native"), dict)
+            and _opt(c.get("component"), dict)
+            and _opt(c.get("evidence"), list)
+            for c in candidates
+        ):
+            bad.append("candidates")
+    elif kind == "store":
+        rows = data.get("rows")
+        if not _objects(rows) or not all(
+            _opt(r.get(k), dict)
+            for r in rows
+            for k in ("native", "component", "observation", "recheck")
+        ):
+            bad.append("rows")
+    return f"wrong shape: {', '.join(bad)}" if bad else None
+
+
+def load(path: str | None, kind: str, *, required: bool = True) -> Any:
     if path is None or not Path(path).is_file():
         if required:
             raise InputError(f"missing input: {path}")
@@ -73,9 +148,13 @@ def load(path: str | None, *, required: bool = True) -> Any:
             print(f"warning: {path} is not a file; read as absent", file=sys.stderr)
         return None
     try:
-        return json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise InputError(f"unreadable input {path}: {exc}") from exc
+    error = shape_error(kind, data)
+    if error:
+        raise InputError(f"malformed {kind} input {path}: {error}")
+    return data
 
 
 def registrations(entry: Any) -> list[dict[str, Any]]:
@@ -444,6 +523,7 @@ def diff(
     detect: Any,
     self_check_exit: int,
     max_items: int = MAX_ITEMS,
+    report_only: bool = False,
 ) -> dict[str, Any]:
     surface = diff_surfaces(prev, cur) if prev else None
     renames = {r["from"]: r["to"] for r in (surface or {}).get("renamed", [])}
@@ -553,6 +633,9 @@ def diff(
 
     for item in items:
         item["facts"] = [clip(f) for f in item["facts"]]
+    unfiled: list[dict[str, Any]] = []
+    if report_only:
+        items, unfiled = [], items
     overflow = None
     if len(items) > max_items:
         overflow = {
@@ -583,6 +666,8 @@ def diff(
         "fired_triggers": fired,
         "rows_not_evaluable": not_evaluable,
         "store_present": isinstance(rows, list),
+        "report_only": report_only,
+        "unfiled": unfiled,
         "inventory": inventory,
         "items": items,
         "max_items": max_items,
@@ -629,18 +714,23 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if has_key(body, args.key) else 1
         if args.command == "summarize":
             write(
-                summarize(load(args.inventory), load(args.detect, required=False)),
+                summarize(
+                    load(args.inventory, "inventory"),
+                    load(args.detect, "detect", required=False),
+                ),
                 args.out,
             )
         else:
+            store = load(args.store, "store", required=False)
             write(
                 diff(
-                    load(args.current),
-                    load(args.previous, required=False),
-                    load(args.store, required=False),
-                    load(args.detect, required=False),
+                    load(args.current, "summary"),
+                    load(args.previous, "summary", required=False),
+                    store,
+                    load(args.detect, "detect", required=False),
                     args.self_check_exit,
                     args.max_items,
+                    report_only=store is None,
                 ),
                 args.out,
             )
