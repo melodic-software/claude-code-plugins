@@ -10,7 +10,7 @@ plan does not reopen it. Release 2b is the mutation-scope item the user split of
 |---|---|
 | `mutation-testing:audit` gains a scope that mutates the production code the changed tests exercise (Q11) | Phases 1, 3, 4 (design DT1-DT4, DT7, DT8, DT12-DT15) |
 | It classifies each survivor: no assertion, expected value from the code under test, input gap (Q11) | Phase 4 (design DT5, DT6, DT13, DT16) |
-| Evaluate PostToolUse `bashEditDiff` (beta) to narrow the Bash-write gap | Not in this plan: design DT10 keeps it deferred (user, 2026-09-30) with research tag `bashEditDiff-coverage`; owner: issue to be filed (a `testing` hooks follow-up) |
+| Evaluate PostToolUse `bashEditDiff` (beta) to narrow the Bash-write gap | Not in this plan: design DT10 keeps it deferred (user, 2026-09-30) with research tag `bashEditDiff-coverage`; owner: #5608 (a `testing` hooks follow-up) |
 
 Design: `design/design-threads.md` beside this file (DT1-DT16; handoff gate PASS on 2026-09-30,
 re-read after the stress-test revision: every thread is resolved, directional with a research tag,
@@ -377,7 +377,7 @@ Decided follow-ups (user, 2026-09-30), no longer open:
   (`test -f docs/specs/tautological-tests-mutation-scope/PLAN.md`) to its Release 2 outline Sanity
   Check and points the mutation-scope bullet here. PR #5605 (the Release 2 judge) already rewrote
   the Release 2 gate to `test -f docs/specs/tautological-tests-judge/PLAN.md`.
-- `bashEditDiff`: stays deferred (DT10); owner: issue to be filed (a `testing` hooks follow-up).
+- `bashEditDiff`: stays deferred (DT10); owner: #5608 (a `testing` hooks follow-up).
 
 ## Displaced answers and new external effects
 

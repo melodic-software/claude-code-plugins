@@ -48,7 +48,7 @@ Evidence read this session:
 | DT10 | PostToolUse `bashEditDiff` | deferred |
 | DT11 | What stays out of 2b | resolved |
 | DT12 | The kill unit: the changed-test set, per mutant | resolved |
-| DT13 | Reachability: telling an unreached mutant from a survivor | resolved |
+| DT13 | Reachability: telling an unreached mutant from a survivor | pending the user |
 | DT14 | The test command for the manual fallback | resolved (character allowlist pending the user) |
 | DT15 | Preflight order under the exercised scope | resolved |
 | DT16 | The findings tier rationale outside the diff | resolved |
@@ -334,12 +334,12 @@ only with `bashEditDiffEnabled`, otherwise only in auto and `bypassPermissions` 
 consumer is the advisory `testing` test-scan hook, which misses Bash writes today (spec risk table,
 "Bash and MCP writes bypass the hooks", spec:910). The Release 2 judge plan also deferred it.
 
-Decided 2026-09-30 (user): stays deferred. The orchestrator files an issue owned by a follow-up to
-the `testing` plugin's hooks; owner: issue to be filed.
+Decided 2026-09-30 (user): stays deferred. The orchestrator filed issue #5608, owned by a follow-up to
+the `testing` plugin's hooks.
 
 Research tag: `bashEditDiff-coverage`. Measure, on the installed Claude Code version, how many
 Bash-written test files reach a PostToolUse hook under the default permission mode with and without
-`bashEditDiffEnabled`; owner: issue to be filed (a `testing` hooks follow-up).
+`bashEditDiffEnabled`; owner: #5608 (a `testing` hooks follow-up).
 
 Basis: `https://code.claude.com/docs/en/hooks.md` (fetched 2026-09-30, `bashEditDiff` section,
 requires v2.1.269 or later); SKILL.md:123.
