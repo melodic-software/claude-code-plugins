@@ -326,7 +326,12 @@ environment.
 
 For each user-approved fix:
 
-1. Make the edit. Done when the target file carries the change and nothing else in it moved.
+1. Make the edit. Route each approved edit to `settings.json` or `settings.local.json`
+   through the built-in `update-config` skill when it resolves in this session, and write directly
+   when it does not (`.mcp.json` is outside its scope; edit it directly); the one exception is orphan-`false` plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
+   check still runs. In auto mode a settings edit needs the `[Self-Modification]` handshake: the
+   classifier asks, and the user's explicit approval of that fix is the consent. Done when the
+   target file carries the change and nothing else in it moved.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
    revert that edit before touching the next one.
 3. Report what changed, as the file, the key, and the before and after values. Done when every
@@ -337,6 +342,20 @@ After all fixes:
 - Re-run the engine and present the before/after `summary` (findings by severity, rule counts,
   server counts)
 - Verify all config files are still valid JSON
+
+### Refusals in auto mode
+
+Two operations are refused in auto mode. Writing the team-layer suppression record
+`.claude/audit-pass.md` is refused as `[Instruction Poisoning]`. Re-running `scripts/audit-engine.sh`
+for the after-fix summary is refused as `[Self-Modification]`. Never retry around a refusal. Hand the
+operator the fallback: they apply the `.claude/audit-pass.md` edit themselves, or run the engine
+re-run and paste its output back. Report the before/after comparison from what they return.
+
+Claim: auto mode refuses those two operations under those two category names. Basis: an empirical
+`claude-config:audit@0.48.2` `--fix` run in auto mode on Claude Code 2.1.283, recorded in
+[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153). As of
+2026-09-27. Recheck when a Claude Code release changes auto-mode classifier categories, or a run
+where either refusal no longer fires.
 
 ### Fixes the skill can apply
 
@@ -392,8 +411,8 @@ request such as "allow npm commands" or "add a hook that runs when Claude stops"
 an audit.
 
 **Mutation gate.** `update-config` writes settings files as its job. This skill writes only in
-Phase 5, under `--fix`, one confirmed fix at a time, and never chains into `update-config` on its
-own behalf.
+Phase 5, under `--fix`, one confirmed fix at a time; Phase 5 routes each such settings edit through
+`update-config`, and outside `--fix` this skill never chains into it on its own behalf.
 
 **Availability is never assumed.** Bundled skills are gated by settings such as
 `disableBundledSkills` and vary by version and host; this section states what to do when the
