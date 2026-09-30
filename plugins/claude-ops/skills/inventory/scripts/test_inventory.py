@@ -1472,6 +1472,14 @@ class TestModuleScopedResolution(unittest.TestCase):
         src = f'var Qz="Probe";$t({{name:Qz,maxResultSizeChars:1,description:{big}||"F"}});'
         self.assertEqual(_tool(src, "Probe")["description"], "")
 
+    def test_a_deferred_call_argument_reads_a_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function ff(a){return a}function outer(){return ff(xx)}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+            'var xx="REAL";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
     def test_an_eager_call_does_not_read_a_later_binding(self) -> None:
         src = _modules(
             'var Qz="Probe";function dd(){return zz}'

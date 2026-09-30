@@ -1558,6 +1558,7 @@ def _bound_arguments(
     *,
     hops: int,
     shadow: Scope,
+    deferred: bool = False,
 ) -> dict[str, list[str]]:
     """Each plain parameter mapped to the values its call-site argument
     resolves to; a destructured or defaulted list binds nothing."""
@@ -1582,6 +1583,7 @@ def _bound_arguments(
             hops=hops,
             anchor=None,
             shadow=shadow,
+            deferred=deferred,
         )
         if value:
             # A partial argument keeps a runtime alternative ahead of its values.
@@ -1661,7 +1663,13 @@ def _resolve_chain(
                     # A parameter the body reassigns is not its argument.
                     name: values
                     for name, values in _bound_arguments(
-                        src, braces, fn[2], chain[1][2], hops=hops - 1, shadow=shadow
+                        src,
+                        braces,
+                        fn[2],
+                        chain[1][2],
+                        hops=hops - 1,
+                        shadow=shadow,
+                        deferred=deferred,
                     ).items()
                     if not _write_pattern(name).search(body)
                 },
