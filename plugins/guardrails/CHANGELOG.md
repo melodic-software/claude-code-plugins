@@ -3,11 +3,24 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.4] - 2026-09-30
+## [0.42.6] - 2026-09-30
 
 ### Fixed
 
 - **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
+## [0.42.5] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.42.4] - 2026-09-30
+
+### Changed
+
+- `block-root-delete-target` states its scope in the hook header: friction against accidental or casual root deletes, not a sandbox. The launcher grammar is not widened further without a filed bypass. Converging the walker with `lib/powershell/ps-command.sh` stays deferred, and any future convergence is checked against the delete lane in `scripts/check-guardrails-ps-differential.sh`. No verdict changes.
+- `scripts/check-guardrails-ps-differential.sh` compares `block-root-delete-target` in the PowerShell differential, with a delete-lane corpus. The guard tokenizes on its own, and an outside-tree target is judged from one neutral payload cwd for both arms.
 
 ## [0.42.3] - 2026-09-30
 
