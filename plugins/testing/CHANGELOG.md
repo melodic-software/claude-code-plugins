@@ -3,6 +3,15 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-30
+
+### Added
+
+- **`test-scan` covers test files a Bash call changed.** A PostToolUse `Bash` hook reads `bashEditDiff`
+  and runs `test-scan` on each changed test file (up to four), behind the same opt-in. The field is
+  populated only when `bashEditDiffEnabled` is set or in auto and bypassPermissions modes; the
+  README documents the limit ([#5608](https://github.com/melodic-software/claude-code-plugins/issues/5608)).
+
 ## [0.11.8] - 2026-09-30
 
 ### Changed
