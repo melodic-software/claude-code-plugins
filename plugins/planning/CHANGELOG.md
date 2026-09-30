@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.8] - 2026-09-29
+## [0.47.9] - 2026-09-29
 
 ### Fixed
 
 - **The interview surface docs say how to read the watcher's JSON after a wake.** The wake notification carries only the output-file path and exit status. On exit 0 the session Reads the file and takes the last line that starts with `{` (the file ends with an exit-code footer), falling back to `grep '^{' | tail -n 1` when Read reports a partial view; on a nonzero exit it reads the diagnostic and follows the exit-specific recovery. A verification record with an upstream pointer backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+
+## [0.47.8] - 2026-09-29
+
+### Added
+
+- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park, drop or open, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
 
 ## [0.47.7] - 2026-09-29
 
