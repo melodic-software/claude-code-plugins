@@ -784,7 +784,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `explain-usage` skill, widens it beyond the current session, or changes its gating (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `explain-usage` → `context-budget:audit`
