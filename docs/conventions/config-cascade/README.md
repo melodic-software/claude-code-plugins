@@ -431,12 +431,14 @@ model-run skill with no reader script, so the rule lives in the skill text.
 | `bugs` | implements | `scripts/concat-gotchas.sh` classifies its root inline (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) with the same rule and skips a team or overlay path that is the user-global file; it does not source the resolver |
 | `docs-hygiene` | implements | `scripts/resolve-config.sh` sources its `lib/config-root.sh` copy and classifies `--root` (else the git toplevel of the current directory) against `--home`; `paths` reports team and overlay as not-applicable at a `home` or `non-repo` root, and a team or overlay path that is the user-global file is read once |
 | `ai-slop` | implements | `skills/audit/scripts/detect.sh` sources its `lib/config-root.sh` copy and classifies its root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`, else `pwd`) before the team and overlay reads; a team or overlay file that is the user-global file is read once |
+| `attribution` | implements | `skills/audit/scripts/lib.sh` sources its `lib/config-root.sh` copy; `cfg_layers_init` skips team and overlay unless `config_root_classify` returns `repo`, and skips a layer that `config_root_paths_same` matches to the user-global file |
 | `code-metrics` | not yet | `scripts/resolve-config.py`: `git rev-parse --show-toplevel`, else the current directory; `CLAUDE_PROJECT_DIR` is not consulted |
 | `disk-hygiene` | not yet | the clean engine takes the team file from `--project-dir`; no root classification |
 | `repo-fleet-hygiene` | not yet | `audit-fleet.sh`: `--project-dir`, else `CLAUDE_PROJECT_DIR`; `setup-config.sh`: `CLAUDE_PROJECT_DIR`, else `$PWD` |
 | `work-items` | not yet | `tools/work-item-tracker/lib/binding.sh` (`wit_project_root`): `CLAUDE_PROJECT_DIR`, else git toplevel; no user-global layer, so the home-root collision does not arise for the binding file |
 | `autonomy` | not yet | hooks anchor at `CLAUDE_PROJECT_DIR` (`hooks/hook-utils.sh`); `binding.json` has no shared reader script |
 | `plugin-quality`, `architecture`, `authoring-formats` | not yet | each plugin's `lib/resolve-convention-home.sh`: `--root`, else `CLAUDE_PROJECT_DIR`, else git toplevel, else the current directory; team-only via pointer line, no user-global layer to collide with |
+| `topic-docs` | not yet | team-only single layer, so no user-global file to collide with; `session-flow/hooks/observer-arm.sh` passes the cwd-relative `.claude/topic-docs.yaml` to the `parse-concern-value.sh` scalar parser, with no root classification |
 | `ai-briefing`, `code-tidying` | prose only | team-only surfaces read by model-run skills |
 
 Migrating a single-layer surface is one change against that surface's own plugin, not a fleet-wide
