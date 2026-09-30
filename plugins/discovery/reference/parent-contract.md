@@ -90,6 +90,12 @@ opens with no listed word is read as `full`, and the worker names that reading i
 `open_questions`. Explore and trace-intent have no Effort table, so for them the word asks for a
 narrower pass and the agent names the level it ran at.
 
+**A research `Budget: low` writes `Turn budget: 15`.** Fifteen leaves 25 of the worker's 40
+`maxTurns` for the index and sidecar writes, the return, and a rework after a verifier fail, and
+it sits below the default stop turn (30), so the worker honors it. The number is a judgment, sized
+so the gathering a `low` row allows fits well inside it. Other `Budget:` words leave the value to
+the parent, up to that default.
+
 **Research adds two more labeled lines.** `Source breadth:` because source breadth is the
 caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
 only the caller knows whether the answer will be quoted outside the session:

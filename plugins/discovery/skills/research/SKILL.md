@@ -130,12 +130,18 @@ version.
 
 | Effort | Source breadth |
 |---|---|
-| `low` | Phase 0 if bounded, Phase 1 at existing floors, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
+| `low` | Phase 0 if bounded, Phase 1 at existing floors and under the cap below, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
 | `medium` | Phase 0 through 2 in full (per-gap Phase 2 queries plus falsification). Skip Phase 3 and Phase 4 |
 | `high`, `xhigh`, `max` | Current full workflow |
 
 The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
 file's "Effort, source breadth".
+
+**Phase 1 at `low` is capped at 6 web queries and fetches combined**, above the 3-query floor and
+below the doubled minimums. For a single named artifact or folder, read it directly first (`Read`,
+`Glob`, `Grep`, or a listing) and let what it shows choose the queries; local reads do not count
+against the cap. A claim still short of its sources at the cap is a gap named in the artifact, not
+a reason to search on.
 
 ## Pre-dispatch envelope and baseline
 
@@ -153,7 +159,7 @@ Source breadth: <low|medium|high|xhigh|max>
 Evidence use: <internal|publish>
 ```
 
-`Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
+At `Budget: low` the parent contract's "`Budget:` vocabulary" sets the `Turn budget:` value. `Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
 
 **Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. Run the form matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there:
 
