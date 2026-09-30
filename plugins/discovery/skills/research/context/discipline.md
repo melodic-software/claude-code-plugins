@@ -1,6 +1,7 @@
 # Research discipline: sources, recency, falsification, broad topics
 
 Recipes and rationale behind the bars stated in the research skill's SKILL.md body, plus failure patterns observed in real sessions.
+`<plugin-root>` below is the plugin directory that prefixes the `scripts/` paths in the research skill's SKILL.md body; write it out as that absolute path before running a command or writing a brief.
 
 ## Contents
 
