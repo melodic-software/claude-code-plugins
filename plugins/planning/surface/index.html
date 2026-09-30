@@ -578,6 +578,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const h = d && historyOf(q).find(x => talks(x) && !recorded(x));
     return h && String(h.at) > String(d.updatedAt) ? h : null;
   }
+  const waitingReply = q => events().some(e => e.id === q.id && (e.kind === "ask" || e.kind === "rephrase") && !e.withdrawn && !answered(q, e.seq)); // your ask or rephrase has no later reply from Claude
   const afterText = h => h.kind === "revise" ? "Revised after your answer - review" : "Replied after your answer " + fmtT(h.at);
   const answerLine = q => { const d = counted(q); return d ? "You answered " + LABEL[d.decision] + (d.decision === "alt" ? " (" + d.alt + ")" : "") + " at " + fmtT(d.updatedAt) : ""; };
   const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (live(q) && (unansweredReply(q) || !!afterAnswer(q)));
@@ -678,6 +679,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     const aa = live(q) && afterAnswer(q);
     if (aa) chips.push('<span class="chip hot">' + esc(afterText(aa)) + "</span>");
+    if (waitingReply(q)) chips.push('<span class="chip hot">Waiting for Claude\'s reply</span>');
     if (lastEventSeq(q.id) && !answered(q, lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const needs = upOf(q).map(p => '<span class="needs' + (isAnswered(stateOf(Q[p])) ? "" : " unmet") + '">needs ' + esc(p) + "</span>").join("");
@@ -943,7 +945,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + (g ? "<span>" + esc(g.title) + "</span>" : "") +
       '<span class="chip s-' + st + '">' + LABEL[st] + '</span><span class="grow"></span>' +
       (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
-      (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + "</div>";
+      (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + (waitingReply(q) ? '<p class="youans"><span class="chip hot">Waiting for Claude\'s reply</span></p>' : "") + "</div>";
     const kids = S.doc.questions.filter(x => x.followUpOf === q.id).map(x => x.id);
     const unblocks = S.doc.questions.filter(x => (x.dependsOn || []).includes(q.id)).map(x => x.id);
     const link = (label, ids) => ids.length ? "<span>" + label + " " + ids.map(refHtml).join(" ") + "</span>" : "";
@@ -1455,8 +1457,21 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!c && S.armed) { S.armed = null; toast("Pick a choice again: the choices changed.", true); renderAnswer(); return; }
     if (!c) { toast("Pick a choice first (1 to " + choicesOf(q).length + ").", true); const el = $("choices"); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); return; }
     const keep = keptText(c);
+    if (c.kind === "accept" && waitingReply(q) && !await confirmAccept()) return;
     if (c.kind === "own" && keep === undefined && !$("note").value.trim()) { toast("Own answer needs a note.", true); $("note").focus(); return; }
     await send(c.kind, c.alt, undefined, keep, withNote(q, c));
+  }
+  function confirmAccept(){ // Claude has not answered your ask yet, so the recommendation may still change
+    const dlg = $("dlg");
+    $("dlgTitle").textContent = "Accept current recommendation anyway?";
+    $("dlgBody").innerHTML = "<p>Claude has not replied to your question yet. Its reply may change the recommendation.</p>";
+    $("dlgOk").textContent = "Accept anyway"; $("dlgOk").disabled = false;
+    return new Promise(res => {
+      dlg.onclose = () => res(dlg.returnValue === "ok");
+      $("dlgOk").onclick = () => dlg.close("ok");
+      $("dlgCancel").onclick = () => dlg.close("cancel");
+      dlg.showModal(); $("dlgCancel").focus();
+    });
   }
   async function send(kind, alt, force, keep, noted){
     const q = Q[S.sel]; if (!q || S.busy) return;
@@ -1585,8 +1600,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (held.length ? '<p class="left-out">Left out, ' + (audit ? "they carry a note, which this button does not send. Accept them one at a time: " : "their note challenges a commitment: ") + held.map(q => esc(q.id)).join(", ") + ".</p>" : "") +
       (unopened ? '<p class="left-out">Left out: ' + unopened + " open " + (unopened === 1 ? "question" : "questions") + " you have not opened.</p>" : "") +
       "<p>This set cannot be undone as one step: Reopen each question to change it.</p>";
-    $("dlgOk").disabled = !items.length;
-    const dlg = $("dlg");
+    $("dlgOk").disabled = !items.length; $("dlgOk").textContent = "Accept these";
+    const dlg = $("dlg"); dlg.onclose = null;
     $("dlgOk").onclick = async () => {
       dlg.close(); if (S.busy) return;
       if (wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }

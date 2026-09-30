@@ -76,6 +76,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Clear empties the note and disables itself", (await page.inputValue("#note")) === "" && await page.$eval("[data-clear]", b => b.disabled));
     await page.request.get(base + "api/wait?after=0&timeout=2", {headers: {"X-Interview-Token": await token()}}); await page.waitForTimeout(900);
     ok("the Claude line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#claudeLine")), await text("#claudeLine"));
+    ok("an unanswered ask shows the Waiting for Claude's reply chip on Q4", /Waiting for Claude's reply/.test(await text('.qbtn[data-q="Q4"]')), await text('.qbtn[data-q="Q4"]'));
+    await pick("Q4"); await arm("a"); await tap("[data-save]", 300);
+    const nb = (await events()).length;
+    ok("Accept on a question still waiting for Claude asks first", /Accept current recommendation anyway\?/.test(await text("#dlgTitle")), await text("#dlgTitle"));
+    await tap("#dlgCancel", 300);
+    ok("cancelling the prompt sends nothing", (await events()).length === nb, String(nb));
 
     // own answer that is a question
     const askToast = await text("#toast");
