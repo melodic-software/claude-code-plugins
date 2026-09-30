@@ -1,0 +1,44 @@
+{
+  "Q1": {
+    "title": "Who reads?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "defer",
+      "alt": null,
+      "text": "ask the DBA",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "deferred",
+      "round": 1,
+      "resolution": "ask the DBA"
+    }
+  },
+  "Q2": {
+    "title": "Who writes?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "defer",
+      "alt": null,
+      "text": "later; arbiter: USER-RESERVED",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "deferred",
+      "round": 1,
+      "resolution": "later; arbiter: USER-RESERVED"
+    }
+  }
+}
