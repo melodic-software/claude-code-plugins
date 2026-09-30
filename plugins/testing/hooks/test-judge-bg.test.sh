@@ -108,10 +108,10 @@ stub_reset
 S="$REPO/src/stale.test.ts"
 js_file "$S" stale
 record s1 w8 "$S" "$(blocks stale:1:3:5)"
-sleep 30 &
-dead=$!
-kill "$dead"
-wait "$dead" 2>/dev/null
+# A pid that has already exited. Killing a fresh `sleep &` instead can land
+# before its exec, while the child is still a copy of this shell holding its
+# EXIT trap, which then removes $TMP under the running suite.
+dead="$(sh -c 'echo $$')"
 mkdir -p "$DATA/locks"
 # Hold every lock the job might take: the key's hash is not known here, so
 # pre-seed the job's first attempt to learn it, then plant a dead holder.
