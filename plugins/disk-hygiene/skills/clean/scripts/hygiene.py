@@ -1064,6 +1064,15 @@ def load_policy(
     )
     for path in overlays:
         apply_policy_overlay(result, path, project_scope=path == project_layer)
+    # A class rule covers every hint carrying the class across all layers, so a
+    # later layer's hint joins an earlier layer's rule.
+    for rule in result["rules"]:
+        if "class" in rule:
+            rule["hint_ids"] = [
+                hint["id"]
+                for hint in result["hints"]
+                if hint.get("class") == rule["class"]
+            ]
     return result
 
 
@@ -1511,6 +1520,7 @@ def metadata(
     logical_size: int | None = 0,
     *,
     walked: bool = True,
+    info: os.stat_result | None = None,
 ) -> dict[str, Any]:
     """Per-entry facts for the snapshot, including what QUALIFIES its byte count.
 
@@ -1533,7 +1543,8 @@ def metadata(
     entry this function produces, but not for the target record, which is
     assembled there rather than here.
     """
-    info = path.lstat()
+    if info is None:
+        info = path.lstat()
     attributes = int(getattr(info, "st_file_attributes", 0))
     nlink = int(info.st_nlink)
     allocated = allocated_size_from_stat(info)
@@ -2610,6 +2621,9 @@ def scan_tree(
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
                     walked = True
+                    # Stat before any read of the directory: listing it can move
+                    # its atime, which an atime-basis rule must not see.
+                    info = path.lstat()
                     if not sizes_only and path.name.casefold() in VCS_NAMES:
                         subtotal: int | None = None
                         walked = False
@@ -2650,7 +2664,7 @@ def scan_tree(
                             # scandir failed inside this child: unknown, not empty.
                             walked = False
                             unwalked_reasons[relative] = "scan-error"
-                    data = metadata(path, kind, subtotal, walked=walked)
+                    data = metadata(path, kind, subtotal, walked=walked, info=info)
                     # Truncated children contribute unknown, not zero: adding
                     # null as 0 was what made a truncated subtree look empty.
                     if subtotal is not None:

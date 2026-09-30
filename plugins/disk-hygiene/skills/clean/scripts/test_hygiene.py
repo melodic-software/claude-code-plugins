@@ -644,6 +644,50 @@ class HygieneTests(unittest.TestCase):
                 hygiene.load_policy(path)["rules"],
             )
 
+    def test_class_rule_covers_a_hint_a_later_layer_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            user = self._overlay(
+                temporary,
+                "user.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"})
+                ],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                additional_hints=[
+                    self._class_hint("orig-file", "*.orig", **{"class": "backup"})
+                ],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                policy = hygiene.load_policy(None)
+            (rule,) = policy["rules"]
+            self.assertEqual(["bak-file", "orig-file"], rule["hint_ids"])
+
+    def test_scan_records_a_directory_atime_from_before_it_was_listed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "sub").mkdir(parents=True)
+            (root / "sub" / "f.txt").write_text("x", encoding="utf-8")
+            old = 1_000_000_000 * 10**9
+            os.utime(root / "sub", ns=(old, old))
+            real_scandir = os.scandir
+
+            def touching_scandir(path: Any) -> Any:
+                listing = real_scandir(path)
+                os.utime(path, ns=(time.time_ns(), os.stat(path).st_mtime_ns))
+                return listing
+
+            with mock.patch.object(hygiene.os, "scandir", touching_scandir):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None)
+                )
+            self.assertEqual(old, hygiene.entry_map(snapshot)["sub"]["atime_ns"])
+
     def test_baseline_temp_hints_carry_the_temp_class(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = self._overlay(
