@@ -241,7 +241,7 @@ historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
   read; started in the nested directory, the ancestor chain loads (12 levels seen). In the
   non-git copy the attach on read did not occur. Grok Build loads all eight names of its
   documented list per directory, and the two `.claude/` names are gated by
-  `compat.claude.agents` (turned off through the env var, they vanish). No switch stops it
+  `GROK_CLAUDE_AGENTS_ENABLED` (set to `false`, they vanish). No switch stops it
   reading a plain `CLAUDE.md`. It does not expand `@path` imports, follows symlinks, and shows no
   size cap through 262,156 bytes. In a trusted folder outside a git repository it loads the
   working directory only, so "nothing outside a git repository loads" is contradicted; with
