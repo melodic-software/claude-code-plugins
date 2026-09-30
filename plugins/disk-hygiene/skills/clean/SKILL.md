@@ -288,7 +288,7 @@ Report every finding with these fields, in this order, size last:
 2. **What it is**. Intent / role of the entry (`reason` in engine plans).
 3. **Why removable**. Why it is not work product, plus owner / native-GC result.
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
-5. Path, tier, evidence, disposition.
+5. Path, tier, evidence, disposition; `policy_rule` and `preselected` when a rule matched.
 6. Logical / reclaimable bytes as a **secondary** signal only. A finding is complete only with
    all six fields; a finding with name-only provenance is Low.
 
@@ -397,6 +397,14 @@ it is, why removable, risk, whether it is an empty directory, the single tier, a
 / reclaimable bytes, plus the preview's approval token, then pass the
 [confirmation gate](#confirmation-gate). The approval must name **exactly that tier and list**.
 Process another tier only with a new plan, preview, and question.
+
+A candidate a policy rule matched carries `policy_rule` (overlay `source`, rule `index`, matched
+`hint_id`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
+rows ticked with the rule named beside them. A tick is a policy-file default, not a user message:
+the gate still needs the tier and path list named. Preview unticks a candidate with any blocker
+but `execution-platform-unsupported`, or whose plan tier ranks above the matched hint's
+`confidence_ceiling`; never raise a tier to keep a tick. Changing the ticked rows changes the list
+the token binds: new plan, preview, and question.
 
 ## 6. Apply only the confirmed preview
 

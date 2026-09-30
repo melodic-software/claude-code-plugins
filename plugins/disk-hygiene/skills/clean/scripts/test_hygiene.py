@@ -328,10 +328,17 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertEqual(
                 [
-                    {"hint_ids": ["common-temp-file"], "preselect": True},
+                    {
+                        "hint_ids": ["common-temp-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                    },
                     {
                         "hint_ids": ["common-temp-file"],
                         "preselect": False,
+                        "source": str(path),
+                        "index": 1,
                         "min_age_days": 0,
                         "min_age_basis": "mtime",
                     },
@@ -357,7 +364,14 @@ class HygieneTests(unittest.TestCase):
                 rules=[{"match": {"hint_id": "staging-file"}, "preselect": True}],
             )
             self.assertEqual(
-                [{"hint_ids": ["staging-file"], "preselect": True}],
+                [
+                    {
+                        "hint_ids": ["staging-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                    }
+                ],
                 hygiene.load_policy(path)["rules"],
             )
 
@@ -487,6 +501,237 @@ class HygieneTests(unittest.TestCase):
                 hygiene.apply_policy_overlay(result, broken)
             self.assertEqual([], result["rules"])
             self.assertEqual(["baseline"], result["policy_sources"])
+
+    def _preselect_fixture(
+        self, directory: str, ceiling: str = "low"
+    ) -> tuple[Path, dict[str, Any], Path]:
+        """A target with a `.stage` file, a protected name, and a protected glob,
+        every one matched by a preselect rule."""
+        root = Path(directory) / "target"
+        (root / "guarded").mkdir(parents=True)
+        (root / "Documents").mkdir()
+        (root / "old.stage").write_text("stale", encoding="utf-8")
+        (root / "guarded" / "keep.stage").write_text("stale", encoding="utf-8")
+        (root / "plain.txt").write_text("keep", encoding="utf-8")
+        overlay = self._overlay(
+            directory,
+            "rules.json",
+            additional_hints=[
+                {
+                    "id": "stage-file",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "*.stage",
+                    "confidence_ceiling": ceiling,
+                    "reason": "Staging leftovers",
+                },
+                {
+                    "id": "documents-folder",
+                    "os": ["all"],
+                    "kind": "name_glob",
+                    "pattern": "Documents",
+                    "confidence_ceiling": "high",
+                    "reason": "Fixture hint on a protected name",
+                },
+            ],
+            additional_protected_path_globs=["guarded/**"],
+            rules=[
+                {
+                    "match": {"hint_ids": ["stage-file", "documents-folder"]},
+                    "preselect": True,
+                }
+            ],
+        )
+        return root.resolve(), hygiene.load_policy(overlay), overlay
+
+    def _preview_ready(self, snapshot: dict[str, Any], plan: dict[str, Any]):
+        with (
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+        ):
+            return hygiene.preview(snapshot, plan)
+
+    def test_preselect_rule_marks_the_matching_entry_and_names_the_rule(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, overlay = self._preselect_fixture(temporary)
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertEqual(
+                {"source": str(overlay), "index": 0, "hint_id": "stage-file"},
+                entries["old.stage"]["policy_rule"],
+            )
+            self.assertNotIn("preselected", entries["plain.txt"])
+            self.assertNotIn("policy_rule", entries["plain.txt"])
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            result = self._preview_ready(hygiene.scan_tree(root, policy), plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+            self.assertIs(True, result["candidates"][0]["preselected"])
+            self.assertEqual(
+                entries["old.stage"]["policy_rule"],
+                result["candidates"][0]["policy_rule"],
+            )
+
+    def test_preselect_never_ticks_an_entry_with_a_protected_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            for path, reason in (
+                ("Documents", "baseline-protected-name"),
+                ("guarded/keep.stage", "consumer-protected-path"),
+            ):
+                with self.subTest(path):
+                    self.assertIn(reason, entries[path]["protected_reasons"])
+                    self.assertIn("policy_rule", entries[path])
+                    self.assertIs(False, entries[path]["preselected"])
+
+    def test_preview_unticks_a_forged_preselect_on_a_protected_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            for entry in snapshot["entries"]:
+                if entry["path"] == "guarded/keep.stage":
+                    entry["protected_reasons"] = []
+                    entry["preselected"] = True
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("guarded/keep.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)
+            self.assertIn("consumer-protected-path", result["candidates"][0]["blockers"])
+            self.assertIs(False, result["candidates"][0]["preselected"])
+            self.assertIsNone(result["approval_token"])
+
+    def test_preselect_stays_capped_at_the_hint_confidence_ceiling(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary, ceiling="low")
+            snapshot = hygiene.scan_tree(root, policy)
+            entry = hygiene.entry_map(snapshot)["old.stage"]
+            self.assertEqual(["low"], [h["confidence_ceiling"] for h in entry["hints"]])
+            self.assertNotIn("tier", entry)
+            ticked = {}
+            for tier in ("low", "medium", "high"):
+                plan = {
+                    "version": 1,
+                    "tier": tier,
+                    "candidates": [candidate("old.stage", tier)],
+                }
+                ticked[tier] = self._preview_ready(snapshot, plan)["candidates"][0][
+                    "preselected"
+                ]
+            self.assertEqual({"low": True, "medium": False, "high": False}, ticked)
+
+    def test_preselect_survives_the_platform_only_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            with (
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(
+                    hygiene, "execution_blockers", return_value=[hygiene.PLATFORM_BLOCKER]
+                ),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("manual-handoff-lane", result["outcome"])
+            self.assertIs(True, result["candidates"][0]["preselected"])
+
+    def test_last_matching_rule_wins_across_layers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            user = self._overlay(
+                temporary,
+                "user.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": False}],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                policy = hygiene.load_policy(None)
+            entry = hygiene.entry_map(hygiene.scan_tree(root.resolve(), policy))[
+                "orphan.tmp"
+            ]
+            self.assertIs(False, entry["preselected"])
+            self.assertEqual(str(project), entry["policy_rule"]["source"])
+
+    def test_a_rule_with_min_age_preselects_nothing_yet(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("stale", encoding="utf-8")
+            overlay = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[
+                    {
+                        "match": {"hint_id": "common-temp-file"},
+                        "preselect": True,
+                        "min_age_days": 0,
+                    }
+                ],
+            )
+            entry = hygiene.entry_map(
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
+            )["orphan.tmp"]
+            self.assertIs(False, entry["preselected"])
+
+    def test_apply_refuses_a_preselected_entry_without_tier_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root, policy, _ = self._preselect_fixture(temporary)
+            snapshot = hygiene.scan_tree(root, policy)
+            self.assertIs(True, hygiene.entry_map(snapshot)["old.stage"]["preselected"])
+            plan = {"version": 1, "tier": "low", "candidates": [candidate("old.stage", "low")]}
+            snapshot_path = base / "snapshot.json"
+            plan_path = base / "plan.json"
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            plan_path.write_text(json.dumps(plan), encoding="utf-8")
+            token = hygiene.approval_token(snapshot, plan)
+            refusals = {
+                "--confirm-tier must match": ("medium", token),
+                "approval token does not match": ("low", "0" * 24),
+            }
+            for message, (tier, supplied) in refusals.items():
+                output = io.StringIO()
+                with (
+                    self.subTest(message),
+                    mock.patch.object(
+                        hygiene, "handle_state", return_value=("clear", None)
+                    ),
+                    mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                    mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                    mock.patch.object(hygiene, "apply_plan") as apply_plan,
+                    redirect_stdout(output),
+                ):
+                    code = hygiene.main(
+                        [
+                            "apply",
+                            "--execute",
+                            "--snapshot",
+                            str(snapshot_path),
+                            "--plan",
+                            str(plan_path),
+                            "--confirm-tier",
+                            tier,
+                            "--approval-token",
+                            supplied,
+                            "--report",
+                            str(base / "report.json"),
+                        ]
+                    )
+                    self.assertEqual(2, code)
+                    self.assertIn(message, output.getvalue())
+                    apply_plan.assert_not_called()
+                    self.assertTrue((root / "old.stage").exists())
 
     def test_absolute_protection_glob_covers_when_relative_would_miss(self) -> None:
         # Relative `tree/**` matches only when the scan target is the parent.

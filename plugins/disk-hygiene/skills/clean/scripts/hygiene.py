@@ -42,6 +42,7 @@ TEMP_ZONE_ENTRY_CAP = 100_000
 # The tier vocabulary is declared with the command grammar so `--confirm-tier`
 # and the guard's admission of it can never disagree with the plan checks here.
 TIERS = engine_grammar.TIERS
+TIER_RANK = {"low": 0, "medium": 1, "high": 2}
 VCS_NAMES = {".git", ".hg", ".svn"}
 GIT_METADATA_NAME = ".git"
 VCS_EVIDENCE_GATE_NAMES = (
@@ -864,7 +865,7 @@ def validate_rules(
     if not isinstance(rules, list):
         raise HygieneError(f"rules must be an array: {overlay_path}")
     normalized = []
-    for rule in rules:
+    for index, rule in enumerate(rules):
         if not isinstance(rule, dict):
             raise HygieneError(f"each rule must be an object: {overlay_path}")
         unknown = sorted(
@@ -902,7 +903,12 @@ def validate_rules(
             )
         if not isinstance(rule.get("preselect"), bool):
             raise HygieneError(f"rule preselect must be a boolean: {overlay_path}")
-        entry: dict[str, Any] = {"hint_ids": ids, "preselect": rule["preselect"]}
+        entry: dict[str, Any] = {
+            "hint_ids": ids,
+            "preselect": rule["preselect"],
+            "source": str(overlay_path),
+            "index": index,
+        }
         if "min_age_days" in rule:
             days = rule["min_age_days"]
             if isinstance(days, bool) or not isinstance(days, int) or days < 0:
@@ -918,6 +924,37 @@ def validate_rules(
             entry["min_age_basis"] = rule["min_age_basis"]
         normalized.append(entry)
     return normalized
+
+
+def apply_rules(entries: list[dict[str, Any]], rules: list[dict[str, Any]]) -> None:
+    """Annotate entries a rule matches with `policy_rule` and `preselected`.
+
+    The last matching rule wins, so a project layer overrides the user layer.
+    Preselection is advisory: it changes no hint, tier, or protection, and an
+    entry with any protected reason is never preselected. Preview recomputes
+    it from live blockers and the plan tier, because a snapshot is editable.
+    """
+    for entry in entries:
+        hint_ids = [hint["id"] for hint in entry.get("hints", [])]
+        match = None
+        for rule in rules:
+            hit = next((i for i in hint_ids if i in rule["hint_ids"]), None)
+            if hit is not None:
+                match = (rule, hit)
+        if match is None:
+            continue
+        rule, hint_id = match
+        entry["policy_rule"] = {
+            "source": rule["source"],
+            "index": rule["index"],
+            "hint_id": hint_id,
+        }
+        # ponytail: min_age_days is not evaluated yet, so a rule carrying it preselects nothing.
+        entry["preselected"] = (
+            rule["preselect"]
+            and "min_age_days" not in rule
+            and not entry["protected_reasons"]
+        )
 
 
 def validate_hint(hint: Any) -> None:
@@ -2109,6 +2146,7 @@ def scan_tree(
     stdlib_shadowing: list[dict[str, Any]] = []
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        apply_rules(entries, policy.get("rules", []))
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
     reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
@@ -3522,10 +3560,29 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
             for name in expected_paths
             if (value := entry_reclaimable_local_bytes(entries[name])) is not None
         )
+        rule_fields = {}
+        if isinstance(candidate_entry.get("policy_rule"), dict):
+            rule = candidate_entry["policy_rule"]
+            ceiling = next(
+                (
+                    hint.get("confidence_ceiling")
+                    for hint in candidate_entry.get("hints", [])
+                    if isinstance(hint, dict) and hint.get("id") == rule.get("hint_id")
+                ),
+                None,
+            )
+            rule_fields = {
+                "policy_rule": rule,
+                "preselected": candidate_entry.get("preselected") is True
+                and ceiling in TIER_RANK
+                and TIER_RANK[plan["tier"]] <= TIER_RANK[ceiling]
+                and set(blockers) <= {PLATFORM_BLOCKER},
+            }
         results.append(
             {
                 "path": relative,
                 "tier": plan["tier"],
+                **rule_fields,
                 "provenance": candidate["provenance"],
                 "reason": candidate["reason"],
                 "why_not_work_product": candidate["why_not_work_product"],
