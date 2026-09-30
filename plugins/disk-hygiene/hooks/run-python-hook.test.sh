@@ -878,7 +878,7 @@ assert_eq "the SessionStart row is shell-form bash with no args" "true" \
   "$(jq '.type == "command" and .shell == "bash" and (has("args") | not) and (.command | startswith("node") | not)' <<<"$notice")"
 notice_cmd="$(jq -r '.command' <<<"$notice")"
 NONODE_DIR="$(mktemp -d)"
-trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR" "$PY_BIN" "$NONODE_DIR"' EXIT
+trap 'rm -rf "$FAKE_BIN" "$PROBE_DIR" "$PY_BIN" "$NOPY_DIR" "$NONODE_DIR"' EXIT
 ln -s "$(command -v bash)" "$NONODE_DIR/bash"
 notice_rc=0
 notice_out="$(PATH="$NONODE_DIR" "$NONODE_DIR/bash" -c "$notice_cmd" 2>&1)" || notice_rc=$?
