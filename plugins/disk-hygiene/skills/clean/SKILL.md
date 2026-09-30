@@ -235,7 +235,9 @@ report; prefer enabling the OS mechanism over hand-cleaning that zone, mirroring
 rule below. On Windows the engine sizes the temp directory itself (`temp_zone`) and fills
 `recommendation` when that size reaches the baseline policy's
 `os_temp_recommendation_threshold_bytes`. Quote the engine's recommendation rather than writing your
-own. A `null` recommendation with a `complete` measurement means the zone is below the threshold.
+own. A `null` recommendation with a `complete` measurement means the zone is below the threshold. On
+Linux, a `null` recommendation means tmpfiles.d configuration is present (in `/etc`, `/run` or
+`/usr/lib` `tmpfiles.d`) and the temp zone is left to systemd-tmpfiles.
 
 ## 2. Establish evidence and ownership
 

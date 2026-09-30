@@ -126,6 +126,102 @@
       "pattern": "temp_git_*",
       "confidence_ceiling": "medium",
       "reason": "AI-agent Git scratch/staging directory leaked outside a worktree; confirm no session or clone still references it"
+    },
+    {
+      "id": "windows-device-name-nul",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "nul",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-nul-ext",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "nul.*",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-con",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "con",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-con-ext",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "con.*",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-prn",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "prn",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-prn-ext",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "prn.*",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-aux",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "aux",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-aux-ext",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "aux.*",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-com",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "com[1-9]",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-com-ext",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "com[1-9].*",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-lpt",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "lpt[1-9]",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
+    },
+    {
+      "id": "windows-device-name-lpt-ext",
+      "os": ["linux", "macos"],
+      "kind": "name_glob",
+      "pattern": "lpt[1-9].*",
+      "confidence_ceiling": "low",
+      "reason": "Windows reserved device name on a non-Windows filesystem, most likely a Windows-style redirection (> nul) run from a Linux shell; confirm no tool depends on it"
     }
   ]
 }
