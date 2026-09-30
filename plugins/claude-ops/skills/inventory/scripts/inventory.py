@@ -1525,6 +1525,23 @@ def _declaration(
     for m in pattern.finditer(src, lo, at):
         if _visible(braces, m.start(), at):
             found = m
+    if found is not None:
+        # A declaration later in a scope nearer the reader shadows `found`
+        # and is not yet initialized when read: the value is not static.
+        outer = braces.enclosing(found.start())
+        outer_open = outer[0] if outer else -1
+        for m in pattern.finditer(src, at, hi):
+            block = braces.enclosing(m.start())
+            if (
+                block
+                and block[0] > outer_open
+                and _visible(braces, m.start(), at)
+                and re.search(
+                    r"(?:\b(?:var|let|const)\s+|,\s*)$",
+                    src[max(0, m.start() - 8) : m.start()],
+                )
+            ):
+                return None
     if found is None:
         found = next(
             (

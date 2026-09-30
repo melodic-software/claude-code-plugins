@@ -1536,6 +1536,13 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "LOCAL")
 
+    def test_a_later_local_declaration_shadows_an_outer_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe",xx="WRONG";function outer(){return xx;var xx="LOCAL"}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
     def test_a_top_level_alias_reads_no_later_binding(self) -> None:
         src = _modules(
             'var Qz="Probe";let tt=later;'
