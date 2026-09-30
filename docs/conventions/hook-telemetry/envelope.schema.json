@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/envelope.schema.json",
   "title": "Hook Telemetry Envelope",
-  "description": "Common envelope a marketplace plugin hook (producer) emits to a consumer-set sink. Versioned by schema_version. Per-hook detail lives in `data`, described by data/<hook>.schema.json keyed on the `hook` value. Contract-doc only: no validator is wired (see README).",
+  "description": "Common envelope a marketplace plugin hook (producer) emits to a consumer-set sink. Versioned by schema_version. Per-hook detail lives in `data`, described by data/<hook>.schema.json keyed on the `hook` value. The test-side check `check_envelope` in lib/hook-test-sink.sh validates emitted envelopes against this file, which is the single source of the field list (see README).",
   "type": "object",
   "required": [
     "schema_version",

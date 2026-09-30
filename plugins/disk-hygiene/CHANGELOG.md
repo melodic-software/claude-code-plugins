@@ -3,12 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.1] - 2026-09-30
+## [0.33.2] - 2026-09-30
 
 ### Fixed
 
 - **`clean` hints Windows device-name files on Linux.** The baseline policy flags an entry named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) at confidence ceiling low; the reason says an entry of that name is most likely a redirection artifact. The hints match regular files only and apply on Linux only.
 - **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means a tmpfiles.d directory exists, not that a rule covers the temp zone.
+
+## [0.33.1] - 2026-09-30
+
+### Fixed
+
+- **PowerShell lane allows engine names in string data.** A here-string body or a quoted argument that only mentions an engine script name (for example a `gh issue create --body` text) no longer trips the engine-invocation deny. Only an invocation position (the command or an interpreter's script argument) counts.
 
 ## [0.33.0] - 2026-09-30
 
