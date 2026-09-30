@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, local overlay, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and probes each collector adapter (a version, or missing with its install hint); `apply` writes the tracked `.claude/code-metrics.yaml` team layer per key, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
+description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, local overlay, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `.claude/code-metrics.yaml` team layer per key, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
 argument-hint: "check | apply [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -48,9 +48,13 @@ Rows, each PASS, FAIL, WARN, or INFO:
    override lane detection.
 6. **reference `<measure>`**: the resolved value with the layer that supplied it and its
    provenance, so a personal layer that changed a value is visible.
-7. **collector `<tool>`**: PASS with the version when the adapter's probe resolves the tool on
-   `PATH`; INFO `missing` with the install hint otherwise. Missing is not a failure: the lane
-   reports `unavailable` at audit time and the run continues.
+7. **collector `<tool>`**: the adapter's probe, then one measure from the ladder run on a bundled
+   fixture. PASS `<version>; measured <measure> on <fixture>` when the measure returns rows; FAIL
+   when the probe passed but the measure exited non-zero or returned no rows, with the first
+   stderr line (a tool that resolves but cannot measure); WARN `probe only: <reason>` when no
+   bundled fixture can exercise it (a tool bound to the project's own configuration, or one with
+   no fixture for its lane); INFO `missing` with the install hint when the probe fails. Missing
+   is not a failure: the lane reports `unavailable` at audit time and the run continues.
 
 Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
 

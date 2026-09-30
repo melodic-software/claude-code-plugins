@@ -58,7 +58,7 @@ rows="$(printf '%s\n' "$out" | grep -c '  collector ')"
 assert_eq "one row per collector adapter" "$adapters" "$rows"
 rows_helper="$(printf '%s\n' "$out" | grep -c 'collector adapter_paths' || true)"
 assert_eq "no row for the adapter_paths helper" 0 "$rows_helper"
-assert_contains "the bundled counter probes as present" "$out" "PASS  collector line-counter"
+assert_row "the bundled counter measures a fixture" "$out" "PASS  collector line-counter +bundled; measured file_lines on cm-sample.ts"
 assert_contains "python row" "$out" "PASS  python"
 
 # 2. A team file written by setup-apply.py in a git repo: parses, untracked
@@ -96,6 +96,50 @@ rc=$?
 assert_eq "bad layer exits 1" 1 "$rc"
 assert_contains "bad layer names the construct" "$out" "FAIL  layer user-global"
 assert_contains "bad layer names the line" "$out" "line 2"
+
+# 5. A collector whose probe passes but whose measure does not run is FAIL, not
+#    PASS: once with a non-zero exit and its stderr, once with no rows; exit 4
+#    (resolved, cannot run here) is a WARN.
+fake="$(mktemp -d)"
+trap 'rm -rf "$home" "$repo" "$fake"' EXIT
+cp -R "$PLUGIN_ROOT/scripts" "$fake/scripts"
+stub_counter() {
+  printf '%s\n' 'import sys' \
+    'if sys.argv[1] == "probe":' '    print("bundled")' \
+    'elif sys.argv[1] == "collect":' "    $1" >"$fake/scripts/collectors/line-counter.py"
+}
+stub_counter 'print("boom", file=sys.stderr); sys.exit(1)'
+out="$(CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+rc=$?
+assert_eq "a probe-only collector exits 1" 1 "$rc"
+assert_row "a failed measure is FAIL with its stderr" "$out" "FAIL  collector line-counter +bundled; probe passed but collect typescript file_lines on cm-sample.ts failed \(exit 1\): boom"
+stub_counter 'pass'
+out="$(CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+assert_row "a measure with no rows is FAIL" "$out" "FAIL  collector line-counter +bundled; probe passed but collect typescript file_lines on cm-sample.ts returned no rows"
+stub_counter 'print("no config", file=sys.stderr); sys.exit(4)'
+out="$(CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$fake")"
+rc=$?
+assert_eq "a tool that cannot run here exits 0" 0 "$rc"
+assert_row "exit 4 is WARN probe only" "$out" "WARN  collector line-counter +bundled; probe only: no config"
+
+# 5b. A tool installed only in the project's ./node_modules/.bin still resolves
+#     when the measure runs from the fixture directory.
+mkdir -p "$repo/node_modules/.bin"
+printf '#!/bin/sh\n' >"$repo/node_modules/.bin/projtool"
+chmod +x "$repo/node_modules/.bin/projtool"
+stub_counter 'import shutil; ok = shutil.which("projtool"); print("{}") if ok else sys.exit(1)'
+out="$(cd "$repo" && CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$home")"
+assert_row "a project-local tool resolves from the fixture directory" "$out" "PASS  collector line-counter"
+
+# 6. A collector whose probe fails is an INFO missing row with its install
+#    hint, and it does not fail the run.
+printf '%s\n' 'import sys' \
+  'if sys.argv[1] == "probe":' '    sys.exit(1)' \
+  'elif sys.argv[1] == "install_hint":' '    print("install the stub tool")' >"$fake/scripts/collectors/line-counter.py"
+out="$(CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$fake")"
+rc=$?
+assert_eq "a missing collector exits 0" 0 "$rc"
+assert_row "a missing probe is an INFO missing row with its hint" "$out" "INFO  collector line-counter +missing; install the stub tool"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
