@@ -7,11 +7,11 @@
 - Golden cases c25 to c38 and evals 14 and 15 grow the verbatim and near-verbatim classes, each
   rewritten synthetically from a finding a unanimous blind panel adjudicated on real repo text,
   plus cleared negatives. The set is now 38 cases: verbatim 3, near-verbatim 13, negative 15,
-  restated-fact 6, paraphrase 1.
-- No fixture reaches the separation rule against its real source: `fingerprint.mjs` measures every
-  `case.md` and `source.md` from c25 to c38 below both limbs (containment under 0.3, longest
-  span under 15 words), while each positive case still fires against its own synthetic
-  `source.md`. The measure is lexical and does not cover a sentence-by-sentence paraphrase.
+  restated-fact 6, paraphrase 1. `fingerprint.mjs` measures every `case.md` and `source.md` from
+  c25 to c38 below both limbs of the separation rule against its real source (containment under
+  0.3, longest span under 15 words), while each positive case still fires against its own
+  synthetic `source.md`. The measure is lexical and does not cover a sentence-by-sentence
+  paraphrase.
 
 ### What this entry does not support
 
