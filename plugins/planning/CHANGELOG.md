@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.2] - 2026-09-30
+## [0.49.1] - 2026-09-30
 
 ### Added
 
 - **The interview page badges its title while the tab is hidden.** The title shows a count of new activity and notes that land while the tab is hidden, and the count clears when the tab is shown ([#5473](https://github.com/melodic-software/claude-code-plugins/issues/5473)).
+
+## [0.49.0] - 2026-09-30
+
+### Added
+
+- **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
 
 ## [0.48.1] - 2026-09-30
 
