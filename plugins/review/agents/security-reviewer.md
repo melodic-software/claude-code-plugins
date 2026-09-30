@@ -58,6 +58,10 @@ review that ecosystem against the floor.
 
 - Hardcoded machine-specific paths; error messages exposing stack traces, connection strings, or internal paths (CWE-209); secrets in any file type (CWE-798); security assumptions that hold on only one OS
 
+### Instruction-surface deletions
+
+When the change set deletes, narrows, or softens a standing instruction (`CLAUDE.md`, `AGENTS.md`, a rules file, a skill or agent body, a hook's block list or allowlist), judge each removed rule by consequence, not phrasing: ask what breaks when the rule is absent at the moment it was written for. A match is a finding only when nothing else in the tree (a hook, a permission deny rule, a validator) still enforces it. Read `docs/conventions/instruction-exception-register/README.md` for the protected classes when it is present in the checkout; when it is absent, say in your report that the protected-class list was not consulted.
+
 ### OWASP Top 10 checklist
 
 | OWASP | Category | Specific checks |

@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.33.10] - 2026-09-29
+## [0.34.1] - 2026-09-29
 
 ### Changed
 
@@ -12,6 +12,16 @@ All notable changes to the `review` plugin are documented here. Format follows
   `security-review` keep the provenance class, what the surface does and how it is invoked, in the
   native-references template form; `fanout`'s Boundary says the bundled command and the managed
   service are not marketplace plugins.
+
+## [0.34.0] - 2026-09-29
+
+### Changed
+
+- **`security-reviewer` applies the instruction-surface deletion lens.** The agent behind
+  `/review:quality-gate` security mode and `/review:fanout` now judges a deleted, narrowed or
+  softened standing instruction by consequence and reads the instruction exception register, as the
+  CI `security-review` skill already did, so wherever the agent is dispatched local and CI review
+  judge such a diff the same way.
 
 ## [0.33.9] - 2026-09-29
 
