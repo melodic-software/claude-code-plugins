@@ -327,7 +327,10 @@ measured 8 redundant full reads in one explorer run. The rule for all three agen
 > **Read each file once.** A file you have already read in this run is still in your context; read
 > it again only to see a change you made to it. A scan followed by a full read of the same file on a
 > later turn spends two turns on one read: when a `Grep` hit, an `ls`, or a line range shows you
-> need the whole file, read it whole then. Read file contents with `Read` and search with `Grep`
+> need the whole file, read it whole then. A hit only names a file to read, so never `Grep` a file
+> you already mean to read in full (a rule file, an `AGENTS.md`, a contract doc): `Read` it on the
+> first turn you touch it. Reserve `Grep` for locating which files matter, and `Read` each one it
+> names once. Read file contents with `Read` and search with `Grep`
 > rather than Bash `cat`, `sed -n`, or `grep`, so your reads stay easy to recognize as reads, for
 > you and for anyone auditing the run. The same holds for a page you have already fetched: its text
 > is in your context, so fetch it again only when you need content the first fetch did not return.
