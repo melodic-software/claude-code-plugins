@@ -3,6 +3,13 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.2] - 2026-09-30
+
+### Changed
+
+- **`migrate` sources record the observed Cursor, Grok Build and Muse Code loader behavior.** The parked-install record is replaced by the results of running the loader recipe against each tool, with the bullets that stay open and their reasons. `verification.md` carries the recipe and expected results, and the record cites the upstream pages that exist
+  ([#4283](https://github.com/melodic-software/claude-code-plugins/issues/4283)).
+
 ## [0.16.1] - 2026-09-30
 
 ### Fixed
