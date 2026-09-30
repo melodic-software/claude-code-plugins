@@ -1367,7 +1367,7 @@ pin_predicate "ps::has_unprovable_env_write: a positional value is judged as a t
 pin_predicate "ps::has_unprovable_env_write: a literal path with a computed -Value" \
   ps::has_unprovable_env_write $'Set-Content -Path out.txt -Value $text' 1
 pin_predicate "ps::has_unprovable_env_write: a module-qualified literal path" \
-  ps::has_unprovable_env_write $'Microsoft.PowerShell.Management\\Set-Content out.txt -Value (Get-Date)' 1
+  ps::has_unprovable_env_write $'Microsoft.PowerShell.Management\\Set-Content out.txt -Value (Get-Date)' 1 # portability-ok: a Windows module-path separator in the command under test, not a GNU grep word boundary
 pin_predicate "ps::has_unprovable_env_write: an \$env: read is not a write" \
   ps::has_unprovable_env_write $'$x = $env:USERPROFILE; git -C $x status' 1
 pin_predicate "ps::has_unprovable_env_write: ForEach-Object with a script block" \
