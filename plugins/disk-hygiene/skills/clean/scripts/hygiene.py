@@ -313,6 +313,16 @@ def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
         snapshot["catalog_unreadable"] = True
 
 
+def write_text_atomic(path: Path, text: str) -> None:
+    """Replace ``path`` whole or leave it as it was."""
+    temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path = state_output_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -4653,11 +4663,11 @@ def main(argv: list[str] | None = None) -> int:
                 answers,
                 args.run_id,
             )
-            json_path.write_text(
-                json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            write_text_atomic(
+                json_path, json.dumps(merged, indent=2, sort_keys=True) + "\n"
             )
-            markdown_path.write_text(
-                investigated_catalog.render_markdown(merged, report), encoding="utf-8"
+            write_text_atomic(
+                markdown_path, investigated_catalog.render_markdown(merged, report)
             )
             return emit(
                 {

@@ -32,6 +32,7 @@ RECORD_KEYS = frozenset(
     }
 )
 DISPOSITIONS = frozenset({"keep", "remove", "review"})
+SOURCES = frozenset({"engine", "human"})
 
 
 def descendant_set(path: str, entries: list[dict[str, Any]]) -> list[str]:
@@ -184,8 +185,25 @@ def _well_formed(record: Any) -> bool:
         and isinstance(record["path"], str)
         and isinstance(record["identity"], dict)
         and record["identity"].keys() == {"device", "inode", "kind"}
-        and isinstance(record["descendant_set"], list | None)
+        and (
+            record["descendant_set"] is None
+            or (
+                isinstance(record["descendant_set"], list)
+                and all(isinstance(item, str) for item in record["descendant_set"])
+            )
+        )
         and record["evidence"] == _evidence(record["evidence"])
+        and record["disposition"] in DISPOSITIONS
+        and (record["tier"] is None or record["tier"] in TIERS)
+        and record["source"] in SOURCES
+        and (record["owner"] is None or isinstance(record["owner"], str))
+        and (record["question"] is None or isinstance(record["question"], str))
+        and isinstance(record["provenance"], str)
+        and (record["size"] is None or type(record["size"]) is int)
+        and all(
+            isinstance(record[key], str)
+            for key in ("first_seen_run", "last_seen_run", "last_verified")
+        )
     )
 
 

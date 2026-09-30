@@ -13,8 +13,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   from a findings file or an operator answers file. The scan only reads the catalog and annotates
   a scan entry that matches a record with `prior_disposition`. An operator's keep answer is stored with the record,
   so a later scan reports the entry's prior conclusion instead of asking again, and the report
-  leads with new or changed entries. A malformed record or a subtree the scan did not walk is
-  skipped, never treated as a conclusion. The investigation procedure and research escalation are
+  leads with new or changed entries. The catalog is replaced atomically, so an interrupted write
+  keeps the previous one. A record with any invalid field value or a subtree the scan did not
+  walk is skipped, never treated as a conclusion. The investigation procedure and research escalation are
   not part of this slice.
 
 ## [0.29.1] - 2026-09-29

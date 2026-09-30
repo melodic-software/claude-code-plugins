@@ -199,6 +199,29 @@ class CatalogRulesTest(unittest.TestCase):
         merged, _ = catalog.sync_catalog(snapshot, damaged, [], [], "run-n")
         self.assertEqual([], merged["records"])
 
+    def test_a_record_with_an_invalid_field_value_is_ignored(self) -> None:
+        snapshot = _snapshot(_entry("scratch"))
+        good, _ = catalog.sync_catalog(
+            snapshot, None, [_finding("scratch", tier="low")], [], "run-m"
+        )
+        record = good["records"][0]
+        for field, value in (
+            ("disposition", "delete-everything"),
+            ("tier", "extreme"),
+            ("source", "attacker"),
+            ("owner", 7),
+            ("provenance", None),
+            ("size", "big"),
+            ("last_seen_run", None),
+            ("descendant_set", [1]),
+        ):
+            with self.subTest(field=field):
+                tampered = {"version": 1, "records": [{**record, field: value}]}
+                catalog.annotate_entries(snapshot, tampered)
+                self.assertNotIn("prior_disposition", snapshot["entries"][0])
+        catalog.annotate_entries(snapshot, good)
+        self.assertEqual("keep", snapshot["entries"][0]["prior_disposition"])
+
     def test_unwalked_subtree_is_not_a_descendant_change(self) -> None:
         walked = _snapshot(_entry("big"), _entry("big/child", kind="file"))
         stored, _ = catalog.sync_catalog(walked, None, [_finding("big")], [], "run-o")
@@ -329,6 +352,28 @@ class CatalogCommandTest(unittest.TestCase):
             ("human", "keep"),
             (stored["records"][0]["source"], stored["records"][0]["disposition"]),
         )
+
+    def test_an_interrupted_catalog_write_keeps_the_previous_catalog(self) -> None:
+        snapshot = self.catalog_remove()
+        path = self.data / "catalog.json"
+        before = path.read_text(encoding="utf-8")
+        answers = self.write(
+            "answers.json",
+            {"answers": [{"path": "loose.txt", "disposition": "keep"}]},
+        )
+        with mock.patch.object(hygiene.os, "replace", side_effect=OSError("disk")):
+            code, _ = self.run_main(
+                "catalog",
+                "--snapshot",
+                str(snapshot),
+                "--run-id",
+                "run-2",
+                "--answers",
+                str(answers),
+            )
+        self.assertNotEqual(0, code)
+        self.assertEqual(before, path.read_text(encoding="utf-8"))
+        self.assertEqual([], list(self.data.glob("*.tmp")))
 
     def test_scan_reports_an_unreadable_catalog_and_still_completes(self) -> None:
         (self.data / "catalog.json").write_text("{not json", encoding="utf-8")
