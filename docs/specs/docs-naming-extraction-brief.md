@@ -115,12 +115,13 @@ resolver. `scripts/sync-config-root.sh:33` and `scripts/sync-config-root.test.sh
 `plugins/docs-naming/lib/config-root.sh`, and `docs-hygiene` drops its copy, because after the
 split it has no config surface to classify a root for.
 
-**What `docs-hygiene` keeps.** No config surface, no `setup` skill. The plugin contract requires a
+**What `docs-hygiene` keeps.** No config surface. The plugin contract requires a
 `setup` skill only for a consumer configuration surface, an external prerequisite, or non-trivial
 `userConfig` (`docs/plugin-philosophy.md:483-486`). `docs-hygiene` has no `userConfig`
 (`plugins/docs-hygiene/README.md:72`). Its one external prerequisite is `markdownlint-cli2` for
-`compress` (`README.md:36-42`), which is a prerequisite under criterion (b) and would need a
-`setup` or a documented exemption. Whether `scripts/validate-plugin-contracts.mjs` flags the
+`compress` (`README.md:36-42`), which is a prerequisite under criterion (b), so `docs-hygiene`
+keeps a check-only `setup` for it or a documented exemption; it does not end up with no `setup`
+unless the contract allows that. Whether `scripts/validate-plugin-contracts.mjs` flags the
 plugin is not settled by reading the script (its checks at `:102-226` run over setup skills that
 exist, and none of the lines read enforce presence), so the implementation runs it before
 deciding. This is a check for the implementer, not a decision for the owner.
@@ -156,18 +157,21 @@ to replace a plan holding findings with an empty scan (`:143`).
 
 **Reader and only writer of decisions.** `realign-file-names` finds the plan through the same
 topic-docs binding (`realign-file-names/SKILL.md:67-71`) and applies one record per acceptance
-through `apply-rename.sh`. That script reads exactly three things from the plan:
+through `apply-rename.sh`. That script reads these things from the plan:
 
 | Read | Line |
 |---|---|
 | `branch:` frontmatter, checked against the current branch | `apply-rename.sh:177` |
 | The record id, `^FN-[0-9a-f]+$`, and the `### FN-` heading | `apply-rename.sh:190`, `:195` |
+| The old and new paths, parsed from the record's `### FN-` heading | `apply-rename.sh:200-201` |
 | The `- **Status:**` line, read and rewritten | `apply-rename.sh:202`, `:243` |
+| Every row of the record's site table (file, line, form, tier, action) | `apply-rename.sh:261-266` |
 
-It never reads `type:`. `emit-findings.sh:215` writes `type: docs-hygiene-file-name-findings`, and
-the only other place that string appears is `emit-findings.test.sh:66`
-(`git grep -n 'docs-hygiene-file-name-findings'`). Renaming the type to
-`docs-naming-file-name-findings` therefore breaks no reader.
+It never reads `type:`. `git grep -n 'docs-hygiene-file-name-findings'` returns four matches:
+`emit-findings.sh:215` writes the string, `emit-findings.test.sh:66` asserts it, and
+`plugins/docs-hygiene/context/file-name-findings.md:10` and `:39` document it (prose and example
+frontmatter). Renaming the type to `docs-naming-file-name-findings` therefore breaks no reader, and
+the rename edits all four sites.
 
 **Why the type must never become `review-findings`.** `file-name-findings.md` states that type is
 located by frontmatter alone and auto-applicable by construction, while every rename here moves a
@@ -200,8 +204,8 @@ The directory name is registered in two places in the topic-docs convention:
 The status arc (`pending` to `accepted`, `applying`, `applied`, `declined`, `blocked`), the
 re-audit merge, and the decline-durability offer of an `exempt_paths` entry in the tracked config
 (`file-name-findings.md`, sections "Status", "Re-audit merge", "Decline durability") move
-unchanged. The decline-durability section names `.claude/docs-hygiene.json`, so it follows
-decision 1a.
+unchanged, except that the file's two `type:` mentions (`:10`, `:39`) take the renamed type and the
+decline-durability section names `.claude/docs-hygiene.json`, so it follows decision 1a.
 
 ## 3. Gate emitter and drift test
 
@@ -238,6 +242,7 @@ it is repository infrastructure, not plugin content. Baseline on the pinned comm
 | `.github/workflows/test-windows.yml:265` | names `apply-rename.test.sh` explicitly; path changes |
 | `plugins/docs-hygiene/skills/generate-file-name-gate/scripts/emit-gate.test.sh:25` | builds from `audit-file-names/scripts/fixtures/build-fixture.sh`; both skills move, so the relative path holds |
 | `emit-gate.test.sh:157` | `.shellcheckrc` at `../../../../../.shellcheckrc`; depth is unchanged in the new plugin, so it holds |
+| `generate-file-name-gate/templates/file-names-rule.md.tmpl:26-27`, `check-file-names.sh.tmpl:8`, `check-file-names.test.sh.tmpl:5` | emitted into consuming repositories; they name `/docs-hygiene:audit-file-names`, `/docs-hygiene:realign-file-names` and `/docs-hygiene:generate-file-name-gate`, so they are rewritten to `/docs-naming:` and any test expectation on those strings changes with them |
 | `plugins/docs-hygiene/scripts/allowed-tools-pairing.test.sh:35` | `SKILLS=` lists two staying skills and four moving skills; splits into one list per plugin |
 
 The Windows lane matters: `apply-rename.test.sh` exercises the case-only `git mv` path that a
@@ -540,7 +545,7 @@ Implementation is a separate follow-up after sign-off. Nothing here is decided b
 
 **Claim:** origin/main has no `plugins/docs-naming`, the four skills are under
 `plugins/docs-hygiene/skills`, `resolve-config.sh` has five callers in four skills, `apply-rename.sh`
-reads only `branch:`, the `FN-` id and `Status`, and `docs-hygiene` lists 5,234 of 8,000 characters
+never reads `type:`, and `docs-hygiene` lists 5,234 of 8,000 characters
 of which 956 belong to the two listed file-name skills.
 **Basis:** at `56e4800a1`, `ls plugins/docs-naming` (absent); `git grep -n resolve-config.sh`;
 `sed -n` of `apply-rename.sh:177-243`; `git grep -n 'docs-hygiene-file-name-findings'`;
