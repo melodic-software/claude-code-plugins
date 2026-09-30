@@ -3,6 +3,52 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.35.0] - 2026-09-30
+
+### Added
+
+- **`handoff-apply`, a Linux route for a standalone Git checkout**
+  ([#5178](https://github.com/melodic-software/claude-code-plugins/issues/5178)). For one exact
+  approved path, `handoff-apply --execute` re-runs `handoff-verify` in the same process and deletes
+  on any `clear` verdict: one that passes every evidence gate, or one where `accept_unpublished` with
+  the operator's reason in `vcs-evidence.json` waives the first two, so a contested throwaway
+  checkout no longer has to be removed outside the engine. Preview and token apply keep VCS
+  protection categorical; the acknowledgement is evaluated only in the handoff verification path.
+  The Bash guard asks for the exact `handoff-apply` shape. Windows and macOS keep `handoff-verify`
+  and the manual handoff lane.
+- **`handoff-apply` is the one lane that removes entries outside the snapshot.** The snapshot
+  records a repository's `.git` directory without its descendants, so the engine empties that
+  uninventoried metadata fd-relative before removing it. The purge refuses on a mount point at or
+  under the metadata directory, on any consumer protection glob match over a live `os.walk`, and on
+  a directory it cannot read (fail closed); it requires every directory to stay on the metadata
+  directory's device and unlinks links rather than following them. Each child is matched against
+  the consumer protection globs again as the purge reaches it. The hard-protection name check
+  is not applied to those contents.
+
+### Changed
+
+- **clean docs:** `safety-model.md` carries the `handoff-apply` command block and `SKILL.md` names the Linux
+  route in the throwaway-checkout bullet, still telling the operator plainly that unpushed commits
+  and untracked or ignored files will be lost. `safety-model.md`, `unsupported-platform-handoff.md`
+  and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
+  for `apply`, or that the engine removes only snapshot entries.
+
+## [0.34.4] - 2026-09-30
+
+### Fixed
+
+- **`scan --sizes-only` asks the large-scan question and keeps no per-path entries**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). `--sizes-only`
+  no longer skips the `--confirmed-large-scan` gate: a large root without `--max-depth` or the flag
+  returns `large-target-confirmation-required`, as an ordinary unbounded walk does, on both the
+  plain-target and `--root-children` paths. The walk still enters VCS and protected directories
+  (exact totals need it) and now sums sizes straight into the per-child rollup and the target total
+  without retaining one entry per path; the empty-directory count stays exact and the
+  `empty_directory_paths` sample stays capped and sorted. The payload, `inventory_mode: sizes-only` and
+  `rollup_precision` markers are unchanged. The skill, `scan-flags.md`, `safety-model.md`, the README
+  and the fan-out worker brief state the gated behavior, superseding the earlier lines below that say
+  `--sizes-only` skips the question.
+
 ## [0.34.3] - 2026-09-30
 
 ### Fixed

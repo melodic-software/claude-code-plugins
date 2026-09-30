@@ -22,7 +22,7 @@ import sys
 import tempfile
 import time
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -1607,6 +1607,51 @@ def children_rollup(
     unknown with no more specific cause falls back to the bare ``not-walked``,
     the same qualifier the flat entry carries.
     """
+    totals: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        accumulate_child_rollup(totals, entry)
+    return child_rollup_rows(totals, unknown_paths, unwalked_reasons)
+
+
+def accumulate_child_rollup(
+    totals: dict[str, dict[str, Any]], entry: dict[str, Any]
+) -> None:
+    """Fold one inventory record into its immediate child's accumulator.
+
+    Keeps only the child's own kind and logical size, never the record, so a
+    caller that feeds records one at a time need not retain them.
+    """
+    relative = entry.get("path")
+    # `.` is the target itself, never one of its children: `scan_tree` keeps
+    # the target's record out of the inventory, and the same skip in the gap
+    # loop keeps a target-level truncation from inventing a `.` child row.
+    if not isinstance(relative, str) or not relative or relative == ".":
+        return
+    name = child_rollup_name(relative)
+    bucket = totals.setdefault(name, empty_child_rollup_bucket())
+    if relative == name:
+        bucket["self"] = {
+            "kind": entry.get("kind"),
+            "logical_size": entry.get("logical_size"),
+        }
+    else:
+        bucket["descendants"] = bucket["descendants"] + 1
+    mtime = entry.get("mtime_ns")
+    if isinstance(mtime, int):
+        newest = bucket["newest"]
+        bucket["newest"] = mtime if newest is None else max(newest, mtime)
+    bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
+    local = entry_reclaimable_local_bytes(entry)
+    if local is not None:
+        bucket["reclaimable"] = bucket["reclaimable"] + local
+
+
+def child_rollup_rows(
+    totals: dict[str, dict[str, Any]],
+    unknown_paths: Iterable[str] = (),
+    unwalked_reasons: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """The per-child rows ``children_rollup`` documents, from accumulated totals."""
     reasons = unwalked_reasons or {}
     gaps: dict[str, set[str]] = {}
     for path in unknown_paths:
@@ -1616,28 +1661,6 @@ def children_rollup(
         gaps.setdefault(name, set()).add(
             reasons.get(path, "not-walked") if path == name else "descendant-not-walked"
         )
-    totals: dict[str, dict[str, Any]] = {}
-    for entry in entries:
-        relative = entry.get("path")
-        # `.` is the target itself, never one of its children: `scan_tree` keeps
-        # the target's record out of `entries`, and the same skip in the gap loop
-        # above keeps a target-level truncation from inventing a `.` child row.
-        if not isinstance(relative, str) or not relative or relative == ".":
-            continue
-        name = child_rollup_name(relative)
-        bucket = totals.setdefault(name, empty_child_rollup_bucket())
-        if relative == name:
-            bucket["self"] = entry
-        else:
-            bucket["descendants"] = bucket["descendants"] + 1
-        mtime = entry.get("mtime_ns")
-        if isinstance(mtime, int):
-            newest = bucket["newest"]
-            bucket["newest"] = mtime if newest is None else max(newest, mtime)
-        bucket["qualifiers"].update(entry.get("size_qualifiers") or ())
-        local = entry_reclaimable_local_bytes(entry)
-        if local is not None:
-            bucket["reclaimable"] = bucket["reclaimable"] + local
     rows: list[dict[str, Any]] = []
     for name in sorted(set(totals) | set(gaps)):
         bucket = totals.get(name) or empty_child_rollup_bucket()
@@ -2384,6 +2407,17 @@ def scan_tree(
     sizes_only: bool = False,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
+    # A sizes-only walk keeps no per-path record: each path folds straight into
+    # these running totals, so memory follows the immediate children rather than
+    # the tree.
+    child_totals: dict[str, dict[str, Any]] = {}
+    # Only the count and a bounded sorted sample of empty directories are kept.
+    empty_directory_total = 0
+    empty_directory_sample: list[str] = []
+    inventoried = 0
+    reclaimable_total = 0
+    empty_files = 0
+    not_walked_paths: set[str] = set()
     errors: list[dict[str, str]] = []
     truncated: list[str] = []
     # Why each uninventoried path is uninventoried, so the per-child roll-up can
@@ -2403,6 +2437,7 @@ def scan_tree(
         allowed_root_children = {name.casefold() for name in root_children}
 
     def visit(directory: Path, depth: int = 1) -> int | None:
+        nonlocal inventoried, reclaimable_total, empty_files, empty_directory_total
         total = 0
         try:
             with os.scandir(directory) as iterator:
@@ -2436,6 +2471,7 @@ def scan_tree(
             )
             if consumer_matches:
                 protections.append("consumer-protected-path")
+            descendants = 0
             try:
                 if is_linkish(path):
                     kind = "link"
@@ -2476,7 +2512,9 @@ def scan_tree(
                         else:
                             subtotal = 0
                     else:
+                        before = inventoried
                         subtotal = visit(path, depth + 1)
+                        descendants = inventoried - before
                         if subtotal is None:
                             # scandir failed inside this child: unknown, not empty.
                             walked = False
@@ -2512,8 +2550,26 @@ def scan_tree(
                     "entry cap), then rerun with --root-children --root-child <name> "
                     "on bounded children or with --max-depth"
                 )
+            inventoried += 1
+            if "not-walked" in data["size_qualifiers"]:
+                not_walked_paths.add(relative)
             if sizes_only:
-                entries.append({"path": relative, **data})
+                record = {"path": relative, **data}
+                accumulate_child_rollup(child_totals, record)
+                reclaimable_total += entry_reclaimable_local_bytes(record) or 0
+                if kind == "file" and data["logical_size"] == 0:
+                    empty_files += 1
+                if (
+                    descendants == 0
+                    and kind == "directory"
+                    and entry_is_empty_directory(record, parents_with_children=set())
+                ):
+                    empty_directory_total += 1
+                    empty_directory_sample.append(relative)
+                    if len(empty_directory_sample) >= 2 * MAX_EMPTY_DIRECTORY_PATHS:
+                        empty_directory_sample[:] = sorted(empty_directory_sample)[
+                            :MAX_EMPTY_DIRECTORY_PATHS
+                        ]
             else:
                 entries.append(
                     {
@@ -2524,8 +2580,8 @@ def scan_tree(
                         **protection_matches_field(consumer_matches),
                     }
                 )
-            if len(entries) % 25_000 == 0:
-                print(f"scanned {len(entries)} entries...", file=sys.stderr)
+            if inventoried % 25_000 == 0:
+                print(f"scanned {inventoried} entries...", file=sys.stderr)
         return total
 
     total_size = visit(target)
@@ -2547,7 +2603,6 @@ def scan_tree(
             },
         )
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
-    reclaimable = reclaimable_local_bytes(entries)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
     # byte roll-up is incomplete. Keep the known walked sum in logical_size and
@@ -2564,16 +2619,22 @@ def scan_tree(
     # Everything the walk could not fully account for, from all three places it
     # can be recorded: an explicit truncation, a scan error (which never adds a
     # truncation and can leave no entry at all), and a `not-walked` record.
-    unknown_paths = (
-        set(truncated)
-        | error_paths
-        | {
-            entry["path"]
-            for entry in entries
-            if "not-walked" in (entry.get("size_qualifiers") or [])
-        }
-    )
-    empty_directories = empty_directory_paths(entries, error_paths=error_paths)
+    unknown_paths = set(truncated) | error_paths | not_walked_paths
+    if sizes_only:
+        reclaimable = reclaimable_total
+        empty_directories_total = empty_directory_total
+        empty_directories = sorted(empty_directory_sample)[:MAX_EMPTY_DIRECTORY_PATHS]
+        empty_files_total = empty_files
+        rollup_rows = child_rollup_rows(child_totals, unknown_paths, unwalked_reasons)
+    else:
+        reclaimable = reclaimable_local_bytes(entries)
+        all_empty_directories = empty_directory_paths(entries, error_paths=error_paths)
+        empty_directories_total = len(all_empty_directories)
+        empty_directories = all_empty_directories[:MAX_EMPTY_DIRECTORY_PATHS]
+        empty_files_total = empty_file_count(entries)
+        rollup_rows = children_rollup(
+            entries, unknown_paths=unknown_paths, unwalked_reasons=unwalked_reasons
+        )
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -2584,11 +2645,11 @@ def scan_tree(
         "target_identity": target_identity,
         "target_logical_bytes": total_size,
         "target_reclaimable_local_bytes": reclaimable,
-        "empty_directory_count": len(empty_directories),
-        "empty_directory_paths": empty_directories[:MAX_EMPTY_DIRECTORY_PATHS],
-        "empty_directory_paths_truncated": len(empty_directories)
+        "empty_directory_count": empty_directories_total,
+        "empty_directory_paths": empty_directories,
+        "empty_directory_paths_truncated": empty_directories_total
         > MAX_EMPTY_DIRECTORY_PATHS,
-        "empty_file_count": empty_file_count(entries),
+        "empty_file_count": empty_files_total,
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
         "repository_errors": repo_errors,
@@ -2603,14 +2664,8 @@ def scan_tree(
             truncated or unwalked_reasons or root_children is not None
         ),
         "stdlib_shadowing": stdlib_shadowing,
-        "children_rollup": children_rollup(
-            entries,
-            unknown_paths=unknown_paths,
-            unwalked_reasons=unwalked_reasons,
-        ),
-        "entries": []
-        if sizes_only
-        else sorted(entries, key=lambda entry: entry["path"]),
+        "children_rollup": rollup_rows,
+        "entries": sorted(entries, key=lambda entry: entry["path"]),
     }
     if sizes_only:
         payload["inventory_mode"] = "sizes-only"
@@ -4543,12 +4598,84 @@ def open_anchored_parent(
         raise
 
 
+MAX_PURGE_DEPTH = 64
+
+
+def purge_directory_contents(
+    directory_fd: int,
+    device: int,
+    directory: Path,
+    protected: Callable[[Path], bool],
+    depth: int = 0,
+) -> None:
+    """Empty an open directory fd-relative: no link is followed, no device crossed.
+
+    For a directory the snapshot recorded without descendants (Git metadata),
+    where ``anchored_remove`` has no inventory to walk. A symlink is unlinked as
+    a link, never entered. Every child is checked with ``protected`` when it is
+    reached, so an entry created after the pre-purge scan is refused, not deleted.
+    """
+    if depth > MAX_PURGE_DEPTH:
+        raise HygieneError("directory contents nest too deeply to purge")
+    with os.scandir(directory_fd) as iterator:
+        children = [
+            (child.name, child.is_dir(follow_symlinks=False)) for child in iterator
+        ]
+    for name, is_directory in children:
+        if protected(directory / name):
+            raise HygieneError("directory contents gained a protected path")
+        if not is_directory:
+            os.unlink(name, dir_fd=directory_fd)
+            continue
+        child_fd = os.open(
+            name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory_fd
+        )
+        try:
+            if os.fstat(child_fd).st_dev != device:
+                raise HygieneError("directory contents cross a device boundary")
+            purge_directory_contents(
+                child_fd, device, directory / name, protected, depth + 1
+            )
+        finally:
+            os.close(child_fd)
+        os.rmdir(name, dir_fd=directory_fd)
+
+
+def opaque_contents_blocker(
+    path: Path, target: Path, globs: list[str], mounts: set[Path]
+) -> str | None:
+    """The reason a directory's uninventoried contents may not be purged, or None.
+
+    The snapshot names nothing beneath Git metadata, so this checks the live
+    contents for mount points, consumer protection globs and unreadable
+    directories. Hard-protection names are not checked here.
+    """
+    if any(is_within(mount, path) for mount in mounts):
+        return "nested-mount-point"
+
+    def unreadable(error: OSError) -> None:
+        raise error
+
+    try:
+        for root, directories, files in os.walk(path, onerror=unreadable):
+            for name in (*directories, *files):
+                if consumer_protection_matches(Path(root, name), target, globs):
+                    return "consumer-protected-path"
+    except PermissionError:
+        return "needs-elevation"
+    except OSError:
+        return "filesystem-state-unverified"
+    return None
+
+
 def anchored_remove(
     target_fd: int,
     relative: str,
     entry: dict[str, Any],
     entries: dict[str, dict[str, Any]],
     target: Path,
+    *,
+    purge_protected: Callable[[Path], bool] | None = None,
 ) -> None:
     parent_fd, name = open_anchored_parent(target_fd, relative, entries)
     try:
@@ -4573,6 +4700,13 @@ def anchored_remove(
                     current, opened
                 ):
                     raise HygieneError("anchored directory changed since the snapshot")
+                if purge_protected is not None:
+                    purge_directory_contents(
+                        directory_fd,
+                        opened.st_dev,
+                        target.joinpath(*PurePosixPath(relative).parts),
+                        purge_protected,
+                    )
                 with os.scandir(directory_fd) as iterator:
                     if next(iterator, None) is not None:
                         raise HygieneError("anchored directory is not empty")
@@ -4780,6 +4914,263 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     }
 
 
+def handoff_apply_report(
+    target: Path,
+    relative: str,
+    verdict: dict[str, Any] | None,
+    removed: list[dict[str, Any]],
+    skipped: list[dict[str, str]],
+    *,
+    logical_removed: int = 0,
+    reclaimable_removed: int = 0,
+    free_space_delta: int = 0,
+) -> dict[str, Any]:
+    """A handoff-apply report: ``blocked`` when nothing was removed."""
+    status = (
+        "completed" if not skipped else "completed-with-skips" if removed else "blocked"
+    )
+    return {
+        "status": status,
+        "target": str(target),
+        "path": relative,
+        "verdict": verdict,
+        "accept_unpublished": (verdict or {})
+        .get("vcs_evidence", {})
+        .get("accept_unpublished", []),
+        "removed": removed,
+        "skipped": skipped,
+        "paths_removed": len(removed),
+        "empty_directories_removed": sum(
+            1 for item in removed if item["empty_directory"]
+        ),
+        "logical_bytes_removed": logical_removed,
+        "reclaimable_local_bytes_removed": reclaimable_removed,
+        "observed_free_space_delta_bytes": free_space_delta,
+    }
+
+
+def handoff_apply(
+    snapshot: dict[str, Any],
+    relative: str,
+    vcs_evidence: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Verify one approved path as handoff-verify does, then delete it on `clear`.
+
+    The verdict is computed here, in this process, immediately before the
+    deletion: verdicts expire the moment they are emitted, so none is ever read
+    from a file. ``accept_unpublished`` is evaluated only inside
+    ``handoff_verify``; this lane never reads it. The one blocker a clear
+    verdict satisfies is ``vcs-tracked-content`` (and the ``.git`` marker
+    protections through ``evidence_adjusted_protections``), only under this
+    approved path and only when the verdict verified the repository evidence.
+    Every other check ``apply_plan`` runs still applies to each entry, and a
+    repository's Git metadata, which the snapshot records without descendants,
+    is emptied fd-relative before its own removal.
+
+    There is no plan here, so no owner: this lane cannot express managed
+    state and the ``native-managed-report-only`` check has nothing to read.
+    """
+    target = Path(snapshot["target"]).absolute()
+    entries = entry_map(snapshot)
+    platform_blockers = execution_blockers()
+    if platform_blockers:
+        return handoff_apply_report(
+            target,
+            relative,
+            None,
+            [],
+            [
+                {
+                    "path": relative,
+                    "outcome": "protected",
+                    "detail": ", ".join(platform_blockers),
+                }
+            ],
+        )
+    verdict = handoff_verify(snapshot, [relative], vcs_evidence)["verdicts"][0]
+    if verdict["verdict"] != "clear":
+        return handoff_apply_report(
+            target,
+            relative,
+            verdict,
+            [],
+            [
+                {
+                    "path": relative,
+                    "outcome": "protected",
+                    "detail": f"{verdict['verdict']}: {', '.join(verdict['reasons'])}",
+                }
+            ],
+        )
+    evidence = verdict.get("vcs_evidence", {})
+    tracked_waived = evidence.get("status") == "verified"
+    repository_paths = [
+        target.joinpath(*PurePosixPath(value).parts)
+        for value in evidence.get("repositories", [])
+        if tracked_waived
+    ]
+    git_metadata = {repository / GIT_METADATA_NAME for repository in repository_paths}
+    exact_names = baseline_protected_names() | set(
+        snapshot.get("policy", {}).get("protected_exact_names", [])
+    )
+    globs = snapshot_protection_globs(snapshot)
+
+    def consumer_protected(path: Path) -> bool:
+        return bool(consumer_protection_matches(path, target, globs))
+
+    def path_blockers(path: Path, mounts: set[Path]) -> list[str]:
+        reasons = evidence_adjusted_protections(
+            hard_protection(path, target, exact_names, mounts),
+            path,
+            target,
+            repository_paths,
+            exact_names,
+        )
+        if consumer_protection_matches(path, target, globs):
+            reasons.append("consumer-protected-path")
+        # Git metadata holds no tracked content, and tracked_blocker cannot
+        # answer for it: `git rev-parse --show-toplevel` fails inside `.git`.
+        if path not in git_metadata:
+            try:
+                vcs = tracked_blocker(path, target)
+            except (OSError, subprocess.SubprocessError):
+                vcs = "vcs-state-unverified"
+            if vcs and not (tracked_waived and vcs == "vcs-tracked-content"):
+                reasons.append(vcs)
+        return sorted(set(reasons))
+
+    before = shutil.disk_usage(target).free
+    removed: list[dict[str, Any]] = []
+    skipped: list[dict[str, str]] = []
+    logical_removed = 0
+    reclaimable_removed = 0
+    target_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if not same_object_identity(os.fstat(target_fd), snapshot["target_identity"]):
+            raise HygieneError("anchored target was replaced since the snapshot")
+        known_mounts, mount_error = linux_mount_points()
+        if mount_error:
+            raise HygieneError(mount_error)
+        candidate_blockers = path_blockers(
+            target.joinpath(*PurePosixPath(relative).parts), known_mounts
+        )
+        # Git metadata is deleted after the working tree, so what sits inside it
+        # is checked now, before anything is removed.
+        candidate_blockers += [
+            blocker
+            for metadata in sorted(git_metadata)
+            if (
+                blocker := opaque_contents_blocker(
+                    metadata, target, globs, known_mounts
+                )
+            )
+        ]
+        if candidate_blockers:
+            return handoff_apply_report(
+                target,
+                relative,
+                verdict,
+                [],
+                [
+                    {
+                        "path": relative,
+                        "outcome": "protected",
+                        "detail": ", ".join(candidate_blockers),
+                    }
+                ],
+            )
+        for name in removal_entries(relative, entries):
+            entry = entries[name]
+            path = target.joinpath(*PurePosixPath(name).parts)
+            if not same_removal_identity(path, entry) or is_linkish(path):
+                skipped.append({"path": name, "outcome": "changed-or-link"})
+                continue
+            fresh_mounts, fresh_mount_error = linux_mount_points()
+            if fresh_mount_error:
+                skipped.append(
+                    {
+                        "path": name,
+                        "outcome": "protected",
+                        "detail": "mount-state-unverified",
+                    }
+                )
+                continue
+            purge = entry["kind"] == "directory" and path in git_metadata
+            fresh_blockers = path_blockers(path, fresh_mounts)
+            if purge and not fresh_blockers:
+                contents_blocker = opaque_contents_blocker(
+                    path, target, globs, fresh_mounts
+                )
+                fresh_blockers = [contents_blocker] if contents_blocker else []
+            if fresh_blockers:
+                skipped.append(
+                    {
+                        "path": name,
+                        "outcome": "protected",
+                        "detail": ", ".join(fresh_blockers),
+                    }
+                )
+                continue
+            state, detail = handle_state(path)
+            if state != "clear":
+                outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
+                    state, "handle-state-unverified"
+                )
+                skipped.append(
+                    {"path": name, "outcome": outcome, "detail": detail or ""}
+                )
+                continue
+            try:
+                anchored_remove(
+                    target_fd,
+                    name,
+                    entry,
+                    entries,
+                    target,
+                    purge_protected=consumer_protected if purge else None,
+                )
+            except HygieneError as exc:
+                skipped.append(
+                    {"path": name, "outcome": "changed-or-link", "detail": str(exc)}
+                )
+                continue
+            except PermissionError as exc:
+                skipped.append(
+                    {"path": name, "outcome": "needs-elevation", "detail": str(exc)}
+                )
+                continue
+            except OSError as exc:
+                skipped.append(
+                    {"path": name, "outcome": "delete-failed", "detail": str(exc)}
+                )
+                continue
+            logical = entry_logical_file_bytes(entry)
+            reclaimable = entry_reclaimable_local_bytes(entry) or 0
+            logical_removed += logical
+            reclaimable_removed += reclaimable
+            removed.append(
+                {
+                    "path": name,
+                    "empty_directory": entry_is_empty_directory(entry, entries),
+                    "logical_bytes": logical,
+                    "reclaimable_local_bytes": reclaimable,
+                    **({"contents_purged": True} if purge else {}),
+                }
+            )
+    finally:
+        os.close(target_fd)
+    return handoff_apply_report(
+        target,
+        relative,
+        verdict,
+        removed,
+        skipped,
+        logical_removed=logical_removed,
+        reclaimable_removed=reclaimable_removed,
+        free_space_delta=shutil.disk_usage(target).free - before,
+    )
+
+
 _PARSER_VALUE_TYPES = {"int": int}
 
 
@@ -4948,7 +5339,6 @@ def main(argv: list[str] | None = None) -> int:
                     child_large_reasons
                     and args.max_depth is None
                     and not args.confirmed_large_scan
-                    and not sizes_only
                 ):
                     return emit(
                         {
@@ -5023,7 +5413,6 @@ def main(argv: list[str] | None = None) -> int:
                 large_reasons
                 and args.max_depth is None
                 and not args.confirmed_large_scan
-                and not sizes_only
             ):
                 immediate_entries, probe_error = top_level_entry_count(target)
                 return emit(
@@ -5177,6 +5566,22 @@ def main(argv: list[str] | None = None) -> int:
             )
             result = handoff_verify(snapshot, approved, vcs_evidence)
             return emit(result, 3 if handoff_verify_blocks(result) else 0)
+        if args.command == "handoff-apply":
+            if not args.execute:
+                raise HygieneError("handoff-apply requires the explicit --execute flag")
+            (approved,) = validate_handoff_paths(
+                {"version": SCHEMA_VERSION, "paths": [args.path]}, entry_map(snapshot)
+            )
+            vcs_evidence = validate_vcs_evidence(
+                load_json(Path(args.vcs_evidence)), [approved]
+            )
+            report_path = state_output_path(Path(args.report))
+            report = handoff_apply(snapshot, approved, vcs_evidence)
+            write_json(report_path, report)
+            return emit(
+                report,
+                {"completed": 0, "completed-with-skips": 4}.get(report["status"], 3),
+            )
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":
