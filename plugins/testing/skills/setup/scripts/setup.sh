@@ -276,7 +276,20 @@ check() {
   done
 
   printf '\n== instruction ==\n'
-  printf 'Optional. To paste into CLAUDE.md or AGENTS.md yourself; /testing:setup never edits them:\n'
+  # Claude Code reads AGENTS.md only when no CLAUDE.md, .claude/CLAUDE.md or
+  # CLAUDE.local.md exists, so name the file that loads.
+  local file=AGENTS.md note=''
+  if [[ -f "$ROOT/CLAUDE.md" ]]; then
+    file=CLAUDE.md
+  elif [[ -f "$ROOT/.claude/CLAUDE.md" ]]; then
+    file=.claude/CLAUDE.md
+  elif [[ -f "$ROOT/CLAUDE.local.md" && -f "$ROOT/AGENTS.md" ]]; then
+    file=CLAUDE.md note=' (CLAUDE.local.md here keeps AGENTS.md from loading)'
+  elif [[ ! -f "$ROOT/AGENTS.md" ]]; then
+    # shellcheck disable=SC2088 # printed for the user, not expanded
+    file='~/.claude/CLAUDE.md' note=' (this repository has neither; that file applies to every repository)'
+  fi
+  printf 'Optional. CLAUDE.md and AGENTS.md are yours; /testing:setup never edits them. Paste this into %s yourself%s:\n' "$file" "$note"
   printf '  Tests must be able to fail: take every expected value from a spec, a bug report or a hand-computed literal, never from running the code under test; load the testing:test-value skill before writing or reviewing tests.\n'
 
   printf '\n== hook-entry ==\n'

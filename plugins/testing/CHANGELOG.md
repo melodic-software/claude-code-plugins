@@ -3,6 +3,15 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.4] - 2026-09-30
+
+### Fixed
+
+- **setup:** `check`'s instruction line names the one file Claude Code loads at the repository
+  root (`CLAUDE.md`, `.claude/CLAUDE.md`, `AGENTS.md`, or `~/.claude/CLAUDE.md` when the repository
+  has neither) instead of offering "CLAUDE.md or AGENTS.md": `AGENTS.md` does not load beside a
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md`.
+
 ## [0.11.3] - 2026-09-29
 
 ### Fixed
