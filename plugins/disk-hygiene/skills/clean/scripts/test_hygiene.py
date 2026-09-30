@@ -9005,12 +9005,13 @@ class GuardTests(unittest.TestCase):
             self.assertIn(os.path.join(engine_dir, "D:foo"), probes(old, "D:foo"))
 
     def test_engine_gate_reads_a_same_drive_word_against_the_engine_dir(self) -> None:
-        """`C:alias` beside an engine on `C:` still gates; `D:alias` is not read.
+        """`alias` and `C:alias` beside an engine on `C:` gate; `D:alias` is not read.
 
         `ntpath.join("C:\\eng", "C:alias")` is `C:\\eng\\alias`, so a link
         beside the engine invoked as `C:alias` gated before the split and must
-        still, whatever the drive letter's case. Only a word on another drive
-        drops the engine's directory. Windows path handling is patched in so
+        still, whatever the drive letter's case; a bare `alias` has no drive
+        and joins the same way. Only a word on another drive drops the
+        engine's directory. Windows path handling is patched in so
         the check runs on every host.
         """
         engine = PureWindowsPath("C:\\eng\\hygiene.py")
@@ -9030,7 +9031,7 @@ class GuardTests(unittest.TestCase):
             mock.patch.object(guard.os.path, "isabs", ntpath.isabs),
             mock.patch.object(guard.os.path, "samefile", samefile),
         ):
-            for command in ("C:alias apply", "c:alias apply"):
+            for command in ("alias apply", "C:alias apply", "c:alias apply"):
                 self.assertTrue(old(command, "Bash"), command)
                 self.assertTrue(real(command, "Bash"), command)
             probed.clear()

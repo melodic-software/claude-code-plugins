@@ -821,7 +821,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             or (
                 bool(candidate)
                 and not os.path.isabs(candidate)
-                and os.path.splitdrive(candidate)[0].casefold() == engine_drive
+                and os.path.splitdrive(candidate)[0].casefold() in {"", engine_drive}
                 and _in_engine_dir(candidate)
             )
             for candidate in dict.fromkeys(candidates)
