@@ -204,7 +204,9 @@ dispatch per resolved target**, each with: that target's packet path, the target
 `<plugin>[:<component>]`, the applicable component-type lens file(s) from the index below, and
 [`reference/categories.md`](reference/categories.md). The auditor writes that ledger, including
 `none` for an empty category, and runs `collect-standards.sh` so a missing convention home is
-recorded as `unresolved` rather than guessed. The agent reads the component's installed source, manifest, and config resolution, and **verifies every
+recorded as `unresolved` rather than guessed. It also checks the component against the
+`discipline:*` postures the session lists (stated and skipped when that plugin is absent) and
+against the standards repository where one resolves, citing each per `reference/categories.md`. The agent reads the component's installed source, manifest, and config resolution, and **verifies every
 load-bearing harness-behavior claim against current official docs per topic** (the fresh-docs
 discipline applies inside the audit. Hooks behavior against the hooks page, skill loading against
 the skills page, etc.; never training-data recall). The named agent supplies the two properties

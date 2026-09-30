@@ -171,7 +171,15 @@ task, your output destination, or the main session's sink and confirm gate.
    `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-standards.sh" --component <file> --root <repo>`
    and record its report; `convention-home: unresolved` becomes the Standards alignment marker
    `unresolved`, and you never invent a home. A `status=candidate` line is a lead: read the cited
-   line and record a finding only when it instructs an invocation without the gate and fallback. When the component emits findings to a user, sample
+   line and record a finding only when it instructs an invocation without the gate and fallback.
+   Then check the component against two more sources, reading each at the cited line. Postures:
+   the `discipline:*` skills this session lists that apply to the component, never a list you
+   carry; with none listed, say the discipline plugin is absent in the Standards alignment section
+   and skip. A disagreement cites `convention: discipline:<name>` and `component: <path>:<line>`.
+   Standards repository: when the audited repo declares one, or a local `melodic-software/standards`
+   checkout holds a relevant `components/*/policy.json` or convention doc, cite
+   `convention: <standards path>:<line>`; when none resolves, state that fallback and infer nothing,
+   as for an unresolved home. When the component emits findings to a user, sample
    them into Emitted findings and set each `verdict` from sources you fetched; otherwise that
    section is `not-applicable`. A remediation is `research: open-question` unless you hold a
    primary plus two corroborators, in which case it is `tier-0` or `tier-1` per

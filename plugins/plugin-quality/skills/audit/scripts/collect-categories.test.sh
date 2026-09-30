@@ -178,6 +178,40 @@ EOF
 run 0 "tier-1 with two corroborators and a false sample with a basis completes" --notes "$TIER"
 has "status: complete" "tier ledger completes"
 
+DISC="$(
+  notes discipline.md <<'EOF'
+## Errors
+none
+
+## Improvements
+none
+
+## Quality of life
+none
+
+## Standards alignment
+### copies the source instead of pointing
+evidence: the body restates the table
+convention: discipline:point-dont-copy
+component: plugins/example/skills/run/SKILL.md:12
+
+### standards policy disagrees
+evidence: the hook pins a version the policy forbids
+convention: components/example/policy.json:4
+component: plugins/example/hooks/hooks.json:9
+
+## Emitted findings
+not-applicable
+EOF
+)"
+run 0 "a discipline and a standards-path citation are accepted" --notes "$DISC"
+has "status: complete" "cited standards ledger completes"
+
+UNCITED="$WORK/uncited.md"
+sed '/^component:/d' "$DISC" >"$UNCITED"
+run 1 "a standards finding without its component line is rejected" --notes "$UNCITED"
+has "standards-finding-uncited" "the uncited finding is named"
+
 THIN="$(
   notes thin.md <<'EOF'
 ## Errors

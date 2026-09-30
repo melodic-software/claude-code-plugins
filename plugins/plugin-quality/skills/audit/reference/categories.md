@@ -11,7 +11,7 @@ A skipped section is not.
 | `## Errors` | `none`, or one `###` finding per observed defect |
 | `## Improvements` | `none`, or findings for behavior the component's own contract or the official component model implies and the component does not do |
 | `## Quality of life` | `none`, or findings for friction the operator hit while using the component |
-| `## Standards alignment` | `none`, `unresolved` (convention home unresolved; the collector's fallback line may follow), or findings |
+| `## Standards alignment` | `none`, `unresolved` (no convention home and no standards source resolved; the collector's fallback line may follow), or findings |
 | `## Emitted findings` | `not-applicable` when the component does not emit findings to a user, or one `###` sample per sampled finding |
 
 The same file carries the auditor's other returns under `## Blindspots`,
@@ -50,6 +50,11 @@ Standards findings add:
 convention: <home>/<topic>/README.md:<line>
 component: <path>:<line>
 ```
+
+`convention:` names the source the component disagrees with: the convention home's topic doc
+as above, `discipline:<name>` for a posture corrector the session lists, or
+`<standards path>:<line>` for a file in the standards repository. `component:` always carries
+the line. The collector checks that both fields are present, not the shape of the source.
 
 Emitted-finding samples:
 
