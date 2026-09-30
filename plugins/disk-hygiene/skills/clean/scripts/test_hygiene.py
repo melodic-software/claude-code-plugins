@@ -6591,21 +6591,38 @@ class HandoffApplyTests(unittest.TestCase):
             ),
         ):
             report = self.apply(snapshot, evidence)
-        skipped = {item["path"]: item for item in report["skipped"]}
-        self.assertIn("nested-mount-point", skipped["checkout/.git"]["detail"])
-        self.assertTrue((checkout / ".git" / "hooks").is_dir())
-        self.assertTrue(checkout.is_dir())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("nested-mount-point", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
 
-    def test_a_consumer_glob_inside_git_metadata_blocks_the_purge(self) -> None:
+    def test_a_consumer_glob_inside_git_metadata_blocks_before_anything_is_removed(
+        self,
+    ) -> None:
         checkout = self.checkout()
         snapshot = self.snapshot()
         snapshot["policy"]["additional_protected_path_globs"] = [
             "checkout/.git/hooks/*"
         ]
         report = self.apply(snapshot, self.evidence())
-        skipped = {item["path"]: item for item in report["skipped"]}
-        self.assertEqual("consumer-protected-path", skipped["checkout/.git"]["detail"])
-        self.assertTrue((checkout / ".git" / "hooks").is_dir())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("consumer-protected-path", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
+
+    @unittest.skipIf(
+        hasattr(os, "geteuid") and os.geteuid() == 0, "root reads every directory"
+    )
+    def test_an_unreadable_directory_inside_git_metadata_blocks_the_purge(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        hooks = checkout / ".git" / "hooks"
+        hooks.chmod(0)
+        self.addCleanup(hooks.chmod, 0o755)
+        report = self.apply(snapshot, self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("needs-elevation", report["skipped"][0]["detail"])
+        self.assertTrue((checkout / "untracked.txt").exists())
 
     def test_a_link_inside_git_metadata_is_unlinked_not_followed(self) -> None:
         checkout = self.checkout()

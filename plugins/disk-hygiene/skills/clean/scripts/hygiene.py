@@ -4022,10 +4022,19 @@ def opaque_contents_blocker(
     """
     if any(is_within(mount, path) for mount in mounts):
         return "nested-mount-point"
-    for root, directories, files in os.walk(path, followlinks=False):
-        for name in (*directories, *files):
-            if consumer_path_protected(Path(root, name), target, globs):
-                return "consumer-protected-path"
+
+    def unreadable(error: OSError) -> None:
+        raise error
+
+    try:
+        for root, directories, files in os.walk(path, onerror=unreadable):
+            for name in (*directories, *files):
+                if consumer_path_protected(Path(root, name), target, globs):
+                    return "consumer-protected-path"
+    except PermissionError:
+        return "needs-elevation"
+    except OSError:
+        return "filesystem-state-unverified"
     return None
 
 
@@ -4358,6 +4367,7 @@ def handoff_apply(
     repository_paths = [
         target.joinpath(*PurePosixPath(value).parts)
         for value in evidence.get("repositories", [])
+        if tracked_waived
     ]
     git_metadata = {repository / GIT_METADATA_NAME for repository in repository_paths}
     exact_names = baseline_protected_names() | set(
@@ -4401,6 +4411,17 @@ def handoff_apply(
         candidate_blockers = path_blockers(
             target.joinpath(*PurePosixPath(relative).parts), known_mounts
         )
+        # Git metadata is deleted after the working tree, so what sits inside it
+        # is checked now, before anything is removed.
+        candidate_blockers += [
+            blocker
+            for metadata in sorted(git_metadata)
+            if (
+                blocker := opaque_contents_blocker(
+                    metadata, target, globs, known_mounts
+                )
+            )
+        ]
         if candidate_blockers:
             return handoff_apply_report(
                 target,
