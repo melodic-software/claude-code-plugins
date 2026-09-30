@@ -1459,6 +1459,10 @@ class TestImportLedger(SessionCase):
                     "answered | round 1 | Who? | answer:: free-text: x; note:: y",
                     "contradictory fields 'answer' and 'note'",
                 ),
+                (
+                    "open | round 1 | Who? | answer:: free-text: x; commitments:: -One",
+                    "contradictory fields 'answer' and 'status open'",
+                ),
             ]
         ):
             with self.subTest(row=row):

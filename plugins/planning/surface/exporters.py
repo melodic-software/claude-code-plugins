@@ -1038,7 +1038,11 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     fits = {
         "open": kind is None
         or (hold is not None and kind != "withdraw")
-        or (kind == "decide" and any(not ok for ok, _ in marked)),
+        or (
+            kind == "decide"
+            and answer.startswith(("accepted: ", "hedged: "))
+            and any(not ok for ok, _ in marked)
+        ),
         "superseded-by-plan": kind in (None, "defer")
         or (hold is not None and kind == "decide"),
         "answered": kind == "decide",
