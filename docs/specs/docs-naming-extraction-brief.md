@@ -31,7 +31,9 @@ The split and the shared audit router were decided in the owner decision on
 
 Moves, as one unit, `setup`, `audit-file-names`, `realign-file-names` and `generate-file-name-gate`,
 plus the plugin-level files only they read. Does not move `rename-references`, which stays in
-`docs-hygiene` and is the post-rename sweep for a rename someone already made.
+`docs-hygiene` and is the post-rename sweep for a rename someone already made. `docs-hygiene` still
+needs a check-only `setup` (or a documented exemption) for its `markdownlint-cli2` prerequisite;
+see "What `docs-hygiene` keeps" in section 1 and decision 1c.
 
 Plugin-level files that move with the four skills, because every reader is a moving skill:
 
@@ -59,6 +61,7 @@ the alternative named.
 |---|---|---|
 | 1a | Consumer config file name | Rename to `.claude/docs-naming.json` with a one-release read of the old name |
 | 1b | Where `resolve-config.sh` lives | Moves; docs-hygiene keeps no copy and no config surface |
+| 1c | `docs-hygiene` `setup` after the split | Keeps a check-only `setup` for `markdownlint-cli2`, or a documented exemption if the contract validator allows one |
 | 2 | Findings artifact `type:` and memory concern directory | Rename both to `docs-naming` |
 | 3 | Drift test | Stays in `scripts/`; only its two hardcoded paths change |
 | 4 | Catalog entry | `maintenance`, next to `docs-hygiene`; enablement decided by the fleet list or an explicit key |
@@ -491,7 +494,9 @@ Separate follow-up after sign-off, one pull request:
 
 1. Create `plugins/docs-naming` and `git mv` the four skills and the six plugin-level files from
    the Scope table; fix relative paths, the resolver header, and the config file name per 1a.
-2. Apply the decisions of items 2, 3, 5 and 6 to the moved and staying files.
+2. Apply the decisions of items 2, 3, 5 and 6 to the moved and staying files. Run
+   `scripts/validate-plugin-contracts.mjs`, then give `docs-hygiene` a check-only `setup` for
+   `markdownlint-cli2` or file the documented exemption (decision 1c).
 3. Register the plugin (item 4 checklist) and bump both versions with both changelog entries (item 7).
 4. Run the gates named in items 3 and 4, and `scripts/check-skill-count-claims.sh`. The Windows
    `test-windows` lane covers `apply-rename.test.sh`.
