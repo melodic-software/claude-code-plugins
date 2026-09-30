@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
+## [0.47.5] - 2026-09-29
+
+### Fixed
+
+- **The interview wording lint no longer flags a release label such as `V1` as a bare question id.** `round.py` skips `V` followed by digits, so a coined id such as `AC21` still warns, and the rule in `context/surface.md` states the exception ([#5458](https://github.com/melodic-software/claude-code-plugins/issues/5458)).
+
 ## [0.47.4] - 2026-09-29
 
 ### Fixed
