@@ -604,7 +604,21 @@ _NONSTRING = object()
 # Non-string literals, by how `||` and `??` treat them.
 _TRUTHY_LITERALS = frozenset({"true", "!0"})
 _FALSY_LITERALS = frozenset({"false", "!1"})
-_NONZERO_RE = re.compile(r"[1-9][0-9.e]*")
+_NUMBER_RE = re.compile(
+    r"[-+]?(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+"
+    r"|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][-+]?\d+)?)n?(?![\w$])"
+)
+
+
+def _number_value(text: str) -> float | None:
+    """The value of a JavaScript numeric literal, or None for anything else."""
+    if not _NUMBER_RE.fullmatch(text):
+        return None
+    text = text.replace("_", "").rstrip("n")
+    try:
+        return float(int(text, 0)) if re.match(r"[-+]?0[xXoObB]", text) else float(text)
+    except ValueError:
+        return None
 
 
 def _js_unescape(raw: str) -> str:
@@ -823,7 +837,12 @@ def _scan(
             active
             and at_value
             and depth == 0
-            and (c in _QUOTES or c in _ID_START or c in "([!" or c.isdigit())
+            and (
+                c in _QUOTES
+                or c in _ID_START
+                or c in "([!"
+                or _NUMBER_RE.match(src, i, n) is not None
+            )
         ):
             i = _operand(
                 src,
@@ -995,7 +1014,10 @@ def _operand(
                 chain, i = _read_chain(src, braces, i, n)
                 computed = computed or any(e[0] == "call" for e in chain)
                 parts.append(_resolve_chain(src, braces, chain, i, acc, **kw))
-        elif c == "!" or c.isdigit():
+        elif number := _NUMBER_RE.match(src, i, n):
+            i = number.end()
+            parts.append(_NONSTRING)
+        elif c == "!":
             i = _ident_end(src, i + 1)
             parts.append(_NONSTRING)
         else:
@@ -1038,11 +1060,11 @@ def _operand(
         # A non-string literal settles it by its own truthiness.
         literal = src[start:i].strip() if parts == [_NONSTRING] else None
         or_op = src.startswith("||", i)
+        number = _number_value(literal) if literal else None
         kept = (
             literal in _TRUTHY_LITERALS
             or (not or_op and literal in _FALSY_LITERALS)
-            or bool(literal and _NONZERO_RE.fullmatch(literal))
-            or bool(not or_op and literal and literal.isdigit())
+            or (number is not None and (not or_op or number != 0))
         )
         if kept:
             values = []

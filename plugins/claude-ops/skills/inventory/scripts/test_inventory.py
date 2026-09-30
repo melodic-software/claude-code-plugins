@@ -1299,6 +1299,12 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(desc('0??"FALLBACK"'), "")
         self.assertEqual(desc('!1??"FALLBACK"'), "")
         self.assertEqual(desc('0||"FALLBACK"'), "FALLBACK")
+        for number in ("-1", ".5", "0x1", "1e-2", "1_000n"):
+            with self.subTest(number=number):
+                self.assertEqual(desc(f'{number}||"FALLBACK"'), "")
+                self.assertEqual(desc(f'{number}??"FALLBACK"'), "")
+        self.assertEqual(desc('0x0||"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('-0.0??"FALLBACK"'), "")
 
     def test_a_local_alias_of_a_parameter_keeps_its_bound_value(self) -> None:
         src = (
