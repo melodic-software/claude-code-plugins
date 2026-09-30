@@ -178,21 +178,14 @@ jobs:
   # Keep this job SMALL. Adding a platform-agnostic suite here buys no coverage
   # and pays Windows' process-creation cost (~140ms/spawn vs ~3ms on Linux).
   #
-  # GUARDRAILS (#4527). Six suites failed on a Windows 11 Git Bash host and
-  # none of them ran here. Triage, against this job's 20-minute timeout:
-  #   block-windows-drive-tmp — OSTYPE/cygpath writer lane. Runs here.
-  #   hardcoded-path-check — cygpath repo-relative telemetry. Runs here.
-  #   run-guards — NOT here yet. The git.exe shim fixes the post-verify count,
-  #     but the Windows run still fails its hooks.json dispatch-table, BASHPID
-  #     and post-lane merge cases; each needs its own triage.
-  #   secret-pattern-detection, block-hook-bypass — NOT here yet. Their temp
-  #     exemptions need hook::physical_path_to to follow symlinks, and Git Bash
-  #     offers no resolver it can trust, so on this host the exemption fails
-  #     closed and the D1 / `windows temp:` cases block. A cygpath fallback was
-  #     rejected: cygpath does not follow symlinks, which reopens #3727.
-  #   coverage-manifest — README/permissions sync. It passes on Linux and has
-  #     no OSTYPE branch, so it stays on the Linux lane.
-  # A host-gated case that cannot run must print a counted SKIP line.
+  # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
+  # cygpath or MSYS run here: block-windows-drive-tmp, hardcoded-path-check,
+  # block-hook-bypass, secret-pattern-detection and run-guards. Each is a step
+  # of its own so its log shows its own duration against this job's 20-minute
+  # timeout. coverage-manifest stays on the Linux lane: it is a
+  # README/permissions sync check with no OSTYPE branch, so a Windows run adds
+  # no coverage. A host-gated case that cannot run must print a counted SKIP
+  # line.
   #
   # HOST-SKIP SUITES (#3683). Three suites probe the host at run time and two
   # print a SKIP line when they cannot pin their cases, so their Windows
@@ -264,11 +257,17 @@ jobs:
       - name: Test the file-name rename executor on Windows
         run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh
       # Guardrails suites whose guards branch on OSTYPE, cygpath, or MSYS
-      # (#4527). coverage-manifest is a README sync check and stays on Linux.
+      # (#4527).
       - name: Test block-windows-drive-tmp on Windows
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
       - name: Test hardcoded-path-check on Windows
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
+      - name: Test block-hook-bypass on Windows
+        run: bash plugins/guardrails/hooks/block-hook-bypass.test.sh
+      - name: Test secret-pattern-detection on Windows
+        run: bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
+      - name: Test run-guards on Windows
+        run: bash plugins/guardrails/hooks/run-guards.test.sh
       # The host-skip suites of #3683, named explicitly: each probes the host at
       # run time, so a green step is only evidence once its log shows whether
       # the probe fired or the cases ran.
