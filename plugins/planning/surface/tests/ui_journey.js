@@ -197,10 +197,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     // Claude-side confirmation and Confirm all
     ok("Claude's confirmation leaves Q2's list, shows its reason and lowers the count", !(await page.$('#toConfirm [data-cq="Q2"]')) && /Q2 \(Confirmed in the terminal\)/.test(await text("#byClaude")) && (await text("#assumeCount")) === "3 to confirm", (await text("#assumeCount")) + " / " + await text("#byClaude"));
     ok("a terminal accept mirrored with record-terminal, then confirmed by Claude, leaves no part of Q4 to confirm", !(await page.$('#toConfirm [data-cq="Q4"]')) && /Q4 \(Said yes in the terminal\)/.test(await text("#byClaude")), await text("#toConfirm"));
+    ok("Wrap up warns while assumptions are open and stays enabled", /^3 assumptions not confirmed yet\.$/.test(await text("#openAssumeWarn")) && !(await page.$eval('[data-wrapup="1"]', el => el.disabled)), await text("#openAssumeWarn"));
     const n1 = (await events()).length;
     await tap("[data-confirmall]", 1500);
     const added = (await events()).slice(n1);
     ok("Confirm all posts one confirm per unconfirmed commitment", added.length === 3 && added.every(e => e.kind === "confirm") && await page.$eval("#assumeCount", el => el.hidden), added.map(e => e.id + ":" + e.alt).join(","));
+    ok("the open-assumptions warning is gone after Confirm all", !(await page.$("#openAssumeWarn")));
 
     // confirm understanding
     ok("the summary shows the restatement with Confirm and Something's off", /Ship green builds to staging/.test(await text("#restate")) && /Left to the plan stage/.test(await text("#restate")) && !!(await page.$('[data-understand="confirm"]')) && !!(await page.$('[data-understand="off"]')), (await text("#restate")).slice(0, 160));
@@ -314,6 +316,47 @@ async page => { // the user journey in order on one page, no reload after phase 
     await post({kind: "note", text: "Anything else?"});
     const prompt = await until(() => document.getElementById("pill").textContent === "Not listening: type next", 5000);
     ok("once an event waits on Claude the pill says Not listening: type next", prompt && await page.$eval("#pill", el => el.className === "pill idle"), await text("#pill"));
+  }
+  const setHidden = h => page.evaluate(h => {
+    for (const [k, v] of [["hidden", h], ["visibilityState", h ? "hidden" : "visible"]]) Object.defineProperty(document, k, {configurable: true, get: () => v});
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, h);
+  if (PHASE === 8) { // the shell added activity while the tab was visible
+    await page.waitForTimeout(900);
+    const base = await text("#title");
+    ok("on a visible tab new activity leaves the title unchanged", (await badge()) > 0 && await page.title() === base, await page.title());
+    await setHidden(true); await page.waitForTimeout(200);
+    ok("hiding the tab adds no badge for activity already waiting", await page.title() === base, await page.title());
+  }
+  if (PHASE === 9) { // the shell added one activity entry while the tab was hidden
+    await page.waitForTimeout(900);
+    const base = await text("#title");
+    ok("activity that lands while the tab is hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+    ok("showing the tab again restores the plain title", await page.title() === base, await page.title());
+  }
+  if (PHASE === 10) { // Activity panel left open, then the tab is hidden
+    await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300);
+    const base = await text("#title");
+    await setHidden(true); await page.waitForTimeout(200);
+    ok("hiding the tab with the Activity panel open adds no badge", await page.title() === base && await page.$eval("#fly", el => el.classList.contains("open")), await page.title());
+  }
+  if (PHASE === 11) { // the shell added activity while the tab was hidden and the panel open
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("an open Activity panel marking entries seen does not hide the title count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
+  }
+  if (PHASE === 12) { // reload so the page loads already hidden: no visibilitychange fires
+    await page.addInitScript(() => { for (const [k, v] of [["hidden", true], ["visibilityState", "hidden"]]) Object.defineProperty(document, k, {configurable: true, get: () => v}); });
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(900);
+    ok("a page loaded hidden shows no badge for activity already waiting", await page.title() === await text("#title"), await page.title());
+  }
+  if (PHASE === 13) { // the shell added one activity entry after the page loaded hidden
+    await page.waitForTimeout(4000);
+    const base = await text("#title");
+    ok("activity landing on a page loaded hidden prefixes the title with a count", await page.title() === "(1) " + base, await page.title());
+    await setHidden(false); await page.waitForTimeout(200);
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409 and the offline step)", real.length === 0, errors.join(" | "));

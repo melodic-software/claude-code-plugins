@@ -149,10 +149,9 @@ The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 One native Claude Code surface launches the application this skill verifies, and the two get
 conflated whenever the request is "run it and see":
 
-- **`run` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin, beside
-  `/verify` and `/run-skill-generator`. It infers the launch from the project type (CLI, server,
-  TUI, browser-driven), starts the app, and drives it so a change can be looked at. It captures no
-  evidence to a contract and has no non-UI mode.
+- **`run` (bundled skill)**: infers the launch from the project type (CLI, server, TUI,
+  browser-driven), starts the app, and drives it so a change can be looked at, beside `/verify` and
+  `/run-skill-generator`. It captures no evidence to a contract and has no non-UI mode.
 - **This skill (marketplace plugin).** Starts the app through the consuming project's
   orchestrator configuration (or through `run` where none governs the start), drives UI and API
   flows, and captures evidence under the contract in

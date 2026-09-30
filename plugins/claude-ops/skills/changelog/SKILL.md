@@ -105,9 +105,9 @@ Resolve the range, check the cap, and check version alignment:
 
 ### Phase 1. Explore
 
-Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
+Orient on repo impact for EACH changelog item. Run `bash "${CLAUDE_SKILL_DIR}/scripts/discover-surfaces.sh"` first: its output is the surface list, and `context/repo-surfaces.md` gives per-class examples and scoped grep patterns:
 
-1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL listed surfaces
+1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL surface classes the script printed
 2. Classify each item per `context/classification-rubric.md` into one action lens per owner surface it touches: **correct**, **replace**, **adopt**, **note**, or **skip**
 3. Group by owner surface and write each correct, replace and adopt row with its required sentence. A skip item leaves no row
 
@@ -222,7 +222,7 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 | `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the read marker, range, cap, and fetch route are defined there. |
 | `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
 | `context/decisions.md` | Writing or reading decision rows, choosing where a decision is recorded (plugin CHANGELOG, audit-native-overlap nomination, ledger), fanning out, or saving and reusing the working set. |
-| `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
+| `context/repo-surfaces.md` | Phase 1 explore, after running `scripts/discover-surfaces.sh`: per-class examples of what an item changes, and scoped grep patterns. |
 | `context/classification-rubric.md` | Assigning a lens (correct, replace, adopt, note, skip) to an item, and defending a skip. |
 | `context/native-drift.md` | Running `apply` Phase 7: the extraction commands, the previous-run summary, the drift report, and filing its items. |
 | `scripts/native_drift.py` | Phase 7's summary, diff and trigger evaluation. Covered by `scripts/test_native_drift.py`. |

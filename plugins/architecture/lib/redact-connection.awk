@@ -16,6 +16,15 @@
 # Userinfo, query strings, passwords, account keys, tokens, and secret-only
 # values are dropped. A value that is only a credential produces no row.
 #
+# A caller that charts endpoints between its own deployables sets
+# redact_local_http (awk -v redact_local_http=1). An http shape may then also
+# name a bare service name, localhost, or 127.0.0.1, and for every URL shape a ;
+# after the userinfo ends the authority, so a ;-separated URL list reads as one
+# shape per URL. Without it a bare service name and a loopback host are
+# dropped, and a ; does not end the authority. An http shape then also carries its
+# URL scheme in the scheme column, so the caller can refuse a scheme that is not
+# http or https.
+#
 # redact_secret(key, value) is 1 when the key names a credential or the value
 # carries one. A caller that prints a raw value drops it when this is 1.
 
@@ -50,6 +59,10 @@ function redact_host_ok(h) {
   return 1
 }
 
+function redact_local_http_ok(h) {
+  return h ~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/ || h == "127.0.0.1"
+}
+
 function redact_db_name(s) {
   if (length(s) < 1 || length(s) > 128 || s !~ /^[A-Za-z0-9_.-]+$/) return ""
   if (redact_secret_value(s)) return ""
@@ -60,7 +73,7 @@ function redact_emit(kind, host, port, db, scheme,    id, j) {
   host = tolower(host)
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", host)
   sub(/\.$/, "", host)
-  if (!redact_host_ok(host)) return
+  if (!redact_host_ok(host) && !(redact_local_http + 0 && kind == "http" && redact_local_http_ok(host))) return
   if (port != "" && port !~ /^[0-9]+$/) port = ""
   id = host SUBSEP port SUBSEP db SUBSEP scheme
   if (id in redact_at) {
@@ -155,7 +168,7 @@ function redact_server(raw, kind, db,    port, host) {
   redact_emit(kind, host, port, db, "")
 }
 
-function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db) {
+function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, hk, cut, guard, tech, db, semi, query) {
   rest = value
   guard = 0
   while (match(rest, /[A-Za-z][A-Za-z0-9+.-]*:\/\//)) {
@@ -172,7 +185,19 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     }
     auth = substr(rest, 1, cut - 1)
     rest = substr(rest, cut)
+    if ((redact_local_http + 0) && rest != "" && substr(rest, 1, 1) != "/") {
+      query = substr(rest, 2)
+      if (substr(rest, 1, 1) ~ /[ \t\r\n]/) {
+        sub(/^[ \t\r\n]+/, "", query)
+        if (match(query, /^[A-Za-z][A-Za-z0-9+.-]*:\/\//)) query = ""
+      }
+      if (index(query, "@") > 0) continue
+    }
     if (index(auth, "@") > 0) sub(/^.*@/, "", auth)
+    if ((redact_local_http + 0) && (semi = index(auth, ";")) > 0) {
+      rest = substr(auth, semi + 1) rest
+      auth = substr(auth, 1, semi - 1)
+    }
     port = ""
     host = auth
     if (substr(host, 1, 1) == "[") continue
@@ -203,6 +228,7 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     hk = redact_known_kind(host)
     if (hk != "") kind = hk
     if (kind == "sql") redact_emit(kind, host, port, db, tech)
+    else if (kind == "http" && (redact_local_http + 0)) redact_emit(kind, host, port, "", scheme)
     else redact_emit(kind, host, port)
   }
 }
