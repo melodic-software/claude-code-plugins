@@ -61,8 +61,9 @@ or UNKNOWN with quoted evidence and a proposed diff it never applies.
 - Tunable: the options above, and through this file the test globs, adapters and rule levels that
   decide which files are recorded; per test, a `cant-fail-ok: <reason>` marker, which puts its
   block in front of the judge rather than hiding it.
-- Fixed: the judge's one question; it never blocks a stop, a commit or `--check` and never applies
-  a fix; its model class differs from every model that wrote the tests; its malfunction guards.
+- Fixed: the judge's one question; its one forced turn relays verdicts for the user to approve,
+  and it never gates a stop, a commit or `--check` and never blocks on its own failure; it never
+  applies a fix; its model class differs from every model that wrote the tests; its malfunction guards.
 - Reach: only blocks the session created or changed or that gained a marker, judged by their own
   text, so a stub in `beforeEach` or a snapshot in a `.snap` file is outside it; a bash test script
   is one whole file; writes through Bash or an MCP tool are not recorded.

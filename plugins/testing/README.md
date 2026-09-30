@@ -76,8 +76,9 @@ three wrote them the tests are reported UNKNOWN.
 
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
 limit, the test-file globs, adapters and rule levels in `.claude/testing.yaml`, and a per-test
-`cant-fail-ok: <reason>` marker. What is fixed: the judge's one question, that it never blocks a
-stop, a commit or `--check`, that it never applies a fix, and its malfunction guards (a
+`cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn
+relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
+blocks on its own failure; it never applies a fix; and its malfunction guards (a
 $0.90 budget per started ten tests in one run, a 150 s hang bound, three judge runs at once per
 machine).
 
