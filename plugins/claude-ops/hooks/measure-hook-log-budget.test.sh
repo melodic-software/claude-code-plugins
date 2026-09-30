@@ -79,8 +79,8 @@ for flag in --samples --record --check-doc; do
 done
 
 OUT="$(bash "$SUT" --check-doc "$DOC")"
-assert_exit "placeholder doc passes" 0 "$?"
-assert_contains "placeholder is unmeasured" "$OUT" "doc: windows figures unmeasured"
+assert_exit "recorded doc passes" 0 "$?"
+assert_contains "recorded doc is stamped" "$OUT" "doc: windows capture stamped"
 
 FAKE="$TEST_TMPDIR/fake.md"
 printf '%s\n' '**Claim:** x' '**Basis:** y' '**As of:** z' '**Recheck:** q' \
