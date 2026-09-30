@@ -239,6 +239,9 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
+      - name: TEMP diagnose run-guards on Windows
+        continue-on-error: true
+        run: bash plugins/guardrails/hooks/run-guards.test.sh
       - name: Run shared lib tests on Windows
         run: bash lib/hook-utils.test.sh
       # GuardTests only, not the full hygiene module: two of its tests fail on
