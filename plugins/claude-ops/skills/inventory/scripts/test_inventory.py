@@ -1368,6 +1368,15 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(_tool(src, "Probe")["description"], "REAL")
         self.assertEqual(_tool(src, "Getter")["description"], "REAL")
 
+    def test_a_forwarded_partial_argument_stays_partial(self) -> None:
+        src = (
+            'var Qz="Probe";function id(x){return x}'
+            '$t({name:Qz,maxResultSizeChars:1,description:`Use ${id(f?"REAL":u.v)}`});'
+        )
+        self.assertEqual(
+            _tool(src, "Probe")["description_variants"], ["Use …", "Use REAL"]
+        )
+
     def test_a_partial_argument_leaves_its_fallback_reachable(self) -> None:
         src = (
             'var Qz="Probe";function ff(x){return x||"FALLBACK"}'

@@ -1827,6 +1827,9 @@ def _resolve_chain(
     else:
         return None
     acc.via |= sub.via
+    # A branch the reader could not settle stays visible to the caller, so a
+    # substitution or argument built from this value keeps its runtime part.
+    acc.unresolved += sub.unresolved
     return sub.variants or None
 
 
