@@ -648,41 +648,46 @@ version_lt() {
 }
 
 # settings-reference, parsed once: every ### `key` heading, the first line of
-# its section that begins "Deprecated", and the first "Requires Claude Code
-# vX.Y.Z". A section ends at the next heading of any level outside a code fence.
+# its section that begins "Deprecated", the first "Requires Claude Code
+# vX.Y.Z", and the section body, code fences included (the first section of a
+# repeated key wins). A section ends at the next heading of any level outside a
+# code fence. The working copy holds no \001, so it carries the newlines of a
+# body from the awk to the array; a leading \001 keeps read from trimming it.
 declare -A SR_KEY=()
 declare -A SR_DEPRECATED=()
 declare -A SR_REQUIRES=()
+declare -A SR_BODY=()
 declare -A PERM_TYPE_KEYS=()
 if [[ -n "$SR" ]]; then
-  while IFS=$'\t' read -r k dep req; do
+  while IFS=$'\t' read -r k dep req body; do
     [[ -n "$k" ]] || continue
     SR_KEY[$k]=1
     [[ "$dep" != "-" ]] && SR_DEPRECATED[$k]="$dep"
     [[ "$req" != "-" ]] && SR_REQUIRES[$k]="$req"
+    if [[ -z "${SR_BODY[$k]+x}" ]]; then
+      body="${body#$'\001'}"
+      SR_BODY[$k]="${body//$'\001'/$'\n'}"
+    fi
   done < <(awk '
-    function flush() { if (key != "") printf "%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req); key = "" }
-    /^[[:space:]]*```/ { fence = !fence; next }
-    fence { next }
+    function flush() { if (key != "") printf "%s\t%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req), body; key = "" }
+    /^[[:space:]]*```/ { fence = !fence; if (key != "") body = body $0 "\001"; next }
+    fence { if (key != "") body = body $0 "\001"; next }
     /^(#|##|###|####) / {
       flush()
-      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = "" }
+      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = ""; body = "\001" }
       next
     }
     key == "" { next }
     dep == "" && /^[[:space:]]*Deprecated/ { dep = $0; sub(/^[[:space:]]+/, "", dep); gsub(/\t/, " ", dep) }
     req == "" && match($0, /Requires Claude Code v[0-9]+\.[0-9]+\.[0-9]+/) { req = substr($0, RSTART + 22, RLENGTH - 22) }
+    { body = body $0 "\001" }
     END { flush() }
   ' "$SR")
 fi
 
 # sr_section <key>: the body of the key's section on settings-reference.
 sr_section() {
-  awk -v h="### \`$1\`" '
-    /^[[:space:]]*```/ { fence = !fence; if (in_s) print; next }
-    !fence && /^(#|##|###|####) / { if (in_s) exit; in_s = ($0 == h); next }
-    in_s { print }
-  ' "$SR"
+  printf '%s' "${SR_BODY[$1]:-}"
 }
 
 # type_values <key>: the string values the key's Type bullet accepts, one per
@@ -756,7 +761,9 @@ check_keys() {
   # check_keys <file> <surface>
   local file="$1" surface="$2" k leaf ptr dep since
   # Fields arrive NUL-separated, so a key reaches its claim and the binary
-  # search exactly as written in the file: no tab-separated escaping.
+  # search as written in the file, with no tab-separated escaping. A key holding
+  # U+0000 cannot cross that stream (bash cannot hold a NUL), so jq spells it
+  # as the text \u0000 and it stays one row.
   while IFS= read -r -d '' k && IFS= read -r -d '' leaf && IFS= read -r -d '' ptr; do
     [[ -n "$k" ]] || continue
     if [[ -z "$SR" ]]; then
@@ -785,7 +792,7 @@ check_keys() {
     fi
     row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
     # An empty key name has no literal to look up, so it is left out here.
-  done < <(jqf "$file" -j 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
+  done < <(jqf "$file" -j 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | map(gsub("\u0000"; "\\u0000")) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
 }
 [[ $PROJECT_OK -eq 1 ]] && check_keys "$SETTINGS" "$SURF_SETTINGS"
 [[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"

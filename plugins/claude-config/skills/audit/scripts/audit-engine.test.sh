@@ -1338,6 +1338,28 @@ for impl in gawk mawk; do
   assert_contains "case 49 ($impl): the rung is read and trimmed" "$(ask_row "$out" detail)" "babysit_loop_merge: c2-mechanical"
 done
 
+# --- Case 50: engine defects: a key holding U+0000, and the section index ---------
+# jq -j writes U+0000 as a NUL byte, which would split the key into two rows.
+m="$(make_machine nulkey)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {"ab\u0000cd":1} | .permissions += {"xy\u0000zw":1}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 50: a top-level key holding U+0000 is one row" "1" "$(jq '[.rows[] | select(.claim | startswith("undocumented-key:ab"))] | length' <<<"$out")"
+assert_eq "case 50: the row spells U+0000 as text" 'undocumented-key:ab\u0000cd' "$(jq -r '.rows[] | select(.claim | startswith("undocumented-key:ab")) | .claim' <<<"$out")"
+assert_eq "case 50: a permissions key holding U+0000 is one row" "1" "$(jq '[.rows[] | select(.claim | startswith("undocumented-key:permissions.xy"))] | length' <<<"$out")"
+assert_eq "case 50: no row carries the key's second half" "0" "$(jq '[.rows[] | select(.claim | startswith("undocumented-key:cd") or startswith("undocumented-key:zw"))] | length' <<<"$out")"
+# A repeated heading keeps its first section, so the value set is the first list only.
+m="$(make_machine dupsection)"
+mkdir -p "$m/docs"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/docs/"
+{
+  cat "$DOCS/settings-reference.md"
+  printf '### `effortLevel`\n\nAgain.\n\n* **Type**: string, one of:\n  * `"later"`: from the second section\n\n'
+} >"$m/docs/settings-reference.md"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {effortLevel:"bogus"}' >"$m/project/.claude/settings.json"
+out=$(DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || true
+assert_contains "case 50: a repeated heading keeps the first value set" "$(jq -r '.findings[] | select(.identity.claim=="effortLevel:bogus") | .detail' <<<"$out")" "low, medium, high, xhigh"
+assert_eq "case 50: and not the second" "0" "$(jq '[.findings[] | select(.identity.claim=="effortLevel:bogus") | select(.detail | contains("later"))] | length' <<<"$out")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
