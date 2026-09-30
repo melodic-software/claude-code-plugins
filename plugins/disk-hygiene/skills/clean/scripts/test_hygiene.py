@@ -3327,6 +3327,21 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("--sizes-only", message)
             self.assertIn("--root-children --root-child <name>", message)
 
+    def test_entry_cap_error_does_not_mark_a_finished_child_as_in_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "aaa").mkdir(parents=True)
+            (root / "aaa" / "one.txt").write_text("x", encoding="utf-8")
+            (root / "bbb.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries") as raised,
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            message = str(raised.exception)
+            self.assertIn("aaa (2)", message)
+            self.assertNotIn("aaa (2, walk in progress)", message)
+
     def test_sizes_only_bypasses_inventory_entry_cap(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"

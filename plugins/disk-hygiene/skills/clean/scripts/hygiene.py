@@ -2056,7 +2056,7 @@ def scan_tree(
                 continue
             if not sizes_only and len(entries) >= MAX_SNAPSHOT_ENTRIES:
                 by_child = Counter(e["path"].split("/", 1)[0] for e in entries)
-                in_progress = entries[-1]["path"].split("/", 1)[0]
+                in_progress = relative.split("/", 1)[0]
                 largest = ", ".join(
                     f"{name} ({count}{', walk in progress' if name == in_progress else ''})"
                     for name, count in by_child.most_common(5)
