@@ -610,6 +610,21 @@ class TestApply(DirCase):
         self.assertIn("reply: replied on Q1", out)
         self.assertIn("handle: handled 2", out)
 
+    def test_reply_and_revise_with_seq_mark_that_event_handled(self):
+        ops = {
+            "ops": [
+                {"op": "reply", "id": "Q1", "text": "Because of the lock.", "seq": 1},
+                {"op": "revise", "id": "Q1", "title": "Retitled", "seq": 2},
+            ]
+        }
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        self.assertEqual(doc["handledSeq"], 2)
+        self.assertEqual(
+            [h["replyTo"] for h in self.q("Q1")["history"][-2:]], [1, 2]
+        )
+
     def test_refused_op_in_position_two_leaves_the_file_byte_identical(self):
         ops = {
             "ops": [

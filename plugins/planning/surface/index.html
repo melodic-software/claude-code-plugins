@@ -542,6 +542,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function crev(q){ return (q.contentRev || 0) + events().filter(e => e.id === q.id && (DEC.has(e.kind) || e.kind === "undo")).length; }
   function pending(){ return events().filter(e => !isHandled(e.seq) && !e.withdrawn); }
   function lastEventSeq(id){ let s = 0; for (const e of events()) if (e.id === id && e.seq > s) s = e.seq; return s; }
+  const answered = (q, seq) => isHandled(seq) || (q.history || []).some(h => h.by === "claude" && h.replyTo >= seq); // a later reply or revise to this event (or a newer one) answers it
+  function upstreamChanged(q){ // the prerequisites behind a delivered, unhandled decision; the server marks their direct dependents `revising`
+    return (q.dependsOn || []).filter(p => Q[p] && events().some(e => e.id === p && DEC.has(e.kind) && e.deliveredAt && !e.withdrawn && !isHandled(e.seq)));
+  }
+  const upstreamText = q => { const u = upstreamChanged(q); return u.length ? "Upstream " + u.join(", ") + " changed" : "Upstream changed"; };
   function lastDecisionSeq(id){ let s = 0; for (const e of events()) if (e.id === id && DEC.has(e.kind) && !e.withdrawn && e.seq > s) s = e.seq; return s; }
   function staleBy(q){ // the prerequisites decided after this question was
     const ps = (q.dependsOn || []).filter(p => Q[p]), mine = lastDecisionSeq(q.id), c = ps.filter(p => lastDecisionSeq(p) > mine);
@@ -659,10 +664,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
     if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
-    if (q.revising && st !== "arch") chips.push('<span class="chip hot">Claude is revising</span>');
+    if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled that answer yet, so this question may be revised.">' + esc(upstreamText(q)) + "</span>");
     if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
-    if (lastEventSeq(q.id) && !isHandled(lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
+    if (lastEventSeq(q.id) && !answered(q, lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const needs = upOf(q).map(p => '<span class="needs' + (isAnswered(stateOf(Q[p])) ? "" : " unmet") + '">needs ' + esc(p) + "</span>").join("");
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
@@ -938,7 +943,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + upOf(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. You can still answer.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
-    if (q.revising && st !== "arch") h += '<div class="banner"><b>Claude is revising</b> after a change to a question this one needs. You can still answer.</div>';
+    if (q.revising && st !== "arch") h += '<div class="banner"><b>' + esc(upstreamText(q)) + ".</b> Claude has not handled that answer yet, so this question may be revised. You can still answer.</div>";
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
     if (q.revised) h += '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true ? "" : q.revised) +
@@ -1006,7 +1011,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
-      '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>';
+      '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>' +
+      '<button class="act soft" data-clear="1"' + (text ? "" : " disabled") + ' title="Empties the note">Clear</button>';
     renderConflict();
     renderToast();
   }
@@ -1020,6 +1026,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const draft = lsGet("draft:" + q.id, null), d = decisionOf(q);
     $("note").value = draft !== null ? draft : ((d && !d.aside && d.text) || "");
     grow($("note"));
+  }
+  function clearNote(){ // an empty draft, so the saved decision note is not put back
+    const q = Q[S.sel]; if (!q) return;
+    lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note")); renderAnswer(); $("note").focus();
   }
   function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
 
@@ -1455,11 +1465,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }
       if (!res.ok) throw new Error(data.error || res.status);
       S.conflict = null;
-      lsSet("draft:" + q.id, null);
+      lsSet("draft:" + q.id, kind === "own" ? "" : null); // an own answer shows in the decision line, so the composer starts empty
       await refresh();
       S.busy = false; S.snap[q.id] = snapOf(Q[q.id]);
       if (!isDec) {
-        $("note").value = ""; grow($("note"));
+        lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note"));
         toast(kind === "ask" ? "Sent. Claude's reply lands in the thread." : "Sent. Claude's rephrase lands in the thread.");
         renderDetail(); const th = $("thread"); if (th) th.classList.add("flash");
         return;
@@ -1698,6 +1708,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const v = t.closest(".seg button"); if (v) { S.view = v.dataset.view; lsSet("view", S.view); renderRail(); return; }
     if (t.closest("[data-save]")) { submitArmed(); return; }
     const a = t.closest("button[data-act]"); if (a && !a.disabled) { send(a.dataset.act); return; }
+    const cl = t.closest("button[data-clear]"); if (cl && !cl.disabled) { clearNote(); return; }
     if (t.closest("[data-undo]")) { doUndo(); return; }
     const cf = t.closest("[data-conflict]");
     if (cf && S.conflict) {

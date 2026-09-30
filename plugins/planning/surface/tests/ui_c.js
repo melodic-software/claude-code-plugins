@@ -151,6 +151,7 @@ async page => {
     const openIds = await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q));
     ok("Show: Open lists an accepted question with an unanswered Claude reply", openIds.includes("R1"), openIds.join(","));
     ok("Show: Open leaves out a settled question", !openIds.includes("P1"), openIds.join(","));
+    ok("no Sent to Claude chip once a reply carries replyTo at or past the last event", !/Sent to Claude/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
     ok("the group counter counts the unanswered reply", /^1 open \//.test(await page.textContent('.sec[data-key="g:talk"] .cnt')), await page.textContent('.sec[data-key="g:talk"] .cnt'));
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
 
@@ -198,8 +199,8 @@ async page => {
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
     await page.waitForTimeout(900);
-    ok("revising chip on the dependent", /Claude is revising/.test(await page.textContent('.qbtn[data-q="P2"]')));
-    ok("revising banner in the detail", /Claude is revising/.test(await page.textContent("#dscroll")));
+    ok("revising chip on the dependent", /Upstream P1 changed/.test(await page.textContent('.qbtn[data-q="P2"]')));
+    ok("revising banner in the detail", /Upstream P1 changed/.test(await page.textContent("#dscroll")));
 
     // shortcuts off: no single key acts
     await page.keyboard.press(","); await page.waitForTimeout(200);

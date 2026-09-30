@@ -71,6 +71,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     await pick("Q4"); await page.fill("#note", "What does slow mean here?"); await page.click("#note"); await page.keyboard.press("Control+Shift+Enter"); await page.waitForTimeout(700);
     const ask = await last();
     ok("Ask Claude posts the note as an ask", ask.kind === "ask" && ask.id === "Q4" && ask.text === "What does slow mean here?", JSON.stringify(ask));
+    ok("Ask Claude empties the note", (await page.inputValue("#note")) === "", await page.inputValue("#note"));
+    await page.fill("#note", "scratch"); await page.click("[data-clear]");
+    ok("Clear empties the note and disables itself", (await page.inputValue("#note")) === "" && await page.$eval("[data-clear]", b => b.disabled));
     await page.request.get(base + "api/wait?after=0&timeout=2", {headers: {"X-Interview-Token": await token()}}); await page.waitForTimeout(900);
     ok("the Claude line reads Claude is working on", /^Claude is working on Q\d/.test(await text("#claudeLine")), await text("#claudeLine"));
 
