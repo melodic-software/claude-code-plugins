@@ -8,7 +8,8 @@ Every paragraph below is indented in the hub as part of that rung and reads the 
 **The queue never receives an in-flight candidate.** The gate's in-flight precondition runs before
 classification, so an item with an open closing PR (drafts included), or one whose in-flight check
 failed this cycle, never reaches this rung. Write no `kind=ratify-c3` comment and change no label
-on it; the cycle report lists it as in flight instead.
+on it; the cycle report lists it as in flight instead, or, past the gate's age bound, step 5
+escalates it as `kind=escalated`.
 
 **The label is state; the comment is an event.** Treat the two queue actions differently, and do
 the **comment first**. An item left human-gated with no `kind=ratify-c3` marker falls out of

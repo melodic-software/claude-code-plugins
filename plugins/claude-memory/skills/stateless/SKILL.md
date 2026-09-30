@@ -82,6 +82,31 @@ placeholder before running a command; a file read through the Read tool is not s
 the Bash tool's environment has no `CLAUDE_PLUGIN_ROOT`. Basis: the plugins reference, "Where each
 variable resolves", verified 2026-09-27; recheck when that table adds supporting files.
 
+## Boundary, the built-in `/memory` command
+
+"Turn off auto memory" and "what has Claude saved" can land on either.
+
+- **`/memory` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
+  An interactive dialog to edit CLAUDE.md files, turn auto memory on or off, and view auto memory
+  entries in the running session. It is reserved for the person to run; the model does not invoke
+  it.
+- **This skill (marketplace plugin).** Reports the effective auto-memory state across every
+  settings scope and the env var that overrides them, disables it durably through both levers,
+  and purges the store behind a manifest and a confirmation gate.
+
+**Routing.** When the person wants a quick interactive toggle or a look at the saved entries,
+offer it to the person: you can run `/memory` instead of or alongside this skill. Prefer this skill
+when precedence across scopes matters, when the env var is set, or for a durable disable or a
+purge. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** `/memory` writes whatever the person changes in its dialog; this skill never
+runs it on the person's behalf. A `/memory` toggle can be overridden by `CLAUDE_CODE_DISABLE_AUTO_MEMORY`,
+which `status` reports.
+
+**Availability is never assumed.** This section states what to do when the person can run
+`/memory`, never that it is present in their host. The four-part records live in
+[reference/native-memory.md](reference/native-memory.md).
+
 ## Gotchas
 
 - **Precedence**: `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (`=0` forces

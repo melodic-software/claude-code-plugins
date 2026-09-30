@@ -7,7 +7,7 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 
 ### Changed
 
-- **`find`: listing description trimmed to 500 characters or fewer.** Quoted triggers and Skip-when routes are kept; the body and options are unchanged ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+- **`find`: listing description trimmed to 500 characters or fewer.** Seven of the nine quoted triggers, the `instrument this` behavior, the unattended-mode mention and every Skip-when route are kept. `find improvements` and `highest-impact improvement` are dropped; `improvement sweep` and `where is the highest-value work` carry the same intent. The body and options are unchanged ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
 
 ## [0.1.16]
 
