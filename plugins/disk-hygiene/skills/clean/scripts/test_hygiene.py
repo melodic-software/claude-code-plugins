@@ -7651,6 +7651,82 @@ class HandoffVerifyTests(unittest.TestCase):
                         "approved path", json.loads(output.getvalue())["error"]
                     )
 
+    def handoff_verify_inline_all(
+        self, temporary: str, relatives: list[str]
+    ) -> tuple[int, dict[str, Any]]:
+        argv = ["handoff-verify", "--snapshot", str(Path(temporary) / "snapshot.json")]
+        for relative in relatives:
+            argv += ["--path", relative]
+        handle, vcs = self.clear_probe_mocks()
+        output = io.StringIO()
+        with handle, vcs, redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_handoff_verify_repeated_inline_path_matches_the_paths_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, names = self.five_file_snapshot(temporary)
+            self.assertEqual(
+                self.handoff_verify_cli(temporary, names[:2]),
+                self.handoff_verify_inline_all(temporary, names[:2]),
+            )
+            status, payload = self.handoff_verify_inline_all(temporary, names[:2])
+            self.assertEqual(0, status)
+            self.assertEqual(names[:2], [item["path"] for item in payload["verdicts"]])
+            (root / names[1]).write_text("changed after approval", encoding="utf-8")
+            status, payload = self.handoff_verify_inline_all(temporary, names[:2])
+            self.assertEqual(3, status)
+            self.assertEqual(
+                ["clear", "drifted"], [item["verdict"] for item in payload["verdicts"]]
+            )
+
+    def test_handoff_verify_repeated_inline_path_keeps_the_file_form_validation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            cases = [
+                ([names[0], "../junk1.tmp"], "approved path"),
+                ([names[0], "absent.tmp"], "approved path"),
+                ([names[0], "/junk1.tmp"], "approved path"),
+                ([names[0], names[0]], "overlap"),
+            ]
+            for relatives, message in cases:
+                with self.subTest(paths=relatives):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        argv = [
+                            "handoff-verify",
+                            "--snapshot",
+                            str(Path(temporary) / "snapshot.json"),
+                        ]
+                        for relative in relatives:
+                            argv += ["--path", relative]
+                        status = hygiene.main(argv)
+                    self.assertEqual(2, status)
+                    self.assertIn(message, json.loads(output.getvalue())["error"])
+
+    def test_handoff_verify_path_and_paths_are_mutually_exclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            paths_path = Path(temporary) / "handoff-paths.json"
+            paths_path.write_text(
+                json.dumps({"version": 1, "paths": names[:1]}), encoding="utf-8"
+            )
+            argv = [
+                "handoff-verify",
+                "--snapshot",
+                str(Path(temporary) / "snapshot.json"),
+                "--path",
+                names[1],
+                "--path",
+                names[2],
+                "--paths",
+                str(paths_path),
+            ]
+            with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+                hygiene.build_parser().parse_args(argv)
+
     def five_file_snapshot(self, temporary: str) -> tuple[Path, list[str]]:
         root = Path(temporary) / "target"
         root.mkdir()
@@ -8380,6 +8456,93 @@ class GuardTests(unittest.TestCase):
         command += self.authorize_data_root()
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+
+    def _apply_command(self, snapshot: Path, plan: Path) -> str:
+        script = SCRIPT_DIR / "hygiene.py"
+        return (
+            f'"{self.python_command()}" "{script}" apply --execute '
+            f'--snapshot "{snapshot.as_posix()}" --plan "{plan.as_posix()}" '
+            f'--confirm-tier high --approval-token {"a" * 24} --report r'
+            + self.authorize_data_root()
+        )
+
+    def _apply_reason(self, snapshot: Path, plan: Path) -> str:
+        result = self.run_guard(self._apply_command(snapshot, plan))
+        self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+        return result["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def test_apply_ask_reason_lists_tier_count_and_every_plan_path(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        paths = ["cache/one.tmp", "build/two", "logs/three.log"]
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps(
+                {"tier": "high", "candidates": [{"path": path} for path in paths]}
+            ),
+            encoding="utf-8",
+        )
+        snapshot = base / "snapshot.json"
+        snapshot.write_text(json.dumps({"target": "/work/target"}), encoding="utf-8")
+        reason = self._apply_reason(snapshot, plan)
+        self.assertIn("high", reason)
+        self.assertIn("3 path(s)", reason)
+        self.assertIn("/work/target", reason)
+        for path in paths:
+            self.assertIn(path, reason)
+
+    def test_apply_ask_reason_escapes_control_characters_in_plan_strings(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "tier": "high",
+                    "candidates": [{"path": "cache\nConfirm this\x1b[2J"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        snapshot = base / "snapshot.json"
+        snapshot.write_text(json.dumps({"target": "/t\rgt"}), encoding="utf-8")
+        reason = self._apply_reason(snapshot, plan)
+        self.assertIn("- cache\\nConfirm this\\x1b[2J", reason)
+        self.assertIn("under /t\\rgt", reason)
+        self.assertNotIn("\x1b", reason)
+        self.assertNotIn("\r", reason)
+        self.assertEqual(3, len(reason.splitlines()))
+
+    def test_apply_ask_reason_falls_back_when_the_plan_is_unusable(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        snapshot = base / "snapshot.json"
+        snapshot.write_text("{}", encoding="utf-8")
+        malformed = base / "malformed.json"
+        malformed.write_text("not json", encoding="utf-8")
+        wrong_shape = base / "wrong-shape.json"
+        wrong_shape.write_text(
+            json.dumps({"tier": "high", "candidates": [{"path": 3}]}), encoding="utf-8"
+        )
+        oversized = base / "oversized.json"
+        oversized.write_bytes(b" " * (guard._APPLY_PLAN_READ_LIMIT + 1))
+        for plan in (base / "missing.json", malformed, wrong_shape, oversized, base):
+            with self.subTest(plan=plan.name):
+                self.assertEqual(
+                    guard._APPLY_ASK_GENERIC_REASON,
+                    self._apply_reason(snapshot, plan),
+                )
+
+    def test_apply_ask_reason_without_a_snapshot_still_lists_the_plan_paths(
+        self,
+    ) -> None:
+        base = Path(self._cfg.name).resolve()
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps({"tier": "low", "candidates": [{"path": "only/one"}]}),
+            encoding="utf-8",
+        )
+        reason = self._apply_reason(base / "missing-snapshot.json", plan)
+        self.assertIn("low", reason)
+        self.assertIn("1 path(s)", reason)
+        self.assertIn("only/one", reason)
 
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
@@ -11581,6 +11744,48 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
+    def test_powershell_ask_reason_lists_the_literal_paths_it_names(self) -> None:
+        cases = (
+            (
+                "Add-Type -AssemblyName Microsoft.VisualBasic; "
+                "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("
+                "'C:\\work\\victim.tmp','OnlyErrorDialogs','SendToRecycleBin')",
+                ["C:\\work\\victim.tmp"],
+            ),
+            (
+                'Remove-Item -LiteralPath "D:\\a\\one" ; Remove-Item C:\\b\\two',
+                ["D:\\a\\one", "C:\\b\\two"],
+            ),
+        )
+        for command, paths in cases:
+            with self.subTest(command=command):
+                result = self.run_guard_powershell(command)
+                assert result is not None
+                self.assertEqual(
+                    "ask", result["hookSpecificOutput"]["permissionDecision"]
+                )
+                reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+                self.assertIn(f"{len(paths)} path-shaped literal(s)", reason)
+                for path in paths:
+                    self.assertIn(path, reason)
+
+    def test_powershell_ask_reason_skips_paths_it_cannot_read_literally(self) -> None:
+        for command in (
+            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("
+            "$path,'OnlyErrorDialogs','SendToRecycleBin')",
+            'Remove-Item "C:\\work\\$name"',
+        ):
+            with self.subTest(command=command):
+                result = self.run_guard_powershell(command)
+                assert result is not None
+                self.assertEqual(
+                    "ask", result["hookSpecificOutput"]["permissionDecision"]
+                )
+                self.assertNotIn(
+                    "path-shaped literal(s)",
+                    result["hookSpecificOutput"]["permissionDecisionReason"],
+                )
+
     def test_powershell_shell_app_send_to_bin_via_parent_folder_prompts(self) -> None:
         """#2850: the send-to-the-bin spelling names the PARENT folder, not the bin.
 
@@ -13862,7 +14067,11 @@ class EngineGrammarTests(unittest.TestCase):
                     for flag in spec.flags:
                         if not flag.takes_value and (flag.required or optionals):
                             self.assertTrue(getattr(namespace, flag.dest), flag.name)
-                        if flag.repeatable and optionals:
+                        if (
+                            flag.repeatable
+                            and optionals
+                            and flag.name not in self.grouped(spec)
+                        ):
                             self.assertEqual(
                                 [self.value(flag), self.value(flag)],
                                 getattr(namespace, flag.dest),
@@ -14018,12 +14227,16 @@ class EngineGrammarTests(unittest.TestCase):
                     with self.subTest(subcommand=spec.name, flag=name):
                         namespace = self.parse(spec.name, words)
                         self.assertEqual(
-                            self.value(flag), getattr(namespace, flag.dest)
+                            [self.value(flag)] if flag.repeatable else self.value(flag),
+                            getattr(namespace, flag.dest),
                         )
                         for other in group:
                             if other != name:
                                 other_flag = spec.flag(other)
-                                self.assertIsNone(getattr(namespace, other_flag.dest))
+                                self.assertEqual(
+                                    [] if other_flag.repeatable else None,
+                                    getattr(namespace, other_flag.dest),
+                                )
                         self.assertEqual(spec.name, self.classify(spec.name, words))
 
     def test_neither_consumer_takes_two_members_of_one_group(self) -> None:
@@ -14050,6 +14263,42 @@ class EngineGrammarTests(unittest.TestCase):
             with self.subTest(subcommand=spec.name):
                 self.assertIsNone(self.classify(spec.name, words))
                 self.refuse_parse(spec.name, words)
+
+    def handoff_words(self, *members: list[str]) -> list[str]:
+        spec = self.grammar.subcommand("handoff-verify")
+        return [
+            *(word for chunk in self.required_chunks(spec) for word in chunk),
+            *(word for member in members for word in member),
+            *self.data_root_chunk(spec),
+        ]
+
+    def test_guard_and_parser_admit_a_repeated_handoff_verify_path(self) -> None:
+        words = self.handoff_words(
+            ["--path", "a/one.tmp"], ["--path", "b/two.tmp"], ["--path", "c/three.tmp"]
+        )
+        self.assertEqual(
+            ["a/one.tmp", "b/two.tmp", "c/three.tmp"],
+            self.parse("handoff-verify", words).path,
+        )
+        self.assertEqual("handoff-verify", self.classify("handoff-verify", words))
+
+    def test_guard_and_parser_refuse_a_handoff_verify_path_beside_paths(self) -> None:
+        for members in (
+            (["--path", "a/one.tmp"], ["--path", "b/two.tmp"], ["--paths", "p.json"]),
+            (["--paths", "p.json"], ["--path", "a/one.tmp"], ["--path", "b/two.tmp"]),
+        ):
+            words = self.handoff_words(*members)
+            with self.subTest(members=members):
+                self.assertIsNone(self.classify("handoff-verify", words))
+                self.refuse_parse("handoff-verify", words)
+
+    def test_guard_refuses_a_repeated_handoff_verify_path_that_is_not_literal(
+        self,
+    ) -> None:
+        for bad in ("", "--paths", "-x"):
+            words = self.handoff_words(["--path", "a/one.tmp"], ["--path", bad])
+            with self.subTest(value=bad):
+                self.assertIsNone(self.classify("handoff-verify", words))
 
     def test_grammar_rejects_a_malformed_one_of_group(self) -> None:
         flags = (
