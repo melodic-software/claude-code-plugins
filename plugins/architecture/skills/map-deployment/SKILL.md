@@ -398,7 +398,10 @@ End every run with this block, in this order:
   it lands. Everything else, such as locals, functions other than `jsonencode`, conditionals,
   for-expressions, `file()`, and `templatefile()`, is recorded as `unresolved:<expression>`. `count`
   and `for_each` are not expanded (the resource is placed once), a `dynamic` block is not read, and
-  an env list built by an expression records no parameters.
+  an env list built by an expression records no parameters. A container app, Cloud Run service, or
+  Kubernetes workload whose containers are a `dynamic` block or an expression places one container
+  named for the resource, its image `unresolved:dynamic container` (`containers` for Cloud Run) or
+  `unresolved:container`; a `dynamic` block beside plain ones adds a second, `<name>.dynamic`.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:

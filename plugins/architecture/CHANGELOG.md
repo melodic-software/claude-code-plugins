@@ -16,6 +16,11 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   in the record's `unmapped` array, a `## Unmapped resources` table and the
   summary's `unmapped=` count. A read that places no container and leaves
   resources unmapped is refused as `no-mapped-container` and keeps the list.
+- A Terraform container app, Cloud Run service, or Kubernetes workload whose
+  containers are a `dynamic` block or an expression places one container named
+  for the resource with an unresolved image, so it no longer disappears from the
+  drawing. A `dynamic` block beside plain container blocks adds a second
+  container named `<name>.dynamic`.
 - A Terraform `helm_release` or a Pulumi `kubernetes:helm.sh/` resource declines
   Helm, so the record is refused as `partial-read` instead of drawing the rest
   of the repository.

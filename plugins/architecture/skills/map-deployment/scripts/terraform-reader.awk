@@ -9,7 +9,9 @@
 # is one whole interpolation, and a heredoc or container_definitions string
 # holding JSON, is read as the expression inside it. jsonencode() is read
 # through; every other function, operator, for-expression, conditional, local
-# and dynamic block is recorded as unresolved:<text>, never evaluated.
+# and dynamic block is recorded as unresolved:<text>, never evaluated. A mapped
+# resource with no plain container block, or a dynamic one beside them, still
+# places one container named for the resource, its image unresolved.
 #
 # A root is a directory of configuration that no local module source names.
 # Its environments are the <env> of an envs/<env>/ or environments/<env>/ path,
@@ -375,6 +377,15 @@ function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, port
   }
 }
 
+# A resource with no plain container block, or a dynamic one beside them, places one
+# container named for the resource, its image unresolved, so the record never omits it.
+# n is how many plain blocks were placed.
+function unread_container(sc, pre, lbl, n, name, reps, ports, compute, ev,    dyn) {
+  dyn = has_under(S_dir[sc], pre, "(^|\\.)dynamic\\." lbl "(\\[[0-9]+\\])?\\.")
+  if (n > 0 && !dyn) return
+  place(sc, n > 0 ? name ".dynamic" : name, unresolved(dyn ? "dynamic " lbl : lbl), reps, ports, compute, ev)
+}
+
 function compute_id(sc, type, name) { return S_env[sc] "/" S_prefix[sc] type "." name }
 
 function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td, reps, ports, svc, key) {
@@ -427,11 +438,13 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
       n = groups(d, pre, "^template(\\[[0-9]+\\])?\\.container(\\[[0-9]+\\])?\\.", gs)
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, cl, ports, "^env(\\[[0-9]+\\])?\\.", "^secret_name$", "^$", "", res_file[sc, key])
+      unread_container(sc, pre, "container", n, name, reps, ports, cl, res_file[sc, key])
     } else if (type == "google_cloud_run_v2_service") {
       reps = show(sc, pre, "template.scaling.min_instance_count", "undeclared")
       n = groups(d, pre, "^template(\\[[0-9]+\\])?\\.containers(\\[[0-9]+\\])?\\.", gs)
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, "", "", "^env(\\[[0-9]+\\])?\\.", "^value_source", "^ports(\\[[0-9]+\\])?\\.", "container_port", res_file[sc, key])
+      unread_container(sc, pre, "containers", n, name, reps, "", "", res_file[sc, key])
     } else if (type ~ /^kubernetes_(deployment|stateful_set|daemonset|daemon_set)(_v1)?$/) {
       id = compute_id(sc, type, name)
       node(sc, id, type, show(sc, pre, "metadata.name", name), res_file[sc, key])
@@ -439,6 +452,7 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
       n = groups(d, pre, "^spec(\\[[0-9]+\\])?\\.template(\\[[0-9]+\\])?\\.spec(\\[[0-9]+\\])?\\.container(\\[[0-9]+\\])?\\.", gs)
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, id, "", "^env(\\[[0-9]+\\])?\\.", "^value_from", "^port(\\[[0-9]+\\])?\\.", "container_port", res_file[sc, key])
+      unread_container(sc, pre, "container", n, name, reps, "", id, res_file[sc, key])
     } else if (type != "aws_ecs_service") note_unmapped("terraform", type, res_file[sc, key])
   }
 }

@@ -2111,6 +2111,47 @@ assert_contains "a fully mapped root is drawn" "$unm_rec" '"status": "drawn"'
 assert_contains "a fully mapped root reports no unmapped resource" "$unm_sum" "unmapped=0"
 assert_not_contains "a fully mapped root has no unmapped section" "$unm_md" 'Unmapped resources'
 
+# A mapped resource whose containers are a dynamic block or an expression still places one
+# container, its image unresolved, so it never disappears from a drawing that names the rest.
+tf_env=$'resource "azurerm_container_app_environment" "env" {\n  name = "env"\n}'
+tf_dyn_app=$'resource "azurerm_container_app" "dyn" {\n  name                         = "dynapp"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    dynamic "container" {\n      for_each = var.containers\n      content {\n        name  = container.value.name\n        image = container.value.image\n      }\n    }\n  }\n}'
+tf_static_app=$'resource "azurerm_container_app" "stat" {\n  name                         = "statapp"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    container {\n      name  = "statapp"\n      image = "acme/stat:1"\n    }\n  }\n}'
+tf_env_node='"node":"default/azurerm_container_app_environment.env","compute":"default/azurerm_container_app_environment.env"'
+
+unm_fixture tf-dyn-only main.tf "$tf_env"$'\n'"$tf_dyn_app"
+unm_check "$TEST_TMPDIR/unm-tf-dyn-only"
+assert_contains "an app whose containers are a dynamic block is drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "the dynamic app places one container with an unresolved image" "$unm_rec" '"container":"dyn","env":"default","tool":"terraform",'"$tf_env_node"',"image":"unresolved:dynamic container"'
+assert_contains "the dynamic app is counted as a placement" "$unm_sum" "placements=1"
+assert_contains "the rendered view carries the unresolved image" "$unm_md" "unresolved:dynamic container"
+
+unm_fixture tf-dyn-mixed main.tf "$tf_env"$'\n'"$tf_dyn_app"$'\n'"$tf_static_app"
+unm_check "$TEST_TMPDIR/unm-tf-dyn-mixed"
+assert_contains "a mixed root places the static app" "$unm_rec" '"container":"statapp","env":"default","tool":"terraform",'"$tf_env_node"',"image":"acme/stat:1"'
+assert_contains "a mixed root keeps the dynamic app" "$unm_rec" '"container":"dyn","env":"default","tool":"terraform",'"$tf_env_node"',"image":"unresolved:dynamic container"'
+assert_contains "a mixed root counts both" "$unm_sum" "placements=2"
+
+unm_fixture tf-dyn-beside main.tf "$tf_env"$'\nresource "azurerm_container_app" "app" {\n  name                         = "app"\n  container_app_environment_id = azurerm_container_app_environment.env.id\n  template {\n    container {\n      name  = "app"\n      image = "acme/app:1"\n    }\n    dynamic "container" {\n      for_each = var.sidecars\n      content {\n        name = container.value.name\n      }\n    }\n  }\n}'
+unm_check "$TEST_TMPDIR/unm-tf-dyn-beside"
+assert_contains "a plain container keeps its image beside a dynamic block" "$unm_rec" '"container":"app","env":"default","tool":"terraform",'"$tf_env_node"',"image":"acme/app:1"'
+assert_contains "the dynamic block beside it is its own placement" "$unm_rec" '"container":"app.dynamic","env":"default","tool":"terraform",'"$tf_env_node"',"image":"unresolved:dynamic container"'
+assert_contains "both are counted" "$unm_sum" "placements=2"
+
+unm_fixture tf-dyn-others main.tf $'resource "google_cloud_run_v2_service" "svc" {\n  name = "svc"\n  template {\n    dynamic "containers" {\n      for_each = var.c\n      content {\n        image = containers.value\n      }\n    }\n  }\n}\nresource "kubernetes_deployment" "wl" {\n  metadata {\n    name = "wl"\n  }\n  spec {\n    template {\n      spec {\n        dynamic "container" {\n          for_each = var.c\n          content {\n            image = container.value\n          }\n        }\n      }\n    }\n  }\n}'
+unm_check "$TEST_TMPDIR/unm-tf-dyn-others"
+assert_contains "a Cloud Run service with dynamic containers places one" "$unm_rec" '"container":"svc","env":"default","tool":"terraform","node":"default","compute":"","image":"unresolved:dynamic containers"'
+assert_contains "a Kubernetes workload with a dynamic container places one on its node" "$unm_rec" '"container":"wl","env":"default","tool":"terraform","node":"default/kubernetes_deployment.wl","compute":"default/kubernetes_deployment.wl","image":"unresolved:dynamic container"'
+assert_contains "both are counted" "$unm_sum" "placements=2"
+
+# shellcheck disable=SC2016 # ${...} is literal Terraform interpolation
+unm_fixture tf-dyn-json main.tf.json '{"resource":{"azurerm_container_app":{"j":{"name":"j","template":{"dynamic":{"container":{"for_each":"${var.c}","content":{"name":"n","image":"i"}}}}}}}}'
+unm_check "$TEST_TMPDIR/unm-tf-dyn-json"
+assert_contains "a dynamic block in .tf.json places one container" "$unm_rec" '"container":"j","env":"default","tool":"terraform","node":"default","compute":"","image":"unresolved:dynamic container"'
+
+unm_fixture tf-expr-containers main.tf $'resource "azurerm_container_app" "x" {\n  name = "x"\n  template {\n    container = var.containers\n  }\n}'
+unm_check "$TEST_TMPDIR/unm-tf-expr-containers"
+assert_contains "a container list that is an expression places one container" "$unm_rec" '"container":"x","env":"default","tool":"terraform","node":"default","compute":"","image":"unresolved:container"'
+
 unm_fixture cfn-eks t.yaml $'AWSTemplateFormatVersion: "2010-09-09"\nResources:\n  Cluster:\n    Type: AWS::EKS::Cluster\n    Properties: {}\n  Fn:\n    Type: AWS::Lambda::Function\n    Properties: {}'
 unm_check "$TEST_TMPDIR/unm-cfn-eks"
 assert_contains "a CloudFormation template that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
