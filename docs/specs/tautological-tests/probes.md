@@ -137,6 +137,29 @@ test-scan on every round, because `--inventory` skips the Playwright config walk
 arm meets the 150 ms p95 budget at load 33-36, before included; the idle measurement moves to
 Phase 8 with the Phase 5 config arm.
 
+### Bash route: `test-scan-bash.sh` (WSL2, 2026-09-30)
+
+Five arms per round, one sample of each per iteration, 50 samples, every arm through `node
+exec-bash.mjs --require-true TEST_GUARDS_ENABLED`, started at a 1-minute load of 5.8-6.9. All
+payloads are PostToolUse `Bash` payloads; the one-file arm carries a `bashEditDiff` naming one
+created zero-assertion `*.test.ts` and emits its finding. "Direct" is the same file as a `Write`
+payload through `test-scan.sh`, for the baseline.
+
+| Round | option off (launcher only) | no diff, empty stdout | no diff, 300 KB stdout | one-file diff | direct test-scan |
+|---|---|---|---|---|---|
+| 1 | 20/23 ms | 27/31 ms | 59/66 ms | 114/129 ms | 106/114 ms |
+| 2 | 20/22 ms | 27/31 ms | 58/65 ms | 113/119 ms | 104/114 ms |
+| 3 | 20/22 ms | 27/30 ms | 61/66 ms | 113/119 ms | 105/111 ms |
+
+Each cell is p50/p95. All arms meet the 150 ms p95 budget. The one-file route costs about 9 ms
+over a direct Write scan (one extra `jq`, the child shell and its `hook-utils.sh` source). A
+payload without `bashEditDiff` exits after reading stdin and one substring test. The 300 KB arm
+pays for reading and validating the payload in `hook::buffer_stdin_to`. The option-off arm is what
+every Bash call costs a user who has not turned `test_guards_enabled` on, since a `Bash` row has no
+glob to keep the launcher from starting: one `node` start per Bash call. The route was not
+measured above load 7; the direct arm alone reads 134-140 ms p95 at load 11-12, so the one-file
+margin is an idle-host figure.
+
 ## Release 2 probes
 
 Claude Code 2.1.285, WSL2, 2026-09-30. Each probe ran in its own scratch git repository under
@@ -218,6 +241,13 @@ says so. Auto mode ran on sonnet, because haiku does not engage it (the payload 
   for the changed-file list. A row that must see every Bash call that
   changed a test file has to be `Bash(*)` and start a process for every Bash call, and decide from
   `changedFiles`.
+- End to end through the plugin: `claude -p --model haiku --permission-mode acceptEdits
+  --setting-sources project --plugin-dir plugins/testing --settings <file>`, the file holding
+  `bashEditDiffEnabled: true` and `pluginConfigs["testing@inline"].options.test_guards_enabled:
+  true`, told to write a vitest test without an assertion through one `cat` heredoc. The
+  `PostToolUse:Bash` hook ("Scanning test files the command changed...") returned
+  `additionalContext` naming `rule-zero-assertion` at `src/calc.test.ts:5`, and the agent's reply
+  reported the zero-assertion finding.
 - Not probed: Windows Git Bash (the shape, path separators and mode behavior there need the owner
   or a fleet run); `bashEditDiffEnabled` at user or managed scope; `false` against a `true` from a
   higher-precedence source; `PowerShell`, which the docs say has the same fields; a subagent's Bash call

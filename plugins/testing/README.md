@@ -64,6 +64,30 @@ config-cascade convention.
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
 rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the file.
 
+### Test files written through Bash
+
+`test-scan` also scans test files a Bash call changed (`cat > foo.test.ts`, `sed -i`, a generator
+script), when `test_guards_enabled` is on and Claude Code records the call's changed files. It reads
+`tool_response.bashEditDiff`, a best-effort beta field that Claude Code adds to the `PostToolUse`
+payload of a Bash call:
+
+- **Precondition.** Set `bashEditDiffEnabled: true` in your user settings, in `--settings`, or in
+  managed settings (a project `.claude/settings.json` value is ignored), or set the environment
+  variable `CLAUDE_CODE_BASH_EDIT_DIFF=1`. Without one of these the field is absent in `default`
+  and `acceptEdits` mode, and the hook finds nothing to scan. The probe rows are in
+  [probes.md](../../docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30).
+- **Scope.** A created test file reports every test block. A modified file reports only the blocks
+  its hunks touch, the same as an Edit. A file the repository ignores is skipped.
+- **Limits.** The payload carries hunks for the first five changed files only, so a modified test
+  file past the fifth is not scanned, and one call scans at most four test files. The shipped
+  adapters' globs decide what counts as a test file; a glob added through `.claude/testing.yaml` is
+  not covered on this path. `test-weaken` (PreToolUse) sees Write and Edit only: a Bash call that
+  removes assertions is not flagged. Windows Git Bash is not probed.
+- **Cost.** A Bash hook row cannot filter on the changed files, so with `test_guards_enabled` on
+  the launcher starts for every Bash call. With the option off, nothing runs beyond that launcher
+  check (about 20 ms, WSL). With it on, a call with no recorded changes adds about 30 ms; a
+  one-file diff adds about 115 ms (p50, WSL).
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
