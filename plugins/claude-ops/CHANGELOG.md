@@ -14,6 +14,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`native_drift.py` rejects wrong-shaped JSON with exit `2`**: a summary, detect report, store
   or inventory that parsed but lacked its shape (a top-level `[]`, a string where an object
   belongs) raised a traceback with exit `1`.
+- **`inventory --docs` stops reading the tools table at the next heading**: when the table's rows
+  stopped matching (tool names without backticks), the parser read on through the page and took a
+  later backticked row as the table, reporting every tool `undocumented` instead of the block
+  `broken`.
 
 ## [0.70.0] - 2026-09-29
 
