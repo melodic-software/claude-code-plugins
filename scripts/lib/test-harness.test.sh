@@ -308,12 +308,16 @@ fi
 # the suite trusted the library's own counters. The independent tally is
 # the only signal the library cannot reach.
 
+MUT_SCRATCH=""
+trap '[[ -z "$MUT_SCRATCH" ]] || rm -rf "$MUT_SCRATCH"' EXIT
+
 run_mutated_self_test() {
   local label="$1"
   local mutate="$2"
   local scratch copied_h copied_t rc
 
   scratch="$(mktemp -d "${TMPDIR:-/tmp}/harness-mut.XXXXXX")"
+  MUT_SCRATCH="$scratch"
   mkdir -p "$scratch/scripts/lib"
   copied_h="$scratch/scripts/lib/test-harness.sh"
   copied_t="$scratch/scripts/lib/test-harness.test.sh"

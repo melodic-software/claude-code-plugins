@@ -206,7 +206,7 @@ Every question states its decision in plain words. Before `add-round`, scan each
 On a `wrapup` event, or when the user ends the session in the terminal, in this order:
 
 1. `round.sh export-ledger --out '<data_dir>/ledger-export.md'`. Replace the live rows under `## Open-question register` in `'<memory_dir>/<topic-slug>/interview-checklist.md'` with the export's rows, one row per `Q<N>`; never paste a second register heading. Run the Step 3 register gate.
-2. Engineering sessions: `round.sh export-brief --out '<data_dir>/brief-export.md'`, then merge its sections into PLAN.md's `## Brief`, keeping the goal and acceptance criteria the interview captured where the export has none. Unconfirmed commitments arrive as named risks. Run the `--brief` gate.
+2. Engineering sessions: `round.sh export-brief --out '<data_dir>/brief-export.md'`, then merge its sections into PLAN.md's `## Brief`, keeping the goal the interview captured where the export has none. The export carries the acceptance criteria from the latest `restate` once the user has confirmed it; hand-merge criteria captured outside the page or on a restatement still unconfirmed. Unconfirmed commitments arrive as named risks. Run the `--brief` gate.
 3. `round.sh export-report --out '<run_dir>/interview-report.html'`, where `<run_dir>` is the run's ephemeral-tier directory per the topic-docs binding; give the user the path.
 4. `handle` the `wrapup` seq, make the decomposition offer, and stop the server once the user is done with the page.
 
