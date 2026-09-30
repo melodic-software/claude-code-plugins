@@ -178,6 +178,11 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
 
+## Requirements
+
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
+  finds Bash. A missing `node` is a hook launch error, not a skip notice.
+
 ## Configuration
 
 The options below are personal, enable-time dials. The one setting that is policy rather than taste,

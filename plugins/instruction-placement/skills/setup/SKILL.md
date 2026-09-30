@@ -61,7 +61,11 @@ degradation rather than implying full behavior.
 static gates work without them and only `verify-load.sh` degrades. Say "optional, absent" rather
 than "missing". An absent optional prerequisite is not a failure.
 
-**4. Effective configuration.** Print each value with its **source**, so a surprising number is
+**4. Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes through
+`node hooks/exec-bash.mjs`, so a missing `node` is a hook launch error, not a skip notice. A hook
+cannot report its own missing launcher, so this probe runs through Bash, not a hook.
+
+**5. Effective configuration.** Print each value with its **source**, so a surprising number is
 traceable:
 
 | Setting | Default | Source to report |

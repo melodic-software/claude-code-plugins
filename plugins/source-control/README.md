@@ -299,11 +299,6 @@ fails when a gate feeds its payload to a reader by here-string.
 
 ## Works in any repo
 
-- **Node.js on PATH.** Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's
-  native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the
-  hooks do not launch and the PR-linkage and worktree gates are not enforced. The setup `check`
-  reports whether `node` resolves.
 - **Self-contained.** Everything else runs on `git`, `gh` (authenticated), `jq`,
   and Bash scripts bundled under `${CLAUDE_PLUGIN_ROOT}` (Git Bash on native
   Windows); `unzip` is additionally required by the CI-log fetch path
@@ -324,6 +319,14 @@ fails when a gate feeds its payload to a reader by here-string.
   bot-identity wrappers also come from the project's own `CLAUDE.md` and
   rules. Defaults (Conventional Commits, squash merge) apply only when the
   project declares nothing.
+
+## Requirements
+
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
+  Code's native binary neither ships nor uses Node
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29). Without `node` the hooks do
+  not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
+  whether `node` resolves.
 
 ## Install
 
