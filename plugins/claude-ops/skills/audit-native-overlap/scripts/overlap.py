@@ -201,8 +201,8 @@ START_MARKER = "<!-- native-surfaces:start -->"
 END_MARKER = "<!-- native-surfaces:end -->"
 
 # A `native description:` evidence line quotes the native text verbatim, so one carrying an em dash
-# keeps it and tells the ai-slop audit to skip that line. Authored evidence lines are never marked.
-# Applied with `fullmatch`.
+# keeps it and tells the ai-slop audit to skip each physical line that carries one. Authored
+# evidence lines are never marked. Applied with `fullmatch`.
 VERBATIM_LINE_RE = re.compile(r"(\[\d+\] )?native description: .*—.*", re.DOTALL)
 VERBATIM_MARKER = " <!-- ai-slop-ignore: verbatim native text -->"
 
@@ -1058,8 +1058,12 @@ def render_block(
             lines.append(f"- **Our component:** `{target}` ({component['kind']})")
             lines.append("- **Evidence:**")
             for item in row["evidence"]:
-                quoted = VERBATIM_MARKER if VERBATIM_LINE_RE.fullmatch(item) else ""
-                lines.append(f"  - {item}{quoted}")
+                if VERBATIM_LINE_RE.fullmatch(item):
+                    item = "\n".join(
+                        f"{part}{VERBATIM_MARKER}" if "—" in part else part
+                        for part in item.split("\n")
+                    )
+                lines.append(f"  - {item}")
             observation = row["observation"]
             lines.append(
                 f"- **Observation:** {observation['class']}: {observation['detail']} "
