@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "typos",
+      "check": "/typos-format:check",
+      "install": "cargo install typos-cli, a host package or a release binary, https://github.com/crate-ci/typos#install"
+    }
+  ]
+}

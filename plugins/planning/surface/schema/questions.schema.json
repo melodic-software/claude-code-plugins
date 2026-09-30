@@ -195,6 +195,10 @@
         "recommendation": {"type": "string"},
         "basis": {"type": "string"},
         "commits": {"type": "array", "items": {"type": "string"}},
+        "commitsSinceSeq": {
+          "description": "Confirm events with a seq at or below this were made against an earlier commitment list and do not count.",
+          "type": "integer"
+        },
         "commitsConfirmed": {
           "description": "Commitments confirmed outside the page, written by the confirm-commitments op, one entry per commitment index.",
           "type": "array",

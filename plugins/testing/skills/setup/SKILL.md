@@ -80,7 +80,12 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      2026-09-29 against docs.astral.sh/ruff/default-rules and /linter (only part of the default list
      was read); recheck when a ruff release note changes the default rule set.
    - Bash, PowerShell and Go: no maintained rule.
-3. **instruction**: the optional line. Offer it; do not paste it anywhere.
+3. **instruction**: the optional line, naming the one file Claude Code loads at the repository
+   root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
+   `${CLAUDE_CONFIG_DIR:-~/.claude}`. `CLAUDE.local.md` always loads. By default Claude Code reads `AGENTS.md`
+   only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists. Verified 2026-09-30
+   against code.claude.com/docs/en/memory; recheck when a Claude Code release note changes the
+   Project instructions default or which files count. Offer it; do not paste it anywhere.
 4. **hook-entry**: `none`, or a `.claude/settings.json` snippet for each consumer glob no shipped
    hook row matches. A settings hook receives no `CLAUDE_PLUGIN_ROOT` or `CLAUDE_PLUGIN_OPTION_*`
    (probed on Claude Code 2.1.284, 2026-09-29, `docs/specs/tautological-tests/probes.md` in the

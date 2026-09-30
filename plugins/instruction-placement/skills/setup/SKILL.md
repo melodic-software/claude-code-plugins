@@ -25,15 +25,16 @@ skill's job; `/instruction-placement:check` asks the same question again on ever
 
 - **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
   `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it;
-  reading it directly needs v2.1.277 or later and is unavailable in some sessions.
+  reading it directly depends on a CLI version floor and on the session, both in
+  `skills/migrate/reference/sources.md`, "The minimum CLI version".
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md" and "When AGENTS.md
   support is unavailable"; canary runs on Claude Code 2.1.278.
-- **As of**: 2026-09-19.
+- **As of**: 2026-09-29.
 - **Recheck trigger**: that section changes which file names count for the check, or a release note
   names `AGENTS.md` or instruction-file loading.
 
-Secondary warrants: `git` backs tracked-file discovery for nested instruction files, and the
-optional empirical load probe needs the Claude Code CLI plus `jq`.
+Secondary warrants: `git` backs tracked-file discovery for nested instruction files, `node` launches
+the hook, and the optional empirical load probe needs the Claude Code CLI plus `jq`.
 
 ## Action: check (default)
 
@@ -57,13 +58,14 @@ then root `AGENTS.md`, then root `CLAUDE.md`), then verify reachability:
 without git it falls back to a plain walk and cannot honor the tracked-only corpus rule. Report the
 degradation rather than implying full behavior.
 
-**3. Empirical probe prerequisites.** `jq` on `PATH`, and a Claude Code CLI. Both are optional: the
+**3. `node`.** Probe it through the Bash tool, which does not need the launcher:
+`command -v node && node --version`. Every row in `hooks/hooks.json` runs `node
+hooks/exec-bash.mjs`, so without `node` on `PATH` the index-drift hook does not launch and nothing
+enforces the index. FAIL when absent, with that consequence. The skills and scripts still work.
+
+**4. Empirical probe prerequisites.** `jq` on `PATH`, and a Claude Code CLI. Both are optional: the
 static gates work without them and only `verify-load.sh` degrades. Say "optional, absent" rather
 than "missing". An absent optional prerequisite is not a failure.
-
-**4. Node.js.** Run `command -v node` via Bash. FAIL when absent: every hook launch goes through
-`node hooks/exec-bash.mjs`, so a missing `node` is a hook launch error, not a skip notice. A hook
-cannot report its own missing launcher, so this probe runs through Bash, not a hook.
 
 **5. Effective configuration.** Print each value with its **source**, so a surprising number is
 traceable:
@@ -88,6 +90,7 @@ that is the operator's call, not a setup skill's. `apply` presents the exact cha
 | Index target `NATIVE` | Nothing to do. No root `CLAUDE.md` blocks the target, so Claude Code reads it where `AGENTS.md` support is available. Report it as unblocked, never as verified loaded: run the empirical probe if the operator wants proof |
 | No index home | Name the file `render-index.sh write` would target, and offer to create the block |
 | `git` absent | State the degradation; there is nothing to install on the consumer's behalf |
+| `node` absent | Name it and the consequence (the hook does not launch); install nothing |
 | `jq` or CLI absent | Name the tool and that only `verify-load.sh` is affected |
 
 After an accepted change, re-run the reachability check and report the new verdict. An `apply` that

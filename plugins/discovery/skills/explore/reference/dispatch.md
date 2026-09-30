@@ -3,21 +3,21 @@
 `SKILL.md` carries the routing mandate and the acceptance gate's steps. This file carries why each
 step is shaped the way it is **for exploration**, and what the parent does when one fails. The
 agent's own side is
-[`${CLAUDE_PLUGIN_ROOT}/agents/explorer.md`](${CLAUDE_PLUGIN_ROOT}/agents/explorer.md).
+[`../../../agents/explorer.md`](../../../agents/explorer.md).
 
 Everything the parent owes that is **identical for exploration and research** is stated once in the
 shared contract. That covers the envelope's six fields as a literal template, the pre-dispatch
 baseline in both shell forms, what is and is not documented about argument substitution on the
 preload path, why the gate ships no permission grant and what to do when it cannot run, and the
 resume-before-discard ordering. The file is
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md).
 This file does not restate it.
 
 ## Discipline liveness: why a token at all
 
 A `skills:` entry that is missing or disabled is **skipped silently**: the harness logs a warning to
 the debug log and starts the agent regardless. The dated record for that harness behavior is
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The resulting run has no exploration dimensions, no
 output format, and no outcome gate, and it still reads the tree, still writes an artifact, and
 still returns a payload with `status: complete`. At every seam this design builds, that failure is
@@ -164,7 +164,7 @@ take. It is not an acceptance value, and treating it as one would let a run be b
 agent's own word, the exact thing the gate exists to refuse. An index body written back must carry
 `Run status: complete` or no marker; one still marked `Run status: in progress` fails the gate and
 is a failed dispatch. Why the mode exists and where its boundary sits:
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+[`../../../reference/topic-docs.md`](../../../reference/topic-docs.md).
 
 **Exit 1 with the agent still live: resume it, do not re-dispatch it.** A resume costs one message;
 a re-dispatch pays the full six dimensions over again. Address the agent by the **agent ID**, not by
@@ -181,7 +181,7 @@ whether the slice is worth keeping. **The discard follows the resume; it does no
 including for a `status: truncated` return and for a dispatch that returned no payload at all,
 which are the two cases that most often leave a live agent holding a complete artifact set. The
 ordering is stated once in
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md)
 ("Resume first, then decide about the slice").
 
 **Bound the wait either way.** `status: truncated` is not a special case: it takes the same ladder.
@@ -217,12 +217,12 @@ Verified 2026-09-25 against <https://code.claude.com/docs/en/sub-agents> (raw ma
 - This ladder covers `discovery:explorer` because it is a **custom** subagent. It does not extend to
   the built-in Explore agent `SKILL.md` names as the fan-out scout, which is one-shot and returns no
   agent ID. Dated record, with the quoted basis:
-  [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+  [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "The built-in Explore agent cannot hold this plugin's contract".
 
 At the turn limit, a subagent that reaches `maxTurns` returns its output marked as partial, and
 the parent can resume it. Dated record:
-[`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
 "A turn-limit stop returns partial output, and the parent can resume the agent".
 
 A partial marking says the run stopped; it does not put an artifact on disk. That is why the agent

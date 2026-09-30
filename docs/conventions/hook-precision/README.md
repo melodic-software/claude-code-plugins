@@ -45,7 +45,9 @@ them turns every next over-fire into a committed regression test. A hook is prec
    Fail toward acting: git absent, no repository, or a `check-ignore` error runs the hook as before,
    because a skip that fired on an error would disable the hook invisibly. The counter-case, a developer
    who wants an ignored local script formatted, is what the opt-in is for. The shared implementation for
-   rewriting hooks is `hook::gitignored_out_of_scope` in `lib/rewrite-guard.sh`.
+   the nine hooks is `hook::gitignored_out_of_scope` in `lib/hook-utils.sh`. They skip a
+   gitignored file by default and run on it only with the `<plugin>_lint_gitignored` opt-in; that is the
+   maintainer's decision on #4671.
 
    This matches the tools' own defaults when they walk a tree. It does not match what they do for a path
    the hook names on the command line, which is how every one of these hooks invokes them: Ruff's
@@ -58,6 +60,20 @@ them turns every next over-fire into a committed regression test. A hook is prec
    an ignored `.work/` file passed explicitly. As of: 2026-09-28. Recheck: a formatter release that
    changes how an explicit path meets its ignore settings, or a hook that stops passing the path
    explicitly.
+7. **Admit any file under `CLAUDE_PROJECT_DIR`; do not require git-work-tree membership.**
+   `hook::read_file_path` accepts a file under the project root, outside the temp tree, whether or not the
+   root is a repository, including when the root is home. Hooks fire only on files Claude itself edited or
+   wrote, so the admitted set is bounded by the session's own actions. A membership requirement would
+   silently turn formatting off at a legitimate project root that is not a repository. The failure modes a
+   requirement would guard against are already covered: rule 5 handles the home-root false positive for
+   repo-path detection, the temp-tree exclusion keeps the harness scratch tree out, and rule 6 fails toward
+   acting when there is no repository, so this rule does the same. Membership applies only when
+   `CLAUDE_PROJECT_DIR` is unset.
+
+   Verification record. Claim: as stated. Basis: the `CLAUDE_PROJECT_DIR` prefix check and temp-tree
+   exclusion in `hook::read_file_path` (`lib/hook-utils.sh`, lines 1596-1626), where the git-work-tree test
+   sits only in the branch for an unset project dir, and rule 6's fail-toward-acting clause. As of:
+   2026-09-30. Recheck: a format hook starts rewriting non-project files under a home root.
 
 ## The discipline
 
@@ -118,7 +134,7 @@ Existing adopters conform by carrying the rule their over-fire needed:
 
 ### Rule 6 conformance: the nine format and lint hooks
 
-As of 2026-09-28. The harness `if` filter cannot express "gitignored", so it narrows spawn cost only and
+The harness `if` filter cannot express "gitignored", so it narrows spawn cost only and
 never stands in for the gate.
 
 | Hook | Acts on the file by | Gate | Verdict |
@@ -133,21 +149,10 @@ never stands in for the gate.
 | `typos-format` | reporting, and rewriting when write mode is on | shared, `typos_format_lint_gitignored` | conforms (#4671); registers with no `if` filter because typos is language-agnostic |
 | `actionlint` (`actionlint-check`) | reporting only | shared, `actionlint_lint_gitignored`; `hook::begin --no-membership`, `if`-bounded to `**/.github/workflows/*.y*ml` | conforms (#4671); lowest exposure, since it never rewrites and an ignored workflow file is rare |
 
-All nine carry `rewrite-guard.sh` for `hook::gitignored_out_of_scope`. That file is the
-sanctioned home for the gate. Lifting the helper into `lib/hook-utils.sh` (acceptance item 2
-of #4671) is unpaid and out of scope.
-
-- **Claim:** a `hook-utils.sh` lift would bump all 17 carrying plugins and collide with
-  in-flight hook-utils PRs, for a helper only these nine format and lint hooks need.
-  `rewrite-guard.sh` is already the synced home (`scripts/sync-rewrite-guard.sh`). Step 4
-  `if` filters stay off for `typos-format` (language-agnostic) and `eol-normalizer` (every
-  write); a harness `if` cannot express "gitignored" anyway.
-- **Basis:** #4671 acceptance item 2. Re-measured 2026-09-28 on `origin/main`: 17
-  `plugins/*/hooks/hook-utils.sh` copies; six rewrite-guard carriers before this change,
-  nine after.
-- **As of:** 2026-09-28.
-- **Recheck:** a maintainer funds the 17-plugin hook-utils bump, or rewrite-guard and
-  hook-utils merge for another reason.
+The helpers live in `lib/hook-utils.sh`. The six hooks that use the snapshot and disclosure guard
+(`bash-format`, `biome-format`, `eol-normalizer`, `go-format`, `powershell-format`, `ruff-format`) also
+carry `rewrite-guard.sh`. `actionlint`, `markdown-format` and `typos-format` do not, because they never
+call `hook::rewrite_guard_begin`.
 
 The gitignore signal is kept separate from the two disposable-root lists the fleet already has:
 guardrails' `block_hook_bypass_scratch_roots` and hook-utils' temp-root helpers. They answer different

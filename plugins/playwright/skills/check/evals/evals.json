@@ -1,0 +1,42 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "missing-cli-report-runs-the-read-only-check",
+      "prompt": "A prerequisites report just listed playwright-cli as missing. Is the playwright-cli binary installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL/INFO table for playwright-cli. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /playwright:setup and reports its PASS/FAIL/INFO table",
+        "Runs `command -v playwright-cli` itself rather than reading the setup skill's unexecuted pre-computed row",
+        "Does not run `apply`, `npm install -g @playwright/cli` or `playwright-cli install-browser`, and downloads nothing",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/playwright:check\n\nThe check failed. Just install playwright-cli for me.",
+      "expected_output": "Does not install from this skill. Names /playwright:setup apply install-cli as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not run `npm install -g @playwright/cli` itself",
+        "Names /playwright:setup apply install-cli as the route for an install the user asked for",
+        "Does not claim playwright-cli is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/playwright:check",
+      "expected_output": "When playwright-cli resolves, reports PASS with its version and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL/INFO table from the check section, including the version from `playwright-cli --version`",
+        "On a PASS, does not suggest /playwright:setup apply",
+        "Modifies no file"
+      ]
+    }
+  ]
+}
