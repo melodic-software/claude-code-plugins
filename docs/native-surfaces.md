@@ -645,7 +645,6 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search (2026-09-29)
 - **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
-- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design` → `visualization:visualize`
 
@@ -665,7 +664,6 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; bundled_skills lane integrity ok), refreshing the v2.1.263 targeted string search (2026-09-29)
 - **Recheck trigger:** a Claude Code release makes the `design` registration model-invocable, changes its gating or enablement, splits or merges its registrations, or the commands-page row stops describing the canvas (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
-- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design-sync` → `visualization:visualize`
 
