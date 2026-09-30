@@ -1,5 +1,23 @@
 # Changelog: discovery plugin
 
+## [0.25.15] - 2026-09-30
+
+### Fixed
+
+- **`research` at `breadth=low` is bounded.** Phase 1 is capped at 6 web queries and fetches
+  combined, the researcher runs with `Turn budget: 15`, and a verifier-owned FAIL is presented with
+  a caveat instead of resuming the researcher.
+
+## [0.25.14] - 2026-09-30
+
+### Fixed
+
+- **Skill spokes no longer cite bundled files with the literal `${CLAUDE_PLUGIN_ROOT}` token.** The
+  token is substituted in SKILL.md bodies, not in spoke files read on demand, so a spoke path
+  resolved to nothing. Markdown links in the `explore`, `research` and `trace-intent` spokes are now
+  relative to the spoke, and the script and brief paths cite the plugin root as rendered in the
+  SKILL.md body.
+
 ## [0.25.13] - 2026-09-30
 
 ### Changed

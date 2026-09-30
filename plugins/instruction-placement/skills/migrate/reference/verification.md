@@ -120,6 +120,65 @@ file-specific, which is the common case. The fallback: canary an **existing** pa
 so the mechanism is still proven on this repository, and report that the migration created none.
 Never invent a rules file to have something to canary.
 
+## The loader recipe for other tools
+
+The procedure behind the Cursor, Grok Build and Muse Code records in
+[`reference/sources.md`](sources.md). Run it again when a recheck trigger there fires.
+
+**Tree.** Build it outside every repository, once as a git repository and once as a copy without
+`.git`. Give every instruction file its own random canary, named by label and never committed.
+
+- root `AGENTS.md`; `CLAUDE.md` holding `@AGENTS.md`, `@imported.md` and its own canary;
+  `imported.md`; `.claude/CLAUDE.md`; `.cursor/rules/` with `x.md` and `x.mdc`, both with
+  `alwaysApply: true` frontmatter, plus a `.mdc` without frontmatter
+- `sub/AGENTS.md`, `sub/CLAUDE.md`, and a non-instruction file `sub/inner/note.txt` as the read
+  trigger
+- `symdir/` with `AGENTS.md` and `CLAUDE.md` as symlinks
+- `big32k/`, `big245k/`, `big256k/`, `big1m/`: an `AGENTS.md` of 32,784, 244,676, 262,156 and
+  1,048,596 bytes, canaries at head, middle and tail
+- `deep/l01/` through `l12/`, one `AGENTS.md` each
+- `names/`: `Agents.md`, `Claude.md`, `CLAUDE.md`, `CLAUDE.local.md`, `AGENT.md`, `AGENTS.md`,
+  `.claude/CLAUDE.md`, `.claude/CLAUDE.local.md`
+- two more trees holding only a `CLAUDE.md`, and only an `AGENTS.md`
+
+**Prompt.** Quote every line containing `CANARY` from the loaded instructions, without reading
+files. For the read-trigger probes, allow one read of `sub/inner/note.txt` and nothing else.
+
+**Invocations**, each from the tree root and from a nested directory, with the workspace trusted:
+
+```bash
+cursor-agent -p --mode ask --trust --output-format text
+GROK_FOLDER_TRUST=0 grok -p --tools "" --disable-web-search --max-turns 4
+grok inspect --json
+muse exec --no-session-log --disable-web-tools --trust-workspace --disable-shell --disable-write --no-foreign-personal-context
+```
+
+Without `GROK_FOLDER_TRUST=0` Grok lists only `~/.claude/CLAUDE.md`, and without
+`--trust-workspace` Muse skips every project file. `grok inspect --json` is deterministic and
+needs no model call. Each model result is one sample; repeat a probe before trusting a `NONE`.
+
+**Expected results**, as observed on cursor-agent `2026.09.28-64d2043`, grok `1.0.41`, and
+Muse Code `1.4.1`:
+
+| Probe | Cursor | Grok Build | Muse Code |
+|---|---|---|---|
+| Root `AGENTS.md` and `CLAUDE.md` | both load | both load | `AGENTS.md` only |
+| `CLAUDE.md` with no `AGENTS.md` | loads | loads | loads |
+| `@path` import in an instruction file | not expanded | not expanded | not expanded |
+| Symlinked instruction file | followed | followed | followed |
+| `Agents.md`, `AGENT.md`, `.claude/CLAUDE.md` | not read | all eight names read | not read |
+| 262,156-byte `AGENTS.md` | loads | loads | skipped, "over the 256000 byte load limit" |
+| Nested files, cwd at the git root | attach when a file under them is read | absent | absent, and a read attaches nothing |
+| Nested files, cwd in the nested directory | ancestor chain loads, 12 levels | chain loads, 12 levels | chain loads, 12 levels |
+| Non-git copy, cwd nested | ancestors load | cwd directory only | cwd directory only |
+| Non-git copy, cwd at the root, nested file read | attach does not occur | not tested | not tested |
+| `.cursor/rules/x.md` | never loads | loads as a rule | not tested |
+| `.cursor/rules/x.mdc` | loads with frontmatter only | not loaded | not tested |
+
+Grok's two `.claude/` names disappear with `GROK_CLAUDE_AGENTS_ENABLED=false`; the six top-level
+names stay. Muse prints "is ignored this session because AGENTS.md takes precedence in that
+directory" on stderr for a shadowed sibling.
+
 ## Progressive disclosure, with a caveat
 
 Run `/docs-hygiene:audit-progressive-disclosure` via the Skill tool, when it is installed, on the

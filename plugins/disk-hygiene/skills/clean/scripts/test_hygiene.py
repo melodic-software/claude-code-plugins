@@ -1359,6 +1359,244 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual([], entries["notes.txt"]["protected_reasons"])
             self.assertEqual([], entries["notes.txt"]["size_qualifiers"])
 
+    def test_disk_image_names_match_case_insensitively(self) -> None:
+        for name in (
+            "Dev.vhdx",
+            "DISK.VMDK",
+            "ext4.vhdx",
+            "a.vhd",
+            "snap.avhdx",
+            "old.AVHD",
+            "b.vdi",
+            "c.qcow2",
+            "boot.IMG",
+        ):
+            self.assertTrue(hygiene.is_virtual_disk_name(name), name)
+        for name in ("vhdx", "notes.txt", "disk.img.bak", "initrd.img-6.1.0"):
+            self.assertFalse(hygiene.is_virtual_disk_name(name), name)
+
+    def test_scan_qualifies_and_protects_a_disk_image_but_not_a_plain_file(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            (root / "DISK.VMDK").write_bytes(b"x" * 4096)
+            (root / "plain.dat").write_bytes(b"x" * 4096)
+            (root / "images.img").mkdir()
+            (root / "images.img" / "inner.dat").write_bytes(b"x" * 10)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+
+            for name in ("Dev.vhdx", "DISK.VMDK"):
+                self.assertEqual(["virtual-disk"], entries[name]["size_qualifiers"])
+                self.assertIn("virtual-disk", entries[name]["protected_reasons"])
+                self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entries[name]))
+            self.assertEqual([], entries["plain.dat"]["size_qualifiers"])
+            self.assertEqual([], entries["plain.dat"]["protected_reasons"])
+            self.assertEqual(
+                4096, hygiene.entry_reclaimable_local_bytes(entries["plain.dat"])
+            )
+            # A directory that only carries an image-style name holds no image.
+            self.assertEqual([], entries["images.img"]["size_qualifiers"])
+            self.assertEqual([], entries["images.img"]["protected_reasons"])
+            self.assertEqual(4096 + 10, snapshot["target_reclaimable_local_bytes"])
+
+    def test_disk_image_bytes_leave_the_child_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "vm").mkdir(parents=True)
+            (root / "vm" / "ext4.vhdx").write_bytes(b"x" * 4096)
+            (root / "vm" / "note.txt").write_bytes(b"x" * 7)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            rollup = {row["name"]: row for row in snapshot["children_rollup"]}
+            self.assertEqual(7, snapshot["target_reclaimable_local_bytes"])
+            self.assertEqual(7, rollup["vm"]["reclaimable_local_bytes"])
+            self.assertEqual(4096 + 7, rollup["vm"]["logical_bytes"])
+            self.assertIn("virtual-disk", rollup["vm"]["size_qualifiers"])
+
+    def scan_image_with_probe(self, **probe: Any) -> dict[str, Any]:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            (root / "plain.dat").write_bytes(b"x" * 7)
+            with mock.patch.object(hygiene, "virtual_disk_attachment", **probe):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        self.assertEqual(7, snapshot["target_reclaimable_local_bytes"])
+        return hygiene.entry_map(snapshot)["Dev.vhdx"]
+
+    def test_attached_disk_image_names_the_volume_it_backs(self) -> None:
+        entry = self.scan_image_with_probe(return_value=["D:"])
+        self.assertIn("attached-virtual-disk:D:", entry["protected_reasons"])
+        self.assertIn("virtual-disk", entry["protected_reasons"])
+        self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entry))
+
+    def test_attached_disk_image_with_no_volume_still_reads_attached(self) -> None:
+        entry = self.scan_image_with_probe(return_value=[])
+        self.assertIn("attached-virtual-disk", entry["protected_reasons"])
+
+    def test_detached_disk_image_keeps_only_the_virtual_disk_reason(self) -> None:
+        entry = self.scan_image_with_probe(return_value=None)
+        self.assertEqual(["virtual-disk"], entry["protected_reasons"])
+        self.assertEqual(["virtual-disk"], entry["size_qualifiers"])
+        self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entry))
+
+    def test_failed_attach_probe_is_unverified_never_detached(self) -> None:
+        for error in (
+            OSError("no probe"),
+            subprocess.TimeoutExpired("powershell", 20),
+            ValueError("bad output"),
+        ):
+            entry = self.scan_image_with_probe(side_effect=error)
+            self.assertEqual(
+                ["virtual-disk", "virtual-disk-attach-unverified"],
+                entry["protected_reasons"],
+                error,
+            )
+            self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entry))
+
+    def test_preview_blocks_an_image_whose_attach_probe_timed_out(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            timeout = subprocess.TimeoutExpired("powershell", 20)
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("Dev.vhdx")]}
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", side_effect=timeout
+                ),
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                result = hygiene.preview(snapshot, plan)
+            self.assertIn(
+                "virtual-disk-attach-unverified", result["candidates"][0]["blockers"]
+            )
+            self.assertIsNone(result["approval_token"])
+
+    def test_preview_probes_a_disk_image_candidate_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            plan = {"version": 1, "tier": "high", "candidates": [candidate("Dev.vhdx")]}
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", return_value=None
+                ) as probe,
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                probe.reset_mock()
+                result = hygiene.preview(snapshot, plan)
+            probe.assert_called_once()
+            self.assertIn("virtual-disk", result["candidates"][0]["blockers"])
+
+    def test_linux_loop_probe_reads_backing_files_and_mountinfo(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            image = base / "disk.img"
+            image.write_bytes(b"x")
+            sys_block = base / "block"
+            for device, backing in (
+                ("loop0", str(image.resolve())),
+                ("loop1", "/elsewhere.img"),
+            ):
+                (sys_block / device / "loop").mkdir(parents=True)
+                (sys_block / device / "loop" / "backing_file").write_text(
+                    backing + "\n", encoding="utf-8"
+                )
+            mountinfo = base / "mountinfo"
+            mountinfo.write_text(
+                "36 25 7:0 / /mnt/my\\040disk rw shared:1 - ext4 /dev/loop0p1 rw\n"
+                "37 25 7:1 / /mnt/other rw - ext4 /dev/loop1 rw\n"
+                "38 25 7:10 / /mnt/ten rw - ext4 /dev/loop10 rw\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                ["/mnt/my disk"],
+                hygiene.linux_loop_mounts(image, sys_block, mountinfo),
+            )
+            self.assertIsNone(
+                hygiene.linux_loop_mounts(base / "detached.vhdx", sys_block, mountinfo)
+            )
+            mountinfo.write_text("", encoding="utf-8")
+            self.assertEqual([], hygiene.linux_loop_mounts(image, sys_block, mountinfo))
+            with self.assertRaises(OSError):
+                hygiene.linux_loop_mounts(image, base / "missing", mountinfo)
+
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux", "the Linux route is not taken elsewhere"
+    )
+    def test_wsl_loop_miss_reads_unverified_never_detached(self) -> None:
+        for wsl, reasons in (
+            (True, ["virtual-disk", "virtual-disk-attach-unverified"]),
+            (False, ["virtual-disk"]),
+        ):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "target"
+                root.mkdir()
+                (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+                with (
+                    mock.patch.object(hygiene, "is_wsl", return_value=wsl),
+                    mock.patch.object(hygiene, "linux_loop_mounts", return_value=None),
+                ):
+                    snapshot = hygiene.scan_tree(
+                        root.resolve(), hygiene.load_policy(None)
+                    )
+            entry = hygiene.entry_map(snapshot)["Dev.vhdx"]
+            self.assertEqual(reasons, entry["protected_reasons"], wsl)
+
+    def test_wsl_is_read_from_the_kernel_release(self) -> None:
+        with mock.patch.object(
+            hygiene.platform, "release", return_value="6.6.0-microsoft-standard-WSL2"
+        ):
+            self.assertTrue(hygiene.is_wsl())
+
+    def test_windows_probe_parses_output_and_fails_closed(self) -> None:
+        def run(stdout: str, returncode: int = 0) -> mock.Mock:
+            return mock.Mock(stdout=stdout, stderr="#< CLIXML", returncode=returncode)
+
+        image = Path("C:/vm/Dev.vhdx")
+        with mock.patch.object(hygiene.shutil, "which", return_value="powershell"):
+            for stdout, expected in (
+                ("detached\n", None),
+                ("attached\n", []),
+                (
+                    "attached\nD:\\\n\\\\?\\Volume{abc}\\\nC:\\mnt\\vm\\\n",
+                    ["C:\\mnt\\vm", "D:"],
+                ),
+            ):
+                with mock.patch.object(
+                    hygiene.subprocess, "run", return_value=run(stdout)
+                ) as called:
+                    self.assertEqual(expected, hygiene.windows_disk_image_mounts(image))
+                self.assertEqual(
+                    str(image), called.call_args.kwargs["env"]["DISK_HYGIENE_IMAGE"]
+                )
+            for bad in (run("", 0), run("detached\n", 1), run("oops\n", 0)):
+                with (
+                    mock.patch.object(hygiene.subprocess, "run", return_value=bad),
+                    self.assertRaises(ValueError),
+                ):
+                    hygiene.windows_disk_image_mounts(image)
+        with (
+            mock.patch.object(hygiene.shutil, "which", return_value=None),
+            self.assertRaises(OSError),
+        ):
+            hygiene.windows_disk_image_mounts(image)
+
     def test_tenant_cloud_sync_root_name_is_protected(self) -> None:
         # The OneDrive for Business sync root embeds the organization name, so
         # no exact name can cover it and a consumer overlay cannot either:
@@ -2397,6 +2635,15 @@ class HygieneTests(unittest.TestCase):
                     hygiene.root_child_skip_reason(path, exact_names=set()),
                 )
 
+    def test_root_child_disk_image_file_is_withheld(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "docker_data.VHDX"
+            path.write_bytes(b"x")
+            self.assertEqual(
+                "virtual-disk",
+                hygiene.root_child_skip_reason(path, exact_names=set()),
+            )
+
     def test_linux_swapfile_is_os_owned_by_name(self) -> None:
         self.assertTrue(
             hygiene.volume_root_os_owned_file_name_matches("swapfile", "linux")
@@ -3309,6 +3556,36 @@ class HygieneTests(unittest.TestCase):
             )
             self.assertIsNone(result["approval_token"])
 
+    def test_preview_and_apply_refuse_a_disk_image_even_from_a_forged_snapshot(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "vm").mkdir(parents=True)
+            image = root / "vm" / "Dev.vhdx"
+            image.write_bytes(b"x" * 4096)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            for entry in snapshot["entries"]:
+                entry["protected_reasons"] = []
+                entry["size_qualifiers"] = []
+            for path in ("vm/Dev.vhdx", "vm"):
+                plan = {"version": 1, "tier": "high", "candidates": [candidate(path)]}
+                with (
+                    mock.patch.object(
+                        hygiene, "handle_state", return_value=("clear", None)
+                    ),
+                    mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                    mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                ):
+                    result = hygiene.preview(snapshot, plan)
+                    report = hygiene.apply_plan(snapshot, plan)
+                self.assertIn("virtual-disk", result["candidates"][0]["blockers"])
+                self.assertIsNone(result["approval_token"])
+                self.assertEqual("protected", report["skipped"][0]["outcome"])
+                self.assertIn("virtual-disk", report["skipped"][0]["detail"])
+                self.assertEqual(0, report["paths_removed"])
+                self.assertTrue(image.exists())
+
     def test_preview_accepts_a_snapshot_lacking_the_new_entry_fields(self) -> None:
         # A previous engine's snapshot carries no size_qualifiers or
         # file_attributes. Cached plugin versions linger well past their
@@ -3920,6 +4197,39 @@ class HygieneTests(unittest.TestCase):
                 self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries"),
             ):
                 hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+
+    def test_entry_cap_error_names_the_child_being_walked(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "small").mkdir(parents=True)
+            (root / "big").mkdir()
+            for index in range(6):
+                (root / "big" / f"file-{index}.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 3),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 3 entries") as raised,
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            message = str(raised.exception)
+            self.assertRegex(message, r"big \(\d+, walk in progress\)")
+            self.assertNotRegex(message, r"small \(\d+, walk in progress\)")
+            self.assertIn("--sizes-only", message)
+            self.assertIn("--root-children --root-child <name>", message)
+
+    def test_entry_cap_error_does_not_mark_a_finished_child_as_in_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "aaa").mkdir(parents=True)
+            (root / "aaa" / "one.txt").write_text("x", encoding="utf-8")
+            (root / "bbb.txt").write_text("x", encoding="utf-8")
+            with (
+                mock.patch.object(hygiene, "MAX_SNAPSHOT_ENTRIES", 2),
+                self.assertRaisesRegex(hygiene.HygieneError, "exceeds 2 entries") as raised,
+            ):
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            message = str(raised.exception)
+            self.assertIn("aaa (2)", message)
+            self.assertNotIn("aaa (2, walk in progress)", message)
 
     def test_sizes_only_bypasses_inventory_entry_cap(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -5925,6 +6235,26 @@ class HandoffVerifyTests(unittest.TestCase):
             mock.patch.object(hygiene, "tracked_blocker", return_value=None),
         )
 
+    def test_disk_image_candidate_is_probed_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                mock.patch.object(
+                    hygiene, "virtual_disk_attachment", return_value=None
+                ) as probe,
+                handle,
+                vcs,
+            ):
+                snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+                probe.reset_mock()
+                result = hygiene.handoff_verify(snapshot, ["Dev.vhdx"])
+            probe.assert_called_once()
+            self.assertEqual("contested", result["verdicts"][0]["verdict"])
+            self.assertIn("virtual-disk", result["verdicts"][0]["reasons"])
+
     @staticmethod
     def create_checkout(root: Path) -> Path:
         checkout = root / "checkout"
@@ -7718,6 +8048,20 @@ class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
         return guard._display_python()
+
+    # Here because this class is the only one the Windows lane runs: it drives
+    # the real Get-DiskImage probe end to end on a file that is no disk image.
+    @unittest.skipUnless(os.name == "nt", "Windows Get-DiskImage probe")
+    def test_windows_attach_probe_never_calls_a_non_image_attached(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary).resolve()
+            image = target / "garbage.vhdx"
+            image.write_bytes(b"not a disk image")
+            reasons = hygiene.hard_protection(image, target, set())
+        self.assertIn("virtual-disk", reasons)
+        self.assertFalse(
+            [reason for reason in reasons if reason.startswith("attached-virtual-disk")]
+        )
 
     def setUp(self) -> None:
         # Hermetic kill switch: the guard resolves disk_hygiene_enabled by reading
@@ -12797,6 +13141,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         "scan": "scan --target t --output s",
         "preview": "preview --snapshot s --plan p",
         "handoff-verify": "handoff-verify --snapshot s --paths q",
+        "catalog": "catalog --snapshot s --run-id run-1",
         "apply": (
             "apply --execute --snapshot s --plan p --confirm-tier high "
             f"--approval-token {'a' * 24} --report r"
@@ -13218,6 +13563,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
             "scan": "allow",
             "preview": "allow",
             "handoff-verify": "allow",
+            "catalog": "allow",
             "apply": "ask",
         }
         for subcommand, verdict in verdicts.items():
