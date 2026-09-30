@@ -807,9 +807,17 @@ class Hub:
             r = load_json(self.responses, EMPTY_RESPONSES)
             settings, theme = self.layers.resolve(self.dir, self.user_settings())
             derived = question_states(q, r)
+            # exporters imports server at module top
+            from exporters import latest_decision
+
             for x in q.get("questions") or []:
                 if isinstance(x, dict) and x.get("id") in derived:
                     x["state"], x["revising"] = derived[x["id"]]
+                    x["answered"] = bool(
+                        (latest_decision(x, r.get("responses", {})) or {}).get(
+                            "decision"
+                        )
+                    )
             self._last_state = {
                 "questions": q,
                 "responses": r,

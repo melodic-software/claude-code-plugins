@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 4, "end_line": 6 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "notes": {
+    "shape": "A restated cap with a link to the owning page and a fetch date beside it, and no statement of what obliges a recheck. Two of the record's four parts are present.",
+    "carve_outs": "Conforming pointer or record does NOT apply, and that is the point of the case. A link beside a stated value cites the value and does not record what obliges a recheck, and a dated sentence with no observable trigger is missing a part.",
+    "rubric": "R1 holds: the product owns the cap. R2 holds: a character count. R3 holds: stated as the current limit and used as the basis for a structural rule. R4 holds: a basis and an as-of date are present and the recheck trigger is absent, so the record is not whole.",
+    "carries": "The hardest positive in the restated-fact set, and the one most likely to be cleared on the strength of the link and the date. A run that clears it has accepted a partial record as a whole one.",
+    "tier_reason": "A source was supplied, so source-fetched-similar. Report-only."
+  }
+}

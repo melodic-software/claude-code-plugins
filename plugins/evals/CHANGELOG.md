@@ -1,6 +1,6 @@
 # Changelog: evals
 
-## [0.3.7] - 2026-09-29
+## [0.3.8] - 2026-09-30
 
 ### Changed
 
@@ -13,6 +13,13 @@
 - **The `claude-api` Boundary bullet in `methodology` no longer asserts that the subcommands ship
   with Claude Code.** It keeps the provenance class, what the subcommands do and how they are
   invoked, in the native-references template form.
+
+## [0.3.7] - 2026-09-30
+
+### Changed
+
+- **`plugin-eval`: `case-authoring.md` splits graders by expectation.** A mechanical expectation gets a
+  deterministic grader; a holistic one gets an `llm` judge.
 
 ## [0.3.6] - 2026-09-29
 

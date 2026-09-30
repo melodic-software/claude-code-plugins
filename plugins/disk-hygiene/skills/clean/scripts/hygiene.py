@@ -170,10 +170,11 @@ class HygieneError(Exception):
 
 QUIET_SCAN_NOTE = (
     "Quiet output: children_rollup is omitted from stdout only, and "
-    "truncated_paths is the count of truncated paths rather than the list. The "
-    'snapshot file named by "snapshot" carries every row and every truncated '
-    "path in full, in this mode exactly as in the default one; read per-child "
-    "detail and the coverage gaps there. Re-run without --quiet for the rollup "
+    "truncated_paths is the count of truncated paths rather than the list and "
+    "truncation_reasons is a per-reason tally rather than a path map. The "
+    'snapshot file named by "snapshot" carries every row, every truncated '
+    "path and its reason in full, in this mode exactly as in the default one; "
+    "read per-child detail and the coverage gaps there. Re-run without --quiet for the rollup "
     "and the full interpretation note. Hints are discovery signals, never "
     "cleanup verdicts."
 )
@@ -187,9 +188,10 @@ QUIET_SCAN_NOTE = (
 # no other signal that the inventory is partial by construction.
 QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     "Quiet output: children_rollup is omitted from stdout only, and "
-    "truncated_paths is the count of truncated paths rather than the list; the "
-    'snapshot file named by "snapshot" carries every row and every truncated '
-    "path in full. Coverage limit, "
+    "truncated_paths is the count of truncated paths rather than the list and "
+    "truncation_reasons is a per-reason tally; the "
+    'snapshot file named by "snapshot" carries every row, every truncated '
+    "path and its reason in full. Coverage limit, "
     "unchanged by --quiet: root-children mode inventoried only the selected "
     "immediate children, so the scan target itself and every skipped "
     "OS-owned/hidden/system/reparse or unselected sibling were never walked, and "
@@ -198,6 +200,14 @@ QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     "represented in truncated_paths. Re-run without --quiet for the rollup "
     "and the full interpretation note. Hints are discovery signals, never "
     "cleanup verdicts."
+)
+
+
+PROTECTED_TARGET_HINT = (
+    "The refusal covers a protected shell folder or profile hive and everything beneath it, "
+    "so a child directory of Documents, Desktop or Downloads is refused too. Allowed targets "
+    "have no protected name anywhere in their path: a directory outside the shell folders "
+    "(for example a project or data directory), or the home directory itself."
 )
 
 
@@ -237,6 +247,8 @@ def scan_complete_payload(
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
         "truncated_paths": snapshot["truncated_paths"],
+        "truncation_reasons": snapshot["truncation_reasons"],
+        "totals_are_lower_bounds": snapshot["totals_are_lower_bounds"],
         "stdlib_shadowing": snapshot.get("stdlib_shadowing", []),
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
@@ -263,7 +275,8 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     the rollup. It also replaces the ``truncated_paths`` list with its length,
     since a depth-cut home scan truncates well over a hundred paths: the count
     says how much went unwalked, stays present at zero so a clean scan is
-    distinguishable, and the snapshot keeps the list. Nothing else changes: the
+    distinguishable, and the snapshot keeps the list. ``truncation_reasons`` is
+    likewise reduced from a path map to a per-reason tally. Nothing else changes: the
     same run happens, the same snapshot is written, and every other field
     survives unchanged.
 
@@ -278,6 +291,11 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     trimmed = {key: value for key, value in payload.items() if key != "children_rollup"}
     if isinstance(trimmed.get("truncated_paths"), list):
         trimmed["truncated_paths"] = len(trimmed["truncated_paths"])
+    if isinstance(trimmed.get("truncation_reasons"), dict):
+        tally: dict[str, int] = {}
+        for reason in trimmed["truncation_reasons"].values():
+            tally[reason] = tally.get(reason, 0) + 1
+        trimmed["truncation_reasons"] = dict(sorted(tally.items()))
     trimmed["note"] = (
         QUIET_ROOT_CHILDREN_SCAN_NOTE
         if payload.get("root_children_mode")
@@ -945,7 +963,11 @@ def standing_policy_paths(project_dir: Path | None) -> list[Path]:
     layers = [Path.home() / ".claude" / "disk-hygiene.json"]
     if project_dir is not None:
         layers.append(project_dir / ".claude" / "disk-hygiene.json")
-    return [path for path in layers if path.is_file()]
+    unique: dict[Path, Path] = {}
+    for path in layers:
+        if path.is_file():
+            unique.setdefault(path.resolve(), path)
+    return list(unique.values())
 
 
 def baseline_policy() -> dict[str, Any]:
@@ -1110,6 +1132,10 @@ def apply_policy_overlay(
     result["rules"].extend(rules)
     result["elevation"] = elevation
     result["policy_sources"].append(str(overlay_path))
+
+
+HINT_ENTRY_TYPES = ("file", "directory", "link", "other")
+MAX_EMPTY_DIRECTORY_PATHS = 200
 
 
 def validate_rules(
@@ -1283,10 +1309,21 @@ def validate_hint(hint: Any) -> None:
     if not isinstance(hint, dict):
         raise HygieneError("each additional hint must be an object")
     required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
-    if set(hint) != required:
+    if not required <= set(hint) or set(hint) - required - {"entry_types"}:
         raise HygieneError(
-            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason"
+            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason "
+            "and optionally entry_types"
         )
+    if "entry_types" in hint:
+        entry_types = hint["entry_types"]
+        if (
+            not isinstance(entry_types, list)
+            or not entry_types
+            or not all(value in HINT_ENTRY_TYPES for value in entry_types)
+        ):
+            raise HygieneError(
+                "hint entry_types must be a non-empty array containing file/directory/link/other"
+            )
     if hint["kind"] not in {"name_glob", "path_glob"}:
         raise HygieneError(f"unsupported hint kind: {hint['kind']}")
     if hint["confidence_ceiling"] not in TIERS:
@@ -1305,13 +1342,16 @@ def validate_hint(hint: Any) -> None:
 
 
 def matching_hints(
-    relative: str, name: str, policy: dict[str, Any]
+    relative: str, name: str, policy: dict[str, Any], kind: str | None = None
 ) -> list[dict[str, str]]:
     matches = []
     current_os = os_key()
     for hint in policy["hints"]:
         validate_hint(hint)
         if "all" not in hint["os"] and current_os not in hint["os"]:
+            continue
+        entry_types = hint.get("entry_types")
+        if kind is not None and entry_types is not None and kind not in entry_types:
             continue
         subject = name if hint["kind"] == "name_glob" else relative
         if glob_matches(subject, hint["pattern"]):
@@ -1648,12 +1688,12 @@ def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
     return parents
 
 
-def empty_directory_count(
+def empty_directory_paths(
     entries: list[dict[str, Any]],
     *,
     error_paths: Iterable[str] | None = None,
-) -> int:
-    """Count walked empty directories in a snapshot inventory.
+) -> list[str]:
+    """Sorted paths of walked empty directories in a snapshot inventory.
 
     ``error_paths`` are scan-error relatives that must not count as empty even
     when they were recorded with ``logical_size`` 0 and no descendants.
@@ -1665,8 +1705,8 @@ def empty_directory_count(
     }
     parents_with_children = inventory_parent_paths(by_path)
     unknown = {path for path in (error_paths or ()) if isinstance(path, str) and path}
-    return sum(
-        1
+    return sorted(
+        entry["path"]
         for entry in by_path.values()
         if entry_is_empty_directory(
             entry,
@@ -1674,6 +1714,14 @@ def empty_directory_count(
             unknown_paths=unknown,
         )
     )
+
+
+def empty_directory_count(
+    entries: list[dict[str, Any]],
+    *,
+    error_paths: Iterable[str] | None = None,
+) -> int:
+    return len(empty_directory_paths(entries, error_paths=error_paths))
 
 
 def empty_file_count(entries: list[dict[str, Any]]) -> int:
@@ -2369,7 +2417,7 @@ def scan_tree(
             path = Path(child.path)
             # Root-children mode never walks the volume root as a whole: only
             # explicitly selected immediate children are entered, and
-            # unselected siblings are never inventoried.
+            # unselected siblings are never inventoried, only named.
             child_key = child.name if root_children_sensitive else child.name.casefold()
             if (
                 allowed_root_children is not None
@@ -2377,6 +2425,7 @@ def scan_tree(
                 and directory == target
                 and child_key not in allowed_root_children
             ):
+                unwalked_reasons[child.name] = "root-child-unselected"
                 continue
             relative = path.relative_to(target).as_posix()
             protections = hard_protection(path, target, exact_names, known_mounts)
@@ -2470,7 +2519,7 @@ def scan_tree(
                     {
                         "path": relative,
                         **data,
-                        "hints": matching_hints(relative, path.name, policy),
+                        "hints": matching_hints(relative, path.name, policy, kind),
                         "protected_reasons": sorted(set(protections)),
                         **protection_matches_field(consumer_matches),
                     }
@@ -2524,6 +2573,7 @@ def scan_tree(
             if "not-walked" in (entry.get("size_qualifiers") or [])
         }
     )
+    empty_directories = empty_directory_paths(entries, error_paths=error_paths)
     payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "engine": "disk-hygiene-python-1",
@@ -2534,9 +2584,10 @@ def scan_tree(
         "target_identity": target_identity,
         "target_logical_bytes": total_size,
         "target_reclaimable_local_bytes": reclaimable,
-        "empty_directory_count": empty_directory_count(
-            entries, error_paths=error_paths
-        ),
+        "empty_directory_count": len(empty_directories),
+        "empty_directory_paths": empty_directories[:MAX_EMPTY_DIRECTORY_PATHS],
+        "empty_directory_paths_truncated": len(empty_directories)
+        > MAX_EMPTY_DIRECTORY_PATHS,
         "empty_file_count": empty_file_count(entries),
         "policy": policy,
         "repositories": [str(repo) for repo in repositories],
@@ -2544,6 +2595,13 @@ def scan_tree(
         "errors": errors,
         "max_depth": max_depth,
         "truncated_paths": sorted(truncated),
+        "truncation_reasons": {
+            **dict.fromkeys(sorted(truncated), "scan-error"),
+            **dict(sorted(unwalked_reasons.items())),
+        },
+        "totals_are_lower_bounds": bool(
+            truncated or unwalked_reasons or root_children is not None
+        ),
         "stdlib_shadowing": stdlib_shadowing,
         "children_rollup": children_rollup(
             entries,
@@ -4815,8 +4873,13 @@ def main(argv: list[str] | None = None) -> int:
             if has_protected_path_component(
                 target, set(policy["protected_exact_names"])
             ):
-                raise HygieneError(
-                    "protected shell-folder and profile-hive roots are not valid audit targets"
+                return emit(
+                    {
+                        "status": "invalid-or-blocked",
+                        "error": "protected shell-folder and profile-hive roots are not valid audit targets",
+                        "hint": PROTECTED_TARGET_HINT,
+                    },
+                    2,
                 )
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")
@@ -5031,8 +5094,13 @@ def main(argv: list[str] | None = None) -> int:
                                 "target_reclaimable_local_bytes excludes every "
                                 "entry whose size_qualifiers is non-empty "
                                 "(cloud-placeholder, hardlinked, sparse, "
-                                "virtual-disk, not-walked); target_logical_bytes is the walked "
-                                "roll-up and may understate truncated subtrees."
+                                "virtual-disk, not-walked). Both totals count "
+                                "walked subtrees only: when "
+                                "totals_are_lower_bounds is true, some subtree "
+                                "was not walked, so read them as lower bounds; "
+                                "truncation_reasons maps each unwalked path to "
+                                "its cause (vcs-boundary, protected, depth-cut, "
+                                "scan-error, root-child-unselected)."
                             )
                         ),
                     ),
@@ -5097,8 +5165,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "handoff-verify":
             approved = validate_handoff_paths(
-                {"version": SCHEMA_VERSION, "paths": [args.path]}
-                if args.path is not None
+                {"version": SCHEMA_VERSION, "paths": args.path}
+                if args.path
                 else load_json(Path(args.paths)),
                 entry_map(snapshot),
             )

@@ -37,7 +37,7 @@ primary objective; reclaimed bytes are secondary.** That posture does not change
 full: there is no emergency lane and no rule that yields under pressure. The recorded no-proportionality
 decision (no rule yields, no regenerable-at-a-cost engine signal) lives in
 [the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
-optional execution lane.
+optional execution lane. On Windows and macOS a run ends in a report plus the `execution-platform-unsupported` handoff, so plan for no deletion lane there.
 
 ## Arguments and boundaries
 
@@ -66,7 +66,7 @@ the engine returns `root-children-selection-required`. A general "clean everythi
 selection. `--sizes-only` skips the large-scan question. What each of the three flags does
 exactly, including the admission ladder, is in [scan-flags.md](reference/scan-flags.md). With no
 target, ask once. Reject an OS-managed root (unless `--root-children` on the volume root itself), a
-non-root mount target, a protected shell-folder root or descendant, a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
+non-root mount target, a protected shell-folder root or descendant (the refusal carries a `hint`: a child of a shell folder is refused too, so name a directory whose path holds no protected name), a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
 or a Windows reparse point. A whole-volume root that is not OS-managed (a Windows Dev Drive) is a
 valid target, but as a known-large root it is gated like a home target (see step 1): the scan
 returns `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
@@ -115,14 +115,12 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   guard would deny. The guard is the backstop, not the sole enforcer. Every engine call and the
   probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
   needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
-  functions can replace them. The expansion of this command normally carries a `disk-hygiene guard
-  values` note naming both as `hook_python` and `data_root`, resolved by the guard's own code
-  before the skill loads; use them from the first call. The probe's `hook_python` and `data_root`
-  fields are the same two values, computed by the same guard code; when the note is absent, take
-  both from the probe. The probe itself needs `<hook-python>`: if neither source has supplied it,
-  submit the probe once with bare `python`, and the guard denies that read-only call and names its
-  interpreter; rerun the probe with it. Never submit a scan to learn either value. A `data_root` of
-  `none` in the note or `null` from the probe means the install layout proved no data root, so the
+  functions can replace them. The expansion of this command normally carries a `disk-hygiene guard values`
+  note naming `hook_python` and `data_root`, resolved by the guard's own code; use both from the
+  first call. Only when the note is absent, submit the probe once with bare `python`: the guard
+  denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
+  take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value.
+  A `data_root` of `none` in the note or `null` from the probe means the install layout proved no data root, so the
   guard denies every engine call: report the audit as not run, relay the recovery the guard's
   denial names, and submit no engine call. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
   in `hygiene.py`, the floor's single origin), stop with the declared prerequisite instead of
@@ -207,7 +205,7 @@ selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
 confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
 root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdout carries only their count and
-the snapshot the list); report them as coverage gaps, never as clean,
+the snapshot the list; `truncation_reasons` names each cause and `totals_are_lower_bounds` marks partial byte totals, see [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields)); report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only (see
@@ -234,7 +232,7 @@ and protected names. Without `--policy`, the engine also layers standing policy 
 layers. Every overlay can disable/add hints and add protected globs, and `version: 2` adds `rules`
 and `elevation`; none can weaken hard guards. The [overlay schema](reference/policy-overlay.schema.json)
 lists every field; version 1 files load unchanged. The scan output names its `policy_sources` and
-the effective `elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean.
+the effective `elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields).
 
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
@@ -438,11 +436,8 @@ activity, sparse files, hard links, compression, and delayed allocation affect i
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
 so the engine never deletes there and the default outcome is the report. When, and only when,
 an execution request was made on one of those platforms and the human approved an exact single-tier
-path list in this session, read
-[reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
-it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
-revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
-lane from the engine steps above.
+path list in this session, read [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md)
+and follow it. It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
 
 ## Gotchas
 
@@ -494,6 +489,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority, except inside the opt-in elevated script, which no guard sees.
+- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts, which force a prompt; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Auto mode also drops broad interpreter allow rules such as `Bash(python*)`.
+  Verified 2026-09-29 against Claude Code 2.1.285 at `https://code.claude.com/docs/en/hooks#pretooluse-decision-control` (an `ask` prompts the user, including in auto mode) and `https://code.claude.com/docs/en/permission-modes` (the list of allow rules dropped on entering auto mode); recheck when either page changes those statements, or when a release note names hook permission decisions or auto-mode rule handling.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.
