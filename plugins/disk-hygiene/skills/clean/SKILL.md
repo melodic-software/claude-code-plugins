@@ -338,8 +338,7 @@ was never inventoried, so `logical_size` is `null` rather than `0`, except on th
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
 `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself.
 Folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
-low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar.
-A `prior_disposition` or `prior_unresolved` is a hint, never approval; report and record answers per the [investigated catalog](reference/safety-model.md#investigated-catalog).
+low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar. A `prior_disposition` or `prior_unresolved` is a hint, never approval; report and record answers per the [investigated catalog](reference/safety-model.md#investigated-catalog).
 
 ## 4. Build one exact-tier plan
 
