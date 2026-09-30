@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.14.0] - 2026-09-29
+## [0.15.0] - 2026-09-29
 
 ### Added
 
@@ -26,6 +26,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   an unencoded `?` or `#` with an `@` after it yields no row. A caller that does
   not set it is unchanged. No-leak fixtures cover userinfo, query tokens, and a
   `;` inside userinfo.
+
+## [0.14.0] - 2026-09-29
+
+### Removed
+
+- `map-states` and its extractor, renderer, tests, and evals. Its README, config
+  reference, `map-landscape`, catalog, and tag references are removed with it.
 
 ## [0.13.0] - 2026-09-29
 

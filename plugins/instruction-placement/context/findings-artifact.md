@@ -186,11 +186,15 @@ truncated to 8 hex**: for the section `### Release checklist` under `## Deployme
 `["Deployment", "Release checklist"]`. It is deliberately **not** a digest of the section's text and
 never a positional ordinal.
 
-**The chain is reconstructed from the detector stream, and only `audit` and `delta` may do it.** A
-`SECTION` record carries `path`, `start`, `end`, `level`, and its own `heading`; the ancestors are
-recoverable because the records for one file arrive in document order with their levels, so a
-section's enclosing path is the nearest preceding record at each lower level, walked up to level 1.
-Both skills that run the detector derive it that way and never by re-reading the file.
+**`audit` and `delta` derive `anchor/v1` and `finding_id` by running
+`scripts/detect.sh identity --file <path> --start <n> --lane <lane> --destination <rung>`, and never
+compute them by hand.** The script implements the formulas on this page and prints the heading path
+it hashed.
+
+The script reconstructs the chain from the detector stream. A `SECTION` record carries `path`,
+`start`, `end`, `level`, and its own `heading`; the ancestors are recoverable because the records for
+one file arrive in document order with their levels, so a section's enclosing path is the nearest
+preceding record at each lower level, walked up to level 1. Both skills that run the detector derive it that way and never by re-reading the file.
 
 **`realign` never derives one.** It has no detector stream, so it reads `anchor/v1` and `finding_id`
 from the Finding record `audit` wrote and carries them into the suppression entry verbatim. That is
