@@ -9,7 +9,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`changelog apply` files native-drift items without a `native-drift` label.** The body's
   `native-drift:<kind>:<surface>:<component>` key already finds every item (on GitHub,
-  `gh issue list --state all --search '"native-drift:" in:body'`), so the label step and its two recorded facts
+  `gh issue list --state all --limit 1000 --search '"native-drift:" in:body'`), so the label step and its two recorded facts
   are gone.
 
 ## [0.72.0] - 2026-09-30
