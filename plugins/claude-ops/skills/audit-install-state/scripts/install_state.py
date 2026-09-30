@@ -44,6 +44,18 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundled module)
+    INSTALLED_PLUGINS,
+    ORPHAN_SWEEP_DAYS,
+    load_registry,
+    orphan_marker,
+    resolve,
+)
+
 MIN_PYTHON = (3, 11)
 
 # --------------------------------------------------------------------------
@@ -165,9 +177,6 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
 # ("Application data" -> "Cleaned up automatically" / "Kept until you delete
 # them"), read as raw markdown, verified 2026-08-11. See reference/surfaces.md.
 # --------------------------------------------------------------------------
-
-# Days after update or uninstall that Claude Code removes an orphaned plugin version directory.
-ORPHAN_SWEEP_DAYS = 14
 
 SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
 KEPT = "product-managed-kept"  # documented as never age-swept
@@ -1630,27 +1639,6 @@ def node_modules_bucket(rows: list[FileRow]) -> dict:
     }
 
 
-INSTALLED_PLUGINS = "plugins/installed_plugins.json"
-
-
-def _install_paths(data: object) -> list[str]:
-    """Every `installPath` in the parsed registry, whatever scope or project entry holds it."""
-    if isinstance(data, dict):
-        own = data.get("installPath")
-        found = [own] if isinstance(own, str) else []
-        return found + [p for v in data.values() for p in _install_paths(v)]
-    if isinstance(data, list):
-        return [p for v in data for p in _install_paths(v)]
-    return []
-
-
-def _resolved(path: str | Path) -> Path | None:
-    try:
-        return Path(path).expanduser().resolve()
-    except (OSError, RuntimeError):
-        return None
-
-
 def unreferenced_versions(
     root: Path,
     rows: list[FileRow],
@@ -1675,38 +1663,32 @@ def unreferenced_versions(
             sizes[key] = sizes.get(key, 0) + row.bytes
     if not sizes:
         return [], None
-    try:
-        text = read_text_guarded(root, INSTALLED_PLUGINS)
-        opened.add(INSTALLED_PLUGINS)
-        data = json.loads(text)
-    except (OSError, ValueError) as exc:
+
+    def read(relpath: str) -> str:
+        text = read_text_guarded(root, relpath)
+        opened.add(relpath)
+        return text
+
+    registry = load_registry(read, root)
+    if registry.foreign:
         return (
             [],
-            f"{INSTALLED_PLUGINS} unreadable ({type(exc).__name__}); nothing reported",
+            f"{registry.doubt}; the registry may belong to another root, so nothing is reported",
         )
-    if not isinstance(data, dict) or not isinstance(data.get("plugins"), dict):
-        return [], f"{INSTALLED_PLUGINS} has no `plugins` object; nothing reported"
+    if registry.doubt:
+        return [], f"{registry.doubt}; nothing reported"
     cache = root / "plugins" / "cache"
-    cache_resolved = _resolved(cache)
-    referenced = {p for p in map(_resolved, _install_paths(data)) if p is not None}
-    if data["plugins"] and not any(cache_resolved in p.parents for p in referenced):
-        return [], (
-            f"no installPath in {INSTALLED_PLUGINS} lies under {cache}; the registry may belong "
-            "to another root, so nothing is reported"
-        )
     now = time.time() if now is None else now
     found: list[dict] = []
     for (marketplace, plugin, version), size in sizes.items():
-        if _resolved(cache / marketplace / plugin / version) in referenced:
+        if resolve(cache / marketplace / plugin / version) in registry.referenced:
             continue
         rel = f"plugins/cache/{marketplace}/{plugin}/{version}"
-        try:
-            marker = read_text_guarded(root, f"{rel}/.orphaned_at")
-            opened.add(f"{rel}/.orphaned_at")
-            epoch_ms = int(marker.strip())
-            orphaned_at, age = iso(epoch_ms / 1000), (now - epoch_ms / 1000) / 86400
-        except (OSError, ValueError, OverflowError):
-            orphaned_at, age = None, None
+        marker = orphan_marker(read, rel, now) or {
+            "orphaned_at": None,
+            "marker_age_days": None,
+            "past_sweep_window": False,
+        }
         found.append(
             {
                 "marketplace": marketplace,
@@ -1714,9 +1696,7 @@ def unreferenced_versions(
                 "version": version,
                 "path": rel,
                 "bytes": size,
-                "orphaned_at": orphaned_at,
-                "marker_age_days": None if age is None else round(age, 1),
-                "past_sweep_window": age is not None and age >= ORPHAN_SWEEP_DAYS,
+                **marker,
                 "evidence": MEASURED,
             }
         )
