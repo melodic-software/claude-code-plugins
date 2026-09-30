@@ -119,6 +119,8 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 
 # Bodies shorter than this many characters may repeat (see --check-bump).
 MIN_REPEATED_BODY=120
@@ -126,14 +128,21 @@ MIN_REPEATED_BODY=120
 BASELINE="${CHANGELOG_PARITY_BASELINE:-scripts/changelog-parity-baseline.txt}"
 NO_OP_BUMPS="${CHANGELOG_NO_OP_BUMPS:-scripts/changelog-no-op-bumps.txt}"
 
-mode="${1:-}"
-case "$mode" in
---check | --check-bump | --check-order | --check-preserved) ;;
-*)
-  echo "usage: $(basename "$0") [--check | --check-bump <base-ref> | --check-order | --check-preserved <base-ref>]" >&2
+GE_FLAGS=("--check" "--check-bump:ref" "--check-order" "--check-preserved:ref")
+GE_BAD_REF_MSG="check-changelog-parity: base ref '${2-}' is not a resolvable commit."
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if ! gate_entry::classify "$@"; then
+  case "${1:-}" in
+  --check-bump | --check-preserved)
+    echo "usage: $(basename "$0") $1 <base-ref>" >&2
+    ;;
+  *)
+    echo "usage: $(basename "$0") [--check | --check-bump <base-ref> | --check-order | --check-preserved <base-ref>]" >&2
+    ;;
+  esac
   exit 2
-  ;;
-esac
+fi
+mode="$GE_MODE"
 
 # Grandfathered plugin names (static-check exemptions).
 declare -A grandfathered
@@ -393,10 +402,10 @@ if [[ "$mode" == "--check-order" ]]; then
 
   if ((misordered > 0 || duplicated > 0)); then
     echo "Changelogs must read newest-first with no repeated version. Renumber against what is on the DEFAULT BRANCH, not against the base the branch was cut from." >&2
-    exit 1
+    gate_entry::finish 1
   fi
   echo "All $checked changelog(s) read newest-first with no duplicate versions."
-  exit 0
+  gate_entry::finish 0
 fi
 
 if [[ "$mode" == "--check" ]]; then
@@ -463,10 +472,10 @@ if [[ "$mode" == "--check" ]]; then
   done
   if ((missing > 0 || ahead > 0)); then
     ((ahead > 0)) && echo "A changelog entry must not name a version the manifest has not reached; the manifest may sit above the newest heading, never below it." >&2
-    exit 1
+    gate_entry::finish 1
   fi
   echo "Every versioned plugin has a CHANGELOG.md (or a stale-guarded baseline entry), and none documents a version above its manifest."
-  exit 0
+  gate_entry::finish 0
 fi
 
 # ===================== the two diff modes: shared prologue ==================
@@ -474,15 +483,7 @@ fi
 # to a file, so both need the same three things resolved the same way: the base
 # ref, the fork point, and the change set's own touched paths. Resolved once so
 # the two modes cannot drift into reading the diff differently.
-if [[ -z "${2:-}" ]]; then
-  echo "usage: $(basename "$0") $mode <base-ref>" >&2
-  exit 2
-fi
-base="$2"
-if ! changed_files::verify_base "$base"; then
-  echo "check-changelog-parity: base ref '$base' is not a resolvable commit." >&2
-  exit 2
-fi
+base="$GE_REF"
 
 # Scope the bump check to plugins THIS change set actually touched. A stale
 # branch whose base ref (main) has advanced an UNTOUCHED plugin's version must
@@ -664,10 +665,10 @@ if [[ "$mode" == "--check-preserved" ]]; then
 
   if ((deleted > 0)); then
     echo "A released '## [<version>]' entry may never be dropped by a change set; every heading present at the fork point must still be present at head." >&2
-    exit 1
+    gate_entry::finish 1
   fi
   echo "All ${#touched_changelogs[@]} changed changelog(s) preserve every version heading they carried at $merge_base ($compared heading(s) compared)."
-  exit 0
+  gate_entry::finish 0
 fi
 
 # ============================== --check-bump ================================
@@ -855,6 +856,7 @@ if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 ||
   ((repeated > 0)) && echo "An entry added by this change set may not repeat another entry's body verbatim (bodies under $MIN_REPEATED_BODY characters are exempt)." >&2
   ((empty_bump > 0)) && echo "Bump a plugin's version only in the change set that changes a file it ships." >&2
   ((published_reuse > 0)) && echo "Bump the manifest version and add a new '## [<version>]' release entry whenever this change set modifies shipped plugin files — reusing a published version number is not allowed." >&2
-  exit 1
+  gate_entry::finish 1
 fi
 echo "Every plugin whose version changed vs $base has a '## [<version>]' CHANGELOG.md entry."
+gate_entry::finish 0

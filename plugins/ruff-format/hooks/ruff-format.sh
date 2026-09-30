@@ -145,11 +145,11 @@ fi
 # The repo opted in via a Ruff config but no binary is available → visible
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$RUFF_BIN" ]]; then
-  if hook::notice_once "ruff-format-ruff" "$INPUT"; then
+  if hook::notice_once "ruff-format-ruff" "$INPUT" prerequisite; then
     RUFF_NOTICE=""
     hook::tool_missing_notice_to RUFF_NOTICE \
       "ruff-format: a Ruff config governs this repo but no 'ruff' binary was found (.venv or this hook's PATH) — format/lint skipped for this edit" \
-      matching "; a project .venv install is the reliable route. Install: https://docs.astral.sh/ruff/installation/"
+      matching "; a project .venv install is the reliable route. Run /ruff-format:check. It does not install. Install: pip install ruff in the project .venv, https://docs.astral.sh/ruff/installation/"
     hook::emit_skip_notice PostToolUse "$RUFF_NOTICE"
   fi
   emit_skipped

@@ -151,12 +151,13 @@ bump. **Trigger**: when a producer first needs a *breaking* `data` change, add a
 identifier (a `data_schema` URI, à la CloudEvents `dataschema`) rather than bumping the envelope. It is
 additive (optional field), so it ships without breaking existing consumers.
 
-## Schemas are contract-docs, not machine-enforced
+## The envelope schema is executed by the test-side check
 
-The JSON schemas here are **not machine-enforced**: no validator is wired into producer or sink. They are
-the human-readable, reviewable contract; conformance is checked by hand and by `jq` required-key assertions
-(producers and sinks each carry their own). Treat the schemas as the authority a reviewer reads, not a
-runtime gate.
+`envelope.schema.json` is the single source of the envelope field list. `check_envelope` in
+[`lib/hook-test-sink.sh`](../../../lib/hook-test-sink.sh) reads its `required` keys, property types and
+minimums with `jq` and validates each envelope a hook suite captures. No producer or sink validates at
+runtime, and the check covers the common envelope only: the per-hook `data` schemas and the policy rules
+above are held by review and the deprecation cycle. A suite carries no transcribed field list of its own.
 
 ## Adoption (adopt-by-copy)
 

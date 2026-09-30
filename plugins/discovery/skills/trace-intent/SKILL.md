@@ -210,6 +210,16 @@ Check these against the written output, not against recollection:
 - Every skip carries one of the two permitted reasons.
 - Hedged claims are hedged in the output, not flattened into confident prose.
 
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from.
+Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-29; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Next
 
 `/planning:plan`. Its input is the Preserve / Change / Avoid / Risk set.

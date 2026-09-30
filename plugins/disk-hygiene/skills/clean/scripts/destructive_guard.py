@@ -45,6 +45,7 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import threading
 import time
@@ -685,6 +686,114 @@ def _carries_marker(word: str) -> bool:
     return name == _ENGINE_MARKER
 
 
+# PowerShell also closes a quote opened with ' by any of these and a " by the
+# double forms; a scanner that knows only the ASCII pair would see a different
+# string boundary than PowerShell does.
+_POWERSHELL_TYPOGRAPHIC_QUOTES = frozenset("‘’‚‛“”„")
+# Outside string data: expansion, subexpression, scriptblock, type/method,
+# splat, call/background, comment, statement-separator and redirection syntax.
+# Any of them can turn a string into code, so their presence keeps the gate.
+_POWERSHELL_CODE_CHARS = frozenset("$`#()[]{}@&;|<>")
+_POWERSHELL_HERE_STRING_OPEN = re.compile(r"@(['\"])[ \t]*\r?\n")
+_POWERSHELL_EXECUTORS = frozenset(
+    {
+        "pwsh",
+        "powershell",
+        "iex",
+        "invoke-expression",
+        "start-process",
+        "saps",
+        "start",
+        "cmd",
+        "bash",
+        "sh",
+        "wsl",
+        "invoke-item",
+        "ii",
+        "invoke-command",
+        "icm",
+        "start-job",
+        "sajb",
+    }
+)
+# Launchers that run their argument as the command.
+_LAUNCHER_WRAPPERS = frozenset(
+    {
+        "env",
+        "nohup",
+        "nice",
+        "time",
+        "timeout",
+        "setsid",
+        "stdbuf",
+        "sudo",
+        "doas",
+        "exec",
+        "command",
+    }
+)
+_POWERSHELL_INTERPRETER = re.compile(
+    r"(?<![\w.\-])(?:py|python[\w.\-]*)(?![\w\-])", re.IGNORECASE
+)
+
+
+def _powershell_without_string_data(command: str) -> str | None:
+    """``command`` with each string literal replaced by ``_``, or None to keep it.
+
+    Returns a rewrite only for ONE statement of an ordinary command whose
+    string literals cannot execute: single-quoted literals and here-strings
+    always qualify, double-quoted ones only without ``$`` or backtick (a
+    subexpression runs code). None, meaning the caller must classify the
+    command as written, for anything that could run a string: an interpreter
+    token outside string data, an executor as the command word, a
+    string in the command position, a launcher wrapper (``env``, ``sudo``,
+    ``timeout``) as the command word, code syntax outside strings, a second
+    statement (``Set-Content x.ps1 '...'; ./x.ps1``), ``--%``, typographic
+    quotes, or an unterminated literal.
+    """
+    if any(char in _POWERSHELL_TYPOGRAPHIC_QUOTES for char in command) or (
+        command.lstrip(" \t")[:1] in {"'", '"'}
+    ):
+        return None
+    out: list[str] = []
+    index = 0
+    while index < len(command):
+        here = _POWERSHELL_HERE_STRING_OPEN.match(command, index)
+        char = command[index]
+        if here:
+            quote = here.group(1)
+            closer = re.compile(r"\r?\n" + re.escape(quote) + "@").search(
+                command, here.end() - 1
+            )
+            if closer is None:
+                return None
+            body, index = command[here.end() : closer.start()], closer.end()
+        elif char in {"'", '"'}:
+            quote = char
+            end = command.find(quote, index + 1)
+            if end < 0:
+                return None
+            body, index = command[index + 1 : end], end + 1
+        else:
+            if char in _POWERSHELL_CODE_CHARS or (char.isspace() and char not in " \t"):
+                return None
+            out.append(char)
+            index += 1
+            continue
+        if quote == '"' and ("$" in body or "`" in body):
+            return None
+        out.append("_")
+    stripped = "".join(out)
+    words = stripped.split()
+    if not words or "--%" in words or _POWERSHELL_INTERPRETER.search(stripped):
+        return None
+    command_word = _PATH_SEPARATOR.split(words[0].casefold())[-1]
+    if command_word.endswith(".exe"):
+        command_word = command_word[: -len(".exe")]
+    blocked = _POWERSHELL_EXECUTORS | _LAUNCHER_WRAPPERS
+    return None if command_word in blocked else stripped
+
+
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
 
@@ -720,6 +829,21 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     - any command carrying the marker that the literal parser cannot prove is a
       mere mention (expansions, operators, unparsable quoting) — fail closed
       into the gate; the belt's own rules then decide.
+
+    On PowerShell, string DATA is a mention: when a command is one statement
+    of an ordinary command (``gh``, ``git``, ``Select-String``) whose literals
+    cannot execute, every single-quoted literal, here-string body, and
+    ``$``/backtick-free double-quoted literal is blanked before the rules above
+    run (``_powershell_without_string_data``), so a ``gh issue create --body``
+    here-string naming the engine defers. The command is classified as written
+    whenever a string could run: an interpreter token outside string data, an
+    executor or launcher wrapper as the command word (``pwsh -Command``, ``iex``, ``Start-Process``,
+    ``cmd``/``bash``/``sh``, ``Invoke-Item``), a call operator, a variable,
+    a subexpression, a scriptblock or type literal, or a second statement.
+    Identity is checked before blanking, so a string naming this plugin's own
+    engine by a resolving path still gates. Accepted residual: a command the
+    executor list does not name that runs a string naming the engine
+    (``ssh host './hygiene.py scan'``) reads as data.
 
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
     under any name — gates regardless of its filename. The marker-free fallback
@@ -769,6 +893,19 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         return not os.path.isabs(word) and _samefile(os.path.join(bundled.parent, word))
 
     allow_backslash = tool_name == "PowerShell"
+    data_free = _powershell_without_string_data(command) if allow_backslash else None
+    if data_free is not None:
+        # Identity is read on the command AS WRITTEN, before any literal is
+        # blanked: a word naming one of this plugin's engines gates even when
+        # it sits in string data.
+        if any(
+            _samefile(candidate)
+            or (_carries_marker(token) and _within_plugin_cache_family(candidate))
+            for token, word in _marker_tokens_with_words(command)
+            for candidate in (token, word)
+        ):
+            return True
+        command = data_free
     marker_candidates = _marker_tokens(command)
     if not any(_carries_marker(token) for token in marker_candidates):
         # No marker: the only relevant shape is a linked alias of the bundled
@@ -839,19 +976,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     # The effective command word: skip launcher wrappers, VAR=value
     # assignments, and option words — `env PATH=... hygiene.py apply` makes the
     # bare marker word the command even though it is not word 0.
-    _WRAPPERS = {
-        "env",
-        "nohup",
-        "nice",
-        "time",
-        "timeout",
-        "setsid",
-        "stdbuf",
-        "sudo",
-        "doas",
-        "exec",
-        "command",
-    }
+    _WRAPPERS = _LAUNCHER_WRAPPERS
     wrapper_indices = [
         index
         for index, word in enumerate(words)
@@ -1536,6 +1661,111 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r"|format-volume|clear-disk|initialize-disk"
     r")(?![\w-])"
 )
+# Quoted-literal relief for the mutation-word check. A mutation word inside a
+# quoted literal (a commit message, a search term, an issue body) is data only
+# when nothing in the command can run that literal as code, so relief is an
+# allow-list: every command head must be one of the commands below, none of
+# which evaluates or executes its string arguments. Anything else keeps the
+# raw-text match, which fails toward ask.
+_POWERSHELL_RELIEF_HEADS = frozenset(
+    {
+        # Write their arguments to the output stream as text.
+        "write-output",
+        "echo",
+        "write-host",
+        # List items; a path or filter string names items, never runs them.
+        "get-childitem",
+        "gci",
+        "ls",
+        "dir",
+        # Filter or project objects; a script block argument is split into its
+        # own segments below, so its heads are checked too.
+        "where-object",
+        "where",
+        "?",
+        "select-object",
+        "sort-object",
+        "measure-object",
+        # Match a string as a regular expression, never as code.
+        "select-string",
+        "sls",
+        # Render objects as text.
+        "format-table",
+        "format-list",
+        "out-string",
+        "out-null",
+        # Read item content or metadata without running it.
+        "get-content",
+        "gc",
+        "cat",
+        "test-path",
+        "get-item",
+    }
+)
+# git and gh do run strings through some arguments (`git -c core.pager=...`,
+# `git grep -O...`, `gh alias set --shell`), so each qualifies only when its
+# first argument is a subcommand that takes message and search text without
+# running it.
+_POWERSHELL_RELIEF_SUBCOMMANDS = {
+    "git": frozenset({"log", "show", "status", "diff", "commit"}),
+    "gh": frozenset({"issue", "pr", "search"}),
+}
+# Constructs that change where PowerShell opens or closes a quote, or that run
+# code from inside a string: an escape backtick, a non-ASCII character
+# (typographic quotes and Unicode line breaks), a subexpression, a here-string,
+# a braced variable name (`${a'b}`), and the stop-parsing token. Each one sends
+# the command to the raw-text match, so the quote pairing below agrees with
+# PowerShell's up to the first unquoted comment `#`, which is refused after
+# masking.
+_POWERSHELL_RELIEF_RAW_FALLBACK = re.compile(
+    r"[`\x80-\U0010ffff]|[$@]\(|@['\"]|\$\{|--%"
+)
+# A single- or double-quoted literal, a doubled quote inside it standing for one.
+_POWERSHELL_QUOTED_LITERAL = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
+# After masking: a comment, a static call, a member call (`.Name(`, `.''(`,
+# `.$m(`), or a call operator `&` (not the `>&` stream merge or `&&`).
+_POWERSHELL_RELIEF_MASKED_FALLBACK = re.compile(r"#|::|\.[\w'$\s]*\(|(?<![>&])&(?!&)")
+_POWERSHELL_SEGMENT_SPLIT = re.compile(r"&&|[|;\r\n{}()]")
+# The pipeline object heads a Where-Object comparison such as `$_.Name -match`.
+_POWERSHELL_PIPELINE_VARIABLE = re.compile(r"(?i)\$(?:_|psitem)(?!\w)")
+
+
+def _powershell_relief_head(segment: str) -> bool:
+    """Whether a segment's head is on the relief allow-list."""
+    words = segment.split()
+    head = words[0].lower()
+    if head in _POWERSHELL_RELIEF_SUBCOMMANDS:
+        return (
+            len(words) > 1 and words[1].lower() in _POWERSHELL_RELIEF_SUBCOMMANDS[head]
+        )
+    if _POWERSHELL_PIPELINE_VARIABLE.match(head):
+        # An assignment puts a command after `=`.
+        return "=" not in segment
+    return head in _POWERSHELL_RELIEF_HEADS
+
+
+def _powershell_mutation_word_text(command: str) -> str:
+    """The text the mutation-word check scans: literals masked, or the raw command.
+
+    Single- and double-quoted literals (with their doubled-quote escapes) become
+    ``''`` only when no fallback construct appears and every command head is on
+    the relief allow-list; otherwise the raw command is returned. Words are then
+    matched anywhere in the masked text, so an unquoted ``git rm x`` or
+    ``$x = rm y`` still asks.
+    """
+    if _POWERSHELL_RELIEF_RAW_FALLBACK.search(command):
+        return command
+    if re.search(r"['\"]", _POWERSHELL_QUOTED_LITERAL.sub("", command)):
+        return command  # an unterminated quote
+    text = _POWERSHELL_QUOTED_LITERAL.sub("''", command)
+    if _POWERSHELL_RELIEF_MASKED_FALLBACK.search(text):
+        return command
+    for segment in _POWERSHELL_SEGMENT_SPLIT.split(text):
+        if segment.strip() and not _powershell_relief_head(segment):
+            return command
+    return text
+
+
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
@@ -1704,7 +1934,9 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
         # Invocation-shaped engine references only — the same classifier the
         # plugin-level engine gate uses, so read-only text processing that
         # merely NAMES the script (Select-String over a bare name, git diff)
-        # defers instead of being denied by a raw substring test. A command
+        # defers instead of being denied by a raw substring test, and so does
+        # a name inside string data no executor, interpreter, variable, or
+        # expansion can run (a `gh issue create --body` here-string). A command
         # whose argument IS the bundled engine (file identity) still denies,
         # even under a read-verb spelling: PowerShell aliases and profile
         # functions shadow cmdlet names, so a verb name proves nothing about
@@ -1715,46 +1947,45 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             "exact guarded command shapes, not PowerShell. To READ the engine "
             "source, use non-shell file tools.",
         )
+    verdict = functools.partial(_powershell_mutation_verdict, command=command)
     if _POWERSHELL_VB_FILESYSTEM_DELETE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged Microsoft.VisualBasic.FileIO.FileSystem "
             "DeleteFile/DeleteDirectory (Recycle Bin / FileIO deletion).",
         )
     shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
     if shell_app_recycle_bin is not None:
-        return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
-    match = _POWERSHELL_MUTATION_WORDS.search(command)
+        return verdict(enabled, shell_app_recycle_bin)
+    match = _POWERSHELL_MUTATION_WORDS.search(_powershell_mutation_word_text(command))
     if match:
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             f'disk-hygiene flagged the mutation spelling "{match.group(0)}".',
         )
     if _POWERSHELL_NEW_ITEM_FORCE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged New-Item -Force (truncates an existing file).",
         )
     if _POWERSHELL_OUTPUT_REDIRECT.search(
         command
     ) or _POWERSHELL_APPEND_REDIRECT.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged shell output redirection (may overwrite a file).",
         )
     if _POWERSHELL_DOTNET_DELETE.search(command):
-        return _powershell_mutation_verdict(
-            enabled, "disk-hygiene flagged a .NET Delete call."
-        )
+        return verdict(enabled, "disk-hygiene flagged a .NET Delete call.")
     qualified = _POWERSHELL_QUALIFIED_DELETE.search(command)
     if qualified:
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged the module-qualified deletion spelling "
             f'"{qualified.group(0)}".',
         )
     if _POWERSHELL_ROBOCOPY_PURGE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged a robocopy mirror/purge/move invocation "
             "(mass deletion via mirroring).",
@@ -1762,17 +1993,73 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     return None
 
 
-def _powershell_mutation_verdict(enabled: bool, flagged: str) -> tuple[str, str]:
-    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt."""
+def _display_text(value: str) -> str:
+    """``value`` with control characters escaped, for the ``ask`` reason text.
+
+    A newline or escape byte inside a path taken from a command or a plan file
+    would otherwise restructure the prompt the person reads before approving.
+    """
+    return "".join(
+        char if char.isprintable() else char.encode("unicode_escape").decode()
+        for char in value
+    )
+
+
+# Quoted literals and unquoted drive-letter paths. Double-quoted text that
+# interpolates (`$` or a backtick) is not a literal and is filtered afterward.
+_POWERSHELL_LITERAL_PATH = re.compile(
+    r"""'([^']*)'|"([^"]*)"|(?<![\w'"])([A-Za-z]:[\\/][^\s'"`;|(){}]*)"""
+)
+
+
+def _powershell_literal_paths(command: str) -> list[str]:
+    """Path-shaped literals in ``command``, in order and de-duplicated.
+
+    Informational only: it feeds the ``ask`` reason text and never a verdict, so
+    a miss or a false hit changes what the prompt shows, not what is decided.
+    """
+    found: list[str] = []
+    for match in _POWERSHELL_LITERAL_PATH.finditer(command):
+        value = next(group for group in match.groups() if group is not None).strip()
+        if (
+            value
+            and not value.startswith("-")
+            and not any(char in value for char in "$`\r\n")
+            and ("\\" in value or "/" in value or re.match(r"[A-Za-z]:", value))
+        ):
+            found.append(value)
+    return list(dict.fromkeys(found))
+
+
+def _powershell_mutation_verdict(
+    enabled: bool, flagged: str, command: str = ""
+) -> tuple[str, str]:
+    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt.
+
+    The prompt also lists the literal paths the command names when they can be
+    read from it; any failure keeps the generic text.
+    """
     if not enabled:
         return (
             "deny",
             f"{flagged} Disk-hygiene execution is disabled (audit-only mode), so "
             "deletions are blocked on every lane.",
         )
+    try:
+        paths = _powershell_literal_paths(command)
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        paths = []
+    named = (
+        f" The command contains {len(paths)} path-shaped literal(s), which may not "
+        "be every path it acts on: "
+        + "; ".join(_display_text(path) for path in paths)
+        + "."
+        if paths
+        else ""
+    )
     return (
         "ask",
-        f"{flagged} Confirm only if this is the explicitly approved manual "
+        f"{flagged}{named} Confirm only if this is the explicitly approved manual "
         "handoff and the command touches exactly the paths you approved.",
     )
 
@@ -2335,6 +2622,71 @@ def _settle(
     return 0
 
 
+_APPLY_ASK_GENERIC_REASON = (
+    "disk-hygiene is ready to apply one exact, previewed tier. Confirm this "
+    "final mutation prompt only if it matches the tier and paths you just approved."
+)
+_APPLY_PLAN_READ_LIMIT = 1 << 20
+_APPLY_SNAPSHOT_READ_LIMIT = 16 << 20
+
+
+def _read_json_file(path: str, limit: int) -> object:
+    """Parse one regular JSON file of at most ``limit`` bytes, else ``None``.
+
+    Never raises. The size check happens on the bytes actually read, and a
+    non-regular file (a FIFO would block) is refused before it is opened.
+    """
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
+        with open(path, "rb") as handle:
+            data = handle.read(limit + 1)
+        return None if len(data) > limit else json.loads(data)
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        return None
+
+
+def _apply_ask_reason(command: str) -> str:
+    """Tier, count, and every path of the plan an apply command names.
+
+    Text only. Any missing or malformed plan returns the generic reason, so the
+    caller's ``ask`` verdict never depends on what this reads.
+    """
+    try:
+        words = _literal_shell_words(command) or []
+        flags = {
+            flag: words[index + 1]
+            for index, flag in enumerate(words[:-1])
+            if flag in {"--plan", "--snapshot"}
+        }
+        plan = _read_json_file(flags["--plan"], _APPLY_PLAN_READ_LIMIT)
+        candidates = plan["candidates"]  # type: ignore[index]
+        tier = plan["tier"]  # type: ignore[index]
+        paths = [candidate["path"] for candidate in candidates]
+        if not (
+            isinstance(tier, str)
+            and paths
+            and all(isinstance(path, str) for path in paths)
+        ):
+            return _APPLY_ASK_GENERIC_REASON
+        snapshot = _read_json_file(flags["--snapshot"], _APPLY_SNAPSHOT_READ_LIMIT)
+        target = snapshot.get("target") if isinstance(snapshot, dict) else None
+        where = (
+            f"under {_display_text(target)}"
+            if isinstance(target, str)
+            else "(snapshot-relative; the snapshot target could not be read)"
+        )
+        return (
+            f"disk-hygiene is ready to apply one exact, previewed tier: {_display_text(tier)}, "
+            f"{len(paths)} path(s) {where}:\n"
+            + "\n".join(f"- {_display_text(path)}" for path in paths)
+            + "\nConfirm this final mutation prompt only if it matches the tier "
+            "and paths you just approved."
+        )
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        return _APPLY_ASK_GENERIC_REASON
+
+
 def _decide(command: str, tool_name: str, start: float) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
@@ -2405,7 +2757,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview", "handoff-verify"}:
+    if command_kind in {"scan", "preview", "handoff-verify", "catalog"}:
         return _settle(
             command,
             tool_name,
@@ -2421,7 +2773,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             start,
             "ask",
             "exact-engine-apply",
-            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
+            _apply_ask_reason(command),
         )
     denied_by_kill_switch = command_kind == "apply"
     return _settle(
@@ -2432,7 +2784,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
         "kill-switch-disabled-apply"
         if denied_by_kill_switch
         else "not-exact-engine-command",
-        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
+        "Disk-hygiene execution is disabled; only exact bundled scan, preview, handoff-verify, and catalog invocations are permitted."
         if denied_by_kill_switch
         else _bash_denial_guidance(authority),
     )

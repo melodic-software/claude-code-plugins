@@ -34,6 +34,30 @@
         "Does not read the untracked file",
         "Does not treat co-location in the repository as an edge by itself"
       ]
+    },
+    {
+      "id": 4,
+      "name": "endpoint-edge-needs-resolving-fact",
+      "prompt": "/architecture:map-containers\n\nA docker-compose.yml defines a service named catalog whose build context is the Catalog web project directory. The Web project's appsettings.json sets Services.Catalog.Url to http://catalog:8080, and a Reports project sets Services.Billing.Url to https://billing.example.com. No project directory is named Billing.",
+      "expected_output": "One uses edge from Web to Catalog citing the appsettings key and the compose service build context. The Billing URL draws no edge and is an external-endpoint finding naming its host. The Reports project has no edge.",
+      "expectations": [
+        "Draws the Web to Catalog uses edge only because the compose build context resolves the host to the Catalog deployable",
+        "Cites the config key that names the endpoint and the resolving compose fact in the edge evidence",
+        "Reports the Billing URL as an external-endpoint finding and draws no edge for it",
+        "Does not match a project to an endpoint by the resemblance of their names"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "search-index-is-a-store",
+      "prompt": "/architecture:map-containers\n\nA web project's appsettings.json sets Search.Endpoint to https://orders-search.search.windows.net with an admin key beside it. A docker-compose.yml also runs a service from an elasticsearch image.",
+      "expected_output": "Two search stores. The Azure host is a store with technology Azure AI Search that the web project binds; the compose service is a store whose technology is its image. The admin key is absent from every output.",
+      "expectations": [
+        "Draws both search indexes as stores instead of reporting that search indexes are not read",
+        "Labels the host technology Azure AI Search and the compose store with its image",
+        "Keeps the host and drops the admin key from the record, the diagram, and stdout",
+        "Lists search among the store kinds read in the report"
+      ]
     }
   ]
 }

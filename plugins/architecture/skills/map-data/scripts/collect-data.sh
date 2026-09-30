@@ -15,13 +15,29 @@
 # a disagreement is a mismatch row, not a silent choice.
 #
 #   1. model      Prisma schema (*.prisma)
-#   2. orm        Entity Framework fluent chains with an IsRequired declaration
+#   2. orm        Entity Framework fluent one-to-many and one-to-one chains, from Entity<T>() or from
+#                 the one IEntityTypeConfiguration<T> class in a file (builder.HasOne/HasMany)
 #   3. migration  SQL under a migrations directory (root or nested), replayed from a stated statement subset
+#
+# The EF reader takes HasOne/HasMany with a generic argument or, for one-to-many
+# only, a lambda navigation (HasMany(e => e.Posts), HasOne(e => e.Blog)) whose
+# target type comes from the property declared on the configured entity's class
+# (ICollection/List/IList/IEnumerable/HashSet<T> for a collection, T or T? for a
+# reference). The foreign key is one column, HasForeignKey("Col") or
+# HasForeignKey(e => e.Col); HasPrincipalKey is one column the same way.
+# Requiredness is IsRequired(), IsRequired(true) or IsRequired(false) and, when none is
+# written, the foreign-key property's declared type on the dependent class: T?,
+# Nullable<T> and string? are optional, a built-in value type is required.
+# Unreadable: a composite key, a navigation with no single declared type, an
+# IsRequired argument other than true or false, and a
+# foreign key with no IsRequired whose property is undeclared or has any other
+# type (a plain string is nullable or not by project setting).
 #
 # A recognized mechanism this script does not extract (Django models, SQLAlchemy
 # columns, EF [ForeignKey] annotations, implicit
 # Prisma many-to-many) refuses the record, as does an EF chain or an ALTER TABLE
-# action it cannot read when that tier wins. A losing tier it cannot read is a
+# action it cannot read when that tier wins; stderr names what stopped the EF
+# read. A losing tier it cannot read is a
 # not-compared mismatch row. A shipped diagram plus an unread
 # mechanism would be a partial read.
 #
@@ -937,13 +953,163 @@ fi
 # --- EF fluent --------------------------------------------------------------
 ef_seen=0
 ef_bad=0
+ef_why=""
 ef_evidence=""
 EF_ENTS="$TMP/ef-entities.tsv"
 EF_ATTRS="$TMP/ef-attributes.tsv"
 EF_RELS="$TMP/ef-relationships.tsv"
+EF_DECLS="$TMP/ef-declarations.tsv"
 : >"$EF_ENTS"
 : >"$EF_ATTRS"
 : >"$EF_RELS"
+ef_id='[A-Za-z_][A-Za-z0-9_]*'
+ef_decls_ready=0
+EF_MEMBER=""
+EF_NAV=""
+EF_OPT=""
+cfg_entity=""
+cfg_builder=""
+
+# One awk pass over the tracked .cs files, one row per property declared in a
+# class body: module, class, property, declared type (tab separated). Braces set
+# the enclosing class; a property is the header before a "{" that has a type, a
+# name and no "(" or "=". Anything else (fields, methods, positional record
+# members) has no row, so a lookup that needs it finds nothing and the chain refuses.
+ef_load_decls() {
+  [[ "$ef_decls_ready" -eq 0 ]] || return 0
+  ef_decls_ready=1
+  : >"$EF_DECLS"
+  # shellcheck disable=SC2016 # the awk program is literal; xargs hides it from shellcheck's awk rule
+  sed 's:^:./:' "$TMP/cs.txt" | tr '\n' '\0' | (cd "$repo" && xargs -0 awk '
+    function open_block(   h, nw, w, i, name, ty) {
+      h = buf
+      buf = ""
+      gsub(/\[[A-Za-z][^]]*\]/, " ", h)
+      depth++
+      if (match(h, /(^|[ \t])(class|struct|record|interface)[ \t]+((class|struct)[ \t]+)?[A-Za-z_][A-Za-z0-9_]*/)) {
+        nw = split(substr(h, RSTART, RLENGTH), w, " ")
+        cls[depth] = w[nw]
+        return
+      }
+      if (!((depth - 1) in cls)) return
+      if (h ~ /[^A-Za-z0-9_<>?,. \t]/) return
+      nw = split(h, w, " ")
+      name = w[nw]
+      if (name !~ /^[A-Za-z_][A-Za-z0-9_]*$/) return
+      i = 1
+      while (i < nw && (w[i] in mod)) i++
+      if (i >= nw || w[i] == "enum" || w[i] == "event") return
+      ty = ""
+      for (; i < nw; i++) ty = ty w[i]
+      print module "\t" cls[depth - 1] "\t" name "\t" ty
+    }
+    BEGIN {
+      n = split("public private protected internal virtual override new static readonly required abstract sealed unsafe partial extern volatile", m, " ")
+      for (i = 1; i <= n; i++) mod[m[i]] = 1
+    }
+    FNR == 1 {
+      for (k in cls) delete cls[k]
+      depth = 0
+      buf = ""
+      f = FILENAME
+      sub(/^\.\//, "", f)
+      module = index(f, "/") ? substr(f, 1, index(f, "/") - 1) : "."
+    }
+    /^[ \t]*#/ { next }
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      sub(/\/\/.*$/, "", line)
+      while (line != "") {
+        if (!match(line, /[{};]/)) { buf = buf " " line; break }
+        buf = buf " " substr(line, 1, RSTART - 1)
+        d = substr(line, RSTART, 1)
+        line = substr(line, RSTART + 1)
+        if (d == "{") open_block()
+        else if (d == "}") { delete cls[depth]; if (depth > 0) depth--; buf = "" }
+        else buf = ""
+      }
+    }
+  ' >>"$EF_DECLS")
+}
+
+# ef_decl_type <module> <class> <property>: the declared type when the class
+# declares that property with exactly one type, preferring the module's own
+# declarations over the rest of the repository; nothing otherwise.
+ef_decl_type() {
+  EF_M="$1" EF_C="$2" EF_P="$3" awk -F'\t' '
+    $2 == ENVIRON["EF_C"] && $3 == ENVIRON["EF_P"] { any[$4] = 1; if ($1 == ENVIRON["EF_M"]) here[$4] = 1 }
+    END {
+      for (t in here) { n++; ty = t }
+      if (n == 0) for (t in any) { n++; ty = t }
+      if (n == 1) print ty
+    }
+  ' "$EF_DECLS"
+}
+
+# ef_lambda_member <call> <text>: sets EF_MEMBER to P when the text holds
+# call(x => x.P) with the same variable on both sides; fails otherwise.
+ef_lambda_member() {
+  local re="$1"'[[:space:]]*\([[:space:]]*\(?('"$ef_id"')\)?[[:space:]]*=>[[:space:]]*('"$ef_id"')\.('"$ef_id"')[[:space:]]*\)'
+  EF_MEMBER=""
+  [[ "$2" =~ $re ]] && [[ "${BASH_REMATCH[1]}" == "${BASH_REMATCH[2]}" ]] && EF_MEMBER="${BASH_REMATCH[3]}"
+  [[ -n "$EF_MEMBER" ]]
+}
+
+# ef_nav_target <module> <class> <property> <collection|reference>: sets EF_NAV
+# to the entity a navigation property points at, from its declared type.
+ef_nav_target() {
+  local ty re
+  ef_load_decls
+  EF_NAV=""
+  ty="$(ef_decl_type "$1" "$2" "$3")"
+  ty="${ty%\?}"
+  if [[ "$4" == collection ]]; then
+    re='^(ICollection|List|IList|IEnumerable|HashSet)<('"$ef_id"')>$'
+    [[ "$ty" =~ $re ]] && EF_NAV="${BASH_REMATCH[2]}"
+  else
+    re='^('"$ef_id"')$'
+    [[ "$ty" =~ $re ]] && EF_NAV="${BASH_REMATCH[1]}"
+  fi
+  [[ -n "$EF_NAV" ]]
+}
+
+# ef_optional <module> <class> <property>: sets EF_OPT from a foreign-key
+# property's declared type, as EF Core does: nullable is optional, a non-nullable
+# value type is required. A type whose nullability depends on the project
+# (plain string, an enum) or a property that is not declared fails.
+ef_optional() {
+  local ty
+  ef_load_decls
+  ty="$(ef_decl_type "$1" "$2" "$3")"
+  case "$ty" in
+  *"?" | "Nullable<"* | "System.Nullable<"*) EF_OPT=yes ;;
+  int | uint | long | ulong | short | ushort | byte | sbyte | Guid | System.Guid | DateTime | DateTimeOffset) EF_OPT=no ;;
+  *) return 1 ;;
+  esac
+}
+
+# ef_config_class <flattened source>: sets cfg_entity and cfg_builder when the
+# file declares exactly one IEntityTypeConfiguration<T> class whose Configure
+# takes an EntityTypeBuilder<T> parameter; both empty otherwise.
+ef_config_class() {
+  local needle='IEntityTypeConfiguration<' rest re
+  cfg_entity=""
+  cfg_builder=""
+  rest="${1//"$needle"/}"
+  [[ $((${#1} - ${#rest})) -eq ${#needle} ]] || return 0
+  re='class[[:space:]]+'"$ef_id"'[^{;]*IEntityTypeConfiguration<('"$ef_id"')>'
+  [[ "$1" =~ $re ]] || return 0
+  cfg_entity="${BASH_REMATCH[1]}"
+  re='Configure[[:space:]]*\([[:space:]]*EntityTypeBuilder<'"$cfg_entity"'>[[:space:]]+('"$ef_id"')[[:space:]]*\)'
+  if [[ "$1" =~ $re ]]; then
+    cfg_builder="${BASH_REMATCH[1]}"
+  else
+    cfg_entity=""
+  fi
+  return 0
+}
+
 set -f
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   [[ -n "$rel" ]] || continue
@@ -955,29 +1121,52 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   ef_evidence="$rel"
   module="$(module_of "$rel")"
   flattened="$(sed -E 's://.*$::' "$repo/$rel" | tr '\n' ' ')"
+  ef_config_class "$flattened"
   IFS=';' read -r -a statements <<<"$flattened"
   for part in "${statements[@]}"; do
     [[ "$part" == *HasOne* || "$part" == *HasMany* || "$part" == *HasForeignKey* ]] || continue
-    configured="" one="" many="" fk="" principal=""
-    [[ "$part" =~ HasPrincipalKey\(\"([A-Za-z_][A-Za-z0-9_]*)\"\) ]] && principal="${BASH_REMATCH[1]}"
+    configured="" one="" many="" one_nav="" many_nav="" fk="" principal=""
+    if [[ "$part" == *HasPrincipalKey* ]]; then
+      [[ "$part" =~ HasPrincipalKey\(\"([A-Za-z_][A-Za-z0-9_]*)\"\) ]] && principal="${BASH_REMATCH[1]}"
+      if [[ -z "$principal" ]] && ef_lambda_member HasPrincipalKey "$part"; then principal="$EF_MEMBER"; fi
+      if [[ -z "$principal" ]]; then
+        ef_bad=1
+        break
+      fi
+    fi
     [[ "$part" =~ Entity\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && configured="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
+    if [[ -z "$configured" && -n "$cfg_builder" ]]; then
+      root="${part%%Has[OM]*}"
+      re='(^|[^A-Za-z0-9_.])'"$cfg_builder"'[[:space:]]*\.[[:space:]]*$'
+      [[ "$root" =~ $re ]] && configured="$cfg_entity"
+    fi
     [[ "$part" =~ HasOne\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && one="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
     [[ "$part" =~ HasMany\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && many="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
     [[ "$part" =~ HasForeignKey\(\"([A-Za-z_][A-Za-z0-9_]*)\"\) ]] && fk="${BASH_REMATCH[1]}"
+    if [[ -z "$fk" ]] && ef_lambda_member HasForeignKey "$part"; then fk="$EF_MEMBER"; fi
     if [[ -z "$configured" || -z "$fk" ]]; then
       ef_bad=1
       break
     fi
-    if [[ -n "$one" && -n "$many" ]]; then
-      ef_bad=1
-      break
+    if [[ -z "$one" ]] && ef_lambda_member HasOne "$part"; then one_nav="$EF_MEMBER"; fi
+    if [[ -z "$many" ]] && ef_lambda_member HasMany "$part"; then many_nav="$EF_MEMBER"; fi
+    if [[ -n "$one_nav" ]]; then
+      if ! ef_nav_target "$module" "$configured" "$one_nav" reference; then
+        ef_bad=1
+        ef_why="$configured.$one_nav is not declared as a reference to one entity type"
+        break
+      fi
+      one="$EF_NAV"
     fi
-    optional=""
-    if [[ "$part" =~ IsRequired\(false\) ]]; then
-      optional="yes"
-    elif [[ "$part" =~ IsRequired\(\) ]]; then
-      optional="no"
-    else
+    if [[ -n "$many_nav" ]]; then
+      if ! ef_nav_target "$module" "$configured" "$many_nav" collection; then
+        ef_bad=1
+        ef_why="$configured.$many_nav is not declared as a collection of one entity type"
+        break
+      fi
+      many="$EF_NAV"
+    fi
+    if [[ -n "$one" && -n "$many" ]]; then
       ef_bad=1
       break
     fi
@@ -990,12 +1179,28 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       fk_entity="$many"
       pk_entity="$configured"
       kind="one-to-many"
-    elif [[ -n "$one" && "$part" == *WithOne* ]]; then
+    elif [[ -n "$one" && -z "$one_nav" && "$part" == *WithOne* ]]; then
       fk_entity="$configured"
       pk_entity="$one"
       kind="one-to-one"
     else
       ef_bad=1
+      break
+    fi
+    optional=""
+    if [[ "$part" =~ IsRequired\(false\) ]]; then
+      optional="yes"
+    elif [[ "$part" =~ IsRequired\((true)?\) ]]; then
+      optional="no"
+    elif [[ "$part" == *IsRequired* ]]; then
+      ef_bad=1
+      ef_why="IsRequired takes an argument other than true or false"
+      break
+    elif ef_optional "$module" "$fk_entity" "$fk"; then
+      optional="$EF_OPT"
+    else
+      ef_bad=1
+      ef_why="$fk_entity.$fk has no declared type that settles whether it is nullable"
       break
     fi
     if [[ "$kind" == "one-to-one" ]]; then
@@ -1067,8 +1272,12 @@ note_not_compared() {
 }
 
 if [[ "$ef_bad" -eq 1 ]]; then
-  [[ "$winner_tool" != "ef-fluent" ]] || refuse "ef-fluent-unreadable"
-  note_not_compared ef-fluent "an Entity Framework chain is not in the shipped shape" "$ef_evidence"
+  ef_why="${ef_why:-a chain outside the readable subset}"
+  if [[ "$winner_tool" == "ef-fluent" ]]; then
+    printf 'collect-data.sh: ef-fluent unreadable: %s (%s)\n' "$ef_why" "$ef_evidence" >&2
+    refuse "ef-fluent-unreadable"
+  fi
+  note_not_compared ef-fluent "an Entity Framework chain is not in the readable subset: $ef_why" "$ef_evidence"
 else
   cat "$EF_ENTS" >>"$ENTS"
   cat "$EF_ATTRS" >>"$ATTRS"
