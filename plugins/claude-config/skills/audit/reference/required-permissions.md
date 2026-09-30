@@ -99,7 +99,7 @@ not close `!` shell mode in an interactive session.
 
 **Platform limit. Check before recommending it.** The sandbox runs on macOS, Linux, and WSL2; native
 Windows is not supported, and the PowerShell tool lists "On Windows, sandboxing is not supported"
-among its preview limitations. On a native-Windows workstation the OS-level remedy is unavailable, so
+([tools reference](https://code.claude.com/docs/en/tools-reference)) among its preview limitations. On a native-Windows workstation the OS-level remedy is unavailable, so
 do not offer it there as the fix.
 
 **A `PreToolUse` hook on `Bash|PowerShell` is a speed bump, not a boundary, *against this threat
@@ -152,8 +152,9 @@ again.
 
 **Unverified. Flag it rather than asserting either way.** No fetched page states whether reads
 through the **PowerShell tool** (`Get-Content`, `type`) are covered: the permissions page scopes the
-recognized-command coverage to commands in Bash, and the tools reference lists `Read(...)` as
-applying to "Read, Grep, Glob, LSP". Treat PowerShell reads as uncovered until upstream says
+recognized-command coverage to commands in Bash, and the
+[tools reference](https://code.claude.com/docs/en/tools-reference) lists `Read(...)` as applying to
+"Read, Grep, Glob, LSP". Treat PowerShell reads as uncovered until upstream says
 otherwise. The recognized-command list is also introduced with "such as" and is not exhaustive, so
 `grep`, `jq`, and `strings` remain unconfirmed as recognized file commands.
 
@@ -179,9 +180,9 @@ warning is that *"Bash permission patterns that try to constrain command argumen
 saying so ships the false confidence the `sensitive-file-deny` section refuses to ship.
 
 **The concrete hole is prefix anchoring, and it is worth stating in the finding.** Matching is
-prefix-based: *"`Bash(npm run test *)` matches Bash commands starting with `npm run test`"*, and a
-*"The space before a trailing `*` is part of the rule"* (same page), so `Bash(ls *)` does not
-match `lsof`. So
+prefix-based: the page's wildcard table has `Bash(npm run *)` matching `npm run build` and
+`npm run test --watch` but not `npm install`, and *"The space before a trailing `*` is part of the
+rule"* (same page), so `Bash(ls *)` does not match `lsof`. So
 `Bash(git push --force *)` matches `git push --force origin main` and does **not** match
 `git push origin main --force`, which is the ordinary spelling. Flag-position variants, `--force-with-lease`,
 `-f` bundled into another short-flag cluster, and `git push` aliases all pass the same way. These

@@ -48,7 +48,7 @@ Parse `$ARGUMENTS` for:
   - `mcp`: MCP server definitions, commands, env vars, connectivity
   - `hooks`: hook scripts exist, timeouts, matchers
   - `plugins`: enabled/disabled status, marketplace availability
-  - `issues`: recheck known GitHub issues only
+  - `issues`: recheck known GitHub issues only (Category J and Phase 3.2)
   - `all`: run everything (default)
 
 ## Division of labor: the engine decides, the model judges
@@ -67,6 +67,7 @@ the document and does only what needs judgment:
 | F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log; `skillOverrides` keys that name a known plugin (inert, `warning`), colon keys whose prefix names no plugin (`skip`), and entries in the user dir's `settings.local.json` (`info`) | G: the levers, scoped to the roster's composition, and what an undecided colon key names |
 | H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values and the version `enforceAvailableModels` requires come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
+| J: each `Fixed in vX.Y.Z` a `reference/known-issues.md` row records, compared with the installed Claude Code version (the form is that file's "Recording a fix version") | J: the live status of each issue (Phase 3.2), and whether a workaround an `info` row flags is still needed |
 
 A row the engine marks `skip` or `not-inspectable` is exactly that in the report: never clean.
 
@@ -198,11 +199,12 @@ category; **full per-check criteria in
 - **A, Schema & Structure**: engine-decided
 - **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); add any patterns the consuming repo's own rules declare as required
 - **C, MCP Servers**: documented reasons for disabled servers; launcher conventions
-- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row), event validity against the live hooks page
+- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row). Event names are the engine's; for a `hook-event-page-not-read` row it left `not-inspectable`, read the live hooks page
 - **E, Plugins**: for each `dependency-disabled` finding, whether to enable the dependency or disable the plugins that need it; orphan-`true` and rename review. The engine merges `enabledPlugins` from the user, project and local files only (managed settings are not merged) and checks direct dependencies only
 - **F, Environment Variables**: whether a variable the engine reports as not on the env-vars page is documented elsewhere or justified by the repo
 - **G, Skill-listing budget**: the levers, scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`). The engine already reports `skillOverrides` entries that cannot take effect: a key naming a known plugin (`G/skill-override-plugin`, `warning`) and entries in the user dir's `settings.local.json` (`G/skill-override-home-local`, `info`); a colon key it left as `skip` is yours to name or leave undecided. When the engine reports `not measured`, name the routes (`/doctor` interactively, a `--debug` relaunch headless) and never report clean
 - **H, Model and effort settings** and **I, Deep-link registration**: engine-decided; Phase 3 confirms the behavior each finding rests on before it is reported
+- **J, Known-issues fix versions**: engine-decided (`known-issue-fixed` rows); for an `info` finding, Phase 3.2 confirms the workaround is retired only if the live issue agrees
 
 ---
 
@@ -259,8 +261,11 @@ route that works, and never let a route that does not work block the run:
    that column of the table, so the report states how old the recorded state is instead of an
    unqualified "unverified".
 
-For any issue whose upstream fix has shipped at or below the installed Claude Code version, confirm
-the settings-specific workaround is still needed and recommend retiring it if not.
+The engine has already compared each fix version `known-issues.md` records with the installed Claude
+Code version (Category J, `known-issue-fixed` rows). For each `finding` row, confirm the
+settings-specific workaround is still needed and recommend retiring it if not. Compare versions by
+hand only for an issue whose live thread names a fix release the file does not record, or when the
+engine's row is a `skip` because the installed version was unreadable.
 
 ### 3.3 Model configuration verification
 

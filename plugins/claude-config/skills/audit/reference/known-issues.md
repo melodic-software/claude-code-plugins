@@ -28,6 +28,23 @@ date, so the reader knows how old the recorded state is.
 | [#11795](https://github.com/anthropics/claude-code/issues/11795) | `$schema` not documented in official docs | `$schema` field works without `/doctor` warnings | 2026-08-05 |
 | [#37634](https://github.com/anthropics/claude-code/issues/37634) | Bash resolves to WSL on Windows native installer | Node.js-based launchers are unaffected | 2026-08-05 |
 
+## Recording a fix version
+
+When an issue's thread or the Claude Code changelog names the release that fixed it, start the third
+column of its row (Common workaround, or What to verify) with `Fixed in vX.Y.Z`. The engine reads
+that phrase from a row that links the issue as `[#N]` and compares the version with the installed
+Claude Code version (Category J): installed at or past it is an `info` finding that the workaround
+may no longer be needed, and below it is an `ok` row. A row without the phrase has no fix version
+to check and yields no row.
+
+No row carries one today, because no tracked issue has a fix release to name: the open ones are
+unfixed, and the closed ones ended as not planned, as a duplicate, or with an answer and no code
+change. **Claim:** no tracked issue names a fix release. **Basis:**
+`gh api repos/anthropics/claude-code/issues/<N>` state and `state_reason` for each row, the
+timelines of #6699 and #37634, and the `anthropics/claude-code` `CHANGELOG.md` searched for each
+issue number and each row's symptom. **As of:** 2026-09-30. **Recheck:** a tracked issue closes as
+completed, or a changelog entry names one.
+
 ## When this file changes
 
 Rows are added or retired through plugin releases when an upstream issue starts (or stops) affecting

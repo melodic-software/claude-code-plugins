@@ -1527,20 +1527,23 @@ assert_eq "case 53: the anchor is the nested JSON pointer's" "$(bash "$SCRIPT" a
 assert_eq "case 53: an object the page documents no child of is not descended into" "0" "$(jq '[.rows[] | select(.claim | test("key:env\\."))] | length' <<<"$out")"
 
 # --- Case 54: known-issues fix versions are compared with the installed version
-printf '%s\n' '| Issue | Impact | Workaround | Last verified |' \
-  '| [#101](https://x/101) | a | Fixed in v2.1.270 | d |' \
-  '| [#102](https://x/102) | b | Fixed in 2.1.290 | d |' \
-  '| [#103](https://x/103) | c | None | d |' >"$TEST_TMPDIR/known-issues.md"
+# The fixture is the shipped table with the documented `Fixed in vX.Y.Z` start of the third column
+# added to two rows, so the test reads the same layout the reference file describes.
+ki_real="$SCRIPT_DIR/../reference/known-issues.md"
+ki="$TEST_TMPDIR/known-issues.md"
+sed -e '/#8961\]/s/| Place all/| Fixed in v2.1.270. Place all/' \
+  -e '/#36808\]/s/| Wrap npx/| Fixed in 2.1.290. Wrap npx/' "$ki_real" >"$ki"
+assert_eq "case 54: the fixture edits landed on two table rows" "2" "$(grep -cE '^\| \[#[0-9]+\].*Fixed in v?[0-9]' "$ki")"
 m="$(make_machine known-issues)"
 printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
-out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$TEST_TMPDIR/known-issues.md" run "$m" --json 2>&1) || true
+out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$ki" run "$m" --json 2>&1) || true
 ki_status() { jq -r --arg c "$1" '.rows[] | select(.claim == $c) | "\(.status) \(.severity)"' <<<"$out"; }
-assert_eq "case 54: an issue fixed in an older version is info" "finding info" "$(ki_status 'fix-version:#101')"
-assert_eq "case 54: an issue fixed in a newer version is ok" "ok none" "$(ki_status 'fix-version:#102')"
-assert_eq "case 54: a row with no fix version has no row" "" "$(ki_status 'fix-version:#103')"
+assert_eq "case 54: an issue fixed in an older version is info" "finding info" "$(ki_status 'fix-version:#8961')"
+assert_eq "case 54: an issue fixed in a newer version is ok" "ok none" "$(ki_status 'fix-version:#36808')"
+assert_eq "case 54: a row with no fix version has no row" "" "$(ki_status 'fix-version:#23869')"
 make_cli "$m/claude-none" ""
-out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$TEST_TMPDIR/known-issues.md" CLI_BIN="$m/claude-none" run "$m" --json 2>&1) || true
-assert_eq "case 54: an unreadable version skips" "skip none" "$(ki_status 'fix-version:#101')"
+out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$ki" CLI_BIN="$m/claude-none" run "$m" --json 2>&1) || true
+assert_eq "case 54: an unreadable version skips" "skip none" "$(ki_status 'fix-version:#8961')"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

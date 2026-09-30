@@ -9,7 +9,8 @@
 # and drift (E), the secret scan and env-vars documentation status (F), the
 # skill-listing measurement from an existing debug log and the skillOverrides
 # entries that cannot take effect (G), model and effort
-# values (H), and deep-link registration (I). Each decided row is emitted once,
+# values (H), deep-link registration (I), and each fix version reference/known-issues.md
+# records against the installed Claude Code version (J). Each decided row is emitted once,
 # with the surface it is about and a stable identity, so the model that runs the
 # audit reads one document instead of re-deriving the same facts with a dozen
 # shell calls.
@@ -1997,9 +1998,9 @@ check_enum() {
 
 # --- Category J: known-issues fix versions -----------------------------------------
 
-# A known-issues.md table row that says "fixed in vX.Y.Z" is compared with the
-# installed Claude Code version; a row without that phrase has no fix version
-# to check.
+# A known-issues.md table row that says "fixed in vX.Y.Z" (the form the file's
+# "Recording a fix version" section documents) is compared with the installed
+# Claude Code version; a row without that phrase has no fix version to check.
 if [[ -f "$KNOWN_ISSUES_FILE" ]]; then
   ki_re='#([0-9]+)\].*[Ff]ixed in v?([0-9]+\.[0-9]+\.[0-9]+)'
   while IFS= read -r line; do

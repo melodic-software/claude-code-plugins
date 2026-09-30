@@ -14,13 +14,22 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   of string keys from the documented sections, checks nested keys inside objects the reference
   documents, and quotes the binary's describe string for a key the docs leave undocumented.
 - **`known-issues` fix versions are compared with the installed Claude Code version** in a new
-  Category J check.
+  Category J check. `reference/known-issues.md` documents the `Fixed in vX.Y.Z` form the check reads
+  and records why no tracked issue carries one yet, so the check emits no row until one does.
+  `SKILL.md`, the audit checklist and `context/validation-categories.md` describe Category J.
+
+### Changed
+
+- **Category D's prose matches the engine.** Hook event names are engine-decided in `SKILL.md` and
+  `context/validation-categories.md`; the model reads the hooks page only for a row the engine left
+  `not-inspectable`.
 
 ### Fixed
 
 - **`settings-reference` sections are indexed once per run** instead of rescanned on every lookup, and
   a key containing U+0000 stays in one row.
-- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`.
+- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and a permissions-page
+  quotation the page no longer carries is restated from the page's wildcard table.
 
 ## [0.53.4] - 2026-09-29
 

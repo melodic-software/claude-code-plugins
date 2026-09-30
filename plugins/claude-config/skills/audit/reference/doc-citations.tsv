@@ -41,7 +41,6 @@ skills	Plugin skills are not affected by
 model-config	ultracode
 cli-reference	`--debug-file
 deep-links	disableDeepLinkRegistration
-deep-links	user-level locations
 plugins/install	Claude Code refuses and prints a chained command
 plugins/dependencies	your plugin is disabled at the next plugin load
 hooks	Defaults: 600 for
@@ -60,3 +59,9 @@ plugins/marketplace-reference	The entry is the manifest
 plugins/marketplace-reference	Plugin <name> has conflicting manifests
 sub-agents	Overrides the session effort level
 skills	When the listing exceeds its budget
+tools-reference	On Windows, sandboxing is not supported
+tools-reference	Read, Grep, Glob, LSP
+changelog	Reverted the 2.1.259 change applying
+plugins/install	### Plugins with dependencies
+deep-links	registers the `claude-cli://` handler with your operating system
+deep-links	writes to user-level locations only
