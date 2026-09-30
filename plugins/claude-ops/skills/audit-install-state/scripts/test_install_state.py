@@ -102,7 +102,9 @@ class TestNameSchemes(unittest.TestCase):
             with self.subTest(rel=rel):
                 self.assertEqual(engine.classify_name(rel)[0], expected)
 
-    def test_unrecognised_numeric_name_is_unknown_not_a_guess(self) -> None:  # identifier, not prose # spellchecker:disable-line
+    def test_unrecognised_numeric_name_is_unknown_not_a_guess(  # spellchecker:disable-line
+        self,
+    ) -> None:
         meaning, _ = engine.classify_name("third-party-plugin/state.99999")
         self.assertEqual(meaning, engine.UNKNOWN_MEANING)
 
@@ -740,7 +742,7 @@ class TestEvidenceVocabulary(unittest.TestCase):
     """Every new claim shape names its evidence with a vocabulary word, never a bare string."""
 
     def test_the_schema_is_bumped_for_the_new_sections(self) -> None:
-        self.assertEqual(engine.SCHEMA, "claude-install-state/3")
+        self.assertEqual(engine.SCHEMA, "claude-install-state/4")
 
     def test_the_extended_vocabulary_is_named(self) -> None:
         self.assertEqual(engine.DOCUMENTED, "documented")
@@ -1275,6 +1277,89 @@ class TestUnreferencedVersions(unittest.TestCase):
                     "plugins/installed_plugins.json",
                 ],
             )
+
+    def _many(self, root: Path, count: int) -> None:
+        """`count` unreferenced versions `v000`, `v001`, ... whose size grows with the index."""
+        self._cache(root, *((f"v{i:03d}", None, 10 + i) for i in range(count)))
+        self._registry(root)
+
+    def _main(self, root: Path, *extra: str) -> dict:
+        argv = ["--root", str(root), "--samples", "1", "--sample-interval", "0", *extra]
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(engine.main(argv), 0)
+        return json.loads(buffer.getvalue())
+
+    def test_over_the_cap_the_json_keeps_the_largest_and_counts_the_rest(self) -> None:
+        cap = engine.UNREFERENCED_VERSIONS_CAP
+        total = cap + 7
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._many(root, total)
+            report = self._main(root)
+        listed = [v["version"] for v in report["unreferenced_versions"]]
+        self.assertEqual(len(listed), cap)
+        self.assertEqual(report["unreferenced_versions_total"], total)
+        self.assertTrue(report["unreferenced_versions_truncated"])
+        self.assertEqual(
+            listed, [f"v{i:03d}" for i in range(total - 1, total - 1 - cap, -1)]
+        )
+        self.assertIn("--versions-out", report["unreferenced_versions_note"])
+        self.assertNotIn("unreferenced_versions_file", report)
+
+    def test_at_or_under_the_cap_nothing_is_truncated(self) -> None:
+        cap = engine.UNREFERENCED_VERSIONS_CAP
+        for count in (cap, cap - 1):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                self._many(root, count)
+                report = self._main(root)
+                self.assertFalse(report["unreferenced_versions_truncated"])
+                self.assertEqual(report["unreferenced_versions_total"], count)
+                self.assertEqual(len(report["unreferenced_versions"]), count)
+                self.assertIsNone(report["unreferenced_versions_note"])
+
+    def test_versions_out_holds_every_entry_and_is_not_scanned(self) -> None:
+        total = engine.UNREFERENCED_VERSIONS_CAP + 7
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "claude"
+            root.mkdir()
+            self._many(root, total)
+            out = root / "versions.json"
+            report = self._main(root, "--versions-out", str(out))
+            full = json.loads(out.read_text(encoding="utf-8"))
+        self.assertEqual(len(full), total)
+        self.assertEqual(
+            [v["version"] for v in full],
+            [f"v{i:03d}" for i in range(total - 1, -1, -1)],
+        )
+        self.assertEqual(report["unreferenced_versions_file"]["path"], str(out))
+        self.assertEqual(report["unreferenced_versions_file"]["count"], total)
+        self.assertIn("versions.json", report["self_excluded"])
+        self.assertIn(str(out), report["unreferenced_versions_note"])
+
+
+class TestVersionsOutWriteFailure(unittest.TestCase):
+    def test_unwritable_versions_out_is_a_clean_usage_error(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = engine.main(
+                    [
+                        "--root",
+                        str(root),
+                        "--samples",
+                        "1",
+                        "--sample-interval",
+                        "0",
+                        "--versions-out",
+                        str(root / "missing" / "out.json"),
+                    ]
+                )
+        self.assertEqual(rc, 2)
+        self.assertIn("cannot write --versions-out", err.getvalue())
 
 
 class TestCsvWriteFailure(unittest.TestCase):
