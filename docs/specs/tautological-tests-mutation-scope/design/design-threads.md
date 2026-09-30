@@ -9,7 +9,9 @@ that plan's branch).
 
 Form: light (one module, one skill). Unattended run on 2026-09-30: no one answered questions, so
 each thread records the recommended answer as taken. Every answer is open to the user at plan
-approval, which is still pending.
+approval, which is still pending. The user decided DT2, DT3, DT4, DT8, DT9, DT10, DT14, DT15 and
+DT16 on 2026-09-30; each such line starts "Decided 2026-09-30 (user)". DT13 and DT14's character
+allowlist wait on the user.
 
 Evidence read this session:
 
@@ -35,7 +37,7 @@ Evidence read this session:
 | ID | Thread | Status |
 |---|---|---|
 | DT1 | Which tests run against each mutant | resolved |
-| DT2 | How changed test files are recognized | directional (Q6 scope is a user question) |
+| DT2 | How changed test files are recognized | directional (source decided by the user; base-glob source is tag `testing-glob-source`) |
 | DT3 | Mapping changed tests to the production code they exercise | resolved |
 | DT4 | Trigger: flag, auto-engage, mixed diffs, cost | resolved |
 | DT5 | Survivor cause classification (Q11) | resolved |
@@ -47,7 +49,7 @@ Evidence read this session:
 | DT11 | What stays out of 2b | resolved |
 | DT12 | The kill unit: the changed-test set, per mutant | resolved |
 | DT13 | Reachability: telling an unreached mutant from a survivor | resolved |
-| DT14 | The test command for the manual fallback | resolved |
+| DT14 | The test command for the manual fallback | resolved (character allowlist pending the user) |
 | DT15 | Preflight order under the exercised scope | resolved |
 | DT16 | The findings tier rationale outside the diff | resolved |
 
@@ -73,7 +75,7 @@ changed tests); `taut.py` output above (the calls-SUT oracle lets 0/3 mutants di
 neighbor test is the only thing that would kill them).
 
 The changed tests are the committed range plus the working tree: tracked modified and untracked
-files matching `tests` (DT2). An agent's freshly written tests are usually uncommitted, and
+files the testing config counts as tests (DT2). An agent's freshly written tests are usually uncommitted, and
 `git diff <diff-target>...HEAD` (SKILL.md:123) sees only commits. Revised 2026-09-30 after the
 devils-advocate pass (old: committed diff only; new: committed plus working tree; why: the main use
 case writes tests without committing).
@@ -83,32 +85,42 @@ case writes tests without committing).
 Options:
 
 - A. Files in the diff outside the `mutate` globs.
-- B. Read the `testing` plugin's adapter globs.
-- C. A new `tests` key in `.claude/mutation-testing.md`: framework filename-convention globs,
-  written by `setup apply`.
+- B. The testing config the `testing` scanner reads.
+- C. A new `tests` key in `.claude/mutation-testing.md`.
 
-Recommended answer taken unattended (2026-09-30): C. A is wrong: `mutate` excludes tests by
-instruction, but docs, config and fixtures also sit outside it. B couples an installed plugin to
-another plugin's private files, which it cannot reach reliably. C keeps `mutation-testing`
-installable alone. Q6 binds the key: filename conventions only (`**/*.test.ts`, `**/test_*.py`,
-`**/*Tests.cs`), never a bare `test/` or `tests/` folder glob. `setup apply` proposes defaults per
-detected ecosystem; `setup check` reports a bare-folder glob as a failure. A config without the key
-makes the new scope refuse with the remediation `/mutation-testing:setup apply`; the diff scope is
-unaffected. The key's defaults can drift from the `testing` adapters' `files:` globs; the plan
-records that as a known risk rather than wiring the two together.
+Decided 2026-09-30 (user): B. No new `tests` key in `.claude/mutation-testing.md`.
+`mutation-testing` reads test-file patterns from the same testing config the `testing` scanner reads:
+today `.claude/testing.yaml`, resolved through its cascade (`~/.claude/testing.yaml`, the team file,
+`.claude/testing.local.yaml`), and wherever issue #5606 later moves it (a docs convention file with a
+CLAUDE.md pointer as the default, `.claude/` as an option). Plans add no new `.claude/*` config
+file. This replaces the unattended answer C, which made a second pattern list beside Q6's "one
+pattern list shared with `testing:audit`" (spec:74-75). A stays rejected: docs, config and fixtures
+also sit outside `mutate`.
 
-Open for the user (plan reviewer, 2026-09-30): Q6 says "There is one pattern list shared with
-`testing:audit`" (spec:74-75). Read inside Q6's hook context, that sentence governs the `testing`
-plugin's hooks and audit, and a `mutation-testing` key does not breach it. Read broadly, C creates a
-second list. This plan does not reopen the contract, so the reading is the user's call. Options: C
-as recommended; or C with a rule that `setup apply` copies the globs from `.claude/testing.yaml`
-when that consumer file exists (a tracked consumer file, not plugin internals); or a Q6 amendment
-naming `mutation-testing` as a consumer of the one list. Research tag: `q6-scope`, settled by the
-user's reading of Q6 at plan approval.
+Open for the user (found while applying the decision, 2026-09-30): the testing config holds only
+overrides (`paths.include`, `paths.exclude`, `extend.<adapter>.files`, `adapters.disable`). The base
+filename globs are the `files:` fields of the `testing` plugin's shipped adapters, and with no layer
+file "the shipped adapters, globs and rule levels apply" (`plugins/testing/skills/setup/scripts/setup.sh:148`).
+A repository without a layer file, the common case, gives `mutation-testing` no list to read.
+Options:
+
+- a. When `testing` is installed, ask it: the audit invokes `/testing:audit` through the Skill tool
+  on the changed files and counts a file as a test when an adapter claims it (the `--file` coverage
+  block prints `adapter: <id>` or `adapter: none`, `cant-fail-scan.sh:962-967`). Without `testing`
+  installed, the exercised scope refuses and names it. One list, resolved by its owner.
+- b. Wait for #5606: its convention file carries the full pattern list, not only overrides, and
+  `mutation-testing` reads that; until then the exercised scope refuses.
+- c. Read the config layers directly and count only `paths.include` and `extend.*.files` globs as
+  test patterns; refuse when none are set.
+
+Recommendation: a, the only option that sees the list the scanner uses today and adds no config.
+Research tag: `testing-glob-source`, open, to be settled by the user. Unblocks DT1's changed-test set, DT4's
+trigger and plan Phase 3.
 
 Basis: config-template.md:30-35 (`mutate` excludes test code); Q6 (spec:72-80); Q1 (spec:43, no
 new plugin, extend in place); SKILL.md:97 and :306 (cross-plugin use only through Skill invocation
-"when installed").
+"when installed"); `plugins/testing/skills/audit/scripts/cant-fail-scan.sh:124-130, :312-322`
+(cascade layers); issue #5606 (config location).
 
 ### DT3: Mapping changed tests to the production code they exercise
 
@@ -132,32 +144,39 @@ survivor; an unreached mutant records `no-coverage`". New: DT13 decides reachabi
 manual protocol an unreached mutant passes the tests and reads as survived, because no-coverage is
 known only from a coverage report (SKILL.md:125-126).
 
+Decided 2026-09-30 (user, overengineering review): this static mapping owns "which production
+files the changed tests exercise". It is exposed as a scope a caller can pass on, so Release 3
+(#5604) can hand it to its recording run (`--record-mutants`, which today takes `--paths`) instead
+of building its own `--paths` list. Interaction: a Release 3 recording run that takes this scope
+inherits its limits (direct calls only, `no mapping: scope empty` on zero functions), and the
+mapping stays defined here, not in Release 3.
+
 Basis: SKILL.md:123-126; SKILL.md:158-159 (one mutant per line); config-template.md:13-66 (no
-coverage command key).
+coverage command key); issue #5604 body ("`--record-mutants` (every line in `--paths` ...)").
 
 ### DT4: Trigger: flag, auto-engage, mixed diffs
 
 Recommended answer taken unattended (2026-09-30):
 
 - New flag `--exercised` selects the scope explicitly.
-- A change set that touches at least one file matching `tests` and no line inside the `mutate`
+- A change set that touches at least one test file (DT2) and no line inside the `mutate`
   globs engages the scope automatically. The change set is the committed range plus the working
   tree, the same set DT1 uses (review 2, 2026-09-30: the trigger read the committed diff only, so
   uncommitted tests never auto-engaged). That change set produces zero mutants today, so no
   existing run changes; the scope report names the auto-engagement.
-- A mixed diff without the flag runs the diff scope as today, and the scope report names
-  `--exercised` and the count of changed tests it did not examine. With the flag, the exercised
-  scope replaces the diff scope for that run.
+- A mixed diff without the flag runs the diff scope as today, and the scope report prints one line
+  naming `--exercised`. With the flag, the exercised scope replaces the diff scope for that run.
 - `--exercised` is mutually exclusive with `--full` and `--paths`; a scope path argument narrows the
   changed tests considered.
-- The effort cap, `--max` and `max-mutants` apply unchanged (SKILL.md:46-64). An auto-engaged run
-  with neither `--max` nor `max-mutants` set takes the smaller of the effort cap and 15 mutants
-  (the `medium` cap), so a `low`-effort run keeps its 5, because auto-engagement turns a no-op into
-  a real run nobody asked for; the scope report states the cap. The cost estimate uses the
-  restricted changed-test baseline (DT15), not `baseline-suite-ms`.
+- The effort cap, `--max` and `max-mutants` apply unchanged (SKILL.md:46-64), auto-engaged or not;
+  the scope report states the cap. The cost estimate uses the restricted changed-test baseline
+  (DT15), not `baseline-suite-ms`.
 - Revised 2026-09-30 after the devils-advocate pass (old: no cap on auto-engage, estimate from the
   full-suite time; new: medium cap and restricted baseline; why: the skill is model-invocable, and
   under the manual protocol each mutant is several tool turns).
+- Decided 2026-09-30 (user, overengineering review): the auto-engage cap is the existing effort
+  cap, unchanged (old: the smaller of the effort cap and 15); the mixed-diff hint drops the count of
+  unexamined tests and keeps one line naming `--exercised`.
 
 Basis: RESEARCH-gaps.md "Missing for the tautology role" item 3 (a test-only diff gets no mutation
 signal; cargo-mutants documents the same limit, `https://mutants.rs/in-diff.html`); SKILL.md:123
@@ -235,8 +254,11 @@ says so. Whether each tool can be restricted, and at which granularity (file or 
 settled: RESEARCH-tools.md:39 says Stryker.NET's `since` marks the mutants a changed test covers,
 which narrows mutants, not the tests that run.
 
-Research tag: `tool-test-restriction`. For stryker-js, stryker-net, stryker4s, pitest, infection
-and mutmut, fetch the current docs and record the option (if any) that restricts a run to named
+Decided 2026-09-30 (user, overengineering review): the probe covers stryker-js, stryker-net and
+mutmut only. stryker4s, pitest and infection are deferred and run under the manual fallback;
+switch condition: a fleet repo adopts Scala, Java or PHP.
+
+Research tag: `tool-test-restriction`. For stryker-js, stryker-net and mutmut, fetch the current docs and record the option (if any) that restricts a run to named
 test files or cases, with URL and date, and how that option interacts with the tool's own
 coverage or dry-run phase (a restriction that breaks the tool's no-coverage state makes the tool
 manual-only under this scope). Settled in plan Phase 1; an unverified tool uses the manual fallback,
@@ -282,6 +304,20 @@ Revised 2026-09-30 after both stress-test passes (old: six tests changed togethe
 Tier 0 matrix; new: one scenario per outcome, mutants the skill actually generates; why: under
 DT12 the strong tests would kill every mutant, and the skill never generates the Tier 0 mutants).
 
+Decided 2026-09-30 (user, overengineering review), superseding the scenario bullet, the
+`exercised-fixture.test.sh` bullet and the eval-cases bullet above (the unmappable-test eval is
+dropped):
+
+- Four scenarios: `calls_sut`, `no_assertion`, `boundary` and `copied_logic`. `relation` and
+  `literal` are cut (their outcomes repeat `calls_sut` and `copied_logic`). `unreached_branch` stays
+  only while DT13 is pending; if DT13 folds unreached into `input-gap`, it goes too.
+- `exercised-fixture.test.sh` is cut. The seams are the evals and the live runs; the fixture's
+  config carries no `tests` key (DT2).
+- Evals: one case per scenario plus the uncommitted-tests case (DT1); no count gate. The setup
+  case becomes "a `test-command` without `{tests}` fails `setup check`" (DT14), since the bare
+  `tests/` glob check left with the `tests` key.
+- Live runs: the scenarios plus `calls_sut_uncommitted`.
+
 Basis: `evals.json` (dict with `evals`, 14 cases); `scripts/run-plugin-tests.sh:2` (runs
 `plugins/**/*.test.sh`); `taut.py` (qualitative outcomes); SKILL.md:158-163;
 `plugins/code-metrics/scripts/dispatch.test.sh:18` (python3-or-python precedent, per the plan
@@ -296,12 +332,14 @@ field adds nothing to this scope. The docs call the list "best effort and in pub
 to "use the list to find what to review, not to enforce a policy"; it is recorded in every mode
 only with `bashEditDiffEnabled`, otherwise only in auto and `bypassPermissions` mode. Its natural
 consumer is the advisory `testing` test-scan hook, which misses Bash writes today (spec risk table,
-"Bash and MCP writes bypass the hooks", spec:910). The Release 2 judge plan also deferred it, so no plan owns
-it now.
+"Bash and MCP writes bypass the hooks", spec:910). The Release 2 judge plan also deferred it.
+
+Decided 2026-09-30 (user): stays deferred. The orchestrator files an issue owned by a follow-up to
+the `testing` plugin's hooks; owner: issue to be filed.
 
 Research tag: `bashEditDiff-coverage`. Measure, on the installed Claude Code version, how many
 Bash-written test files reach a PostToolUse hook under the default permission mode with and without
-`bashEditDiffEnabled`; owner is a `testing` hooks follow-up, to be named by the user.
+`bashEditDiffEnabled`; owner: issue to be filed (a `testing` hooks follow-up).
 
 Basis: `https://code.claude.com/docs/en/hooks.md` (fetched 2026-09-30, `bashEditDiff` section,
 requires v2.1.269 or later); SKILL.md:123.
@@ -371,6 +409,10 @@ candidate (that mode would report pseudo-tested methods as findings); no sentine
 finding. A reached survivor under a test that swallows exceptions is close to a pseudo-tested
 signal; reporting it as such stays A12's scope.
 
+Pending the user (2026-09-30): the overengineering review recommends folding unreached into
+input-gap and deferring the sentinel, because exit-code detection likely fails under
+vitest/jest/dotnet/go workers.
+
 Basis: SKILL.md:125-126 (no-coverage only when a coverage report exists); restoration-regimes.md:35-43
 (in-tree per-mutant gate); A12 (spec:977).
 
@@ -396,6 +438,12 @@ protocol refuses without it, naming `/mutation-testing:setup apply`.
 - Review 2, 2026-09-30 (old: one raw substitution, a `dotnet --filter` example; new: per-path
   quoting, a character allowlist, path-list runners only; why: spaces split arguments, a crafted
   file name was shell injection, and a name filter cannot take a path list).
+- Decided 2026-09-30 (user, overengineering review): `test-command` stays an optional key in the
+  existing `.claude/mutation-testing.md` (not a new file), with per-path quoting. The DT2 decision
+  does not remove the need for it: the testing config and its adapters hold file globs and
+  assertion patterns, no run command (`plugins/testing/skills/audit/adapters/py-pytest.yaml`).
+- The character allowlist: pending the user: cut recommended. It stays in the design until the
+  user decides.
 
 Basis: config-template.md:18-22; SKILL.md:161-163 (manual protocol).
 
@@ -408,7 +456,8 @@ baseline runs the whole suite.
 Recommended answer taken unattended (2026-09-30): under the exercised scope Phase 0 runs in this
 order: config, tool availability, changed tests (DT1), mapping (DT3), effective runner and regime
 (a tool with a verified restriction, else manual, DT8), dirty-target stop on the mapped files,
-regime gate including the refusal rule, restricted baseline run twice, then the Phase 0 snapshot.
+regime gate including the refusal rule, restricted baseline run (once, per the user's decision
+below), then the Phase 0 snapshot.
 
 - The restricted double run replaces the full-suite baseline for this scope: a red test the
   mutants never run cannot kill them, so it is no reason to stop. Red stops the run; two different
@@ -417,6 +466,10 @@ regime gate including the refusal rule, restricted baseline run twice, then the 
   18% of the time). So after the mutant loop, the changed-test set runs once more on the
   unmutated tree; a result different from the baseline marks every kill in the report as
   unreliable.
+- Decided 2026-09-30 (user, overengineering review), superseding the two bullets above: one
+  restricted baseline run, not two, and no post-loop unmutated rerun. Red stops the run. The
+  existing flaky-test gotcha (SKILL.md:335-336) stays as the stated limit. Switch condition: a live
+  run shows a flaky kill.
 - Phase 1 steps 2 and 3 (coverage drop, suppression dispositions) key on the mapped-line set
   instead of the changed-line set under this scope, so an arid record on a mapped node still
   applies instead of falling to not-examined (SKILL.md:143-144).
@@ -450,11 +503,13 @@ new: rows 234 and 235, a trigger that holds for `input-gap`; why: row 235 argues
 too, and the old trigger rested on "a coverage claim nothing backs", which an `input-gap` test
 does back).
 
+Decided 2026-09-30 (user): the README edit to rows 234 and 235 is approved.
+
 Basis: `docs/conventions/detector-findings/README.md:234-235, :238, :240`; crosswalk.md:38-41.
 
 ## Dependency order
 
-DT2 and DT14 before DT4 and DT15 (the trigger and preflight need the `tests` and `test-command`
-keys). DT8 (plan Phase 1 probe) before DT15's effective-runner choice. DT12 fixes the fixture shape
+DT2 and DT14 before DT4 and DT15 (the trigger and preflight need the test-file source and the
+`test-command` key). DT8 (plan Phase 1 probe) before DT15's effective-runner choice. DT12 fixes the fixture shape
 in DT9. DT13 before DT5 and DT7 (cause and coverage need reachability). DT16 before any persisted
 exercised-scope row ships. DT10 has no dependency inside 2b.
