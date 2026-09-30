@@ -33,6 +33,7 @@ read_of() { printf '{"type":"tool_use","name":"Read","input":{"file_path":"%s"}}
 read_part() { printf '{"type":"tool_use","name":"Read","input":{"file_path":"%s","offset":5,"limit":9}}' "$1"; }
 edit_of() { printf '{"type":"tool_use","name":"Edit","input":{"file_path":"%s"}}' "$1"; }
 grep_of() { printf '{"type":"tool_use","name":"Grep","input":{"pattern":"x","path":"%s"}}' "$1"; }
+handback_of() { printf '{"type":"tool_use","name":"SubagentHandback","input":{"message":"x"}}'; }
 bash_of() { printf '{"type":"tool_use","name":"Bash","input":{"command":"%s"}}' "$1"; }
 text_of() { printf '{"type":"text","text":"%s"}' "$1"; }
 
@@ -73,6 +74,11 @@ turn "$E" 1 "$(read_of /repo/a.md)"
 turn "$E" 2 "$(edit_of /repo/a.md)"
 turn "$E" 3 "$(read_of /repo/a.md)"
 expect "read, edit, read is not a REREAD" "$E" '^REREAD count: 0$'
+
+H="$WORK/handback-tool.jsonl"
+turn "$H" 1 "$(read_of /repo/a.md)"
+turn "$H" 2 "$(handback_of)"
+expect "SubagentHandback tool call is the handback turn" "$H" '^handback turn: 2$'
 
 P="$WORK/parallel.jsonl"
 turn "$P" 1 "$(read_of /repo/a.md)"

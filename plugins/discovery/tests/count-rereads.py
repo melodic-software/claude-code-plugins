@@ -13,7 +13,8 @@ file; a `Read` with an offset or limit is a partial read and is ignored.
                        its directory) and a full read of it on a later turn
 
 Prints paths and counts only, never transcript content. The handback turn is
-the last assistant message that has a `status:` line.
+the last assistant message that has a `status:` line or a `SubagentHandback`
+tool call.
 
 Exit 0 = report printed; exit 2 = usage error or unreadable transcript.
 """
@@ -106,6 +107,8 @@ def collect(path: str) -> tuple[list[tuple[int, str, str, str]], dict[int, str],
                     continue
                 name, inp = block.get("name"), block.get("input")
                 inp = inp if isinstance(inp, dict) else {}
+                if name == "SubagentHandback":
+                    text_of[turn] = text_of.get(turn, "") + "\nstatus: handback"
                 target = inp.get("file_path") or inp.get("path")
                 has_target = isinstance(target, str)
                 if name == "Read" and has_target:
