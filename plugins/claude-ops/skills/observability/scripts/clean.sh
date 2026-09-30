@@ -228,6 +228,8 @@ prune_file() {
   # Third arg is an optional per-target cutoff. Absent, the caller's global
   # window applies -- so the hook-events call site is byte-for-byte unchanged.
   local CUTOFF_ISO="${3:-$CUTOFF_ISO}"
+  # Fourth arg is an optional lock file. Absent, the file's own <file>.lock.
+  local lock_override="${4:-}"
   local label
   label=$(basename "$file")
 
@@ -270,7 +272,7 @@ prune_file() {
   fi
 
   local tmp="${file}.tmp.$$"
-  local lock="${file}.lock"
+  local lock="${lock_override:-${file}.lock}"
 
   # Only a fully clean jq pass may replace the file: on a malformed line jq
   # STOPS reading the stream, so $tmp holds only the records before the bad
@@ -331,7 +333,9 @@ prune_file "$HOOK_LOG" "ts"
 # `clean` sweeps the stale ones whether or not the hooks still run.
 log "clean: hook log root $HOOK_ROOT"
 prune_file "$HOOK_ROOT/hook-events.jsonl" "ts"
-prune_file "$HOOK_ROOT/hook-events.jsonl.1" "ts"
+# The sink rotates the live file into .1 under the live file's lock, so pruning
+# .1 takes that same lock.
+prune_file "$HOOK_ROOT/hook-events.jsonl.1" "ts" "" "$HOOK_ROOT/hook-events.jsonl.lock"
 if [[ -d "$HOOK_ROOT/sessions" ]]; then
   OLD_SESSIONS=()
   while IFS= read -r f; do OLD_SESSIONS+=("$f"); done < <(

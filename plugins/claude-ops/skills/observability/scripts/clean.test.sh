@@ -8,6 +8,8 @@
 #   - a rotated file with a line that is not valid JSON is left intact and the
 #     run exits 1
 #   - a missing rotated file is skipped and the run exits 0
+#   - the rotated file is pruned under the live file's lock, the one the sink
+#     rotates under
 #
 # CC_OTEL_STORE points at an empty directory so the OTEL delegate never sees a
 # real store.
@@ -86,6 +88,22 @@ rm -f "$P3/$ROOT_REL/hook-events.jsonl.1"
 run_clean "$P3"
 assert_eq "a missing rotated file exits 0" 0 "$RC"
 assert_contains "a missing rotated file is skipped" "$OUT" "hook-events.jsonl.1: missing"
+
+# --- pruning the rotated file waits on the sink's lock for the live file ------
+if command -v flock >/dev/null 2>&1; then
+  P4="$(make_project p4)"
+  (
+    flock -x 9
+    sleep 14
+  ) 9>"$P4/$ROOT_REL/hook-events.jsonl.lock" &
+  HOLDER=$!
+  sleep 1
+  run_clean "$P4" --quiet
+  kill "$HOLDER" 2>/dev/null
+  wait "$HOLDER" 2>/dev/null
+  assert_contains "the rotated file waits on the live file's lock" "$OUT" "hook-events.jsonl.1: flock timeout"
+  assert_eq "a locked rotated file is left intact" 2 "$(wc -l <"$P4/$ROOT_REL/hook-events.jsonl.1" | tr -d ' ')"
+fi
 
 if ((FAILED > 0)); then
   printf '%d of %d checks failed\n' "$FAILED" "$CASE_NUM" >&2

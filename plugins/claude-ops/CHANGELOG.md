@@ -18,7 +18,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   passes `hook_events_max_bytes`, so the pair stays near twice that. Rotation runs whether or not
   the per-session event log is enabled, which the SessionEnd retention sweep never covered for this
   file. `observability` clean and its state probe treat the rotated file like the live one, and the
-  README and observability references describe the cap.
+  README and observability references describe the cap. `clean` prunes the rotated file under the
+  live file's lock, so a concurrent rotation cannot be overwritten by the pruned copy.
 
 ## [0.72.0] - 2026-09-30
 
