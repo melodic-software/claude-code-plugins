@@ -3,6 +3,14 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.5] - 2026-09-29
+
+### Added
+
+- **`write` carries a Boundary section for the built-in command `/bug`.** `/bug` reports a
+  defect in Claude Code itself to Anthropic; this skill reports one in the person's own code. The
+  model offers the person-run command when the defect is in Claude Code.
+
 ## [0.11.4] - 2026-09-29
 
 ### Changed

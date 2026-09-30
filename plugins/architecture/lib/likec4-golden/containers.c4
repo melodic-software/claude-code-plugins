@@ -1,0 +1,28 @@
+specification {
+  element softwareSystem
+  element container
+  element store {
+    style {
+      shape storage
+    }
+  }
+  element queue {
+    style {
+      shape queue
+    }
+  }
+}
+model {
+  e_sys = softwareSystem "mono" {
+    e_Host = container "Host" {
+      technology "ASP.NET Core (net8.0)"
+      description "Contains: Billing, Domain"
+    }
+  }
+}
+views {
+  view containers of e_sys {
+    title "Container diagram for mono"
+    include *
+  }
+}

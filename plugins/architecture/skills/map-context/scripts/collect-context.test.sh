@@ -231,5 +231,146 @@ git -C "$link_repo" commit --quiet -m "fixture"
 bash "$COLLECT" --repo "$link_repo" --generated-on 2026-09-28 --out "$TEST_TMPDIR/link.json" >/dev/null 2>&1
 assert_not_contains "symlink: a tracked link to an untracked file is not a source" "$(cat "$TEST_TMPDIR/link.json")" "leak.partner.example"
 
+date_repo="$(init_repo "$TEST_TMPDIR/date-checkout")"
+mkdir -p "$date_repo/src"
+printf '{ "Partner": { "BaseUrl": "https://date.partner.example/api" } }\n' >"$date_repo/src/appsettings.json"
+git -C "$date_repo" add -A
+GIT_COMMITTER_DATE="2024-03-05T12:00:00Z" git -C "$date_repo" commit --quiet -m "fixture"
+bash "$COLLECT" --repo "$date_repo" >"$TEST_TMPDIR/date-1.json"
+bash "$COLLECT" --repo "$date_repo" >"$TEST_TMPDIR/date-2.json"
+if cmp -s "$TEST_TMPDIR/date-1.json" "$TEST_TMPDIR/date-2.json"; then
+  pass "generated_on: a second run on the same commit is byte-identical"
+else
+  fail "generated_on: a second run on the same commit is byte-identical" "outputs differ"
+fi
+assert_contains "generated_on: defaults to the HEAD commit date" "$(cat "$TEST_TMPDIR/date-1.json")" '"generated_on": "2024-03-05"'
+assert_contains "generated_on: --generated-on overrides the default" "$(bash "$COLLECT" --repo "$date_repo" --generated-on 2020-01-02)" '"generated_on": "2020-01-02"'
+empty_repo="$(init_repo "$TEST_TMPDIR/empty-checkout")"
+assert_contains "generated_on: a repo with no commits is unknown" "$(bash "$COLLECT" --repo "$empty_repo")" '"generated_on": "unknown"'
+printf 'a file, not a directory\n' >"$TEST_TMPDIR/blocker"
+bash "$COLLECT" --repo "$date_repo" --out "$TEST_TMPDIR/blocker/out.json" >/dev/null 2>"$TEST_TMPDIR/unwritable.err"
+assert_equals "--out: a parent that is a file exits 1" "$?" "1"
+assert_contains "--out: a parent that is a file says so" "$(cat "$TEST_TMPDIR/unwritable.err")" "cannot write --out file"
+mkdir -p "$TEST_TMPDIR/out-is-a-dir"
+bash "$COLLECT" --repo "$date_repo" --out "$TEST_TMPDIR/out-is-a-dir" >/dev/null 2>"$TEST_TMPDIR/unwritable-dir.err"
+assert_equals "--out: a path that is a directory exits 1" "$?" "1"
+assert_contains "--out: a path that is a directory says so" "$(cat "$TEST_TMPDIR/unwritable-dir.err")" "cannot write --out file"
+bash "$COLLECT" --repo "$date_repo" --generated-on 2026-09-28 --out "$TEST_TMPDIR/new-home/architecture/context.json" >/dev/null 2>"$TEST_TMPDIR/new-home.err"
+assert_equals "--out: a directory that does not exist yet is created" "$?" "0"
+assert_contains "--out: the record lands in the created directory" "$(cat "$TEST_TMPDIR/new-home/architecture/context.json")" "date.partner.example"
+bash "$RENDER" --record "$TEST_TMPDIR/new-home/architecture/context.json" --out "$TEST_TMPDIR/new-home/architecture" --dialect none >/dev/null 2>&1
+assert_equals "--out: the render step reads the record written into the created directory" "$?" "0"
+
+# An http URL is an external system only under a key that names an integration.
+http_repo="$(init_repo "$TEST_TMPDIR/http-checkout")"
+mkdir -p "$http_repo/src"
+cat >"$http_repo/src/appsettings.json" <<'JSON'
+{
+  "ApiBaseUrl": "https://apibase.integration.example/v1",
+  "Authority": "https://authority.integration.example/tenant",
+  "Backup": { "Host": "https://host.integration.example" },
+  "homepage": "https://homepage.docs.example",
+  "repository": "https://repository.docs.example",
+  "bugs": { "url": "https://bugs.docs.example" },
+  "license": { "url": "https://license.docs.example" },
+  "contact": { "url": "https://contact.docs.example" },
+  "externalDocs": { "url": "https://externaldocs.docs.example" },
+  "servers": [{ "url": "https://servers.docs.example/v1" }],
+  "Partner": "https://unkeyed.docs.example"
+}
+JSON
+cat >"$http_repo/src/openapi.yaml" <<'YAML'
+openapi: 3.0.0
+info:
+  license:
+    url: https://yamllicense.docs.example
+servers:
+  - url: https://yamlservers.docs.example/v1
+externalDocs:
+  url: https://yamlexternaldocs.docs.example
+YAML
+cat >"$http_repo/mkdocs.yml" <<'YAML'
+site_url: https://siteurl.docs.example/
+repo_url: https://repourl.docs.example/acme/billing
+YAML
+git -C "$http_repo" add -A
+git -C "$http_repo" commit --quiet -m "fixture"
+bash "$COLLECT" --repo "$http_repo" --generated-on 2026-09-28 --out "$TEST_TMPDIR/http.json" >/dev/null 2>&1
+http_rec="$(cat "$TEST_TMPDIR/http.json")"
+assert_contains "http: ApiBaseUrl names an integration" "$http_rec" '"host":"apibase.integration.example"'
+assert_contains "http: Authority names an integration" "$http_rec" '"host":"authority.integration.example"'
+assert_contains "http: a Host key names an integration" "$http_rec" '"host":"host.integration.example"'
+assert_not_contains "http: a homepage is not an external system" "$http_rec" "homepage.docs.example"
+assert_not_contains "http: a repository is not an external system" "$http_rec" "repository.docs.example"
+assert_not_contains "http: bugs.url is not an external system" "$http_rec" "bugs.docs.example"
+assert_not_contains "http: license.url is not an external system" "$http_rec" "license.docs.example"
+assert_not_contains "http: contact.url is not an external system" "$http_rec" "contact.docs.example"
+assert_not_contains "http: an OpenAPI externalDocs url is not an external system" "$http_rec" "externaldocs.docs.example"
+assert_not_contains "http: an OpenAPI servers entry is not an external system" "$http_rec" "servers.docs.example"
+assert_not_contains "http: a URL under a key with no integration name is not an external system" "$http_rec" "unkeyed.docs.example"
+assert_not_contains "http: a yaml license url is not an external system" "$http_rec" "yamllicense.docs.example"
+assert_not_contains "http: a yaml OpenAPI servers entry is not an external system" "$http_rec" "yamlservers.docs.example"
+assert_not_contains "http: a yaml externalDocs url is not an external system" "$http_rec" "yamlexternaldocs.docs.example"
+assert_not_contains "http: mkdocs site_url is not an external system" "$http_rec" "siteurl.docs.example"
+assert_not_contains "http: mkdocs repo_url is not an external system" "$http_rec" "repourl.docs.example"
+
+# A Data Source that names a file is not a server.
+lite_repo="$(init_repo "$TEST_TMPDIR/lite-checkout")"
+mkdir -p "$lite_repo/src"
+cat >"$lite_repo/src/appsettings.json" <<JSON
+{
+  "ConnectionStrings": {
+    "Lite": "Data Source=app.db;Foreign Keys=True",
+    "Legacy": "Data Source=northwind.mdf;Integrated Security=True",
+    "Access": "Data Source=ledger.mdb;Persist Security Info=False",
+    "Cache": "Data Source=cache.sqlite3;Mode=ReadWrite;",
+    "Plain": "Data Source=state.sqlite;Version=3;",
+    "Real": "Data Source=sql.lite-control.example;Initial Catalog=Orders;User ID=sa;Password=${leak_sql}"
+  }
+}
+JSON
+git -C "$lite_repo" add -A
+git -C "$lite_repo" commit --quiet -m "fixture"
+lite_out="$(bash "$COLLECT" --repo "$lite_repo" --generated-on 2026-09-28 2>&1)"
+for lite_file in app.db northwind.mdf ledger.mdb cache.sqlite3 state.sqlite; do
+  assert_not_contains "sqlite: Data Source=$lite_file is not a host" "$lite_out" "$lite_file"
+done
+assert_contains "sqlite: a real Data Source server is still recorded" "$lite_out" '"host":"sql.lite-control.example"'
+assert_not_contains "sqlite: the real server's password is absent" "$lite_out" "$leak_sql"
+
+# An actor line carrying credential material is skipped whatever shape the credential takes.
+act_token="Tok""en=actor-tkn-7731"
+act_client="Client""Secret=actor-cs-8842"
+act_bearer="Bea""rer actor-bearer-9953"
+act_aws="AK""IA""FAKEFAKEFAKE0000"
+printf 'Clerk\tFiles a claim\nOps bot\tCalls with %s\nSvc\t%s\nGate\tsends %s\nCloud\tholds %s\n' \
+  "$act_token" "$act_client" "$act_bearer" "$act_aws" >"$TEST_TMPDIR/secret-actors.tsv"
+sact_out="$(bash "$COLLECT" --repo "$date_repo" --generated-on 2026-09-28 --actors "$TEST_TMPDIR/secret-actors.tsv" --out "$TEST_TMPDIR/secret-actors.json" 2>&1)"
+assert_equals "actors: a secret-bearing line does not fail the run" "$?" "0"
+mkdir -p "$TEST_TMPDIR/render-secret-actors"
+bash "$RENDER" --record "$TEST_TMPDIR/secret-actors.json" --out "$TEST_TMPDIR/render-secret-actors" --dialect c4-plantuml >/dev/null 2>&1
+sact_blob="$sact_out$(cat "$TEST_TMPDIR/secret-actors.json" "$TEST_TMPDIR/render-secret-actors/context.md")"
+assert_contains "actors: the clean line is kept" "$sact_blob" '"name":"Clerk"'
+for actor_secret in actor-tkn-7731 actor-cs-8842 actor-bearer-9953 "$act_aws"; do
+  assert_not_contains "actors: $actor_secret is in neither the record nor context.md" "$sact_blob" "$actor_secret"
+done
+for actor_name in "Ops bot" "Svc" "Gate" "Cloud"; do
+  assert_not_contains "actors: the $actor_name line is skipped" "$(cat "$TEST_TMPDIR/secret-actors.json")" "\"name\":\"$actor_name\""
+done
+assert_contains "actors: the skip is reported" "$sact_out" "skipped an actor line"
+
+rec_repo="$(init_repo "$TEST_TMPDIR/records-checkout")"
+mkdir -p "$rec_repo/src" "$rec_repo/docs/architecture"
+printf '{ "Partner": { "BaseUrl": "https://real.partner.example/api" } }\n' >"$rec_repo/src/appsettings.json"
+for rec in deployment containers events; do
+  printf '{ "Partner": { "BaseUrl": "https://%s.record.example/api", "Host": "%s.record.example" } }\n' "$rec" "$rec" >"$rec_repo/docs/architecture/$rec.json"
+done
+git -C "$rec_repo" add -A
+git -C "$rec_repo" commit --quiet -m "fixture"
+bash "$COLLECT" --repo "$rec_repo" --generated-on 2026-09-28 --out "$TEST_TMPDIR/records.json" >/dev/null 2>&1
+rec_text="$(cat "$TEST_TMPDIR/records.json")"
+assert_contains "family records: a real config file still yields a row" "$rec_text" "real.partner.example"
+assert_not_contains "family records: tracked deployment, containers and events records are not sources" "$rec_text" "record.example"
+
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

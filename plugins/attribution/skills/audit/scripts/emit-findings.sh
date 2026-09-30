@@ -16,7 +16,7 @@
 #
 # The RELAY BOUNDARY is enforced here, not upstream. Only fingerprint-confirmed
 # copies, the two deterministic stamp rules, and one judged rule under a declared
-# outcome may reach a findings file; judgment verdicts (source-fetched-similar,
+# outcome may reach a findings file; judgment verdicts (vendored-snapshot, source-fetched-similar,
 # llm-suspected, not-found) stay in the human report. They are counted in
 # `## Surfaces` rather than dropped, and their tier names are deliberately NOT
 # printed — the findings file is the apply relay's input, and a tier name in it
@@ -183,8 +183,8 @@ fi
 # note, and withholding the fingerprint-confirmed copy carrying it is the drop above
 # wearing an allowlisted key.
 #
-# Scoped to THESE FOUR NAMES on purpose — the three withheld verdicts, and the one
-# tier a copy finding may be relayed on. A tier naming none of them is a tier this
+# Scoped to THESE NAMES on purpose: the withheld verdicts, and the one tier a copy
+# finding may be relayed on. A tier naming none of them is a tier this
 # producer neither withheld nor can relay.
 # shellcheck disable=SC2016  # `$name` is a jq parameter, not a shell expansion.
 TIER_DEFS='
@@ -259,7 +259,7 @@ def names_in:
 # name too many can only withhold a record; recognizing one too few relays a judgment
 # verdict. Do not narrow this to one name.
 def is_verdict_name:
-  . == "source-fetched-similar" or . == "llm-suspected"
+  . == "vendored-snapshot" or . == "source-fetched-similar" or . == "llm-suspected"
   or . == "not-found" or . == "source-not-identified";
 def is_neutral_name:
   . == "not-found" or . == "source-not-identified";

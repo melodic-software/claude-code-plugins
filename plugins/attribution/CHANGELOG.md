@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.7.0] - 2026-09-29
+## [0.8.0] - 2026-09-29
 
 ### Added
 
@@ -25,6 +25,109 @@
 - Golden cases c11 to c24 and evals 11 to 13 cover the new class, with negatives for stamped
   records, conforming pointers and distilling files. The restated-fact gate prints report-only
   until it has enough cases.
+
+## [0.7.0] - 2026-09-29
+
+### Added
+
+- **`vendored-snapshot` is an evidence tier of its own.** `reference/rubric.md` "Tier mapping"
+  gains a row between `fingerprint-confirmed` and `source-fetched-similar`: the source was read
+  from a committed snapshot because the live fetch was unavailable or failed, the finding records
+  `source.route: vendored-snapshot` and names the snapshot path, its declared upstream ref and its
+  sync date, and it never reaches the relay and is never fix-eligible. The 0.4.0 rule that a
+  snapshot basis caps at `source-fetched-similar` and borrows that tier is replaced in
+  `reference/source-fetch.md` and `SKILL.md`, and the README and the two `docs/specs/provenance-*`
+  tier lists carry the new row. The fix-eligibility rule itself is unchanged.
+
+  `emit-findings.sh` recognizes the name as a withheld judgment verdict. Before, a finding
+  declaring it and carrying no rule id printed verbatim into `## Unparsed`, tier name and payload
+  included, and one paired with a copy rule id was counted as "not relay-eligible" rather than as a
+  judgment finding. Both now take the withheld path and are counted under "judgment findings". The
+  suite pins both shapes.
+
+  **The rubric stays at version 4.** Its header rule names carve-outs and criteria, and a tier row
+  is neither: judges grade carve-outs and criteria before any tier is mapped, no grade changes, and
+  no golden case declares this tier, so no recorded measurement is invalidated. The row joins
+  version 4 before any measurement is pinned to that version (Refs #3465).
+
+- **`scripts/sweep-ledger.sh` keeps the sweep ledger.** `init`, `close <file>`, `spend <n>`,
+  `cache-add`, `cache-check`, and `status` manage `.work/<topic-slug>/sweep-ledger.md` in the
+  current checkout, so a resumed sweep restores its closures, its running fetch spend and its
+  source cache instead of relying on a hand-kept file. `init` gives the sweep an id and records the
+  checkout it started in; every call refuses, with exit 3, a ledger that names another checkout or
+  none, so a copy carried elsewhere is a new sweep, not a resume. `close` refuses an entry missing
+  the file, the dispositions or any of the four guard outcomes, and a file already closed, and
+  stamps the running spend on each closure. `spend` sums across separate invocations.
+  `cache-check` reports a hit for re-validation with its recorded hash and fetch time, never as
+  something to reuse. `status` prints the sweep id, the closed files, spend against
+  `corpus_fetch_ceiling` (read through the config layers) and the cache size, and exits 1 once
+  spend reaches the ceiling. With no ledger in the checkout it says
+  `no ledger here: this is a new sweep (no closures, no spend, no cache)`.
+
+  **The script checks an entry's shape and the spend's arithmetic, not whether a disposition is
+  right.** It cannot know how many findings a file had, so every field remains the run's own
+  claim. `SKILL.md` "Sweep", `reference/dispositions.md` "Sweep closure" and
+  `reference/source-fetch.md` "Budgets, caching, and stopping" no longer say the ledger is written
+  by hand. The 0.5.1 entry recording that no machinery existed is left as recorded. The suite is
+  `scripts/sweep-ledger.test.sh` (#5353, Refs #3465).
+
+### Changed
+
+- **`fix` and `sweep` apply dispositions to hand-written markdown only.** The generated-output
+  paragraph in `reference/dispositions.md` was a flagged gap and is now the rule: a file whose head
+  carries a generated-output marker is not edited, its findings are reported and routed to the
+  human, and each names the generator's input as the fix site. The exclusion is the marker, never a
+  list of files, and no script enforces the check. `SKILL.md` "Sweep" states the same in one
+  sentence (Refs #3465).
+- **`SKILL.md`'s description no longer enumerates the tier names**, so a tier added later does not
+  leave it stale.
+- **Golden-set re-score against rubric version 4: the deterministic layer was re-run, the judgment
+  panel was not.** `fingerprint.mjs compare` over all ten `case.md` and `source.md` pairs reproduces
+  every figure the fixtures record, and the separation rule fires on the same six cases and stays
+  silent on the same four:
+
+  | Case | Containment | Jaccard | Longest span (words) | Rule fires |
+  |---|---|---|---|---|
+  | `c01` | 0.643 | 0.336 | 76 | yes |
+  | `c02` | 0.713 | 0.477 | 59 | yes |
+  | `c03` | 0.436 | 0.208 | 22 | yes |
+  | `c04` | 0.507 | 0.325 | 68 | yes |
+  | `c05` | 0.000 | 0.000 | 0 | no |
+  | `c06` | 0.039 | 0.014 | 7 | no |
+  | `c07` | 0.000 | 0.000 | 0 | no |
+  | `c08` | 0.570 | 0.312 | 22 | yes |
+  | `c09` | 0.413 | 0.178 | 10 | yes |
+  | `c10` | 0.000 | 0.000 | 0 | no |
+
+  **Not run: the blind judgment panel.** Version 4 is scored by the three-judge panel per case the
+  0.4.0 re-score used, thirty independent judges that see the candidate, the fetched source, the
+  containing file and the rubric and never `expected.json` or another judge's verdict. This run had
+  no subagent tool, and it had read every `expected.json` before any grading, so an inline grade
+  would be neither blind nor a panel. No tp, fp, fn or tn, and no precision or recall, is therefore
+  pinned to version 4. The version-3 table (8 tp, 0 fp, 0 fn, 2 tn) stays superseded and is not
+  restated as a version-4 claim. Running the panel and recording its table is what remains of
+  #5354.
+
+  **No verdict moved, and none could be measured as moving.** Version 4 differs from version 3 in
+  carve-out 5 and in the tier table's `vendored-snapshot` row, which joined version 4 before its
+  first measurement, so no version-4 figure predates it. All ten cases are ordinary local
+  notes, none is a distilling surface with a Sources section, so the carve-out 5 qualifier has
+  nothing to act on, and no case declares the new tier. That reading predicts every expected
+  verdict holds; it is a prediction from the fixtures, not a panel result, and no `expected.json`
+  was edited.
+
+  **Every class stays below `min_n_per_class` 10:** near-verbatim n = 5, verbatim n = 2, paraphrase
+  n = 1, hard negatives n = 2 (10 cases). The class-size gate therefore holds whatever the panel
+  returns, and no class is fix-eligible (Refs #3465).
+
+## [0.6.4] - 2026-09-29
+
+### Fixed
+
+- **audit:** a config root that is the home directory (or an ancestor of it) or is not inside a git
+  working tree no longer reads `.claude/attribution.json` and `.claude/attribution.local.json` as
+  team and overlay layers, and two paths naming one file are read once. The classifier is
+  `lib/config-root.sh`, a synced copy of the source-control resolver.
 
 ## [0.6.3] - 2026-09-29
 

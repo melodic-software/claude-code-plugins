@@ -53,58 +53,81 @@ done
 # only exits the subshell — propagate its code rather than continuing with "".
 target_repo="$(wit_resolve_repo "$repo_override")" || exit "$?"
 
-args=(issue create -R "$target_repo" --title "$title" --body "$body")
-
 # Native GitHub Issue Type (org-defined Task/Bug/Feature) is a gh 2.94 flag.
 # On older gh, forwarding `--type` dies with `unknown flag` (exit 1) and
 # `/work-items:track add` on an org repo files nothing. Degrade to the same
 # coarse `type:` label personal/non-org repos already use, and say so.
-if [[ -n "$type" ]]; then
-  if wit_gh_has_native_surface; then
-    args+=(--type "$type")
-  else
-    type_lc="$(printf '%s' "$type" | tr '[:upper:]' '[:lower:]')"
-    case "$type_lc" in
-    bug | fix) type_label="type: bug" ;;
-    feature | feat) type_label="type: feature" ;;
-    *) type_label="type: task" ;;
-    esac
+native=0
+wit_gh_has_native_surface && native=1
+if [[ -n "$type" ]] && ((!native)); then
+  type_lc="$(printf '%s' "$type" | tr '[:upper:]' '[:lower:]')"
+  case "$type_lc" in
+  bug | fix) type_label="type: bug" ;;
+  feature | feat) type_label="type: feature" ;;
+  *) type_label="type: task" ;;
+  esac
+  # A label the repo lacks makes the REST create fail or file the issue unlabeled.
+  wit_run_gh read api --paginate "repos/$target_repo/labels?per_page=100" --jq '.[].name'
+  if grep -qixF -- "$type_label" <<<"$WIT_GH_OUT"; then
     printf 'create-item.sh: --type requires gh >= 2.94; applying %s instead\n' \
       "$type_label" >&2
     if [[ ",${labels}," != *",${type_label},"* ]]; then
       labels="${labels:+$labels,}$type_label"
     fi
+  else
+    printf 'create-item.sh: --type requires gh >= 2.94; dropped the type because %s defines no "%s" label\n' \
+      "$target_repo" "$type_label" >&2
   fi
 fi
 
-if [[ -n "$labels" ]]; then
-  IFS=',' read -ra label_list <<<"$labels"
-  for label in "${label_list[@]}"; do
+label_list=()
+[[ -z "$labels" ]] || IFS=',' read -ra label_list <<<"$labels"
+
+if ((native)); then
+  args=(issue create -R "$target_repo" --title "$title" --body "$body")
+  [[ -z "$type" ]] || args+=(--type "$type")
+  for label in ${label_list[@]+"${label_list[@]}"}; do
     args+=(--label "$label")
   done
-fi
 
-if [[ -n "$parent" ]]; then
-  wit_require_github_id "$parent" || wit_usage_error "malformed or non-github --parent id: $parent"
-  args+=(--parent "$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")")
-fi
+  if [[ -n "$parent" ]]; then
+    wit_require_github_id "$parent" || wit_usage_error "malformed or non-github --parent id: $parent"
+    args+=(--parent "$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")")
+  fi
 
-if [[ -n "$blocked_by" ]]; then
-  blocker_urls=""
-  IFS=',' read -ra blocker_list <<<"$blocked_by"
-  for blocker in "${blocker_list[@]}"; do
-    wit_require_github_id "$blocker" || wit_usage_error "malformed or non-github --blocked-by id: $blocker"
-    blocker_urls+="${blocker_urls:+,}$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
+  if [[ -n "$blocked_by" ]]; then
+    blocker_urls=""
+    IFS=',' read -ra blocker_list <<<"$blocked_by"
+    for blocker in "${blocker_list[@]}"; do
+      wit_require_github_id "$blocker" || wit_usage_error "malformed or non-github --blocked-by id: $blocker"
+      blocker_urls+="${blocker_urls:+,}$(wit_issue_url "$WIT_ID_OWNER" "$WIT_ID_REPO" "$WIT_ID_NUMBER")"
+    done
+    args+=(--blocked-by "$blocker_urls")
+  fi
+
+  wit_run_gh write "${args[@]}"
+  created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
+  number="${created_url##*/}"
+  [[ "$number" =~ ^[0-9]+$ ]] || {
+    printf 'create-item: could not parse created issue URL: %s\n' "$created_url" >&2
+    exit "$EX_INTERNAL"
+  }
+else
+  # `gh issue create` resolves through GraphQL, which sandboxed sessions refuse
+  # with HTTP 403; REST issue creation is served. Sub-issue and dependency edges
+  # have no REST form here (the dispatcher gates them on the same gh version).
+  [[ -z "$parent" && -z "$blocked_by" ]] ||
+    wit_usage_error "--parent and --blocked-by require gh >= 2.94"
+  rest_args=(api --method POST "repos/$target_repo/issues" -f "title=$title" -f "body=$body")
+  for label in ${label_list[@]+"${label_list[@]}"}; do
+    rest_args+=(-f "labels[]=$label")
   done
-  args+=(--blocked-by "$blocker_urls")
+  wit_run_gh write "${rest_args[@]}" --jq .number
+  number="$WIT_GH_OUT"
+  [[ "$number" =~ ^[0-9]+$ ]] || {
+    printf 'create-item: could not parse created issue number: %s\n' "$number" >&2
+    exit "$EX_INTERNAL"
+  }
 fi
-
-wit_run_gh write "${args[@]}"
-created_url="${WIT_GH_OUT##*$'\n'}" # last line — gh prints the created URL last
-number="${created_url##*/}"
-[[ "$number" =~ ^[0-9]+$ ]] || {
-  printf 'create-item: could not parse created issue URL: %s\n' "$created_url" >&2
-  exit "$EX_INTERNAL"
-}
 
 wit_emit_item "${target_repo%%/*}" "${target_repo##*/}" "$number"
