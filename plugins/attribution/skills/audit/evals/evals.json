@@ -196,7 +196,7 @@
         "Keeps every one of them below fingerprint-confirmed however the fingerprint module scored the overlap and however unanimous the panel was, and offers no automatic fix",
         "Reports c16 although it carries a link and a fetch date, and names the missing recheck trigger as the reason a partial record does not conform",
         "Reports c12 although its status cells name Anthropic, and says that a category label is not a source, an as-of date or a trigger",
-        "Confines each finding's span to the passage that carries the fact and leaves the neighbouring local sentences and bullets out of it",
+        "Confines each finding's span to the passage that carries the fact and leaves the neighboring local sentences and bullets out of it",
         "Names a pointer or a stamped four-part record as the candidate dispositions, with the human as the gate, and states that the fix and sweep actions do not reach this class",
         "Reports the restated-fact class as report-only because six cases is below min_n_per_class, and states that this is the gate's arithmetic and not a precision result"
       ]

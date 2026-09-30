@@ -427,9 +427,11 @@ def clean: (if . == null then "" else tostring end) | gsub("[\t\n\r]"; " ");
 # are withheld too.
 #
 # ONE CLASS IS DECIDED BEFORE THAT, and by no tier: a restated-fact record, by its
-# rule id or its class. It maps to a judgment tier by fixed rule, so the tier test
-# above would withhold every one, and relaying on a tier name would relay every
-# judgment verdict. It relays on its declared outcome, and every other restated-fact
+# rule slug or its class. Only the fully qualified rule id can relay; a record carrying
+# the slug under another prefix is W, as the copy and stamp rows match by slug. It maps
+# to a judgment tier by fixed rule, so the tier test above would withhold every one, and
+# relaying on a tier name would relay every judgment verdict. It relays on its declared
+# outcome, and every other restated-fact
 # record is W whatever it declares (a split, a refutation, no outcome, an unreadable
 # block, no tier at all): each is a judgment finding on the human report, and none may
 # fall through to "U", which would print its rubric and review payload into the file.
@@ -487,7 +489,7 @@ def outcome_declared:
      else 0 end) as $lnum
   | ($rule == "attribution/audit/rule-restated-upstream-fact") as $restated_rule
   | (
-      if $restated_rule or restated_class then
+      if $slug == "rule-restated-upstream-fact" or restated_class then
         (if $restated_rule and outcome_declared then "R" else "W" end)
       elif withheld_verdict then "W"
       elif $slug == "rule-verbatim-copy" then

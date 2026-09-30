@@ -1622,6 +1622,8 @@ rs_withheld "a differently cased block key" rs-cased-key '.Rubric = .rubric | de
 rs_withheld "a class other than restated-fact" rs-wrong-class '.class = "paraphrase"'
 rs_withheld "a missing class" rs-no-class 'del(.class)'
 rs_withheld "a foreign plugin's rule id" rs-foreign-rule '.rule = "other/audit/rule-restated-upstream-fact"'
+rs_withheld "a foreign plugin's rule id, another class and no tier" rs-foreign-rule-class \
+  '.rule = "other/audit/rule-restated-upstream-fact" | .class = "paraphrase" | del(.tier)'
 
 # A restated-fact class never becomes a copy row. The copy row's Action names the fix
 # flow, and this class is never eligible for it, so the class routes the record even
