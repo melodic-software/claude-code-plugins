@@ -127,7 +127,11 @@ section() {
   printf '### `enforceAvailableModels`\n\nThis key closes that gap. Requires Claude Code v2.1.175 or later.\n\n'
   printf '* **Scope**: [`Any file`](#scopes)\n* **Type**: Boolean\n  * `true`: Default resolves to the first available model\n* **Default**: `false`\n\n'
   printf 'This key has no effect when `availableModels` is unset or empty. Requires Claude Code v2.1.999 or later.\n\n'
-  section fallbackModel '* **Type**: array of strings'
+  section fallbackModel '* **Type**: array of strings' 'Claude Code keeps at most three distinct allowed models from the list and ignores the rest.'
+  printf '### `editorMode`\n\nSet the prompt input key bindings.\n\n* **Scope**: [`Any file`](#scopes)\n* **Type**: string, one of:\n'
+  printf '  * `"normal"`: standard key bindings\n  * `"vim"`: vim-style editing\n* **Default**: `"normal"`\n\n'
+  printf '### `theme`\n\nPick the color theme.\n\n* **Scope**: [`Any file`](#scopes)\n* **Type**: string, one of:\n'
+  printf '  * `"dark"`: the dark theme\n  * `"custom:<slug>"` or `"custom:<plugin-name>:<slug>"`: a custom theme\n* **Default**: `"dark"`\n\n'
   printf '## Permission settings\n\n'
   section permissions '* **Type**: object with `allow`, `ask`, `deny`, `additionalDirectories`, `defaultMode`, and `disableAutoMode`'
   for k in permissions.allow permissions.ask permissions.deny; do section "$k" '* **Type**: array of strings'; done
@@ -482,7 +486,8 @@ rc=0
 out=$(run "$m" --json 2>&1) || rc=$?
 assert_exit "case 10: exit 1" 1 "$rc"
 assert_eq "case 10: effortLevel max is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="effortLevel:max") | .severity' <<<"$out")"
-assert_eq "case 10: raw fallback length flagged" "1" "$(jq '[.findings[] | select(.identity.claim=="fallbackModel-raw-length:5")] | length' <<<"$out")"
+assert_eq "case 10: raw fallback length is not decided from the page" "skip" "$(jq -r '.rows[] | select(.claim=="fallbackModel-raw-length:5") | .status' <<<"$out")"
+assert_eq "case 10: raw fallback length is not a finding" "0" "$(jq '[.findings[] | select(.identity.claim=="fallbackModel-raw-length:5")] | length' <<<"$out")"
 assert_eq "case 10: dedup length under the cap not flagged" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("fallbackModel-dedup-length:"))] | length' <<<"$out")"
 assert_eq "case 10: wildcard mix flagged" "1" "$(jq '[.findings[] | select(.identity.claim=="availableModels-wildcard-mix:sonnet")] | length' <<<"$out")"
 assert_eq "case 10: project enforce with a list is not flagged" "0" "$(jq '[.findings[] | select(.identity.claim=="enforceAvailableModels-without-list" and .identity.sites[0].surface==".claude/settings.json")] | length' <<<"$out")"
@@ -1446,6 +1451,48 @@ docs_with_link "$m/nolink" hooks-guide
 cp "$HOOKS_MD" "$m/nolink/hooks.md"
 out=$(run "$m" --json --docs-dir "$m/nolink" 2>&1) || true
 assert_eq "case 51: a page settings-reference does not link is not acquired" "settings-reference env-vars" "$(pages "$out")"
+
+# --- Case 52: the fallbackModel cap and enum values come from the page ----------
+m="$(make_machine caps)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {fallbackModel:["a","b","c"]}' >"$m/project/.claude/settings.json"
+fb_rows() { jq -r --arg c "$2" '[.rows[] | select(.claim | startswith($c)) | "\(.status) \(.claim)"] | join(",")' <<<"$1"; }
+# A page stating a cap of two, as a word and as a digit: three distinct is above it.
+mkdir -p "$m/two" "$m/nine"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/two/"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/nine/"
+sed 's/at most three distinct/at most two distinct/' "$DOCS/settings-reference.md" >"$m/two/settings-reference.md"
+sed 's/at most three distinct/up to 9 distinct/' "$DOCS/settings-reference.md" >"$m/nine/settings-reference.md"
+out=$(run "$m" --json --docs-dir "$m/two" 2>&1) || true
+assert_eq "case 52: three distinct entries above a stated cap of two are flagged" "finding fallbackModel-dedup-length:3" "$(fb_rows "$out" fallbackModel-dedup)"
+assert_contains "case 52: the finding names the page's cap" "$(jq -r '.findings[] | select(.identity.claim=="fallbackModel-dedup-length:3") | .detail' <<<"$out")" "at most 2 distinct"
+out=$(run "$m" --json --docs-dir "$m/nine" 2>&1) || true
+assert_eq "case 52: a digit cap of nine leaves three distinct entries clean" "" "$(fb_rows "$out" fallbackModel)"
+# A page stating three: at the cap, not above it.
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: three distinct entries at a stated cap of three are clean" "" "$(fb_rows "$out" fallbackModel)"
+# A page that states no cap: one skip row, and no finding is invented from a number.
+mkdir -p "$m/nocap"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/nocap/"
+grep -v 'keeps at most three distinct' "$DOCS/settings-reference.md" >"$m/nocap/settings-reference.md"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {fallbackModel:["a","b","c","d","e","f"]}' >"$m/project/.claude/settings.json"
+out=$(run "$m" --json --docs-dir "$m/nocap" 2>&1) || true
+assert_eq "case 52: a page with no cap gives one skip row" "skip fallbackModel-cap" "$(fb_rows "$out" fallbackModel)"
+assert_eq "case 52: and no fallbackModel finding" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("fallbackModel"))] | length' <<<"$out")"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: six distinct entries above the cap are flagged" "finding fallbackModel-dedup-length:6" "$(fb_rows "$out" fallbackModel-dedup)"
+assert_eq "case 52: six raw entries above the cap are not decided from the page" "skip fallbackModel-raw-length:6" "$(fb_rows "$out" fallbackModel-raw)"
+
+# Enum keys the page lists values for: a value outside the set is flagged, one inside is not.
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {editorMode:"emacs",theme:"custom:mine",promptCacheTtl:"1h"}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"editorMode":"vim"}' >"$m/user/settings.json"
+printf '%s\n' '{"editorMode":"secret-value"}' >"$m/project/.claude/settings.local.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 52: an enum value outside the documented set is flagged" "warning" "$(jq -r '.findings[] | select(.identity.claim=="editorMode:emacs") | .severity' <<<"$out")"
+assert_contains "case 52: the finding lists the documented values" "$(jq -r '.findings[] | select(.identity.claim=="editorMode:emacs") | .detail' <<<"$out")" "normal, vim"
+assert_eq "case 52: an in-set value in the user file is ok" "ok" "$(jq -r '.rows[] | select(.claim=="editorMode:vim") | .status' <<<"$out")"
+assert_eq "case 52: a custom:<slug> theme matches its placeholder entry" "ok" "$(jq -r '.rows[] | select(.claim=="theme:custom:mine") | .status' <<<"$out")"
+assert_eq "case 52: a key the fixture page does not document has no row" "0" "$(jq '[.rows[] | select(.claim | startswith("promptCacheTtl:"))] | length' <<<"$out")"
+assert_eq "case 52: settings.local.json values are never echoed" "0" "$(jq '[.rows[] | select(.claim=="editorMode:secret-value")] | length' <<<"$out")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

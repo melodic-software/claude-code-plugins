@@ -21,8 +21,9 @@
 # that index, verbatim, into a temp directory it removes on exit (trap). The
 # fetcher's manifest supplies each page's hash, status, content type, line count
 # and read time. A page supplied through --docs-dir is read from there instead.
-# Whether a key is documented or deprecated, the accepted effortLevel and
-# disableDeepLinkRegistration values, and the version a key requires are taken
+# Whether a key is documented or deprecated, the values a string key's Type
+# bullet lists (effortLevel, disableDeepLinkRegistration and every other such
+# key), the fallbackModel chain length, and the version a key requires are taken
 # from settings-reference; env-var documentation status from env-vars; the hook
 # events a settings or plugin hook may name from the hooks page. A row
 # resting on a page that was not read is not-inspectable, never clean. The
@@ -1834,6 +1835,25 @@ fi
 
 # --- Category H: model and effort values -----------------------------------------
 
+# value_documented <value> <accepted>: whether the value is one of the accepted
+# lines. A whole-string match: grep would read a multi-line value as several
+# patterns and pass "bogus<newline>high" on its second line. An accepted line
+# holding a <placeholder>, such as custom:<slug>, matches any text in its place.
+value_documented() {
+  local v="$1" a pat
+  [[ -n "$v" && "$v" != *$'\n'* ]] || return 1
+  while IFS= read -r a; do
+    if [[ "$a" == *'<'*'>'* ]]; then
+      pat="${a//<[^>]*>/*}"
+      # shellcheck disable=SC2053
+      [[ "$v" == $pat ]] && return 0
+    elif [[ "$v" == "$a" ]]; then
+      return 0
+    fi
+  done <<<"$2"
+  return 1
+}
+
 # documented_value <cat> <slug> <key> <value> <surface>: the value against the
 # set the key's Type bullet on settings-reference accepts. The claim is
 # <key>:<value> whatever the outcome, so a finding keeps one identity.
@@ -1846,30 +1866,50 @@ documented_value() {
   accepted="$(type_values "$key")"
   if [[ -z "$accepted" ]]; then
     row "$cat" "$slug" skip none "$surface" "$key:$v" "the Type bullet of $key on settings-reference did not parse to a value set; not decided" -
-  elif [[ -n "$v" && "$v" != *$'\n'* && $'\n'"$accepted"$'\n' == *$'\n'"$v"$'\n'* ]]; then
-    # A whole-string match: grep would read a multi-line value as several
-    # patterns and pass "bogus<newline>high" on its second line.
+  elif value_documented "$v" "$accepted"; then
     row "$cat" "$slug" ok none "$surface" "$key:$v" "$v is a value settings-reference documents for $key" -
   else
     row "$cat" "$slug" finding warning "$surface" "$key:$v" "$key is $v, which is not among the values its settings-reference Type bullet documents (${accepted//$'\n'/, })" "/$key"
   fi
 }
 
+# fallback_cap: how many distinct models the fallbackModel section says the
+# chain keeps ("at most three distinct allowed models"), as digits, from a digit
+# string or a number word up to ten. Nothing when the section states none.
+fallback_cap() {
+  local t
+  t="$(sr_section fallbackModel | tr '\n' ' ')"
+  t="${t,,}"
+  [[ "$t" =~ (at\ most|up\ to|no\ more\ than)\ ([0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)(\ [a-z]+){0,2}\ models ]] || return 0
+  case "${BASH_REMATCH[2]}" in
+    one) echo 1 ;; two) echo 2 ;; three) echo 3 ;; four) echo 4 ;; five) echo 5 ;;
+    six) echo 6 ;; seven) echo 7 ;; eight) echo 8 ;; nine) echo 9 ;; ten) echo 10 ;;
+    *) echo "${BASH_REMATCH[2]}" ;;
+  esac
+}
+
 check_h() {
   # check_h <file> <surface>
   local file="$1" surface="$2"
-  local raw dedup mix enforce avail_len req
+  local raw dedup cap mix enforce avail_len req
   if [[ "$(jqf "$file" -r 'has("effortLevel")')" == "true" ]]; then
     documented_value H effort-level effortLevel "$(jqf "$file" -r '.effortLevel | tostring')" "$surface"
   fi
   if [[ "$(jqf "$file" -r 'has("fallbackModel")')" == "true" ]]; then
     raw="$(jqf "$file" -r '.fallbackModel | if type=="array" then length else 1 end')"
     dedup="$(jqf "$file" -r '.fallbackModel | if type=="array" then (reduce .[] as $m ([]; if index($m) then . else . + [$m] end) | length) else 1 end')"
-    if [[ "$raw" -gt 3 ]]; then
-      row H fallback-chain finding warning "$surface" "fallbackModel-raw-length:$raw" "fallbackModel has $raw entries; the declared schema caps the array at 3" /fallbackModel
-    fi
-    if [[ "$dedup" -gt 3 ]]; then
-      row H fallback-chain finding warning "$surface" "fallbackModel-dedup-length:$dedup" "fallbackModel keeps $dedup distinct entries; the chain is capped at 3 after duplicate removal, so later entries may be ignored" /fallbackModel
+    cap="$(fallback_cap)"
+    if [[ -z "$SR" ]]; then
+      row H fallback-chain not-inspectable none "$surface" "fallbackModel-cap" "$SR_UNREAD_WHY; how many fallback models the chain keeps is not known" -
+    elif [[ -z "$cap" ]]; then
+      row H fallback-chain skip none "$surface" "fallbackModel-cap" "the fallbackModel section on settings-reference states no chain length; not decided" -
+    else
+      if [[ "$dedup" -gt "$cap" ]]; then
+        row H fallback-chain finding warning "$surface" "fallbackModel-dedup-length:$dedup" "fallbackModel keeps $dedup distinct entries; settings-reference keeps at most $cap distinct models, so later entries may be ignored" /fallbackModel
+      fi
+      if [[ "$raw" -gt "$cap" ]]; then
+        row H fallback-chain skip none "$surface" "fallbackModel-raw-length:$raw" "fallbackModel has $raw entries against the $cap settings-reference keeps; a limit on the raw array belongs to the declared schema, which this run does not read; not decided" -
+      fi
     fi
   fi
   if [[ "$(jqf "$file" -r 'has("availableModels")')" == "true" ]]; then
@@ -1911,6 +1951,21 @@ check_i() {
 }
 [[ $PROJECT_OK -eq 1 ]] && check_i "$SETTINGS" "$SURF_SETTINGS"
 [[ $USER_OK -eq 1 ]] && check_i "$USER_SETTINGS" "$SURF_USER"
+
+# check_enum <file> <surface>: every other top-level string-valued key whose
+# Type bullet on settings-reference lists the values it takes. A key the page
+# gives no such list, or one already checked above, has no row here. Never run
+# on settings.local.json, whose values the engine does not echo.
+check_enum() {
+  local file="$1" surface="$2" key val
+  [[ -n "$SR" ]] || return 0
+  while IFS=$'\t' read -r key val; do
+    [[ -n "${SR_KEY[$key]:-}" && -n "$(type_values "$key")" ]] || continue
+    documented_value H enum-value "$key" "$val" "$surface"
+  done < <(jqf "$file" -r 'if type == "object" then to_entries[] | select(.value | type == "string") | select(.key | IN("effortLevel", "disableDeepLinkRegistration") | not) | [.key, .value] | @tsv else empty end')
+}
+[[ $PROJECT_OK -eq 1 ]] && check_enum "$SETTINGS" "$SURF_SETTINGS"
+[[ $USER_OK -eq 1 ]] && check_enum "$USER_SETTINGS" "$SURF_USER"
 
 # --- Assemble ----------------------------------------------------------------------
 

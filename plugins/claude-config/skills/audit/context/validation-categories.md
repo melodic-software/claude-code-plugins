@@ -323,8 +323,10 @@ effort settings". What governs the category:
   Phase 3.3 model-config fetch, not this file's wording
 - **Two authorities, and they can disagree.** The declared settings schema constrains `effortLevel`
   by `enum` and `fallbackModel` by `maxItems` (raw array length), while the harness caps the
-  fallback chain after deduplication. Report a schema violation and a harness-behavior finding as
-  the separate things they are
+  fallback chain after deduplication. The engine reads the harness's cap from the `fallbackModel`
+  section and does not read the schema, so a raw-length excess is a `skip` row and a section that
+  states no cap decides nothing. Report a schema violation and a harness-behavior finding as the
+  separate things they are
 - **Per-row visibility, not a blanket claim.** Some of these are silent and some announce
   themselves (a narrowed alias shows a substitution notice). Each row states which, because it
   changes what the finding is worth to the reader
