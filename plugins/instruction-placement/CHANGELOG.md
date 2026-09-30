@@ -3,6 +3,12 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.6] - 2026-09-30
+
+### Changed
+
+- `cutover-check.sh` removes its action-map temp file when the release-map parse fails; the suites remove their temporary directories.
+
 ## [0.16.5] - 2026-09-30
 
 ### Changed
