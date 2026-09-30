@@ -15,6 +15,7 @@
 - [Security model](#security-model)
 - [Degrade](#degrade)
 - [Idle wake: verification record](#idle-wake-verification-record)
+- [Wake payload: verification record](#wake-payload-verification-record)
 
 The page is the input surface SKILL.md "Question surface: the page" selects. The frontier-rounds contract applies as written; this file covers the page transport. `<surface_dir>` is the absolute `plugins/planning/surface/` directory the SKILL.md start command resolved; the watcher's `next` line carries it. Every command below is `bash '<surface_dir>/round.sh' --dir '<data_dir>' <command>` (shortened here to `round.sh <command>`) or `bash '<surface_dir>/watch.sh' '<data_dir>'`, with every path in single quotes. User and dictated text never goes on a command line: it goes into an `ops.json` op written with the Write tool and run through `apply`.
 
