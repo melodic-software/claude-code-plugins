@@ -69,8 +69,8 @@ bounded conditions.
   withheld), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
   registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
-  verifier may classify a whole standalone Git checkout `clear` under the complete evidence bundle
-  below;
+  verifier, and the Linux `handoff-apply` that runs it, may classify a whole standalone Git
+  checkout `clear` under the complete evidence bundle below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
@@ -169,8 +169,9 @@ open file while the process retains the underlying object.
 Execution is intentionally not cross-platform. Linux requires readable `/proc/self/mountinfo`,
 `O_NOFOLLOW`, and descriptor-relative stat/unlink/rmdir. Apply anchors the target and every parent to
 directory descriptors, verifies those descriptor identities, repeats live mount/protection/Git/handle
-checks immediately before each operation, and walks only snapshot entries bottom-up. Once captured
-children have been removed, apply opens the directory itself with `O_NOFOLLOW`, verifies its stable
+checks immediately before each operation, and walks only snapshot entries bottom-up (`handoff-apply`
+alone also empties uninventoried Git metadata; see [Standalone Git checkout
+evidence](#standalone-git-checkout-evidence)). Once captured children have been removed, apply opens the directory itself with `O_NOFOLLOW`, verifies its stable
 device/inode/type identity, proves it empty through that descriptor, rechecks the name-to-descriptor
 identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
 `execution-platform-unsupported`; their audit and report behavior is unchanged.
@@ -258,9 +259,23 @@ tell the operator that unpushed commits and untracked or ignored files in the ch
 lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
-link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
-deletion remains a per-path manual handoff under the existing hook-issued `ask`, and the
-verdict still expires immediately.
+link/reparse, consumer protection, identity/descendant, or live-handle check. `handoff-verify` with
+evidence is read-only. On Windows and macOS, deletion remains a per-path manual handoff under the
+existing hook-issued `ask`. On Linux, `handoff-apply` consumes the same evidence file for one
+approved path, runs the `handoff-verify` checks in the same process, and deletes only on `clear`,
+under the same `ask`. It deletes on any `clear` verdict, with or without `accept_unpublished` on
+the entry; preview and token apply never evaluate the acknowledgement. The verdict still expires
+immediately.
+
+The Linux command, one approved standalone checkout per call. Any verdict but `clear` removes
+nothing; confirm the guard's `ask` only for that path.
+
+```text
+"<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
+  --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
+  --vcs-evidence "<run-dir>/vcs-evidence.json" --report "<run-dir>/report-handoff.json" \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
 
 | Verdict | Meaning | Manual-lane action |
 |---|---|---|
@@ -277,7 +292,27 @@ any delay or interruption means re-running handoff-verify. Managed-state exclusi
 always was in the manual lane, with model judgment plus human review of the audit report, because
 snapshot entries carry no owner claim for the engine to check.
 
-The skill-frontmatter Bash belt accepts only complete literal words in the four declared engine command
+`handoff-apply` is the one lane where the engine removes entries outside the snapshot. The snapshot
+records a repository's `.git` directory without its descendants, so after the working tree is
+removed the engine empties the uninventoried Git metadata contents through descriptor-relative calls
+and then removes the directory. These checks bound that purge:
+
+- A mount point at or under the metadata directory refuses it.
+- A consumer protection glob is matched against every path of a live `os.walk` of the metadata
+  directory; any match refuses it.
+- A directory the walk cannot read fails closed as `needs-elevation` or
+  `filesystem-state-unverified`.
+- Each directory is opened with `O_NOFOLLOW` and its `st_dev` must equal the metadata directory's,
+  so the purge never crosses a device.
+- A link inside is unlinked as a link and never followed.
+
+The mount, glob, and readability checks run once before anything is removed, where a refusal removes
+nothing, and again immediately before the metadata directory is emptied, where a refusal leaves that
+directory in place after the working tree is already gone. The purge also matches each child against
+the consumer protection globs as it reaches it, so an entry created after those checks is refused,
+not deleted. The hard-protection name check is not applied to the contents.
+
+The skill-frontmatter Bash belt accepts only complete literal words in the declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
@@ -507,7 +542,7 @@ the same session (a later `Remove-Item` is still prompted long after cleanup end
 retracted by finishing the cleanup. Only the session's end clears it.
 An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees**, meaning every Bash engine `apply`
-and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables
+and `handoff-apply` and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables
 the guard.
 
 **The gate's "different file" escape stops at this plugin's own cache tree.** A word naming an existing
@@ -603,6 +638,27 @@ with no permission host is denied); recheck when either page changes PreToolUse 
 semantics. The README states each surface in one table. The launch shape is asserted by
 `hooks/run-python-hook.test.sh` and `test_hygiene.py`, the no-interpreter posture by the former, and
 both are verified as step 1 of `/disk-hygiene:setup check`.
+
+**Claim:** the guard's PreToolUse `ask` on `hygiene.py apply --execute` held in the three modes
+probed. Headless default mode denied the call, `--bg` default mode parked at the permission prompt,
+and headless `--permission-mode bypassPermissions` listed the call in `permission_denials`; in each
+the target survived. Not probed: an interactive `bypassPermissions` session (where a person could
+answer the prompt), auto mode against this guard, and the Windows PowerShell tool. **Basis:** the
+probe table in <https://github.com/melodic-software/claude-code-plugins/pull/5590> and
+<https://github.com/melodic-software/claude-code-plugins/pull/5590#issuecomment-5916629407>
+(Claude Code 2.1.285, Linux/WSL2, Bash tool, fresh scratch target). The official docs do not name a
+hook `ask` under `bypassPermissions`: <https://code.claude.com/docs/en/permission-modes> says
+"Allow rules have no effect in `bypassPermissions`", and its "Actions no mode auto-approves" list
+names "Tools matched by an explicit ask rule" and critical-path `rm` and `rmdir`, not a hook `ask`;
+<https://code.claude.com/docs/en/hooks> lists `permissionDecision` as allow/deny/ask/defer with no
+statement about permission modes. Upstream
+[anthropics/claude-code#37420](https://github.com/anthropics/claude-code/issues/37420) (a hook `ask`
+resets bypass mode; closed as not planned 2026-04-20) and
+[#79356](https://github.com/anthropics/claude-code/issues/79356) (a hook `ask` and `permissions.ask`
+not enforced on the PowerShell tool in default mode; closed as not planned 2026-09-21) leave the
+behavior undocumented. **As of:** 2026-09-30, both doc pages fetched that day. **Recheck:** a
+Claude Code changelog entry that names PreToolUse `ask` or `bypassPermissions`, a change to the
+"Actions no mode auto-approves" list, or the outcome of the unprobed-mode probes tracked in #5609.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
@@ -704,9 +760,9 @@ unbounded traversal, so an unauthenticated whole-volume walk cannot begin by omi
 scan-cost gating (time and resources), distinct from the hard rejection of an OS-managed root as an
 invalid target.
 
-`--sizes-only`, as implemented, bypasses that gate. It does not ask the large-scan question, does
-not stop at VCS or protected directories (it sums through them, read-only, and emits no entries),
-and has no entry cap. Its snapshot is refused by disposition.
+`--sizes-only` goes through that same gate: a known-large root needs `--max-depth` or
+`--confirmed-large-scan`. It does not stop at VCS or protected directories (it sums through them,
+read-only, for exact totals), keeps no per-path entries, and has no entry cap. Its snapshot is refused by disposition.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state

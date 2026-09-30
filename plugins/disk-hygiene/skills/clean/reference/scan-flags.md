@@ -35,9 +35,10 @@ everything" is not selection.
 
 ## `--sizes-only`
 
-`--sizes-only` as implemented: it does not ask the large-scan question, so a known-large root walks
-without `--max-depth` or `--confirmed-large-scan`. It does not stop at VCS or protected
-directories: it sums through them, read-only, and writes no entries. It has no entry cap.
+`--sizes-only` goes through the same large-scan gate as an ordinary unbounded walk: a known-large
+root returns `large-target-confirmation-required` without `--max-depth` or `--confirmed-large-scan`.
+It does not stop at VCS or protected directories: it sums through them, read-only, for exact totals,
+and keeps no per-path entries. It has no entry cap.
 
 When an inventory scan hits the entry cap, the error lists the top five top-level children by entry
 count so far. The child still being walked is a lower bound, and children not yet reached are not

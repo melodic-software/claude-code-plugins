@@ -54,7 +54,7 @@ plugins/context-guard/skills/setup/reference/legacy-statusline-detect.md 2
 plugins/context-guard/skills/setup/reference/statusline-edit.md 3
 plugins/context-guard/skills/setup/reference/unwrap-before-compose.md 1
 plugins/context7/skills/lookup/context/update.md 3
-plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 3
+plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 1
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7
 plugins/disk-hygiene/skills/clean/reference/unsupported-platform-handoff.md 2
 plugins/dometrain/skills/sync/context/update.md 2

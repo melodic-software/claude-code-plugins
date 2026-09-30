@@ -747,7 +747,22 @@ hook::_physical_prime() {
 # environment's own answer (TMPDIR/TMP/TEMP) plus the POSIX defaults, never a
 # hardcoded platform assumption. Existing directories only, each spelling
 # once, in _HOOK_TEMP_CANDS.
+#
+# On a Windows bash (msys, cygwin, win32) with cygpath, the drive spellings of
+# those candidates follow them: Cygwin bash reports TEMP and TMP as `/tmp`, so
+# without cygpath no candidate is spelled `C:/...` and a drive-spelled target
+# never matches. The POSIX spellings stay, because a `/tmp/...` target must
+# still match. The long form (`cygpath -l -m`) comes before the mixed form
+# (`cygpath -m`) when the two differ, so a long target matches without
+# resolving an 8.3 spelling. The drive spellings are looked up once per process
+# for a given candidate list: one cygpath process, plus a second only when a
+# mixed answer carries an 8.3 `~`. A cygpath that fails, or answers with the
+# wrong number of lines, adds nothing, which leaves the POSIX candidates as
+# they were. `--no-drive` stops after the environment and POSIX spellings, so a
+# caller's lexical pre-match spawns no process.
 _HOOK_TEMP_CANDS=()
+_HOOK_TEMP_WIN_KEY=""
+_HOOK_TEMP_WIN=()
 hook::_temp_root_candidates() {
   local __hu_cand __hu_seen=""
   _HOOK_TEMP_CANDS=()
@@ -760,14 +775,77 @@ hook::_temp_root_candidates() {
     __hu_seen="$__hu_seen|$__hu_cand|"
     _HOOK_TEMP_CANDS+=("$__hu_cand")
   done
+  [[ "${1:-}" == --no-drive ]] && return 0
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) ;;
+  *) return 0 ;; # POSIX hosts: the candidates above are the whole set
+  esac
+  ((${#_HOOK_TEMP_CANDS[@]})) || return 0
+  if [[ "$_HOOK_TEMP_WIN_KEY" != "$__hu_seen" ]]; then
+    hook::_temp_win_spellings "${_HOOK_TEMP_CANDS[@]}" || return 0
+    _HOOK_TEMP_WIN_KEY=$__hu_seen
+  fi
+  for __hu_cand in ${_HOOK_TEMP_WIN[@]+"${_HOOK_TEMP_WIN[@]}"}; do
+    [[ -n "$__hu_cand" && -d "$__hu_cand" ]] || continue
+    case "$__hu_seen" in
+    *"|$__hu_cand|"*) continue ;;
+    *) ;; # first sighting of this spelling
+    esac
+    __hu_seen="$__hu_seen|$__hu_cand|"
+    _HOOK_TEMP_CANDS+=("$__hu_cand")
+  done
+}
+
+# hook::_split_lines <text> <count>: <text> split on newlines into the
+# caller's __hu_lines array. Returns 1 unless it held exactly <count> non-empty
+# lines.
+hook::_split_lines() {
+  local __hu_glob=0 IFS=$'\n'
+  [[ $- == *f* ]] || __hu_glob=1
+  set -f
+  # shellcheck disable=SC2206 # splitting one-line-per-operand output is the intent
+  __hu_lines=($1)
+  ((__hu_glob)) && set +f
+  ((${#__hu_lines[@]} == $2))
+}
+
+# hook::_temp_win_spellings <candidate>...: the drive spellings of every
+# candidate in _HOOK_TEMP_WIN, long forms first. Returns 1, storing nothing,
+# when there is no cygpath or the mixed-form answer cannot be trusted.
+hook::_temp_win_spellings() {
+  local __hu_out __hu_i
+  local -a __hu_lines=() __hu_mixed=() __hu_tilde=()
+  command -v cygpath >/dev/null 2>&1 || return 1
+  for __hu_out in "$@"; do
+    [[ "$__hu_out" == *$'\n'* ]] && return 1
+  done
+  __hu_out=$(cygpath -m -- "$@" 2>/dev/null) || return 1
+  hook::_split_lines "$__hu_out" "$#" || return 1
+  __hu_mixed=("${__hu_lines[@]}")
+  _HOOK_TEMP_WIN=()
+  for __hu_out in "${__hu_mixed[@]}"; do
+    if [[ "$__hu_out" == *~* ]]; then __hu_tilde+=("$__hu_out"); fi
+  done
+  if ((${#__hu_tilde[@]})) &&
+    __hu_out=$(cygpath -l -m -- "${__hu_tilde[@]}" 2>/dev/null) &&
+    hook::_split_lines "$__hu_out" "${#__hu_tilde[@]}"; then
+    for ((__hu_i = 0; __hu_i < ${#__hu_tilde[@]}; __hu_i++)); do
+      if [[ "${__hu_lines[__hu_i]}" != "${__hu_tilde[__hu_i]}" ]]; then
+        _HOOK_TEMP_WIN+=("${__hu_lines[__hu_i]}")
+      fi
+    done
+  fi
+  _HOOK_TEMP_WIN+=("${__hu_mixed[@]}")
 }
 
 # True when <normalized-path> sits inside one of this host's temp trees.
 # Both arguments and candidates go through the same canonicalize+normalize
 # pipeline as the membership comparison, because the same directory has several
-# spellings: on Git Bash `TMPDIR=/tmp` while `TEMP`/`TMP` carry the Windows form
-# of the identical directory, and `realpath` resolves the Windows form to a
-# drive path while leaving `/tmp` as `/tmp`. Neither form alone matches a
+# spellings: on a Windows bash the temp tree is `/tmp` and also a `C:/...`
+# path, and `realpath` resolves the drive form to a drive path while leaving
+# `/tmp` as `/tmp`. The environment does not reliably carry the drive form
+# (Cygwin bash reports TEMP and TMP as `/tmp`), so the candidate list adds it
+# through cygpath (see hook::_temp_root_candidates). Neither form alone matches a
 # `file_path` that could arrive in either, so every candidate is compared and a
 # match on any one is a match. Duplicates are resolved once, and each
 # candidate's physical form is remembered for the process (see the cache

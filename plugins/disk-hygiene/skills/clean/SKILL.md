@@ -63,7 +63,7 @@ address an OS-managed volume root (for example `C:\` or `/`): it never walks tha
 recursively. With explicit `--root-child <name>` flags, after the human clears the confirmation
 gate's root-children row, it audits only those admitted children into one snapshot; without names
 the engine returns `root-children-selection-required`. A general "clean everything" is not
-selection. `--sizes-only` skips the large-scan question. What each of the three flags does
+selection. `--sizes-only` goes through the same large-scan gate as an unbounded walk. What each of the three flags does
 exactly, including the admission ladder, is in [scan-flags.md](reference/scan-flags.md). With no
 target, ask once. Reject an OS-managed root (unless `--root-children` on the volume root itself), a
 non-root mount target, a protected shell-folder root or descendant (the refusal carries a `hint`: a child of a shell folder is refused too, so name a directory whose path holds no protected name), a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
@@ -86,11 +86,11 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
   remote, untracked files, no commits), never delete it without a clear `handoff-verify` verdict. Record
   `accept_unpublished` with the operator's reason for that exact approved path in
-  `vcs-evidence.json`, run `handoff-verify`, and delete only on a `clear` verdict through the §6
-  manual handoff lane: every other contest reason must be gone. Preview and apply keep VCS
-  protection categorical; the acknowledgement exists only in `handoff-verify`. Before deleting,
-  tell the operator plainly that unpushed commits and untracked or ignored files in that checkout
-  will be lost.
+  `vcs-evidence.json`; every other contest reason must be gone. On Linux, run `handoff-apply`
+  ([command](reference/safety-model.md#standalone-git-checkout-evidence)): it re-runs
+  `handoff-verify` and deletes only on a `clear` verdict. On Windows and macOS, run `handoff-verify`,
+  and delete only on a `clear` verdict through the §6 manual handoff lane. Before deleting, tell the
+  operator plainly that unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
@@ -158,15 +158,16 @@ naming what the question never presented cannot be met.
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on a volume root), never "everything" or the scan target itself |
 | Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
 
-**`--sizes-only`** does not ask the large-scan question, so a known-large root walks without
-`--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only,
-and has no entry cap. Detail:
+**`--sizes-only`** goes through the same large-scan question as an ordinary unbounded walk, so a
+known-large root needs `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected
+directories, read-only, keeps no per-path entries, and has no entry cap. Detail:
 [scan-flags.md](reference/scan-flags.md#--sizes-only).
 
 ## 1. Create a read-only snapshot
 
-Create a unique run directory under `${CLAUDE_PLUGIN_DATA}/runs/`; snapshots, plans, and reports must
-stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
+Choose a unique run-directory path under `${CLAUDE_PLUGIN_DATA}/runs/`; the engine creates it (it
+creates the parent of `--output`). Snapshots, plans, and reports must stay there, never in the target
+or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
@@ -177,7 +178,7 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 ```
 
 For exact per-child byte totals without paying for a per-entry inventory (or the entry cap), add
-`--sizes-only`. The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
+`--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`). The snapshot carries `inventory_mode: sizes-only` and `rollup_precision: exact`
 when every subtree was walked; a depth cut, a directory that failed to scan, or a mount-state error
 marks `rollup_precision: partial`. Entry-cap error and next steps: [scan-flags.md](reference/scan-flags.md).
 Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
@@ -240,7 +241,9 @@ report; prefer enabling the OS mechanism over hand-cleaning that zone, mirroring
 rule below. On Windows the engine sizes the temp directory itself (`temp_zone`) and fills
 `recommendation` when that size reaches the baseline policy's
 `os_temp_recommendation_threshold_bytes`. Quote the engine's recommendation rather than writing your
-own. A `null` recommendation with a `complete` measurement means the zone is below the threshold.
+own. A `null` recommendation with a `complete` measurement means the zone is below the threshold. On
+Linux it means only that a `tmpfiles.d` directory exists; the engine does not check that a rule there
+covers the temp zone, so confirm one does before treating the zone as systemd-tmpfiles-owned.
 
 ## 2. Establish evidence and ownership
 
@@ -436,11 +439,8 @@ activity, sparse files, hard links, compression, and delayed allocation affect i
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
 so the engine never deletes there and the default outcome is the report. When, and only when,
 an execution request was made on one of those platforms and the human approved an exact single-tier
-path list in this session, read
-[reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
-it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
-revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
-lane from the engine steps above.
+path list in this session, read [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md)
+and follow it. It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
 
 ## Gotchas
 
@@ -467,16 +467,16 @@ and what the guard does when no Python resolves → "Hook launch form".
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
-  catalog, and apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. The same denial text also admits literal-form read-only supporting commands whose
-  heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
-  `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
-  expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because
-  exported shell functions shadow them. Engine-gate mode answers those supporting commands with
-  `ask`; belt mode `allow`s them. The denial text is the source if this list and the guard
-  diverge. Do supporting inspection with non-Bash read-only tools when the command is not in that
-  set. Shell expansions, globs, splitting/escape forms, operators, redirections, aliases, and
-  exported functions fail closed.
+  catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
+  runtime's own absolute interpreter. The same denial text also admits literal-form read-only
+  supporting commands whose heads are absolute paths under a trusted system directory: `[`,
+  `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete
+  `/usr/bin/[ ... ]` expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names
+  are denied because exported shell functions shadow them. Engine-gate mode answers those
+  supporting commands with `ask`; belt mode `allow`s them. The denial text is the source if this
+  list and the guard diverge. Do supporting inspection with non-Bash read-only tools when the
+  command is not in that set. Shell expansions, globs, splitting/escape forms, operators,
+  redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool
@@ -492,6 +492,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority, except inside the opt-in elevated script, which no guard sees.
+- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts, which force a prompt; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Auto mode also drops broad interpreter allow rules such as `Bash(python*)`.
+  Verified 2026-09-29 against Claude Code 2.1.285 at `https://code.claude.com/docs/en/hooks#pretooluse-decision-control` (an `ask` prompts the user, including in auto mode) and `https://code.claude.com/docs/en/permission-modes` (the list of allow rules dropped on entering auto mode); recheck when either page changes those statements, or when a release note names hook permission decisions or auto-mode rule handling.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.
