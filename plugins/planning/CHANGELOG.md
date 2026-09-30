@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
+## [0.47.7] - 2026-09-29
+
+### Fixed
+
+- **A group summary that predates questions added to its group is flagged.** Writing a group `summary` records the group's question ids as `summaryOf`. `round.py add` and `add-round` warn when a question lands in a group whose summary was written for a different set, and the page marks that summary Stale until it is rewritten ([#5451](https://github.com/melodic-software/claude-code-plugins/issues/5451)).
+
 ## [0.47.6] - 2026-09-29
 
 ### Fixed
