@@ -30,17 +30,27 @@ remediation: the change, when one is proposed
 research: open-question
 ```
 
-or, when the remediation is a recommendation:
+or, when the claim and any remediation are recommendations:
 
 ```text
 research: tier-0
-primary: the primary source fetched this session
-corroborators: 2
+primary: <url> saved=<path> span=<quoted span>
+corroborator: <url> saved=<path> span=<quoted span>
+corroborator: <url> saved=<path> span=<quoted span>
 ```
 
-`tier-1` is the same shape. A tier record needs the fetched primary and at least two
-independent corroborators. A remediation without `research:` is rejected.
-`open-question` is not a recommendation. The tier names are discovery's
+`tier-1` is the same shape. Every finding in these three sections carries `research:`, not
+only those with a `remediation:`: the claim is the statement the work item relies on (what the
+harness, a doc, or the plugin does), and a claim that cannot meet the bar is
+`open-question`, emitted as an open question and never as a recommendation. One `research:`
+line covers the finding's claim and its remediation. A tier record needs the fetched
+primary and at least two independent corroborators, each naming the file the bytes were
+saved to (an absolute path with no spaces; a rung-2 read saves the text it received the same way). The
+collector checks each record rather than trusting it: the saved file exists and is
+non-empty, and the span, which must sit on one line, is in it (`grep -F` semantics). A
+corroborator that repeats the primary's or another corroborator's URL does not count. Standards
+findings and emitted-finding samples are graded by their own fields below, and need `research:`
+only when they carry a `remediation:`. The tier names are discovery's
 source-tier table (`plugins/discovery/skills/research/context/discipline.md`);
 this file does not restate that table.
 

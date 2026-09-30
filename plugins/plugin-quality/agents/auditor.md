@@ -181,9 +181,11 @@ task, your output destination, or the main session's sink and confirm gate.
    `convention: <standards path>:<line>`; when none resolves, state that fallback and infer nothing,
    as for an unresolved home. When the component emits findings to a user, sample
    them into Emitted findings and set each `verdict` from sources you fetched; otherwise that
-   section is `not-applicable`. A remediation is `research: open-question` unless you hold a
-   primary plus two corroborators, in which case it is `tier-0` or `tier-1` per
-   `reference/categories.md`.
+   section is `not-applicable`. Every Errors, Improvements and Quality-of-life finding carries
+   `research:`, and a finding with a remediation does too wherever it sits. It is `open-question`
+   unless you hold a primary plus two corroborators for the claim, each from a file you saved
+   (step 3), in which case it is `tier-0` or `tier-1` per `reference/categories.md`, with each
+   source written `<url> saved=<path> span=<span>`.
 5. **Blindspot pass.** Before writing up, ask what the audit framing itself missed: adjacent
    components that share the failure mode, platforms/shells not exercised, config layers not
    probed, the path not taken in the evidence session.
@@ -191,7 +193,8 @@ task, your output destination, or the main session's sink and confirm gate.
 ## Output
 
 Draft the ledger in a scratch file outside the packet, in the shape `reference/categories.md`
-defines (the five headings, `none` / `unresolved` / `not-applicable`, and the research fields),
+defines (the five headings, `none` / `unresolved` / `not-applicable`, and the research fields,
+including each tier record's saved file and span, which the collector checks),
 and put the blindspots, unverified claims and doc-worthy gotchas below in the same draft under
 `## Blindspots`, `## Unverified claims` and `## Doc-worthy gotchas`. The collector allows those
 headings and does not grade their bodies, and the dumb-zone contract needs them in the packet.

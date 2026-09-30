@@ -4,9 +4,15 @@
 #
 # A category that is absent, or present but neither `none` nor a finding,
 # is a skipped category. That is the defect this script exists to make
-# visible. Research is graded on each finding that carries a remediation:
+# visible. Research is graded on every Errors, Improvements and Quality of
+# life finding, and on any finding that carries a remediation:
 # `open-question`, or `tier-0` / `tier-1` with a primary and at least two
-# corroborators. A remediation with neither is not a recommendation.
+# corroborators. A claim with neither is not a recommendation.
+#
+# A tier record names the fetched bytes instead of asserting them:
+# `primary: <url> saved=<path> span=<quoted span>`, and each corroborator
+# is a `corroborator:` line of the same shape with its own URL. The span
+# must sit on one line of the saved file, which must exist and be non-empty.
 #
 # The audit's other returns ride in the same file under `## Blindspots`,
 # `## Doc-worthy gotchas` and `## Unverified claims`. Those headings are
@@ -74,17 +80,50 @@ function problem(msg) {
   print "problem: " msg
   bad = 1
 }
-function close_finding() {
+function check_source(label, val,    i, j, url, rest, path, span, r, n, line, found) {
+  if (val !~ /^[^ ]+ saved=[^ ]+ span=./) {
+    problem("research-" label "-shape section=" section " title=" title)
+    return 0
+  }
+  i = index(val, " saved=")
+  url = substr(val, 1, i - 1)
+  rest = substr(val, i + 7)
+  j = index(rest, " span=")
+  path = substr(rest, 1, j - 1)
+  span = substr(rest, j + 6)
+  if (span ~ /^".*"$/) span = substr(span, 2, length(span) - 2)
+  n = 0
+  found = 0
+  while ((r = (getline line < path)) > 0) {
+    n++
+    sub(/\r$/, "", line)
+    if (index(line, span)) { found = 1; break }
+  }
+  close(path)
+  if (r < 0) problem("research-" label "-file-missing section=" section " title=" title " saved=" path)
+  else if (n == 0) problem("research-" label "-file-empty section=" section " title=" title " saved=" path)
+  else if (!found) problem("research-" label "-span-not-in-file section=" section " title=" title " saved=" path)
+  else return url
+  return 0
+}
+function close_finding(    k, u, ok) {
   if (!finding_open) return
   if (!has_evidence && section != "Emitted findings")
     problem("finding-missing-evidence section=" section " title=" title)
-  if (has_remediation) {
-    if (research == "") problem("remediation-without-research section=" section " title=" title)
+  if (has_remediation || section == "Errors" || section == "Improvements" || section == "Quality of life") {
+    if (research == "") problem("finding-without-research section=" section " title=" title)
     else if (research == "open-question") { }
     else if (research == "tier-0" || research == "tier-1") {
+      delete seen_url
       if (primary == "") problem("research-missing-primary section=" section " title=" title)
-      if (corroborators + 0 < 2 || corroborators !~ /^[0-9]+$/)
-        problem("research-corroborators section=" section " title=" title " value=" corroborators)
+      else if ((u = check_source("primary", primary)) != 0) seen_url[u] = 1
+      ok = 0
+      for (k = 1; k <= ncorr; k++)
+        if ((u = check_source("corroborator", corr[k])) != 0 && !(u in seen_url)) {
+          seen_url[u] = 1
+          ok++
+        }
+      if (ok < 2) problem("research-corroborators section=" section " title=" title " distinct-checked=" ok)
     } else problem("research-bad-value section=" section " title=" title " value=" research)
   }
   if (section == "Standards alignment") {
@@ -114,7 +153,7 @@ function reset_finding() {
   has_remediation = 0
   research = ""
   primary = ""
-  corroborators = ""
+  ncorr = 0
   convention = ""
   component = ""
   plugin_said = ""
@@ -187,7 +226,7 @@ BEGIN {
   }
   else if (key == "research") research = val
   else if (key == "primary") primary = val
-  else if (key == "corroborators") corroborators = val
+  else if (key == "corroborator") corr[++ncorr] = val
   else if (key == "convention") convention = val
   else if (key == "component") component = val
   else if (key == "plugin-said") plugin_said = val

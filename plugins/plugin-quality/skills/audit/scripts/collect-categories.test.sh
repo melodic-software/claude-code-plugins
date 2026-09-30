@@ -121,7 +121,7 @@ not-applicable
 EOF
 )"
 run 1 "a remediation without research is not a recommendation" --notes "$NO_RESEARCH"
-has "remediation-without-research" "the missing research line is named"
+has "finding-without-research section=Errors title=bare" "the missing research line is named"
 
 OPENQ="$(
   notes openq.md <<'EOF'
@@ -134,6 +134,7 @@ research: open-question
 ## Improvements
 ### nicer report
 evidence: the report omitted detail
+research: open-question
 
 ## Quality of life
 none
@@ -149,6 +150,77 @@ EOF
 run 0 "an open question and an unresolved home are complete" --notes "$OPENQ"
 has "status: complete" "open-question ledger completes"
 
+SAVED_A="$WORK/skills-page.md"
+SAVED_B="$WORK/changelog.md"
+SAVED_C="$WORK/blog.md"
+printf 'Skills load on demand.\nThe default is 1 per session.\n' >"$SAVED_A"
+printf 'Changelog: the default is 1 per session.\n' >"$SAVED_B"
+printf 'Practitioners report a default of 1.\r\n' >"$SAVED_C"
+: >"$WORK/empty-page.md"
+SPAN='default is 1 per session'
+SRC_A="https://code.claude.com/docs/en/skills saved=$SAVED_A span=$SPAN"
+SRC_B="https://code.claude.com/docs/en/changelog saved=$SAVED_B span=$SPAN"
+SRC_C="https://example.invalid/blog saved=$SAVED_C span=\"a default of 1.\""
+
+# tier_ledger <primary> [corroborator...] - an Improvements finding at tier-1.
+tier_ledger() {
+  local name="$1" primary="$2" c
+  shift 2
+  {
+    printf '## Errors\nnone\n\n## Improvements\n### cite the page\nevidence: the skill asserts a default\n'
+    printf 'remediation: restate the default\nresearch: tier-1\nprimary: %s\n' "$primary"
+    for c in "$@"; do printf 'corroborator: %s\n' "$c"; done
+    printf '\n## Quality of life\nnone\n\n## Standards alignment\nnone\n\n## Emitted findings\nnot-applicable\n'
+  } >"$WORK/$name"
+  printf '%s' "$WORK/$name"
+}
+
+run 0 "a tier-1 record whose spans are in the saved files completes" --notes "$(tier_ledger t-ok.md "$SRC_A" "$SRC_B" "$SRC_C")"
+has "status: complete" "a checked tier record completes"
+
+run 1 "a primary whose saved file is missing is rejected" --notes "$(tier_ledger t-nofile.md "https://x.invalid/p saved=$WORK/absent.md span=$SPAN" "$SRC_B" "$SRC_C")"
+has "research-primary-file-missing" "the missing saved file is named"
+
+run 1 "a primary whose saved file is empty is rejected" --notes "$(tier_ledger t-empty.md "https://x.invalid/p saved=$WORK/empty-page.md span=$SPAN" "$SRC_B" "$SRC_C")"
+has "research-primary-file-empty" "the empty saved file is named"
+
+run 1 "a primary whose span is not in its file is rejected" --notes "$(tier_ledger t-span.md "https://x.invalid/p saved=$SAVED_A span=recalled wording" "$SRC_B" "$SRC_C")"
+has "research-primary-span-not-in-file" "the unmatched span is named"
+
+run 1 "a corroborator whose span is not in its file is rejected" --notes "$(tier_ledger t-cspan.md "$SRC_A" "$SRC_B" "https://x.invalid/c saved=$SAVED_C span=invented")"
+has "research-corroborator-span-not-in-file" "the unmatched corroborator span is named"
+
+run 1 "a primary that is not url, saved and span is rejected" --notes "$(tier_ledger t-shape.md "https://code.claude.com/docs/en/skills" "$SRC_B" "$SRC_C")"
+has "research-primary-shape" "the self-attested primary is named"
+
+run 1 "a corroborator repeating the primary url does not count" --notes "$(tier_ledger t-dup.md "$SRC_A" "$SRC_B" "https://code.claude.com/docs/en/skills saved=$SAVED_B span=$SPAN")"
+has "research-corroborators" "the duplicate corroborator is not counted"
+
+run 1 "one corroborator does not meet the bar" --notes "$(tier_ledger t-one.md "$SRC_A" "$SRC_B")"
+has "research-corroborators" "the short corroborator count is named"
+
+CLAIM_ONLY="$(
+  notes claim-only.md <<'EOF'
+## Errors
+### the skill asserts a default
+evidence: packet reproduction
+
+## Improvements
+none
+
+## Quality of life
+none
+
+## Standards alignment
+none
+
+## Emitted findings
+not-applicable
+EOF
+)"
+run 1 "a claim with no remediation still needs a research line" --notes "$CLAIM_ONLY"
+has "finding-without-research section=Errors title=the skill asserts a default" "the unresearched claim is named"
+
 TIER="$(
   notes tier.md <<'EOF'
 ## Errors
@@ -158,9 +230,7 @@ none
 ### cite the page
 evidence: the skill asserts a default
 remediation: restate the default from the skills page
-research: tier-1
-primary: https://code.claude.com/docs/en/skills
-corroborators: 2
+research: open-question
 
 ## Quality of life
 none
@@ -175,7 +245,7 @@ verdict: false
 basis: https://example.invalid/source
 EOF
 )"
-run 0 "tier-1 with two corroborators and a false sample with a basis completes" --notes "$TIER"
+run 0 "a false emitted sample with a basis completes" --notes "$TIER"
 has "status: complete" "tier ledger completes"
 
 DISC="$(
@@ -211,32 +281,6 @@ UNCITED="$WORK/uncited.md"
 sed '/^component:/d' "$DISC" >"$UNCITED"
 run 1 "a standards finding without its component line is rejected" --notes "$UNCITED"
 has "standards-finding-uncited" "the uncited finding is named"
-
-THIN="$(
-  notes thin.md <<'EOF'
-## Errors
-none
-
-## Improvements
-### cite the page
-evidence: the skill asserts a default
-remediation: restate the default
-research: tier-1
-primary: https://code.claude.com/docs/en/skills
-corroborators: 1
-
-## Quality of life
-none
-
-## Standards alignment
-none
-
-## Emitted findings
-not-applicable
-EOF
-)"
-run 1 "one corroborator does not meet the bar" --notes "$THIN"
-has "research-corroborators" "the short corroborator count is named"
 
 FALSE_BARE="$(
   notes false-bare.md <<'EOF'
@@ -290,9 +334,7 @@ EMPTY_FIELDS="$(
 ### hollow
 evidence:
 remediation:
-research: tier-0
-primary: x
-corroborators: 2
+research: open-question
 
 ## Improvements
 none

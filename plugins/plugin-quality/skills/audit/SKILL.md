@@ -113,15 +113,15 @@ skill-loaded, so the substitution never ran: treat the run as `high` and run eve
 Two dials sit over step 5, and they answer different questions. The **zone decides where a seam
 runs**; effort decides **which seams run at all**. Where they disagree the zone wins, so `low` effort
 never buys an inline review the dumb or unknown row says MUST dispatch, and never trims an evidence
-flush. Effort touches step 5, plus how far research on remediations and validation of emitted-finding
+flush. Effort touches step 5, plus how far research on claims and remediations and validation of emitted-finding
 samples go. Steps 1 through 4 are the evidence and contract-lock spine and run in full at every
 level; the category ledger and the standards collector are part of that spine:
 
 | Effort | Step 5 review seams, research, and emitted-finding samples |
 |---|---|
-| `low` | `skill-quality:check` only, and only for a skill target. The ledger and the standards collector still run. Research stays `open-question`. Emitted-finding samples may stay `unvalidated`. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
-| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for remediations at or above that floor (`/discovery:research` when that plugin is installed; absent, the manual discipline in `reference/categories.md`) |
-| `high`, `xhigh`, `max` | every presence-gated seam over every finding, including research on every remediation and a `confirmed` or `false` verdict on every emitted-finding sample |
+| `low` | `skill-quality:check` only, and only for a skill target. The ledger and the standards collector still run. No claim is researched: every finding's `research:` stays `open-question`. Emitted-finding samples may stay `unvalidated`. The `review:fanout` / `review:quality-gate` breadth pass is skipped, along with its absent-seam self-review checklist |
+| `medium` | as `low`, plus the breadth pass over findings at or above the run's severity floor, plus the research seam for the claim and remediation of each finding at or above that floor; the rest stay `open-question` (`/discovery:research` when that plugin is installed; absent, the manual discipline in `reference/categories.md`) |
+| `high`, `xhigh`, `max` | every presence-gated seam over every finding, including research on every finding's claim and remediation and a `confirmed` or `false` verdict on every emitted-finding sample |
 
 The **severity floor** is the Step 4 contract-lock cutoff for the `medium` breadth pass: a finding
 enters that pass only when its calibrated severity is at or above the floor. An attended run pins
@@ -279,7 +279,7 @@ available, and skipping it is what manufactures the resume rule's problem one co
 
 **Grade the ledger before presenting it**, once a closed-set file exists. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <grounded-findings file>`.
-Exit 1 means a category was skipped or a remediation has no research line: re-dispatch step 2 with
+Exit 1 means a category was skipped, a finding has no research line, or a tier record's saved file or quoted span does not check out: re-dispatch step 2 with
 the collector's `problem:` lines, and do not present a ledger the collector rejects. The corrected
 ledger is a new packet file, the next unused `audit-notes-<n>.md`, which the Resume rule's closed set does not
 include: after a compaction the rejected ledger is what resumes, so grade it again on resume
@@ -306,10 +306,13 @@ target repo for the emit. Write the locked contract into the packet
 covered rather than left as an unsealed file a later `verify` can only report as ungraded. This is
 where the human's judgment enters the audit. Do not skip it.
 
-**Research gate (readiness label).** A suggested change is labeled `agent-ready` only after a
-`/discovery:research` pass, with its source tiers recorded in the item. Every other suggested
-change files as `needs-decision`, and research that is absent, declined, or empty means
-`needs-decision`, never `agent-ready` ([`reference/session-mode.md`](reference/session-mode.md)
+**Research gate (readiness label).** Every load-bearing claim in the item, not only the
+suggested change, carries its `research:` line in the ledger, and a tier record names the saved
+file and quoted span the collector checks. A suggested change is labeled `agent-ready` only
+after a `/discovery:research` pass, with its source tiers recorded in the item. Every other
+suggested change files as `needs-decision`, and research that is absent, declined, or empty means
+`needs-decision`, never `agent-ready`. A claim that did not clear research is written as an open
+question, never as a fact or a recommendation ([`reference/session-mode.md`](reference/session-mode.md)
 "Research gate").
 
 **Autonomous invocation (no interactive user).** When this skill is invoked by a loop lane (e.g.
@@ -346,9 +349,10 @@ runs is used when installed, with a one-line fallback when absent:
 - `review:fanout` / `review:quality-gate`. Breadth/depth review of the findings write-up.
   *Absent:* run a structured self-review checklist in a fresh subagent (correctness of each
   claim, reproduction evidence present, severity justified, remediation actionable).
-- `/discovery:research`, the research seam, when the effort row runs it: one call per remediation
-  at or above the severity floor. A remediation it grounds becomes `research: tier-0` or `tier-1`
-  with its primary and corroborator count; one it cannot ground stays `open-question`. Write the
+- `/discovery:research`, the research seam, when the effort row runs it: one call per finding
+  at or above the severity floor, covering its claim and its remediation. A finding it grounds becomes `research: tier-0` or `tier-1`
+  with its primary and corroborators, each as `<url> saved=<path> span=<span>` from the bytes the
+  research pass saved; one it cannot ground stays `open-question`. Write the
   updated ledger as a new packet file, the next unused `audit-notes-<n>.md` (packet files are write-once; the step 3 correction may already hold `-2`), re-seal,
   and grade it again with `collect-categories.sh`. The Resume rule's closed set does not include
   that file, so after a compaction the pre-research ledger is what resumes: re-run this seam on it
@@ -401,11 +405,11 @@ Resolve the sink by the ladder (first hit wins; full key reference in the plugin
    never-delete-the-deliverable rule on finding `item*.md` in the packet (`item.md`, or
    `item-<owner>.md` when one audit emits for a second owner).
 
-**Research decides the label.** Step 4's research gate applies to the ledger: a remediation with `research: open-question`, or one that did not
+**Research decides the label.** Step 4's research gate applies to the ledger: a finding with `research: open-question`, or one that did not
 clear the research seam at this run's effort, is a decision for the maintainers, not a
-recommendation. Carry it in the item as `status: needs-decision` (or as a stated open decision
-where the sink has no labels) and never mark it autonomous-eligible (`agent-ready` by default). Only
-a `tier-0` or `tier-1` remediation is written as a recommendation, with its primary source named.
+recommendation. State its claim in the item as an open question, and carry its remediation as `status: needs-decision` (or as a stated open decision
+where the sink has no labels), never autonomous-eligible (`agent-ready` by default). Only
+a `tier-0` or `tier-1` finding is written as a recommendation, with its primary source named.
 
 **Egress gate (unconditional, every externally-visible emit):** show the user, in one confirm
 surface. (a) the full item draft (title + body), (b) the destination (target repo, tracker, or
