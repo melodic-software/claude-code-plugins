@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.0] - 2026-09-29
+## [0.16.0] - 2026-09-30
 
 ### Added
 
@@ -26,6 +26,27 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   an unencoded `?`, `#`, or whitespace with an `@` after it yields no row. A
   caller that does not set it is unchanged. No-leak fixtures cover userinfo,
   query tokens, and a `;` inside userinfo.
+
+## [0.15.0] - 2026-09-29
+
+### Added
+
+- `map-dependencies` reads Node workspaces and `file:`/`workspace:` dependencies,
+  Go `replace` and `go.work`, Python path references and uv workspaces, Rust
+  workspace members and `path =` dependencies, and Gradle `include` and
+  `project(...)` references and Maven `<modules>`, from readers under `lib/`.
+  Every edge cites its file and declaration; a manifest shape a reader does not
+  handle is reported as `unread-manifest`.
+- `dependency-graph.sh` runs every reader whose manifests are present and
+  merges them into one record; each node carries its own `ecosystem`.
+- `SKILL.md` lists the ecosystems read and the ones declined (Ruby, PHP).
+
+### Changed
+
+- `map-components` no longer counts a stray manifest as a deployable: a project no
+  internal edge touches, in an ecosystem no linked project and no .NET project
+  shares (a tooling `package.json`, a requirements file). A .NET tree with one
+  still charts its host, and the report says how many were set aside.
 
 ## [0.14.0] - 2026-09-29
 
