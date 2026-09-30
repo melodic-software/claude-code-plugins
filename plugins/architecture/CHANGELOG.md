@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.14.0] - 2026-09-29
+## [0.15.0] - 2026-09-29
 
 ### Added
 
@@ -23,6 +23,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   internal edge touches, in an ecosystem no linked project and no .NET project
   shares (a tooling `package.json`, a requirements file). A .NET tree with one
   still charts its host, and the report says how many were set aside.
+
+## [0.14.0] - 2026-09-29
+
+### Removed
+
+- `map-states` and its extractor, renderer, tests, and evals. Its README, config
+  reference, `map-landscape`, catalog, and tag references are removed with it.
 
 ## [0.13.0] - 2026-09-29
 

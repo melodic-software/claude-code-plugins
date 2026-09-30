@@ -1,5 +1,5 @@
 ---
-description: "Create a git commit with a subject matching the resolved convention (layered `source-control.md` config → project convention → Conventional Commits default), a Claude Co-authored-by trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>', not for push, branch creation, or PR creation (use /pull-request)."
+description: "When the bundled commit skill or built-in commit-push-pr command resolves in this session, prefer the first only when none of this skill's contract (convention, trailer, surgical staging, pre-checks) is wanted and the second to commit, push, and open a PR at once; this skill for every other commit. Create a git commit with a subject matching the resolved convention (layered `source-control.md` config → project convention → Conventional Commits default), a Claude Co-authored-by trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>', not for push, branch creation, or PR creation (use /pull-request)."
 argument-hint: "[message-hint]"
 user-invocable: true
 disable-model-invocation: false
@@ -355,14 +355,17 @@ documented contract (e.g. `/source-control:pull-request create`) composes this o
   `git add -A`), the subject pre-check before any git invocation, no hook bypass, and a
   user-visible SHA + subject report after every commit.
 
-## Boundary, the bundled `commit` skill
+## Boundary, native Claude Code surfaces
 
 Claude Code bundles a skill of the same name whose description tells the model to use it whenever
-it is about to commit, so the two compete for every commit.
+it is about to commit, so the two compete for every commit. A built-in command also commits as its
+first step.
 
 - **`commit` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. A
   generic commit workflow: it gathers git context and applies Claude Code's own message style,
   staging rules, and attribution. The model and the person can both invoke it.
+- **`/commit-push-pr` (built-in command).** Ships with Claude Code. Commits, pushes, and opens a
+  PR in one prompt-driven step. The model and the person can both invoke it.
 - **This skill (marketplace plugin).** Resolves the repository's subject convention through the
   ladder above (layered `source-control.md` config, the project's own convention, the Conventional
   Commits default), resolves `trailer_policy`, stages surgically against the four preconditions,
@@ -371,14 +374,17 @@ it is about to commit, so the two compete for every commit.
 **Routing.** Prefer this skill whenever it resolves and the repository carries a commit
 convention, a `source-control.md` layer is present, or a workflow composes `/source-control:commit`.
 When the bundled `commit` skill resolves in this session, prefer it only for a plain commit where
-none of this skill's contract is wanted.
+none of this skill's contract is wanted. A request to commit, and nothing more, stays here even
+when `/commit-push-pr` resolves: that command also pushes and opens a PR, which
+`/source-control:pull-request` owns.
 
-**Mutation gate.** Both create commits. Pick one per commit and never run both for the same
-change. This skill never chains into the bundled `commit` on its own behalf.
+**Mutation gate.** All three create commits, and `/commit-push-pr` also pushes. Pick one per
+commit and never run two for the same change. This skill never chains into the bundled `commit`
+or `/commit-push-pr` on its own behalf.
 
 **Availability is never assumed.** The bundled skill is gated, and `disableBundledSkills` or a
-`skillOverrides` entry hides it; this section states what to do when it resolves, never that it is
-present. The four-part records live in [reference/native-commit.md](reference/native-commit.md).
+`skillOverrides` entry hides it; this section states what to do when a surface resolves, never
+that it is present. The four-part records live in [reference/native-commit.md](reference/native-commit.md).
 
 ## What this skill does NOT do
 
