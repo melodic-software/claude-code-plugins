@@ -2790,6 +2790,31 @@ class TestResumedState(SessionCase):
                 )
 
 
+class TestLedgerIgnoresConfirmsAgainstAnEarlierList(SessionCase):
+    """A confirm event at or below the question's commitsSinceSeq was made against an earlier
+    commitment list, so the ledger leaves that commitment unconfirmed and an import restores only
+    the confirm made after the list changed."""
+
+    def test_only_a_confirm_after_the_list_changed_is_exported_and_imported(self):
+        q = question("Q1", title="Who?", commits=["A", "B"], commitsSinceSeq=5)
+        old, new = (
+            event(3, "Q1", "confirm", alt="0"),
+            event(7, "Q1", "confirm", alt="1"),
+        )
+        self.session([q], [old, new])
+        ledger = self.export("ledger")
+        self.assertEqual(
+            register_rows(ledger),
+            ["- Q1 | open | round 1 | Who? | commitments:: -A; +B"],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger), d=fresh)
+        self.assertEqual(rc, 0, out)
+        got = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+        self.assertEqual(exporters.commitments(got["questions"][0], []), (["B"], ["A"]))
+
+
 class TestNoEmojiNoSkillNames(SessionCase):
     def test_outputs_carry_no_emoji(self):
         self.decided()
