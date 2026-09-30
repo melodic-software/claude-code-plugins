@@ -304,7 +304,7 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 
   ```powershell
   Get-CimInstance Win32_ReliabilityStabilityMetrics | Sort-Object TimeGenerated -Descending | Select-Object -First 7
-  Get-CimInstance Win32_ReliabilityRecords -Filter "TimeGenerated > '<7d ago>'"
+  Get-CimInstance Win32_ReliabilityRecords | Where-Object { $_.TimeGenerated -ge (Get-Date).AddDays(-7) }
   ```
 
 - **Severity rubric:** the first matching row wins.
