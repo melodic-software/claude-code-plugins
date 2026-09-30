@@ -564,10 +564,9 @@ _SCRATCH_ROOTS="${CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS:-}"
 # default-on security guard, and ADR 0003 wants firing evidence before one of
 # those moves. Filed rather than decided.
 #
-# The consequence is that `printf '*' >> .work/.gitignore` still blocks. That
-# command is session-flow's own documented procedure, so the conflict routes back
-# to the skill (fix the procedure to use Write, which is scanned) rather than to
-# the guard, which is where the filed issue puts it.
+# The consequence is that `printf '*' >> .work/.gitignore` still blocks because the
+# memory tier is not exempt; write that file with Write, which the content guards
+# scan.
 #
 # THE PLUGIN DATA DIRECTORY (`<config dir>/plugins/data`, the config dir being
 # CLAUDE_CONFIG_DIR or `~/.claude`) IS a second default, on the same argument

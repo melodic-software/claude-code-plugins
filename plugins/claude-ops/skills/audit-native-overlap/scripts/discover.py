@@ -118,6 +118,17 @@ def _bag(*parts: tuple[str, float]) -> Counter:
     return bag
 
 
+SCORED_FIELDS = ("description", "argument_hint", "search_hint")
+
+
+def scored_text(registrations: list[dict[str, Any]]) -> str:
+    """The registration text a native surface is scored on: each registration's
+    scored fields, in order, space-joined."""
+    return " ".join(
+        str(r.get(key) or "") for r in registrations for key in SCORED_FIELDS
+    )
+
+
 @dataclass
 class Surface:
     """One native surface: its identity, its text, and its name token sets."""
@@ -142,11 +153,7 @@ class Surface:
                 if isinstance(a, str)
             }
         )
-        text = " ".join(
-            str(r.get(key) or "")
-            for r in registrations
-            for key in ("description", "argument_hint", "search_hint")
-        )
+        text = scored_text(registrations)
         bag = _bag((name, 3.0), (" ".join(aliases), 2.0), (text, 1.0))
         name_sets = [s for s in (set(tokenize(n)) for n in [name, *aliases]) if s]
         return cls(

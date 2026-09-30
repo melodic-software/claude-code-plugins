@@ -53,19 +53,34 @@ fails closed like every other guard-relevant unknown in this plugin.
 1. **Node exec-form launcher registration**. All three registrations (both wired hooks in
    `hooks/hooks.json` and the skill-scoped belt in `skills/clean/SKILL.md` frontmatter) must set
    `command` to `node` and put `hooks/exec-bash.mjs`, then `hooks/run-python-hook.sh` and that
-   script's arguments, in `args`. `node` resolves to `node.exe`. The launcher finds Git Bash and
-   refuses `System32\bash.exe`. FAIL if `command` is bare `bash`, `sh`, or `python3`, or if the
-   script path is `command` with no `args`: on Windows bare `bash` is the WSL relay and a `.sh`
-   path is not a spawnable executable, the launch fails, and a failed hook launch is non-blocking,
-   so the guard silently enforces nothing. Also FAIL if `exec-bash.mjs` or the launcher is missing.
-   Report a missing Git Bash as an environment prerequisite (`CLAUDE_CODE_GIT_BASH_PATH` or Git's
-   `bash.exe`), not as a `PATH` fix.
+   script's arguments, in `args`. `node` resolves to `node.exe`. FAIL if `command` is bare `bash`,
+   `sh`, or `python3`, or if the script path is `command` with no `args`: on Windows bare `bash` is
+   the WSL relay and a `.sh` path is not a spawnable executable, the launch fails, and a failed hook
+   launch is non-blocking, so the guard silently enforces nothing. Also FAIL if `exec-bash.mjs` or
+   the launcher is missing.
    Claim: exec form spawns `command` as an executable with `args` and no shell, and on Windows
    `command` must be a real executable such as `node.exe`.
    Basis: `https://code.claude.com/docs/en/hooks`, "Exec form and shell form".
    As of: 2026-09-28.
    Recheck: that page changes the Windows executable sentence, or stops ignoring `shell` when
    `args` is set.
+
+   **`node` and bash**, probed with the Bash tool, not through the launcher. FAIL if
+   `command -v node` finds nothing: every hook row runs `node`, so no hook launches and no guard is
+   enforced. FAIL if no bash resolves in the launcher's own order, which the header comment of
+   `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` lists per platform (read it; do not recite it). On
+   Windows the remediation is either `CLAUDE_CODE_GIT_BASH_PATH`, a Git for Windows install, or a
+   `bash.exe` on `PATH` outside `System32`, `Sysnative` and `WindowsApps`; elsewhere, a `bash` on
+   `PATH`. Both FAILs stay FAIL with the toggle disabled, like the interpreter ladder. State the
+   consequence in the remediation: the hook fails to launch, the user sees a hook error notice, the
+   guard is not enforced, the call proceeds, and the model is not told. A missing `node` cannot be
+   reported by the launcher or the Stop detector, which both need `node` to start.
+   Claim: Claude Code's native binary does not ship or invoke Node, so `node` on `PATH` is a
+   separate prerequisite.
+   Basis: `https://code.claude.com/docs/en/setup`, fetched 2026-09-29.
+   As of: 2026-09-29.
+   Recheck: that page lists Node as bundled or required, or `hooks/hooks.json` stops using `node`
+   as `command`.
 2. **Python floor on `PATH`**. The interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
    that acts only on engine-referencing commands, and the skill-frontmatter belt that
@@ -138,11 +153,11 @@ fails closed like every other guard-relevant unknown in this plugin.
    the README, keeping the audit and execution lanes visibly separate: Windows (full
    **audit**: `lstat` reparse + Win32, never UAC; engine **execution unsupported**.
    `preview` reports `execution-platform-unsupported` as a per-candidate blocker, removal is
-   a manual, per-path Recycle-Bin handoff only under `--execute` and after explicit
+   a manual, per-path Recycle-Bin handoff only after an execution request and explicit
    approval), Linux (full audit; execution when
    `/proc/self/mountinfo` is readable, `lsof` needed only for that optional execution
    lane, absent `lsof` is INFO with the reduced-capability note), macOS (audit/report
-   only by design; manual Trash handoff only under `--execute`. INFO, not a defect).
+   only by design; manual Trash handoff only after an execution request and explicit approval. INFO, not a defect).
 5. **Execution kill switch**. Resolve the effective `disk_hygiene_enabled` value
    deterministically; never present an assumed value as the configured one. Run the bundled
    probe with the step-2 interpreter:
@@ -165,6 +180,8 @@ tool or an OS capability, so `apply` installs nothing and writes nothing, it onl
 - missing/old Python: the platform's own install channel for the floor `check` parsed from
   the engine's `MIN_PYTHON`; never a plugin download.
 - missing git (worktree targets): platform install instructions.
+- missing `node` or no bash the launcher accepts: the platform's own install channel for Node.js
+  or Git for Windows, or on Windows `CLAUDE_CODE_GIT_BASH_PATH` naming an existing `bash.exe`.
 - toggle off: reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention, which owns the verified-version record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>):
