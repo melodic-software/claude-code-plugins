@@ -387,6 +387,37 @@ run_pwsh "PS: read-only git with scriptblock (allowed — #1415)" \
   "git fetch origin 2>&1 | ForEach-Object { \$_ | Select-Object -Last 5 }" 0
 run_pwsh "PS: non-git subexpression (allowed)" "Write-Output \$(Get-Date)" 0
 
+# --- PowerShell hook-manager env assignment (same prefix list as Form 2) ------
+run_pwsh "PS env: \$env:LEFTHOOK=0; git commit (blocked)" "\$env:LEFTHOOK=0; git commit -m x" 2
+run_pwsh "PS env: \$env:LEFTHOOK = '0' (spaced, quoted, blocked)" "\$env:LEFTHOOK = '0'; git commit -m x" 2
+run_pwsh "PS env: \${env:LEFTHOOK}=0 (braced, blocked)" "\${env:LEFTHOOK}=0; git commit -m x" 2
+run_pwsh "PS env: \$env:LEFTHOOK_VERIFY = \"false\" (suffix, blocked)" "\$env:LEFTHOOK_VERIFY = \"false\"; git commit -m x" 2
+run_pwsh "PS env: \$env:husky=0 (case-folded, blocked)" "\$env:husky=0; git push" 2
+run_pwsh "PS env: \$env:HUSKY=0; git push (blocked)" "\$env:HUSKY=0; git push" 2
+run_pwsh "PS env: Set-Item env:HUSKY 0 (blocked)" "Set-Item env:HUSKY 0; git commit -m x" 2
+run_pwsh "PS env: Set-Item env:LEFTHOOK 0 (blocked)" "Set-Item env:LEFTHOOK 0; git commit -m x" 2
+run_pwsh "PS env: Set-Item -Path env:LEFTHOOK -Value 0 (blocked)" \
+  "Set-Item -Path env:LEFTHOOK -Value 0; git commit -m x" 2
+run_pwsh "PS env: Set-Item -Path 'env:LEFTHOOK' -Value '0' (quoted, blocked)" \
+  "Set-Item -Path 'env:LEFTHOOK' -Value '0'; git commit -m x" 2
+run_pwsh "PS env: si env:LEFTHOOK 0 (alias, blocked)" "si env:LEFTHOOK 0; git commit -m x" 2
+run_pwsh "PS env: SetEnvironmentVariable('LEFTHOOK','0') (blocked)" \
+  "[Environment]::SetEnvironmentVariable('LEFTHOOK','0'); git commit -m x" 2
+run_pwsh "PS env: custom prefix list is shared (blocked)" "\$env:MYHOOKS=0; git commit -m x" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="myhooks"
+run_pwsh "PS env: custom set replaces the default (lefthook allowed)" "\$env:LEFTHOOK=0; git commit -m x" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="myhooks"
+run_pwsh "PS env: \$env:LEFTHOOK=0; git status (no commit, allowed)" "\$env:LEFTHOOK=0; git status" 0
+run_pwsh "PS env: \$env:LEFTHOOK=1; git commit (truthy, allowed)" "\$env:LEFTHOOK=1; git commit -m x" 0
+run_pwsh "PS env: \$env:OTHER=0; git commit (unlisted variable, allowed)" "\$env:OTHER=0; git commit -m x" 0
+run_pwsh "PS env: Set-Item env:LEFTHOOK 1 (truthy, allowed)" "Set-Item env:LEFTHOOK 1; git commit -m x" 0
+run_pwsh "PS env: assignment quoted in a commit message (allowed)" \
+  "git commit -m 'never set \$env:LEFTHOOK=0 or Set-Item env:HUSKY 0'" 0
+run_pwsh "PS env: assignment quoted in a double-quoted message (allowed)" \
+  "git commit -m \"never set \\\$env:LEFTHOOK=0\"" 0
+run "\$env:LEFTHOOK=0 on the Bash tool is not a hook-manager assignment (allowed)" \
+  "echo \$env:LEFTHOOK=0; git commit -m x" 0
+
 # --- ps::git_command_is_readonly — the `readonly-ok` sink scope (SECURITY) -----
 # This guard is the ONLY caller that passes `readonly-ok`, so it is the only place
 # a wrongly-classified subcommand is observable. Every case below carries a SINK

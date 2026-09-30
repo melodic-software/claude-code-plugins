@@ -160,6 +160,10 @@ for _hm in "${_hm_list[@]}"; do
 done
 [[ -n "$HM_ALT" ]] || HM_ALT="lefthook" # never leave the guard patternless
 
+# Set by the PowerShell lane when the command assigns a hook-manager variable
+# (same HM_ALT list) to 0/false; check_segment blocks on it beside a commit/push.
+PS_HM_ENV_DISABLED=0
+
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
 # spawns no telemetry-only subprocess.
@@ -227,6 +231,12 @@ check_segment() {
       "BLOCKED: a hook-manager env-var bypass disables the hook manager, letting this commit/push land unchecked." \
       "Fix the hook lane failure instead of bypassing."
   done
+
+  # Form 2, PowerShell spelling: `$env:X=0` or `Set-Item env:X 0` anywhere in
+  # the same command (found on the original text by ps_env_disables_hook_manager).
+  ((PS_HM_ENV_DISABLED)) && block "hook-manager-env" \
+    "BLOCKED: a hook-manager env-var bypass disables the hook manager, letting this commit/push land unchecked." \
+    "Fix the hook lane failure instead of bypassing."
 
   # Form 1: --no-verify / -n (commit or push) — words after the subcommand,
   # skipping values consumed by commit/push options (e.g. -m message text).
@@ -309,6 +319,27 @@ sink_allowed() {
 # checking any remaining visible text — do not fail-open a compound command
 # that still carries --no-verify beside the granted shape (same loop as
 # block-dangerous-git, narrowed to this guard's readonly-ok classifier).
+# True (0) when the PowerShell command text assigns a hook-manager variable to
+# 0/false: `$env:X=0`, `${env:X} = '0'`, `Set-Item env:X 0`,
+# `Set-Item -Path env:X -Value 0`, `si env:X 0`. The classifier reduction turns
+# `$var=` into a bare word, so this reads the original text. The assignment head
+# (`$env:X=` or `Set-Item`/`si`) must also appear once quoted spans are blanked,
+# so a commit message that only quotes `$env:LEFTHOOK=0` is not an assignment;
+# the operands (which may be quoted) are then read from the original text.
+ps_env_disables_hook_manager() {
+  local lc="${1,,}" scan head tail q=$'[\'"]?'
+  [[ "$lc" == *env:* ]] || return 1
+  ps::blank_herestrings "$1"
+  ps::blank_quoted_spans_to scan "$PS_BLANKED"
+  scan="${scan,,}"
+  head="\\\$(\\{env:|env:)(${HM_ALT})[_a-z0-9]*\\}?[[:space:]]*="
+  tail="[[:space:]]*${q}(0|false)${q}([^[:alnum:]_]|\$)"
+  [[ "$scan" =~ $head ]] && [[ "$lc" =~ ${head}${tail} ]] && return 0
+  head='(^|[^[:alnum:]_-])(set-item|si)[[:space:]]+(-(literal)?path[[:space:]]+)?'"${q}env:(${HM_ALT})[_a-z0-9]*"
+  tail="${q}[[:space:]]+(-value[[:space:]]+)?${q}(0|false)${q}([^[:alnum:]_]|\$)"
+  [[ "$scan" =~ (^|[^[:alnum:]_-])(set-item|si)[[:space:]] ]] && [[ "$lc" =~ ${head}${tail} ]]
+}
+
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # The declaration first, then the library it names. Under run-guards.sh the
   # declaration is already in this process and the library was loaded once for
@@ -316,6 +347,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # shellcheck source=guard-requires.sh
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
+  ps_env_disables_hook_manager "$COMMAND" && PS_HM_ENV_DISABLED=1
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
   _ps_rc=$?
   _ps_sink_attempts=0
