@@ -129,7 +129,7 @@ audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-bu
 # own skill because `setup` is manual-only and the check must be model-invocable.
 # playwright joins on the same grounds: it reports whether the playwright-cli
 # binary and a browser resolve, read-only, never installing.
-check actionlint,bash-format,biome-format,context7,go-format,instruction-placement,markdown-format,playwright,powershell-format,ruff-format,skill-quality,toolchain,typos-format
+check actionlint,bash-format,biome-format,context7,disk-hygiene,go-format,instruction-placement,markdown-format,playwright,powershell-format,ruff-format,skill-quality,toolchain,typos-format
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.
