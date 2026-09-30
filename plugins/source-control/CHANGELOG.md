@@ -9,6 +9,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **21 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, and each case has a `skill-fired` grader.
 
+## [0.64.1] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` states the isolated-worktree launch recommendation for background lanes** instead of saying a background launch loses the escalation record
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+
 ## [0.64.0] - 2026-09-29
 
 ### Added
