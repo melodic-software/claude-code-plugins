@@ -715,6 +715,22 @@ _POWERSHELL_EXECUTORS = frozenset(
         "sajb",
     }
 )
+# Launchers that run their argument as the command.
+_LAUNCHER_WRAPPERS = frozenset(
+    {
+        "env",
+        "nohup",
+        "nice",
+        "time",
+        "timeout",
+        "setsid",
+        "stdbuf",
+        "sudo",
+        "doas",
+        "exec",
+        "command",
+    }
+)
 _POWERSHELL_INTERPRETER = re.compile(
     r"(?<![\w.\-])(?:py|python[\w.\-]*)(?![\w\-])", re.IGNORECASE
 )
@@ -728,15 +744,14 @@ def _powershell_without_string_data(command: str) -> str | None:
     always qualify, double-quoted ones only without ``$`` or backtick (a
     subexpression runs code). None, meaning the caller must classify the
     command as written, for anything that could run a string: an interpreter
-    token anywhere (inside strings too), an executor as the command word, a
-    string in the command position, code syntax outside strings, a second
+    token outside string data, an executor as the command word, a
+    string in the command position, a launcher wrapper (``env``, ``sudo``,
+    ``timeout``) as the command word, code syntax outside strings, a second
     statement (``Set-Content x.ps1 '...'; ./x.ps1``), ``--%``, typographic
     quotes, or an unterminated literal.
     """
-    if (
-        _POWERSHELL_INTERPRETER.search(command)
-        or any(char in _POWERSHELL_TYPOGRAPHIC_QUOTES for char in command)
-        or command.lstrip(" \t")[:1] in {"'", '"'}
+    if any(char in _POWERSHELL_TYPOGRAPHIC_QUOTES for char in command) or (
+        command.lstrip(" \t")[:1] in {"'", '"'}
     ):
         return None
     out: list[str] = []
@@ -769,12 +784,13 @@ def _powershell_without_string_data(command: str) -> str | None:
         out.append("_")
     stripped = "".join(out)
     words = stripped.split()
-    if not words or "--%" in words:
+    if not words or "--%" in words or _POWERSHELL_INTERPRETER.search(stripped):
         return None
     command_word = _PATH_SEPARATOR.split(words[0].casefold())[-1]
     if command_word.endswith(".exe"):
         command_word = command_word[: -len(".exe")]
-    return None if command_word in _POWERSHELL_EXECUTORS else stripped
+    blocked = _POWERSHELL_EXECUTORS | _LAUNCHER_WRAPPERS
+    return None if command_word in blocked else stripped
 
 
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
@@ -819,14 +835,14 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     ``$``/backtick-free double-quoted literal is blanked before the rules above
     run (``_powershell_without_string_data``), so a ``gh issue create --body``
     here-string naming the engine defers. The command is classified as written
-    whenever a string could run: an interpreter token anywhere, an executor as
-    the command word (``pwsh -Command``, ``iex``, ``Start-Process``,
+    whenever a string could run: an interpreter token outside string data, an
+    executor or launcher wrapper as the command word (``pwsh -Command``, ``iex``, ``Start-Process``,
     ``cmd``/``bash``/``sh``, ``Invoke-Item``), a call operator, a variable,
     a subexpression, a scriptblock or type literal, or a second statement.
     Identity is checked before blanking, so a string naming this plugin's own
     engine by a resolving path still gates. Accepted residual: a command the
-    executor list does not name that runs a string naming the engine with no
-    interpreter token in it (``ssh host './hygiene.py scan'``) reads as data.
+    executor list does not name that runs a string naming the engine
+    (``ssh host './hygiene.py scan'``) reads as data.
 
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
     under any name — gates regardless of its filename. The marker-free fallback
@@ -959,19 +975,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     # The effective command word: skip launcher wrappers, VAR=value
     # assignments, and option words — `env PATH=... hygiene.py apply` makes the
     # bare marker word the command even though it is not word 0.
-    _WRAPPERS = {
-        "env",
-        "nohup",
-        "nice",
-        "time",
-        "timeout",
-        "setsid",
-        "stdbuf",
-        "sudo",
-        "doas",
-        "exec",
-        "command",
-    }
+    _WRAPPERS = _LAUNCHER_WRAPPERS
     wrapper_indices = [
         index
         for index, word in enumerate(words)

@@ -9825,6 +9825,7 @@ class GuardTests(unittest.TestCase):
             'The engine hygiene.py and kill_switch_probe.py deny.\n"@',
             'gh search issues "hygiene.py deny"',
             "git commit -m 'fix hygiene.py gate'",
+            "gh issue create --title x --body 'The Python hygiene.py engine denies this'",
         ]
         with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
             for command in mentions:
@@ -9839,6 +9840,10 @@ class GuardTests(unittest.TestCase):
             "pwsh -Command 'python hygiene.py scan'",
             "iex 'python hygiene.py scan'",
             "& 'hygiene.py' scan",
+            "sudo 'hygiene.py' scan",
+            'env "hygiene.py" apply --plan p --token t',
+            "timeout 5 'hygiene.py' scan",
+            "exec 'hygiene.py' scan",
             'gh issue create --title x --body @"\n$(python hygiene.py scan)\n"@',
             "$s='hygiene.py'; python $s scan",
             f"gh issue create --title x --body '{engine}'",
