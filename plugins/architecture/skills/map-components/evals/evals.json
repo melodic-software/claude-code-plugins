@@ -60,12 +60,12 @@
     {
       "id": 5,
       "name": "missing-graph-collects-dotnet-or-reports-unknown",
-      "prompt": "/architecture:map-components\n\nNo dependency-graph.json exists. The repository has no .NET project and does have a package.json.",
-      "expected_output": "Runs map-dependencies' dependency-graph.sh with --out, which records result unknown with a message naming package.json and empty arrays. The render writes that message and no diagram.",
+      "prompt": "/architecture:map-components\n\nNo dependency-graph.json exists. The repository has no .NET project and does have a Gemfile.",
+      "expected_output": "Runs map-dependencies' dependency-graph.sh with --out, which records result unknown with a message naming Gemfile and empty arrays. The render writes that message and no diagram.",
       "narration": true,
       "expectations": [
         "Runs dependency-graph.sh with --out <architecture_dir>/dependency-graph.json because the graph is absent",
-        "Does not hand-build nodes from the package.json name",
+        "Does not hand-build nodes from the Gemfile",
         "The artifact says the ecosystem is unknown and does not draw an empty diagram",
         "Writes the collected record to the architecture directory so the next run can read it"
       ]

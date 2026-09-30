@@ -3,12 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.1] - 2026-09-29
+## [0.42.2] - 2026-09-30
 
 ### Changed
 
 - `block-root-delete-target` states its scope in the hook header: friction against accidental or casual root deletes, not a sandbox. The launcher grammar is not widened further without a filed bypass. Converging the walker with `lib/powershell/ps-command.sh` stays deferred, and any future convergence is checked against the delete lane in `scripts/check-guardrails-ps-differential.sh`. No verdict changes.
 - `scripts/check-guardrails-ps-differential.sh` compares `block-root-delete-target` in the PowerShell differential, with a delete-lane corpus. The guard tokenizes on its own, and an outside-tree target is judged from one neutral payload cwd for both arms.
+
+## [0.42.1] - 2026-09-29
+
+### Fixed
+
+- **`block-windows-drive-tmp` catches inline python `open (` and `getattr(__builtins__,'open')(`.** The inline-python write check required `open(` with no space and no `getattr` form, so a drive-root `\tmp` path opened either way passed. The README row names both shapes and the suite covers them.
 
 ## [0.42.0] - 2026-09-29
 
