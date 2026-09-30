@@ -163,8 +163,8 @@
     {
       "id": 11,
       "name": "work-loop-paused-lane-drops-latch-on-account-switch",
-      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint, and the tee file holds a fresh snapshot whose account.email matches the new account with both windows at 40%. Later in the same run a second wake finds .claude.json unparseable.",
-      "expected_output": "On the wake the lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser (never via the tee) and compares fingerprints, never printing or interpolating the address. The fingerprint differs, so it re-evaluates with the fresh tee snapshot whose account.email fingerprint equals the new account: both windows below 90, so it resumes, clearing rate_limit_latch, paused_until, and latched_account together in the durable state, and adds an account-switch: resumed line to the cycle report without the address or fingerprint. On the second wake the unparseable state file means cannot attribute: the lane keeps its existing state, with no spurious drop of a latch and no fabricated pause.",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint, and the tee file holds a fresh snapshot whose account.email matches the new account with both windows at 40%. Later in the same run a second wake finds .claude.json unparsable.",
+      "expected_output": "On the wake the lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser (never via the tee) and compares fingerprints, never printing or interpolating the address. The fingerprint differs, so it re-evaluates with the fresh tee snapshot whose account.email fingerprint equals the new account: both windows below 90, so it resumes, clearing rate_limit_latch, paused_until, and latched_account together in the durable state, and adds an account-switch: resumed line to the cycle report without the address or fingerprint. On the second wake the unparsable state file means cannot attribute: the lane keeps its existing state, with no spurious drop of a latch and no fabricated pause.",
       "files": [],
       "expectations": [
         "Reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser on the wake, not from the tee file",
@@ -172,7 +172,7 @@
         "On a differing account, takes the new account's windows only from a fresh tee snapshot whose account.email matches the new account",
         "With both windows below 90, resumes and clears rate_limit_latch, paused_until, and latched_account together rather than leaving a future paused_until behind",
         "Records an account-switch: resumed line in the cycle report carrying neither the address nor the fingerprint",
-        "Treats an unparseable, absent, or key-less .claude.json as cannot attribute and keeps the existing latch instead of dropping it"
+        "Treats an unparsable, absent, or key-less .claude.json as cannot attribute and keeps the existing latch instead of dropping it"
       ]
     },
     {

@@ -22,7 +22,7 @@ set -o pipefail; jq -er '.oauthAccount.emailAddress | strings | select(length>0)
 ```
 
 The file goes in on stdin because a native Windows `jq` cannot open an MSYS-style path argument. A
-non-zero exit (file absent, unparseable, key missing or not a string) means **cannot attribute**;
+non-zero exit (file absent, unparsable, key missing or not a string) means **cannot attribute**;
 discard the output. A failed `jq` still leaves `sha256sum` printing the hash of empty input,
 `e3b0c44298fc1c14`; that value is never a fingerprint, so it also means cannot attribute. The
 address never reaches the output, a variable, or a command line. Fingerprint a tee snapshot's
