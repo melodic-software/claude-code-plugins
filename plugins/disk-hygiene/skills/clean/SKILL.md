@@ -341,6 +341,13 @@ partial walked sum alongside a `not-walked` qualifier, so read that number as a 
 Folding qualified or unknown sizes into a total claims space that deleting the path would never return. Never treat a
 low or zero reclaimable-byte figure as a reason to skip a finding that otherwise clears the evidence bar.
 
+### Prior conclusions
+
+An entry with `prior_disposition` was concluded on an earlier run and its identity still holds;
+`prior_unresolved` marks one whose owner is still unknown. Both are hints, never approval. To record
+a conclusion or an operator's "keep, don't re-raise" answer, see the
+[investigated catalog](reference/safety-model.md#investigated-catalog).
+
 ## 4. Build one exact-tier plan
 
 Only after an execution request (`--execute`, or the in-session request in
@@ -459,8 +466,8 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
-  apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
+- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
+  catalog, and apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
   interpreter. The same denial text also admits literal-form read-only supporting commands whose
   heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
   `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`

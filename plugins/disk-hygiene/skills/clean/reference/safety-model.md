@@ -8,6 +8,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Investigated catalog](#investigated-catalog)
 - [Outcome vocabulary](#outcome-vocabulary)
 - [Primary references](#primary-references)
 
@@ -670,6 +671,39 @@ already decided to hand off. For that reason the `.pulumi-write-test-*` hint was
 rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
+
+## Investigated catalog
+
+`catalog.json` and a rendered `CATALOG.md` under the data root record what an investigation or the
+operator concluded about an entry. A record holds `target`, `path`, `identity` (device, inode,
+kind), `descendant_set`, `owner`, `provenance`, `evidence` (each item's `source` is a file path,
+command, or URL), `disposition`, `tier`, `size`, `first_seen_run`, `last_seen_run`,
+`last_verified`, `source` (`engine` or `human`), and `question`.
+
+`catalog` merges a findings file (`{"records": [...]}`, `source: engine`) and an operator answers
+file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapshot-relative
+`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence`:
+
+```text
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" catalog \
+  --snapshot "<run-dir>/snapshot.json" --run-id "<run-id>" \
+  [--findings "<run-dir>/findings.json"] [--answers "<run-dir>/answers.json"] \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
+- A record is a hint. It records a conclusion, never an approval. Preview and apply do not read it,
+  so a catalogued `remove` still needs the same preview, approval token, and revalidation as an
+  entry that was never catalogued.
+- A changed identity (device, inode, kind) or descendant set invalidates the record. It is replaced
+  by an unresolved `keep` with its question, and the next scan stops annotating it.
+- An engine finding with no owner is not a conclusion: the record stays `keep` and the report asks
+  who owns it. Unknown stays visibly unknown, and `prior_unresolved` marks it on the next scan.
+- An operator answer clears the question with or without an owner, so `{"path": "<name>",
+  "disposition": "keep"}` is a "keep, don't re-raise" answer. While identity holds, later engine
+  findings do not overwrite it and the entry is not asked again.
+- The scan sets `prior_disposition` on an entry whose record still holds. Report new or changed
+  entries first, one line for each unchanged entry, and end with the questions. Records for entries
+  the snapshot did not inventory are kept unchanged.
 
 ## Outcome vocabulary
 
