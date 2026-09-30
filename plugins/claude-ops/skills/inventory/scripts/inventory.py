@@ -1068,7 +1068,12 @@ def _operand(
         )
         if kept:
             values = []
-        elif computed or not values or (or_op and not all(values)):
+        elif (
+            computed
+            or not values
+            or _ELLIPSIS in values  # a bare runtime value settles nothing
+            or (or_op and not all(values))
+        ):
             for v in values or []:
                 if v:
                     _add_static(acc, v)
