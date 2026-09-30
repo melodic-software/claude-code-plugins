@@ -547,9 +547,8 @@ def op_revise(d, doc, a):
         ("text", a.text, TEXT_CAP),
     ):
         capped(f"revise {field}", val, cap)
-    commits = None
-    if a.commit is not None:
-        commits = [] if a.commit == ["none"] else a.commit
+    commits = a.commit
+    if commits is not None:
         for i, c in enumerate(commits, 1):
             capped(f"revise commitment {i}", c, LINE_CAP)
     affects = parse_affects(a.affects)
@@ -1674,6 +1673,8 @@ def main(argv=None):
     s.set_defaults(fn=cmd_lease)
 
     a = p.parse_args(argv)
+    if a.cmd == "revise" and a.commit == ["none"]:
+        a.commit = []
     if not a.dir:
         p.error("--dir DATA_DIR is required (the data dir holding questions.json)")
     d = Path(a.dir).resolve()

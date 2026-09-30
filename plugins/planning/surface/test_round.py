@@ -431,7 +431,7 @@ class TestReviseCommits(DirCase):
         self.assertIn("nothing to revise", out)
 
     def test_apply_op_takes_a_list_and_an_empty_list_clears(self):
-        for commits, want in ((["A", "B"], ["A", "B"]), ([], [])):
+        for commits, want in ((["A", "B"], ["A", "B"]), (["none"], ["none"]), ([], [])):
             ops = {"ops": [{"op": "revise", "id": "Q1", "commits": commits}]}
             rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
             self.assertEqual(rc, 0, out + err)
