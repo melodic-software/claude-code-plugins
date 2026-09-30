@@ -3,11 +3,21 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.3] - 2026-09-29
+## [0.11.1] - 2026-09-29
 
 ### Changed
 
 - Test-only: the hook suites assert the telemetry envelope through the schema-driven `check_envelope` in the shared test helper `hooks/hook-test-sink.sh` instead of a transcribed field list. No behavior change.
+
+## [0.11.0] - 2026-09-29
+
+### Added
+
+- The binary is probed at SessionStart, and a missing `actionlint` prints a notice bound to the manifest's declared prerequisite.
+
+### Changed
+
+- The PostToolUse missing-binary notice latches on the same key as the SessionStart probe (`actionlint-actionlint`, was `actionlint-missing`), so the probe's notice counts as the first and the first PostToolUse notice stays silent until the renewal, instead of both firing.
 
 ## [0.10.2] - 2026-09-29
 

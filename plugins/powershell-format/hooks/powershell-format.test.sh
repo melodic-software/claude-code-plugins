@@ -334,6 +334,82 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "settings above CLAUDE_PROJECT_DIR ceiling -> not found, silent skip"; else fail "ceiling not respected (rc=$RC out=$OUT)"; fi
 if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceiling -> file left untouched"; else fail "ceiling -> file was rewritten"; fi
 
+# --- SessionStart probe: bound to prerequisites.json, honors the kill switch ---
+# The edit hook stays quiet without pwsh, so the SessionStart row is the only
+# reporter. The manifest declares exactly one tool, pwsh (PSScriptAnalyzer is a
+# module, not a PATH binary, so /powershell-format:check reports it instead), and
+# the probe's notice must state that tool's name, check and install, verbatim.
+# The probe runs the hooks.json row as the harness spawns it: `node` with the
+# row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
+# holds the system tools and no pwsh. The gate is `--run-if-unset-or-true` in
+# exec-bash.mjs, so a row without it prints the notice for a disabled plugin.
+# A missing node fails the suite instead of skipping the cases: every hook row
+# launches through it. These cases need no pwsh, so they run before the skip.
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+PLUGIN_ROOT="${HOOK_DIR%/*}"
+MANIFEST="$PLUGIN_ROOT/prerequisites.json"
+if jq -e '(.tools | length) == 1 and .tools[0].name == "pwsh"' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: exactly one tool, pwsh"
+else
+  fail "manifest: expected one tool named pwsh: $(cat "$MANIFEST" 2>&1)"
+fi
+IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
+if jq -e --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' \
+  '[.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$launcher, "--run-if-unset-or-true", "POWERSHELL_FORMAT_ENABLED", $probe])] | length == 1' "$HOOKS_JSON" >/dev/null; then
+  ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
+else
+  fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true POWERSHELL_FORMAT_ENABLED"
+fi
+NODE_BIN="$(command -v node 2>/dev/null)"
+if [[ -z "$NODE_BIN" ]]; then
+  fail "probe-gate: node is not on PATH, and every hook row launches through node hooks/exec-bash.mjs"
+else
+  PG_WORK="$(mktemp -d)"
+  mkdir -p "$PG_WORK/sysbin" "$PG_WORK/cwd"
+  for dir in /usr/local/bin /usr/bin /bin; do
+    for exe in "$dir"/*; do
+      base="${exe##*/}"
+      [[ -x "$exe" && "$base" != pwsh && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      ln -s "$exe" "$PG_WORK/sysbin/$base"
+    done
+  done
+  PG_ARGS=()
+  while IFS= read -r pg_arg; do
+    # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
+    PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+
+  # run_probe <value|__unset__> -> run the row with powershell_format_enabled set to <value> (or unset).
+  run_probe() {
+    local v="$1"
+    local -a opt=(env -u CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED)
+    [[ "$v" == "__unset__" ]] || opt=(env "CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=$v")
+    (cd "$PG_WORK/cwd" && printf '{"session_id":"s1"}' |
+      "${opt[@]}" PATH="$PG_WORK/sysbin" CLAUDE_PLUGIN_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")" \
+        "$NODE_BIN" "${PG_ARGS[@]}" 2>&1)
+  }
+
+  OUT_PG=$(run_probe false)
+  RC_PG=$?
+  if [[ $RC_PG -eq 0 && -z "$OUT_PG" ]]; then
+    ok "probe-gate: powershell_format_enabled=false -> exit 0 and no notice"
+  else
+    fail "probe-gate: powershell_format_enabled=false should print nothing and exit 0 (rc=$RC_PG out=$OUT_PG)"
+  fi
+  for v in __unset__ true; do
+    label="powershell_format_enabled=$v"
+    [[ "$v" == "__unset__" ]] && label="powershell_format_enabled unset"
+    OUT_PG=$(run_probe "$v")
+    RC_PG=$?
+    if [[ $RC_PG -eq 0 && "$OUT_PG" == *"$MF_NAME"* && "$OUT_PG" == *"$MF_CHECK"* && "$OUT_PG" == *"$MF_INSTALL"* ]]; then
+      ok "probe-gate: $label -> notice names $MF_NAME, $MF_CHECK and the install line"
+    else
+      fail "probe-gate: $label should print the missing-pwsh notice (rc=$RC_PG out=$OUT_PG)"
+    fi
+  done
+  rm -rf "${PG_WORK:?}"
+fi
+
 # ============================================================================
 # Behavioral cases — require a real pwsh + PSScriptAnalyzer module
 # ============================================================================
@@ -984,7 +1060,6 @@ rm -f "$TELS"
 # The command must be the plugin's own script by either quoting placement,
 # with no prefix, suffix or argument. What this does not reach is a
 # registration outside hooks/hooks.json.
-HOOKS_JSON="$HOOK_DIR/hooks.json"
 BEGIN_LINE="$(awk '
   /^hook::begin[[:space:]]/ {
     line = $0
@@ -1004,7 +1079,7 @@ EXPECTED_IF="$(printf '%s\n' "$SCRIPT_EXTS" | sed 's/.*/Edit(&)/' | tr '\n' ' ')
 EXPECTED_IF="${EXPECTED_IF% }"
 EXPECTED_COUNT="$(printf '%s\n' "$SCRIPT_EXTS" | grep -c .)"
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "$EXPECTED_COUNT" -gt 0 ]]; then
-  HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
+  HANDLERS="$(jq -c '[.hooks | del(.SessionStart) | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
