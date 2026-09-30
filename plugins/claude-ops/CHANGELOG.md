@@ -23,6 +23,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`context/repo-surfaces.md` is an examples spoke**: per-class examples of what an item changes,
   not a checklist. A class the script does not print does not exist in the repo.
 
+## [0.72.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.72.0] - 2026-09-30
 
 ### Changed
