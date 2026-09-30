@@ -122,8 +122,8 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   note naming `hook_python` and `data_root`, resolved by the guard's own code; use both from the
   first call. Only when the note is absent, submit the probe once with bare `python`: the guard
   denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
-  take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value. A `data_root` of
-  `none` in the note or `null` from the probe means the install layout proved no data root, so the
+  take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value.
+  A `data_root` of `none` in the note or `null` from the probe means the install layout proved no data root, so the
   guard denies every engine call: report the audit as not run, relay the recovery the guard's
   denial names, and submit no engine call. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
   in `hygiene.py`, the floor's single origin), stop with the declared prerequisite instead of
