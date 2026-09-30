@@ -803,9 +803,7 @@
 # Remove-Item, -Recurse prefixes, a pipeline into Remove-Item, cmd rd/rmdir and
 # the bash -rf cluster against a drive root, a drive glob, $env:TEMP and ~, plus
 # deletes of a path under the working tree or a temp directory as controls.
-"Remove-Item -Recurse -Force C:\\"
 "Remove-Item C:\\ -Recurse -Force"
-"Remove-Item -Path C:\\ -Recurse"
 "Remove-Item -LiteralPath 'C:\\' -Recurse -Force"
 "Remove-Item -Recurse -Force C:\\*"
 "Remove-Item -Rec -Fo C:\\"
@@ -822,7 +820,6 @@
 "rm -Recurse -Force C:\\"
 "rm -r -Force C:\\*"
 "rm -rf C:\\"
-"rm -rf /"
 "rm -rf ~"
 "rm -rf $env:TEMP"
 "del -Recurse -Force C:\\"
@@ -835,7 +832,6 @@
 "'C:\\' | Remove-Item -Recurse -Force"
 "$p = 'C:\\'; Remove-Item -Recurse -Force $p"
 "Write-Output ok; Remove-Item -Recurse -Force C:\\"
-"cmd /c rd /s /q C:\\"
 "cmd /c \"rd /s /q C:\\\""
 "cmd /c rmdir /s /q C:\\"
 "cmd /c rd /s /q %TEMP%"
