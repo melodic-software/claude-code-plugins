@@ -1,5 +1,13 @@
 # Changelog: discovery plugin
 
+## [0.25.15] - 2026-09-30
+
+### Fixed
+
+- **`research` at `breadth=low` spends fewer turns.** Evidence gathering is capped for a single
+  folder or topic, and the verifier-fail rework resume is bounded, so a low-breadth run no longer
+  makes dozens of tool calls. Eval 27 and the envelope lines still pass.
+
 ## [0.25.14] - 2026-09-30
 
 ### Fixed
