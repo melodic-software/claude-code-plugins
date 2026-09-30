@@ -9,11 +9,13 @@
 #    or fork successor, its adopted predecessors) wrote.
 # 3. Keys with a verdict are ready; keys a live background job or lock holds
 #    are waited on; the rest are judged now, one run per file in parallel, at
-#    most 10 keys per Stop. Keys past that cap, and keys the deadline left
-#    unjudged, are handed to a detached test-judge-bg.sh job just before
-#    returning, and a job that dies leaves its keys to the next task end. Every
-#    wait (slot, run, job) ends at TEST_JUDGE_TIMEOUT (default 180 s, below the
-#    hooks.json timeout of 240 s), so the hook returns within about 2 s of it.
+#    most 10 keys per Stop. Keys past that cap, and keys this Stop's own run
+#    had not finished at the deadline, are handed to a detached
+#    test-judge-bg.sh job just before returning; that job waits for a dying
+#    run's lock, and a job that dies leaves its keys to the next task end.
+#    Every wait (slot, run, job) ends at TEST_JUDGE_TIMEOUT (default 180 s,
+#    below the hooks.json timeout of 240 s), so the hook returns within about
+#    2 s of it.
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
 #    fixed template. Either way a systemMessage carries the counts and path.
@@ -81,7 +83,7 @@ began=$NOW
 deadline=$((NOW + ${TEST_JUDGE_TIMEOUT:-180}))
 judge::harvest_orphans
 judge::load
-KF=() KH=() KR=() KFILE=() ST=() HINTS=()
+KF=() KH=() KR=() KFILE=() ST=() HINTS=() RUNPID=()
 for fx in "${!INFOS[@]}"; do
   judge::derive "${INFOS[$fx]}"
   HINTS[fx]="$HINT"
@@ -162,6 +164,7 @@ start() {
     ((${#ids[@]})) || continue
     planned=$((planned + 1))
     judge_now "$fx" "${ids[@]}" </dev/null >/dev/null 2>&1 3>&- &
+    for i in "${ids[@]}"; do RUNPID[i]=$!; done
   done
 }
 start
@@ -190,7 +193,11 @@ while [[ -n "$(jobs -rp)" ]]; do
   sleep 0.2
 done
 
-relay="" marks=() waiting=() late=() failed=() notrun=() limit=()
+# Lateness is decided here, from the deadline: a key this Stop's own run has
+# not finished judging (its subshell still alive, or done after the deadline)
+# is late, and goes to a background job with the overflow. "Still judging" is
+# kept for keys another process's live job or lock holds.
+relay="" marks=() waiting=() late=() over=() failed=() notrun=() limit=()
 for i in "${!KH[@]}"; do
   if judge::verdict "${KH[$i]}"; then
     relay+="$(judge::validate "$VERDICT")"$'\n'
@@ -200,10 +207,13 @@ for i in "${!KH[@]}"; do
   elif (($(judge::attempts "${KH[$i]}") >= 2)); then
     notrun+=("$i")
     marks+=("$SID/${KH[$i]}")
-  elif [[ "${ST[$i]}" == late || -e "$LATE/$i" ]]; then
+  elif [[ "${ST[$i]}" == late || -e "$LATE/$i" ]] ||
+    { [[ "${ST[$i]}" == run ]] && kill -0 "${RUNPID[$i]}" 2>/dev/null; }; then
     ST[i]=over
     late+=("$i")
-  elif [[ "${ST[$i]}" == over ]] || judge::busy "${KFILE[$i]}" "${KH[$i]}"; then
+  elif [[ "${ST[$i]}" == over ]]; then
+    over+=("$i")
+  elif judge::busy "${KFILE[$i]}" "${KH[$i]}"; then
     waiting+=("$i")
   else
     failed+=("$i")
@@ -243,6 +253,7 @@ for m in ${marks[@]+"${marks[@]}"}; do
 done
 judge::now
 ((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(labels "${waiting[@]}"); the verdicts are shown at the next task end."
+((${#over[@]} == 0)) || msg+="${msg:+$'\n'}test judge: past the 10 tests one task end judges: $(labels "${over[@]}"); a background job judges them and the verdicts are shown at the next task end."
 ((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged in $((NOW - began)) s: $(labels "${late[@]}"); a background job judges them and the verdicts are shown at the next task end."
 ((${#failed[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the judge failed for $(labels "${failed[@]}"); the next task end tries again."
 ((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: judge not run for $(labels "${notrun[@]}") after 2 failed attempts; see $JUDGE_LOG."

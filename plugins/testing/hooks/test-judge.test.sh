@@ -226,6 +226,36 @@ rm -f "$DATA/slots/"*
 stop_jobs s8b
 wait
 
+# A judge that ignores TERM is still running at the deadline: its key is late,
+# not "still judging". The hook returns within the bound plus the KILL grace
+# and hands the key to a background job, which waits for the dying run's lock
+# and then judges it.
+cat >"$TMP/term-stub.sh" <<'EOF'
+#!/usr/bin/env bash
+trap '' TERM
+printf x >"$STUB_DIR/call-term-$$.args"
+end=$((SECONDS + 8))
+while ((SECONDS < end)); do sleep 0.2; done
+echo '{"type":"result","subtype":"success","is_error":false,"result":"{\"verdicts\":[]}"}'
+EOF
+chmod +x "$TMP/term-stub.sh"
+transcript s8c claude-sonnet-5
+T3="$REPO/src/termdeaf.test.ts"
+js_file "$T3" termdeaf
+record s8c w1 "$T3" null
+t0=$EPOCHREALTIME
+TEST_JUDGE_CMD="$TMP/term-stub.sh" TEST_JUDGE_TIMEOUT=4 stop s8c
+t1=$EPOCHREALTIME
+elapsed=$(((${t1/./} - ${t0/./}) / 1000))
+check "a TERM-deaf judge: the hook returns within the bound plus the KILL grace (${elapsed} ms <= 10000)" '((elapsed <= 10000 && rc == 0))'
+p="$(find "$DATA/pending/$PKEY/s8c" -type f | head -1)"
+check "its key gets a pending/ marker and a live background job" '[[ -n "$p" ]] && kill -0 "$(head -1 "$p" | cut -d" " -f1)" 2>/dev/null'
+assert_not_contains "the message does not call this Stop's own late run still judging" "$(field .systemMessage)" "still judging"
+assert_contains "the message names the key as not judged in time" "$(field .systemMessage)" "termdeaf.test.ts: termdeaf"
+stop_jobs s8c
+pkill -f "$TMP/term-stub.sh"
+wait
+
 # Two failed attempts: "judge not run", and no third attempt.
 transcript s9 claude-sonnet-5
 X="$REPO/src/failing.test.ts"

@@ -261,6 +261,30 @@ bg s1 w15 "$REPO/src/math.test.sh"
 assert_contains "a bash harness is one key" "$(stub_args 1)" "block 1 1-4 math.test.sh"
 assert_contains "its changed lines travel as a hint" "$(stub_args 1)" "a hint to where the new tests are: 3,4"
 
+# A job the Stop hook hands a late key to waits for the lock the Stop's dying
+# run still holds, then judges the key; a write-time job does not wait.
+stub_reset
+Hd="$REPO/src/handoff.test.ts"
+js_file "$Hd" handoff
+record s1 w-hand "$Hd" "$(blocks handoff:1:3:5)"
+STUB_MODE=fail bg s1 w-hand0 "$Hd"
+kh="$(grep -l 'judge exited' "$DATA/attempts/"* | xargs ls -t | head -1)" && kh="${kh##*/}"
+rm -f "$DATA/attempts/$kh"
+sleep 20 &
+dying=$!
+printf '%s %s %s\n' "$dying" "${HOSTNAME:-localhost}" "$(date +%s)" >"$DATA/locks/$kh"
+stub_reset
+payload s1 w-hand-bg "$Hd" | bash "$HOOK"
+check "a write-time job skips a key another live run holds" '[[ "$(stub_calls)" == 0 ]]'
+(
+  sleep 1.5
+  rm -f "$DATA/locks/$kh"
+) &
+payload s1 stop-hand "$Hd" | TEST_JUDGE_HANDOFF=1 bash "$HOOK"
+kill "$dying" 2>/dev/null
+check "a handoff job waits for the held lock, then judges the key" '[[ "$(stub_calls)" == 1 && -n "$(verdict_of s1 handoff)" ]]'
+wait
+
 # TEST_JUDGE_ACTIVE=1 (inside a judge run) exits at once.
 stub_reset
 record s1 w16 "$REPO/src/cap1.test.ts" null

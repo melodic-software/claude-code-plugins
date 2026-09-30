@@ -232,6 +232,19 @@ judge::lock() {
   judge::mark "$l"
 }
 
+# judge::wait_lock <key-hash>: wait while a live holder keeps the key's lock,
+# until it is released or goes stale (at most JUDGE_STALE seconds).
+judge::wait_lock() {
+  local l="$DATA/locks/$1" until
+  judge::now
+  until=$((NOW + JUDGE_STALE))
+  while [[ -e "$l" ]] && ! judge::stale "$l" "$JUDGE_STALE"; do
+    judge::now
+    ((NOW < until)) || return 1
+    sleep 1
+  done
+}
+
 # judge::slot <deadline>: take one of the machine's judge slots, waiting until
 # the deadline; sets SLOT.
 judge::slot() {

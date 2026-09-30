@@ -79,10 +79,17 @@ while read -r kh rest; do
   [[ -n "$kh" ]] || continue
   judge::verdict "$kh" && continue
   (($(judge::attempts "$kh") < 2)) || continue
-  judge::lock "$kh" || continue
+  # A write-time job leaves a held key to its holder. A job the Stop hook
+  # handed a late key waits for the Stop's own dying run to let go of it.
+  if ! judge::lock "$kh"; then
+    [[ -n "${TEST_JUDGE_HANDOFF:-}" ]] || continue
+    judge::wait_lock "$kh" || continue
+    judge::lock "$kh" || continue
+  fi
   HELD+=("$DATA/locks/$kh")
-  # Another holder may have finished between the check and the lock.
+  # Another holder may have finished, or failed, between the check and the lock.
   judge::verdict "$kh" && continue
+  (($(judge::attempts "$kh") < 2)) || continue
   keys+="$kh $rest"$'\n'
 done <<<"$KEYS"
 [[ -n "$keys" ]] && judge::runs_left || exit 0
