@@ -3,7 +3,7 @@ name: doc-drift-detector
 description: "Documentation freshness and accuracy specialist. Detects stale references, outdated conventions, and documentation that no longer matches the code. Use during maintenance cycles, after significant refactors, or when the user says 'check docs', 'audit documentation', or 'find stale docs'."
 tools: "Read, Grep, Glob, Bash"
 model: sonnet
-effort: high
+effort: medium
 maxTurns: 30
 memory: local
 ---
