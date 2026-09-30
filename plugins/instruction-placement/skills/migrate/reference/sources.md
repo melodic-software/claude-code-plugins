@@ -280,7 +280,7 @@ historical ten on #4281 were not graded. Nothing was removed. #5163 stays open.
   2026-09-30, HTTP 200, mentions `AGENTS.md`). Neither page states the loader semantics above,
   which is why they are recorded as observed. Muse Code: no public documentation or issue
   tracker was found, so its results rest on the recipe alone.
-- **As of**: 2026-09-29.
+- **As of**: 2026-09-30.
 - **Recheck trigger**: a new release of any of the three tools, a host that can run the
   editor, a Team plan, a Windows host, or `strace`, which would settle the open bullets, either
   upstream page stating loader behavior, or any change to the recipe in
