@@ -3405,15 +3405,20 @@ class HygieneTests(unittest.TestCase):
                 hygiene, "linux_mount_points", return_value=(set(), None)
             ):
                 ordinary = hygiene.scan_tree(target, policy)
-                with (
-                    mock.patch.object(
-                        hygiene, "matching_hints", side_effect=AssertionError
-                    ),
-                    mock.patch.object(
-                        hygiene, "annotate_tracked", side_effect=AssertionError
-                    ),
+                # Each of these consumes a retained entry list, so none may run
+                # on the sizes-only walk.
+                for name in (
+                    "matching_hints",
+                    "annotate_tracked",
+                    "children_rollup",
+                    "reclaimable_local_bytes",
+                    "empty_directory_count",
+                    "empty_file_count",
                 ):
-                    sizes = hygiene.scan_tree(target, policy, sizes_only=True)
+                    self.enterContext(
+                        mock.patch.object(hygiene, name, side_effect=AssertionError)
+                    )
+                sizes = hygiene.scan_tree(target, policy, sizes_only=True)
             self.assertNotEqual([], ordinary["entries"])
             self.assertEqual([], sizes["entries"])
             self.assertEqual("exact", sizes["rollup_precision"])
