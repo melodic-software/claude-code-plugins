@@ -141,6 +141,16 @@ scripts/context-zone.test.sh
 # audit's cluster.
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
+# Dedicated check: scripts/sync-fetch-docs.sh --check (CI: Verify fetch-docs
+# copies match the canonical fetcher). Canonical: lib/fetch-docs.sh. The
+# claude-config and claude-ops plugins each carry a copy because a plugin cache
+# cannot see the repo-root canonical.
+scripts/fetch-docs.sh
+
+# Dedicated check: scripts/sync-fetch-docs.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/fetch-docs.sh -> plugins/*/scripts/fetch-docs.sh
+
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill
 # keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what

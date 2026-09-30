@@ -33,6 +33,15 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
   for `apply`, or that the engine removes only snapshot entries.
 
+## [0.34.1] - 2026-09-30
+
+### Fixed
+
+- **The manual-lane handoff says not to empty the bin after a recycle**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Step 2 of the
+  gated manual lane now says not to empty the Recycle Bin or Trash after a recycle: emptying it
+  would make any recycled removal permanent and is the container-wide operation step 3 forbids.
+
 ## [0.34.0] - 2026-09-30
 
 ### Added
