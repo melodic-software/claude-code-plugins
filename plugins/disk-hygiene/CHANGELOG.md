@@ -3,8 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-<<<<<<< HEAD
-## [0.31.1] - 2026-09-30
+## [0.32.1] - 2026-09-30
 
 ### Fixed
 
@@ -14,8 +13,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
   optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
   tokens, and states that `--project-dir` is optional.
-||||||| 023026f4c
-=======
+
 ## [0.32.0] - 2026-09-30
 
 ### Added
@@ -41,7 +39,6 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#5517](https://github.com/melodic-software/claude-code-plugins/issues/5517)). The error now lists
   the top five top-level children by entry count so far, marks the one still being walked as a lower
   bound, and points at `--sizes-only` and then `--root-children --root-child <name>` or `--max-depth`.
->>>>>>> origin/main
 
 ## [0.31.0] - 2026-09-30
 
