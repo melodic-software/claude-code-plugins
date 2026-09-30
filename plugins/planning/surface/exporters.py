@@ -69,6 +69,8 @@ from server import (
 ARBITER_USER = "**arbiter: USER-RESERVED**"
 ARBITER_PLAN = "**arbiter: /planning:plan**"
 SEED_NOTE = "Seeded from ledger"
+# The note an accept made by an accept-audit event exports with (schema/event.schema.json).
+PENDING_NOTE = "pending agent validation"
 ROW = re.compile(r"^\s*-\s+[Qq]([0-9]+)\s*\|(.*)$")
 LEAD = re.compile(r"^\[([^\]\s]+)\]\s*(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
@@ -470,6 +472,16 @@ def latest_decision(q, responses):
     return newest_decision(q, responses, aside=False)
 
 
+def pending_validation(rec, events):
+    """rec, carrying the pending-validation note when it is the accept an accept-audit made:
+    the page decision it came from is an accept event with `auditSeq`. Any later decision, or a
+    terminal answer, carries another seq (or none) and reads as its own."""
+    src = next((e for e in events if e.get("seq") == rec.get("seq")), None)
+    if rec.get("decision") == "accept" and src and "auditSeq" in src:
+        return {**rec, "text": PENDING_NOTE}
+    return rec
+
+
 def commitments(q, events):
     """(confirmed, unconfirmed) commitment texts; a live `confirm` event ticks one by index, and
     so does a `commitsConfirmed` record from the confirm-commitments op. A confirm event at or
@@ -535,6 +547,7 @@ def settle(q, responses, events, seed_rows):
         # The resolution stays the seed's own, so a re-import reads the same proposal back.
         return "superseded-by-plan", seed_resolution(seed, confirmed), text, False
     if decision in ("accept", "alt", "own", "defer"):
+        rec = pending_validation(rec, events)
         return (*answer_row(q, rec, confirmed), text, decision == "defer")
     if superseded:
         # A set-aside decision leaves the plan's proposal waiting on the user again.

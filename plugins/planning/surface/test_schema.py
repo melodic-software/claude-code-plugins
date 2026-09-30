@@ -147,6 +147,25 @@ class TestShippedSchemas(unittest.TestCase):
         }
         self.assertIsNone(schema.first_error(e, schema.load("event")))
 
+    def test_accept_audit_event_and_the_accept_it_fans_out(self):
+        s = schema.load("event")
+        audit = {
+            "seq": 1,
+            "id": None,
+            "kind": "accept-audit",
+            "alt": "1",
+            "text": "",
+            "at": "t",
+            "items": [{"id": "Q1", "contentRev": 0}],
+        }
+        self.assertIsNone(schema.first_error(audit, s))
+        accept = {"seq": 2, "id": "Q1", "kind": "accept", "at": "t", "auditSeq": 1}
+        self.assertIsNone(schema.first_error(accept, s))
+        extra = {**audit, "items": [{"id": "Q1", "contentRev": 0, "note": "x"}]}
+        self.assertIn("unexpected property 'note'", schema.first_error(extra, s))
+        missing = {**audit, "items": [{"id": "Q1"}]}
+        self.assertIn("missing required 'contentRev'", schema.first_error(missing, s))
+
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         q = doc["questions"][0]
