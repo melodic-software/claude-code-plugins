@@ -26,15 +26,12 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$HOOK_DIR/rewrite-guard.sh"
 
 # Every arm exits through hook::finish: telemetry first, then the one JSON
 # document. `--id` because the telemetry hook id is the script's name, not the
 # `actionlint` label the skip notices carry. This hook never rewrites the file,
 # so no verdict is passed and the builder leaves the `changed` key off rather
-# than guessing one. rewrite-guard.sh is sourced only for
-# hook::gitignored_out_of_scope (#4671).
+# than guessing one.
 #
 # The whole prologue: the start stamp, the buffered payload, the workflow-file
 # filter (applied before the jq gate on the raw payload text, so a non-workflow
@@ -67,7 +64,7 @@ fi
 # (renewed every eighth skip) on both channels (agent + user). Telemetry (opt-in) also records a
 # "skipped" status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
-  if hook::notice_once "actionlint-missing" "$INPUT" prerequisite; then
+  if hook::notice_once "actionlint-actionlint" "$INPUT" prerequisite; then
     AL_NOTICE=""
     hook::tool_missing_notice_to AL_NOTICE \
       "actionlint: 'actionlint' was not found on this hook's PATH — workflow lint skipped for this edit" \

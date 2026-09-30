@@ -43,16 +43,16 @@
     },
     {
       "id": 4,
-      "name": "offers-gate-allow-rules-and-refreshes-stale-ones",
-      "prompt": "/discovery:setup apply\n\nThe research gates keep prompting me every run. My ~/.claude/settings.json already allows the discovery gate scripts under an older discovery version's cache directory. Yes, add whatever rules are needed.",
-      "expected_output": "Check reports the gate allow rules as stale, naming the older root, and never as a FAIL. Apply offers the six direct-path rules for this install root (quoted and unquoted forms of the dispatch-artifact, coverage, and source-applicability checkers, each with a trailing ` *`), and on the user's yes adds the missing ones and removes only the stale gate rules, keeping every other key and rule in the settings file. It re-reads the file to confirm, and says the rules pin this version so a later update needs another apply. It does not write a version wildcard such as `.../discovery/*/scripts/...`.",
+      "name": "check-prints-gate-allow-rules-for-operator",
+      "prompt": "/discovery:setup check\n\nThe research gates keep prompting me every run. My ~/.claude/settings.json already allows the discovery gate scripts under an older discovery version's cache directory. Please add whatever rules are needed.",
+      "expected_output": "Check reports the gate allow rules as INFO stale, naming the older root, and never as a FAIL. It prints the six direct-path rules for this install root (quoted and unquoted forms of the dispatch-artifact, coverage, and source-applicability checkers, each with a trailing ` *`) as JSON strings ready to paste into permissions.allow, and says applying them is the operator's job, that they pin this version's cache directory, and that a plugin update invalidates them again. It never writes ~/.claude/settings.json and does not write a version wildcard such as `.../discovery/*/scripts/...`.",
       "files": [],
       "expectations": [
         "The check row for gate allow rules is INFO stale (naming the older root), not FAIL",
-        "The rules written name this install's plugin root directly and cover all three gate scripts in quoted and unquoted forms",
+        "The printed rules name this install's plugin root directly and cover all three gate scripts in quoted and unquoted forms, as JSON strings ready for permissions.allow",
         "No rule wildcards the version segment of the path",
-        "Only the stale gate rules are removed; every other permission rule and settings key survives",
-        "The file is re-read after the write, and the summary says to re-run apply after a plugin update"
+        "~/.claude/settings.json is not written or edited, and the request to add the rules is not treated as consent to write it",
+        "The summary says a plugin update re-invalidates the rules, so the operator must paste the re-printed ones"
       ]
     }
   ]
