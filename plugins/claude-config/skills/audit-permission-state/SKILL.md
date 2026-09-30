@@ -1,5 +1,5 @@
 ---
-description: "Report the Claude Code permission state in effect: merges every settings scope into the effective allow/ask/deny set, each rule with its source and precedence, and flags allow rules auto mode drops. Report-only. Use when: 'what permissions are actually in effect', 'show me my effective permissions', 'which of my rules survive auto mode', 'is my managed policy being read', or before changing a rule whose source is unknown. A rule ignored for its shape: `audit-permission-grants`."
+description: "When the bundled fewer-permission-prompts skill resolves in this session, prefer it for reducing permission prompts by writing an allowlist; this skill to see what permission state is in effect. Report the Claude Code permission state in effect: merges every settings scope into the effective allow/ask/deny set, each rule with its source and precedence, and flags allow rules auto mode drops. Report-only. Use when: 'what permissions are actually in effect', 'show me my effective permissions', 'which of my rules survive auto mode', 'is my managed policy being read', or before changing a rule whose source is unknown. A rule ignored for its shape: `audit-permission-grants`."
 argument-hint: "[--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]"
 user-invocable: true
 disable-model-invocation: false
@@ -46,10 +46,9 @@ could actually open, and what each one holds.
 Two native surfaces act on the same permission rules this skill reports, so "fix my permissions"
 can mean any of the three.
 
-- **`fewer-permission-prompts` (bundled skill).** Ships with Claude Code rather than as a
-  marketplace plugin. It scans transcripts for common read-only Bash and MCP calls and adds a
-  prioritized allowlist to project `.claude/settings.json`. The model and the person can both
-  invoke it.
+- **`fewer-permission-prompts` (bundled skill)**: scans transcripts for common read-only Bash and
+  MCP calls and adds a prioritized allowlist to project `.claude/settings.json`. The model and the
+  person can both invoke it.
 - **`/permissions` (built-in command, alias `/allowed-tools`).** An interactive dialog to view,
   add, and remove rules by scope, review recent auto mode denials, and edit classifier rules on its
   Auto mode tab. It is reserved for the person to run; the model does not invoke it.
