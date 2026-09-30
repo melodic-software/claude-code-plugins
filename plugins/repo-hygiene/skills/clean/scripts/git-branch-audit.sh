@@ -81,7 +81,7 @@
 #
 # MAIN CHECKOUT. Before the branch records, `MainCheckout:` names what the audit
 # runs from: the branch or `detached at <short sha>`, then `MainCheckoutDirty:`
-# (the `git status --porcelain` line count) and one `MainCheckoutOperation:
+# (the `git status --porcelain --untracked-files=all` line count) and one `MainCheckoutOperation:
 # <name> <path>` per in-progress operation (MERGE_HEAD, rebase-merge,
 # rebase-apply, CHERRY_PICK_HEAD, REVERT_HEAD, BISECT_LOG). An operation in
 # progress means the checkout is mid-change, so no branch is offered as deletable:
@@ -311,7 +311,7 @@ fi
 MAIN_HEAD_LINE="$CURRENT_BRANCH"
 [[ -n "$MAIN_HEAD_LINE" ]] || MAIN_HEAD_LINE="detached at $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null | tr -d '\r')"
 printf 'MainCheckout: %s\n' "$MAIN_HEAD_LINE"
-printf 'MainCheckoutDirty: %s\n' "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' \r')"
+printf 'MainCheckoutDirty: %s\n' "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all 2>/dev/null | wc -l | tr -d ' \r')"
 OP_PATH=""
 for op_name in MERGE_HEAD rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD BISECT_LOG; do
   op_file="$(git -C "$REPO_ROOT" rev-parse --path-format=absolute --git-path "$op_name" 2>/dev/null | tr -d '\r')"

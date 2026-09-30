@@ -312,10 +312,13 @@ git -C "$CM" commit -qam feat-side
 git -C "$CM" checkout -q main
 git -C "$CM" merge feat/conflict >/dev/null 2>&1 || true
 echo scratch >"$CM/untracked"
+mkdir "$CM/newdir"
+echo a >"$CM/newdir/a"
+echo b >"$CM/newdir/b"
 cm_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$CM' && bash '$AUDIT'")"
 check_facts "conflicted-merge repo" "$CM" "$cm_out"
 assert_contains "conflicted merge is named in the MainCheckout block" "$cm_out" "MainCheckoutOperation: MERGE_HEAD "
-assert_contains "dirty count covers the conflicted and untracked files" "$cm_out" "MainCheckoutDirty: 2"
+assert_contains "dirty count covers the conflicted file, an untracked file and each file in an untracked directory" "$cm_out" "MainCheckoutDirty: 4"
 assert_not_contains "no SAFE tier mid-merge" "$cm_out" "Tier: SAFE"
 assert_not_contains "no LIKELY-SAFE tier mid-merge" "$cm_out" "Tier: LIKELY-SAFE"
 assert_not_contains "no LOSSY tier mid-merge" "$cm_out" "Tier: LOSSY"
