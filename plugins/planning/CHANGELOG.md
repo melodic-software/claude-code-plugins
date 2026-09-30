@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.9] - 2026-09-29
+## [0.47.10] - 2026-09-29
 
 ### Fixed
 
 - **`export-brief` carries the acceptance criteria from the latest confirmed `restate`.** A restatement whose newest `confirm-understanding` event is `off`, or that has none, exports no criteria. The `### Acceptance criteria` section listed "none recorded in the interview surface" even when the restated `acceptance` section held criteria; each restated line now becomes one plain bullet, with list and checkbox markers and any heading or fence syntax neutralized. The interview wrap-up step no longer tells the session to hand-merge them ([#5461](https://github.com/melodic-software/claude-code-plugins/issues/5461)).
+
+## [0.47.9] - 2026-09-29
+
+### Changed
+
+- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a reviewer return with neither its `### Summary` section nor `No plan gaps found.` as incomplete, whether or not the client marked it partial ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
 
 ## [0.47.8] - 2026-09-29
 
