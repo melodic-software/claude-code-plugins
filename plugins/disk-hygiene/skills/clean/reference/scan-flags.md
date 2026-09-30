@@ -1,7 +1,7 @@
 # Scan flag detail
 
 Flag-by-flag behavior of the `scan` flags `--quiet`, `--root-children` with `--root-child`, and
-`--sizes-only` for `/disk-hygiene:clean`. The parse contract, the rejection rules, and the
+`--sizes-only`, plus the inventory flag `--deep`, for `/disk-hygiene:clean`. The parse contract, the rejection rules, and the
 confirmation gate stay in [SKILL.md](../SKILL.md#arguments-and-boundaries).
 
 ## `--quiet`
@@ -28,6 +28,30 @@ volume-OS-named directories stay selectable so approved home children can be nam
 more explicit `--root-child <name>` flags, after the human clears the confirmation gate's
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection.
+
+## `--deep`
+
+`--deep` selects the deep mode of the read-only `inventory` subcommand: every level of the target
+is listed with bottom-up directory sizes instead of only its immediate children. It is the default
+when the target is the user's home directory, so the flag matters for any other target. It is not a
+`scan` flag: it takes no `--max-depth`, snapshot or entry cap, and it produces a JSONL report that
+`preview` and `apply` refuse. The `KEEP` reason rule and the unchanged gates:
+[SKILL.md](../SKILL.md#deep-inventory).
+
+Rows stream to `<data-root>/inventory/inventory-<stamp>.jsonl` with no entry cap, beside a `.json`
+summary (`deep-inventory-report`; status `inventory-failed` and exit 5 when the validator rejects a
+row). The shared listing schema is defined in `scripts/deep_inventory.py`: one row per entry with
+the columns `name`, `ext`, `size`, `mtime`, `owner`, `producer`, `category`, `disposition`
+(`KEEP`, `CANDIDATE`, `UNKNOWN`), `reason`, and `evidence`. A directory's `size` is the sum of the
+files beneath it. Named categories: `superseded-version` (dotted versioned directories),
+`plugin-cache-version` (cache versions no installed plugin references), `tmp-producer` (`/tmp`
+entries by producer prefix), `transcript-dir` (project transcript directories whose source path is
+gone), `dangling-symlink`, and `not-walked` (an unreadable or mounted subtree, one `UNKNOWN` row).
+Every other entry is `unclassified`. Other read-only listings that need the same columns reuse this
+schema instead of defining their own
+([#5214](https://github.com/melodic-software/claude-code-plugins/issues/5214),
+[#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)); their scope stays
+their own.
 
 ## `--sizes-only`
 

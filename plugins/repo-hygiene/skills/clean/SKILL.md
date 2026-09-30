@@ -79,6 +79,8 @@ contains git. The dated record for that composition claim is the `source-control
 
 Return the repo toward a known-good state. **Selective tiers** (`scan`, `caches`, `build`, `git`, `all`) remove *artifacts* while preserving secrets, runtime deps, and skill data. **`tree`** is the destructive tier. `reset --hard` + `clean -fdx`, but **safe-by-default**: it preserves the same secrets / runtime-deps / skill-data classes unless you opt in via `--include-deps` / `--include-secrets`.
 
+Machine-level listing (a whole home directory, not one repository) is `/disk-hygiene:clean` deep mode; this skill adds no scanner for it.
+
 Bare invocation never mutates silently: resolve intent → dry-run → user confirmation → `--apply`. Full menu, aliases, and confirmation matrix: [context/action-router.md](context/action-router.md).
 
 Bundled-script invocation uses two deliberate forms. Paired `${CLAUDE_SKILL_DIR}` in this file (matches `allowed-tools`) and interpreter-led `${CLAUDE_PLUGIN_ROOT}` in routed `context/*.md` detail files. Rationale: [reference/invocation-forms.md](reference/invocation-forms.md).

@@ -1,6 +1,6 @@
 ---
 description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default and manual-only. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
-argument-hint: "[--execute] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>"
+argument-hint: "[--execute] [--deep] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>"
 user-invocable: true
 disable-model-invocation: true
 hooks:
@@ -27,7 +27,7 @@ metadata:
   summary: Audit a directory tree for stale leftovers and remove validated paths
 ---
 
-**Arguments.** `[--execute] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>`. Full form: `[--execute] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>`
+**Arguments.** `[--execute] [--deep] [--max-depth <N>] [--sizes-only] [--policy <file>] [options] <target-directory>`. Full form: `[--execute] [--deep] [--policy <policy.json>] [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] [--root-children [--root-child <name>]...] <target-directory>`
 
 # Disk hygiene
 
@@ -41,8 +41,7 @@ optional execution lane.
 
 ## Arguments and boundaries
 
-Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional
-`--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
+Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional `--deep` ([deep inventory](#deep-inventory)), optional `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--quiet`, optional `--root-children` with zero or more `--root-child <name>`, and one target
 directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
 `--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and
@@ -157,6 +156,27 @@ naming what the question never presented cannot be met.
 `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only,
 and has no entry cap. Detail:
 [scan-flags.md](reference/scan-flags.md#--sizes-only).
+
+## Deep inventory
+
+`--deep` runs the read-only `inventory` subcommand (`hygiene.py inventory --target <target>
+--data-root <data-root> [--deep]`, the Bash-lane shape listed in Gotchas). It is the default when
+the target is the user's home directory and is forced elsewhere with `--deep`; without either, only
+the target's immediate children are listed. It runs only in an attended session and only reports:
+it never deletes, prepares an approval, or produces a snapshot or plan, and `preview` refuses its
+output. It asks no question, so it passes no confirmation-gate row. The row columns, named
+categories, and shared schema are in [scan-flags.md](reference/scan-flags.md#--deep).
+
+Every `KEEP` row needs a specific reason: who produced the entry and what still uses it. The
+validator fails an empty reason and a reason that is only a category phrase ("tool-managed",
+"OS-owned", "managed by <tool>") unless `evidence` shows the named tool still references the
+entry. Present the report grouped by category, `CANDIDATE` rows first, and report `UNKNOWN` rows as
+coverage gaps.
+
+Nothing else in this skill changes: `--execute` still means only that deletion may be offered, a
+`CANDIDATE` row is a finding and not a tier, the tiers and the low-signal rule in §3 decide what
+may be offered, and removal still needs `scan`, a fresh `preview`, and the confirmation gate's
+removal row.
 
 ## 1. Create a read-only snapshot
 

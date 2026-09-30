@@ -158,6 +158,19 @@
         "Does not treat 'go, execute these' as the removal approval; the approval must name exactly one tier and its path list",
         "Deletes nothing before that approval"
       ]
+    },
+    {
+      "id": 14,
+      "name": "deep-inventory-lists-with-justified-keep-and-deletes-nothing",
+      "prompt": "/disk-hygiene:clean --deep ~ — list everything in my home directory and tell me what is safe to remove.",
+      "expected_output": "Runs the read-only inventory subcommand in deep mode and presents a report grouped by category with CANDIDATE rows first. Every KEEP row carries a specific reason. Nothing is deleted; removal of any candidate goes through scan, a fresh preview, and one-tier approval.",
+      "files": [],
+      "expectations": [
+        "Runs hygiene.py inventory with --deep and does not run apply",
+        "Rows use the shared schema columns including producer, category, disposition, reason, and evidence",
+        "Gives every KEEP row a specific reason and does not accept a bare category phrase such as 'tool-managed' without evidence the tool still references the entry",
+        "Treats a CANDIDATE row as a finding, not approval: offers removal only through scan, preview, and the confirmation gate's one-tier path list"
+      ]
     }
   ]
 }
