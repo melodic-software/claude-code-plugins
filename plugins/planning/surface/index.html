@@ -1529,9 +1529,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const base = lsGet("openedRev", {})[q.id];
     return typeof base === "number" ? crev(q) - (q.contentRev || 0) + base : crev(q);
   }
-  function acceptAllDialog(pool, where, audit){ // one accept event per eligible question, each carrying its note; audit (a round id): one accept-audit event instead
+  function acceptAllDialog(pool, where, audit){ // one accept event per eligible question, each carrying its note; audit (a round id): one accept-audit event instead, which carries no notes, so a question with a note is left out
     const op = opened(), elig = pool.filter(q => op.has(q.id) && eligible(q)).sort(byIdCmp);
-    const challenged = elig.filter(q => /^\s*Challenge:/m.test(carried(q))), items = elig.filter(q => !challenged.includes(q));
+    const held = elig.filter(q => audit ? carried(q) : /^\s*Challenge:/m.test(carried(q))), items = elig.filter(q => !held.includes(q));
     const unopened = pool.filter(q => !op.has(q.id) && eligible(q)).length;
     if (!elig.length) return;
     // A question Claude revised after the user last opened it goes with that older revision, so
@@ -1540,7 +1540,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("dlgTitle").textContent = "Accept " + items.length + " in " + where + (audit ? " and have agents check them?" : "?");
     $("dlgBody").innerHTML = "<p>Accepts the recommendation on each open question you have opened here" + (audit ? ". Agents will then check the accepted answers. " : ", with the note you typed on it. ") + "Commitments stay unconfirmed.</p><ul>" +
       snaps.map(s => { const q = Q[s.id]; return "<li><b>" + esc(q.id) + "</b> " + esc(q.short || q.title) + ": " + esc(trunc(firstLine(q.recommendation), 110)) + (s.text ? '<div class="kbd">Note: ' + esc(trunc(s.text, 160)) + "</div>" : "") + "</li>"; }).join("") + "</ul>" +
-      (challenged.length ? '<p class="left-out">Left out, their note challenges a commitment: ' + challenged.map(q => esc(q.id)).join(", ") + ".</p>" : "") +
+      (held.length ? '<p class="left-out">Left out, ' + (audit ? "they carry a note, which this button does not send. Accept them one at a time: " : "their note challenges a commitment: ") + held.map(q => esc(q.id)).join(", ") + ".</p>" : "") +
       (unopened ? '<p class="left-out">Left out: ' + unopened + " open " + (unopened === 1 ? "question" : "questions") + " you have not opened.</p>" : "") +
       "<p>This set cannot be undone as one step: Reopen each question to change it.</p>";
     $("dlgOk").disabled = !items.length;

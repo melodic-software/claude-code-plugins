@@ -51,6 +51,12 @@ async page => {
   const auditRound = ab ? await ab.getAttribute("data-auditround") : "";
   ok("audit button appears for a round with an opened recommended question", !!ab && /agents check/.test(ab ? await ab.textContent() : ""));
   if (ab) {
+    // A question carrying a typed note is left out of the audit dialog, which sends no notes
+    await page.fill("#note", "before we lock it in"); await page.waitForTimeout(200);
+    await ab.click(); await page.waitForTimeout(200);
+    ok("audit dialog leaves out a question with a typed note and never shows the note", await page.evaluate(() => { const b = document.getElementById("dlgBody"); const lo = b.querySelector(".left-out"); return document.getElementById("dlg").open && !!lo && /they carry a note/.test(lo.innerText) && /N3/.test(lo.innerText) && ![...b.querySelectorAll("li b")].some(x => x.textContent === "N3") && !/before we lock it in/.test(b.innerText); }));
+    await page.click("#dlgCancel"); await page.waitForTimeout(200);
+    await page.fill("#note", ""); await page.waitForTimeout(200);
     await ab.click(); await page.waitForTimeout(200);
     ok("audit dialog says agents check and commitments stay unconfirmed", await page.evaluate(() => document.getElementById("dlg").open && /Agents will then check/.test(document.getElementById("dlgBody").innerText) && /Commitments stay unconfirmed/.test(document.getElementById("dlgBody").innerText) && document.getElementById("dlgBody").querySelectorAll("li").length > 0));
     const na = (await events()).filter(e => e.kind === "accept-audit").length;

@@ -61,7 +61,7 @@ When the first wake prompts for permission, offer the user one allow rule per co
 
 | `op` | Fields | Use |
 |---|---|---|
-| `handle` | `seqs` | Plain accepts (no new note text), `reopen`, `confirm`, `confirm-understanding` with `confirm`, `undo`, `wrapup`: no reply (R9) |
+| `handle` | `seqs` | Plain accepts (no new note text), `accept-audit` with its fanned-out accepts, `reopen`, `confirm`, `confirm-understanding` with `confirm`, `undo`, `wrapup`: no reply (R9) |
 | `reply` | `id`, `text`, `seq`, `kind` (`reply`, `rephrase`, `note`), `rec` + `why` + `affects`, `handled`, `force` | Answer an ask or rephrase; `rec` revises the recommendation |
 | `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `seq`, `affects`, `force` | Reword a question |
 | `note-reply` | `text`, `seq` | Answer a note in Notes to Claude; with no `seq`, post a closing probe there |
@@ -130,10 +130,10 @@ When the work returns, clear both (`wait` with `"clear": true`, `set-status` wit
 | `undo` | question, `undoSeq` | withdraws `undoSeq` | Drop that decision from the ledger; `handle` both seqs |
 | `wrapup` | none | no | Run [Wrap-up](#wrap-up), then `handle` |
 | `confirm` | question, `alt` is the commitment index | no; ticks one commitment | `handle` |
-| `accept-audit` | none; `alt` is the round id, `items` lists the accepted questions | yes, once per listed question (each has its own `accept` event carrying `auditSeq`) | Record each accepted question, then run `/planning:audit-answers` on the filled ledger. Reply to none of the accepts; the audit returns only the doubtful ones as human questions |
+| `accept-audit` | none; `alt` is the round id, `items` lists the accepted questions | yes, once per listed question (each has its own `accept` event carrying `auditSeq`) | Record each accepted question, `handle` the `accept-audit` seq and every fanned-out accept seq with no reply, then run `/planning:audit-answers` on the filled ledger. The audit returns only the doubtful ones as human questions |
 | `confirm-understanding` | none; `alt` is `confirm` or `off`, `contentRev` is the restatement `rev` | no | `confirm`: the gate passed, `handle`. `off`: `note-reply` to its `text` with its `seq`, see [Confirmation gate](#confirmation-gate) |
 
-"Accept all and have agents check them" arrives as one `accept-audit` event plus its accepts; the page holds no validation logic, so the skill routes the round to `/planning:audit-answers`.
+"Accept all and have agents check them" arrives as one `accept-audit` event plus its accepts; the page holds no validation logic, so the skill routes the round to `/planning:audit-answers`. The page leaves a question that carries a note out of that event, so every fanned-out accept is plain.
 
 An accept whose note conditions the acceptance ("before we lock it in") is recorded as hedged, headline only, per SKILL.md "A hedged reply resolves only the headline". Accept all, per group and per round section in the Rounds view, arrives as one `accept` event per question, each with its own note `text`, usually in one wake; treat each as a single accept.
 

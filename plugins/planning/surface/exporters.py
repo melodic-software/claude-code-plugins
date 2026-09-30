@@ -778,11 +778,10 @@ def loose_ends(rows, doc, resp):
         if (
             text
             and not MID_SENTENCE.search(text)
-            and e.get("kind")
-            in ("own", "note", "ask", "accept", "alt", "defer", "accept-audit")
+            and e.get("kind") in ("own", "note", "ask", "accept", "alt", "defer")
         ):
             ends.append(
-                f"#{e['seq']} {e.get('id') or e['kind']} ends mid-sentence: {clean(text)}"
+                f"#{e['seq']} {e.get('id') or 'note'} ends mid-sentence: {clean(text)}"
             )
         if e.get("kind") in ("ask", "rephrase", "note") and e["seq"] not in replied:
             ends.append(
