@@ -1,0 +1,97 @@
+{
+  "Q1": {
+    "title": "Where?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "",
+      "seeded": true
+    },
+    "recommendation": "yes",
+    "alternatives": [],
+    "archived": null,
+    "hold": {
+      "waitsOn": "C:\\new\\tmp",
+      "by": "claude"
+    },
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "accepted: yes"
+    }
+  },
+  "Q2": {
+    "title": "Who?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "One",
+        "confirmed": true
+      },
+      {
+        "text": "Two",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": {
+      "waitsOn": "a\\;b",
+      "by": "user"
+    },
+    "setAside": [],
+    "seed": {
+      "status": "open",
+      "round": 1,
+      "resolution": "confirmed: One; Two"
+    }
+  },
+  "Q3": {
+    "title": "What?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": {
+      "waitsOn": "vendor",
+      "by": "claude"
+    },
+    "setAside": [],
+    "seed": {
+      "status": "open",
+      "round": 1,
+      "resolution": ""
+    }
+  },
+  "Q4": {
+    "title": "Why?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "no; way",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": {
+      "waitsOn": "your call",
+      "by": "user"
+    },
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: no; way"
+    }
+  }
+}

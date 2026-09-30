@@ -3,13 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.1] - 2026-09-30
+## [0.52.1] - 2026-09-30
 
 ### Changed
 
 - **`reference/standards-contract.md` is the standards contract at 1.0.1.** The contract's prose
   drops its em dashes; nothing else in it changes. An index at 1.0.0 is older than the bundled
   contract, so `setup` offers the guided migration.
+
+## [0.52.0] - 2026-09-30
+
+### Changed
+
+- **Every interview ledger row exports in one escaped named-field grammar.** Hold, proposal, was, answer, note, aside and commitments each get a named field, so export followed by import restores the question state, except two held-row cases the fields cannot name (a seeded blocked row comes back deferred, and the seed text of a row whose held accept or alternative is set aside is lost). The importer still reads every earlier row form ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+- **The Brief words two imported rows differently.** A plain answer that a ledger seeded now reads `free-text: ...`, and a seeded withdrawal reads `archived: superseded by X` ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
 
 ## [0.51.0] - 2026-09-30
 
