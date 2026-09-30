@@ -14,6 +14,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - `interview` and `audit-answers` each state their relationship: the recap and `--procedure` check show the Q&A and that the procedure ran, `audit-answers` adversarially re-validates the answers, and neither composes nor duplicates the other.
 
+## [0.47.12] - 2026-09-30
+
+### Fixed
+
+- **The interview surface docs say how to read the watcher's JSON after a wake.** The wake notification carries only the output-file path and exit status. On exit 0 the session Reads the file and takes the last line that starts with `{` (the file ends with an exit-code footer), falling back to `grep '^{' | tail -n 1` when Read reports a partial view; on a nonzero exit it reads the diagnostic and follows the exit-specific recovery. A verification record with an upstream pointer backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+
 ## [0.47.11] - 2026-09-30
 
 ### Added
