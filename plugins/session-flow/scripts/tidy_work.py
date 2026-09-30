@@ -27,9 +27,11 @@ from the layout in `reference/topic-docs.md`:
     scratch        any other entry whose name carries exactly one issue or PR
                    number: one all-digit token of 3 to 7 digits, optionally
                    prefixed `pr`, `issue` or `gh` (`lint-5371.log`, `pr4120.md`,
-                   `scratch-4586-d2cc1ea4d`). A name with no such token, with
-                   several all-digit tokens (a version, a date), or starting with
-                   a writer's `<TS>Z-` timestamp is not attributed: it is unknown
+                   `scratch-4586-d2cc1ea4d`). A year-like token (1900 to 2099)
+                   needs the prefix (`backup-2026.tar` is not attributed,
+                   `pr2026.md` is). A name with no such token, with several
+                   all-digit tokens (a version, a date), or starting with a
+                   writer's `<TS>Z-` timestamp is not attributed: it is unknown
     concern        an entry of another skill's concern dir (reviews, exports,
                    ...): state that skill reads back; always reported, always kept
     unknown        everything else; always reported, always kept
@@ -49,6 +51,12 @@ An item is in flight, and so kept, when any of these holds:
 
 A bare `#N` means the repository holding the memory root; in `$HOME/.work`, or
 any root outside a work tree, it has no repository and counts as unknown.
+
+An item that names no issue or PR is kept however old it is: `clean` removes an
+item only when it names at least one issue or PR and every one is closed or
+merged. A handoff or running retro is attributed by the references in its text,
+a scratch item by its name. A slice or checklist has no attribution source, so
+`report` marks it and `clean` never removes it.
 Issue and PR state comes from `gh api` (one listing of the open ones per
 repository, then one lookup per link that is not open, which also separates a
 closed link from a number that is no issue or PR: that one is unknown) unless
@@ -65,8 +73,8 @@ in the wrong place (the root, or the other one's directory) into `handoffs/` or
 `running-retros/`. It never deletes, never touches an unknown item, and refuses
 to overwrite.
 
-`clean` removes only items of a known kind that are not in flight, and only
-inside a resolved root. It refuses an item holding a symlink that resolves
+`clean` removes only items of a known kind that are not in flight and whose
+issues and PRs are all closed or merged, and only inside a resolved root. It refuses an item holding a symlink that resolves
 outside the root. The root's `.gitignore` self-ignore file is never touched.
 
 `normalize` and `clean` never modify content git tracks: they refuse the whole
@@ -125,7 +133,8 @@ REF_RE = re.compile(
     r"|(?P<repo>[\w.-]+/[\w.-]+)#(?P<num>\d+)\b"
     r"|(?<![\w&#/])#(?P<bare>[1-9]\d*)\b"
 )
-NAME_TOKEN_RE = re.compile(r"(?:pr|issue|gh)?(\d+)", re.IGNORECASE)
+NAME_TOKEN_RE = re.compile(r"(pr|issue|gh)?(\d+)", re.IGNORECASE)
+YEAR_RE = re.compile(r"(?:19|20)\d\d")
 TIMESTAMP_RE = re.compile(r"^\d{8}T\d{6}Z-")
 UNTICKED_RE = re.compile(r"^\s*[-*]\s+\[ \]\s")
 STAGES_HEADING = "## Stages"
@@ -156,7 +165,7 @@ class Item:
 
     @property
     def keep(self) -> bool:
-        return self.kind in ("unknown", "concern") or self.in_flight
+        return self.kind in ("unknown", "concern") or self.in_flight or not self.links
 
 
 def _plain_file(path: Path) -> bool:
@@ -197,17 +206,22 @@ def _refs_of(path: Path) -> list[str]:
 
 def _name_refs(name: str) -> list[str]:
     """`#N` when the name holds exactly one all-digit token of 3 to 7 digits
-    (optionally prefixed pr, issue or gh); any other name is not attributed, and
-    neither is a timestamped one (the writers' handoff, retro and export names)."""
+    (optionally prefixed pr, issue or gh), and a year-like one has the prefix; any
+    other name is not attributed, and neither is a timestamped one (the writers'
+    handoff, retro and export names)."""
     if TIMESTAMP_RE.match(name):
         return []
-    numbers = [
-        match[1]
+    tokens = [
+        match.groups()
         for token in re.split(r"[-_.\s]+", name)
         if (match := NAME_TOKEN_RE.fullmatch(token))
     ]
-    if len(numbers) == 1 and re.fullmatch(r"[1-9]\d{2,6}", numbers[0]):
-        return [f"#{numbers[0]}"]
+    if len(tokens) == 1:
+        prefix, number = tokens[0]
+        if re.fullmatch(r"[1-9]\d{2,6}", number) and (
+            prefix or not YEAR_RE.fullmatch(number)
+        ):
+            return [f"#{number}"]
     return []
 
 
@@ -536,8 +550,10 @@ def _verdict(item: Item) -> str:
         verdict = "keep: " + "; ".join(item.reasons)
     elif item.kind == "concern":
         verdict = "keep: concern state read back by its skill"
+    elif item.kind == "unknown":
+        verdict = "keep: unknown kind"
     else:
-        verdict = "keep: unknown kind" if item.kind == "unknown" else "stale"
+        verdict = "stale" if item.links else "keep: names no issue or PR"
     return verdict + _attribution(item)
 
 
@@ -624,9 +640,7 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"{label}: {root.as_posix()}")
     print(_table(items, now))
     stale = sum(1 for item in items if not item.keep)
-    print(
-        f"{len(items)} items, {stale} stale and known-kind, {len(items) - stale} kept"
-    )
+    print(f"{len(items)} items, {stale} removable, {len(items) - stale} kept")
     return 0
 
 
@@ -848,7 +862,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     normalize.set_defaults(func=cmd_normalize)
     clean = sub.add_parser(
-        "clean", parents=[common, inflight], help="remove stale known-kind items"
+        "clean",
+        parents=[common, inflight],
+        help="remove stale items whose issues and PRs are closed",
     )
     clean.set_defaults(func=cmd_clean)
     for cmd in (normalize, clean):

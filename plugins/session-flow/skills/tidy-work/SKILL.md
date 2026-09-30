@@ -31,7 +31,7 @@ Nothing runs unless the user invokes this skill.
 |---|---|
 | `report` (default) | Read-only inventory: path, age, size, kind, in-flight or stale, per item; a scratch entry also shows the issue or PR its name carries and that item's state |
 | `normalize` | Moves misplaced known-kind items into the standard layout. Never deletes, never overwrites an existing target |
-| `clean` | Removes items that are a known kind and not in flight. A stale handoff, running retro, `done` slice, or finished checklist needs no issue or PR to go; a scratch entry goes only once the issue or PR its name carries is closed or merged |
+| `clean` | Removes an item only when it is a known kind, is not in flight, and names at least one issue or PR, every one closed or merged: a handoff or running retro by the references in its text, a scratch entry by the number in its name. An item that names no issue or PR is kept and reported however old it is; a slice or checklist has no attribution source, so `clean` never removes one |
 
 Pass `--days N` (default 14) to change the recency window. Pass `--offline` to treat every linked
 issue or PR as unknown, which counts as in flight; without it the script asks `gh` for the open
@@ -41,8 +41,9 @@ open.
 A scratch entry is any other top-level entry whose name holds exactly one all-digit token of 3 to
 7 digits, optionally prefixed `pr`, `issue`, or `gh`: `lint-5371.log`, `measure-4608`,
 `scratch-4586-d2cc1ea4d`. That number is read as an issue or PR of the repository holding the
-memory root. A name with no such token, or with several (a version, a date), is not attributed and
-stays unknown.
+memory root. A year-like token (1900 to 2099) counts only with the prefix: `pr2026.md` is
+attributed, `backup-2026.tar` is not. A name with no such token, or with several (a version, a
+date), is not attributed and stays unknown.
 
 ## Steps
 
@@ -73,8 +74,10 @@ stays unknown.
 An item whose kind is not recognized (for example a `drain/` status tree or any tool's own
 folder) is always kept and always reported, by `report`, `normalize`, and `clean` alike. So is
 every entry of another skill's concern dir (`reviews/`, `exports/`, `overengineering/`,
-`enforceability/`, `docs-hygiene/`, `lanes/`): that skill reads it back. In-flight items are kept
-too:
+`enforceability/`, `docs-hygiene/`, `lanes/`): that skill reads it back. So is every item that
+names no issue or PR, whatever its kind and age, because nothing says whose it is or whether it
+is the only copy: a handoff or running retro whose text names none, and every slice and
+checklist. In-flight items are kept too:
 
 - a slice whose `INDEX.md` `status:` is not `done`, or that holds a child slice whose status is
   not `done` (`active`, `parked`, missing, and unrecognized all keep it)

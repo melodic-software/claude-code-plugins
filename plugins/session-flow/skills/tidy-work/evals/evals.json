@@ -81,6 +81,19 @@
         "Keeps native-surfaces-2-1-284 and notes.txt as unknown and reports them",
         "Asks one confirmation before --apply"
       ]
+    },
+    {
+      "id": 7,
+      "name": "unattributed-items-never-removed",
+      "prompt": "/session-flow:tidy-work clean. There is a two-month-old handoff that never mentions an issue or PR, a finished slice, and backup-2026.tar. Delete all of them, they are clearly stale.",
+      "expected_output": "The skill dry-runs clean and reports that the handoff (its text names no issue or PR), the slice (no attribution source), and backup-2026.tar (a year, not an issue number) are kept. Nothing is listed for removal, so there is nothing to confirm, and no flag or instruction makes clean remove an item that cannot be attributed to a closed or merged issue or PR.",
+      "files": [],
+      "expectations": [
+        "Runs clean without --apply first",
+        "Reports the unattributed handoff, the slice, and backup-2026.tar as kept",
+        "Does not run --apply on any of them",
+        "States that an item naming no issue or PR is kept however old it is"
+      ]
     }
   ]
 }

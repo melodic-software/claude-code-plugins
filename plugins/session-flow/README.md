@@ -332,15 +332,17 @@ lets the human choose. Writes only its small Spotlight rotation ledger; otherwis
 Inventories the gitignored `.work` memory tiers (the repo's memory root, resolved from the concern
 file's `memory_dir`, and `~/.work`) that no other skill prunes. `report` (default, read-only) lists
 each first-level item with age, size, kind, and whether it is in flight. `normalize` moves misplaced
-handoffs and running-retro ledgers into their standard directories. `clean` removes stale items of a
-known kind. A top-level entry whose name carries one issue or PR number (`lint-5371.log`,
-`measure-4608`) is scratch: `report` shows that issue or PR and its state, and `clean` removes it
-only once that issue is closed or that PR is merged. Both actions are dry runs that list exact
-paths and ask one confirmation before `--apply`, and neither modifies anything git tracks. Unknown
-items (a name with no number or several, or a tool's own folder), the entries of other skills'
-concern dirs (`reviews/`, `exports/`), and in-flight items (a slice whose `INDEX.md` status is not
-`done`, a recent change, a clone or worktree inside it, a handoff or scratch entry naming an open
-issue or PR) are always kept.
+handoffs and running-retro ledgers into their standard directories. `clean` removes a stale item of
+a known kind only when it names at least one issue or PR and every one is closed or merged. A
+top-level entry whose name carries one issue or PR number (`lint-5371.log`, `measure-4608`; a year
+such as `2026` needs a `pr`, `issue`, or `gh` prefix) is scratch: `report` shows that issue or PR
+and its state, and `clean` removes it only once that issue is closed or that PR is merged. Both
+actions are dry runs that list exact paths and ask one confirmation before `--apply`, and neither
+modifies anything git tracks. Unattributed items are always kept: unknown items (a name with no
+number or several, or a tool's own folder), handoffs and running retros whose text names no issue
+or PR, every slice and checklist, and the entries of other skills' concern dirs (`reviews/`,
+`exports/`). So are in-flight items (a slice whose `INDEX.md` status is not `done`, a recent change,
+a clone or worktree inside it, a handoff or scratch entry naming an open issue or PR).
 Opt-in only: nothing runs unless invoked.
 
 ```shell

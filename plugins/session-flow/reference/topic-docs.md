@@ -30,12 +30,16 @@ The writers never delete, so the `tidy-work` skill owns the lifecycle (`scripts/
 `report` inventories the memory root and `~/.work` by age, size, and kind (handoff, running-retro,
 slice, checklist, scratch, concern, unknown) and marks each item in flight or stale. A scratch item
 is a top-level entry whose name holds exactly one issue or PR number (one all-digit token of 3 to 7
-digits, optionally prefixed `pr`, `issue`, or `gh`); `report` and the `clean` dry run show that
-issue or PR and its state, and `clean` removes it only once the issue is closed or the PR merged.
-A name with no such token or with several is unknown. `normalize` moves a handoff (with its
+digits, optionally prefixed `pr`, `issue`, or `gh`, and a year-like token from 1900 to 2099 needs
+the prefix); `report` and the `clean` dry run show that issue or PR and its state, and `clean`
+removes it only once the issue is closed or the PR merged. A name with no such token or with
+several is unknown. `normalize` moves a handoff (with its
 `.slots.json` sidecar) or running-retro file that sits in the wrong directory into `handoffs/` or
 `running-retros/`; it never deletes and refuses to overwrite. `clean` removes only items of a known
-kind that are not in flight. Both are dry runs that print exact absolute paths until `--apply`, and
+kind that are not in flight and that name at least one issue or PR, every one closed or merged. An
+item that names none is kept however old it is: a handoff or running retro whose text names no
+issue or PR, and every slice and checklist, which have no attribution source. Both are dry runs that
+print exact absolute paths until `--apply`, and
 neither modifies content git tracks: each refuses a memory root whose `.gitignore` lacks a line `*`.
 Every command rejects a memory root that is the repository root, and one outside the repository
 whose `.gitignore` lacks that line. A handoff or running-retro file is that kind wherever it sits in

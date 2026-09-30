@@ -32,6 +32,8 @@ HANDOFF_LATER = "20260105T100000Z-handoff-later.md"
 HANDOFF_URL = "20260106T100000Z-handoff-url.md"
 HOME_HANDOFF = "20260101T090000Z-handoff-home.md"
 URL_REF = "melodic-software/claude-code-plugins#99"
+HOME_REF = "melodic-software/claude-code-plugins#98"
+SHIPPED = "Shipped in PR #7."
 
 CHECKLIST_DONE = (
     "# Workflow Checklist\n\n## Stages\n\n- [x] 0. Contract\n"
@@ -89,10 +91,10 @@ def build(env) -> None:
     work = repo / ".work"
     handoffs = work / "handoffs"
     for name, body, days in (
-        (HANDOFF_STALE, "", 60),
+        (HANDOFF_STALE, SHIPPED, 60),
         (HANDOFF_FRESH, "", 0),
         (HANDOFF_LINKED, "Open follow-up: #5222.", 60),
-        (HANDOFF_CLOSED, "Shipped in PR #7.", 60),
+        (HANDOFF_CLOSED, SHIPPED, 60),
         (HANDOFF_URL, f"https://github.com/{URL_REF.replace('#', '/pull/')}", 60),
         (HANDOFF_NAMED, "", 60),
     ):
@@ -124,6 +126,9 @@ def build(env) -> None:
     slice_dir(work / "tree" / "child", "parked")
     age(work / "tree", 60)
 
+    write(work / "measure-4608" / "out.txt", "x")
+    age(work / "measure-4608", 60)
+
     write(work / "drain" / "status" / "5222.json", "{}")
     age(work / "drain", 90)
 
@@ -132,7 +137,7 @@ def build(env) -> None:
     write(work / "exports" / "20260101T100000Z-talk.txt", "conversation")
     age(work / "exports", 60)
 
-    handoff(home / ".work" / "handoffs" / HOME_HANDOFF)
+    handoff(home / ".work" / "handoffs" / HOME_HANDOFF, f"Shipped in {HOME_REF}.")
     age(home / ".work", 60)
 
 
@@ -216,7 +221,9 @@ def test_kinds_and_in_flight(env):
         "workflow-checklist.md has an unfinished stage"
     ]
     assert items["finished"]["kind"] == "checklist"
-    assert not items["finished"]["keep"]
+    assert items["finished"]["keep"]
+    assert not items["finished"]["in_flight"]
+    assert items["measure-4608"]["kind"] == "scratch"
     assert items["feat-x"]["kind"] == "concern"
     assert items["feat-x"]["keep"]
     assert not items["feat-x"]["in_flight"]
@@ -224,14 +231,14 @@ def test_kinds_and_in_flight(env):
     assert items["20260101T100000Z-talk.txt"]["keep"]
 
 
-def test_slice_status_decides_whether_an_idle_slice_is_stale(env):
+def test_slice_status_decides_whether_an_idle_slice_is_in_flight(env):
     build(env)
     items = report(env, "--offline")
     assert items["widget"]["reasons"] == ["INDEX.md status is active"]
     assert items["parked"]["reasons"] == ["INDEX.md status is parked"]
     assert items["unmarked"]["reasons"] == ["INDEX.md status is missing"]
     assert items["shipped"]["kind"] == "slice"
-    assert not items["shipped"]["keep"]
+    assert not items["shipped"]["in_flight"]
     assert items["tree"]["reasons"] == ["child/INDEX.md status is parked"]
     assert all(items[name]["keep"] for name in ("widget", "parked", "unmarked", "tree"))
 
@@ -371,8 +378,9 @@ def test_text_table(env):
     assert result.returncode == 0
     assert "KIND" in result.stdout
     assert "keep: unknown kind" in result.stdout
+    assert "keep: names no issue or PR" in result.stdout
     assert "keep: concern state read back by its skill" in result.stdout
-    assert "items," in result.stdout.splitlines()[-1]
+    assert "removable," in result.stdout.splitlines()[-1]
 
 
 def test_bad_link_state_exits_2(env):
@@ -381,15 +389,14 @@ def test_bad_link_state_exits_2(env):
     assert run_cli(env, "--link-state", str(bad)).returncode == 2
 
 
-STATE = {"#5222": "open", "#7": "closed", URL_REF: "open"}
-STALE = {
-    HANDOFF_STALE,
-    SIDECAR_STALE,
-    HANDOFF_CLOSED,
-    HOME_HANDOFF,
-    "finished",
-    "shipped",
+STATE = {
+    "#5222": "open",
+    "#7": "closed",
+    "#4608": "merged",
+    URL_REF: "open",
+    HOME_REF: "merged",
 }
+STALE = {HANDOFF_STALE, SIDECAR_STALE, HANDOFF_CLOSED, HOME_HANDOFF, "measure-4608"}
 RETRO = "20260101T100000Z-running-retro-x.md"
 RETRO2 = "20260102T100000Z-running-retro-y.md"
 
@@ -429,7 +436,7 @@ def test_clean_apply_removes_only_stale_known_items(env):
     result = clean(env, "--apply")
     assert result.returncode == 0, result.stderr
     gone = {Path(p).name for p in before - tree(repo, home)}
-    assert gone == STALE | {"workflow-checklist.md", "INDEX.md"}
+    assert gone == STALE | {"out.txt"}
     work = repo / ".work"
     for survivor in (
         work / "handoffs" / HANDOFF_FRESH,
@@ -440,6 +447,8 @@ def test_clean_apply_removes_only_stale_known_items(env):
         work / "handoffs" / "notes.txt",
         work / "handoffs" / SIDECAR_ORPHAN,
         work / "unfinished",
+        work / "finished",
+        work / "shipped",
         work / "widget",
         work / "parked",
         work / "unmarked",
@@ -458,7 +467,8 @@ def test_clean_offline_apply_keeps_unresolved_links(env):
     result = run_tidy(env, "clean", "--offline", "--apply")
     assert result.returncode == 0, result.stderr
     assert (repo / ".work" / "handoffs" / HANDOFF_CLOSED).exists()
-    assert not (repo / ".work" / "handoffs" / HANDOFF_STALE).exists()
+    assert (repo / ".work" / "handoffs" / HANDOFF_STALE).exists()
+    assert (repo / ".work" / "measure-4608").exists()
 
 
 def test_clean_refuses_symlink_leaving_the_root(env):
@@ -466,7 +476,7 @@ def test_clean_refuses_symlink_leaving_the_root(env):
     tmp, _, repo = env
     outside = tmp / "outside"
     write(outside / "precious.txt", "keep")
-    stale = repo / ".work" / "finished"
+    stale = repo / ".work" / "measure-4608"
     (stale / "escape").symlink_to(outside)
     age(stale, 60)
     stamp = time.time() - 60 * DAY
@@ -560,7 +570,7 @@ def test_memory_root_without_the_self_ignore_guard_is_never_modified(env):
     assert result.returncode == 1
     assert "self-ignore guard" in result.stdout
     assert (repo / ".work" / "handoffs" / HANDOFF_STALE).exists()
-    assert (repo / ".work" / "shipped").exists()
+    assert (repo / ".work" / "measure-4608").exists()
     assert not (home / ".work" / "handoffs" / HOME_HANDOFF).exists()
 
 
@@ -572,18 +582,23 @@ def test_clean_never_removes_content_git_tracks(env):
     build(env)
     _, _, repo = env
     work = repo / ".work"
-    git(repo, "add", "-f", ".work/handoffs/" + HANDOFF_STALE, ".work/shipped/INDEX.md")
+    git(
+        repo,
+        "add",
+        "-f",
+        ".work/handoffs/" + HANDOFF_STALE,
+        ".work/measure-4608/out.txt",
+    )
     result = clean(env, "--apply")
     assert result.returncode == 1
     assert f"refused: {work / 'handoffs' / HANDOFF_STALE} (git tracks content" in (
         result.stdout
     )
-    assert f"refused: {work / 'shipped'} (git tracks content" in result.stdout
+    assert f"refused: {work / 'measure-4608'} (git tracks content" in result.stdout
     assert (work / "handoffs" / HANDOFF_STALE).exists()
     assert (work / "handoffs" / SIDECAR_STALE).exists()
-    assert (work / "shipped" / "INDEX.md").exists()
+    assert (work / "measure-4608" / "out.txt").exists()
     assert not (work / "handoffs" / HANDOFF_CLOSED).exists()
-    assert not (work / "finished").exists()
 
 
 def test_relative_memory_dir_resolves_against_the_repository_top(env):
@@ -607,7 +622,7 @@ def test_relative_memory_dir_resolves_against_the_repository_top(env):
 def misplace(env) -> None:
     _, _, repo = env
     work = repo / ".work"
-    handoff(work / HANDOFF_STALE)
+    handoff(work / HANDOFF_STALE, SHIPPED)
     write(work / SIDECAR_STALE, "{}")
     write(work / RETRO, "---\ntype: running-retro\n---\n")
     write(work / "handoffs" / RETRO2, "---\ntype: running-retro\n---\n")
@@ -750,10 +765,13 @@ SCRATCH = (
     "pr4120.md",
     "reverify-4186",
     "scratch-4586-d2cc1ea4d",
+    "pr2026.md",  # a year-like number takes the prefix
 )
 NOT_ATTRIBUTED = (
     "native-surfaces-2-1-284",  # a version
     "triage-2026-09-28",  # a date
+    "backup-2026.tar",  # a year, though #2026 is a closed PR here
+    "notes-2025.md",  # a year, though #2025 is a merged PR here
     "compare-4608-4609",  # two numbers
     "t1",
     "12.txt",
@@ -770,6 +788,8 @@ SCRATCH_STATE = {
     "#4586": "closed",
     "#284": "closed",
     "#4609": "closed",
+    "#2026": "closed",
+    "#2025": "merged",
 }
 
 
@@ -790,7 +810,13 @@ def test_scratch_is_attributed_by_the_number_in_its_name(env):
     assert {items[name]["kind"] for name in SCRATCH} == {"scratch"}
     assert items["lint-5371.log"]["links"] == {"#5371": "closed"}
     assert items["scratch-4586-d2cc1ea4d"]["links"] == {"#4586": "closed"}
-    for name in ("lint-5371.log", "measure-4608", "scratch-4586-d2cc1ea4d"):
+    assert items["pr2026.md"]["links"] == {"#2026": "closed"}
+    for name in (
+        "lint-5371.log",
+        "measure-4608",
+        "scratch-4586-d2cc1ea4d",
+        "pr2026.md",
+    ):
         assert not items[name]["keep"], name
     assert items["pr4120.md"]["reasons"] == ["link #4120 is open"]
     assert items["reverify-4186"]["reasons"] == ["link #4186 is closed-unmerged"]
@@ -798,6 +824,22 @@ def test_scratch_is_attributed_by_the_number_in_its_name(env):
         assert items[name]["kind"] == "unknown", name
         assert items[name]["keep"], name
         assert items[name]["links"] == {}, name
+
+
+def test_a_year_in_a_name_is_attributed_only_with_a_prefix(monkeypatch):
+    monkeypatch.syspath_prepend(str(SCRIPT.parent))
+    import tidy_work
+
+    for name, refs in (
+        ("lint-5371.log", ["#5371"]),
+        ("pr2026.md", ["#2026"]),
+        ("issue1999-notes", ["#1999"]),
+        ("backup-2026.tar", []),
+        ("notes-2025.md", []),
+        ("2024", []),
+        ("report-2026-4608", []),
+    ):
+        assert tidy_work._name_refs(name) == refs, name
 
 
 def test_scratch_shows_its_state_even_when_recent_or_offline(env):
@@ -829,6 +871,7 @@ def test_clean_removes_scratch_only_when_its_number_is_closed_or_merged(env):
         f"would remove: {(work / 'lint-5371.log').as_posix()} [#5371 closed]",
         f"would remove: {(work / 'measure-4608').as_posix()} [#4608 merged]",
         f"would remove: {(work / 'scratch-4586-d2cc1ea4d').as_posix()} [#4586 closed]",
+        f"would remove: {(work / 'pr2026.md').as_posix()} [#2026 closed]",
     }
     assert all((work / name).exists() for name in (*SCRATCH, *NOT_ATTRIBUTED))
     applied = run_tidy(env, "clean", *links(env[0], SCRATCH_STATE), "--apply")
@@ -895,33 +938,64 @@ def test_a_number_that_is_no_issue_or_pr_keeps_its_scratch_item(env):
     assert by_root["home", "lint-5371.log"]["keep"]
 
 
-def test_a_stale_handoff_keeps_neither_the_handoff_nor_the_slice_it_names(env):
+def test_a_stale_handoff_keeps_neither_the_handoff_nor_the_scratch_it_names(env):
     _, _, repo = env
     work = repo / ".work"
     first, second, third = (
         f"2025010{n}T100000Z-handoff-{name}.md"
         for n, name in ((1, "a"), (2, "b"), (3, "c"))
     )
-    handoff(work / "handoffs" / first)
+    handoff(work / "handoffs" / first, SHIPPED)
     age(work / "handoffs" / first, 400)
-    handoff(work / "handoffs" / second, f"Continues {first}. Slice: widget/")
+    handoff(
+        work / "handoffs" / second,
+        f"{SHIPPED} Continues {first}. Scratch: measure-4608/",
+    )
     age(work / "handoffs" / second, 399)
-    slice_dir(work / "widget", "done")
-    age(work / "widget", 400)
+    write(work / "measure-4608" / "out.txt", "x")
+    age(work / "measure-4608", 400)
+    state = links(env[0], STATE)
 
-    items = report(env, "--offline")
-    assert not any(items[name]["keep"] for name in (first, second, "widget"))
-    dry = run_tidy(env, "clean", "--offline")
+    items = report(env, *state)
+    assert not any(items[name]["keep"] for name in (first, second, "measure-4608"))
+    dry = run_tidy(env, "clean", *state)
     listed = {
-        Path(line.split(": ", 1)[1]).name
+        Path(line.split(": ", 1)[1].split(" [", 1)[0]).name
         for line in dry.stdout.splitlines()
         if line.startswith("would remove: ")
     }
-    assert listed == {first, second, "widget"}
+    assert listed == {first, second, "measure-4608"}
 
     handoff(work / "handoffs" / third, f"Continues {second}.")
-    items = report(env, "--offline")
+    items = report(env, *state)
     assert items[third]["reasons"] == ["modified within 14 days"]
     assert items[second]["reasons"] == ["named by a later handoff"]
     assert items[first]["reasons"] == ["named by a later handoff"]
-    assert items["widget"]["reasons"] == ["named by a later handoff"]
+    assert items["measure-4608"]["reasons"] == ["named by a later handoff"]
+
+
+def test_clean_never_removes_what_names_no_issue_or_pr(env):
+    _, home, repo = env
+    work = repo / ".work"
+    handoff(work / "handoffs" / HANDOFF_STALE)
+    write(work / "running-retros" / RETRO, "---\ntype: running-retro\n---\nno link\n")
+    slice_dir(work / "shipped", "done")
+    write(work / "finished" / "workflow-checklist.md", CHECKLIST_DONE)
+    for path in (
+        work / "handoffs",
+        work / "running-retros",
+        work / "shipped",
+        work / "finished",
+    ):
+        age(path, 60)
+    items = report(env, *links(env[0], STATE))
+    for name in (HANDOFF_STALE, RETRO, "shipped", "finished"):
+        assert items[name]["keep"], name
+        assert not items[name]["in_flight"], name
+    assert "keep: names no issue or PR" in run_cli(env, "--offline").stdout
+    before = tree(repo, home)
+    dry = clean(env)
+    assert dry.returncode == 0, dry.stderr
+    assert "would remove" not in dry.stdout
+    assert clean(env, "--apply").returncode == 0
+    assert tree(repo, home) == before
