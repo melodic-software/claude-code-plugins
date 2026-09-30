@@ -185,8 +185,8 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     }
     auth = substr(rest, 1, cut - 1)
     rest = substr(rest, cut)
-    if ((redact_local_http + 0) && substr(rest, 1, 1) ~ /[?#]/) {
-      query = rest
+    if ((redact_local_http + 0) && rest != "" && substr(rest, 1, 1) != "/") {
+      query = substr(rest, 2)
       if (match(query, /[\/ \t\r\n]/)) query = substr(query, 1, RSTART - 1)
       if (index(query, "@") > 0) continue
     }

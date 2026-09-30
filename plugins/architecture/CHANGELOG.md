@@ -23,9 +23,9 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   after the userinfo ends a URL authority for every URL shape, so
   `map-containers` now reads a store URL such as
   `redis://cache.example.com:6379;x`. With it set, a URL whose authority ends at
-  an unencoded `?` or `#` with an `@` after it yields no row. A caller that does
-  not set it is unchanged. No-leak fixtures cover userinfo, query tokens, and a
-  `;` inside userinfo.
+  an unencoded `?`, `#`, or whitespace with an `@` after it yields no row. A
+  caller that does not set it is unchanged. No-leak fixtures cover userinfo,
+  query tokens, and a `;` inside userinfo.
 
 ## [0.14.0] - 2026-09-29
 

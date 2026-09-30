@@ -197,10 +197,11 @@ assert_equals "local http: opt-in keeps loopback" "$(local_shape Services.Orders
 assert_equals "local http: opt-in reads every ;-separated URL" "$(local_shape profiles.Api.applicationUrl "https://localhost:7001;http://localhost:5001" 1)" $'http\tlocalhost\t7001\t\t\thttps\nhttp\tlocalhost\t5001\t\t\thttp'
 assert_equals "local http: opt-in keeps a non-http scheme in the scheme column" "$(local_shape Services.Files.BaseUrl "ftp://files.example.com" 1)" $'http\tfiles.example.com\t\t\t\tftp'
 assert_equals "local http: the scheme column is empty by default" "$(local_shape Services.Files.BaseUrl "ftp://files.example.com" 0)" $'http\tfiles.example.com\t\t\t\t'
-for sep in '?' '#'; do
+for sep in '?' '#' ' ' $'\t'; do
   qtok="$(local_shape Services.Api.BaseUrl "https://${leak_ep_tok}${sep}x@api.example.com" 1)"
-  assert_equals "local http: an unencoded ${sep} before an @ leaves no row" "$qtok" ""
+  assert_equals "local http: an unencoded separator before an @ leaves no row" "$qtok" ""
 done
+assert_equals "local http: a URL list keeps a clean URL ahead of a credentialed one" "$(local_shape Services.Api.BaseUrl "http://orders-api:8080 https://u:p@api.example.com/x" 1 | cut -f1-3)" $'http\torders-api\t8080\nhttp\tapi.example.com\t'
 assert_equals "local http: a query with no @ still reads the host" "$(local_shape Services.Orders.BaseUrl "http://orders-api:8080?api-version=1" 1)" $'http\torders-api\t8080\t\t\thttp'
 assert_equals "local http: a ;-separated list is unread by default" "$(local_shape profiles.Api.applicationUrl "https://localhost:7001;http://localhost:5001" 0)" ""
 leak_semi_tok="semitok321"
