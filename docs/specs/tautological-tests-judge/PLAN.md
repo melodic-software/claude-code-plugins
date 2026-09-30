@@ -189,9 +189,11 @@ Shared pieces:
   judges: Anthropic's cost guidance treats output caps and budgets as levers that trade quality for
   cost, and says to raise a cap a run hits rather than accept truncation (platform.claude.com
   optimizing-for-cost-and-intelligence, "Set budgets and output caps", fetched 2026-09-30). The
-  guards that remain stop only malfunction: `--max-budget-usd` per run set to 10 times the probe 7
-  p95 cost of a ten-test run (recorded in probes.md; a run that hits it is logged as a malfunction,
-  and its keys go to UNKNOWN with that reason); the `timeout 150` hang guard; at most 3 concurrent
+  guards that remain stop only malfunction: `--max-budget-usd` per run of $0.90 for each started
+  ten in-doubt blocks the run judges (so a run of 1-10 blocks gets $0.90, 11-20 gets $1.80), 10 times
+  the largest ten-test cost probe 7 measured ($0.0900, n=3, R2-P7), so the cap scales with the file
+  instead of truncating a large one (a run that hits it is logged as a malfunction, and its keys go
+  to UNKNOWN with that reason); the `timeout 150` hang guard; at most 3 concurrent
   runs per machine (`$DATA/slots/` noclobber slots, shared by every session and by Stop), which
   limits load, not depth. Optional userConfig `test_judge_session_runs` (default unset, meaning no
   limit) for users who want a spend ceiling. One judge run per file (all in-doubt blocks of that
@@ -223,12 +225,19 @@ Shared pieces:
   outputs (Haiku 4.5 63% vs Opus 5.5 92% on GPQA Diamond), and says to choose the model from your
   own evals (platform.claude.com optimizing-for-cost-and-intelligence, fetched 2026-09-30). Phase 4
   replaces these defaults with the eval result. Each value is validated against
-  `fable|opus|sonnet|haiku` and `low|medium|high|xhigh|max`. Session model: the last
-  `select(.type=="assistant") | .message.model` other than `<synthetic>` in
-  `tail -n 400 "$transcript_path"`, read with `jq -R 'fromjson? | ...'`. Q7 requires a different
-  model from the writer: if the judge class matches the session model, the fallback; if that matches
-  too, the next of `opus, sonnet, haiku` that does not (never fable unless configured). The verdict
-  records the model and effort.
+  `fable|opus|sonnet|haiku` and `low|medium|high|xhigh|max`. Writer classes, per file judged: the
+  class of the last `select(.type=="assistant") | .message.model` other than `<synthetic>` in
+  `tail -n 400` of the main transcript, plus the same for each subagent whose `agent_id` a session
+  file for that file's in-doubt blocks records. Paths use the session id of the directory the session
+  file sits in (an adopted predecessor's, not the current one): `<tdir>/<sid>.jsonl` and
+  `<tdir>/<sid>/subagents/agent-<agent_id>.jsonl`, `<tdir>` = `dirname(transcript_path)` (R2-P2:
+  subagent lines live only there; subagent hook payloads carry the main `transcript_path`, probe
+  logs `p12-hooks.jsonl`). Read with `jq -R 'fromjson? | ...'`; a missing file adds no class. The
+  main session's class is always a writer class, since the main agent may have written the code the
+  test restates. Q7 requires a different model from every writer: the judge class if it is not a
+  writer class, else the fallback, else the next of `opus, sonnet, haiku` that is not (never fable
+  unless configured); if none remains, the file's keys go to UNKNOWN with the reason "no judge class
+  differs from the writers". The verdict records the model and effort.
 - Relay validation: before any verdict is relayed, each quoted evidence string must be a substring
   of the current file and each proposed diff must pass `git apply --check` touching only that test
   file; a verdict failing either is relayed as UNKNOWN with the reason.
@@ -244,11 +253,19 @@ remove `pending/`. Never prints output (Q7: nothing mid-task).
 New `plugins/testing/hooks/test-judge.sh` (Stop, synchronous). An EXIT trap forces exit 0 on every
 path (Q4); no library is sourced before the no-state-file exit.
 
-1. `stop_hook_active` true and `relayed/` names the current verdict set: exit 0 (no re-block).
+1. `stop_hook_active` true: never block (DT2: one forced turn), judge nothing, exit 0 with a
+   `systemMessage` naming any keys still being judged. Their verdicts stay unrelayed in the ledger
+   for the next Stop with `stop_hook_active` false (the next task end). This also holds when another
+   plugin's Stop hook forced the turn (R2-P10): this hook's verdicts then wait for the next task end.
 2. Collect in-doubt keys by re-deriving blocks (missing files logged and skipped). Empty: exit 0.
 3. Keys with a verdict are ready. Keys with a live `pending/` or lock are waited on. Keys with
    neither (job killed, crashed, stale, or never started) are judged now, taking the same lock and
-   slots, per file and in parallel, at most 10 keys per Stop, the rest named as waiting. All of it is
+   slots, per file and in parallel, at most 10 keys per Stop. The rest are named as waiting and,
+   just before the hook returns (so they take no slot from its own runs), each file's remaining keys
+   are handed to a detached `test-judge-bg.sh` job with no debounce, which writes its `pending/`
+   marker at once so a later Stop waits on it rather than judging the key twice. If that job dies
+   (for example at `-p` teardown), its keys stay in doubt with no verdict and the next task-end Stop
+   judges them under this step, so no key is lost and no second forced turn is needed. All of it is
    bounded by `TEST_JUDGE_TIMEOUT` (default 180 s, below a generated Stop `timeout` of 240 s; both
    re-derived from probe 7 and recorded in probes.md). On exhaustion or failure: a `systemMessage`
    naming the tests not judged and the time spent; after 2 failed attempts per key, "judge not run
@@ -276,13 +293,17 @@ Tests, Red first:
   hits the malfunction budget gives UNKNOWN with that reason; `TEST_JUDGE_ACTIVE=1` exits at once; judge
   failure and judge timeout leave no verdict and release the lock; nothing is printed.
 - `test-judge.test.sh`: flag off; no state; nothing in doubt; verdicts ready give one templated
-  block and a `systemMessage` with counts; `stop_hook_active` with a relayed set exits; a live
-  `pending/` or lock is waited on; a key with no job is judged at Stop under the lock; the 11th key
-  waits and is named; budget exhaustion gives a `systemMessage` and no block; 2 failed attempts give
+  block and a `systemMessage` with counts; `stop_hook_active` exits without blocking or judging, even
+  with unrelayed verdicts; a live `pending/` or lock is waited on; a key with no job is judged at
+  Stop under the lock; the 11th key is named and handed to a background job with a `pending/`
+  marker, the following `stop_hook_active` Stop does not block, and its verdict is relayed at the
+  next task end; an 11th key whose job died is judged at the next task end; budget exhaustion gives a `systemMessage` and no block; 2 failed attempts give
   "judge not run"; a quote that is not in the file and a diff touching another file are relayed as
   UNKNOWN; an untouched test in an edited file is not in doubt; a new `cant-fail-ok:` marker is;
   keys unset use `opus`/`sonnet` at `medium`; invalid alias or effort falls back; Agent-call and `<synthetic>` lines do not
   change the session model; class collisions walk `opus, sonnet, haiku` and never pick fable;
+  an opus main session with a sonnet subagent writing the test picks haiku; opus, sonnet and haiku
+  all among the writers gives UNKNOWN with "no judge class differs from the writers";
   unattended mode gives no block; a malformed state file is skipped; scanner exit 2 and a crash in
   the script both end in exit 0; `TEST_JUDGE_ACTIVE=1` exits at once.
 - `test-judge-start.test.sh`: an unrelayed verdict from an old session is named once; a relayed one
@@ -440,6 +461,10 @@ by git revert. Hook infrastructure, a model-spending background process and undo
   own history lines and its `[TODO]` count matched Phase 5's prose, so neither could pass; the
   R2-P12 to R2-P14 greps now anchor on the verdict column; Phase 2 asserts the project-key cases
   exist.
+- #5605 bot review (2026-09-30): 4 findings, all valid and fixed: writer classes include subagent
+  transcripts (DT3 amendment), keys past the 10-key cap go to background jobs and are relayed at the
+  next task end with no second forced turn (DT13 amendment), the per-run budget is $0.90 from probe
+  7's measured maximum, and the stale design-threads probe list points here.
 
 ## Execution shape
 
@@ -451,10 +476,11 @@ as a draft, with its own version bump where a plugin changes.
 
 ## Open questions
 
-- None. Defaults approved by the user 2026-09-30 as landed here (basis: judgment, re-derived by
-  probes 7 and R2-P13 for the timing ones and by the Phase 4 sweep for the model): debounce 20 s;
-  no spend cap by default, only the malfunction guards (per-run budget at 10 times the probe 7 p95,
-  hang timeout, 3 machine slots); 10 keys and 180 s per Stop (Stop timeout 240 s); R2-P13 bar of a
+- None. Defaults approved by the user 2026-09-30 as landed here (basis: judgment; the per-run
+  budget was set from probe 7, the timing ones are re-derived by probe 7 and R2-P13, the model by the Phase 4
+  sweep): debounce 20 s; no spend cap by default, only the malfunction guards (per-run budget
+  $0.90 per started ten blocks judged, 10 times probe 7's largest ten-test cost of $0.0900; hang
+  timeout; 3 machine slots); 10 keys and 180 s per Stop (Stop timeout 240 s); R2-P13 bar of a
   60 s longest Stop wait; R2-P14 bars of 500 ms idle and 2 s ready; judge `opus` at `medium`,
   fallback `sonnet`, until the sweep chooses.
 

@@ -37,12 +37,23 @@ Stop (`stop_hook_active: true`) the hook allows the stop. Basis: hooks.md Stop d
 
 ### DT3. Judge model (resolved; probe 2 confirms the transcript field)
 
-Decision: userConfig `test_judge_model`, default `sonnet`, holding a model class alias (fable, opus,
+Decision (defaults superseded 2026-09-30, see below): userConfig `test_judge_model`, default
+`sonnet`, holding a model class alias (fable, opus,
 sonnet, haiku), never a versioned id, so new model versions need no change (user, 2026-09-29).
 At Stop the hook reads the last assistant `"model"` from `transcript_path`; when that id contains
 the configured class (a `claude-sonnet-*` session with judge `sonnet`), it uses
 `test_judge_fallback_model` (default `opus`) and says so in its reason. Basis: transcript grep this
 session (assistant lines carry `"model":"claude-opus-5-5"`); undocumented format, hence the probe.
+
+Superseded 2026-09-30 (user, accuracy first): the defaults are `opus` at `medium`, fallback
+`sonnet`, until the Phase 4 sweep picks the most accurate arm (PLAN.md Open questions).
+
+Amended 2026-09-30 (#5605 review): the judge's class must differ from every writer, not only the
+main transcript's model. Subagent assistant lines live only in
+`<session>/subagents/agent-<agent_id>.jsonl` (probe R2-P2), so the writer classes are the main
+session's plus those of the subagents whose `agent_id` the session files record for the judged
+file. When opus, sonnet and haiku are all writers, the keys go to UNKNOWN (derived from Q7, never
+fable unless configured). Rules in PLAN.md Phase 3, "Model".
 
 Raters (Q12 amendment, handoff h8): the human, a model rater, and the judge. The model rater's class
 differs from the judge's.
@@ -199,6 +210,11 @@ the three repos' histories at natural prevalence, reported as one stratum, with 
 second stratum; the judge prompt is frozen before it sees a labeled case and at least a third of
 cases are held out from prompt changes.
 
+Amended 2026-09-30 (#5605 review): "the next Stop" is the next task end's Stop
+(`stop_hook_active` false). The Stop after the forced turn never blocks (DT2), so keys past the cap
+go to background judge jobs and their verdicts are relayed at the next task end; a key whose job
+died is judged then instead.
+
 ### DT14. Who writes the verdict (superseded by DT16)
 
 The forced turn routes dispatch, model, prompt, output file and the counts through the writing agent,
@@ -301,15 +317,13 @@ by the hang timeout, not special-cased.
 
 ## Probes for the plan's first phase
 
-1. Subagent tool calls carry the parent `session_id`.
-2. Transcript assistant lines carry `model` on the installed version.
-3. A child `claude -p` started from a hook loads the plugin's Stop hook (confirms the DT6 rejection).
-4. The Agent tool's `model` argument overrides a plugin agent's frontmatter.
-5. `systemMessage` from a Stop command hook reaches the user.
-6. `decision: block`, then `stop_hook_active: true` on the following Stop.
+PLAN.md Phase 1 lists the probes; their results are rows R2-P1 to R2-P11 in the "Release 2 probes"
+section of `docs/specs/tautological-tests/probes.md`.
 
 ## Deferred
 
 - Bash and MCP writes (bashEditDiff, beta). Research tag: measure bashEditDiff coverage under the
   default permission mode on 2.1.284+. The spec risk table already records the gap.
-- SubagentStop judging. Research tag: probe 1 result.
+- SubagentStop judging. Probe R2-P1 held (subagent calls carry the parent `session_id`), so a
+  subagent's test writes already reach the parent's Stop; a separate SubagentStop judge stays out of
+  scope until a subagent-only session shape needs one.
