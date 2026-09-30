@@ -806,6 +806,7 @@
 "Remove-Item C:\\ -Recurse -Force"
 "Remove-Item -LiteralPath 'C:\\' -Recurse -Force"
 "Remove-Item -Recurse -Force C:\\*"
+# spellchecker:ignore-next-line
 "Remove-Item -Rec -Fo C:\\"
 "Remove-Item -R C:\\"
 "Remove-Item -Recurse -Force $env:TEMP"
@@ -816,6 +817,7 @@
 "Remove-Item -Recurse -Force /"
 "Remove-Item -Recurse -Force \\"
 "ri -Recurse -Force C:\\"
+# spellchecker:ignore-next-line
 "ri -r -fo C:\\"
 "rm -Recurse -Force C:\\"
 "rm -r -Force C:\\*"
@@ -828,6 +830,7 @@
 "rmdir -Recurse -Force C:\\"
 "Get-ChildItem C:\\ | Remove-Item -Recurse -Force"
 "Get-Item C:\\ | Remove-Item -Recurse"
+# spellchecker:ignore-next-line
 "gci C:\\* | ri -r -fo"
 "'C:\\' | Remove-Item -Recurse -Force"
 "$p = 'C:\\'; Remove-Item -Recurse -Force $p"
