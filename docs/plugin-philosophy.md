@@ -1242,7 +1242,9 @@ name is not the same underlying value across models):
   tool schema, 2026-07-29), so it structurally inherits the session level and its floor is the
   session baseline; promoting such a lane to a named agent is how it gains the pin (a required
   effort pin satisfies the named-agent bar's pin clause). `planning:plan-reviewer` pins `medium`
-  by the [recorded exception](#named-agent-bar). An orchestrator skill
+  by the [recorded exception](#named-agent-bar), and `implementation:phase-verifier`,
+  `review:ci-log-auditor`, and `review:doc-drift-detector` pin `medium` because each checks
+  against binary criteria ([pinned agents](#effort-tiers)). An orchestrator skill
   whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
   pin governs the orchestrating conversation, and whether it propagates to subagents spawned
   while the skill is active is undocumented, so treat propagation as unknown alongside the cache
@@ -1332,18 +1334,23 @@ name is not the same underlying value across models):
 
 **Pinned `effort: high` agents.**
 
-- **Claim:** Fourteen named agents pin `effort: high` so a session tuned down for cost does not
-  silently cheapen consequential workers, and one more pins `effort: medium`. There is no
+- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
+  silently cheapen consequential workers, and four pin `effort: medium`: `plan-reviewer` by its
+  recorded exception, and `phase-verifier`, `ci-log-auditor`, and `doc-drift-detector` because
+  each checks against binary criteria. The lowering is owner-decided Option B, narrow, at
+  `medium` and not `low`, because a low-effort executor stops detecting that it is stuck.
+  `security-reviewer` and `architecture-guardian` stay `high`. There is no
   per-invocation `effort` on Agent-tool dispatch, so a frontmatter pin is what holds a named
   agent's lane. The `CLAUDE_CODE_EFFORT_LEVEL` environment variable overrides every pin at once
   for the whole session (the environment variable still wins, per above), and a `maxEffortLevel`
   or organization effort cap limits any pin above the cap. Both act on the whole session; neither
   cited page documents a per-lane or per-plugin lever.
 - **Basis:** The agent definitions on origin/main (2026-09-29). `effort: high`: `implementation`
-  `implementer` and `phase-verifier`; `discovery` `explorer`, `researcher`, `intent-tracer`, and
-  `research-verifier`; `review` `code-reviewer`, `architecture-guardian`, `ci-log-auditor`,
-  `doc-drift-detector`, `ecosystem-specialist`, and `security-reviewer`; `plugin-quality`
-  `auditor`; `songwriting` `object-writer`. `effort: medium`: `planning` `plan-reviewer`. Issue
+  `implementer`; `discovery` `explorer`, `researcher`, `intent-tracer`, and
+  `research-verifier`; `review` `code-reviewer`, `architecture-guardian`,
+  `ecosystem-specialist`, and `security-reviewer`; `plugin-quality`
+  `auditor`; `songwriting` `object-writer`. `effort: medium`: `implementation` `phase-verifier`;
+  `review` `ci-log-auditor` and `doc-drift-detector`; `planning` `plan-reviewer`. Issue
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) is the source of
   the filed list of eleven, which omits `auditor`, `object-writer`, and `research-verifier`. The
   Agent-tool gap is stated in this section ("a generic Agent-tool dispatch carries no effort
@@ -1358,8 +1365,8 @@ name is not the same underlying value across models):
   tasks ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
   [effort](https://platform.claude.com/docs/en/build-with-claude/effort), same fetch date).
 - **As of:** 2026-09-29.
-- **Recheck:** the Agent tool gains a per-invocation `effort` parameter, a maintainer lowers or
-  drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
+- **Recheck:** a checker pinned `medium` misses a defect its `high` pin caught, the Agent tool gains
+  a per-invocation `effort` parameter, a maintainer lowers or drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,
