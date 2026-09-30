@@ -68,7 +68,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 
 | Action | Description | Detail |
 |--------|-------------|--------|
-| `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues. Consumes the `diff` working set | See "Action: apply" below |
+| `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → native drift → close issues. Consumes the `diff` working set | See "Action: apply" below |
 | `fetch` | Fetch + display changelog for a version or range. Read-only | See "Action: fetch" below |
 | `diff` | Resolve the range, apply the cap, emit decision rows by owner surface plus a docs-lag section. Read-only | See "Action: diff" below |
 | `status` | The read marker and its source, installed vs newest release, the default range, the cap verdict | See "Action: status" below |
@@ -166,7 +166,21 @@ you cannot explain or an item needs a change outside the confirmed scope. Execut
 
 Run the consumer repo's verification workflow (build/test/lint) on affected ecosystems. At minimum: markdown lint on all touched files.
 
-### Phase 7. Close issues (optional)
+### Phase 7. Native-surface drift
+
+Re-read what Claude Code ships and file what moved. Run the inventory self-check, a full
+`--binary-only --docs` extraction, and overlap `detect` and `self-check`, then
+`scripts/native_drift.py` to diff against the previous run's summary and evaluate the overlap
+store's recheck triggers. Report surface changes (added, removed, renamed, reclassified),
+invocability and marker changes, docs cross-check changes, and new overlap candidates. File one
+work item per new candidate, fired trigger, and degraded or broken self-check through
+`/work-items:track`, deduped by a `native-drift:<kind>:<surface>:<component>` key; a self-check
+degraded only by a CLI version past the validated build proposes revalidation instead. Commands,
+the summary's location, items, dedupe and approval: [context/native-drift.md](context/native-drift.md).
+Its commands write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that
+path in place of the placeholder before running one.
+
+### Phase 8. Close issues (optional)
 
 If user approves:
 
@@ -178,8 +192,9 @@ The last commit of an `apply` moves the read marker to the top of the applied ra
 the form `chore(<scope>): address Claude Code v<A>..<B> changelog`, so `status` reports the new
 marker from the ledger and, until the ledger exists, from that subject.
 
-End the run with a report that leads with what waits on the user (the Phase 7 approval, any item
-deferred or blocked), then what changed and what verification showed.
+End the run with a report that leads with what waits on the user (the Phase 8 approval, any item
+deferred or blocked), then what changed, what verification showed, and the Phase 7 drift report
+with the items filed or skipped.
 
 ---
 
@@ -193,6 +208,12 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 
 ---
 
+## Next
+
+- Candidates and fired triggers filed by Phase 7: `/claude-ops:audit-native-overlap`.
+- Items filed as raw intake: `/work-items:triage`.
+- A revalidation item: `/claude-ops:inventory`.
+
 ## Reference index. Load on demand
 
 | File | Load when |
@@ -202,3 +223,5 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 | `context/decisions.md` | Writing or reading decision rows, choosing where a decision is recorded (plugin CHANGELOG, audit-native-overlap nomination, ledger), fanning out, or saving and reusing the working set. |
 | `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
 | `context/classification-rubric.md` | Assigning a lens (correct, replace, adopt, note, skip) to an item, and defending a skip. |
+| `context/native-drift.md` | Running `apply` Phase 7: the extraction commands, the previous-run summary, the drift report, and filing its items. |
+| `scripts/native_drift.py` | Phase 7's summary, diff and trigger evaluation. Covered by `scripts/test_native_drift.py`. |

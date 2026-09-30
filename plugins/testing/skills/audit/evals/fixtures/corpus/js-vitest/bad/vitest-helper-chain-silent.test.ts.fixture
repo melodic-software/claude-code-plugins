@@ -1,0 +1,25 @@
+// expect: rule-zero-assertion
+// waitForAll returns pollUntil(...), but pollUntil gives up silently when the
+// condition never holds, so the test passes whether or not the event arrived.
+import { describe, it } from 'vitest';
+import { startBroker, postEvent } from '../src/broker';
+
+async function pollUntil(done: () => boolean, ms: number): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (done()) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
+function waitForAll(subs: { out(): string }[], needle: string, ms: number): Promise<void> {
+  return pollUntil(() => subs.every((s) => s.out().includes(needle)), ms);
+}
+
+describe('broker', () => {
+  it('fans an event out to every subscriber', async () => {
+    const subs = await startBroker(2);
+    await postEvent(1);
+    await waitForAll(subs, '"id":1', 3000);
+  });
+});

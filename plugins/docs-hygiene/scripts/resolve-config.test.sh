@@ -44,11 +44,19 @@ assert_lacks() {
   esac
 }
 
-# A fresh consumer root with an empty HOME beside it, so no layer is present
-# until a case writes one.
+# The empty HOME that sits beside a fixture root (`<case>/repo` and `<case>/home`).
+# It is a sibling, never inside the root: a root that contains the home is a home
+# root and has no team layer.
+home_of() {
+  printf '%s' "${1%/repo}/home"
+}
+
+# A fresh consumer git repository with an empty HOME beside it, so no layer is
+# present until a case writes one.
 new_root() {
-  root="$TEST_TMPDIR/root-$CASES-$RANDOM"
-  mkdir -p "$root/.claude" "$root/home"
+  root="$TEST_TMPDIR/case-$CASES-$RANDOM/repo"
+  mkdir -p "$root/.claude" "$(home_of "$root")"
+  git init -q "$root" >/dev/null 2>&1
   printf '%s' "$root"
 }
 
@@ -63,13 +71,13 @@ resolve() {
   # resolve <root> [extra args...]
   r="$1"
   shift
-  bash "$SUT" resolve --root "$r" --home "$r/home" "$@"
+  bash "$SUT" resolve --root "$r" --home "$(home_of "$r")" "$@"
 }
 
 layers() {
   r="$1"
   shift
-  bash "$SUT" layers --root "$r" --home "$r/home" "$@"
+  bash "$SUT" layers --root "$r" --home "$(home_of "$r")" "$@"
 }
 
 # 1. Every layer absent resolves to the bundled defaults.
@@ -96,7 +104,7 @@ assert_eq "overlay: nearest wins on regex" "^overlay$" "$(resolve "$root" | jq -
 #     machine-wide rule must never decide what a repository enforces.
 root="$(new_root)"
 write_layer "$root/.claude/docs-hygiene.json" '{"rule": "team-rule", "regex": "^team$"}'
-write_layer "$root/home/.claude/docs-hygiene.json" '{"rule": "user-rule", "regex": "^user$"}'
+write_layer "$(home_of "$root")/.claude/docs-hygiene.json" '{"rule": "user-rule", "regex": "^user$"}'
 assert_eq "team beats user-global on rule" "team-rule" "$(resolve "$root" | jq -r '.file_names.rule')"
 assert_eq "team beats user-global on regex" "^team$" "$(resolve "$root" | jq -r '.file_names.regex')"
 assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bundled,user-global,team"
@@ -134,7 +142,7 @@ assert_contains "team-only: the overlay declaration is reported inert" "$(layers
 
 # 7. The same holds for the user-global layer.
 root="$(new_root)"
-write_layer "$root/home/.claude/docs-hygiene.json" '{"generated": [{"path": "y", "regenerate": "true"}]}'
+write_layer "$(home_of "$root")/.claude/docs-hygiene.json" '{"generated": [{"path": "y", "regenerate": "true"}]}'
 assert_eq "team-only: the user-global regenerator is ignored" "docs/architecture/landscape.json" "$(resolve "$root" | jq -r '.file_names.generated[0].path')"
 assert_contains "team-only: the user-global declaration is reported inert" "$(layers "$root")" "!inert:generated	user-global"
 
@@ -196,7 +204,7 @@ assert_eq "a missing --root directory exits 2" "2" "$(
 # 14. `paths` reports each layer's location and presence.
 root="$(new_root)"
 write_layer "$root/.claude/docs-hygiene.json" '{}'
-out="$(bash "$SUT" paths --root "$root" --home "$root/home")"
+out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
 assert_contains "paths: the team layer is present" "$out" "team	$root/.claude/docs-hygiene.json	present"
 assert_contains "paths: the overlay is absent" "$out" "overlay	$root/.claude/docs-hygiene.local.json	absent"
 
@@ -208,7 +216,7 @@ git -C "$root" config user.email fixture@example.invalid
 git -C "$root" config user.name "Fixture"
 git -C "$root" config commit.gpgsign false
 write_layer "$root/.claude/docs-hygiene.json" '{"regex": "^from-cwd$"}'
-out="$(cd "$root" && HOME="$root/home" bash "$SUT" resolve | jq -r '.file_names.regex')"
+out="$(cd "$root" && HOME="$(home_of "$root")" bash "$SUT" resolve | jq -r '.file_names.regex')"
 assert_eq "no --root: the git toplevel of the cwd supplies the team layer" "^from-cwd$" "$out"
 
 # Every tier entry carries the layer that contributed it, which is what lets a
@@ -216,13 +224,65 @@ assert_eq "no --root: the git toplevel of the cwd supplies the team layer" "^fro
 root="$(new_root)"
 write_layer "$root/.claude/docs-hygiene.json" \
   '{"tiers": [{"name": "t-team", "paths": ["docs/a/**"], "forms": "none"}]}'
-write_layer "$root/home/.claude/docs-hygiene.json" \
+write_layer "$(home_of "$root")/.claude/docs-hygiene.json" \
   '{"tiers": [{"name": "t-personal", "paths": ["docs/a/deep/**"], "forms": "all"}]}'
 tiers="$(resolve "$root" | jq -c '.file_names.tiers')"
 assert_contains "a team tier is stamped team" "$tiers" '"name":"t-team"'
 assert_contains "and carries its layer" "$tiers" '"_layer":"team"'
 assert_contains "a personal tier is still appended" "$tiers" '"name":"t-personal"'
 assert_contains "and is stamped with the layer that added it" "$tiers" '"_layer":"user-global"'
+
+# Config-cascade step 2: a home or non-repo root has no team or overlay layer, and
+# the user-global file is read once, never again as team.
+home="$TEST_TMPDIR/hroot/home"
+mkdir -p "$home/.claude"
+write_layer "$home/.claude/docs-hygiene.json" '{"rule": "home-rule", "generated": [{"path": "y", "regenerate": "true"}]}'
+out="$(bash "$SUT" resolve --root "$home" --home "$home")"
+assert_eq "home root: the user-global file supplies its nearest-wins key" "home-rule" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
+assert_eq "home root: a team-only key in the user-global file is not read as team" "null" "$(printf '%s' "$out" | jq -c '[.file_names.generated[].path] | index("y")')"
+out="$(bash "$SUT" layers --root "$home" --home "$home")"
+assert_contains "home root: provenance names the user-global layer once" "$out" "rule	bundled,user-global
+"
+assert_lacks "home root: provenance never names the team layer" "$out" ",team"
+out="$(bash "$SUT" paths --root "$home" --home "$home")"
+assert_contains "home root: paths marks team not-applicable" "$out" "team	-	not-applicable: home root"
+assert_contains "home root: paths marks the overlay not-applicable" "$out" "overlay	-	not-applicable: home root"
+
+# An ancestor of the home is a home root too.
+parent="$TEST_TMPDIR/hroot"
+mkdir -p "$parent/.claude"
+write_layer "$parent/.claude/docs-hygiene.json" '{"rule": "ancestor-rule"}'
+out="$(bash "$SUT" resolve --root "$parent" --home "$home")"
+assert_eq "an ancestor of the home is a home root: its .claude is not the team layer" "home-rule" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
+
+# A git repository at the home directory is still a home root.
+git init -q "$home" >/dev/null 2>&1
+out="$(bash "$SUT" paths --root "$home" --home "$home")"
+assert_contains "a git repository at the home is still a home root" "$out" "team	-	not-applicable: home root"
+
+# A directory that is not a git working tree has no team or overlay layer.
+plain="$TEST_TMPDIR/plain"
+mkdir -p "$plain/.claude" "$TEST_TMPDIR/plainhome"
+write_layer "$plain/.claude/docs-hygiene.json" '{"rule": "plain-team"}'
+write_layer "$plain/.claude/docs-hygiene.local.json" '{"rule": "plain-overlay"}'
+out="$(bash "$SUT" resolve --root "$plain" --home "$TEST_TMPDIR/plainhome")"
+assert_eq "a non-repo root: the bundled rule stands" "lower-kebab" "$(printf '%s' "$out" | jq -r '.file_names.rule')"
+out="$(bash "$SUT" paths --root "$plain" --home "$TEST_TMPDIR/plainhome")"
+assert_contains "a non-repo root: paths marks team not-applicable" "$out" "team	-	not-applicable: non-repo root"
+
+# A repository whose team file is the user-global file (a symlinked .claude) reads
+# it once.
+root="$(new_root)"
+rm -rf "$root/.claude"
+ln -s "$(home_of "$root")/.claude" "$root/.claude" 2>/dev/null || true
+if [[ -L "$root/.claude" ]]; then
+  write_layer "$(home_of "$root")/.claude/docs-hygiene.json" '{"rule": "shared-rule"}'
+  out="$(bash "$SUT" layers --root "$root" --home "$(home_of "$root")")"
+  assert_contains "a team path that is the user-global file: read once" "$out" "rule	bundled,user-global
+"
+  out="$(bash "$SUT" paths --root "$root" --home "$(home_of "$root")")"
+  assert_contains "a team path that is the user-global file: paths says so" "$out" "team	-	same file as the user-global layer"
+fi
 
 printf '\nPASS=%d FAIL=%d\n' "$((CASES - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]] || exit 1
