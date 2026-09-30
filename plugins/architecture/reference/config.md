@@ -93,7 +93,6 @@ views refuse it too. No per-skill dialect key is added.
 | map-flow | no dialect key; a mermaid `sequenceDiagram` |
 | map-events | no dialect key; a mermaid `flowchart` of publish, send, and consume |
 | map-dependencies | no dialect key; a mermaid `flowchart` of the build graph |
-| map-states | no dialect key; a mermaid `stateDiagram-v2` |
 | map-landscape | `landscape_dialect`, unchanged |
 
 The four C4 views resolve `diagram_dialect.system` through
