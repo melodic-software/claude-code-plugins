@@ -1407,6 +1407,18 @@ def _declaration(
     return found
 
 
+def _write_pattern(ident: str) -> re.Pattern[str]:
+    """Any write to `ident`: plain or compound assignment, `++` or `--`."""
+    name = re.escape(ident)
+    return re.compile(
+        r"(?<![\w$.])(?:(?:\+\+|--)\s*"
+        + name
+        + r"(?![\w$])|"
+        + name
+        + r"\s*(?:\+\+|--|(?:\*\*|<<|>>>?|&&|\|\||\?\?|[-+*/%&|^])?=(?![=>])))"
+    )
+
+
 def _binding_pattern(ident: str) -> re.Pattern[str]:
     name = re.escape(ident)
     return re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
@@ -1591,7 +1603,7 @@ def _resolve_chain(
                     for name, values in _bound_arguments(
                         src, braces, fn[2], chain[1][2], hops=hops - 1, shadow=shadow
                     ).items()
-                    if not _binding_pattern(name).search(body)
+                    if not _write_pattern(name).search(body)
                 },
             }
         _scan(

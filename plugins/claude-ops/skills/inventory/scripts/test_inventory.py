@@ -1319,6 +1319,13 @@ class TestToolDescriptionShapes(unittest.TestCase):
             '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Use …")
+        for write in ('x+="LOCAL"', "x++", "--x", 'x??="LOCAL"'):
+            with self.subTest(write=write):
+                src = (
+                    f'var Qz="Probe";function ff(x){{{write};return`Use ${{x}}`}}'
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertEqual(_tool(src, "Probe")["description"], "Use …")
 
     def test_a_partial_element_or_argument_keeps_a_runtime_alternative(self) -> None:
         src = (
