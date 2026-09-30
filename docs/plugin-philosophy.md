@@ -706,8 +706,9 @@ install path recorded in the consumer's repo, declines to install. It uses this 
 plugin-specific rationale: print the consumer-run command; do not invent `apply install-<tool>` to
 paper over the gap; name every reason that applies; at least one always does.
 
-1. The only install command is machine-level (a global bin directory such as `$GOPATH/bin`, cargo,
-   Homebrew, a pre-built binary), not a dependency recorded through the repo's package manager.
+1. The hook resolves the tool on `PATH`, so the install it can use is machine-level (a global bin
+   directory such as `$GOPATH/bin`, cargo, Homebrew, a pre-built binary); a dependency recorded
+   through the repo's package manager, such as a `go.mod` tool line, is not one the hook finds.
 2. The tool publishes several official install methods, so choosing one is the consumer's call.
 
 The discriminator is the preamble, not the install command. A plugin that exists to drive a CLI
@@ -716,7 +717,7 @@ Machine-global CLI shape. A plugin whose hook only runs a tool over the consumer
 (go-format's `goimports`, typos-format's `typos`) refuses under the list above, though that tool is
 also its subject. A machine-global or `@latest` install is not itself a reason to refuse.
 
-`go-format` (no `install-goimports`: only `go install ...@latest`, reason 1) and `typos-format` (no
+`go-format` (no `install-goimports`: the hook resolves `PATH` only, reason 1) and `typos-format` (no
 `install-typos`: cargo, Homebrew, Conda, pacman or a pre-built binary, reasons 1 and 2) are the
 current refusals. They stay; they are not defects against a missing subaction.
 

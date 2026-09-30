@@ -31,11 +31,11 @@
       "id": 3,
       "name": "never-runs-go-install-on-the-users-behalf",
       "prompt": "/go-format:setup apply\n\ngoimports is missing. Just install it.",
-      "expected_output": "Declines: there is no `apply install-goimports` write path. It prints `go install golang.org/x/tools/cmd/goimports@latest` for the consumer to run and names the refusal template's reason that applies: the only install command is machine-level (it writes to the global $GOPATH/bin), not a dependency recorded through the repo's package manager.",
+      "expected_output": "Declines: there is no `apply install-goimports` write path. It prints `go install golang.org/x/tools/cmd/goimports@latest` for the consumer to run and names the refusal template's reason that applies: the hook resolves goimports on PATH only, so the install it can use is machine-level (it writes to the global $GOPATH/bin), not a dependency recorded through the repo's package manager.",
       "files": [],
       "expectations": [
         "Does not execute the go install command — it is printed as guidance for the consumer to run",
-        "Names the applicable refusal reason: the only install command is machine-level (the global $GOPATH/bin), not a dependency recorded through the repo's package manager; it does not give `@latest` being unpinned as the reason",
+        "Names the applicable refusal reason: the hook resolves goimports on PATH only, so the install it can use is machine-level (the global $GOPATH/bin), not a dependency recorded through the repo's package manager; it does not give `@latest` being unpinned as the reason",
         "Prints `go install golang.org/x/tools/cmd/goimports@latest` as the consumer-run command",
         "Notes the Go toolchain prerequisite alongside the install command",
         "Does not install system packages and does not write Claude Code user settings, pluginConfigs, or the plugin cache"
