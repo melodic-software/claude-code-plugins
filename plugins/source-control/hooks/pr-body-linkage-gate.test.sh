@@ -620,7 +620,7 @@ for tmp_case in "compliant:$GOOD:0" "blocked:$NO_RELATED:2" "dense:@dense.md:2";
   else
     tmp_cmd="$(gh_body "$tmp_body")"
   fi
-  tmp_dir="$(mktemp -d)"
+  tmp_dir="$(mktemp -d "$WORK/tmp.XXXX")"
   tmp_payload=$(mk_payload "$GATED" "$tmp_cmd")
   tmp_rc=0
   (cd "$UNRELATED" && printf '%s' "$tmp_payload" | TMPDIR="$tmp_dir" bash "$HOOK" >/dev/null 2>&1) || tmp_rc=$?
@@ -632,7 +632,6 @@ for tmp_case in "compliant:$GOOD:0" "blocked:$NO_RELATED:2" "dense:@dense.md:2";
   else
     ok "$tmp_name body leaves TMPDIR empty"
   fi
-  rm -rf "$tmp_dir"
 done
 
 # linkage::split_lines matches the `printf '%s\n'` + read contract: one more
