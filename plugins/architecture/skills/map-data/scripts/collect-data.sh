@@ -25,10 +25,11 @@
 # (ICollection/List/IList/IEnumerable/HashSet<T> for a collection, T or T? for a
 # reference). The foreign key is one column, HasForeignKey("Col") or
 # HasForeignKey(e => e.Col); HasPrincipalKey is one column the same way.
-# Requiredness is IsRequired(), IsRequired(true) or IsRequired(false) and, when neither is
+# Requiredness is IsRequired(), IsRequired(true) or IsRequired(false) and, when none is
 # written, the foreign-key property's declared type on the dependent class: T?,
 # Nullable<T> and string? are optional, a built-in value type is required.
-# Unreadable: a composite key, a navigation with no single declared type, and a
+# Unreadable: a composite key, a navigation with no single declared type, an
+# IsRequired argument other than true or false, and a
 # foreign key with no IsRequired whose property is undeclared or has any other
 # type (a plain string is nullable or not by project setting).
 #

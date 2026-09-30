@@ -11,7 +11,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   is configured in an `IEntityTypeConfiguration<T>` class, or whose one-to-many navigations are
   lambdas resolved from the entity classes. Requiredness falls back to the foreign-key
   property's declared type when `IsRequired` is absent, so `int?` is optional and `int` is
-  required. A chain still outside the subset refuses the record and names the property on stderr.
+  required; an `IsRequired` argument other than `true` or `false` refuses the record. A chain
+  still outside the subset refuses the record and names the property on stderr.
 
 ## [0.15.0] - 2026-09-29
 

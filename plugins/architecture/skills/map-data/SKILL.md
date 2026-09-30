@@ -96,7 +96,7 @@ names `reason` and writes no relationships. Shipped tiers, first present wins th
   declared on the configured entity's class in the scanned `.cs` files (`ICollection`, `List`,
   `IList`, `IEnumerable` or `HashSet` of one identifier for a collection, `T` or `T?` for a
   reference). `HasForeignKey` and `HasPrincipalKey` take one string literal or one single-member
-  lambda. Requiredness is an explicit `IsRequired()` or `IsRequired(false)`; with neither, it is the
+  lambda. Requiredness is an explicit `IsRequired()`, `IsRequired(true)` or `IsRequired(false)`; with none, it is the
   foreign-key property's declared type on the dependent class: `T?`, `Nullable<T>` and `string?`
   are optional, and `int`, `uint`, `long`, `ulong`, `short`, `ushort`, `byte`, `sbyte`, `Guid`,
   `DateTime` and `DateTimeOffset` are required.
@@ -168,7 +168,8 @@ End every run with this block, in this order:
   above. Other mechanisms refuse. Within EF, these refuse: a composite key, `HasOne(lambda)` paired
   with `WithOne`, a navigation with no single declared type (an expression-bodied property, a
   positional record member, an undeclared name), two declarations of one class property in the
-  same module, a file with zero or several `IEntityTypeConfiguration<T>` classes, and, when
+  same module, a file with zero or several `IEntityTypeConfiguration<T>` classes, an `IsRequired`
+  argument other than `true` or `false`, and, when
   `IsRequired` is absent, a foreign key that is undeclared or has a plain `string`, enum or other
   type, because its nullability depends on the project's nullable setting. A `[ForeignKey]`
   annotation is not read.
