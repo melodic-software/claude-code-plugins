@@ -1332,7 +1332,15 @@ class TestToolDescriptionShapes(unittest.TestCase):
             '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Use …")
-        for write in ('x+="LOCAL"', "x++", "--x", 'x??="LOCAL"'):
+        for write in (
+            'x+="LOCAL"',
+            "x++",
+            "--x",
+            'x??="LOCAL"',
+            '[x]=["LOCAL"]',
+            '({a:x}={a:"LOCAL"})',
+            "for(x of y);",
+        ):
             with self.subTest(write=write):
                 src = (
                     f'var Qz="Probe";function ff(x){{{write};return`Use ${{x}}`}}'
@@ -1489,6 +1497,13 @@ class TestModuleScopedResolution(unittest.TestCase):
             "$t({name:Qz,maxResultSizeChars:1,async description(){return`Use ${e}`}});"
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Use …")
+
+    def test_a_later_declaration_must_be_visible(self) -> None:
+        src = _modules(
+            'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:ff()});'
+            'function outer(){function ff(){return"WRONG"}}function ff(){return"REAL"}'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
 
     def test_a_huge_bigint_does_not_abort_the_run(self) -> None:
         big = "0x1" + "0" * 400 + "n"

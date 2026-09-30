@@ -1483,13 +1483,22 @@ def _declaration(
         if _visible(braces, m.start(), at):
             found = m
     if found is None:
-        later = pattern.search(src, at, hi)
-        found = later if later is not None and later_ok(later) else None
+        found = next(
+            (
+                m
+                for m in pattern.finditer(src, at, hi)
+                if _visible(braces, m.start(), at)
+            ),
+            None,
+        )
+        if found is not None and not later_ok(found):
+            found = None
     return found
 
 
 def _write_pattern(ident: str) -> re.Pattern[str]:
-    """Any write to `ident`: plain or compound assignment, `++` or `--`."""
+    """Any write to `ident`: plain or compound assignment, `++` or `--`, a
+    destructuring target (`[x]=`, `{a:x}=`), or a `for (x of|in ...)` head."""
     name = re.escape(ident)
     return re.compile(
         r"(?<![\w$.])(?:(?:\+\+|--)\s*"
@@ -1497,6 +1506,12 @@ def _write_pattern(ident: str) -> re.Pattern[str]:
         + r"(?![\w$])|"
         + name
         + r"\s*(?:\+\+|--|(?:\*\*|<<|>>>?|&&|\|\||\?\?|[-+*/%&|^])?=(?![=>])))"
+        + r"|[\[{][^\[\]{};]*(?<![\w$.])"
+        + name
+        + r"(?![\w$])[^\[\]{};]*[\]}]\s*=(?![=>])"
+        + r"|for\s*\(\s*"
+        + name
+        + r"\s+(?:of|in)\b"
     )
 
 
@@ -1717,10 +1732,15 @@ def _resolve_chain(
         # else the alias-following lookup.
         v = _binding_value(src, braces, ident, at, deferred=deferred)
         close_v = braces.pairs.get(v) if v is not None else None
+        alias = re.match(_IDENT + r"(?=[;,)\s])", src[v : v + 64]) if v else None
         obj = (
             (v, src[v : close_v + 1])
             if close_v is not None
-            else _resolve_object(src, braces, ident, at)
+            # An alias (`let t=c`) is followed from its own binding; no
+            # visible binding at all is unresolved.
+            else _resolve_object(src, braces, alias.group(0), v)
+            if alias and v is not None
+            else None
         )
         if obj is None:
             return None
