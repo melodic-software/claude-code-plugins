@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Assemble and render `code-metrics/v1` report documents (design thread T5).
+"""Assemble and render `code-metrics/v2` report documents (design thread T5).
 
-Three subcommands, all standard library:
+Four subcommands, all standard library:
 
   report.py thresholds --config <resolved.json> --measures m1,m2
       Print the `thresholds[]` entries for the named measures: the reference
@@ -30,6 +30,15 @@ Three subcommands, all standard library:
       (directories to `--rollup-depth`, default 2), and summarizes as
       `Files with clones`; every other document renders as it always has.
 
+  report.py anchor --root <dir> --kind repository|directory [< report.json]
+      Make every measured path (`measures[].file`, `instances[].file`,
+      `replicas.files`, `excluded[].instances[].file`, `run[].missing` and the
+      `; missing:` note in `run[].reason`) relative to `--root`, record that
+      root as `root.kind` and `root.path`, record the directory the audit ran
+      from as `scan_root` (relative to the root, `.` when equal), and
+      recompute `summary`. A document that already carries `root` is printed
+      unchanged.
+
   report.py resummarize [--root <dir>] [< report.json]
       Recompute `summary` from `measures[]` and print the document; for a
       skill that drops rows after assembly (a duplication registry moving
@@ -45,13 +54,15 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import os
 import sys
 from typing import Any
 
 from pathglob import root_relative
 
 MIN_PYTHON = (3, 9)
-SCHEMA = "code-metrics/v1"
+SCHEMA = "code-metrics/v2"
+ROOT_KINDS = ("repository", "directory")
 RUN_STATUSES = ("ok", "partial", "unavailable", "not-applicable", "deferred")
 MAX_RENDERED_ROWS = 200
 # The reason prefix the dispatcher writes on a run row when a collector ran and
@@ -251,6 +262,96 @@ def _with_excluded_files(
     if count:
         summary["files_excluded_only"] = count
     return summary
+
+
+_MISSING_SHOWN = 5
+
+
+def _missing_note(paths: list[str]) -> str:
+    """The `; missing:` suffix a coverage run row carries.
+
+    The first few paths ride on the reason and the count of the rest follows;
+    the row's `missing` list carries every one. `MISSING_SHOWN` in the
+    coverage join is the same cap.
+    """
+    if not paths:
+        return ""
+    shown = ", ".join(paths[:_MISSING_SHOWN])
+    if len(paths) > _MISSING_SHOWN:
+        shown += f", +{len(paths) - _MISSING_SHOWN} more in the JSON"
+    return f"; missing: {shown}"
+
+
+def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]:
+    """Make measured paths relative to `root` and record that root.
+
+    A cwd-relative path is joined onto the working directory first
+    (`root_relative`), so a run from a subdirectory and a run from the root
+    name a file the same way; `scan_root` alone says where the run started.
+    A second call is a no-op once `root` is recorded, so a dispatcher and the
+    entry point that emits its output can both call this without joining an
+    already-relative path onto the working directory again.
+    """
+    existing = doc.get("root")
+    if isinstance(existing, dict) and existing.get("kind") and existing.get("path"):
+        return doc
+    if kind not in ROOT_KINDS:
+        raise SystemExit(f"anchor kind must be one of {ROOT_KINDS}, got {kind!r}")
+    text = root.replace("\\", "/")
+    if not text:
+        raise SystemExit("anchor needs a root path")
+    root_text = text.rstrip("/")
+    if not root_text or root_text.endswith(":"):
+        root_text += "/"
+
+    def one(path: Any) -> Any:
+        return (
+            root_relative(path, root_text) if isinstance(path, str) and path else path
+        )
+
+    def rebase_instances(rows: Any) -> None:
+        for instance in rows or []:
+            if isinstance(instance, dict):
+                instance["file"] = one(instance.get("file"))
+
+    for row in doc.get("measures") or []:
+        if "file" in row:
+            row["file"] = one(row["file"])
+        rebase_instances(row.get("instances"))
+        replicas = row.get("replicas")
+        if isinstance(replicas, dict):
+            replicas["files"] = [one(item) for item in replicas.get("files") or []]
+    for group in doc.get("excluded") or []:
+        rebase_instances(group.get("instances"))
+    notes: list[tuple[str, str]] = []
+    for row in doc.get("run") or []:
+        missing = row.get("missing")
+        if isinstance(missing, list):
+            anchored = sorted(one(item) for item in missing)
+            notes.append((_missing_note(missing), _missing_note(anchored)))
+            row["missing"] = anchored
+    for row in doc.get("run") or []:
+        reason = row.get("reason")
+        if isinstance(reason, str):
+            for old, new in notes:
+                if old and reason.endswith(old):
+                    reason = reason[: -len(old)] + new
+                    break
+            row["reason"] = reason
+    doc["root"] = {"kind": kind, "path": root_text}
+    doc["scan_root"] = root_relative(os.getcwd(), root_text)
+    # A total exclusion leaves the duplication keys at zero on the previous
+    # summary only: a recomputation from the surviving rows omits them.
+    previous = doc.get("summary") or {}
+    measures = doc.get("measures") or []
+    summary = _with_excluded_files(
+        summarize(measures, ""), measures, doc.get("excluded") or []
+    )
+    for key in ("duplicated_lines", "clone_groups", "by_lane", "by_directory"):
+        if key in previous and key not in summary:
+            summary[key] = previous[key]
+    doc["summary"] = summary
+    return doc
 
 
 def assemble(
@@ -566,6 +667,12 @@ def render(
             else ""
         )
     )
+    root_info = doc.get("root")
+    if isinstance(root_info, dict) and root_info.get("path"):
+        lines.append("")
+        lines.append(
+            f"Paths are relative to the {root_info.get('kind')} root `{root_info['path']}`."
+        )
     lines.append("")
     lines.append("## Coverage of this run")
     lines.append("")
@@ -846,6 +953,9 @@ def main(argv: list[str]) -> int:
     p_render.add_argument("--rollup-depth", type=int, default=2)
     p_res = sub.add_parser("resummarize")
     p_res.add_argument("--root", default="")
+    p_anchor = sub.add_parser("anchor")
+    p_anchor.add_argument("--root", required=True)
+    p_anchor.add_argument("--kind", required=True, choices=ROOT_KINDS)
     args = parser.parse_args(argv)
     if args.command == "thresholds":
         config = _read_json(args.config)
@@ -864,6 +974,9 @@ def main(argv: list[str]) -> int:
         print(json.dumps(doc, indent=2))
         return 0
     doc = json.load(sys.stdin)
+    if args.command == "anchor":
+        print(json.dumps(anchor_document(doc, args.root, args.kind), indent=2))
+        return 0
     if args.command == "resummarize":
         doc["summary"] = _with_excluded_files(
             summarize(doc.get("measures", []), args.root),

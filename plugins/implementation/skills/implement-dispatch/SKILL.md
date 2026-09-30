@@ -18,7 +18,7 @@ Structural variant of `/implementation:implement` for orchestrated execution: th
 
 - **One git writer per worktree, under either authority.** A worktree has one index and one HEAD, so two workers staging or committing in one worktree at once can collide on the index or commit each other's paths. Under `worker`, where every worker stages and commits, rows that share a worktree run one at a time, whatever `--wave-cap` allows. Concurrent rows in one worktree need `orchestrator`, where the orchestrator is the only git writer (see Concurrency). (A linked worktree is linked to its repository "sharing everything except per-worktree files such as HEAD, index", per <https://git-scm.com/docs/git-worktree>, verified 2026-09-27. Recheck when a git release note changes per-worktree state.)
 - **Verify before accepting.** Verify the return against direct evidence before accepting edits. Never accept a worker's green claim as the build signal; the orchestrator runs the build or `/toolchain:check`.
-- **Verify each phase before marking it `[DONE]`:** in every mode, dispatch the fresh-context `phase-verifier` for any phase beyond a mechanical, behavior-preserving change; the orchestrator verifies a mechanical, behavior-preserving phase from the diff plus the build/test signal. The check is defined once under Phase boundaries.
+- **Verify each phase before marking it `[DONE]`:** in every mode, dispatch the fresh-context `phase-verifier` for any phase beyond a mechanical, behavior-preserving change; the orchestrator verifies a mechanical, behavior-preserving phase from the diff plus the build/test signal. A separate rule covers an orchestrator source commit made after the last phase's `[DONE]`: it is verified in every mode, with no mechanical-change exemption, before it is pushed or a PR is created. Both are defined under Phase boundaries.
 - **Major divergence (fundamental assumption wrong) still STOPS even autonomously.** Park the run with a handoff rather than improvising a new design.
 - **An `INCONCLUSIVE` return, the `phase-verifier` contract's answer when it could not decide every criterion, is not a verdict:** the phase stays unmarked, and the orchestrator re-dispatches a *fresh* verifier against the gap the return named (narrower criteria, or the specific files it could not reach), never accepting the partial coverage and never marking `[DONE]` on it; a second inconclusive return on the same criteria is an escalation, handled like a divergence report in the dispatch cadence. Surface subagent results in the response before ending the turn.
 
@@ -31,6 +31,33 @@ Structural variant of `/implementation:implement` for orchestrated execution: th
 **Interactive:** read the plan's execution-shape/routing table. Worker rows present (any surface other than main-window) → this skill's dispatch cadence for those phases. Routing table absent or all main-window → `/implementation:implement` classic inline cadence instead.
 
 `/implementation:implement` shares this detection at its Step 0 and chains here; invoking this skill directly with a worker-routed plan is equivalent.
+
+## Boundary, the bundled `batch` skill
+
+Both fan work out to parallel agents in isolated worktrees, so "run this in parallel" can reach for
+either.
+
+- **`/batch` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Takes an
+  `<instruction>`, researches the codebase, decomposes the change into 5 to 30 independent units,
+  and presents a plan; once approved, it spawns one background agent per unit in its own worktree,
+  and each implements, tests, and opens its own PR. Reserved for the person to run; the model does
+  not invoke it.
+- **This skill (marketplace plugin).** Executes an already-approved plan's phases: scope-fenced
+  briefs, capped waves, return verification against direct evidence, the main-side build gate, the
+  phase-verifier, and divergence routing.
+
+**Routing.** When no approved plan exists and the work is a large mechanical change that splits
+into independent PRs, offer it to the person at the prerequisite check, before any brief: "you can
+run `/batch <instruction>` instead of or alongside this skill". With an approved plan, this skill
+runs. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** `/batch` creates worktrees, commits, and opens one PR per unit. This skill never
+triggers it on its own behalf.
+
+**Availability is never assumed.** `disableBundledSkills` or a `skillOverrides` entry hides it, and
+it needs a git repository or a `WorktreeCreate` hook; this section states what to do when it
+resolves, never that it is present. The four-part records live in
+[reference/native-batch.md](reference/native-batch.md).
 
 ## Arguments
 
@@ -125,6 +152,8 @@ An entry whose evidence does not resolve, or whose result was never verified, is
 
 **Fresh-context verifier before marking a phase `[DONE]`:** the Step 4 ritual's acceptance-criteria verdict (item 1) is, in orchestrated runs, *dispatched* rather than rendered inline. Dispatch this plugin's `phase-verifier` agent (subagent type `implementation:phase-verifier`; its `model` frontmatter structurally binds the verifier at least as capable as the implementer it checks) to check the phase's acceptance criteria against the actual diff, handed binary criteria and the diff with your rationale withheld. Frontmatter binds a floor, not a session-relative value: a consequential verdict runs at the session-model tier or above, never below (the marketplace's `docs/plugin-philosophy.md` "Model tiers"), so when the orchestrating session's model resolves above the binding, pass a per-invocation `model` at or above the session tier. Upward only. Where the phase's outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor for that verifier **when one is installed and set up**. E.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs. With the fresh-context same-vendor verifier sub-agent as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository). It applies in every mode: dispatch it for any phase beyond a mechanical, behavior-preserving change, and verify a mechanical, behavior-preserving phase from the diff plus the build/test signal. The verifier does not substitute for implement Step 5's end gate. An inconclusive verifier return is not a verdict; the rule is under Gates, above.
 
+**Fresh-context verifier for a post-phase source commit:** an orchestrator source commit made after the last numbered phase's `[DONE]` and before the push or PR gets the same fresh-context `phase-verifier` dispatch, with no worker. The diff is the commit against the last phase-boundary commit. The binary criteria are the commit's stated purpose plus any Brief outcome criteria it touches. Rationale is withheld, the model binding and `INCONCLUSIVE` handling are the paragraph above's and Gates', and it applies in every mode. The verdict comes back before the commit is pushed or a PR is created. Docs-only and plan-mark commits are exempt.
+
 ### Resident-vs-clear at phase boundaries
 
 The orchestrator stays resident across phase boundaries by default. Clear and resume from the emitted prompt only when one of these holds:
@@ -144,14 +173,13 @@ Which way the boundary goes decides its ritual (see Phase boundaries): a clear g
 | Worker divergence report | Severity-assess per `/implementation:implement`'s "Step 3: Divergence Detection"; Major → the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
 | Every worker return | Verify against direct evidence, then invoke `/toolchain:check` via the Skill tool main-side (when the `toolchain` plugin is installed; else the project's own build) |
 | Phase sanity check passes | `/implementation:implement`'s "Step 4" ritual (its item-1 verifier gate applies in every mode; orchestrated runs dispatch it. See Phase boundaries) |
-| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff" (outcome verification is that step's `/verification:confirm` route; see [`reference/run-end-outcome-verify.md`](reference/run-end-outcome-verify.md)) |
+| All phases complete | Invoke `/implementation:implement` via the Skill tool for its "Step 5: Completion and Handoff" (outcome verification is that step's `/verification:confirm` route). A source commit made after the last phase's `[DONE]` first gets the post-phase verifier (see Phase boundaries) |
 
 ## What this skill does NOT do
 
 - **Does not edit inline**. Inline execution cadence, commit discipline, and mode context files (feature/bugfix/refactor) are `/implementation:implement`'s
 - **Does not create or revise plans**. A planning pass produces plans; this skill executes routing tables
 - **Does not replace `/toolchain:check`**. The `toolchain` plugin's check skill (when installed) is the SSOT; this skill invokes it main-side at the right moments, falling back to the project's own build command when that plugin is absent
-- **A post-phase orchestrator source commit is outside the numbered cadence.** See [`reference/run-end-outcome-verify.md`](reference/run-end-outcome-verify.md)
 
 ## Gotchas
 

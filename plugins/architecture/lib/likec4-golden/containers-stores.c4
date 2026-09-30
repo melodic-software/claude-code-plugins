@@ -1,0 +1,61 @@
+specification {
+  element softwareSystem
+  element container
+  element store {
+    style {
+      shape storage
+    }
+  }
+  element queue {
+    style {
+      shape queue
+    }
+  }
+}
+model {
+  e_sys = softwareSystem "dbs-repo" {
+    e_Billing = container "Billing" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_Legacy1 = container "Legacy1" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_Legacy2 = container "Legacy2" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_Orders = container "Orders" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_Reports = container "Reports" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_legacy_example_com__database_unknown_ = store "legacy.example.com (database unknown)" {
+      technology "unknown"
+      description "store"
+    }
+    e_sql_example_com_billing = store "sql.example.com/billing" {
+      technology "unknown"
+      description "store"
+    }
+    e_sql_example_com_orders = store "sql.example.com/orders" {
+      technology "unknown"
+      description "store"
+    }
+  }
+  e_sys.e_Billing -> e_sys.e_sql_example_com_billing "Uses"
+  e_sys.e_Legacy1 -> e_sys.e_legacy_example_com__database_unknown_ "Uses"
+  e_sys.e_Legacy2 -> e_sys.e_legacy_example_com__database_unknown_ "Uses"
+  e_sys.e_Orders -> e_sys.e_sql_example_com_orders "Uses"
+  e_sys.e_Reports -> e_sys.e_sql_example_com_orders "Uses"
+}
+views {
+  view containers of e_sys {
+    title "Container diagram for dbs-repo"
+    include *
+  }
+}
