@@ -137,6 +137,41 @@ test-scan on every round, because `--inventory` skips the Playwright config walk
 arm meets the 150 ms p95 budget at load 33-36, before included; the idle measurement moves to
 Phase 8 with the Phase 5 config arm.
 
+### Bash route: `test-scan-bash.sh` (WSL2, 2026-09-30)
+
+Five arms per round, one sample of each per iteration, 50 samples, every arm through `node
+exec-bash.mjs --require-true TEST_GUARDS_ENABLED`, started at a 1-minute load of 5.8-6.9. All
+payloads are PostToolUse `Bash` payloads; the one-file arm carries a `bashEditDiff` naming one
+created zero-assertion `*.test.ts` and emits its finding. "Direct" is the same file as a `Write`
+payload through `test-scan.sh`, for the baseline.
+
+| Round | option off (launcher only) | no diff, empty stdout | no diff, 300 KB stdout | one-file diff | direct test-scan |
+|---|---|---|---|---|---|
+| 1 | 20/23 ms | 27/31 ms | 59/66 ms | 114/129 ms | 106/114 ms |
+| 2 | 20/22 ms | 27/31 ms | 58/65 ms | 113/119 ms | 104/114 ms |
+| 3 | 20/22 ms | 27/30 ms | 61/66 ms | 113/119 ms | 105/111 ms |
+
+Each cell is p50/p95. All arms meet the 150 ms p95 budget. The one-file route costs about 9 ms
+over a direct Write scan (one extra `jq`, the child shell and its `hook-utils.sh` source). A
+payload without `bashEditDiff` exits after reading stdin and one substring test. The 300 KB arm
+pays for reading and validating the payload in `hook::buffer_stdin_to`. The option-off arm is what
+every Bash call costs a user who has not turned `test_guards_enabled` on, since a `Bash` row has no
+glob to keep the launcher from starting: one `node` start per Bash call. The route was not
+measured above load 7; the direct arm alone reads 134-140 ms p95 at load 11-12, so the one-file
+margin is an idle-host figure.
+
+Budget figures, same host at a load of about 5.3. S is `bash -c :`; the four arms ran interleaved,
+50 samples, each one-file fire with its own `tool_use_id` (the per-call marker skips a repeated id).
+p50/p95: S 1.0/1.2 ms; option off 21.8/25.4 ms (22 S); no diff 30.1/33.7 ms (30 S); one-file diff
+115.5/127.6 ms (115 S). `scripts/hook-census.sh` spawns, process creations plus execs, three runs
+each with identical results: option off 1 (0 creations, 1 exec), no diff 3 (1 creation, 2 execs),
+one-file diff 96 (59 creations, 37 execs). The first two are the
+ceilings in `.performance/ratchets.json`. A mutant that runs `jq` before the script's substring
+test raised the no-diff count from 3 to 5, and `ratchet.py check` reported it above its ceiling.
+Versions: `bash=5.3.9(1)-release sh=/usr/bin/dash git 2.53.0 jq-1.8.2 strace 6.19`; strace came
+from an extracted `.deb`, not an installed package. The CI runner's versions differ, so its ratchet
+step is the confirmation.
+
 ## Release 2 probes
 
 Claude Code 2.1.285, WSL2, 2026-09-30. Each probe ran in its own scratch git repository under
@@ -161,3 +196,71 @@ is the Phase 3 judge command with `timeout 150`, `TEST_JUDGE_ACTIVE=1`, `--syste
 | R2-P9 | 2.1.285 | a Stop hook logs `CLAUDE_CODE_SESSION_ATTENDED`, `CLAUDE_CODE_ENTRYPOINT` and `permission_mode`, haiku, with (b) and (d) re-run on sonnet because haiku did not enter auto mode: (a) interactive default and (b) interactive `--permission-mode auto`, both in tmux; (c) `claude -p`; (d) `claude -p --permission-mode auto`; (e) `claude --bg`. Pass rule fixed before running: (a) and (b) read exactly `1`; (c), (d) and (e) anything else or absent | re-ran 2026-09-30 after the DT15 amendment. ATTENDED / ENTRYPOINT / permission_mode: (a) `1` / `cli` / `default`; (b) `1` / `cli` / `default` (haiku shows "manual mode on"); (c) `0` / `sdk-cli` / `default`; (d) `0` / `sdk-cli` / `default`; (e) `0` / `cli` / `default`. SessionStart and UserPromptSubmit carry the same values. The Stop block forced a turn in all five. Haiku did not engage auto in (b) or (d), so both re-ran on sonnet: (b) `1` / `cli` / `auto` (pane "auto mode on"), (d) `0` / `sdk-cli` / `auto`. From the first run: in `-p` the forced turn's reply replaces the `-p` result; `systemMessage` goes to stream-json as `system`/`informational` and to the transcript as `hook_system_message`, not to text or json output. Logs `p9r-hooks.jsonl` (c, d), `p5r-hooks.jsonl` (a, b, e), `p5r-pane-a.txt`, `p5r-pane-b.txt`, `p5r-pane-b-sonnet.txt`, `p5r-bg-logs.txt` | holds | DT15 |
 | R2-P10 | 2.1.285 | `claude -p` haiku with two Stop hooks that each block once | both reasons arrive as two separate "Stop hook feedback" user messages in one Stop; one forced turn, which obeyed only one ("FORCED-B"); the next Stop has `stop_hook_active: true` for both and both allow | holds | DT16 |
 | R2-P11 | 2.1.285 | `claude -p` with the installed `testing` 0.11.5 plugin hook (option set through `pluginConfigs`) writing `src/sum.test.js`; separately the `setup check` consumer entry (`test-scan.sh --enabled` from the plugin cache, `*.it.js` through `.claude/testing.yaml`) writing `src/sum2.it.js` | both runs wrote `marks/call-<tool_use_id>` under `~/.claude/plugins/data/testing-melodic-software/`; the plugin hook through `CLAUDE_PLUGIN_DATA`, the consumer entry by deriving it from the cache path; both returned `rule-zero-assertion` | holds | DT8 |
+
+## `bashEditDiff` (Claude Code 2.1.285, WSL2, 2026-09-30)
+
+Question: does a PostToolUse `Bash` hook receive the files a Bash call changed, and in which modes?
+
+Run: `claude -p --model haiku --permission-mode <mode> --setting-sources project --allowedTools Bash
+--debug-file <log>` in a scratch git repository with one committed test file (`src/sum.test.ts`),
+one committed source file and a project `.claude/settings.json` whose PostToolUse `Bash` hook
+appended the whole hook input to a file. Three prompts, each told to use only Bash: (a) `sed -i` on
+the tracked test file, (b) `cat` with a heredoc writing the untracked `src/new.test.ts`, (c) `sed -i`
+on the tracked `README.md`. `bashEditDiffEnabled` was set through `--settings '<json>'` where a row
+says so. Auto mode ran on sonnet, because haiku does not engage it (the payload then reads
+`permission_mode: "default"`). The repository was reset between runs.
+
+- The field is `tool_response.bashEditDiff`, beside `stdout`, `stderr`, `interrupted`, `isImage` and
+  `noOutputExpected`. It is absent, not empty, when the call is not recorded.
+- Modes, for each of (a), (b) and (c) unless stated:
+
+  | Mode and setting | `bashEditDiff` |
+  |---|---|
+  | `default`, no setting | absent |
+  | `acceptEdits`, no setting | absent |
+  | `auto` (sonnet), no setting | absent (`-p`, and (a) interactive in tmux) |
+  | `bypassPermissions`, no setting | absent |
+  | `acceptEdits`, `bashEditDiffEnabled: true` in `--settings` | present |
+  | `auto` (sonnet), `bashEditDiffEnabled: true` in `--settings`, (a) only | present |
+  | `default`, `CLAUDE_CODE_BASH_EDIT_DIFF=1`, (a) only | present |
+  | `acceptEdits` or `auto`, `bashEditDiffEnabled: false`, (a) only | absent (also absent without the key, so this does not show `false` switching recording off) |
+  | `acceptEdits`, `bashEditDiffEnabled: true` in the project `.claude/settings.json`, (a) only | absent |
+
+  The docs (code.claude.com/docs/en/hooks#bash and settings-reference#basheditdiffenabled, fetched
+  2026-09-30) say auto and `bypassPermissions` record "only when Claude Code directs Claude to edit
+  files through Bash"; with a prompt that named `sed -i` and `cat >` neither recorded anything here.
+  The docs say a `true` counts only from user settings, `--settings` or managed settings. The runs
+  confirm the `--settings` positive and the project-file negative; user and managed scope were not
+  run (every run used `--setting-sources project`). Per the docs, the hook sees the field only for
+  a consumer who set the key at user or managed scope, or the environment variable.
+- Shape, from the `acceptEdits` + `true` runs: `{"files": [...], "moreFiles": 0, "changedFiles":
+  [...]}`. `changedFiles` holds absolute paths. `files` holds `{"filePath": <absolute>, "hunks":
+  [{"oldStart", "oldLines", "newStart", "newLines", "lines": ["-old", "+new", " context"]}]}` per
+  file, plus `"created": true` on a new file. There is no separate patch string and no line-range
+  field. `unavailable`, `skipped` and `shared` never appeared.
+- An untracked new file appears. (b) listed `src/new.test.ts` with `created: true` and one hunk
+  (`oldStart: 0`, `newStart: 1`, every line prefixed `+`).
+- Limits: one call writing eight files (seven new `src/gen<N>.test.ts` and an edited `README.md`)
+  returned `changedFiles` with all eight, `files` with the first five (each with its hunks) and
+  `moreFiles: 3`. A routing hook therefore reads `changedFiles`, not `files`. A file the repository's
+  `.gitignore` ignores (`src/ignored.log`, written in the same call) was not listed.
+- A PostToolUse `if` row cannot filter on the changed files. It matches the command string: with
+  `bashEditDiffEnabled: true`, `Bash(*)` fired on both (a) and (b), `Bash(sed *)` fired only on (a),
+  `Bash(cat *)` only on (b), and `Bash(*.test.ts*)` fired on (a), whose command names
+  `src/sum.test.ts`, but was skipped for (b) ("Skipping hook due to if condition"), whose command
+  also contains `.test.ts` (`cat > src/new.test.ts << 'EOF'` and a multi-line body). A command
+  string that names the test file can still fail to match, so a command-string row cannot stand in
+  for the changed-file list. A row that must see every Bash call that
+  changed a test file has to be `Bash(*)` and start a process for every Bash call, and decide from
+  `changedFiles`.
+- End to end through the plugin: `claude -p --model haiku --permission-mode acceptEdits
+  --setting-sources project --plugin-dir plugins/testing --settings <file>`, the file holding
+  `bashEditDiffEnabled: true` and `pluginConfigs["testing@inline"].options.test_guards_enabled:
+  true`, told to write a vitest test without an assertion through one `cat` heredoc. The
+  `PostToolUse:Bash` hook ("Scanning test files the command changed...") returned
+  `additionalContext` naming `rule-zero-assertion` at `src/calc.test.ts:5`, and the agent's reply
+  reported the zero-assertion finding.
+- Not probed: Windows Git Bash (the shape, path separators and mode behavior there need the owner
+  or a fleet run); `bashEditDiffEnabled` at user or managed scope; `false` against a `true` from a
+  higher-precedence source; `PowerShell`, which the docs say has the same fields; a subagent's Bash call
+  (the `shared` flag); `moreFiles` beyond the 200-path cap; the `CLAUDE_CODE_BASH_EDIT_DIFF=0` case.

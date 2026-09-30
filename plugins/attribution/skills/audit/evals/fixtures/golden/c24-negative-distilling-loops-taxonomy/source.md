@@ -7,6 +7,7 @@ Canonical location for the purposes of this case: `https://howborisusesclaudecod
 
 ## The Four Loops
 
+<!-- ai-slop-ignore-start: verbatim text of the upstream page -->
 Every loop in Claude Code fits one of four shapes. They differ by what triggers them, what stops them, and — most usefully — how much of the loop you hand off:
 
 - Turn-based, the agentic loop: Triggered by a prompt; stops when Claude judges the task done. Best for shorter, one-off tasks. You hand off the check.
@@ -15,3 +16,4 @@ Every loop in Claude Code fits one of four shapes. They differ by what triggers 
 - Proactive, event-driven, no human: Triggered by an event or schedule with no human in real time; each task exits at its goal, the routine runs until you turn it off. Best for recurring streams of well-defined work. You hand off the prompt.
 
 Notice the progression: moving from turn-based to proactive, you hand off more of the loop each step — first the verification check, then the stop condition, then the trigger, and finally the prompt itself.
+<!-- ai-slop-ignore-end -->
