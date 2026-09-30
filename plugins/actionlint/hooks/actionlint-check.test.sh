@@ -233,7 +233,7 @@ ERRBIN="$(mktemp -d "$WORK/errbin.XXXXXX")"
 wrap_real_tools "$ERRBIN"
 printf '#!/bin/sh\necho "fatal: simulated actionlint failure" >&2\nexit 3\n' >"$ERRBIN/actionlint"
 chmod +x "$ERRBIN/actionlint"
-ERR_TEL="$(mktemp)"
+ERR_TEL="$(mktemp "$WORK/tel.XXXXXX")"
 ERR_SINK="$(make_sink "cat >\"$ERR_TEL\"")"
 OUT_ERR=$(
   cd "$UNRELATED" || exit 1
@@ -273,7 +273,7 @@ else
 fi
 
 # --- Stub sink + violation -> envelope status ok with findings --------------
-TEL="$(mktemp)"
+TEL="$(mktemp "$WORK/tel.XXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 run_hook_env "$REPO/.github/workflows/violation.yml" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
@@ -293,7 +293,7 @@ fi
 rm -f "$TEL"
 
 # --- Stub sink + clean file -> status ok, findings [] -----------------------
-TELC="$(mktemp)"
+TELC="$(mktemp "$WORK/tel.XXXXXX")"
 SINKC="$(make_sink "cat >\"$TELC\"")"
 run_hook_env "$REPO/.github/workflows/clean.yml" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
 wait_for_sink "$TELC"
@@ -309,7 +309,7 @@ rm -f "$TELC"
 # The fake-bin dir shadows actionlint. First run must emit the skip notice on
 # both channels; a second run in the same session (same CLAUDE_PLUGIN_DATA +
 # session_id) must be silent; telemetry still records status "skipped".
-ABSENT_TEL="$(mktemp)"
+ABSENT_TEL="$(mktemp "$WORK/tel.XXXXXX")"
 ABSENT_SINK="$(make_sink "cat >\"$ABSENT_TEL\"")"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 wrap_real_tools "$FAKEBIN"
