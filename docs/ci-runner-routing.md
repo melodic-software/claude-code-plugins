@@ -71,9 +71,12 @@ for an in-flight full run, then ends on a settled `success`, `failure`, or
 
 **Operator remedy.** When a contract-only `ci-status` is red:
 
-- If `ci-lanes` on that SHA is `success`, re-run the red contract-only `ci`
+- If `ci-lanes` on that SHA is `success` and the pull-request contract passes
+  (valid title, no `do-not-merge` label), re-run the red contract-only `ci`
   run. The composite logs `Carried forward: ci-lanes is success`, passes, and
   the re-run replaces the red check run. Pushing a new commit is not needed.
+- If the title is invalid or `do-not-merge` is applied, the contract check
+  stays red on a re-run. Fix the title or remove the label, then re-run.
 - If `ci-lanes` is `failure` or missing, re-run the full workflow.
 
 A body edit while a failed full run is being re-run reads the old `ci-lanes`
