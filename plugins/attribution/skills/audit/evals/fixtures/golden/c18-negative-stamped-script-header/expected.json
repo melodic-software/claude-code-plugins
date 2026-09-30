@@ -1,0 +1,11 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative on a machine surface. A script header states one four-part record for every upstream constant the script encodes, listing each constant, each basis page, the as-of date, and a recheck trigger.",
+    "carve_outs": "Conforming pointer or record applies. One record covering several constants is whole when its claim names each of them, and this claim names the cap, the fraction and the fallback.",
+    "rubric": "Not graded. Had it been, R4 would FAIL on the same grounds as a single-constant record.",
+    "carries": "A run that flags the constants named inside the record has read the claim as a bare restatement and ignored the parts that make it conforming.",
+    "stamp_window": "As for c17: the as-of date is inside the configured expiry window today, and a later expiry is the stamp rule's finding, not this class's."
+  }
+}

@@ -8,6 +8,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Windows hint claims](#windows-hint-claims)
 - [Investigated catalog](#investigated-catalog)
 - [Opt-in elevation](#opt-in-elevation)
 - [Outcome vocabulary](#outcome-vocabulary)
@@ -668,12 +669,14 @@ subtree.
 The roll-up is written to the snapshot file on every run, so `scan --quiet` omits it from stdout.
 The two copies are otherwise identical, and the snapshot is the copy the engine treats as the
 record: the flag drops a duplicate, never data. Quiet output keeps `snapshot`, `status`, `target`,
-the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals, `errors`, `policy_sources`,
-`elevation` and `os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
+the three coverage terms, `empty_directory_count`, `empty_file_count`, both byte totals,
+`totals_are_lower_bounds`, `stdlib_shadowing`, `errors`, `policy_sources`, `elevation` and
+`os_autoclean`, so every field a keep-or-review decision rests on survives, and it replaces the
 closing note with a short one naming where the rows went. It prints `truncated_paths` as the number
-of truncated paths, not the list: a depth-2 home scan truncated about 140, which is most of what the
+of truncated paths, not the list, and `truncation_reasons` as a per-reason tally, not the path map: a
+depth-2 home scan truncated about 140, which is most of what the
 flag exists to avoid. The count is printed even at zero, so a clean scan reads differently from a
-suppressed list, and the snapshot keeps the list for the preview and for reporting the gaps. That field set holds in `--root-children` mode too, which reports
+suppressed list, and the snapshot keeps the list and each path's reason for the preview and for reporting the gaps. That field set holds in `--root-children` mode too, which reports
 `empty_directory_count` and `empty_file_count` on stdout for the same reason an ordinary scan does. The default stays the
 full payload: a caller already parsing `children_rollup` off stdout must not be quietened by an
 upgrade.
@@ -715,6 +718,53 @@ already decided to hand off. For that reason the `.pulumi-write-test-*` hint was
 rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
+
+## Windows hint claims
+
+The three Windows hints in [baseline-policy.json](baseline-policy.json) restate how third-party
+software lays out its own files. Each is a discovery signal at confidence `low`, and each `reason`
+tells the reader to confirm the owner before acting. Re-fetch the basis before relying on a claim.
+
+- **`windows-vs-background-download-layout`.**
+  - Claim: Visual Studio's `BackgroundDownload.exe` runs from directories under `%TEMP%` whose names
+    are random characters, a dot and three more characters. The pattern `????????.???` also matches
+    unrelated directories, hence the `low` ceiling.
+  - Basis: user reports, not vendor documentation: [Microsoft Q&A
+    1193782](https://learn.microsoft.com/en-us/answers/questions/1193782/visual-studio-backgrounddownload-exe-using-all-the)
+    ("Their names is just a string with random characters, + a dot and 3 more random characters")
+    and an [MSDN forum
+    thread](https://learn.microsoft.com/en-us/archive/msdn-technet-forums/74cdf2f1-ddd9-4c7e-9b26-39affa701c7b)
+    (`C:\Windows\Temp\2fe0kele.cx0\resources\app\ServiceHub\Services\Microsoft.VisualStudio.Setup.Service\`).
+  - As of: 2026-09-30.
+  - Recheck when: a Visual Studio Installer release changes where `BackgroundDownload.exe` runs
+    from, or a scan hints a `????????.???` directory that holds no `resources\app\ServiceHub` tree.
+- **`windows-docker-desktop-update-bsdiff`.**
+  - Claim: Docker Desktop's Windows update unpacks delta patches as `*.bsdiff` files under
+    `%TEMP%\DockerDesktop\<random>\resources\`.
+  - Basis: a user-posted Docker Desktop installer log, not vendor documentation: a [comment on
+    docker/for-win#14316](https://github.com/docker/for-win/issues/14316#issuecomment-3730679402)
+    quotes `courgette64.exe -applybsdiff` steps reading
+    `...\AppData\Local\Temp\DockerDesktop\lccuktfdvuw\resources\com.docker.admin.exe.bsdiff`.
+    A Windows-host scan also hinted `*.bsdiff` directories
+    ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233), item 8). The
+    Docker Desktop release-notes page has no `bsdiff` entry; no other Docker page was searched.
+  - As of: 2026-09-30.
+  - Recheck when: Docker documents its update download layout, or a scan hints a `*.bsdiff` entry
+    outside a `DockerDesktop` directory under `%TEMP%`.
+- **`windows-electron-updater-cache`.**
+  - Claim: an app built with electron-builder keeps updater downloads in
+    `%LOCALAPPDATA%\<lowercased app name>-updater`, with the staged installer in its `pending`
+    subdirectory. An app built with electron-builder older than 20.34.0 falls back to the plain
+    app name, so the hint's `*-updater` pattern misses it.
+  - Basis: `electron-userland/electron-builder` on `master`: `packages/app-builder-lib/src/appInfo.ts`
+    (`updaterCacheDirName` is `this.sanitizedName.toLowerCase() + "-updater"`),
+    `packages/electron-updater/src/AppUpdater.ts` (`path.join(this.app.baseCachePath, dirName ||
+    this.app.name)`), `AppAdapter.ts` (`getAppCacheDir` returns `LOCALAPPDATA` on `win32`) and
+    `DownloadedUpdateHelper.ts` (`cacheDirForPendingUpdate` joins `cacheDir` and `"pending"`).
+  - As of: 2026-09-30.
+  - Recheck when: an electron-updater release note changes the cache directory name or its
+    `pending` subdirectory, or a scan hints a `*-updater` directory that has no `pending`
+    subdirectory.
 
 ## Investigated catalog
 
