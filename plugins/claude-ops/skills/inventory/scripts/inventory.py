@@ -601,13 +601,39 @@ _MAX_COMBINATIONS = 16
 Scope = Mapping[str, "list[str] | None"]
 NO_SCOPE: Scope = MappingProxyType({})
 _NONSTRING = object()
-# Non-string literals, by how `||` and `??` treat them.
-_TRUTHY_LITERALS = frozenset({"true", "!0"})
-_FALSY_LITERALS = frozenset({"false", "!1"})
+_NULLISH_WORDS = ("null", "undefined", "void")
 _NUMBER_RE = re.compile(
     r"[-+]?(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+"
     r"|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][-+]?\d[\d_]*)?)n?(?![\w$])"
 )
+
+
+def _literal_truthy(text: str) -> bool | None:
+    """How `||` sees a non-string literal: truthy, falsy, or None (unknown)."""
+    text = text.strip()
+    if text.startswith("!"):
+        inner = _literal_truthy(text[1:])
+        return None if inner is None else not inner
+    if text == "true":
+        return True
+    if text == "false" or text.startswith(_NULLISH_WORDS):
+        return False
+    number = _number_value(text)
+    return None if number is None else number != 0
+
+
+def _literal_nullish(text: str) -> bool | None:
+    """How `??` sees a non-string literal: nullish, not, or None (unknown)."""
+    text = text.strip()
+    if text.startswith(_NULLISH_WORDS):
+        return True
+    if (
+        text.startswith("!")
+        or text in ("true", "false")
+        or _number_value(text) is not None
+    ):
+        return False
+    return None
 
 
 def _number_value(text: str) -> int | float | None:
@@ -1061,11 +1087,10 @@ def _operand(
         # A non-string literal settles it by its own truthiness.
         literal = src[start:i].strip() if parts == [_NONSTRING] else None
         or_op = src.startswith("||", i)
-        number = _number_value(literal) if literal else None
-        kept = (
-            literal in _TRUTHY_LITERALS
-            or (not or_op and literal in _FALSY_LITERALS)
-            or (number is not None and (not or_op or number != 0))
+        kept = bool(literal) and (
+            _literal_truthy(literal) is True
+            if or_op
+            else _literal_nullish(literal) is False
         )
         if kept:
             values = []
@@ -1472,10 +1497,12 @@ def _binding_value(
     initializer.
     """
     if len(ident) == 1:
-        v = _nearest_binding(src, ident, at)
-        lo = _chunk_span(src, at)[0]
-        if v is None or v < lo or at - v > SHORT_VALUE_LOCALITY_BYTES:
-            return None
+        lo = max(_chunk_span(src, at)[0], at - SHORT_VALUE_LOCALITY_BYTES)
+        v = None
+        for m in _binding_pattern(ident).finditer(src, lo, at):
+            block = braces.enclosing(m.start())
+            if block is None or block[0] < at < block[1]:
+                v = m.end()
         return v
     m = _declaration(
         src,

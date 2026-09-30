@@ -1306,6 +1306,9 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(desc('0x0||"FALLBACK"'), "FALLBACK")
         self.assertEqual(desc('-0.0??"FALLBACK"'), "")
         self.assertEqual(desc('0e1_0??"FALLBACK"'), "")
+        self.assertEqual(desc('!false||"FALLBACK"'), "")
+        self.assertEqual(desc('!true??"FALLBACK"'), "")
+        self.assertEqual(desc('!true||"FALLBACK"'), "FALLBACK")
 
     def test_a_local_alias_of_a_parameter_keeps_its_bound_value(self) -> None:
         src = (
@@ -1456,6 +1459,13 @@ class TestModuleScopedResolution(unittest.TestCase):
             'var zz="REAL";'
         )
         self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_single_letter_local_of_another_function_is_not_visible(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function outer(){let e="WRONG"}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return`Use ${e}`}});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use …")
 
     def test_a_huge_bigint_does_not_abort_the_run(self) -> None:
         big = "0x1" + "0" * 400 + "n"
