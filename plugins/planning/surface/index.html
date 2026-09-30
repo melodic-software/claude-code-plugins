@@ -169,6 +169,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .dids b{font:600 20px var(--mono);color:var(--ink)}
 .dids .grow{flex:1}
 .dhead h3{font:600 22px/1.25 var(--display);margin:0;text-wrap:balance;max-width:48ch}
+.youans{margin:4px 0 0;font-size:13px;color:var(--muted)}
 .links{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
 .links span{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 .ref{display:inline-flex;gap:5px;align-items:baseline;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:1px 6px;font:13px var(--sans);cursor:pointer;color:var(--ink)}
@@ -238,7 +239,7 @@ legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase
 .choice .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .choice.armed{border-color:var(--accent);background:var(--accent-soft)}
 .choice.rec .t b{color:var(--ok)}
-.choice.current .t::after{content:" (current)";color:var(--faint)}
+.choice .yours{font-size:11px;font-weight:600;color:var(--accent);margin-right:6px}
 .choices.nudge{animation:flash 1.2s ease-out}
 .arow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
 .compose{display:grid;gap:8px}
@@ -571,7 +572,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!h.replyTo) return h.kind !== "revise"; // a heads-up: Claude spoke first and nothing of yours follows it
     return !!events().find(e => e.seq === h.replyTo && (e.kind === "ask" || e.kind === "rephrase"));
   }
-  const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (live(q) && unansweredReply(q));
+  function afterAnswer(q){ // Claude's latest reply or revise is newer than your live decision; a bare "Asked." and a reply recording the decision itself are not
+    const d = counted(q), recorded = x => x.kind !== "revise" && events().some(e => e.seq === x.replyTo && DEC.has(e.kind));
+    const h = d && historyOf(q).find(x => x.by === "claude" && String(x.text).trim() !== "Asked." && !recorded(x));
+    return h && String(h.at) > String(d.updatedAt) ? h : null;
+  }
+  const afterText = h => h.kind === "revise" ? "Revised after your answer - review" : "Replied after your answer " + fmtT(h.at);
+  const answerLine = q => { const d = counted(q); return d ? "You answered " + LABEL[d.decision] + (d.decision === "alt" ? " (" + d.alt + ")" : "") + " at " + fmtT(d.updatedAt) : ""; };
+  const needsYou = q => isOpen(stateOf(q)) || isStale(q) || (live(q) && (unansweredReply(q) || !!afterAnswer(q)));
   const blocked = q => stateOf(q) === "need" || upOf(q).some(p => !isAnswered(stateOf(Q[p]))); // answerable questions sort before these
   const settled = q => isAnswered(stateOf(q)) && !needsYou(q);
   function wrapFreeze(){ // ms left in the wrap-up freeze on decision saves
@@ -667,6 +675,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled that answer yet, so this question may be revised.">' + esc(upstreamText(q)) + "</span>");
     if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
+    const aa = live(q) && afterAnswer(q);
+    if (aa) chips.push('<span class="chip hot">' + esc(afterText(aa)) + "</span>");
     if (lastEventSeq(q.id) && !answered(q, lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const needs = upOf(q).map(p => '<span class="needs' + (isAnswered(stateOf(Q[p])) ? "" : " unmet") + '">needs ' + esc(p) + "</span>").join("");
@@ -926,12 +936,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("answer").hidden = false;
     const q = Q[S.sel];
     if (!q) { el.innerHTML = '<p class="empty">' + (S.loaded ? "Pick a question." : "Loading questions.") + "</p>"; renderAnswer(); return; }
-    const st = stateOf(q), d = decisionOf(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [], off = reconfirmOf(q) ? 1 : 0;
+    const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [], off = reconfirmOf(q) ? 1 : 0;
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner();
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + (g ? "<span>" + esc(g.title) + "</span>" : "") +
       '<span class="chip s-' + st + '">' + LABEL[st] + '</span><span class="grow"></span>' +
-      (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + esc(q.title) + "</h3></div>";
+      (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + esc(q.title) + "</h3>" +
+      (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + "</div>";
     const kids = S.doc.questions.filter(x => x.followUpOf === q.id).map(x => x.id);
     const unblocks = S.doc.questions.filter(x => (x.dependsOn || []).includes(q.id)).map(x => x.id);
     const link = (label, ids) => ids.length ? "<span>" + label + " " + ids.map(refHtml).join(" ") + "</span>" : "";
@@ -1001,8 +1012,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt)) : null;
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" ? " d" : "";
     const armed = armedOf(cs);
-    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && c.kind === "accept" ? " rec" : "") + (armed === c ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t"><b>' + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
+    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
     const needText = armed && armed.kind === "own" && keptText(armed) === undefined && !text, frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + armed.label + (withNote(q, armed) ? " with note" : "") : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);

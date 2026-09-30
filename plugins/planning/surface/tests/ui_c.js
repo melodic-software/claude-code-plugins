@@ -153,7 +153,14 @@ async page => {
     ok("Show: Open leaves out a settled question", !openIds.includes("P1"), openIds.join(","));
     ok("no Sent to Claude chip once a reply carries replyTo at or past the last event", !/Sent to Claude/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
     ok("the group counter counts the unanswered reply", /^1 open \//.test(await page.textContent('.sec[data-key="g:talk"] .cnt')), await page.textContent('.sec[data-key="g:talk"] .cnt'));
+    ok("a reply after the accept puts the after-answer chip on the card", /Replied after your answer/.test(await page.textContent('.qbtn[data-q="R1"]')), await page.textContent('.qbtn[data-q="R1"]'));
+    await pick("R1");
+    ok("an accepted question has input:checked on the recommended row, labelled Your answer", await page.$eval("#choices .choice.rec", el => el.querySelector("input:checked") !== null && /Your answer/.test(el.textContent)), await page.textContent("#choices"));
+    ok("only the accepted row is checked", (await page.$$("#choices input:checked")).length === 1);
+    ok("the detail says when you answered", /You answered Accepted at /.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
+    ok("the detail shows the after-answer chip", /Replied after your answer/.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("P2");
 
     // SPEC 6 re-answer triage: Reconfirm re-sends the kept decision exactly; choice 2 onward picks again
     const last = async () => { const e = await events(); return e[e.length - 1]; };

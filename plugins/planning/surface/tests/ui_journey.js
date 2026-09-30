@@ -158,7 +158,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await page.click("#flyClose");
     await page.click("#railBtn"); await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
     ok("the new round's group is expanded and highlighted", await page.$eval('.sec[data-key="g:g3"]', el => el.dataset.collapsed === "false" && el.classList.contains("fresh")) && await dot("Q6"));
-    const chip = await page.$$eval(".qbtn .chip.hot", els => els.map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
+    const chip = await page.$$eval(".qbtn .chip.hot", els => els.filter(el => !/after your answer/.test(el.textContent)).map(el => ({t: el.textContent, title: el.title}))).catch(() => []);
     ok("a carried question's chip reads 'carried N round(s)', never 'open open', and explains itself", chip.length > 0 && chip.every(c => /^carried \d+ rounds?$/.test(c.t) && !/open open/.test(c.t) && c.title.length > 0), JSON.stringify(chip));
     ok("an entry whose text says added highlights no section unless it added questions", await dot("Q1") && !(await page.$eval('.sec[data-key="g:g1"]', el => el.classList.contains("fresh"))));
     await page.selectOption("#filter", "answered"); await tap("#railBtn", 200);
