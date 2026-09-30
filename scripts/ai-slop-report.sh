@@ -27,6 +27,9 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DETECTOR="${AI_SLOP_DETECTOR:-$SELF_DIR/../plugins/ai-slop/skills/audit/scripts/detect.sh}"
 CAP=50
 
+# shellcheck source=lib/changed-files.sh
+. "$SELF_DIR/lib/changed-files.sh"
+
 WORKDIR=""
 finish() {
   if [[ -n "$WORKDIR" ]] && [[ -d "$WORKDIR" ]]; then
@@ -49,7 +52,7 @@ main() {
     notice "$PROG: declined: no base ref was given."
     return 0
   fi
-  if ! git rev-parse --verify --quiet "$base" >/dev/null 2>&1; then
+  if ! changed_files::verify_base "$base"; then
     notice "$PROG: declined: the base ref <$base> does not resolve in this checkout."
     return 0
   fi

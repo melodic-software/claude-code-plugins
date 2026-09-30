@@ -9,6 +9,19 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`plan` carries a Boundary section for the built-in `Plan` agent.** The subagent returns a read-only approach sketch to its caller; a plan that needs the person's approval or must outlive the session stays with this skill. The four-part record is in the skill's `reference/native-plan-agent.md`. The section's bullets follow the native-references template and describe the built-in without asserting it is available.
+
+## [0.47.2] - 2026-09-29
+
+### Added
+
+- **`draft-goal-condition` carries a Boundary section for the built-in `/goal` command.** The skill drafts the condition; the person runs `/goal <condition>` with it, and the model never sets a goal.
+- **`plan` carries a Boundary section for the built-in `/plan` command.** Plan mode stays the person's permission-mode switch, offered where Plan Mode Integration already suggests it; the skill keeps the persisted, approval-gated plan.
+
 ## [0.47.1] - 2026-09-29
 
 ### Fixed
