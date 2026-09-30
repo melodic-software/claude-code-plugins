@@ -5,6 +5,24 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.54.0] - 2026-09-30
+
+### Added
+
+- **The audit engine derives more of its criteria from the docs it fetches.** It follows links out of
+  `settings-reference` to the pages a check reads, takes the `fallbackModel` cap and the enum values
+  of string keys from the documented sections, checks nested keys inside objects the reference
+  documents, and quotes the binary's describe string for a key the docs leave undocumented.
+- **`known-issues` fix versions are compared with the installed Claude Code version** in a new
+  Category J check.
+
+### Fixed
+
+- **`settings-reference` sections are indexed once per run** instead of rescanned on every lookup, and
+  a key containing U+0000 stays in one row.
+- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and slugs resolve
+  exactly.
+
 ## [0.53.3] - 2026-09-29
 
 ### Changed
