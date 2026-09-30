@@ -18,8 +18,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `C:` still read against the engine's directory. The as-written reading stays unconditional,
   because a bare name reaches a link in the working directory (`python3 alias`) and a separator
   filter would have stopped gating it. Flags and other non-path words are therefore still probed
-  against the working directory, so an unreachable path given as a word can still stall the hook,
-  and the accepted residuals are unchanged.
+  against the working directory, so an unreachable path given as a word can still stall the hook.
+  A link invoked with another drive's qualifier (`D:alias` beside an engine on `C:`) still does not
+  gate; the other accepted residuals are unchanged.
 
 ## [0.35.0] - 2026-09-30
 

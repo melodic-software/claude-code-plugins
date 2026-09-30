@@ -868,7 +868,8 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     Accepted residuals, all of the copy-evasion class the gate can never close
     (a byte copy is a different file): a PATH-installed alias with no
     separator, an alias inside a command the literal parser rejects when the
-    marker is absent, and a copied engine. This is a belt, not the
+    marker is absent, an alias qualified with a drive other than the
+    engine's (``D:alias``), and a copied engine. This is a belt, not the
     authority: an invocation smuggled past it still answers to the engine's own
     preview/approval-token containment (and to the skill-frontmatter belt for
     the rest of the session once that belt has registered).
