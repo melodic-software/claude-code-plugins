@@ -1,0 +1,15 @@
+#!/usr/bin/env bats
+# good-for: rule-zero-assertion
+# A ! command on the test's last line fails the test when the command succeeds,
+# so it is the assertion even with no test or run token in the body.
+
+setup() {
+  PATH="$BATS_TEST_DIRNAME/../bin:$PATH"
+  cd "$BATS_TEST_TMPDIR"
+}
+
+@test "reset removes the saved greeting" {
+  greet --save world
+  greet --reset
+  ! grep -s world greet.conf
+}

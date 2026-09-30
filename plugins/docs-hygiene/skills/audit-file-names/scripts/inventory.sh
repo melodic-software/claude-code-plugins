@@ -38,6 +38,9 @@
 #   EXEMPT     <path>           <the exemption that covered it>
 #   SCANNED    <count>          <roots>
 #
+# A run that scans zero files still prints SCANNED and exits 0, and also warns
+# on stderr that the roots are empty rather than clean.
+#
 # Exit: 0 the inventory ran (offenders are findings, not failures),
 #       2 usage, a missing prerequisite, an unreadable configuration, or an
 #         unimplemented rule.
@@ -262,5 +265,9 @@ if [[ "$collisions" -eq 0 ]]; then
   printf '%s' "$offenders" | awk -F'\t' 'NF==2 {print "OFFENDER\t" $1 "\t" $2}'
 fi
 
-printf 'SCANNED\t%d\t%s\n' "$scanned" "$(cfg '.file_names.roots | join(",")')"
+roots_joined="$(cfg '.file_names.roots | join(",")')"
+if [[ "$scanned" -eq 0 ]]; then
+  printf 'inventory: no tracked files under the configured roots (%s); this is an empty root, not a clean tree\n' "$roots_joined" >&2
+fi
+printf 'SCANNED\t%d\t%s\n' "$scanned" "$roots_joined"
 exit 0

@@ -3,7 +3,7 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.0] - 2026-09-29
+## [0.14.0] - 2026-09-29
 
 ### Added
 
@@ -17,9 +17,41 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   through the audit's own capture. The squash check writes one unreferenced loose object per
   branch it reaches, which `git gc` prunes.
 - **`git-branch-audit.sh` prints a `MainCheckout:` block** with the branch or detached state, the
-  dirty file count, and any merge, rebase, cherry-pick or bisect in progress, naming the file
-  that shows it. It emits no deletable tier while an operation is in progress, and
+  dirty file count, and any merge, revert, rebase, cherry-pick or bisect in progress, naming the
+  file that shows it. It describes the checkout the audit runs from, a linked worktree when it
+  runs from one; an operation in another worktree is not detected. It emits no deletable tier
+  (`SAFE`, `LIKELY-SAFE` or `LOSSY`) while an operation is in progress, and
   `git-branch-delete.sh` refuses to delete then.
+
+## [0.13.0] - 2026-09-29
+
+### Added
+
+- **`git-branch-audit.sh` reports a merged-PR tip that is an ancestor of the merged head as `SAFE` (5a)**
+  ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)). When a branch's PR merged
+  but the local tip differs from `headRefOid`, and the head commit exists locally and contains the tip,
+  every local commit was in the merged PR. One batched ancestry pass answers it for all such branches; a
+  head commit absent from the clone stays `REVIEW`.
+- **Each branch record carries a `Family:` line** (`agent`, `claude`, `plan`, `stranded`, `pre-wipe`, or
+  `none`), read from the branch name. It is information only and changes no tier.
+
+## [0.12.0] - 2026-09-29
+
+### Added
+
+- **`clean-batch.sh` dry-run reports `Outcome: nothing-to-do` for a repo with nothing to reclaim.**
+  A repo that plans no paths and adds no new git object store no longer
+  reads as `would-clean`. `Summary:` counts are unchanged.
+- **`clean-batch.sh` dry-run prints a `Repo | Outcome | Paths | Bytes` table** before `BatchPlan:`
+  and `Summary:`, one row per repo including skipped and blocked ones.
+
+### Changed
+
+- **`--batch-plan FILE` is documented for `--dry-run` as well as `--apply`.** It picks a stable
+  plan path; the default is a temporary directory.
+- **Fleet branch audits route to `/repo-fleet-hygiene:audit`.** `clean-batch.md` and `SKILL.md`
+  say so, and the `allowed-tools` comment notes the `TipCapture` file `git-branch-audit.sh`
+  writes under the git common dir.
 
 ## [0.11.2] - 2026-09-29
 

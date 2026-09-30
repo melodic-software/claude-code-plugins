@@ -883,4 +883,170 @@ else
   bad "deleted-path cache: a new HEAD reused the previous set"
 fi
 
+# ============ A CACHE THAT ANOTHER FIRE IS REWRITING ==========================
+# Parallel sessions and subagents in one repo share both caches. A reader can
+# see a file while a writer is still on it, and two writers that both truncate
+# leave a mix of their bytes. A header over a partial list would pass as a whole
+# cache and every finding in the missing part would go silent, so each cache
+# ends with `end <count>` and a file that is not exactly that shape is a miss
+# that recomputes. A fresh fixture keeps this section's edits to the caches and
+# the index off every case above.
+CACHE_REPO="$TEST_TMPDIR/cache-repo"
+mkdir -p "$CACHE_REPO/docs" "$CACHE_REPO/guides"
+git -C "$CACHE_REPO" init -q
+echo old >"$CACHE_REPO/docs/old-spec.md"
+echo keep >"$CACHE_REPO/docs/keep.md"
+git_c "$CACHE_REPO" add -A >/dev/null 2>&1
+git_c "$CACHE_REPO" commit -qm seed >/dev/null 2>&1
+git_c "$CACHE_REPO" mv docs/old-spec.md guides/old-spec.md >/dev/null 2>&1
+git_c "$CACHE_REPO" commit -qm move >/dev/null 2>&1
+CACHE_TARGET="$CACHE_REPO/notes.md"
+: >"$CACHE_TARGET"
+CACHE_PAYLOAD=$(write_json "$CACHE_TARGET" 'See `docs/old-spec.md` here.')
+CACHE_DEL="$CACHE_REPO/.git/guardrails-deleted-paths"
+CACHE_LS="$CACHE_REPO/.git/guardrails-ls-files"
+CACHE_HEAD=$(git -C "$CACHE_REPO" rev-parse HEAD | tr -d '\r')
+CACHE_PREV=$(git -C "$CACHE_REPO" rev-parse HEAD~1 | tr -d '\r')
+
+# One fire against the fixture. The git shim logs the history walks.
+cache_fire() {
+  : >"$SPV_GIT_LOG"
+  OUT=$(PATH="$SPV_GIT_SHIM:$PATH" CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" \
+    <<<"$CACHE_PAYLOAD" 2>&1)
+  CACHE_WALKS=$(grep -c 'log HEAD' "$SPV_GIT_LOG" || true)
+}
+# cache_is_whole <file> <header lines>: the last line is `end <n>` with n equal to
+# the lines between the header and it, and no other line looks like a sentinel.
+cache_is_whole() {
+  local -a l
+  local n
+  mapfile -t l <"$1"
+  n=$((${#l[@]} - 1 - $2))
+  ((n >= 0)) && [[ "${l[${#l[@]} - 1]}" == "end $n" ]] &&
+    [[ "$(printf '%s\n' "${l[@]:0:${#l[@]}-1}" | grep -c '^end [0-9]')" == 0 ]]
+}
+# assert_whole <label> <file> <header lines> [<needle the file must hold>]
+assert_whole() {
+  if cache_is_whole "$2" "$3" && { [[ -z "${4-}" ]] || [[ "$(cat "$2")" == *"$4"* ]]; }; then
+    ok "$1"
+  else
+    bad "$1: $(cat "$2" 2>&1)"
+  fi
+}
+
+# Whole caches are still trusted: this is what makes the misses below mean
+# something, and it holds the no-second-walk property.
+printf '%s\nok\nend 0\n' "$CACHE_HEAD" >"$CACHE_DEL"
+cache_fire
+assert_absent "cache: a whole file at this HEAD is trusted, not walked over" "$OUT" "STALE_PATH"
+assert_eq "cache: a whole file at this HEAD starts no history walk" 0 "$CACHE_WALKS"
+
+# A file cut after its header carries no sentinel.
+printf '%s\nok\n' "$CACHE_HEAD" >"$CACHE_DEL"
+cache_fire
+assert_contains "cache: a deleted-path file cut after its header is a miss, the finding stays" "$OUT" \
+  "STALE_PATH: docs/old-spec.md"
+if ((CACHE_WALKS >= 1)) && cache_is_whole "$CACHE_DEL" 2; then
+  ok "cache: the cut file is rebuilt whole"
+else
+  bad "cache: the cut file was not rebuilt whole (walks=$CACHE_WALKS)"
+fi
+
+# A shorter body under a longer body's sentinel: the count disagrees.
+printf '%s\nok\nsome/other.md\nend 3\n' "$CACHE_HEAD" >"$CACHE_DEL"
+cache_fire
+assert_contains "cache: a sentinel count that disagrees with the lines read is a miss" "$OUT" \
+  "STALE_PATH: docs/old-spec.md"
+assert_whole "cache: the disagreeing file is rebuilt whole" "$CACHE_DEL" 2 docs/old-spec.md
+
+# Two writers leave the later one's sentinel inside the earlier one's body; the
+# count can still agree by chance, so a sentinel-shaped line inside is a miss.
+printf '%s\nok\nsome/other.md\nend 1\nmore/other.md\nend 3\n' "$CACHE_HEAD" >"$CACHE_DEL"
+cache_fire
+assert_contains "cache: a sentinel inside the body is a miss even when the count agrees" "$OUT" \
+  "STALE_PATH: docs/old-spec.md"
+
+# A different HEAD is a miss however whole the file is.
+printf '%s\nok\nend 0\n' "$CACHE_PREV" >"$CACHE_DEL"
+cache_fire
+assert_contains "cache: a file keyed to another HEAD is a miss, the finding stays" "$OUT" \
+  "STALE_PATH: docs/old-spec.md"
+if ((CACHE_WALKS >= 1)) && [[ "$(head -n 1 "$CACHE_DEL")" == "$CACHE_HEAD" ]]; then
+  ok "cache: the other-HEAD file is rebuilt for this HEAD"
+else
+  bad "cache: the other-HEAD file was reused (walks=$CACHE_WALKS)"
+fi
+
+# The tracked-file list, judged by the moved-file hint it feeds. A poisoned but
+# whole list newer than the index is trusted and yields no hint.
+touch -t 202001010000 "$CACHE_REPO/.git/index"
+printf 'poison.md\nend 1\n' >"$CACHE_LS"
+cache_fire
+assert_absent "cache: a whole tracked-file list newer than the index is trusted" "$OUT" "guides/old-spec.md"
+
+# The same list, cut or miscounted, is a miss: git is asked again and the hint returns.
+printf 'poison.md\n' >"$CACHE_LS"
+cache_fire
+assert_contains "cache: a tracked-file list with no sentinel is a miss" "$OUT" "guides/old-spec.md"
+printf 'poison.md\nend 4\n' >"$CACHE_LS"
+cache_fire
+assert_contains "cache: a tracked-file list whose count disagrees is a miss" "$OUT" "guides/old-spec.md"
+printf 'poison.md\nend 1\nother.md\nend 3\n' >"$CACHE_LS"
+cache_fire
+assert_contains "cache: a sentinel inside the tracked-file list is a miss" "$OUT" "guides/old-spec.md"
+assert_whole "cache: the rebuilt tracked-file list is whole and current" "$CACHE_LS" 0 guides/old-spec.md
+
+# A whole list older than the index is invalid and rebuilt.
+printf 'poison.md\nend 1\n' >"$CACHE_LS"
+touch -t 202001010000 "$CACHE_LS"
+touch "$CACHE_REPO/.git/index"
+cache_fire
+assert_contains "cache: a tracked-file list older than the index is rebuilt" "$OUT" "guides/old-spec.md"
+assert_absent "cache: the stale tracked-file list is gone from the file" "$(cat "$CACHE_LS")" poison.md
+assert_whole "cache: the stale tracked-file list was replaced whole" "$CACHE_LS" 0 guides/old-spec.md
+
+# No tracked files at all is a whole list of zero, not a missing one.
+EMPTY_CACHE_REPO="$TEST_TMPDIR/cache-empty"
+mkdir -p "$EMPTY_CACHE_REPO/docs"
+git -C "$EMPTY_CACHE_REPO" init -q
+echo x >"$EMPTY_CACHE_REPO/docs/a.md"
+git_c "$EMPTY_CACHE_REPO" add -A >/dev/null 2>&1
+git_c "$EMPTY_CACHE_REPO" commit -qm seed >/dev/null 2>&1
+git_c "$EMPTY_CACHE_REPO" rm -q docs/a.md >/dev/null 2>&1
+git_c "$EMPTY_CACHE_REPO" commit -qm empty >/dev/null 2>&1
+mkdir -p "$EMPTY_CACHE_REPO/docs"
+: >"$EMPTY_CACHE_REPO/notes.md"
+EMPTY_OUT=$(CLAUDE_PROJECT_DIR="$EMPTY_CACHE_REPO" bash "$HOOK" \
+  <<<"$(write_json "$EMPTY_CACHE_REPO/notes.md" 'See `docs/a.md`.')" 2>&1)
+assert_contains "cache: a repo with no tracked files still reports the removed path" "$EMPTY_OUT" \
+  "STALE_PATH: docs/a.md"
+assert_eq "cache: an empty tracked-file list is written as a whole file of zero" \
+  "end 0" "$(cat "$EMPTY_CACHE_REPO/.git/guardrails-ls-files" 2>/dev/null)"
+
+# Two cold fires at once in one repo both report the finding and leave whole caches.
+CONC_BAD=0
+for _ in 1 2 3 4 5; do
+  rm -f "$CACHE_DEL" "$CACHE_LS"
+  (CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" >"$TEST_TMPDIR/conc-a" 2>&1) &
+  (CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" >"$TEST_TMPDIR/conc-b" 2>&1) &
+  wait
+  [[ "$(cat "$TEST_TMPDIR/conc-a")" == *"STALE_PATH: docs/old-spec.md"* ]] || CONC_BAD=1
+  [[ "$(cat "$TEST_TMPDIR/conc-b")" == *"STALE_PATH: docs/old-spec.md"* ]] || CONC_BAD=1
+  cache_is_whole "$CACHE_DEL" 2 || CONC_BAD=1
+  cache_is_whole "$CACHE_LS" 0 || CONC_BAD=1
+done
+assert_eq "cache: two cold fires at once both report the finding and leave whole caches" 0 "$CONC_BAD"
+cache_fire
+assert_contains "cache: the caches the concurrent fires left are readable" "$OUT" "STALE_PATH: docs/old-spec.md"
+assert_eq "cache: and they are trusted, so no walk runs" 0 "$CACHE_WALKS"
+
+# A git directory the hook cannot write costs it the caches, not a diagnostic on
+# stderr. (Where chmod does not restrict the owner, the write succeeds and the
+# case holds trivially.)
+rm -f "$CACHE_DEL" "$CACHE_LS"
+chmod 555 "$CACHE_REPO/.git"
+RO_ERR=$(CLAUDE_PROJECT_DIR="$CACHE_REPO" bash "$HOOK" <<<"$CACHE_PAYLOAD" 2>&1 >/dev/null)
+chmod 755 "$CACHE_REPO/.git"
+assert_silent "cache: an unwritable git directory leaves stderr empty" "$RO_ERR"
+
 report

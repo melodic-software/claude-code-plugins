@@ -1132,7 +1132,9 @@ build_audit_fixture() {
     fx_ref "refs/heads/feat/pr-merged-$i" "prm$i.b"
     fx_pr "feat/pr-merged-$i" MERGED $((1000 + i)) "prm$i.b"
   done
+  # (at least one of each at every scale, so both fixtures run the ancestor pass)
   n=$((5 * pct / 100))
+  ((n > 0)) || n=1
   for ((i = 1; i <= n; i++)); do
     fx_now
     fx_commit "drift$i.a" "$NOWTS" main6
@@ -1140,6 +1142,8 @@ build_audit_fixture() {
     fx_commit "drift$i.b" "$NOWTS" "drift$i.a"
     fx_ref "refs/heads/feat/drift-$i" "drift$i.b"
     fx_pr "feat/drift-$i" MERGED $((1100 + i)) "drift$i.a"
+    fx_ref "refs/heads/feat/drift-ancestor-$i" "drift$i.a"
+    fx_pr "feat/drift-ancestor-$i" MERGED $((1150 + i)) "drift$i.b"
   done
   # PR closed: unpushed (LOSSY) and pushed (REVIEW); PR open
   n=$((10 * pct / 100))
@@ -1445,8 +1449,8 @@ assert_not_contains "big fixture: the capture is sealed" "$big_out" "TipCaptureE
 if command -v jq >/dev/null 2>&1; then
   # The tallies the per-branch implementation printed for this fixture: the
   # classification is unchanged, not merely internally consistent.
-  assert_contains "big fixture: every tier, as classified before the bulk reads" "$big_out" "Summary: protected=6 worktree=8 safe=72 likely-safe=0 lossy=83 review=73"
-  assert_contains "big fixture: the PR map" "$big_out" "PRCount: 43"
+  assert_contains "big fixture: every tier, as classified before the bulk reads" "$big_out" "Summary: protected=6 worktree=8 safe=77 likely-safe=0 lossy=83 review=73"
+  assert_contains "big fixture: the PR map" "$big_out" "PRCount: 48"
   assert_contains "big fixture: the loss block" "$big_out" "LossBlock: 83 branches lose work if deleted"
 else
   skip_case "big fixture tallies need jq"
@@ -1526,6 +1530,87 @@ for fail_on in " --parents " " cat-file "; do
     fail "a failing${fail_on}pass falls back to per-branch calls" "more than $big_spawns" "$fb_spawns"
   fi
 done
+
+# --- merged PR, tip moved: ancestor of the merged head, and the branch family ---------
+# A MERGED PR whose headRefOid differs from the local tip is SAFE when the head
+# object is here and the tip is an ancestor of it, REVIEW otherwise. The family is
+# read from the branch name and no tier depends on it. Each verdict is the same
+# whether the bulk pass or the per-branch commands answered.
+if command -v jq >/dev/null 2>&1; then
+  AN="$TEST_TMPDIR/ancestor-repo"
+  git init -q --bare "$TEST_TMPDIR/ancestor-origin.git"
+  git init -q -b main "$AN"
+  git -C "$AN" config user.email "t@example.com"
+  git -C "$AN" config user.name "Test"
+  git -C "$AN" commit -q --allow-empty -m init
+  git -C "$AN" remote add origin "$TEST_TMPDIR/ancestor-origin.git"
+  git -C "$AN" push -q origin HEAD:main
+  git -C "$AN" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+  an_branch() { # <branch> <commits>: a branch with that many commits off main
+    git -C "$AN" checkout -q -b "$1" main
+    for ((k = 1; k <= $2; k++)); do git -C "$AN" commit -q --allow-empty -m "$1 $k"; done
+    git -C "$AN" checkout -q main
+  }
+  an_branch feat/ancestor 2
+  ancestor_head="$(git -C "$AN" rev-parse refs/heads/feat/ancestor)"
+  git -C "$AN" branch -q -f feat/ancestor "$ancestor_head~1"
+  an_branch feat/ahead 2
+  ahead_head="$(git -C "$AN" rev-parse refs/heads/feat/ahead~1)"
+  an_branch feat/diverged 1
+  an_branch feat/diverged-head 1
+  diverged_head="$(git -C "$AN" rev-parse refs/heads/feat/diverged-head)"
+  git -C "$AN" branch -q -D feat/diverged-head
+  an_branch feat/missing 1
+  missing_head=dddddddddddddddddddddddddddddddddddddddd
+  for b in agent-a1b2c3 agent-xyz claude/web1 plan/p stranded/s pre-wipe/w feat/plain; do an_branch "$b" 1; done
+  an_bin="$TEST_TMPDIR/ancestor-bin"
+  mkdir -p "$an_bin"
+  printf '[{"headRefName":"feat/ancestor","state":"MERGED","number":1,"headRefOid":"%s"},{"headRefName":"feat/ahead","state":"MERGED","number":2,"headRefOid":"%s"},{"headRefName":"feat/diverged","state":"MERGED","number":3,"headRefOid":"%s"},{"headRefName":"feat/missing","state":"MERGED","number":4,"headRefOid":"%s"}]\n' \
+    "$ancestor_head" "$ahead_head" "$diverged_head" "$missing_head" >"$an_bin/prs.json"
+  printf '#!/usr/bin/env bash\ncase "$*" in *pr\\ list*) cat "%s" ;; *) exit 1 ;; esac\n' "$an_bin/prs.json" >"$an_bin/gh"
+  chmod +x "$an_bin/gh"
+  # field <audit output> <branch> <field>: the value of one line of a branch's record
+  field() { awk -v b="Branch: $2" -v f="$3: " '$0 == b { p = 1; next } /^Branch: / { p = 0 } p && index($0, f) == 1 { print substr($0, length(f) + 1); exit }' <<<"$1"; }
+
+  an_views=()
+  for fail_on in "" " --parents " " cat-file "; do
+    an_out="$(cd "$AN" && SHIM_FAIL_ON="$fail_on" PATH="$SHIM_BIN:$PATH" SHIM_PRS="$an_bin/prs.json" bash "$AUDIT" --capture-file "$TEST_TMPDIR/an${fail_on// /}.tsv")"
+    an_views+=("$(printf '%s\n' "$an_out" | sed 's|^TipCapture: .*|TipCapture: <path>|')")
+    lbl="${fail_on:+ (failing$fail_on)}"
+    assert_contains "tip is an ancestor of the merged head: SAFE$lbl" "$an_out" "Branch: feat/ancestor
+Tip: $(git -C "$AN" rev-parse refs/heads/feat/ancestor)
+Tier: SAFE
+Age days: 0
+PR: #1 MERGED (tip drift)
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: not assessed (SAFE)
+Reason: PR merged (tip is an ancestor of the merged head)
+Family: none"
+    assert_contains "tip ahead of the merged head: REVIEW, 5b$lbl" "$an_out" "Branch: feat/ahead
+Tip: $(git -C "$AN" rev-parse refs/heads/feat/ahead)
+Tier: REVIEW"
+    assert_contains "tip ahead of the merged head keeps the 5b reason$lbl" "$(field "$an_out" feat/ahead Reason)" "PR merged but branch has commits since merge"
+    assert_contains "tip not an ancestor of the merged head: REVIEW$lbl" "$(field "$an_out" feat/diverged Tier) $(field "$an_out" feat/diverged Reason)" "REVIEW PR merged but branch has commits since merge"
+    assert_contains "merged head object missing here: REVIEW$lbl" "$(field "$an_out" feat/missing Tier) $(field "$an_out" feat/missing Reason)" "REVIEW PR merged but branch has commits since merge"
+  done
+  if [[ "${an_views[0]}" == "${an_views[1]}" && "${an_views[0]}" == "${an_views[2]}" ]]; then
+    pass "ancestor verdicts do not depend on which path answered"
+  else
+    fail "ancestor verdicts do not depend on which path answered" "no difference" "$(diff <(printf '%s\n' "${an_views[0]}") <(printf '%s\n' "${an_views[1]}") | head -10)"
+  fi
+  an_op="$(git -C "$AN" rev-parse --path-format=absolute --git-path MERGE_HEAD)"
+  git -C "$AN" rev-parse HEAD >"$an_op"
+  an_op_out="$(cd "$AN" && PATH="$SHIM_BIN:$PATH" SHIM_PRS="$an_bin/prs.json" bash "$AUDIT" --capture-file "$TEST_TMPDIR/an-op.tsv")"
+  rm -f "$an_op"
+  assert_contains "an operation in progress demotes the ancestor SAFE to REVIEW" "$(field "$an_op_out" feat/ancestor Tier) $(field "$an_op_out" feat/ancestor Reason)" "REVIEW operation in progress: $an_op"
+  an_out="${an_views[0]}"
+  for pair in agent-a1b2c3:agent agent-xyz:none claude/web1:claude plan/p:plan stranded/s:stranded pre-wipe/w:pre-wipe feat/plain:none main:none; do
+    assert_contains "family of ${pair%%:*} is ${pair#*:}" "$(field "$an_out" "${pair%%:*}" Family)" "${pair#*:}"
+    [[ "${pair%%:*}" == main ]] || assert_contains "family does not change the tier of ${pair%%:*}" "$(field "$an_out" "${pair%%:*}" Tier)" "$(field "$an_out" feat/plain Tier)"
+  done
+else
+  skip_case "ancestor and family cases need jq"
+fi
 
 # clean_unreached_counts against the per-id rev-list, on tips whose ancestry has a
 # merge, an octopus, a criss-cross and a tip already on origin/main.

@@ -75,7 +75,17 @@ run four partial '2 .mjs files uncovered' p:q@2.0
 assert_eq "partial coverage tick" "0 - [x] four: p:q@2.0, no findings, partial coverage: 2 .mjs files uncovered" "$rc $out"
 body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
 run four not-applicable 'no tracked tests' p:q@2.0
-assert_eq "not-applicable" "0 - [x] four: p:q@2.0, not applicable: no tracked tests" "$rc $out"
+assert_eq "not-applicable rejects a version: exit 2" "2" "$rc"
+run four not-applicable
+assert_eq "not-applicable needs evidence: exit 2" "2" "$rc"
+run four not-applicable 'no tests, none'
+assert_eq "not-applicable rejects a comma in the evidence: exit 2" "2" "$rc"
+run four not-applicable 'no tracked tests'
+assert_eq "not-applicable" "0 - [x] four: not applicable: no tracked tests" "$rc $out"
+cp "$TMP/body" "$TMP/before"
+run four not-applicable 'no tracked tests'
+assert_eq "not-applicable line already done: exit 1" "1" "$rc"
+if cmp -s "$TMP/before" "$TMP/body"; then pass "second not-applicable tick leaves the body alone"; else fail "second not-applicable tick" "unchanged" "changed"; fi
 body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
 run four report-only 3 p:q@2.0
 assert_eq "report-only" "0 - [x] four: p:q@2.0, no fix-eligible findings (3 report-only)" "$rc $out"
@@ -115,14 +125,42 @@ assert_eq "--partial with declined keeps the count" "0 - [x] four: p:q@2.0, find
 run four in-progress
 assert_eq "declined line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
 
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four filed https://github.com/o/r/issues/9 p:q@2.0
+assert_eq "filed" "0 - [x] four: p:q@2.0, filed https://github.com/o/r/issues/9" "$rc $out"
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run two filed https://github.com/o/r/issues/9 p:b@1
+body '- [x] two: p:b@1, filed https://github.com/o/r/issues/9' '- [ ] four: p:q' >"$TMP/want"
+if cmp -s "$TMP/want" "$TMP/body"; then pass "filed: only that line changed, CRLF and other bytes kept"; else
+  fail "filed: body bytes" "$(cat "$TMP/want")" "$(cat "$TMP/body")"
+fi
+cp "$TMP/body" "$TMP/before"
+run two in-progress
+assert_eq "filed line cannot be re-ticked: exit 1" "1" "$rc"
+if cmp -s "$TMP/before" "$TMP/body"; then pass "filed re-tick leaves the body alone"; else fail "filed re-tick" "unchanged" "changed"; fi
+body '- [ ] two: p:b, p:c' '- [ ] four: p:q' >"$TMP/body"
+run four --partial 'docs only' filed https://github.com/o/r/issues/9 p:q@2.0
+assert_eq "--partial with filed" "0 - [x] four: p:q@2.0, filed https://github.com/o/r/issues/9, partial coverage: docs only" "$rc $out"
+run four in-progress
+assert_eq "filed line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
+
+for bad in "four filed p:q@1" "four filed notaurl p:q@1" "four filed https://x.io/a,b p:q@1" "four filed https://x.io/a p:q" \
+  "four filed https://x.io/a" "four --partial x filed p:q@1"; do
+  read -ra args <<<"$bad"
+  run "${args[@]}"
+  assert_eq "usage: tick.sh $bad: exit 2" "2" "$rc"
+done
+run four filed 'https://x.io/a b' p:q@1
+assert_eq "usage: URL with a space: exit 2" "2" "$rc"
+
 for bad in "four declined x p:q@1" "four declined p:q@1" "four declined 2" "four --partial x declined y p:q@1"; do
   read -ra args <<<"$bad"
   run "${args[@]}"
   assert_eq "usage: tick.sh $bad: exit 2" "2" "$rc"
 done
 
-for bad in "four --partial x no-findings p:q@1" "four --partial x in-progress" "four --partial x partial y p:q@1" \
-  "four --partial x not-applicable y p:q@1" "four --partial a,b committed abc1234 p:q@1" "four --partial x" "four --partial"; do
+for bad in "four --partial x no-findings p:q@1" "four --partial x in-progress" "four --partial x partial y p:q@1" "four --partial x not-applicable y" \
+  "four --partial a,b committed abc1234 p:q@1" "four --partial x" "four --partial"; do
   read -ra args <<<"$bad"
   run "${args[@]}"
   assert_eq "usage: tick.sh $bad: exit 2" "2" "$rc"
