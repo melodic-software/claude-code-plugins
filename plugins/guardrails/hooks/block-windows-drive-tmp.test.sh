@@ -342,6 +342,9 @@ run_win_usr_bin "quoted /usr/bin/cp to /tmp/x (blocked)" '"/usr/bin/cp" ./a /tmp
 run_win_usr_bin "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' ./a /tmp/x" 2
 run_win "./bin/mkdirs /tmp/x (allowed — verb substring)" './bin/mkdirs /tmp/x' 0
 run_win "python open /tmp write (blocked)" "python3 -c \"open('/tmp/x','w').write('a')\"" 2
+run_win "python open ( C:/tmp write (blocked)" "python3 -c \"open ('C:/tmp/x','w').write('a')\"" 2
+run_win "python getattr open C:/tmp write (blocked)" "python3 -c \"getattr(__builtins__,'open')('C:/tmp/x','w')\"" 2
+run_win "python open C:\\\\Temp write (allowed — tmp-only scope)" "python3 -c \"open('C:\\\\Temp\\\\x','w').write('a')\"" 0
 # Git for Windows resolves /usr/bin/mkdir to mkdir.exe under Program Files.
 # The verb regex stops at a space, so neither spelling matched and the write
 # was allowed (#4527). C:/tmp stays a drive root on a usertemp /tmp host.
