@@ -811,8 +811,10 @@ class Hub:
             for x in q.get("questions") or []:
                 if isinstance(x, dict) and x.get("id") in derived:
                     x["state"], x["revising"] = derived[x["id"]]
-                    x["answered"] = (
-                        latest_decision(x, r.get("responses", {})) is not None
+                    x["answered"] = bool(
+                        (latest_decision(x, r.get("responses", {})) or {}).get(
+                            "decision"
+                        )
                     )
             self._last_state = {
                 "questions": q,

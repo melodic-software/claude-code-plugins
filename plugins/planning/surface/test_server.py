@@ -1380,6 +1380,12 @@ class TestAnswered(WaitCase):
         self.assertEqual(self.answered()["B"], (True, "open"))
         self.assertEqual(self.answered()["C"], (False, "open"))
 
+    def test_4_reopen_is_not_answered(self):
+        for kind in ("accept", "reopen"):
+            code, data = self.post({"id": "C", "kind": kind})
+            self.assertEqual(code, 200, data)
+        self.assertEqual(self.answered()["C"], (False, "open"))
+
 
 class TestConfirm(WaitCase):
     """The `confirm` event: ticks one commitment, records no decision, needs handling."""
