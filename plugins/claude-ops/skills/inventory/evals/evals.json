@@ -74,6 +74,32 @@
         "Output does not produce staleness verdicts or recommend deleting anything",
         "Output explains the boundary between inventorying files on disk and inventorying capabilities that resolve"
       ]
+    },
+    {
+      "id": 7,
+      "name": "is-foo-real-under-a-degraded-lane",
+      "prompt": "Is /teleport a real command? Just yes or no.",
+      "expected_output": "Runs the extraction and reads the integrity block for the builtin_commands lane before answering. The lane reports degraded, so its command list is a floor, and /teleport does not appear in it. The answer is that /teleport was not found in this extraction, whose command list is incomplete for the stated reason, not a flat no. Names what the lane leaves unaccounted for, and routes the live check to /help as the authority on what resolves in this session.",
+      "files": [],
+      "expectations": [
+        "Output reports the builtin_commands lane status before giving the answer",
+        "Output does not answer a flat no on the strength of absence from a degraded lane, and says the command list is a floor",
+        "Output names why the lane is degraded or what it leaves unaccounted for",
+        "Output routes the live question of what resolves now to /help rather than claiming certainty either way"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "docs-crosscheck-classifies-a-removed-command",
+      "prompt": "Is /vim still a thing? I thought I used it to toggle vim mode. Was it removed?",
+      "expected_output": "Runs the extraction with --docs and reads docs_crosscheck.names for vim. The binary does not register it, and the commands page carries a removal row, so the status is removed_in_docs, not undocumented or docs_only. Reports the removal version the page states and the changelog line that records it, including where that line says the toggle moved, and keeps the binary as the authority on existence: a name the page marks removed while the binary still registers it would be removed_in_docs_but_registered, which is a different answer.",
+      "files": [],
+      "expectations": [
+        "Output runs or cites the --docs cross-check rather than answering from memory",
+        "Output classifies /vim as removed_in_docs and not as undocumented or docs_only",
+        "Output cites the removal version or the changelog line that records the removal",
+        "Output treats the binary as the authority on whether the command exists, distinguishing removed_in_docs from removed_in_docs_but_registered"
+      ]
     }
   ]
 }

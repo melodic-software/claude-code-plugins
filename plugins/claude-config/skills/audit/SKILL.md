@@ -123,10 +123,12 @@ The engine records the installed Claude Code version itself (`claude --version`,
 versions against it. An unreadable version turns those rows into `skip`, never clean.
 
 It also reads the upstream pages its rows rest on, every run, so a default run needs the network.
-It fetches the docs index (`llms.txt`), resolves each page it needs from a link there, and reads
-the page verbatim. The `docs` object in the document is the coverage record: the index and each
-page with its URL or path, byte count, and one `state`: `read`; `unread`, with a `reason` such as
-`fetch-failed`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
+It hands the docs index (`llms.txt`) and each page it needs to the plugin's shared fetcher,
+`${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh`, which resolves the page from a link there and reads it verbatim to a file.
+The `docs` object in the document is the coverage record, built from the fetcher's manifest: the
+index and each page with its URL or path, byte count, line count, `sha256`, content type, read time,
+and one `state`: `read`; `unread`, with a `reason` such as `fetch-failed`, `http-404`,
+`unexpected-content-type`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
 settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins` (a soft
 404, a reshaped page). Only `read` means the engine decided anything from the page; every row resting
 on an `unread` or `unparsed` page is `not-inspectable`. The pages this covers today are `settings-reference` and `env-vars`; every
@@ -212,12 +214,17 @@ names, model configuration, permission syntax, and known issues.
 **Read every page in this phase verbatim, not through a summarizer.** These pages are long, with
 `settings-reference` and `env-vars` running to hundreds of KB, and a summarizing fetch truncates,
 then reports the rows past the cutoff as *absent*. So for each page,
-`curl https://code.claude.com/docs/en/<page>.md` to one directory and grep the files, per the
+run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --out <dir> <page>...` to fetch the pages
+into one directory and grep the files, per the
 [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 **A truncated read supports NO finding.** Say so and move on, in either direction: neither "the key is
 gone" nor "the key is unchanged" is reportable from a read that may have been cut.
 
-Then run the citation check over that directory:
+The fetcher writes `<dir>/manifest.json` beside the pages: per page `url`, `retrieved`, `sha256`,
+`status`, `content_type`, `bytes`, `lines`, `state`, and `reason`, plus `claude_version` for the run.
+A page it reports `unread` supports no finding.
+
+Then run the citation check over that directory (it reads pages through the same fetcher):
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-doc-citations.sh" --docs-dir <dir>
@@ -367,6 +374,32 @@ implying the file is unreachable.
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
 invariants resolved against their own official pages when a check needs them, rather than asserted
 as fixed patterns here.
+
+## Boundary, the bundled `update-config` skill
+
+Both surfaces handle `settings.json` files, so a request about settings can mean either.
+
+- **`update-config` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin.
+  It edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
+  automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
+  the person can both invoke it.
+- **This skill (marketplace plugin).** Audits the configuration that exists for correctness,
+  security, and drift against current official docs, across settings, MCP, hooks, plugins, and
+  permissions. It reports only, unless `--fix` is passed.
+
+**Routing.** When the bundled `update-config` skill resolves in this session, prefer it for making
+a settings change the person requested; prefer this skill for auditing what is configured. A
+request such as "allow npm commands" or "add a hook that runs when Claude stops" is a change, not
+an audit.
+
+**Mutation gate.** `update-config` writes settings files as its job. This skill writes only in
+Phase 5, under `--fix`, one confirmed fix at a time, and never chains into `update-config` on its
+own behalf.
+
+**Availability is never assumed.** Bundled skills are gated by settings such as
+`disableBundledSkills` and vary by version and host; this section states what to do when the
+surface resolves, never that it is present. The four-part records live in
+[reference/native-update-config.md](reference/native-update-config.md).
 
 ## Next
 

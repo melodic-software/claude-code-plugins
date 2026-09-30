@@ -15,6 +15,24 @@ Minor: additive guidance.
   against either. Their runtime relationship is `route` only: the model reaches them through the
   Agent tool or by tool name, never the Skill tool, and no person types them as a command.
 
+## [3.2.2] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the Boundary sections from the 2026-09-29 triage of every remaining
+  discovered candidate**: `/autofix-pr` in `babysit-prs`, `/commit-push-pr` in `commit`,
+  `/permissions` in `audit-permission-grants`, and new rows for `/bug` in `bugs:write`,
+  `/install-github-app` in `github:advise`, and `/memory` in `claude-memory:stateless`.
+
+## [3.2.1] - 2026-09-29
+
+Patch: clarification.
+
+- **The Adopters table lists the Boundary sections recorded against Claude Code 2.1.284**, across
+  source-control, claude-config, verification, implementation, debugging, discovery, claude-ops,
+  context-budget, session-flow, planning, and prototype. A stray blank line that split the table in
+  two is removed.
+
 ## [3.2.0] - 2026-09-29
 
 Minor: additive guidance.

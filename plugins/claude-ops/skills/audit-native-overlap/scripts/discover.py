@@ -162,11 +162,20 @@ class Component:
     bag: Counter
     name_tokens: set[str]
     plugin_tokens: set[str]
+    description: str = ""
 
     @classmethod
     def build(cls, plugin: str, name: str, kind: str, description: str) -> "Component":
         bag = _bag((name, 3.0), (plugin, 1.0), (description, 1.0))
-        return cls(plugin, name, kind, bag, set(tokenize(name)), set(tokenize(plugin)))
+        return cls(
+            plugin,
+            name,
+            kind,
+            bag,
+            set(tokenize(name)),
+            set(tokenize(plugin)),
+            description,
+        )
 
 
 def idf_table(bags: Iterable[Counter]) -> dict[str, float]:

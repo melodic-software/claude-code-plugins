@@ -355,6 +355,37 @@ documented contract (e.g. `/source-control:pull-request create`) composes this o
   `git add -A`), the subject pre-check before any git invocation, no hook bypass, and a
   user-visible SHA + subject report after every commit.
 
+## Boundary, native Claude Code surfaces
+
+Claude Code bundles a skill of the same name whose description tells the model to use it whenever
+it is about to commit, so the two compete for every commit. A built-in command also commits as its
+first step.
+
+- **`commit` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. A
+  generic commit workflow: it gathers git context and applies Claude Code's own message style,
+  staging rules, and attribution. The model and the person can both invoke it.
+- **`/commit-push-pr` (built-in command).** Ships with Claude Code. Commits, pushes, and opens a
+  PR in one prompt-driven step. The model and the person can both invoke it.
+- **This skill (marketplace plugin).** Resolves the repository's subject convention through the
+  ladder above (layered `source-control.md` config, the project's own convention, the Conventional
+  Commits default), resolves `trailer_policy`, stages surgically against the four preconditions,
+  and reruns the format, exec-bit, and subject pre-check steps on every commit.
+
+**Routing.** Prefer this skill whenever it resolves and the repository carries a commit
+convention, a `source-control.md` layer is present, or a workflow composes `/source-control:commit`.
+When the bundled `commit` skill resolves in this session, prefer it only for a plain commit where
+none of this skill's contract is wanted. A request to commit, and nothing more, stays here even
+when `/commit-push-pr` resolves: that command also pushes and opens a PR, which
+`/source-control:pull-request` owns.
+
+**Mutation gate.** All three create commits, and `/commit-push-pr` also pushes. Pick one per
+commit and never run two for the same change. This skill never chains into the bundled `commit`
+or `/commit-push-pr` on its own behalf.
+
+**Availability is never assumed.** The bundled skill is gated, and `disableBundledSkills` or a
+`skillOverrides` entry hides it; this section states what to do when a surface resolves, never
+that it is present. The four-part records live in [reference/native-commit.md](reference/native-commit.md).
+
 ## What this skill does NOT do
 
 - **No `git push`**, that's `/source-control:pull-request create`.
