@@ -336,7 +336,7 @@ An entry with `prior_disposition` was concluded on an earlier run and its identi
 and approve the entry as if it had no record. In the report, lead with new or changed entries, give
 each unchanged entry one line, and end with the open questions. When the operator answers "keep,
 don't re-raise", record it with `catalog --answers` so the entry is not asked again while its
-identity holds; a changed inode or child set asks again. Catalog syntax and rules:
+identity holds under the same scan target; a changed inode or child set asks again. Catalog syntax and rules:
 [investigated catalog](reference/safety-model.md#investigated-catalog).
 
 ## 4. Build one exact-tier plan

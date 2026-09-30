@@ -698,6 +698,8 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
 - A record is a hint. It records a conclusion, never an approval. Preview and apply do not read it,
   so a catalogued `remove` still needs the same preview, approval token, and revalidation as an
   entry that was never catalogued.
+- A record belongs to one scan target: the same entry reached from another target is not annotated
+  and is asked again.
 - A changed identity (device, inode, kind) or descendant set invalidates the record. It is replaced
   by an unresolved `keep` with its question, and the next scan stops annotating it.
 - An engine finding with no owner is not a conclusion: the record stays `keep` and the report asks
