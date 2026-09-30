@@ -1,5 +1,5 @@
 ---
-description: "Builds throwaway UI variations, several radically different layouts on one route switchable from a floating bar, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'what should this page look like', 'try a different layout'. Runs on the real stack by default (real header, data, and density) or as a self-contained HTML mockup; the user flips between variants, keeps one or bits of each, and discards the rest. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
+description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants otherwise. Builds throwaway UI variations, several radically different layouts on one route switchable from a floating bar, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'what should this page look like', 'try a different layout'. Runs on the real stack by default or as a self-contained HTML mockup; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
 argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
@@ -290,6 +290,30 @@ of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_inv
 [reference/bundled-design.md](reference/bundled-design.md). As of 2026-09-29. Recheck when a
 release makes the `design` registration model-invocable, changes its description (the identity
 string the offer quotes), changes its gating, or splits or merges its registrations.
+
+## Boundary, the built-in `ClaudeDesign` tool
+
+A request to mock up a page can name a Claude Design project the person already has, and then it
+means that project, not a new mockup:
+
+- **`ClaudeDesign` (built-in tool)**: lists the person's claude.ai/design projects and reads and
+  writes files in an existing one (list, get a project, write, copy, and plan writes). The model
+  calls it by name. It does not create a new Design artifact; that is the bundled `design` skill
+  above, which the person runs.
+- **This skill (marketplace plugin).** Throwaway variants on the real stack or as a local HTML
+  mockup; only the winning-variant key survives.
+
+**Routing.** When the person names or links an existing claude.ai/design project, or asks for the
+work to go into one, and the `ClaudeDesign` tool resolves in this session, use that tool for the
+project's files. Otherwise this skill builds its variants as today. The tool is the project's
+editor; this skill is the throwaway comparison.
+
+**Mutation gate.** A `ClaudeDesign` write changes a project the person's team shares. Write only
+to the project the person named, and only after they asked for the change. A first write asks the
+person for a one-time project approval, or goes through the tool's plan step; the tool refuses
+writes in a subagent, in a non-interactive session, and in plan mode without that plan step, so
+report the refusal and never retry around it. The four-part records live in
+[reference/claude-design-tool.md](reference/claude-design-tool.md).
 
 ## Boundary, the marketplace `playground` plugin
 

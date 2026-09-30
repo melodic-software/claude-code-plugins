@@ -3,6 +3,20 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4] - 2026-09-30
+
+### Added
+
+- **`visualize` routes work on an existing Claude Design project to the built-in `ClaudeDesign`
+  tool.** When the person names or links an existing claude.ai/design project, or asks for the
+  work to go into one, and the tool resolves in this session, the model uses the tool for the
+  project's files; otherwise the skill renders its own output as before. The description carries
+  the condition, and the Boundary section names the tool, the split, and the mutation gate
+  (writes only to the named project, after the person asks; the tool's own approval and refusal
+  cases are reported, never retried around), with the four-part records in
+  `context/claude-design-tool.md`. The description drops two restating clauses to stay under the
+  1,024-character field limit.
+
 ## [0.8.3] - 2026-09-29
 
 ### Changed
