@@ -290,33 +290,33 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
    configured hook means the file is inert exhaust, the tracker item stays the escalation of
    record. The record path is relative to this session's checkout; step 0's preflight is what keeps
    that directory out of the tree this lane runs its gates against.
-   **Background-job launch mode (interim, pending the owner's decision on
-   [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).** Observed, not
-   yet decided: a background session on the shared default-branch checkout had its record Write
-   refused with "parent bg session hasn't isolated yet, so writes to the shared checkout are
-   blocked", while a background job launched inside an already-isolated lane worktree (instance
-   `melo-lap-001-wsl-2`, worktree `cc-plugins-lane-2`) completed three record Writes. Claude Code's
-   background-session docs describe the same split: inside a git repository, writes to the shared
-   checkout are blocked until the session is moved into a worktree, and a session already inside a
-   linked git worktree skips that move. So the trigger appears to be session isolation, not
-   background mode itself; triage did not reproduce the refusal. This lane deliberately runs on the
-   default-branch checkout and must not call `EnterWorktree`, which would end the long-lived
-   orchestrator. Step 0's gitignore preflight does not lift a harness block. When the record Write
-   is refused, the tracker marker comment is the escalation of record and the cycle continues.
-   Foreground on the default-branch checkout is the known-good mode.
+   **Background-job launch mode.** Launch a background lane from inside an isolated linked git
+   worktree of the repository (`git worktree add`, then `claude --bg -n <name> --permission-mode auto` from there, the form
+   `/claude-ops:lanes` launches) to keep the record Write: Claude Code moves a background session into a worktree before its first edit
+   and skips the move when the session already sits in a linked worktree, so the Write lands in
+   place. A live probe (`claude --bg`, Claude Code 2.1.285) from a linked worktree outside
+   `.claude/worktrees` wrote the record file there with no refusal, as did an earlier lane
+   (worktree `cc-plugins-lane-2`). A launch from a checkout that is not a linked worktree is not
+   the recommended mode: one lane's record Write there was refused with "parent bg session
+   hasn't isolated yet, so writes to the shared checkout are blocked", and otherwise the session
+   moves into an auto-created worktree under `.claude/worktrees/`; that launch was not probed
+   here. Either
+   way the tracker marker comment is the escalation of record, and a refused record Write does
+   not stop the cycle. This lane must not call `EnterWorktree` (it would end the long-lived
+   orchestrator), so isolation comes from where the operator launches it. Foreground on the
+   default-branch checkout remains the known-good mode.
 
-   Verification record for that paragraph. Claim: the harness refusal of the record Write is
-   conditional on the session not yet being isolated in a worktree, not on background mode.
-   Basis: [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598) body (the
-   refusal text, instance `melo-lap-001-wsl-1`, shared checkout) and its second comment (three
-   Writes succeeded from the isolated worktree `cc-plugins-lane-2`, instance `melo-lap-001-wsl-2`);
-   the docs agree: "Inside a git repository, Claude Code blocks writes to the shared checkout until
-   Claude moves the session into a worktree", and Claude skips the move when "the session is
-   already inside a linked git worktree"
-   (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; the hooks reference
-   is silent on the point). As of 2026-09-29; the refusal itself was not reproduced. Recheck
-   trigger: that docs section changes its block or skip rules, a Claude Code release note changes
-   background-session isolation, or the owner records the #4598 decision.
+   Verification record for that paragraph. Claim: a background session launched inside a linked
+   git worktree keeps the record Write in place; one launched from a non-linked checkout is
+   blocked or moved into an auto-created worktree before its first edit. Basis: the docs, "Before
+   editing files, Claude moves the session into an isolated git worktree", skipped when "the
+   session is already inside a linked git worktree, whether Claude created it under
+   `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
+   (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>); the `claude --bg`
+   probe, the `cc-plugins-lane-2` Writes and the refusal text, all on
+   [#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598). As of
+   2026-09-29; the non-linked launch was not reproduced. Recheck trigger: that docs section
+   changes its block or skip rules, or a release note changes background-session isolation.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta

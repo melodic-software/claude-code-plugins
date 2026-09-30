@@ -21,6 +21,14 @@
   data-not-instructions posture?
 - **Determinism**: repeatable behavior, or does it rely on ambiguous instructions?
 
+## Categories
+
+- **Errors:** a wrong result, an over-broad tool grant used as if it were least privilege, or an instruction in untrusted input that the agent obeyed.
+- **Improvements:** context the prompt needs and does not supply, or a model line left implicit.
+- **Quality of life:** a return the parent cannot use without re-reading the whole subagent transcript.
+- **Standards:** the `seam-phrasing` and `untrusted-content` probes.
+- **Emitted findings:** when the agent returns findings (a reviewer, an auditor), sample those findings and grade each.
+
 ## Reproduce
 
 Dispatch it on a representative task; check it returns a concise, correct result without polluting
