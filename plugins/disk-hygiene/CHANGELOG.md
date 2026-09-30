@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.29.1] - 2026-09-30
+## [0.29.2] - 2026-09-30
 
 ### Fixed
 
@@ -14,6 +14,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   the belt denies on turns after the skill's own turn. The same probe ran a subagent's Bash call
   without the belt, so the README and `skills/clean/SKILL.md` now record non-inheritance with that
   basis instead of "inconsistent reach". No behavior changed.
+
+## [0.29.1] - 2026-09-29
+
+### Fixed
+
+- **The PowerShell mutation-word check relieves quoted words only for allow-listed commands.** A deletion word inside a quoted literal (a commit message, a search term, an issue body) no longer prompts when every command head is on the allow-list of commands that never run their string arguments and the line has no comment, subexpression, here-string, backtick, call operator, or member call. Any other line still gets the plain word match. The operator handoff tells operators to pass `gh` bodies with `--body-file` and to prefer single-quoted literals.
 
 ## [0.29.0] - 2026-09-29
 
