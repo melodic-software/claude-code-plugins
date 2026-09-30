@@ -1,7 +1,8 @@
 # Scan flag detail
 
-Flag-by-flag behavior of the `scan` flags `--quiet`, `--root-children` with `--root-child`, and
-`--sizes-only`, plus the inventory flag `--deep`, for `/disk-hygiene:clean`. The parse contract, the rejection rules, and the
+Flag-by-flag behavior of the `scan` flags `--quiet`, `--root-children` with `--root-child`,
+`--sizes-only`, and `--in-flight-refs`, plus the inventory flag `--deep` and the policy-rule age
+window, for `/disk-hygiene:clean`. The parse contract, the rejection rules, and the
 confirmation gate stay in [SKILL.md](../SKILL.md#arguments-and-boundaries).
 
 ## `--quiet`
@@ -101,6 +102,45 @@ When an inventory scan hits the entry cap, the error lists the top five top-leve
 count so far. The child still being walked is a lower bound, and children not yet reached are not
 counted. Size candidates with `--sizes-only`, then rerun with `--root-children --root-child <name>`
 on bounded children or with `--max-depth`.
+
+## `--in-flight-refs`
+
+`--in-flight-refs <file>` lists paths that open work still points at. An entry at, under, or holding a
+listed path is unticked, keeps its tier, is never `preselected`, and carries `in_flight_reason`,
+whether or not a policy rule matched it. A hit is a reason for caution, not proof, and never changes a
+tier. The engine makes no network call, so the skill collects the references first.
+
+Before the scan, dispatch a read-only subagent. It searches open issues and PRs (`gh search issues`
+and `gh search prs`, `--state open`) for the target's absolute path, and reads the session-flow
+handoff save-points in `<memory_dir>/handoffs/` for it. The skill-frontmatter belt does not apply
+inside a subagent ([SKILL.md](../SKILL.md#1-create-a-read-only-snapshot)). It returns
+`{path, reason}` pairs: `path` absolute, `reason` naming the reference ("referenced by PR #123",
+"referenced by handoff <file>"). The parent writes them as
+`{"references": [{"path": "...", "reason": "..."}]}` to `<run-dir>/in-flight-refs.json` and passes
+`--in-flight-refs`; any other field, or a relative path, fails the scan. When `gh` is unavailable or
+not authenticated, scan without the flag and say in the report that open issues and PRs were not
+checked.
+
+## Rule age window
+
+A rule with `min_age_days` leaves an entry touched inside the window unticked, with `in_flight_reason`
+shown. `min_age_basis` picks the timestamp the window is measured from: `mtime` (the default),
+`atime`, or `ctime`. `atime` can be unreliable under `noatime` or `relatime` mounts. A directory is as
+new as its newest inventoried descendant; incomplete coverage (not-walked, depth-cut, scan error)
+counts as in-flight.
+
+`ctime` is the inode change time on POSIX. On Windows it is whatever Python's `st_ctime_ns` reports,
+which is creation time for now, so read a Windows `ctime` window as creation time and as a value that
+can change meaning when the interpreter does.
+
+**Claim:** on Windows `st_ctime` is creation time today, is deprecated, and CPython plans to change it
+to the metadata change time or to zero. **Basis:** the `os.stat` and `os.stat_result` entries of
+https://docs.python.org/3/library/os.html (Python 3.14.7), fetched with `curl` and read from the saved
+HTML: "On Windows, st_ctime is deprecated. Eventually, it will contain the last metadata change time,
+for consistency with other platforms, but for now still contains creation time." and "in the future
+st_ctime may be changed to return zero or the metadata change time, if available." **As of:**
+2026-09-30. **Recheck:** the `os.stat_result` entry stops saying `st_ctime` still contains creation
+time on Windows, or a CPython release note announces the change.
 
 ## Coverage and hint fields
 

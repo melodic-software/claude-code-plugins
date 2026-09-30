@@ -536,7 +536,19 @@ class HygieneTests(unittest.TestCase):
                     "preselect": True,
                 }
             ],
-            "unknown-match-key": [{"match": {"class": "temp"}, "preselect": True}],
+            "unknown-match-key": [{"match": {"glob": "*.tmp"}, "preselect": True}],
+            "hint-id-and-class": [
+                {
+                    "match": {"hint_id": "common-temp-file", "class": "temp"},
+                    "preselect": True,
+                }
+            ],
+            "hint-ids-and-class": [
+                {
+                    "match": {"hint_ids": ["common-temp-file"], "class": "temp"},
+                    "preselect": True,
+                }
+            ],
             "empty-hint-ids": [{"match": {"hint_ids": []}, "preselect": True}],
             "non-string-hint-id": [{"match": {"hint_id": 3}, "preselect": True}],
             "missing-preselect": [{"match": good}],
@@ -579,7 +591,7 @@ class HygieneTests(unittest.TestCase):
 
     def test_policy_rejects_an_unsupported_min_age_basis(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            for basis in ("atime", "ctime", "", None):
+            for basis in ("birthtime", "", None):
                 path = self._overlay(
                     temporary,
                     "v2.json",
@@ -596,6 +608,219 @@ class HygieneTests(unittest.TestCase):
                     hygiene.HygieneError, "min_age_basis"
                 ):
                     hygiene.load_policy(path)
+
+    def _class_hint(self, hint_id: str, pattern: str, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": hint_id,
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": pattern,
+            "confidence_ceiling": "low",
+            "reason": "Class fixture",
+            **fields,
+        }
+
+    def test_class_rule_resolves_to_every_merged_hint_carrying_the_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"}),
+                    self._class_hint("orig-file", "*.orig", **{"class": "backup"}),
+                ],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            self.assertEqual(
+                [
+                    {
+                        "hint_ids": ["bak-file", "orig-file"],
+                        "preselect": True,
+                        "source": str(path),
+                        "index": 0,
+                        "class": "backup",
+                        "hint_sources": {"bak-file": str(path), "orig-file": str(path)},
+                    }
+                ],
+                hygiene.load_policy(path)["rules"],
+            )
+
+    def test_class_rule_covers_a_hint_a_later_layer_adds(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            user = self._overlay(
+                temporary,
+                "user.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"})
+                ],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            project = self._overlay(
+                temporary,
+                "project.json",
+                additional_hints=[
+                    self._class_hint("orig-file", "*.orig", **{"class": "backup"})
+                ],
+            )
+            with mock.patch.object(
+                hygiene, "standing_policy_paths", return_value=[user, project]
+            ):
+                policy = hygiene.load_policy(None)
+            (rule,) = policy["rules"]
+            self.assertEqual(["bak-file", "orig-file"], rule["hint_ids"])
+            self.assertEqual(
+                {"bak-file": str(user), "orig-file": str(project)},
+                rule["hint_sources"],
+            )
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "a.orig").write_text("old", encoding="utf-8")
+            entries = hygiene.entry_map(hygiene.scan_tree(root.resolve(), policy))
+            self.assertEqual(
+                {"source": str(user), "hint_source": str(project)},
+                {
+                    key: entries["a.orig"]["policy_rule"][key]
+                    for key in ("source", "hint_source")
+                },
+            )
+
+    def test_scan_records_a_directory_atime_from_before_it_was_listed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "sub").mkdir(parents=True)
+            (root / "sub" / "f.txt").write_text("x", encoding="utf-8")
+            old = 1_000_000_000 * 10**9
+            os.utime(root / "sub", ns=(old, old))
+            real_scandir = os.scandir
+
+            def touching_scandir(path: Any) -> Any:
+                listing = real_scandir(path)
+                os.utime(path, ns=(time.time_ns(), os.stat(path).st_mtime_ns))
+                return listing
+
+            with mock.patch.object(hygiene.os, "scandir", touching_scandir):
+                snapshot = hygiene.scan_tree(
+                    root.resolve(), hygiene.load_policy(None)
+                )
+            self.assertEqual(old, hygiene.entry_map(snapshot)["sub"]["atime_ns"])
+
+    def test_baseline_temp_hints_carry_the_temp_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[{"match": {"class": "temp"}, "preselect": True}],
+            )
+            (rule,) = hygiene.load_policy(path)["rules"]
+            self.assertLessEqual(
+                {"common-temp-file", "common-temp-directory", "scratch-artifact"},
+                set(rule["hint_ids"]),
+            )
+            self.assertNotIn("common-lock-file", rule["hint_ids"])
+
+    def test_class_rule_rejects_an_unknown_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for value in ("nope", "", None, ["temp"]):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[{"match": {"class": value}, "preselect": True}],
+                )
+                with (
+                    self.subTest(value=value),
+                    self.assertRaisesRegex(
+                        hygiene.HygieneError, "class must be one of"
+                    ),
+                ):
+                    hygiene.load_policy(path)
+
+    def test_class_rule_rejects_a_class_no_merged_hint_carries(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                rules=[{"match": {"class": "crash-dump"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(
+                hygiene.HygieneError, "matches no hint.*crash-dump"
+            ):
+                hygiene.load_policy(path)
+            disabled = self._overlay(
+                temporary,
+                "disabled.json",
+                additional_hints=[
+                    self._class_hint("dump-file", "*.dmp", **{"class": "crash-dump"})
+                ],
+                disabled_hint_ids=["dump-file"],
+                rules=[{"match": {"class": "crash-dump"}, "preselect": True}],
+            )
+            with self.assertRaisesRegex(hygiene.HygieneError, "matches no hint"):
+                hygiene.load_policy(disabled)
+
+    def test_hint_class_is_validated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._overlay(
+                temporary,
+                "v2.json",
+                additional_hints=[self._class_hint("x", "*.x", **{"class": "nope"})],
+            )
+            with self.assertRaisesRegex(
+                hygiene.HygieneError, "hint class must be one of"
+            ):
+                hygiene.load_policy(path)
+
+    def test_class_rule_preselects_tagged_hints_and_names_the_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "guarded").mkdir(parents=True)
+            (root / "a.bak").write_text("old", encoding="utf-8")
+            (root / "a.orig").write_text("old", encoding="utf-8")
+            (root / "guarded" / "keep.bak").write_text("old", encoding="utf-8")
+            (root / "plain.txt").write_text("keep", encoding="utf-8")
+            overlay = self._overlay(
+                temporary,
+                "class.json",
+                additional_hints=[
+                    self._class_hint("bak-file", "*.bak", **{"class": "backup"}),
+                    self._class_hint("orig-file", "*.orig"),
+                ],
+                additional_protected_path_globs=["guarded/**"],
+                rules=[{"match": {"class": "backup"}, "preselect": True}],
+            )
+            entries = hygiene.entry_map(
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
+            )
+            self.assertIs(True, entries["a.bak"]["preselected"])
+            self.assertEqual(
+                {
+                    "source": str(overlay),
+                    "index": 0,
+                    "hint_id": "bak-file",
+                    "class": "backup",
+                    "hint_source": str(overlay),
+                },
+                entries["a.bak"]["policy_rule"],
+            )
+            self.assertNotIn("preselected", entries["a.orig"])
+            self.assertNotIn("preselected", entries["plain.txt"])
+            protected = entries["guarded/keep.bak"]
+            self.assertIn("consumer-protected-path", protected["protected_reasons"])
+            self.assertIs(False, protected["preselected"])
+
+    def test_id_rule_policy_rule_carries_no_class(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "a.tmp").write_text("x", encoding="utf-8")
+            overlay = self._overlay(
+                temporary,
+                "id.json",
+                rules=[{"match": {"hint_id": "common-temp-file"}, "preselect": True}],
+            )
+            entry = hygiene.entry_map(
+                hygiene.scan_tree(root.resolve(), hygiene.load_policy(overlay))
+            )["a.tmp"]
+            self.assertNotIn("class", entry["policy_rule"])
 
     def test_rules_layer_in_order_and_the_failing_layer_changes_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -932,6 +1157,153 @@ class HygieneTests(unittest.TestCase):
             self._age(root / "dir.stage", 30)
             entry = hygiene.entry_map(hygiene.scan_tree(root, policy))["dir.stage"]
             self.assertIs(True, entry["preselected"])
+
+    def test_policy_accepts_atime_and_ctime_min_age_bases(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            for basis in ("mtime", "atime", "ctime"):
+                path = self._overlay(
+                    temporary,
+                    "v2.json",
+                    rules=[
+                        {
+                            "match": {"hint_id": "common-temp-file"},
+                            "preselect": True,
+                            "min_age_days": 7,
+                            "min_age_basis": basis,
+                        }
+                    ],
+                )
+                with self.subTest(basis=basis):
+                    rules = hygiene.load_policy(path)["rules"]
+                    self.assertEqual(basis, rules[-1]["min_age_basis"])
+
+    def _refs_file(self, directory: str, references: Any) -> Path:
+        path = Path(directory) / "refs.json"
+        path.write_text(json.dumps({"references": references}), encoding="utf-8")
+        return path
+
+    def _scan_with_refs(self, temporary: str, *paths: str):
+        root, policy = self._aged_fixture(temporary)
+        for name in ("old.stage", "fresh.stage", "dir.stage", "dir.stage/child.txt"):
+            self._age(root / name, 30)
+        refs = hygiene.load_in_flight_refs(
+            self._refs_file(
+                temporary,
+                [
+                    {"path": str(root / name), "reason": "referenced by PR #123"}
+                    for name in paths
+                ],
+            )
+        )
+        snapshot = hygiene.scan_tree(root, policy, in_flight_refs=refs)
+        return snapshot, hygiene.entry_map(snapshot)
+
+    def test_in_flight_ref_covers_the_path_and_its_descendants_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            snapshot, entries = self._scan_with_refs(temporary, "dir.stage")
+            for name in ("dir.stage", "dir.stage/child.txt"):
+                self.assertEqual(
+                    "in-flight: referenced by PR #123", entries[name]["in_flight_reason"]
+                )
+            self.assertIs(False, entries["dir.stage"]["preselected"])
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            self.assertNotIn("in_flight_reason", entries["old.stage"])
+            plan = {
+                "version": 1,
+                "tier": "low",
+                "candidates": [candidate("dir.stage", "low")],
+            }
+            result = self._preview_ready(snapshot, plan)["candidates"][0]
+            self.assertEqual("low", result["tier"])
+            self.assertIs(False, result["preselected"])
+            self.assertEqual(
+                "in-flight: referenced by PR #123", result["in_flight_reason"]
+            )
+
+    def test_in_flight_ref_marks_the_ancestor_that_would_remove_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, entries = self._scan_with_refs(temporary, "dir.stage/child.txt")
+            self.assertIs(False, entries["dir.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: contains a referenced path (referenced by PR #123)",
+                entries["dir.stage"]["in_flight_reason"],
+            )
+            self.assertIn("in_flight_reason", entries["dir.stage/child.txt"])
+            self.assertNotIn("in_flight_reason", entries["fresh.stage"])
+
+    def test_in_flight_ref_outside_the_target_affects_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("old.stage", "fresh.stage", "dir.stage", "dir.stage/child.txt"):
+                self._age(root / name, 30)
+            refs = [{"path": str(root.parent / "elsewhere"), "reason": "x"}]
+            entries = hygiene.entry_map(
+                hygiene.scan_tree(root, policy, in_flight_refs=refs)
+            )
+            self.assertTrue(all("in_flight_reason" not in e for e in entries.values()))
+
+    def test_in_flight_refs_file_is_validated_strictly(self) -> None:
+        good = {"path": os.path.abspath("abs-path"), "reason": "referenced by PR #1"}
+        cases = {
+            "not an object": [good],
+            "unknown top-level field": {"references": [good], "extra": 1},
+            "references not a list": {"references": good},
+            "unknown entry field": {"references": [{**good, "extra": 1}]},
+            "missing reason": {"references": [{"path": good["path"]}]},
+            "empty reason": {"references": [{**good, "reason": " "}]},
+            "relative path": {"references": [{**good, "path": "rel/path"}]},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "refs.json"
+            for name, content in cases.items():
+                path.write_text(json.dumps(content), encoding="utf-8")
+                with self.subTest(name), self.assertRaises(hygiene.HygieneError):
+                    hygiene.load_in_flight_refs(path)
+            path.write_text("{not json", encoding="utf-8")
+            with self.assertRaises(hygiene.HygieneError):
+                hygiene.load_in_flight_refs(path)
+            path.write_text(json.dumps({"references": [good]}), encoding="utf-8")
+            self.assertEqual([good], hygiene.load_in_flight_refs(path))
+
+    def _basis_entries(self, basis: str, old: int, new: int) -> list[dict[str, Any]]:
+        base = {"kind": "file", "hints": [], "protected_reasons": []}
+        stamps = {"mtime_ns": old, "atime_ns": old, "ctime_ns": old}
+        return [
+            {"path": "dir.stage", **base, "kind": "directory", "hints": [{"id": "h"}], **stamps},
+            {"path": "dir.stage/a", **base, **stamps, f"{basis}_ns": new},
+        ]
+
+    def test_min_age_basis_uses_the_chosen_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root, policy = self._aged_fixture(temporary)
+            for name in ("old.stage", "fresh.stage"):
+                self._age(root / name, 30)
+            os.utime(root / "old.stage", ns=(time.time_ns(), root.joinpath("old.stage").stat().st_mtime_ns))
+            policy["rules"][-1]["min_age_basis"] = "atime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(False, entries["old.stage"]["preselected"])
+            self.assertEqual(
+                "in-flight: accessed within 7 days", entries["old.stage"]["in_flight_reason"]
+            )
+            self.assertIs(True, entries["fresh.stage"]["preselected"])
+            policy["rules"][-1]["min_age_basis"] = "mtime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(True, entries["old.stage"]["preselected"])
+            policy["rules"][-1]["min_age_basis"] = "ctime"
+            entries = hygiene.entry_map(hygiene.scan_tree(root, policy))
+            self.assertIs(False, entries["old.stage"]["preselected"])
+            self.assertIn("changed within 7 days", entries["old.stage"]["in_flight_reason"])
+
+    def test_min_age_directory_newest_descendant_uses_the_chosen_basis(self) -> None:
+        old = time.time_ns() - 30 * 86_400 * 10**9
+        for basis in ("mtime", "atime", "ctime"):
+            for chosen in ("mtime", "atime", "ctime"):
+                entries = self._basis_entries(basis, old, time.time_ns())
+                rules = [{"hint_ids": ["h"], "preselect": True, "min_age_days": 7,
+                          "min_age_basis": chosen, "source": "s", "index": 0}]
+                hygiene.apply_rules(entries, rules)
+                with self.subTest(touched=basis, chosen=chosen):
+                    self.assertIs(basis != chosen, entries[0]["preselected"])
 
     def test_min_age_treats_incomplete_coverage_as_in_flight(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -6066,6 +6438,8 @@ class StorageSenseTempThresholdTests(unittest.TestCase):
             silent, entries_under = snapshot_entries(1024**3)
         self.assertIsNotNone(recommended)
         self.assertIsNone(silent)
+        for entry in (*entries_under, *entries_over):
+            entry.pop("atime_ns", None)  # a scan's own reads can move atime
         self.assertEqual(entries_under, entries_over)
 
 

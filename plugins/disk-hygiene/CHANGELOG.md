@@ -3,11 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.40.1] - 2026-09-30
+## [0.41.1] - 2026-09-30
 
 ### Changed
 
 - **The deep inventory's `plugin-cache-version` rows come from a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `claude-ops`, so the install-state audit and the deep inventory apply one rule for which cache versions are unreferenced, including the guarded read of `installed_plugins.json`. `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge.
+## [0.41.0] - 2026-09-30
+
+### Added
+
+- **Class-matched policy rules, atime/ctime age basis, and a reference in-flight input**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A schema v2 rule
+  can match on a hint `class` as well as `hint_id`/`hint_ids`. `min_age_days` can be measured on
+  `mtime`, `atime` or `ctime` through `min_age_basis`. `scan --in-flight-refs <json>` reads
+  `{"references":[{"path","reason"}]}` and leaves a path (and its ancestors) referenced by open
+  work unticked, with the reason shown in the preview. The policy overlay schema,
+  `skills/clean/SKILL.md` and `skills/clean/reference/scan-flags.md` document all three.
 
 ## [0.40.0] - 2026-09-30
 
