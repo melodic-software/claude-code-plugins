@@ -55,6 +55,8 @@ run "PCRE pattern: non-enforceable, allowed" "$r" "$BAD_COMMIT" 0
 r="$(newrepo "$TICKET")"
 run "ticket pattern: conforming subject allowed" "$r" "$GOOD_COMMIT" 0
 run "ticket pattern: violating subject blocked" "$r" "$BAD_COMMIT" 2
+run "ticket pattern: wsl-wrapped violating stdin subject blocked" "$r" "wsl ${BAD_COMMIT}" 2
+run "ticket pattern: wsl-wrapped conforming stdin subject allowed" "$r" "wsl ${GOOD_COMMIT}" 0
 run "ticket pattern: violating subject in prose (no commit) allowed" "$r" "echo 'junk subject'" 0
 run "ticket pattern: git status is not a commit, allowed" "$r" "git status --short" 0
 
