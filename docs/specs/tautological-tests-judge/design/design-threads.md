@@ -118,6 +118,11 @@ longer stay with the SessionStart catch-up, whose one-hour rule sets the window 
 (`*-hooks.jsonl`); PostToolUse is unprobed. Known limit: two live sessions in one directory, one of
 which clears, can adopt the other's writes from the hour before the clear.
 
+Confirmed 2026-09-30 (user): a `/clear` or fork successor counts as the same session for Q7,
+because the common workflows continue one task across it: `/session-flow:handoff`, then `/clear`,
+then the pasted resume prompt, or `/compact`. `/compact` keeps the `session_id` and transcript
+(SessionStart `source` `compact`, probe R2-P8), so it needs no adoption.
+
 ### DT9. Calibration set: schema, size, bar (resolved)
 
 Schema, one row per test: id, source (seed id, corpus fixture, repo path), language, file and test
