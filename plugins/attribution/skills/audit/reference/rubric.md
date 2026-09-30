@@ -1,28 +1,33 @@
-# The attribution rubric
+# The attribution rubrics
 
-Rubric version **4**. This catalog is versioned with the plugin: a change to a carve-out or a
-criterion lands in `CHANGELOG.md` and **invalidates any golden-set measurement pinned to an
-earlier version**. **The golden set must be re-scored against the current version before any
-precision figure is cited against it**, and no class becomes fix-eligible on a measurement
-pinned to a superseded rubric.
+Two rubrics live here, each versioned on its own: the **copy rubric**, version **4**, and the
+**restated-fact rubric**, version **1**. This catalog is versioned with the plugin: a change to a
+carve-out or a criterion of either rubric lands in `CHANGELOG.md` and **invalidates any golden-set
+measurement pinned to an earlier version of that rubric**. **The golden set must be re-scored
+against the current version before any precision figure is cited against it**, and no class
+becomes fix-eligible on a measurement pinned to a superseded rubric.
 
-Read this at the judgment step. Judges apply it blind, three samples by default; unanimity
-renders the verdict and any split routes to the human.
+Read this at the judgment step. **Each judge dispatch names the one rubric it applies, `copy` or
+`restated-fact`, and the judge applies that rubric alone.** A dispatch that names none applies the
+copy rubric. The other rubric's section is context; its criteria are never graded. Judges apply
+the rubric blind; unanimity renders the verdict and any split routes to the human.
 
-## What this rubric is for, and what it is not
+## What these rubrics are for, and what they are not
 
-It decides one question: **does this passage carry drift risk that a pointer would remove?**
-A passage restating a fact an external source owns goes stale the next time that source
-changes, and nothing in the repository records that it did. That is the harm being measured.
+Both decide one question: **does this passage carry drift risk that a pointer would remove?** A
+passage restating a fact an external source owns goes stale the next time that source changes, and
+nothing in the repository records that it did. That is the harm being measured. The copy rubric
+reads a passage whose text corresponds to a source's text. The restated-fact rubric reads a fact a
+passage carries, in any wording, that an external source owns.
 
-It is **not a copyright or fair-use assessment**, and it must not be reported as one. Some
+Neither is a **copyright or fair-use assessment**, and neither may be reported as one. Some
 criterion names below resemble fair-use factors because both bodies of thought ask similar
 questions about borrowed text, but the resemblance is where it ends: the verdicts here are
 editorial, the remedies are maintenance remedies, and nothing in this catalog is legal advice or
 a substitute for it. A finding says a passage should point at its source instead of restating
 it. It never says a passage is unlawful.
 
-## Order of evaluation
+## Copy rubric: order of evaluation
 
 1. **Carve-outs first.** If any applies, the candidate is declined with that carve-out named,
    and no criterion is graded. Declines are counted, never dropped.
@@ -34,7 +39,7 @@ Carve-outs come first because several of them make the criteria meaningless rath
 satisfied. Grading "attribution adequacy" on a vendored upstream file asks whether a file that
 is wholly and openly someone else's is adequately attributed, which is not a question.
 
-## Carve-outs
+## Copy rubric: carve-outs
 
 Every carve-out here is **categorical**: it names a class of surface, never an individual
 passage someone wanted kept. Per-instance keeps are the finding-suppression concern and belong
@@ -139,7 +144,7 @@ harness lifts the config layer and the fixtures report their real findings. An u
 exclusion would blind the harness to its own fixtures and leave the eval author reading prose
 instead of results.
 
-## The four criteria
+## Copy rubric: the four criteria
 
 Each is binary. Each requires **a quoted span from the material in front of you**. A grade
 without a quote is not a grade; if the text you would need to quote is not in front of you,
@@ -267,6 +272,10 @@ prose**, and a unanimous panel does not upgrade one.
 | `llm-suspected` | No lexical evidence is possible (paraphrase, summary) | No, human report | No |
 | `not-found` | Budgets exhausted with no source; every searched surface named | No, human report | No |
 
+The relay column is the copy class's. A restated-fact finding maps to a row above by the same fixed
+rule and relays by a rule of its own, on the panel's unanimity and the refutation pass, whatever the
+row says; it is never fix-eligible.
+
 Two consequences that judges get wrong if they are not stated:
 
 - **A paraphrase can never be `fingerprint-confirmed`**, however confident the panel. There is no
@@ -275,6 +284,105 @@ Two consequences that judges get wrong if they are not stated:
 - **`not-found` is a first-class outcome, not a failure and not an acquittal.** It says the run
   did not locate a source within its budget, naming every surface it checked. Absence of a
   located source is never evidence that a passage is original.
+
+## Restated-fact rubric
+
+Apply this section only when the dispatch names `restated-fact`. It decides whether a passage
+**restates a fact an external source owns**, in any wording, without conforming to the
+upstream-drift shape: a pointer at the point of use, or a four-part record (claim, basis URL,
+as-of date, observable recheck trigger). It never asks whether the passage's words correspond to
+a source's words: a paraphrase, a summary, or a table restates a fact as fully as a copied
+sentence does.
+
+The facts in scope are the ones an external owner can change without touching this repository: a
+constant, a default, a version pin, a field list, the semantics of a named external product.
+
+### Restated-fact order of evaluation
+
+1. **Carve-outs first.** A carve-out declines the candidate, names itself, and grades no
+   criterion. Declines are counted, never dropped.
+2. **Then the four criteria**, each graded PASS, FAIL or UNKNOWN with a quoted span. Polarity is
+   the copy rubric's: PASS always supports the finding, FAIL clears the candidate, UNKNOWN stops
+   the verdict and routes to the human.
+3. **Verdict: STANDS only if all four PASS.**
+4. **Then the tier**, by the rule under "Restated-fact verdict and tier".
+
+Vendored trees and the plugin's own eval-fixture tree (copy carve-outs 1 and 6) are settled by
+corpus scoping before either rubric runs.
+
+### Restated-fact carve-outs
+
+Categorical, as for the copy rubric: each names a class of surface, never a passage someone
+wanted kept.
+
+1. **Conforming pointer or record.** The passage names the source in place of stating the fact,
+   or carries all four parts of a conforming record (see "A conforming record has four parts"
+   below). Conforming is the whole test. A link beside a stated value cites the value and does not
+   record when it was checked or what obliges a recheck, and a dated sentence with no observable
+   trigger is missing a part; neither is carved out.
+2. **Owned content.** Facts this repository owns, in its own vocabulary. The direction test and
+   the same-organization sibling rule are copy carve-out 4's.
+3. **Distilling-file surface whose own attribution enumerates the fact.** A surface whose stated
+   product is a distillation of a named external source, and whose own attribution (a Sources
+   section, per-section source tags, an inline citation on the span) accounts for this fact.
+   Quote that line; if you cannot, the carve-out does not apply. A fact the attribution does not
+   enumerate is a candidate, and the surface's purpose does not reach it. A file that distills a
+   source incidentally, while doing another job, is not carved out.
+4. **Quoted and cited text.** A fact inside a quotation whose source is named at the span, as in
+   copy carve-out 3.
+
+### Restated-fact criteria
+
+Each is binary and needs a quoted span from the material in front of you; where the text to quote
+is absent, grade UNKNOWN and say what you would need. R1 to R3 are graded on the passage. R4 is
+graded outward across the containing file, because whether a record is whole and covers the fact
+cannot be read from the passage alone.
+
+**R1-external-owner.** *Does the passage assert a fact an external source owns?* Quote the fact
+and name its owner, from what the passage or file says or from the fact itself (a named product's
+own flag, field or limit). A fact that is general practice, which no source decides, FAILS. A fact
+that plainly has an external owner the material does not let you name is UNKNOWN.
+
+- **PASS, worked.** `The client library retries three times by default.` The library's
+  documentation owns the default.
+- **FAIL, worked.** `Retries should back off between attempts.` General practice; no source
+  decides it.
+
+**R2-specific-and-revisable.** *Is the fact a concrete value, enumeration, or behavior its owner
+can change without notice?*
+
+- **PASS, worked.** `A request carries at most 32 items and the fields id, name, and tags.` A cap
+  and a field list.
+- **FAIL, worked.** `The service exposes an HTTP API.` True across every revision; a pointer would
+  preserve nothing.
+
+**R3-stated-as-current.** *Is the fact asserted as how the external thing works now, for a reader
+to act on?*
+
+- **PASS, worked.** `Keep runs under 60 seconds; the platform terminates longer ones.`
+- **FAIL, worked.** `Release 2.3 raised the cap from 16 to 32 items.` History states what was
+  true at a named point and is not a claim about now, and neither is an example the text labels
+  illustrative.
+
+**R4-no-conforming-shape.** *Is the fact stated without a whole four-part record?* A record
+elsewhere in the file covers the fact only where its claim names it. A whole record FAILS this
+criterion and clears the candidate. Quote the nearest citation or stamp and name the part it
+lacks; where there is none, say so.
+
+- **PASS, worked.** `The default is 30 seconds ([docs](<url>)).` A basis, with no as-of date and
+  no trigger.
+- **FAIL, worked.** `The default is 30 seconds. Verified <date> against <url>; recheck when the
+  vendor changelog lists a change to the timeout.` All four parts, and the trigger is an event a
+  reader can check.
+
+### Restated-fact verdict and tier
+
+**A restated-fact STANDS never carries `fingerprint-confirmed`, whatever the fingerprint module
+reported, so it is never fix-eligible.** That tier needs the copy rubric's evidence: a matched
+span above the separation rule. This rubric judges drift risk in any wording and yields no
+lexical evidence, and unanimity does not manufacture any. A fetched source caps the verdict at
+`source-fetched-similar` whatever the fingerprint showed. Every other tier is mapped from evidence
+by the table above, by fixed rule, never from a judge's confidence.
 
 ## Restated external rules, as four-part records
 

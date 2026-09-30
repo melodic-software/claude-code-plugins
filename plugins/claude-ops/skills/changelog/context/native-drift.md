@@ -98,10 +98,8 @@ installed and a tracker binding resolves; never call a provider CLI directly. Ot
    anew and link it.
 2. **File** each remaining item through `/work-items:track add` with the title and body above. It
    applies the raw-intake floor `needs-triage` from the live label set; the filer never
-   self-triages.
-3. **Label** each item `native-drift` when that exact label is in the live set; ask `track add` for
-   it as an extra label. Otherwise file without it and say so once. The label is a filter; the key
-   is the dedupe, so a missing label never causes a duplicate.
+   self-triages. The filer requests no `native-drift` label: the key finds every item, for example
+   `gh issue list --state all --limit 1000 --search '"native-drift:" in:body'` on GitHub.
 
 **Who approves.** The run is interactive unless its caller declares it unattended (a loop, a
 routine, or a lane directive that authorizes tracker filing). Interactive: print the count and the
@@ -120,5 +118,5 @@ as unfiled.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | `work-items` defines no filing-posture key, so the only filing gate is `track add`'s authorization gate (`filing_posture` belongs to the `bugs` plugin and governs `/bugs:scan` alone) | `git grep filing_posture` hits only `plugins/bugs/` and `.claude/bugs.md`; `plugins/work-items/skills/track/actions/add.md`, "Authorization gate" | 2026-09-29 | `work-items` gains a filing-posture or autonomy key; this step then reads it and never exceeds it |
-| `track add` has no flag for an arbitrary meta label, so `native-drift` is requested in the invocation, not passed as a flag | `plugins/work-items/skills/track/actions/add.md`, "Flags" | 2026-09-29 | `track add` gains a label flag |
-| `native-drift` is not in this repository's live label set; labels here are managed as code (`governance: managed`), so the label is added there, never created by a run | `gh label list` on melodic-software/claude-code-plugins | 2026-09-29 | The label appears in `gh label list`, or the label-as-code owner changes |
+| `gh issue list` lists only open issues unless `--state all` is passed, and stops at 30 unless `--limit` is raised | `gh issue list --help`: "By default, this only lists open issues"; `-s, --state` default `open`; `-L, --limit` default 30 | 2026-09-30 | `gh issue list --help` changes the `--state` or `--limit` default |
+| `track add` adds its own default labels (`category:general` when the repo defines it, `type: <type>` on a non-org repo) besides the floor and any requested label | `plugins/work-items/skills/track/actions/add.md`, "Flags" and "Build labels list" | 2026-09-30 | `track add` changes its default-label rules |

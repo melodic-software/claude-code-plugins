@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: commit-no-push-no-pr
+context:
+  scaffold_script: scaffold.sh

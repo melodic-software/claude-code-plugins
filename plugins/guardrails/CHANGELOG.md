@@ -3,13 +3,35 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.6] - 2026-09-30
+## [0.43.3] - 2026-09-30
 
 ### Fixed
 
 - **`block-dangerous-git` lets read-only git through PowerShell grouping.** A `{}` or `()` group sent the whole command to the fail-closed sink, so `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }` was refused. The sink now passes a command whose every git invocation is a built-in interrogator (`status`, `log`, `show`, `diff`, `rev-parse`, `ls-files`, `remote -v`, `stash list` and similar), optionally behind `-C <path>`. A `-c` override, `--exec-path`, an environment write (a `GIT_*` name, an `Env:` provider path, a `$env:NAME` assignment, `SetEnvironmentVariable`, a .NET `[Environment]` or `.Invoke(` call), a computed or obscured subcommand, an alias, `fetch`, `grep` and any mutating verb keep the command blocked, and dynamic-invocation, launcher and here-string triggers are unchanged. `scripts/check-guardrails-ps-differential.sh origin/main` shows 19 commands newly allowed, all read-only git, and no other cell moved.
 - **The PowerShell read-only git test judges `remote` and `stash` by arguments.** Both were listed as mutating stems, so bare `git remote`, `remote -v`, `remote show`, `remote get-url`, `stash list` and `stash show` were refused. Every other `remote` or `stash` form still blocks.
 - **The PowerShell sink denial offers the commit form only for a commit and names the PowerShell rewrite first.**
+
+## [0.43.2] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block.
+
+### Changed
+
+- Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
+## [0.43.0] - 2026-09-30
+
+### Added
+
+- **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
 
 ## [0.42.5] - 2026-09-30
 

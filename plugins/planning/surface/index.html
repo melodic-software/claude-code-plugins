@@ -456,7 +456,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const S = {doc: {meta: {}, groups: [], questions: [], visuals: [], notes: []}, resp: {seq: 0, responses: {}, history: {}, events: []},
     listener: {state: "idle"}, online: false, session: "", sel: null, busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
-    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -504,10 +504,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function decisionOf(q){
     const page = S.resp.responses[q.id], term = q.terminal;
     const c = [page && Object.assign({src: "page"}, page), term && Object.assign({src: "terminal"}, term)].filter(x => x && x.updatedAt);
-    c.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-    const d = c[0] || null; // a decision recorded before Claude set it aside no longer counts: a page one by seq, a terminal one by rev, an older terminal one by time
-    if (d && (d.seq != null && q.setAsideSeq != null ? d.seq <= q.setAsideSeq : d.rev != null && q.setAsideRev != null ? d.rev <= q.setAsideRev : q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt))) d.aside = true;
-    return d;
+    // a decision recorded before Claude set it aside no longer counts: a page one by seq, a terminal one by rev, an older terminal one by time
+    c.forEach(d => { if (d.seq != null && q.setAsideSeq != null ? d.seq <= q.setAsideSeq : d.rev != null && q.setAsideRev != null ? d.rev <= q.setAsideRev : q.setAsideAt && String(d.updatedAt) <= String(q.setAsideAt)) d.aside = true; });
+    c.sort((a, b) => (a.aside ? 1 : 0) - (b.aside ? 1 : 0) || String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    return c[0] || null;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
   function stateOf(q){ // a hold wins over a recorded decision
@@ -599,6 +599,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   const unseenIds = () => new Set(unseenActs().flatMap(e => e.ids || []));
   const landedIds = () => new Set(unseenActs().filter(e => e.added).flatMap(e => e.ids || []));
+  const arrivalKeys = () => new Set(acts().map(actKey).concat(noteThread().filter(n => n.by === "claude").map(n => "n" + n.at + "|" + n.text)));
   function latestClaude(q){ const h = historyOf(q)[0]; return h && h.by === "claude" && String(h.text).trim() !== "Asked." ? h : null; }
   const upOf = q => (q.dependsOn || []).filter(p => Q[p]);
 
@@ -695,7 +696,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         const elig = s.items.filter(q => op.has(q.id) && eligible(q)), aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + s.collapsed + '" data-dflt="' + s.done + '">' +
           '<div class="sec-top"><button class="sec-h" aria-expanded="' + !s.collapsed + '"><span class="caret">&#9662;</span><h2>' + esc(s.title) + '</h2><span class="cnt">' + s.open + " open / " + s.items.length + "</span></button>" +
-          (elig.length && aa ? '<button class="tbtn small" ' + aa + ' data-submit="1" title="Accept the recommendation on the open questions you have opened here">Accept all (' + elig.length + ")</button>" : "") + "</div>" +
+          (elig.length && aa ? '<button class="tbtn small" ' + aa + ' data-submit="1" title="Accept the recommendation on the open questions you have opened here">Accept all (' + elig.length + ")</button>" : "") +
+          (elig.length && s.round && !s.gid ? '<button class="tbtn small" data-auditround="' + esc(s.round) + '" data-submit="1" title="Accept the recommendation on the open questions you have opened here and have agents check the answers">Accept all and have agents check them</button>' : "") + "</div>" +
           (s.lock.length ? '<div class="lock">Locked: opens after ' + s.lock.map(g => esc(groupTitle(g))).join(", ") + "</div>" : "") +
           (s.hint ? '<div class="sec-hint">' + (s.hintStale ? '<span class="chip hot" title="This summary was written before questions were added to the group">Stale</span> ' : "") + esc(s.hint) + "</div>" : "") +
           '<ul class="qlist">' + (items.length ? items.map(q => "<li>" + railItem(q, s, carry, fresh) + "</li>").join("") : '<li class="empty">None.</li>') + "</ul></div>";
@@ -755,7 +757,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("eyebrow").textContent = m.eyebrow || (headRound() ? "" : "Interview");
     $("roundLbl").textContent = headRound();
     $("title").textContent = m.title || "Interview";
-    document.title = m.title || "Interview";
     const l = S.doc.questions.filter(live), done = l.filter(q => isAnswered(stateOf(q))).length, wn = l.filter(q => stateOf(q) === "wait").length;
     $("meterText").textContent = done + " of " + l.length + " answered";
     $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
@@ -776,6 +777,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     nb.hidden = !unread || S.fly === "notes"; nb.textContent = unread;
     const un = unseenActs().length, ab = $("actBadge");
     ab.hidden = !un || S.fly === "activity"; ab.textContent = un;
+    const away = document.hidden && S.hiddenBase ? [...arrivalKeys()].filter(k => !S.hiddenBase.has(k)).length : 0; // what landed since the tab was hidden, whether or not a flyout marked it seen
+    document.title = (away > 0 ? "(" + away + ") " : "") + (m.title || "Interview");
     const vb = $("visBadge"), vn = S.sel && S.sel !== SUMMARY && Q[S.sel] ? visualsFor(Q[S.sel]).length : 0;
     vb.hidden = !vn || S.fly === "visuals"; vb.textContent = vn;
   }
@@ -968,6 +971,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (done < n || lsGet("cpDismissed", 0) >= n) return "";
     return '<div class="banner"><b>' + done + " answered.</b> Past your checkpoint of " + n + '. Wrap up, or split what is left. <button class="tbtn small" data-sum="1">Wrap up</button> <button class="tbtn small" data-cpdismiss="' + n + '">Keep going</button></div>';
   }
+  const DANGLING = /(?:[,\-(]|\b(?:and|but|or|so|the|a|an|to|of|with|for|that|which|because|if|then|like|in|on|at|as|is|are|was|we|i|it|my|our|your|this|these|about|from|into|than|when|where|while|just|maybe))$/i;
+  const midSentence = s => { s = String(s || "").trim(); return s.length >= 12 && !/[.!?)\]"'”’`]$/.test(s) && DANGLING.test(s); };
   function renderAnswer(){
     const q = Q[S.sel], note = $("note");
     if (!q) { $("cur").innerHTML = ""; $("choices").innerHTML = ""; $("decideRow").innerHTML = ""; $("talkRow").innerHTML = ""; note.disabled = true; renderToast(); return; }
@@ -990,9 +995,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t"><b>' + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
     const needText = armed && armed.kind === "own" && keptText(armed) === undefined && !text, frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + armed.label + (withNote(q, armed) ? " with note" : "") : "Save";
-    const asks = armed && armed.kind === "own" && /\?$/.test(text);
+    const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
     $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? "Own answer needs a note" : "Ctrl+Enter") + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
+      (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
       '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>';
@@ -1007,7 +1013,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function fillNote(){
     const q = Q[S.sel]; if (!q) { $("note").value = ""; grow($("note")); return; }
     const draft = lsGet("draft:" + q.id, null), d = decisionOf(q);
-    $("note").value = draft !== null ? draft : ((d && d.text) || "");
+    $("note").value = draft !== null ? draft : ((d && !d.aside && d.text) || "");
     grow($("note"));
   }
   function grow(ta){ ta.style.height = "auto"; ta.style.height = Math.min(ta.scrollHeight + 2, window.innerHeight * 0.4) + "px"; }
@@ -1045,8 +1051,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
 
   // ---------- summary / completion ----------
-  const DANGLING = /(?:[,\-(]|\b(?:and|but|or|so|the|a|an|to|of|with|for|that|which|because|if|then|like|in|on|at|as|is|are|was|we|i|it|my|our|your|this|these|about|from|into|than|when|where|while|just|maybe))$/i;
-  const midSentence = s => { s = String(s || "").trim(); return s.length >= 12 && !/[.!?)\]"'”’`]$/.test(s) && DANGLING.test(s); };
   function noteThread(){
     const mine = events().filter(e => e.kind === "note").map(e => ({by: "you", at: e.at, text: e.text, seq: e.seq}));
     const claude = (S.doc.notes || []).map(n => Object.assign({by: "claude"}, n));
@@ -1534,18 +1538,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const base = lsGet("openedRev", {})[q.id];
     return typeof base === "number" ? crev(q) - (q.contentRev || 0) + base : crev(q);
   }
-  function acceptAllDialog(pool, where){ // one accept event per eligible question, each carrying its note
+  function acceptAllDialog(pool, where, audit){ // one accept event per eligible question, each carrying its note; audit (a round id): one accept-audit event instead, which carries no notes, so a question with a note is left out
     const op = opened(), elig = pool.filter(q => op.has(q.id) && eligible(q)).sort(byIdCmp);
-    const challenged = elig.filter(q => /^\s*Challenge:/m.test(carried(q))), items = elig.filter(q => !challenged.includes(q));
+    const held = elig.filter(q => audit ? carried(q) : /^\s*Challenge:/m.test(carried(q))), items = elig.filter(q => !held.includes(q));
     const unopened = pool.filter(q => !op.has(q.id) && eligible(q)).length;
     if (!elig.length) return;
     // A question Claude revised after the user last opened it goes with that older revision, so
     // the server refuses it and the toast names it.
     const snaps = items.map(q => ({id: q.id, rev: openedRev(q), text: carried(q)}));
-    $("dlgTitle").textContent = "Accept " + items.length + " in " + where + "?";
-    $("dlgBody").innerHTML = "<p>Accepts the recommendation on each open question you have opened here, with the note you typed on it. Commitments stay unconfirmed.</p><ul>" +
+    $("dlgTitle").textContent = "Accept " + items.length + " in " + where + (audit ? " and have agents check them?" : "?");
+    $("dlgBody").innerHTML = "<p>Accepts the recommendation on each open question you have opened here" + (audit ? ". Agents will then check the accepted answers. " : ", with the note you typed on it. ") + "Commitments stay unconfirmed.</p><ul>" +
       snaps.map(s => { const q = Q[s.id]; return "<li><b>" + esc(q.id) + "</b> " + esc(q.short || q.title) + ": " + esc(trunc(firstLine(q.recommendation), 110)) + (s.text ? '<div class="kbd">Note: ' + esc(trunc(s.text, 160)) + "</div>" : "") + "</li>"; }).join("") + "</ul>" +
-      (challenged.length ? '<p class="left-out">Left out, their note challenges a commitment: ' + challenged.map(q => esc(q.id)).join(", ") + ".</p>" : "") +
+      (held.length ? '<p class="left-out">Left out, ' + (audit ? "they carry a note, which this button does not send. Accept them one at a time: " : "their note challenges a commitment: ") + held.map(q => esc(q.id)).join(", ") + ".</p>" : "") +
       (unopened ? '<p class="left-out">Left out: ' + unopened + " open " + (unopened === 1 ? "question" : "questions") + " you have not opened.</p>" : "") +
       "<p>This set cannot be undone as one step: Reopen each question to change it.</p>";
     $("dlgOk").disabled = !items.length;
@@ -1554,6 +1558,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       dlg.close(); if (S.busy) return;
       if (wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
       S.busy = true; let ok = 0; const skipped = [];
+      if (audit) {
+        try {
+          const {res, data} = await post({kind: "accept-audit", alt: audit, items: snaps.map(s => ({id: s.id, contentRev: s.rev}))});
+          S.busy = false;
+          const sk = (data.skipped || []).map(x => x.id);
+          if (res.ok) snaps.forEach(s => { if (!sk.includes(s.id)) lsSet("draft:" + s.id, null); });
+          await refresh().catch(() => {});
+          toast(res.ok ? "Accepted " + (data.accepted || []).length + "." + (sk.length ? " Skipped " + sk.join(", ") + ": changed or not eligible." : "") : "Not accepted (" + (data.error || res.status) + ")." + (sk.length ? " Skipped " + sk.join(", ") + "." : ""), !res.ok || sk.length > 0);
+          renderAll();
+        } catch (e) { S.busy = false; if (!e.quiet) toast("Not sent (" + e.message + ").", true); }
+        return;
+      }
       for (const s of snaps) {
         try { const {res} = await post({id: s.id, kind: "accept", alt: null, text: s.text, contentRev: s.rev}); if (res.ok) { ok++; lsSet("draft:" + s.id, null); } else skipped.push(s.id); }
         catch (e) { if (e.quiet) return; skipped.push(s.id); }
@@ -1597,6 +1613,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       const saved = lsGet("sel", null);
       const pick = saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : (railOrder().find(id => isOpen(stateOf(Q[id]))) || railOrder()[0] || null);
       if (pick) select(pick); else { renderRail(); renderDetail(); }
+      if (document.hidden) S.hiddenBase = arrivalKeys(); // a tab opened in the background fires no visibilitychange
       renderHeader(); renderFly();
       return;
     }
@@ -1605,7 +1622,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q && !S.conflict && !S.armed && !$("note").value.trim()) S.snap[q.id] = snapOf(q); // not answering yet: follow the latest wording
     renderHeader(); renderRail(changed);
     const typing = document.activeElement === $("note");
-    if (!typing && !S.busy && q && lsGet("draft:" + S.sel, null) === null) fillNote();
+    const dn = q && lsGet("draft:" + q.id, null) === null ? decisionOf(q) : null, prefilled = !!dn && dn.aside && !!dn.text && $("note").value.trim() === String(dn.text).trim();
+    if (!S.busy && q && lsGet("draft:" + S.sel, null) === null && (!typing || prefilled)) fillNote(); // a prefill of a decision Claude set aside clears even while the note has focus
     renderDetail({flash: changed.includes(S.sel)});
     if (S.fly && (S.fly !== "settings")) {
       const nt = $("noteText"), keep = nt && document.activeElement === nt;
@@ -1639,7 +1657,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function startPoll(){ if (pollTimer) return; pollTimer = setInterval(() => refresh().then(() => { setOnline(true); if (!es || es.readyState === 2) connect(); }).catch(() => setOnline(false)), 3000); }
   function stopPoll(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   setInterval(() => { if (es && Date.now() - lastFrame > SILENT_MS) { es.close(); es = null; startPoll(); } }, 5000);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") catchUp(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { S.hiddenBase = arrivalKeys(); return; }
+    S.hiddenBase = null; renderHeader();
+    if (document.visibilityState === "visible") catchUp();
+  });
 
   // ---------- events ----------
   document.addEventListener("click", e => {
@@ -1660,6 +1682,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("#keysClose")) { $("keysDlg").close(); return; }
     if (t.closest("[data-sum]")) { select(SUMMARY, {animate: true}); return; }
     const ref = t.closest(".ref[data-q], .qbtn"); if (ref) { select(ref.dataset.q, {animate: true}); return; }
+    const au = t.closest("[data-auditround]"); if (au) { const s = sections().secs.find(x => x.round === au.dataset.auditround); if (s) acceptAllDialog(s.items, s.title, s.round); return; }
     const aa = t.closest("[data-acceptall]"); if (aa) { acceptAllDialog(S.doc.questions.filter(q => q.group === aa.dataset.acceptall), groupTitle(aa.dataset.acceptall)); return; }
     const sh = t.closest(".sec-h");
     if (sh) { const sec = sh.closest(".sec"), c = sec.dataset.collapsed !== "true"; sec.dataset.collapsed = String(c); sh.setAttribute("aria-expanded", String(!c)); lsSet("col:" + sec.dataset.key, {c, d: sec.dataset.dflt === "true"}); return; }
