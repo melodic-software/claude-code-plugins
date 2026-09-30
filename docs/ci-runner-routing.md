@@ -76,7 +76,8 @@ for an in-flight full run, then ends on a settled `success`, `failure`, or
   run. The composite logs `Carried forward: ci-lanes is success`, passes, and
   the re-run replaces the red check run. Pushing a new commit is not needed.
 - If the title is invalid or `do-not-merge` is applied, the contract check
-  stays red on a re-run. Fix the title or remove the label, then re-run.
+  stays red on a re-run. Fix the title or remove the label first, then follow
+  the other bullets for `ci-lanes`.
 - If `ci-lanes` is `failure` or missing, re-run the full workflow.
 
 A body edit while a failed full run is being re-run reads the old `ci-lanes`
