@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The interview page can accept a round's recommendations and hand the round to `/planning:audit-answers`, limited to the accepted questions.** "Accept all and have agents check them" posts one `accept-audit` event; the server records one accept per eligible question, each marked pending agent validation in the exports, and `context/surface.md` routes the event to the audit skill. A question with a typed note is left out, since the event carries no notes. Per-question undo still works, and the page holds no validation logic ([#5472](https://github.com/melodic-software/claude-code-plugins/issues/5472)).
 
+## [0.47.10] - 2026-09-30
+
+### Changed
+
+- **`interview-defenses.test.sh` states that recomputing a digest or pin is attended-only.** An unattended run that hits a failing digest reports the pin and the git diff, then stops; the digest and pin failure messages say so too ([#5332](https://github.com/melodic-software/claude-code-plugins/issues/5332)).
+
 ## [0.47.9] - 2026-09-29
 
 ### Changed
