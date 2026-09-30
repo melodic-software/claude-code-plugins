@@ -1092,6 +1092,21 @@ run_pwsh "PS: resolved literal target inside a foreach body (allowed — #4234)"
 run_pwsh "PS: resolved literal target, pipeline into the call (allowed — #4234)" \
   '$py='"'"'python3'"'"'; $data | & $py tool.py' 0
 # shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, quoted-bare-quoted with one root variable (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; $r='"'"'C:/s'"'"'; & $sh "$r/packet-seal.sh" record "$r/out"' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned to a computed value (blocked — #4234)" \
+  '$sh='"'"'bash.exe'"'"'; $sh=$x; & $sh a b c' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted target stays unresolved (blocked — #4234)" \
+  '$sh="bash.exe"; & $sh a b c' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assigned after the call, three positionals (blocked — #4234)" \
+  '& $sh a b c; $sh='"'"'bash.exe'"'"'' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: another variable is the call target (blocked — #4234)" \
+  '$sh='"'"'bash.exe'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
 run_pwsh "PS: literal is a writer name (blocked — #4234)" \
   '$w='"'"'Set-Content'"'"'; & $w f.txt x' 2
 # shellcheck disable=SC2016
@@ -1259,7 +1274,7 @@ run_pwsh "PS: fd-dup on a non-leftmost call site (blocked — #2927)" \
   "& \$w; & \$w2 2>&1 f.txt x" 2
 # The deliberately ACCEPTED behavior change: once the merge is stripped, one
 # literal positional before it and one after it read as the Path+Value pair. That
-# is consistent with `& $py script.py arg`, which already blocked, so the class is
+# is consistent with `& $py script.py arg` (an unassigned target blocks), so the class is
 # narrow — it needs BOTH sides of the merge to carry a positional.
 # shellcheck disable=SC2016
 run_pwsh "PS: positional on each side of an fd-dup (blocked — accepted #2927 change)" \
@@ -1492,6 +1507,8 @@ guard_invoke --tool PowerShell --command '& $tool f.txt x' -- "${MSG_ENV[@]}"
 assert_exit "message: computed positional call blocks" 2 "$GUARD_RC"
 assert_contains "message: computed positional names the rule" "$GUARD_ERR" \
   "with 2+ positional operands is read as Set-Content <path> <value>"
+assert_contains "message: computed positional names the literal-path rewrite" "$GUARD_ERR" \
+  "call the program by a literal quoted path"
 assert_absent "message: computed positional gives no Write/Edit advice" "$GUARD_ERR" "Use the Write or Edit tool"
 assert_absent "message: computed positional gives no write-cmdlet verdict" "$GUARD_ERR" "PowerShell file-write cmdlet/redirect"
 # shellcheck disable=SC2016
@@ -2771,7 +2788,7 @@ run_pwsh "PS: quoted Path+Value flanked by an apostrophe-bearing string (blocked
   "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 2
 # Double-quoted operands are expandable (about_Quoting_Rules) but still
 # present. A `$`-free double-quoted pair is two visible literals, same as the
-# unquoted `& $py script.py arg` already blocked by the #2722 signal.
+# unquoted `& $py script.py arg` with an unassigned target, blocked by the #2722 signal.
 # shellcheck disable=SC2016
 run_pwsh "PS: unquoted two-positional computed call (blocked — #2722 control for #2906)" \
   "& \$py script.py arg" 2
