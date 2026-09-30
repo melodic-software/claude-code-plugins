@@ -3,11 +3,21 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.69.1] - 2026-09-29
+## [0.70.1] - 2026-09-29
 
 ### Changed
 
 - The prerequisites skill's Next section points at the check skill of every formatter and linter plugin that has one, `/actionlint:check` included.
+
+## [0.70.0] - 2026-09-29
+
+### Changed
+
+- **`audit-native-overlap` fingerprints the native side on the text detection scores**: each
+  registration's `description`, `argument_hint`, and `search_hint`, whitespace-collapsed. It hashed
+  the description alone, so a built-in tool with no description fingerprinted as an empty string
+  and a hint change never resurfaced its dismissal. Surfaces with no hints keep their fingerprint;
+  the stored dismissals were recomputed.
 
 ## [0.69.0] - 2026-09-29
 
