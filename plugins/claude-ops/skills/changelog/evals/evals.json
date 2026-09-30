@@ -15,14 +15,16 @@
     },
     {
       "id": 2,
-      "name": "explicit-apply-interviews-before-edits",
+      "name": "explicit-apply-scopes-then-hands-off",
       "prompt": "Apply the Claude Code v2.1.152 changelog to this repo.",
-      "expected_output": "The apply pipeline runs and presents a decision table (owner surface, action lens, the lens's required sentence, action needed) for the user to pick scope BEFORE any file is edited. Edits happen only after the user locks scope; nothing is silently changed.",
+      "expected_output": "The apply pipeline presents a decision table (owner surface, action lens, the lens's required sentence, action needed) and waits for the user to confirm scope BEFORE any file is edited. Decisions in scope that fit the session go through the marketplace stage skills; a decision too large for the session is filed through /work-items:track instead of being implemented, and no issue is closed by title match.",
       "files": [],
       "expectations": [
-        "The response surfaces a per-owner-surface decision table with an action lens and affected files before making edits",
-        "The response waits for the user to confirm scope (all decisions / just corrections / specific rows) before implementing changes",
-        "No repo file is edited prior to the user confirming scope"
+        "The response presents the per-owner-surface decision table, with an action lens and affected files, before any file is edited",
+        "The response waits for the user to confirm scope (all decisions / just corrections / specific rows) before implementing anything",
+        "In-scope decisions that fit the session are carried out through the marketplace stage skills rather than edited ad hoc",
+        "A decision too large for the session is filed through /work-items:track instead of being implemented",
+        "No issue is closed by title match"
       ]
     },
     {
