@@ -518,6 +518,15 @@ else
   fail "non-git CHECK_SKILL_SKILLS_ROOT should report OK (rc=$rc): $out"
 fi
 
+# An option-shaped argument is reported as an unknown option, not a missing root.
+out="$(run --bogus 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'unknown option: --bogus' <<<"$out"; then
+  pass "an unknown option exits 2 naming it"
+else
+  fail "an unknown option should exit 2 naming it (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
