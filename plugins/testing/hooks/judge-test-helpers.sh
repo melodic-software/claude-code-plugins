@@ -50,7 +50,8 @@ export TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_CMD="$TMP/judge-stub.sh" STUB_DIR="$TMP/
 DATA="$TMP/data"
 TDIR="$TMP/transcripts/-repo"
 mkdir -p "$TDIR"
-PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256sum | cut -c1-16)"
+sha256() { if command -v sha256sum >/dev/null; then sha256sum; else shasum -a 256; fi; }
+PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256 | cut -c1-16)"
 
 # The stub judge: logs its arguments (one file per call, NUL-separated), its
 # cwd and TEST_JUDGE_ACTIVE, then answers per STUB_MODE for every
@@ -59,7 +60,7 @@ PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256sum | cut -c1-16)"
 # else PASS. STUB_SLEEP delays the answer.
 cat >"$TMP/judge-stub.sh" <<'EOF'
 #!/usr/bin/env bash
-n="$(date +%s%N)-$$"
+n="$(date +%s)-$$-$RANDOM"
 printf '%s\0' "$@" >"$STUB_DIR/call-$n.args"
 printf '%s %s\n' "$PWD" "${TEST_JUDGE_ACTIVE:-}" >"$STUB_DIR/call-$n.env"
 sleep "${STUB_SLEEP:-0}"

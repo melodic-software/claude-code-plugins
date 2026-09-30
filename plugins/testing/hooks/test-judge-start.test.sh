@@ -10,7 +10,7 @@ HOOK="$HOOK_DIR/test-judge-start.sh"
 start() { out="$(payload "$1" start "" "{\"hook_event_name\": \"SessionStart\", \"source\": \"$2\"}" | bash "$HOOK" 2>/dev/null)"; }
 field() { jq -r "$1 // empty" <<<"$out" 2>/dev/null; }
 now="$(date +%s)"
-iso() { date -u -d "@$1" +%FT%TZ; }
+iso() { jq -rn --argjson t "$1" '$t | todate'; }
 
 # ledger <sid> <key-hash> <file> <verdict>: a verdict an earlier session left.
 F="$REPO/src/add.test.ts"
@@ -50,7 +50,7 @@ start new4 startup
 assert_empty "a verdict from a session active in the last hour is not named" "$out"
 
 # Another repository's (another project key) is not named.
-OTHER="$(printf '%s\n%s' "/elsewhere" "$TDIR" | sha256sum | cut -c1-16)"
+OTHER="$(printf '%s\n%s' "/elsewhere" "$TDIR" | sha256 | cut -c1-16)"
 mkdir -p "$DATA/sessions/$OTHER/far" "$DATA/verdicts/$OTHER/far"
 cp "$DATA/sessions/$PKEY/old/w1.json" "$DATA/sessions/$OTHER/far/w1.json"
 cp "$DATA/verdicts/$PKEY/old/k1.json" "$DATA/verdicts/$OTHER/far/k4.json"

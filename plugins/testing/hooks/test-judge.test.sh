@@ -227,7 +227,7 @@ assert_contains "the reason for a quote not in the file is recorded" "$(cat "$RE
 transcript s10 claude-sonnet-5
 M="$REPO/src/marker.test.ts"
 js_file "$M" untouched edited marked
-sed -i '10s|$| // cant-fail-ok: the vendor documents 3|' "$M"
+awk 'NR == 10 { $0 = $0 " // cant-fail-ok: the vendor documents 3" } 1' "$M" >"$M.new" && mv "$M.new" "$M"
 record s10 w1 "$M" "$(blocks edited:1:6:8)" "" null 0 "2026-09-30T10:00:00Z"
 record s10 w2 "$M" "[]" "" null 1 "2026-09-30T10:01:00Z"
 stub_reset
@@ -316,8 +316,8 @@ now="$(date +%s)"
 # A project key of their own, so the sessions above are not adopted.
 TDIR="$TMP/transcripts/-successors"
 mkdir -p "$TDIR"
-PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256sum | cut -c1-16)"
-iso() { date -u -d "@$1" +%FT%TZ; }
+PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256 | cut -c1-16)"
+iso() { jq -rn --argjson t "$1" '$t | todate'; }
 start() { payload "$1" start "" "{\"hook_event_name\": \"SessionStart\", \"source\": \"$2\"}" | bash "$START" 2>/dev/null; }
 # A predecessor with one unrelayed verdict and one block never judged.
 transcript pa claude-sonnet-5
