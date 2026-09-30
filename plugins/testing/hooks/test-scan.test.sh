@@ -340,6 +340,15 @@ assert_contains "(i) two files: the first reports" "$out" "rule-zero-assertion"
 assert_contains "(i) two files: the second reports" "$out" "rule-recomputed-expectation"
 if [[ "$(jq -s length <<<"$out" 2>/dev/null)" == 1 ]]; then ok "(i) two files: one JSON document"; else fail "(i) two files: one JSON document (got: ${out:0:300})"; fi
 
+# A scanner that fails is reported on stderr, as on the Write and Edit route.
+cat >"$TMP/fail.sh" <<'EOF'
+#!/usr/bin/env bash
+exit 3
+EOF
+err="$(bash_payload bash-11 "$(diff_of created "$REPO/src/sum.test.ts" "$ADD_ALL")" |
+  TEST_SCAN_SCANNER="$TMP/fail.sh" bash "$BASH_HOOK" 2>&1 >/dev/null)"
+assert_contains "(k) a failing scanner's diagnostic reaches stderr" "$err" "scanner exited 3"
+
 echo
 echo "$PASS passed, $FAIL failed"
 ((FAIL == 0))

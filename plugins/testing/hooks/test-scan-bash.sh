@@ -14,6 +14,9 @@
 # every path but only the first five carry hunks; a path without hunks reports
 # nothing.
 #
+# test-scan.sh's own stderr (a scanner that failed or timed out) passes
+# through, as on the Write and Edit route.
+#
 # Test seams: TEST_SCAN_TIMEOUT is passed through to test-scan.sh; unset, each
 # file gets an equal share of 8 seconds, inside the hooks.json timeout of 10.
 
@@ -71,7 +74,7 @@ for p in "${paths[@]}"; do
        tool_response: (if $d.created then {type: "create", structuredPatch: []}
                        else {type: "update", structuredPatch: ($d.hunks // [])} end)}
     | if .agent_id == "" then del(.agent_id) else . end' 2>/dev/null |
-    bash "$HOOK_DIR/test-scan.sh" "${1:-}" 2>/dev/null)" || continue
+    bash "$HOOK_DIR/test-scan.sh" "${1:-}")" || continue
   [[ -n "$one" ]] && docs+=("$one")
 done
 
