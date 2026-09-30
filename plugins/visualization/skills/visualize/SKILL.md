@@ -287,8 +287,9 @@ model-invocation-disabled, user-invocable, and gated, and settings can remove it
 of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_invocable` false,
 `user_invocable` true, `gated` true); the `disableBundledSkills` and `skillOverrides` rows on
 <https://code.claude.com/docs/en/settings-reference>, fetched that day. As of 2026-09-29.
-Recheck when a release makes the `design` registration model-invocable, changes its gating, or
-splits or merges its registrations. The remaining surface facts live in the catalog spoke's
+Recheck when a release makes the `design` registration model-invocable, changes its description
+(the identity string the offer quotes), changes its gating, or splits or merges its
+registrations. The remaining surface facts live in the catalog spoke's
 design canvas section ([context/decision-matrix.md](context/decision-matrix.md)).
 
 ## What this skill does NOT do

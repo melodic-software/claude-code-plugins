@@ -288,8 +288,8 @@ of Claude Code 2.1.285 on 2026-09-29 (the `design` registration reads `model_inv
 `user_invocable` true, `gated` true); the `disableBundledSkills` and `skillOverrides` rows on
 <https://code.claude.com/docs/en/settings-reference>, fetched that day; the canvas gates per
 [reference/bundled-design.md](reference/bundled-design.md). As of 2026-09-29. Recheck when a
-release makes the `design` registration model-invocable, changes its gating, or splits or merges
-its registrations.
+release makes the `design` registration model-invocable, changes its description (the identity
+string the offer quotes), changes its gating, or splits or merges its registrations.
 
 ## Boundary, the marketplace `playground` plugin
 

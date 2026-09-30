@@ -195,7 +195,8 @@ Design artifact from a brief" before running it for a canvas.
 > desktop browser with edits saved automatically and each artboard exportable as
 > PNG or PDF, requiring v2.1.265 or later and an account where the Design template
 > is available. Recheck when a release makes the `design` registration
-> model-invocable, changes its gating, or splits or merges its registrations, or
+> model-invocable, changes its description (the identity string the offer
+> quotes), changes its gating, or splits or merges its registrations, or
 > either page changes the description, the gate, or the version floor.
 
 > Verified 2026-09-11 against pages fetched that day: the Availability table on
