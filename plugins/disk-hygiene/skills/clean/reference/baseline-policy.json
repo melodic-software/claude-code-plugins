@@ -24,6 +24,8 @@
   "disk_image_name_globs": [
     "*.vhd",
     "*.vhdx",
+    "*.avhd",
+    "*.avhdx",
     "*.vmdk",
     "*.vdi",
     "*.qcow2",

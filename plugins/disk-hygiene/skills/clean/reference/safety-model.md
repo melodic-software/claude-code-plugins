@@ -72,7 +72,7 @@ bounded conditions.
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
 - no virtual-disk image file, matched by name and case-insensitively against the baseline
-  `disk_image_name_globs` (`*.vhd`, `*.vhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`; WSL's
+  `disk_image_name_globs` (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`; WSL's
   `ext4.vhdx` is covered by `*.vhdx`). The entry reports `virtual-disk` in `protected_reasons` and
   `size_qualifiers`, so any candidate that is or contains one is blocked in preview, apply, and
   `handoff-verify`, and its bytes stay out of every reclaimable total. An image is a whole guest

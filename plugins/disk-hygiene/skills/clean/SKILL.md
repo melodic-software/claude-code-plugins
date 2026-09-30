@@ -66,7 +66,7 @@ the engine returns `root-children-selection-required`. A general "clean everythi
 selection. `--sizes-only` skips the large-scan question. What each of the three flags does
 exactly, including the admission ladder, is in [scan-flags.md](reference/scan-flags.md). With no
 target, ask once. Reject an OS-managed root (unless `--root-children` on the volume root itself), a
-non-root mount target, a protected shell-folder root or descendant, a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
+non-root mount target, a protected shell-folder root or descendant, a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
 or a Windows reparse point. A whole-volume root that is not OS-managed (a Windows Dev Drive) is a
 valid target, but as a known-large root it is gated like a home target (see step 1): the scan
 returns `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with

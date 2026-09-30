@@ -9,7 +9,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 - **Virtual-disk images are protected by name**
   ([#5228](https://github.com/melodic-software/claude-code-plugins/issues/5228)). `*.vhd`, `*.vhdx`,
-  `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img` (WSL's `ext4.vhdx` included) are the baseline
+  `*.avhd`, `*.avhdx` (Hyper-V checkpoint disks), `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img` (WSL's `ext4.vhdx` included) are the baseline
   `disk_image_name_globs`, matched case-insensitively. A matching file carries the `virtual-disk` size qualifier, so
   its bytes leave `target_reclaimable_local_bytes` and the child roll-ups, and `hard_protection`
   reports `virtual-disk`; scan, preview, apply, `handoff-verify`, and the root-children ladder refuse

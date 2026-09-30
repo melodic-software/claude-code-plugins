@@ -753,6 +753,8 @@ class HygieneTests(unittest.TestCase):
             "DISK.VMDK",
             "ext4.vhdx",
             "a.vhd",
+            "snap.avhdx",
+            "old.AVHD",
             "b.vdi",
             "c.qcow2",
             "boot.IMG",
