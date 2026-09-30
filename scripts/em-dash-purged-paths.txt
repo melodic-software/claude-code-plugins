@@ -99,6 +99,8 @@ docs/conventions/tracker-reference-form/*.md
 docs/conventions/untrusted-content/*.md
 docs/conventions/upstream-drift/*.md
 docs/conventions/windows-path-emit/*.md
+# The out-of-scope records were purged whole.
+docs/out-of-scope/*.md
 # The design specs under docs/specs were purged whole. Five regions keep their em dashes inside
 # markers: quotations of the #3118 detector table, the #3124 brief, and three spans of the measured
 # corpus at revision dff09429, which the committed harness reproduces byte for byte. Rewriting

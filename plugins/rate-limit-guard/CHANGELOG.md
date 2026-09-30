@@ -3,12 +3,6 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.1] - 2026-09-30
-
-### Fixed
-
-- **Removed the em dash in this changelog.** Wording only; behavior is unchanged.
-
 ## [0.9.0] - 2026-09-29
 
 ### Changed

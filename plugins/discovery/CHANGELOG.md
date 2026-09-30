@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Removed the em dashes in the `explore` skill body and `reference/workflow.md`.** Wording only; behavior is unchanged.
+- **Dropped the filler "in order to" from the `explore` skill body and `reference/workflow.md`.** Wording only; behavior is unchanged.
 
 ## [0.25.13] - 2026-09-30
 
