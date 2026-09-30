@@ -183,7 +183,27 @@ printf 'not-json' | bash "$HOOK" >/dev/null 2>"$repo/mal.err" || idx_mal_rc=$?
 expect_eq "malformed JSON exits 0" "0" "$idx_mal_rc"
 idx_min_rc=0
 run_hook "$(payload_for "$repo/src/a.cs")" >/dev/null 2>"$repo/min.err" || idx_min_rc=$?
-expect_eq "minimal valid Write payload exits 0" "0" "$idx_min_rc"
+expect_eq "hot-path minimal Write payload exits 0" "0" "$idx_min_rc"
+
+# Body-reaching cases: a rules-tree path passes the hot-path guard, so an empty
+# stderr proves the body ran to completion (the abort trap writes to stderr).
+# File-fed stdin, per the #4458 note below.
+idx_body_case() { # label repo expect-stale
+  local label="$1" dir="$2" stale="$3" rc=0 out err
+  payload_for "$dir/.claude/rules/csharp.md" >"$dir/body.in"
+  bash "$HOOK" <"$dir/body.in" >"$dir/body.out" 2>"$dir/body.err" || rc=$?
+  out="$(<"$dir/body.out")"
+  err="$(<"$dir/body.err")"
+  expect_eq "$label: exits 0" "0" "$rc"
+  expect_eq "$label: stderr is empty (body ran to completion)" "" "$err"
+  if [[ "$stale" == yes ]]; then
+    expect_has "$label: stdout carries the stale notice" "$out" "stale"
+  else
+    expect_eq "$label: stdout is empty" "" "$out"
+  fi
+}
+idx_body_case "rules-tree Write payload, drifted index" "$killrepo" yes
+idx_body_case "rules-tree Write payload, in-sync index" "$repo" no
 
 IDX_COPY="$repo/index-drift-abort.sh"
 cp "$HOOK" "$IDX_COPY"
