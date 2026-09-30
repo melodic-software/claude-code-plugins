@@ -123,7 +123,8 @@ domains:
     options:   [ Record ]           # per-plugin option states for this domain
 Record:
   key, value, verdict,
-  observed_by:  <the command or path that produced it>,
+  observed_by:  <the command or path that produced it; absent only for default-unexamined>,
+  skipped_because: <default-unexamined only: why nothing was looked at>,
   mode:         observed | reproduced,
   supplied_by:  <layer or channel that supplied the value>
 ```
@@ -135,8 +136,14 @@ tree, from observations only:
 
 - **Conditional git includes.** The `includeIf` entries in the effective git configuration, read
   with `git config --list --show-origin`, name each tree boundary and the identity file it selects.
-- **Per-tree `GH_CONFIG_DIR`.** Run `gh` from inside each tree and record the configuration
-  directory it resolves, so the `gh` account is attached to the tree, not to the machine.
+- **Per-tree `GH_CONFIG_DIR`.** `gh` takes its configuration directory from the process
+  environment (`GH_CONFIG_DIR`, then the XDG, AppData, or `HOME` fallbacks), never from the working
+  directory, and reports no directory itself. So visiting a tree does not reveal its account.
+  Discovery attaches a `gh` account to a tree only through a directory the tree's own environment
+  supplies (the `GH_CONFIG_DIR` its environment tooling exports when evaluated in that tree), passes
+  that directory to `gh` explicitly for that domain, and records the source as `observed_by`. A tree
+  that supplies none is recorded `default-unexamined` for `gh_config_dir`, never the machine's
+  directory copied to every tree.
 
 `pluginConfigs` has one slot: Claude Code reads it from user settings, `--settings`, and managed
 settings only, and `install --config` writes user settings whatever scope flag is given (facts 5
@@ -164,7 +171,7 @@ Every option state carries one verdict:
 |---|---|---|
 | `set` | A non-default value is in force | the layer that supplied it |
 | `default-verified` | Unset; discovery looked and here is what it saw | the observation, including "looked and found nothing" |
-| `default-unexamined` | Unset; nothing was looked at | nothing, and it stays this until a look happens |
+| `default-unexamined` | Unset; nothing was looked at | `skipped_because`, the reason discovery did not look; no `observed_by` |
 | `blocked` | A guard prevents the change | the guard and the operator command |
 
 There is no bare `keep`. Rules the build enforces structurally:
@@ -175,8 +182,9 @@ There is no bare `keep`. Rules the build enforces structurally:
 - `default-unexamined` never becomes `default-verified` by written rationale, only by an
   observation. A rationale without an observation is the failure this vocabulary exists to stop.
 - A value equal to its default is never written to mark it decided.
-- Every recorded state carries `observed_by`, the command or path that produced it. A record with
-  no `observed_by` is invalid and cannot be emitted.
+- Every recorded state except `default-unexamined` carries `observed_by`, the command or path that
+  produced it. A record with no `observed_by` is invalid and cannot be emitted, unless its verdict
+  is `default-unexamined`, which carries `skipped_because` instead and claims no observation.
 - A result produced by reproducing a setup probe carries `mode: reproduced`.
 
 ## Manual-change policy
@@ -228,8 +236,8 @@ profile's `diff` is the only consumer.
 **Basis:** `claude-ops` already owns fleet state and ships `prerequisites` and `inventory`, the two
 skills the profile reads; a new plugin would add a third owner of host facts beside
 `machine-health`. Judgment on the remaining half: whether the skill's scope is too broad for
-`claude-ops` is the owner's call. The formal placement record is a separate decision record, not
-this document.
+`claude-ops` stays with the owner when ruling on this document. The decision is recorded in
+[ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md).
 
 ## Out of scope until the later decision
 
@@ -250,24 +258,27 @@ tree under a scratch `HOME` and no real-host specifics:
 - **Unchanged-machine rerun.** Discovery on an unchanged fixture reports no change and asks no
   question. Test: run twice over one fixture, assert an empty diff and no prompt.
 - **No verdict without an observation.** The document writer rejects a record whose `observed_by`
-  is empty, and a `default-verified` record whose observation is absent. Test: attempt to emit
+  is empty unless its verdict is `default-unexamined` (which must carry `skipped_because`), and a
+  `default-verified` record whose observation is absent. Test: attempt to emit
   each and assert a refusal.
 - **Read-only discovery.** Discovery leaves the fixture `HOME` and repository byte-identical.
-  Test: hash both trees before and after. `apply` writes nothing without an explicit confirm.
+  The fixture points tool cache and log state outside itself (`npm_config_cache`,
+  `npm_config_logs_dir`, `NO_UPDATE_NOTIFIER=1`), because a delegated probe such as
+  `npm view ctx7 version` writes `.npm/_logs` and an update-notifier marker under `HOME`. Test:
+  hash both trees before and after. `apply` writes nothing without an explicit confirm.
 
 ## Open questions
 
-Each is for the later decision on this document.
+Each is for the later decision on this document. Placement is settled by
+[ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md) and is not open here.
 
 1. **Class (ii).** Amend class (ii), add a class, or leave the setup skills hidden and rely on
    reproduction. Recommendation: leave them hidden until the profile is built and shows a check the
    wrappers and reproduction cannot cover. Unblocks: whether the fleet contract change happens at
    all.
-2. **Placement.** Confirm `claude-ops` or choose a new plugin. Recommendation: `claude-ops`.
-   Unblocks: the placement record and the skill's directory.
-3. **Keying deviation.** Ratify a non-project-keyed machine section under plugin-data-report-keying.
+2. **Keying deviation.** Ratify a non-project-keyed machine section under plugin-data-report-keying.
    Recommendation: ratify, with per-domain sections keyed by tree. Unblocks: the store's path scheme.
-4. **The machine-health feed.** Whether machine-health ships a `config` check that reads the
+3. **The machine-health feed.** Whether machine-health ships a `config` check that reads the
    profile, or the profile's `diff` stays the only consumer. Recommendation: ship the check only
    once the profile exists and runs on an OS whose machine-health checks are implemented. Unblocks: the handoff
    contract.
