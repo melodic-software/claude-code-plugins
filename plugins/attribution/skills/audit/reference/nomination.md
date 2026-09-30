@@ -299,8 +299,9 @@ One adversary per finding, in a fresh context, never one of the panel's judges.
 > establishes it. (b) R1: the fact is general practice, this repository's own, or has no external
 > owner. (c) R2: the fact is stable across the owner's revisions, or is not concrete. (d) R3: the
 > passage is history, an example the text labels illustrative, or otherwise not asserted as
-> current. (e) R4: a pointer at the point of use, or a whole four-part record whose claim names
-> this very fact, is anywhere in the file; quote it and name the four parts.
+> current. (e) R4: a pointer that stands in place of stating the fact, or a whole four-part record
+> whose claim names this very fact, is anywhere in the file; quote it and name the four parts. A
+> link beside a stated value is not one.
 >
 > Quote a span for every attack you rely on. Where the material leaves a question open, that is
 > a REFUTED: say what would settle it.
