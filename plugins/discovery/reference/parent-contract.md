@@ -680,14 +680,16 @@ The trailing space-and-`*` covers `--help` and every gate argument.
 the version (`…/discovery/<version>/`), so these rules stop matching after an update and the gates
 prompt again; re-run `/discovery:setup check` and paste its output. Writing `…/discovery/*/scripts/…`
 instead would survive the update but is unsafe. Claude Code "matches everything before the first `*`
-as written" and a `*` "matches any text, including spaces". Tested on Claude Code 2.1.285 (the #4233
-Q1 evidence comment, issuecomment-5900240219): a `*` in the version segment matched across `/`, and
+as written" and a `*` "matches any text, including spaces". Tested on Claude Code 2.1.285 (probe
+linked under *Basis*): a `*` in the version segment matched across `/`, and
 `<root>/cache/discovery/../../outside/scripts/gate.sh` was allowed with no prompt, so the rule matches
 the command text without normalizing `..` and runs a script outside the plugin cache. A prompt after an
 update is the safe failure; a rule that approves a script outside the cache is not. *Claim:* a `*` in
 the version segment of a Bash allow rule spans `/` and is not path-normalized, so `..` escapes the
-plugin cache. *Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", and the
-#4233 Q1 probe above (allowed 3 of 3 runs, Claude Code 2.1.285, Linux). *As of:* Claude Code 2.1.285.
+plugin cache. *Basis:* <https://code.claude.com/docs/en/permissions.md>, "Wildcard patterns", fetched
+2026-09-30, and the probe recorded at
+<https://github.com/melodic-software/claude-code-plugins/issues/4233#issuecomment-5900240219>
+(allowed 3 of 3 runs, Claude Code 2.1.285, Linux). *As of:* 2026-09-29, Claude Code 2.1.285.
 *Recheck when:* the permissions page documents path normalization or a `*` that stops at `/`, or a
 Claude Code release changes the probe result, which would make a version wildcard safe.
 
