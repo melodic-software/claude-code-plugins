@@ -370,6 +370,15 @@ class TestExportBrief(SessionCase):
         self.assertIn("Off the chosen path.", scope)
 
 
+class TestConfirmsAgainstAnEarlierList(unittest.TestCase):
+    def test_a_confirm_at_or_below_commits_since_seq_does_not_tick(self):
+        q = question("Q1", commits=["A", "B"], commitsSinceSeq=5)
+        old = [event(4, "Q1", "confirm", alt="0"), event(5, "Q1", "confirm", alt="1")]
+        self.assertEqual(exporters.commitments(q, old), ([], ["A", "B"]))
+        later = [*old, event(6, "Q1", "confirm", alt="1")]
+        self.assertEqual(exporters.commitments(q, later), (["B"], ["A"]))
+
+
 class TestConfirmedInTheTerminal(SessionCase):
     def test_commits_confirmed_by_claude_count_as_confirmed(self):
         qs = [
