@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.32.0] - 2026-09-30
+## [0.33.0] - 2026-09-30
 
 ### Added
 
@@ -12,6 +12,23 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   orchestrated session can run the probe and one engine `scan` and report the snapshot with its
   coverage gaps. It runs no `preview` or `apply` and hands any removal to `/disk-hygiene:clean`,
   which stays manual-only.
+
+## [0.32.0] - 2026-09-30
+
+### Added
+
+- **Virtual-disk images are protected by name**
+  ([#5228](https://github.com/melodic-software/claude-code-plugins/issues/5228)). `*.vhd`, `*.vhdx`,
+  `*.avhd`, `*.avhdx` (Hyper-V checkpoint disks), `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img`
+  (WSL's `ext4.vhdx` included) are the baseline `disk_image_name_globs`, matched case-insensitively. A matching file carries the `virtual-disk` size qualifier, so
+  its bytes leave `target_reclaimable_local_bytes` and the child roll-ups, and `hard_protection`
+  reports `virtual-disk`; scan, preview, apply, `handoff-verify`, and the root-children ladder refuse
+  it and any candidate that contains one.
+- **The volume an attached image backs is reported.** Windows asks `Get-DiskImage` (bounded at 20
+  seconds); Linux and WSL read the loop devices' backing files and mounts. An attached image adds
+  `attached-virtual-disk:<drive or mountpoint>`; a probe that errors, times out, or has no route adds
+  `virtual-disk-attach-unverified` and never reads as detached. Under WSL, which never sees the
+  Windows host's attachments, an image with no loop device reads as unverified, not detached.
 
 ## [0.31.1] - 2026-09-30
 
