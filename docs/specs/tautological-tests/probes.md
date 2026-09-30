@@ -188,15 +188,16 @@ says so. Auto mode ran on sonnet, because haiku does not engage it (the payload 
   | `acceptEdits`, `bashEditDiffEnabled: true` in `--settings` | present |
   | `auto` (sonnet), `bashEditDiffEnabled: true` in `--settings`, (a) only | present |
   | `default`, `CLAUDE_CODE_BASH_EDIT_DIFF=1`, (a) only | present |
-  | `acceptEdits` or `auto`, `bashEditDiffEnabled: false`, (a) only | absent |
+  | `acceptEdits` or `auto`, `bashEditDiffEnabled: false`, (a) only | absent (also absent without the key, so this does not show `false` switching recording off) |
   | `acceptEdits`, `bashEditDiffEnabled: true` in the project `.claude/settings.json`, (a) only | absent |
 
   The docs (code.claude.com/docs/en/hooks#bash and settings-reference#basheditdiffenabled, fetched
   2026-09-30) say auto and `bypassPermissions` record "only when Claude Code directs Claude to edit
   files through Bash"; with a prompt that named `sed -i` and `cat >` neither recorded anything here.
-  A `true` counts only from user settings, `--settings` or managed settings, which the project-file
-  row confirms. The hook therefore sees the field only for a consumer who set the key at user or
-  managed scope, or the environment variable.
+  The docs say a `true` counts only from user settings, `--settings` or managed settings. The runs
+  confirm the `--settings` positive and the project-file negative; user and managed scope were not
+  run (every run used `--setting-sources project`). Per the docs, the hook sees the field only for
+  a consumer who set the key at user or managed scope, or the environment variable.
 - Shape, from the `acceptEdits` + `true` runs: `{"files": [...], "moreFiles": 0, "changedFiles":
   [...]}`. `changedFiles` holds absolute paths. `files` holds `{"filePath": <absolute>, "hunks":
   [{"oldStart", "oldLines", "newStart", "newLines", "lines": ["-old", "+new", " context"]}]}` per
@@ -211,10 +212,13 @@ says so. Auto mode ran on sonnet, because haiku does not engage it (the payload 
 - A PostToolUse `if` row cannot filter on the changed files. It matches the command string: with
   `bashEditDiffEnabled: true`, `Bash(*)` fired on both (a) and (b), `Bash(sed *)` fired only on (a),
   `Bash(cat *)` only on (b), and `Bash(*.test.ts*)` fired on (a), whose command names
-  `src/sum.test.ts`, but was skipped for (b) ("Skipping hook due to if condition"), whose command is
-  a heredoc that names `src/new.test.ts` on its first line. A row that must see every Bash call that
+  `src/sum.test.ts`, but was skipped for (b) ("Skipping hook due to if condition"), whose command
+  also contains `.test.ts` (`cat > src/new.test.ts << 'EOF'` and a multi-line body). A command
+  string that names the test file can still fail to match, so a command-string row cannot stand in
+  for the changed-file list. A row that must see every Bash call that
   changed a test file has to be `Bash(*)` and start a process for every Bash call, and decide from
   `changedFiles`.
 - Not probed: Windows Git Bash (the shape, path separators and mode behavior there need the owner
-  or a fleet run); `PowerShell`, which the docs say has the same fields; a subagent's Bash call
+  or a fleet run); `bashEditDiffEnabled` at user or managed scope; `false` against a `true` from a
+  higher-precedence source; `PowerShell`, which the docs say has the same fields; a subagent's Bash call
   (the `shared` flag); `moreFiles` beyond the 200-path cap; the `CLAUDE_CODE_BASH_EDIT_DIFF=0` case.
