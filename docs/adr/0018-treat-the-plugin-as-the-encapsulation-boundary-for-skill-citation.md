@@ -20,7 +20,7 @@ relative markdown link target for browsing on GitHub
 citation itself out, whatever form the path takes:
 
 ```text
-A skill's `scripts/` directory is its declared entry surface. Harness surfaces, CI workflows, git hooks, and automation registries MAY path-cite `scripts/` entry scripts directly. **Sibling skills may NOT** — skill-to-skill stays slash-only. That outbound half of the asymmetry is out of scope for this inbound audit; a consuming repo that wants it enforced wires its own outbound gate.
+A skill's `scripts/` directory is its declared entry surface. Harness surfaces, CI workflows, git hooks, and automation registries MAY path-cite `scripts/` entry scripts directly. **Sibling skills may NOT**: skill-to-skill stays slash-only. That outbound half of the asymmetry is out of scope for this inbound audit; a consuming repo that wants it enforced wires its own outbound gate.
 ```
 
 and at `:25` defines every non-public file inside a skill as private, naming `context/`,
@@ -227,7 +227,7 @@ in full.
   It does not re-open on a request to relax cross-plugin citation: that is the case the contract is
   about and the evidence here does not touch it.
 
-## Amendment (2026-08-28) — the test clause 2 was applied under, and two surfaces it never named
+## Amendment (2026-08-28): the test clause 2 was applied under, and two surfaces it never named
 
 A remediation sweep applied clause 2 across `docs/**`, fixed 16 citations, kept 23, and stated its
 dividing test only in the pull request that carried it. **The test is nowhere in this record.** It

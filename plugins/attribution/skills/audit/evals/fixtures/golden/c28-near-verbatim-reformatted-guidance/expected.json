@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 15, "end_line": 20 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://github.com/humanlayer/skills/blob/ca7c808/plugins/show-me/skills/show-me/SKILL.md"
+  },
+  "notes": {
+    "shape": "A guidance paragraph turned into bullets, with one contraction expanded. The file has no attribution at all, and its code examples are the source's too, so the derivation is file-wide.",
+    "carve_outs": "None apply. The fenced examples are stripped by the fingerprint module and are not part of the span.",
+    "rubric": "C1 holds: each bullet corresponds to a sentence of the source's guidance section, in order. C2 holds: the narrowest-view rule and the 'one, several, not all four' enumeration are the source's. C3 holds: no attribution anywhere, which is the widest possible mismatch with a file-wide derivation. C4 holds: re-bulleting and 'don't' to 'do not' change the format and nothing else.",
+    "measured": "fingerprint.mjs at k=5: containment 0.5, jaccard 0.31, longest matched span 62 words at local lines 13-19, the section heading included.",
+    "tier_reason": "Both limbs fire against an identity-checked source. The formatting change is what makes the class near-verbatim rather than verbatim; it does not lower the evidence.",
+    "carries": "This case fails a run that reads a change of shape, prose to bullets, as transformation. C4 says reformatting is not transformative."
+  }
+}

@@ -39,8 +39,9 @@ contract); it never follows links or recursively deletes an unvalidated tree.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
-- Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
-  A dry-run result is evidence for the report, never authorization for this engine to remove it.
+- Managed state with no registry match is always a report-only handoff to the owning product's
+  documented cleanup/GC command. A dry-run result is evidence for the report, never authorization for
+  this engine to remove it. A registry match follows `skills/clean/reference/managed-state-report.md`.
 - The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
   calls made from literal shell words, returns `ask` for the two exact mutating shapes, `apply` and
   `handoff-apply`, and denies every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
@@ -102,8 +103,9 @@ at preview. Backups remain the recovery boundary for user data.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
   descriptor-anchoring proof for its execution lane.
 
-Verify this machine's prerequisites and platform posture with `/disk-hygiene:setup check`;
-`/disk-hygiene:setup apply` resolves anything the check reports with guidance.
+Check this machine's prerequisites read-only with `/disk-hygiene:check`; Claude can run that on its own,
+for example when a hook notice says Python is missing. `/disk-hygiene:setup check` runs the same check,
+and `/disk-hygiene:setup apply` resolves anything it reports with guidance.
 
 ## How the guard is registered
 
@@ -256,6 +258,12 @@ gets the relaxed directory listing.
 `--sizes-only` writes per-child byte totals and no entries. It goes through the same large-scan
 confirmation as an unbounded walk, sums through VCS and protected directories read-only, and has no
 entry cap.
+
+`--deep`, and a home-directory target without it, runs the read-only deep inventory before any
+scan: every entry with its producer, a disposition and a reason, where each `KEEP` names who
+produced the entry and what still uses it. It reports only and prepares no deletion; removing
+anything it lists still goes through scan, preview and the removal approval. Columns and
+categories: `skills/clean/reference/scan-flags.md`.
 
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.

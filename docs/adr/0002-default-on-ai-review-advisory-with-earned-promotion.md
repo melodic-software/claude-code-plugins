@@ -6,9 +6,9 @@
 - [Decision](#decision)
 - [Addendum (2026-07-21): #509 enforcement ruling](#addendum-2026-07-21-509-enforcement-ruling)
 - [Addendum (2026-07-21): ordering correction](#addendum-2026-07-21-ordering-correction)
-- [Addendum (2026-07-21): step 3 applied — required check live; skip-actor exception](#addendum-2026-07-21-step-3-applied--required-check-live-skip-actor-exception)
-- [Addendum (2026-08-03): mechanism correction — the exception moved to a reusable default](#addendum-2026-08-03-mechanism-correction--the-exception-moved-to-a-reusable-default)
-- [Addendum (2026-08-04): operator decision — Branch A ratified, four actors](#addendum-2026-08-04-operator-decision--branch-a-ratified-four-actors)
+- [Addendum (2026-07-21): step 3 applied: required check live; skip-actor exception](#addendum-2026-07-21-step-3-applied-required-check-live-skip-actor-exception)
+- [Addendum (2026-08-03): mechanism correction: the exception moved to a reusable default](#addendum-2026-08-03-mechanism-correction-the-exception-moved-to-a-reusable-default)
+- [Addendum (2026-08-04): operator decision: Branch A ratified, four actors](#addendum-2026-08-04-operator-decision-branch-a-ratified-four-actors)
 - [Addendum (2026-09-07): once per pull request, drafts filtered, reviews queued](#addendum-2026-09-07-once-per-pull-request-drafts-filtered-reviews-queued)
 - [Addendum (2026-09-24): skip-actors list file and evidence guards removed](#addendum-2026-09-24-skip-actors-list-file-and-evidence-guards-removed)
 - [Revisit triggers](#revisit-triggers)
@@ -30,11 +30,11 @@ the two open choices: promote the LLM review lane from advisory to blocking or k
 advisory with a recorded promotion trigger, and where a dedicated security pass runs.
 
 Evidence in hand at decision time: the LLM code-review lane (`claude-review` reusable
-workflow, consumed by this repo's caller) already auto-invokes on every PR event —
+workflow, consumed by this repo's caller) already auto-invokes on every PR event;
 default-on is satisfied for invocation; the open question was gating. #618 documents the
 noise cost of advisory bot threads blocking merges on every PR; the WP5 guardrail work
 ratified the verification-promotion discipline (a gate flips from advisory to blocking only
-on demonstrated precision — an earned flip with a ratified record, trust before scale).
+on demonstrated precision: an earned flip with a ratified record, trust before scale).
 2026-07-20 transcript mining (548 real permission prompts; #697's evidence) reinforced that
 review friction compounds fast at fleet scale.
 
@@ -43,13 +43,13 @@ review friction compounds fast at fleet scale.
 1. **Both AI review lanes are DEFAULT-ON and ADVISORY**: the general code-review lane on
    every PR (existing caller), and the dedicated security-review lane
    (`claude-security-review` reusable workflow, ci-workflows) wired by this repo's caller
-   with a PATH FILTER over security-sensitive surfaces — workflows, scripts, hooks, shell,
+   with a PATH FILTER over security-sensitive surfaces: workflows, scripts, hooks, shell,
    and permission/settings configuration. Path filtering is the scope control that keeps
    default-on affordable in a doc-heavy repo: most PRs are prose and get the general lane
    only.
 2. **Promotion to blocking is earned, not assumed**: either lane flips to a required gate
    (security: blocking on CRITICAL findings) only after its precision is proven over a
-   sustained window, recorded as a reviewed change citing that evidence — mirroring the
+   sustained window, recorded as a reviewed change citing that evidence, mirroring the
    WP5 verification-promotion discipline. No calendar-based flip.
 3. **Severity vocabulary**: the security lane reports CRITICAL/IMPORTANT/SUGGESTION with a
    confidence axis, matching the review-toolkit convention.
@@ -61,35 +61,35 @@ terms without a further precision window.
 
 ## Addendum (2026-07-21): #509 enforcement ruling
 
-The #509 enforcement design session ruled. Execution evidence — proof that the security pass
-RAN on every PR — is promoted to a **required status check** on the protected base, so a PR
+The #509 enforcement design session ruled. Execution evidence (proof that the security pass
+RAN on every PR) is promoted to a **required status check** on the protected base, so a PR
 cannot merge without the security workflow having reported. A diff with no security-sensitive
 surface gets an explicit not-applicable verdict from a **job-level conditional** inside the
-always-running workflow — never workflow-level `paths` filtering, which would leave the required
+always-running workflow, never workflow-level `paths` filtering, which would leave the required
 check **Pending** forever and wedge every prose PR. The required check proves the pass ran; it
 does not gate on the verdict.
 
 Implementation ordering is load-bearing: as of this addendum the caller still uses
 workflow-level `paths` filtering, so the ruleset must NOT mark this check required until the
-caller restructure (always-running workflow, job-level conditional) has landed — flipping the
+caller restructure (always-running workflow, job-level conditional) has landed, flipping the
 requirement first would wedge every prose PR exactly as described above. Sequence: caller
 restructure (this repo) → workflow always-report shape (ci-workflows) → required check
 (github-iac ruleset), each verifiable before the next.
 
 VERDICT gating is unchanged: the security lane stays **advisory** per the guardrail matrix's
 knob floors and this ADR's earned-promotion discipline (Decision §2). The ruling promotes
-*execution evidence to required*, not *findings to blocking* — flipping the verdict to blocking
+*execution evidence to required*, not *findings to blocking*: flipping the verdict to blocking
 still requires the earned precision window.
 
-Evidence model: the **check run** is canonical — API-queryable, and creatable only by the App
+Evidence model: the **check run** is canonical: API-queryable, and creatable only by the App
 that runs the pass, so a branch cannot forge it. A workflow-applied **label** is a glance layer
-only; labels are Triage-flippable — any actor with Triage access or above can add or remove one,
-a lower bar than the App-only check creation — so a label is never evidence that the pass ran;
+only; labels are Triage-flippable: any actor with Triage access or above can add or remove one,
+a lower bar than the App-only check creation, so a label is never evidence that the pass ran;
 the required check is.
 
-Attribution: this enforcement is the operator's mandate backed by verified consensus practice —
+Attribution: this enforcement is the operator's mandate backed by verified consensus practice:
 OpenSSF Scorecard's branch-protection criteria, GitHub's protected-branch documentation, and
-NIST SP 800-218A's same-bar-for-agent-and-human principle — **not** the source playbook, which
+NIST SP 800-218A's same-bar-for-agent-and-human principle, **not** the source playbook, which
 never prescribes a merge gate. The playbook grounds default-on invocation (Boris step-2); the
 required-check enforcement is ours. A merge-queue revisit trigger is recorded below.
 
@@ -98,15 +98,15 @@ required-check enforcement is ours. A merge-queue revisit trigger is recorded be
 Implementation order is corrected to ci-workflows-first: the reusable workflow gains a
 backward-compatible `paths` input plus an internal job-level gate, then this caller adopts that
 input (dropping its workflow-level `paths` filter), then the github-iac ruleset flips the
-execution check to required. A caller-side job-level `if:` on the `uses:` job is not viable — a
+execution check to required. A caller-side job-level `if:` on the `uses:` job is not viable: a
 skipped `uses:` job registers a *different* check name, so the child context stays "Expected"
 and wedges prose PRs (community discussion 72708); the gate must live inside the reusable
 workflow. Caller-first against the old pin was also rejected: it would run a full security pass
-on every prose PR in the interim. The load-bearing constraint is unchanged — the ruleset flip
+on every prose PR in the interim. The load-bearing constraint is unchanged: the ruleset flip
 stays LAST, after this caller restructure is verified
 ([troubleshooting-required-status-checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)).
 
-## Addendum (2026-07-21): step 3 applied — required check live; skip-actor exception
+## Addendum (2026-07-21): step 3 applied: required check live; skip-actor exception
 
 The execution check is live: the `security-review-gate` org ruleset (github-iac, property-gated
 on `requires-security-review`; this repo is the sole opt-in) requires the
@@ -116,7 +116,7 @@ the context with conclusion=skipped (name-stable, treated as passing), so prose 
 wedge.
 
 **Skip-actor exception (operator-ratified 2026-07-21):** actors in the caller's `skip-actors`
-list — `dependabot[bot]`, `melodic-standards-sync[bot]` — skip the review job, so their PRs
+list (`dependabot[bot]`, `melodic-standards-sync[bot]`) skip the review job, so their PRs
 satisfy the required check with no review run, including changes under security-sensitive
 paths. Accepted deliberately: Dependabot pin bumps are already forced through the reviewed
 runner-policy contract (an input-surface change declines auto-approval and requires a
@@ -125,7 +125,7 @@ reviewed upstream. Bounded scope: the exception covers exactly the listed actors
 actor to `skip-actors` widens the exception and warrants the same deliberation.
 
 Two structural bounds on what the required check proves: it evidences that the workflow-side
-gate ran (or judged not-applicable) — and because `pull_request` workflows execute the PR
+gate ran (or judged not-applicable), and because `pull_request` workflows execute the PR
 branch's caller file, a PR can alter its own `paths` input or `skip-actors` on its head; the
 mitigation is that workflow-file diffs are themselves security-review surface and the caller
 file is human-reviewed. This is the consensus-accepted bound of Actions-based required checks,
@@ -134,7 +134,7 @@ not a defect introduced here.
 > **Superseded 2026-08-03:** Both halves of that mitigation are falsified; see the 2026-08-03
 > addendum.
 
-## Addendum (2026-08-03): mechanism correction — the exception moved to a reusable default
+## Addendum (2026-08-03): mechanism correction: the exception moved to a reusable default
 
 Supersedes the 2026-07-21 addendum's description of WHERE the exception lives and WHICH actors
 it covers. That addendum describes a **caller-side** `skip-actors` list naming two actors;
@@ -142,7 +142,7 @@ neither remained true.
 
 The list stopped existing on 2026-07-30: #1766 re-pinned the lane callers to v0.9.1 and
 dropped the caller's explicit `skip-actors` line, so the effective value silently became the
-reusable's own default — which had widened from one actor to four three days earlier
+reusable's own default, which had widened from one actor to four three days earlier
 (ci-workflows `cf666f67`, 2026-07-27). `claude[bot]` and `melodic-ai[bot]` thereby joined a
 required-check exception without the deliberation the revisit trigger below demands. Neither
 has exercised it (`claude[bot]` has authored no PRs in this org; `melodic-ai[bot]` none here
@@ -152,24 +152,24 @@ Two corrections land with this amendment:
 
 1. The security-review caller states `skip-actors` explicitly again, so the exception is
    readable in the repo it governs and cannot be rewritten by an upstream default change.
-   **This is the mechanism, not just the record** — an inherited default is what failed.
+   **This is the mechanism, not just the record**: an inherited default is what failed.
 2. The restored list encodes the FOUR actors currently in force, so the change is
    behavior-preserving. Whether four is the right set is the open question below.
 
-**Deferred with a trigger — the review lane keeps its inherited default.** The same restoration
+**Deferred with a trigger: the review lane keeps its inherited default.** The same restoration
 was drafted for `claude-review.yml` and withdrawn. The pinned runner-policy contract for
 `claude-review.yml@c136b27f` permits exactly one input, `runner`, so declaring `skip-actors`
 there fails `runner-target-contract` and reds the required `ci-status` check. `runner-policy` is
 upstream-managed for this repo, so the entry cannot be edited here. The trigger to finish the
 repair: a re-pin of the review lane to a SHA whose contract lists `skip-actors`, or a
 standards-reviewed amendment to the `c136b27f` entry. Until then the review lane's skip set is
-an inherited default — recorded as a known, bounded gap rather than an unnoticed one.
+an inherited default, recorded as a known, bounded gap rather than an unnoticed one.
 
 Scope, stated precisely rather than conveniently: before #1766 BOTH callers carried the ratified
 `dependabot[bot],melodic-standards-sync[bot]` list, so the review lane's inherited default is an
 unrepaired half of the same ratified declaration, not an adjacent unrelated gap. What differs is
 consequence, not provenance. The review lane is advisory and has no required check, so its
-inherited default cannot let a PR satisfy a required gate with no review — which is the harm the
+inherited default cannot let a PR satisfy a required gate with no review, which is the harm the
 2026-07-21 exception was ratified against. That bounds the deferral; it does not make the review
 lane out of scope.
 
@@ -177,10 +177,10 @@ That contract entry is itself part of the record defect, and worth stating becau
 the finding. `policy.json` holds eight pinned `claude-review.yml` entries; six list
 `skip-actors`, one (`1d3762c2`) permits no inputs at all, and `c136b27f` is the only
 `claude-review.yml` entry that permits `runner` while omitting it. The reviewed contract
-memorialized #1766's dropped line a second time, independently of the caller — the same accident
+memorialized #1766's dropped line a second time, independently of the caller, the same accident
 recorded twice, in two places, by two mechanisms. And the mechanism that blocked the repair is
 precisely the compensating control the 2026-07-21 addendum names ("the reviewed runner-policy
-contract — an input-surface change declines auto-approval and requires a standards-reviewed
+contract: an input-surface change declines auto-approval and requires a standards-reviewed
 policy entry"). It fired exactly as that addendum describes, on this amendment.
 
 `skip-actors` and the action's `allowed_bots` are different levers with different outcomes.
@@ -188,7 +188,7 @@ Removing an actor from `skip-actors` alone does NOT restore review of its PRs: t
 passes `allowed_bots: dependabot[bot]`, and the action throws on any other bot actor, which
 this lane's fail-closed mapping turns into a required check red for a cause no push can fix.
 Reviewing an agent's PRs instead of skipping them requires widening `allowed_bots` in
-ci-workflows — a separate change, tracked below.
+ci-workflows: a separate change, tracked below.
 
 ### Correction: what a skipped PR is actually still checked by
 
@@ -234,7 +234,7 @@ halves fail:
   ("Workflow validation failed… must have identical content to the version on the repository's
   default branch"), which is precisely the class of change the mitigation relies on. The step
   still reports success, so the reusable's `Fail closed on an in-scope non-run` step never
-  fires and the required check goes GREEN with no review performed and no tracking comment —
+  fires and the required check goes GREEN with no review performed and no tracking comment,
   despite `track_progress: true`. Observed on #1896 and on #1766.
 - Human review is not required (see above).
 
@@ -242,10 +242,10 @@ So the required check does not certify a security pass on any PR that edits the 
 is a real gap in what the gate proves, recorded here rather than papered over; the fix belongs
 upstream in the ci-workflows outcome mapping and is filed as a revisit trigger below.
 
-### OPERATOR DECISION POINT — ratify four actors, or revert to two
+### OPERATOR DECISION POINT: ratify four actors, or revert to two
 
 This amendment deliberately does NOT decide the actor set. **If the amendment lands without an
-explicit pick, Branch A is what merges** — silence ratifies four. Stating that so it is a
+explicit pick, Branch A is what merges**: silence ratifies four. Stating that so it is a
 choice, not a default reached by inattention.
 
 > **Superseded 2026-08-04:** the operator made an explicit pick, so the silence default was
@@ -253,22 +253,22 @@ choice, not a default reached by inattention.
 > describes the record. The two branches below stand as what was weighed; the decision is in
 > the 2026-08-04 addendum.
 
-- **Branch A — ratify the widened exception (keep four).** The affirmative case: both added
+- **Branch A: ratify the widened exception (keep four).** The affirmative case: both added
   actors are dormant, so the exception costs nothing observable today; and the lane's value on
   agent-authored chore PRs (dependency re-pins, sync materializations, doc-queue churn) is low
-  relative to its spend. Note the 2026-07-21 rationales do NOT extend here — "byte-exact
+  relative to its spend. Note the 2026-07-21 rationales do NOT extend here: "byte-exact
   upstream content" is specific to `melodic-standards-sync[bot]`, and "human review at merge"
   is unavailable in this repo. Branch A must stand on dormancy and cost, not on those.
-- **Branch B — revert to the ratified two.** The affirmative case: the required check's entire
+- **Branch B: revert to the ratified two.** The affirmative case: the required check's entire
   claim is that a security pass ran, and `claude[bot]` is precisely the actor whose output an
   independent pass is most useful against; two actors entered the exception with no
   deliberation, and the conservative repair is to restore the scope that was actually ratified
   rather than bless the accident. Cost: their PRs would hit the actor gate and fail closed, so
-  Branch B is only coherent alongside the `allowed_bots` change — otherwise it converts a
+  Branch B is only coherent alongside the `allowed_bots` change; otherwise it converts a
   dormant record defect into a live merge block the moment either actor opens a PR.
 
 On effort, stated so the branch that silence ratifies is not made to look cheaper than it is.
-Only ONE workflow file is in play — the security-review caller; the review lane is deferred out
+Only ONE workflow file is in play: the security-review caller; the review lane is deferred out
 of both branches by the runner-policy contract, so it differentiates neither. That does not make
 the branches equal in reach: Branch B additionally touches this ADR and a second repository.
 
@@ -276,20 +276,20 @@ the branches equal in reach: Branch B additionally touches this ADR and a second
   behavior-preserving.
 - **Branch B: a one-line value change** in that caller, PLUS amending correction 2 above (which
   records four as the set in force), PLUS the upstream `allowed_bots` widening in ci-workflows,
-  which is a hard dependency and not optional sequencing — without it Branch B converts a
+  which is a hard dependency and not optional sequencing: without it Branch B converts a
   dormant record defect into a live merge block the moment either actor opens a PR.
 
 The first two rows are a drafting artifact: had this amendment restored two, Branch B would be
 the no-edit branch and Branch A would carry the one-line change and the ADR touch. The
-`allowed_bots` dependency is NOT an artifact — it is a real cost that attaches to Branch B
+`allowed_bots` dependency is NOT an artifact: it is a real cost that attaches to Branch B
 whichever way this was drafted, and it is the row that makes Branch B a cross-repo change rather
 than a one-line edit. Weigh Branch B on its affirmative case against that cost.
 
-## Addendum (2026-08-04): operator decision — Branch A ratified, four actors
+## Addendum (2026-08-04): operator decision: Branch A ratified, four actors
 
 Supersedes the 2026-08-03 amendment's OPERATOR DECISION POINT insofar as it left the actor set
 open and named silence as the ratifying default. The operator made an explicit pick on
-2026-08-04: **Branch A — the widened four-actor exception is ratified.** The silence default was
+2026-08-04: **Branch A: the widened four-actor exception is ratified.** The silence default was
 not exercised.
 
 The ratified set, as `.github/workflows/claude-security-review.yml` now states explicitly:
@@ -300,19 +300,19 @@ skip-actors: dependabot[bot],claude[bot],melodic-ai[bot],melodic-standards-sync[
 
 `claude[bot]` and `melodic-ai[bot]` are thereby covered by the step-3 skip-actor exception through
 the deliberation the revisit trigger demands, rather than through the silent inheritance that put
-them there. No workflow edit accompanies the decision — the 2026-08-03 amendment already restored
+them there. No workflow edit accompanies the decision: the 2026-08-03 amendment already restored
 those four to stay behavior-preserving, so the effective skip set is unchanged on both lanes.
 
 What the ratification rests on, stated so a later reader can test it rather than take it: the two
 added actors are dormant, and the lane's value on agent-authored chore PRs is low relative to its
-spend. Branch B's affirmative case is not refuted — it is outweighed while those premises hold,
+spend. Branch B's affirmative case is not refuted; it is outweighed while those premises hold,
 and its `allowed_bots` cross-repo dependency is the cost that decided the margin. The trigger
 below for agent actors beginning to author substantive changes under security-sensitive paths is
 the condition that reopens this.
 
 Four is now the ratified baseline the `skip-actors` trigger measures additions against: a fifth
 actor widens a deliberated exception and warrants the same deliberation. Unchanged by this
-decision — the review lane's inherited default stays deferred with its own trigger, and the
+decision: the review lane's inherited default stays deferred with its own trigger, and the
 caller-tamper gap recorded above stays open pending ci-workflows#345.
 
 ## Addendum (2026-09-07): once per pull request, drafts filtered, reviews queued
@@ -418,7 +418,7 @@ The `skip-actors` revisit trigger below still applies to the inline list while i
 - An actor is added to the caller's `skip-actors` list → the step-3 skip-actor exception
   widens; re-deliberate before landing, and record the rationale beside the addendum above.
   This trigger also fires when a caller STOPS stating the list: an inherited default is an
-  undeclared exception. The 2026-08-03 amendment repairs that on the security-review caller —
+  undeclared exception. The 2026-08-03 amendment repairs that on the security-review caller,
   the lane where an undeclared exception can satisfy a required gate with no review. It does
   NOT repair the review caller, which the runner-policy contract blocks; that lane's inherited
   default is recorded in the amendment as deferred with its own trigger, so it is a declared

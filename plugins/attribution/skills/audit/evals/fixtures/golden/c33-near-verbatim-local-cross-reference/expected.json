@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 10, "end_line": 11 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://github.com/mattpocock/skills/blob/d81f3a1/skills/productivity/teach/MISSION-FORMAT.md"
+  },
+  "notes": {
+    "shape": "Two rules from a format page reproduced with light edits, one of which gains a local cross-reference to a procedure in this repository's own skill. The file links only to its own files.",
+    "carve_outs": "None apply.",
+    "rubric": "C1 holds: both bullets correspond to bullets of the source's rules list. C2 holds: the push-back-on-vagueness rule with its closing sentence, and the revise-when-reality-shifts rule, are the source's. C3 holds: the file's only links are local, so the declared scope is empty against a derivation of these rules. C4 holds, and is the contestable grade: the inserted cross-reference points at a local step, and it applies the lifted rule without transforming any lifted sentence.",
+    "measured": "fingerprint.mjs at k=5: containment 0.279, jaccard 0.15, longest matched span 23 words at local lines 10-11. The span limb fires alone.",
+    "tier_reason": "The span limb fires against an identity-checked source.",
+    "carries": "This case fails a run that reads a local cross-reference inside a lifted rule as transformation. The reference is an addition beside the copy."
+  }
+}
