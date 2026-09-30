@@ -13,7 +13,8 @@
 # The baseline is a ratchet: an entry whose file is gone or no longer offends
 # is a fail too, so the list only shrinks. Fix a suite by adding the trap, then
 # delete its baseline line. Never add a suite to the baseline: give it the trap
-# instead.
+# instead. The match is lexical: `trap ... EXIT` inside a string a suite runs
+# in a child shell also counts, so a passing suite still needs its own trap.
 #
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one finding per line on stderr, the clean-run statement on
