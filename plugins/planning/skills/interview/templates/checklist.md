@@ -42,11 +42,11 @@ Gate twice, and a non-zero exit halts either time:
 ```bash
 # Step 3, before locking the contract (the Brief is not written yet).
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
-  --ledger <memory_dir>/<topic-slug>/interview-checklist.md
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure
 
 # Step 4, right after writing the Brief (engineering sessions only).
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
-  --ledger <memory_dir>/<topic-slug>/interview-checklist.md \
+  --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
   --brief <contract_dir>/<topic-slug>/PLAN.md
 ```
 
