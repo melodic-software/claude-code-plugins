@@ -698,14 +698,18 @@ tells the reader to confirm the owner before acting. Re-fetch the basis before r
   - Recheck when: a Visual Studio Installer release changes where `BackgroundDownload.exe` runs
     from, or a scan hints a `????????.???` directory that holds no `resources\app\ServiceHub` tree.
 - **`windows-docker-desktop-update-bsdiff`.**
-  - Claim: Docker Desktop's Windows update leaves `*.bsdiff` entries.
-  - Basis: a Windows-host scan observation ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233),
-    item 8). No upstream source was found: the Docker Desktop release notes contain no `bsdiff`,
-    and a GitHub search of `docker/for-win`, `docker/desktop-feedback` and code under the `docker`
-    organization found no entry naming it.
+  - Claim: Docker Desktop's Windows update unpacks delta patches as `*.bsdiff` files under
+    `%TEMP%\DockerDesktop\<random>\resources\`.
+  - Basis: a user-posted Docker Desktop installer log, not vendor documentation: a [comment on
+    docker/for-win#14316](https://github.com/docker/for-win/issues/14316#issuecomment-3730679402)
+    quotes `courgette64.exe -applybsdiff` steps reading
+    `...\AppData\Local\Temp\DockerDesktop\lccuktfdvuw\resources\com.docker.admin.exe.bsdiff`.
+    A Windows-host scan also hinted `*.bsdiff` directories
+    ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233), item 8). The
+    Docker Desktop release-notes page has no `bsdiff` entry; no other Docker page was searched.
   - As of: 2026-09-30.
   - Recheck when: Docker documents its update download layout, or a scan hints a `*.bsdiff` entry
-    outside a Docker Desktop updater directory.
+    outside a `DockerDesktop` directory under `%TEMP%`.
 - **`windows-electron-updater-cache`.**
   - Claim: an app built with electron-builder keeps updater downloads in
     `%LOCALAPPDATA%\<lowercased app name>-updater`, with the staged installer in its `pending`
