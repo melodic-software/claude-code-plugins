@@ -3,11 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.64.1] - 2026-09-30
+## [0.64.2] - 2026-09-30
 
 ### Fixed
 
 - **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** A body under 16000 characters is split through a here-string and writes no file. A longer body goes through one `pr-linkage-lines.<pid>` file that is removed right after the read. The gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
+## [0.64.1] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` states the isolated-worktree launch recommendation for background lanes** instead of saying a background launch loses the escalation record
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
 
 ## [0.64.0] - 2026-09-29
 
