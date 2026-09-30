@@ -350,12 +350,15 @@ def _read_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
     """Read a bounded amount of text from a regular file under ``root``.
 
     A cached plugin controls the paths below the cache, so a link is never
-    followed out of ``root``. The registry itself may be a link.
+    followed out of ``root``. The registry itself may be a link, and it is decoded
+    strictly: replacement characters in an ``installPath`` would name a path the
+    registry never held.
     """
     path = root / relpath
-    if relpath != INSTALLED_PLUGINS and (path.is_symlink() or not path.is_file()):
+    registry = relpath == INSTALLED_PLUGINS
+    if not registry and (path.is_symlink() or not path.is_file()):
         raise OSError(f"{relpath} is not a regular file")
-    with path.open(encoding="utf-8", errors="replace") as fh:
+    with path.open(encoding="utf-8", errors="strict" if registry else "replace") as fh:
         return fh.read(limit)
 
 

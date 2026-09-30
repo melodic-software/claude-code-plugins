@@ -70,7 +70,7 @@ rather than a symlink (an nvm alias, `.tool-versions`) is not seen, so its row c
 `CANDIDATE` for a version that is in use.
 
 `plugin-cache-version` candidates carry the `.orphaned_at` marker age and whether it is past the
-sweep window (`ORPHAN_SWEEP_DAYS` in `scripts/deep_inventory.py`), in `evidence` and in the reason,
+sweep window (`ORPHAN_SWEEP_DAYS` in `lib/plugin_cache_versions.py`), in `evidence` and in the reason,
 so a version Claude Code removes itself reads differently from one it has not.
 
 `tmp-producer` covers the entries of `/tmp` itself, not `$TMPDIR`, and produces rows only when the

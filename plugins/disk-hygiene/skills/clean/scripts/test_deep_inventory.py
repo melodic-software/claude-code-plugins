@@ -372,6 +372,14 @@ class PluginCacheTest(TempTree):
                 rows = di.plugin_cache_versions(self.root, NOW)
                 self.assertEqual([r["disposition"] for r in rows], ["UNKNOWN"])
 
+    def test_registry_with_invalid_utf8_leaves_every_version_unknown(self) -> None:
+        self.cache("mkt/alpha/1.0.0")
+        (self.root / "plugins" / "installed_plugins.json").write_bytes(
+            b'{"plugins": {"a@mkt": [{"installPath": "/x/\xff"}]}}'
+        )
+        rows = di.plugin_cache_versions(self.root, NOW)
+        self.assertEqual([r["disposition"] for r in rows], ["UNKNOWN"])
+
     def test_empty_registry_leaves_every_version_a_candidate(self) -> None:
         self.cache("mkt/alpha/1.0.0")
         self.registry([], {})
