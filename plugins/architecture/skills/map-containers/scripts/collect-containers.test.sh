@@ -763,6 +763,46 @@ assert_contains "unresolved: a name that only resembles a project is not matched
 assert_contains "unresolved: a host naming two deployables is not guessed" "$utext" "Services.Both.BaseUrl names host shared:8080; matches more than one deployable"
 assert_contains "unresolved: the findings table lists them" "$(cat "$TEST_TMPDIR/unknown-endpoint-out/containers.md")" "| external-endpoint | 1 |"
 
+# Only an http or https URL is an endpoint, and an omitted port is the scheme's own default.
+SCH="$TEST_TMPDIR/scheme-endpoint-repo"
+web_project "$SCH/src/Web" Web
+web_project "$SCH/src/PlainApi" PlainApi
+web_project "$SCH/src/SecureApi" SecureApi
+cat >"$SCH/compose.yml" <<'EOC'
+services:
+  plain-api:
+    build: ./src/PlainApi
+    ports:
+      - "8080:80"
+  secure-api:
+    build: ./src/SecureApi
+    ports:
+      - "8443:443"
+EOC
+cat >"$SCH/src/Web/appsettings.json" <<'EOC'
+{
+  "Services": {
+    "Plain": { "BaseUrl": "http://plain-api" },
+    "Secure": { "BaseUrl": "https://secure-api" },
+    "PlainOverTls": { "BaseUrl": "https://plain-api" },
+    "SecureOverHttp": { "BaseUrl": "http://secure-api" },
+    "Files": { "BaseUrl": "ftp://files.example.com" },
+    "Share": { "BaseUrl": "file://localhost/share" }
+  }
+}
+EOC
+commit_repo "$SCH"
+collect_render "$SCH" "$TEST_TMPDIR/scheme-endpoint-out"
+SREC="$TEST_TMPDIR/scheme-endpoint-out/containers.json"
+stext="$(cat "$SREC")"
+assert_equals "scheme: only the two scheme-matched endpoints draw an edge" "$(grep -c '"kind":"uses"' "$SREC" || true)" "2"
+assert_contains "scheme: http with no port reaches the service declaring 80" "$stext" '"to":"src/PlainApi/PlainApi.csproj","kind":"uses"'
+assert_contains "scheme: https with no port reaches the service declaring 443" "$stext" '"to":"src/SecureApi/SecureApi.csproj","kind":"uses"'
+assert_contains "scheme: https does not reach a service declaring only 80" "$stext" "Services.PlainOverTls.BaseUrl names host plain-api; resolves to no deployable"
+assert_contains "scheme: http does not reach a service declaring only 443" "$stext" "Services.SecureOverHttp.BaseUrl names host secure-api; resolves to no deployable"
+assert_equals "scheme: a non-http URL is neither an edge nor a finding" "$(grep -c '"kind":"external-endpoint"' "$SREC" || true)" "2"
+assert_not_contains "scheme: an ftp URL is not recorded" "$stext" "files.example.com"
+
 # Userinfo and a query token do not stop the edge from resolving, and neither reaches an output.
 LEAK="$TEST_TMPDIR/leak-endpoint-repo"
 web_project "$LEAK/src/Web" Web

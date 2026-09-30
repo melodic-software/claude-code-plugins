@@ -124,7 +124,8 @@ finding; the compose service's image charts the store, and nothing links a deplo
 An endpoint is an `http` or `https` URL a deployable's own configuration names. It is an edge only
 when it resolves to exactly one other deployable through a cited fact: a compose service whose
 build context is that deployable's directory (the URL host is the service name and any declared
-port equals the URL's), or a `launchSettings.json` `applicationUrl` on that deployable (host
+port equals the URL's, or is 80 for an `http` URL and 443 for an `https` URL that names no port),
+or a `launchSettings.json` `applicationUrl` on that deployable (host
 `localhost` or `127.0.0.1`, same port). A name's resemblance to a deployable resolves nothing. An
 endpoint that resolves to no deployable or to several draws no edge and is an `external-endpoint`
 finding carrying its redacted host. A deployable naming itself draws no edge.

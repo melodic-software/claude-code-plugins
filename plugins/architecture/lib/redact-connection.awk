@@ -21,7 +21,9 @@
 # name a bare service name, localhost, or 127.0.0.1, and for every URL shape a ;
 # after the userinfo ends the authority, so a ;-separated URL list reads as one
 # shape per URL. Without it a bare service name and a loopback host are
-# dropped, and a ; does not end the authority.
+# dropped, and a ; does not end the authority. An http shape then also carries its
+# URL scheme in the scheme column, so the caller can refuse a scheme that is not
+# http or https.
 #
 # redact_secret(key, value) is 1 when the key names a credential or the value
 # carries one. A caller that prints a raw value drops it when this is 1.
@@ -218,6 +220,7 @@ function redact_scan_urls(value, bias,    rest, scheme, auth, host, port, kind, 
     hk = redact_known_kind(host)
     if (hk != "") kind = hk
     if (kind == "sql") redact_emit(kind, host, port, db, tech)
+    else if (kind == "http" && (redact_local_http + 0)) redact_emit(kind, host, port, "", scheme)
     else redact_emit(kind, host, port)
   }
 }

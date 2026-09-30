@@ -658,10 +658,10 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
               leaf ~ /elasticsearch|opensearch|searchendpoint|searchservice/) kind = "search"
         }
         if (kind == "http") {
-          if ($3 !~ /^[0-9]*$/) next
+          if ($3 !~ /^[0-9]*$/ || ($6 != "http" && $6 != "https")) next
           if (rel ~ /(^|\/)Properties\/launchSettings\.json$/ && tolower($4) ~ /(^|\.)applicationurl$/) {
             if ($3 != "" && ($2 == "localhost" || $2 == "127.0.0.1")) printf "%s\t%s\t%s\t%s\n", $2, $3, rel, $4 >> listen
-          } else printf "%s\t%s\t%s\t%s\n", $2, $3, rel, $4 >> endpoints
+          } else printf "%s\t%s\t%s\t%s\t%s\n", $2, $3, rel, $4, $6 >> endpoints
           next
         }
         if (kind !~ /^(sql|storage|broker|cache|search)$/) next
@@ -810,15 +810,15 @@ if [[ -s "$listen" ]]; then
 fi
 if [[ -s "$endpoints" ]]; then
   ep_edges="$(mktemp)"
-  while IFS=$'\034' read -r host port file key; do
+  while IFS=$'\034' read -r host port file key scheme; do
     owner="$(bind_deployable "$file")"
     [[ -n "$owner" ]] || continue
     targets="$(
-      awk -F'\034' -v host="$host" -v port="$port" '
+      awk -F'\034' -v host="$host" -v port="$port" -v scheme="$scheme" '
         $1 == host {
           ok = ($3 == "")
           n = split($3, p, ",")
-          for (i = 1; i <= n; i++) if (port == "" ? (p[i] == 80 || p[i] == 443) : p[i] == port) ok = 1
+          for (i = 1; i <= n; i++) if (p[i] == (port == "" ? (scheme == "https" ? 443 : 80) : port)) ok = 1
           if (ok) printf "%s\t%s\n", $2, $4
         }' "$svcmap"
       if [[ ( "$host" == localhost || "$host" == 127.0.0.1 ) && -s "$listen.map" ]]; then
@@ -838,7 +838,7 @@ if [[ -s "$endpoints" ]]; then
     [[ "$target_n" -gt 1 ]] && why="matches more than one deployable"
     json_escape "$file: $key names host $shown; $why"
     printf '{"kind":"external-endpoint","count":1,"evidence":"%s"}\n' "$JSON_ESC" >>"$finding_body"
-  done < <(LC_ALL=C sort -u "$endpoints" | awk -F'\t' '{ printf "%s\034%s\034%s\034%s\n", $1, $2, $3, $4 }')
+  done < <(LC_ALL=C sort -u "$endpoints" | awk -F'\t' '{ printf "%s\034%s\034%s\034%s\034%s\n", $1, $2, $3, $4, $5 }')
   if [[ -s "$ep_edges" ]]; then
     LC_ALL=C sort -u "$ep_edges" | LC_ALL=C awk -F'\t' '
       {
