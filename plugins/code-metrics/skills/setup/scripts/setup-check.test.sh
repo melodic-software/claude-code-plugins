@@ -120,5 +120,15 @@ rc=$?
 assert_eq "a tool that cannot run here exits 0" 0 "$rc"
 assert_row "exit 4 is WARN probe only" "$out" "WARN  collector line-counter +bundled; probe only: no config"
 
+# 6. A collector whose probe fails is an INFO missing row with its install
+#    hint, and it does not fail the run.
+printf '%s\n' 'import sys' \
+  'if sys.argv[1] == "probe":' '    sys.exit(1)' \
+  'elif sys.argv[1] == "install_hint":' '    print("install the stub tool")' >"$fake/scripts/collectors/line-counter.py"
+out="$(CLAUDE_PLUGIN_ROOT="$fake" bash "$SCRIPT" --repo-root "$repo" --home "$fake")"
+rc=$?
+assert_eq "a missing collector exits 0" 0 "$rc"
+assert_row "a missing probe is an INFO missing row with its hint" "$out" "INFO  collector line-counter +missing; install the stub tool"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
