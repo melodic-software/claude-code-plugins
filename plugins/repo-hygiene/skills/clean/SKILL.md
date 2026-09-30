@@ -165,7 +165,7 @@ Resolve no repo root here. This step is reachable from anywhere, including outsi
 
 ### 1.5. Pre-flight (caches / build / all only)
 
-`${CLAUDE_SKILL_DIR}/scripts/preflight.sh`. See [context/preflight.md](context/preflight.md). Interactive: [confirm](#confirmation-gate) before `--apply` when non-empty. Autonomous: abort.
+`${CLAUDE_SKILL_DIR}/scripts/preflight.sh`. `RUNTIME_PROCS` covers only the repository being cleaned; `IDE_OPEN` is machine-wide. See [context/preflight.md](context/preflight.md). Interactive: [confirm](#confirmation-gate) before `--apply` when non-empty. Autonomous: abort.
 
 #### Dry-run → confirm → apply manifest flow (caches / build)
 

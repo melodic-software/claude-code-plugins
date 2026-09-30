@@ -20,6 +20,12 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 - **The `clean` repository-context block reports "not a repository" from a non-repo cwd instead of skipping the block (#5234).**
 
+## [0.13.1] - 2026-09-29
+
+### Fixed
+
+- **`clean` preflight `RUNTIME_PROCS` lists only processes in the repositories being cleaned (#5217).** A `dotnet`, `aspire`, or MCP-server process counts when its working directory or command line is under a passed ROOT (the invoking repository when none), and each line is tagged `[repo: <ROOT>]`. Matches elsewhere on the machine are counted in the new `RUNTIME_PROCS_UNATTRIBUTED` line instead of being reported as risks. Without `/proc` (Windows, macOS) `RUNTIME_PROCS` is machine-wide and marked `(unscoped)`; the invoking process chain is never listed.
+
 ## [0.13.0] - 2026-09-29
 
 ### Added

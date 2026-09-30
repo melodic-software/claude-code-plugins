@@ -136,7 +136,8 @@ dry-run that is never applied, and an apply that fails, leave the directory; `Ba
 names it. `--batch-plan FILE` overrides the location and is never removed: pass a path
 outside `/tmp` there too.
 
-Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
+`RUNTIME_PROCS` and `RECENT_BUILD` are scoped to the batch repositories and `IDE_OPEN` is
+machine-wide. Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
 `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run
 `preflight.sh` again before confirming. `planned=` bytes can exceed `removed=`
 bytes when entries vanished between the runs; both numbers are correct.
