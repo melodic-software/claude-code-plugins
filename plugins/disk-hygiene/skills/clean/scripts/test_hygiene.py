@@ -922,6 +922,34 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 hygiene.linux_loop_mounts(image, base / "missing", mountinfo)
 
+    @unittest.skipUnless(
+        hygiene.os_key() == "linux", "the Linux route is not taken elsewhere"
+    )
+    def test_wsl_loop_miss_reads_unverified_never_detached(self) -> None:
+        for wsl, reasons in (
+            (True, ["virtual-disk", "virtual-disk-attach-unverified"]),
+            (False, ["virtual-disk"]),
+        ):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary) / "target"
+                root.mkdir()
+                (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+                with (
+                    mock.patch.object(hygiene, "is_wsl", return_value=wsl),
+                    mock.patch.object(hygiene, "linux_loop_mounts", return_value=None),
+                ):
+                    snapshot = hygiene.scan_tree(
+                        root.resolve(), hygiene.load_policy(None)
+                    )
+            entry = hygiene.entry_map(snapshot)["Dev.vhdx"]
+            self.assertEqual(reasons, entry["protected_reasons"], wsl)
+
+    def test_wsl_is_read_from_the_kernel_release(self) -> None:
+        with mock.patch.object(
+            hygiene.platform, "release", return_value="6.6.0-microsoft-standard-WSL2"
+        ):
+            self.assertTrue(hygiene.is_wsl())
+
     def test_windows_probe_parses_output_and_fails_closed(self) -> None:
         def run(stdout: str, returncode: int = 0) -> mock.Mock:
             return mock.Mock(stdout=stdout, stderr="#< CLIXML", returncode=returncode)

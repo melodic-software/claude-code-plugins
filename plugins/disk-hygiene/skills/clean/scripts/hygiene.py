@@ -790,19 +790,30 @@ def linux_loop_mounts(
     return sorted(mounts)
 
 
+def is_wsl() -> bool:
+    return (
+        "microsoft" in platform.release().lower()
+        or Path("/proc/sys/fs/binfmt_misc/WSLInterop").exists()
+    )
+
+
 def virtual_disk_attachment(path: Path) -> list[str] | None:
     """Where an attached disk image is mounted, or None when it is detached.
 
     An attached image with no mounted volume returns an empty list. Raises
     OSError, subprocess.SubprocessError, or ValueError when the host cannot
     tell, including on a platform with no probe. Windows asks Get-DiskImage;
-    Linux (WSL included, which sees only its own loop devices, never the
-    Windows host's attachments) reads the loop devices' backing files.
+    Linux reads the loop devices' backing files. Under WSL a loop-device miss
+    cannot prove the image detached, because WSL sees only its own loop
+    devices, never the Windows host's attachments, so it raises instead.
     """
     if os.name == "nt":
         return windows_disk_image_mounts(path)
     if os_key() == "linux":
-        return linux_loop_mounts(path)
+        mounts = linux_loop_mounts(path)
+        if mounts is None and is_wsl():
+            raise OSError("WSL cannot see the Windows host's disk attachments")
+        return mounts
     raise OSError("no virtual-disk attach probe on this platform")
 
 

@@ -17,7 +17,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **The volume an attached image backs is reported.** Windows asks `Get-DiskImage` (bounded at 20
   seconds); Linux and WSL read the loop devices' backing files and mounts. An attached image adds
   `attached-virtual-disk:<drive or mountpoint>`; a probe that errors, times out, or has no route adds
-  `virtual-disk-attach-unverified` and never reads as detached.
+  `virtual-disk-attach-unverified` and never reads as detached. Under WSL, which never sees the
+  Windows host's attachments, an image with no loop device reads as unverified, not detached.
 
 ## [0.29.0] - 2026-09-29
 

@@ -82,13 +82,16 @@ bounded conditions.
   - `attached-virtual-disk:<mount>` for each drive letter (`D:`) or mount point the attached image
     backs, or a bare `attached-virtual-disk` when it is attached with no mounted volume;
   - `virtual-disk-attach-unverified` when the probe errors, times out, or has no route on the
-    platform. An unanswered probe never reads as detached;
+    platform, or when it runs under WSL and finds no loop device for the image. An unanswered probe
+    never reads as detached;
   - nothing more for a detached image, which keeps only `virtual-disk`.
 
-  Windows asks `Get-DiskImage` through a PowerShell call bounded at 20 seconds. Linux, WSL
-  included, reads `/sys/block/loop*/loop/backing_file` and the loop devices' mounts, so under WSL
-  only Linux loop attachments are visible, never the Windows host's. macOS has no probe and always
-  reads as unverified.
+  Windows asks `Get-DiskImage` through a PowerShell call bounded at 20 seconds. Linux reads
+  `/sys/block/loop*/loop/backing_file` and the loop devices' mounts. WSL sees only its own loop
+  devices, never the Windows host's attachments, so a WSL image with no loop device reads as
+  unverified rather than detached; a loop device that does back it is reported as attached. WSL is
+  detected from a `microsoft` kernel release or `/proc/sys/fs/binfmt_misc/WSLInterop`. macOS has no
+  probe and always reads as unverified.
 
   **Claim:** `Get-DiskImage` is documented for virtual hard disk and ISO images, so for a `.vmdk`,
   `.vdi`, `.qcow2`, or `.img` the Windows route may error (`virtual-disk-attach-unverified`) or
