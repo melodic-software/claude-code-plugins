@@ -84,89 +84,51 @@ class MergeModeTests(unittest.TestCase):
             rc.merge_repo_config(repo, {}).merge_block_labels, {"wait[bot]"}
         )
 
-    def test_whole_repo_review_pair_adds_reviewers_and_wins_settle(self) -> None:
-        repo = rc.parse_repo_config(
-            "## babysit_review_bot_logins\n- repo-reviewer\n\n"
-            "## babysit_review_settle_minutes\n`20`\n"
-        )
-        eff = rc.merge_repo_config(
-            repo,
-            {
-                "babysit_review_bot_logins": "mine",
-                "babysit_review_settle_minutes": "10",
-            },
-        )
-        self.assertEqual(eff.review_bot_logins, {"repo-reviewer", "mine"})
-        self.assertEqual(eff.review_settle_minutes, "20")
-        self.assertNotIn(rc.REVIEW_SETTLE, eff.fallback_keys_used)
-        self.assertIn(rc.REVIEW_BOTS, eff.fallback_keys_used)
-
-    def test_repo_pair_never_drops_a_userconfig_reviewer(self) -> None:
-        repo = rc.parse_repo_config(
-            "## babysit_review_bot_logins\n- other\n\n"
-            "## babysit_review_settle_minutes\n30\n"
-        )
-        eff = rc.merge_repo_config(
-            repo,
-            {
-                "babysit_review_bot_logins": "a, b[bot]",
-                "babysit_review_settle_minutes": "10",
-            },
-        )
-        self.assertEqual(eff.review_bot_logins, {"a", "b", "other"})
-
-    def test_repo_pair_stands_alone_when_userconfig_pair_is_unset(self) -> None:
-        repo = rc.parse_repo_config(
-            "## babysit_review_bot_logins\n- other\n\n"
-            "## babysit_review_settle_minutes\n30\n"
-        )
-        eff = rc.merge_repo_config(repo, {})
-        self.assertEqual(eff.review_bot_logins, {"other"})
-        self.assertEqual(eff.review_settle_minutes, "30")
-        self.assertFalse(eff.fallback_keys_used)
-
-    def test_repo_pair_settle_is_never_shorter_than_userconfig(self) -> None:
-        repo = rc.parse_repo_config(
-            "## babysit_review_bot_logins\n- repo-reviewer\n\n"
-            "## babysit_review_settle_minutes\n1\n"
-        )
-        eff = rc.merge_repo_config(
-            repo,
-            {
-                "babysit_review_bot_logins": "mine",
-                "babysit_review_settle_minutes": "15",
-            },
-        )
-        self.assertEqual(eff.review_bot_logins, {"repo-reviewer", "mine"})
-        self.assertEqual(eff.review_settle_minutes, "15")
-        self.assertIn(rc.REVIEW_SETTLE, eff.fallback_keys_used)
-
-    def test_invalid_userconfig_settle_with_a_repo_pair_is_an_error(self) -> None:
-        repo = rc.parse_repo_config(
-            "## babysit_review_bot_logins\n- r\n\n## babysit_review_settle_minutes\n5\n"
-        )
-        with self.assertRaises(rc.RepoConfigError):
-            rc.merge_repo_config(repo, {"babysit_review_settle_minutes": "nan"})
-
-    def test_half_declared_repo_pair_is_ignored_and_userconfig_passes_through(
+    def test_repo_review_pair_is_ignored_and_userconfig_pair_passes_through(
         self,
     ) -> None:
+        pair = (
+            "## babysit_review_bot_logins\n- github-actions\n\n"
+            "## babysit_review_settle_minutes\n60\n"
+        )
         for body in (
-            "## babysit_review_bot_logins\n- repo-reviewer\n",
-            "## babysit_review_settle_minutes\n1\n",
+            pair,
+            "## babysit_review_bot_logins\n- github-actions\n",
+            "## babysit_review_settle_minutes\n60\n",
         ):
-            with self.subTest(body=body):
-                eff = rc.merge_repo_config(
-                    rc.parse_repo_config(body),
+            for fallback, bots, settle in (
+                (
                     {
-                        "babysit_review_bot_logins": "Mine[bot]",
+                        "babysit_review_bot_logins": "Claude[bot], other",
                         "babysit_review_settle_minutes": "10",
                     },
-                )
-                self.assertEqual(eff.review_bot_logins, {"mine"})
-                self.assertEqual(eff.review_settle_minutes, "10")
-                self.assertEqual(len(eff.notes), 1)
-                self.assertIn(rc.REVIEW_BOTS, eff.fallback_keys_used)
+                    {"claude", "other"},
+                    "10",
+                ),
+                ({"babysit_review_settle_minutes": "10"}, None, "10"),
+                ({}, None, None),
+            ):
+                with self.subTest(body=body, fallback=fallback):
+                    eff = rc.merge_repo_config(rc.parse_repo_config(body), fallback)
+                    self.assertEqual(eff.review_bot_logins, bots)
+                    self.assertEqual(eff.review_settle_minutes, settle)
+                    self.assertEqual(len(eff.notes), 1)
+                    self.assertFalse(
+                        {rc.REVIEW_BOTS, rc.REVIEW_SETTLE} & eff.fallback_keys_used
+                    )
+
+    def test_userconfig_review_pair_is_not_deprecated(self) -> None:
+        eff = rc.merge_repo_config(
+            {},
+            {
+                "babysit_review_bot_logins": "mine",
+                "babysit_review_settle_minutes": "10",
+            },
+        )
+        self.assertEqual(eff.review_bot_logins, {"mine"})
+        self.assertEqual(eff.review_settle_minutes, "10")
+        self.assertEqual(eff.notes, ())
+        self.assertFalse(eff.fallback_keys_used)
 
     def test_half_set_userconfig_pair_passes_through_for_the_gate_to_refuse(
         self,

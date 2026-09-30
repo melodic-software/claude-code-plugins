@@ -293,10 +293,10 @@ land within a minute of the final commit and carry a regression the PR itself in
 The hold closes that window and is **dormant unless configured**: with
 `babysit_review_bot_logins` and `babysit_review_settle_minutes` both set, the gate adds a policy
 blocker while a configured reviewer still owes the **live head** a review and that head is younger
-than the window. The pair resolves per PR repository: a repository that declares both keys on its
-default branch supplies them, its window never shorter than the deprecated `userConfig` window
-(`--review-settle-minutes`) when that is set, and a repository declaring only one half is ignored
-with a note, so the `userConfig` pair applies. Its shape, and why each part is that way:
+than the window. The pair is `userConfig`-only (`--review-bot-logins`, `--review-settle-minutes`):
+a repository's default-branch declaration of either key is ignored with a note, because a listed
+reviewer that a repository could add would clear the hold before the operator's reviewer reviewed.
+Its shape, and why each part is that way:
 
 - **A review of the live head clears it outright**, before the clock is consulted. The common case
   where the reviewer already reviewed this head costs nothing and adds no latency. Evidence is a

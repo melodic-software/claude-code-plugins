@@ -596,11 +596,16 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         self.assertIsNone(captured["settle"])
 
 
-class RepoSettlePairReachesEvaluate(unittest.TestCase):
-    """The repository's reviewer/window pair binds as one unit over the flags."""
+class RepoSettlePairReachesEvaluate(SettleHarness):
+    """A repository's reviewer/window declaration never reaches the hold.
+
+    The hold clears when any listed reviewer has reviewed the head, so a
+    repository-writable reviewer list would let the repository choose who clears
+    the operator's hold.
+    """
 
     REPO_PAIR = (
-        "## babysit_review_bot_logins\n- repo-reviewer\n\n"
+        "## babysit_review_bot_logins\n- github-actions\n\n"
         "## babysit_review_settle_minutes\n5\n"
     )
 
@@ -625,18 +630,11 @@ class RepoSettlePairReachesEvaluate(unittest.TestCase):
             code = merge.main()
         return code, captured.get("settle")
 
-    def test_repo_pair_arms_the_hold_with_no_flags(self) -> None:
+    def test_repo_pair_does_not_arm_the_hold_with_no_flags(self) -> None:
         _, settle = self._run({"owner/repo": self.REPO_PAIR})
-        self.assertEqual(
-            settle,
-            merge.ReviewSettleConfig(
-                reviewer_logins=frozenset({"repo-reviewer"}), settle_seconds=300
-            ),
-        )
+        self.assertIsNone(settle)
 
-    def test_repo_pair_adds_to_the_flag_reviewer_and_never_shortens_the_window(
-        self,
-    ) -> None:
+    def test_repo_pair_leaves_the_flag_pair_in_force(self) -> None:
         _, settle = self._run(
             {"owner/repo": self.REPO_PAIR},
             "--review-bot-logins", REVIEWER,
@@ -645,10 +643,33 @@ class RepoSettlePairReachesEvaluate(unittest.TestCase):
         self.assertEqual(
             settle,
             merge.ReviewSettleConfig(
-                reviewer_logins=frozenset({"repo-reviewer", REVIEWER}),
-                settle_seconds=600,
+                reviewer_logins=frozenset({REVIEWER}), settle_seconds=600
             ),
         )
+
+    def test_repo_reviewer_reviewing_the_head_does_not_clear_the_hold(self) -> None:
+        _, settle = self._run(
+            {"owner/repo": self.REPO_PAIR},
+            "--review-bot-logins", REVIEWER,
+            "--review-settle-minutes", "10",
+        )
+        for review in (
+            _review(HEAD, login="github-actions"),
+            _review(HEAD, login="github-actions", state="APPROVED"),
+        ):
+            with self.subTest(state=review["state"]):
+                result = self._evaluate(settle=settle, reviews=[review])
+                self.assertEqual(result["reviewSettle"]["state"], "settling")
+                self.assertFalse(result["reviewSettle"]["currentHeadReview"])
+                self.assertFalse(result["ready"])
+        comment = {
+            "user": {"login": "github-actions", "type": "Bot"},
+            "commit_id": HEAD,
+            "id": 1,
+            "created_at": "2026-07-26T21:49:06Z",
+        }
+        result = self._evaluate(settle=settle, review_comments=[comment])
+        self.assertEqual(result["reviewSettle"]["state"], "settling")
 
     def test_half_declared_repo_pair_leaves_the_flag_pair_in_force(self) -> None:
         _, settle = self._run(
@@ -662,36 +683,6 @@ class RepoSettlePairReachesEvaluate(unittest.TestCase):
                 reviewer_logins=frozenset({REVIEWER}), settle_seconds=600
             ),
         )
-
-    def test_two_repositories_get_different_holds(self) -> None:
-        files = {
-            "owner/slow": self.REPO_PAIR,
-            "owner/fast": (
-                "## babysit_review_bot_logins\n- other\n\n"
-                "## babysit_review_settle_minutes\n1\n"
-            ),
-        }
-        RepoConfigFake(files).install(self)
-        seen: dict[str, Any] = {}
-
-        def fake_evaluate(repo: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
-            seen[repo] = kwargs["settle"]
-            return {"ready": False, "blockers": ["stop"], "pr": f"{repo}#1"}
-
-        for repo in files:
-            with (
-                mock.patch.object(merge, "evaluate", side_effect=fake_evaluate),
-                mock.patch.object(
-                    sys, "argv",
-                    ["babysit_merge.py", f"{repo}#1", "--allowed-owners", "owner"],
-                ),
-                contextlib.redirect_stdout(io.StringIO()),
-                mock.patch("sys.stderr", new=io.StringIO()),
-            ):
-                merge.main()
-        self.assertEqual(seen["owner/slow"].settle_seconds, 300)
-        self.assertEqual(seen["owner/fast"].settle_seconds, 60)
-        self.assertEqual(seen["owner/fast"].reviewer_logins, {"other"})
 
     def test_unreadable_repo_config_refuses_and_never_evaluates(self) -> None:
         RepoConfigFake({"owner/repo": 503}).install(self)

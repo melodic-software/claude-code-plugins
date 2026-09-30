@@ -57,8 +57,8 @@ verdict HYBRID, which this record adopts.
      the deprecated `userConfig` value, so a layer can add an entry but never drop one.
    - `babysit_review_bot_logins` and `babysit_review_settle_minutes` bind as one unit from one
      layer, and a lower layer may lengthen the settle window, never shorten it.
-   - `babysit_skip_downgrade_logins` is unclassified: whether it is a floor or a preference is
-     open.
+   - `babysit_skip_downgrade_logins` is a floor in the inverted sense: a repository layer may
+     remove logins from the `userConfig` set and never add one.
    - `babysit_review_gate_context` and `babysit_ci_gateway_context` name the checks that must pass
      before the loop posts the review trigger, so a writer to the default branch could point them
      at a check that writer controls. They are read from the target repository's default branch
@@ -81,7 +81,13 @@ verdict HYBRID, which this record adopts.
   working with a deprecation note until its removal release.
 - `plugins/source-control/reference/config-resolution.md` states the split and the multi-domain
   consequence, and cites this record.
-- The ten repository-policy keys resolve per target repository from its default branch, with the
-  `userConfig` value as a deprecated fallback, under the merge modes in decision 3.
+- Eight of the ten repository-policy keys resolve per target repository from its default branch,
+  with the `userConfig` value as a deprecated fallback, under the merge modes in decision 3.
   `babysit_skip_downgrade_logins` is remove-only: a repository can narrow the `userConfig` set and
-  never add a login, so additions stay `userConfig`-only.
+  never add a login, so additions stay `userConfig`-only, and its `userConfig` value is not
+  deprecated.
+- `babysit_review_bot_logins` and `babysit_review_settle_minutes` stay `userConfig`-only, and a
+  repository declaration of either is ignored. The merge gate clears the review-settle hold when any
+  listed reviewer has reviewed the head, so a repository reviewer list that adds to the operator's
+  lets that reviewer clear the hold early, and one that replaces it can swap the operator's
+  reviewer out. Which combination a repository pair may have is a maintainer decision.

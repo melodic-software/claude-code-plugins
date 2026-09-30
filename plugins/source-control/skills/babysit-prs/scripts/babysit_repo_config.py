@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Per-target-repository resolution of the ten babysit repository-policy keys.
+"""Per-target-repository resolution of the babysit repository-policy keys.
 
-Each key is read from the TARGET repository's tracked `.claude/source-control.md`
+Eight keys are read from the TARGET repository's tracked `.claude/source-control.md`
 on its default branch, through the contents API with no `ref`, so neither the
 launching checkout's working tree nor a personal layer (user-global, local
 overlay) can supply a value. The operator's `userConfig` value is the deprecated
-fallback, merged per key by the modes `merge_repo_config` documents. The fetch
-and the merge are separate so the merge is unit-testable without a network seam.
+fallback, merged per key by the modes `merge_repo_config` documents. The review
+bot logins and settle minutes stay `userConfig`-only: a repository declaration of
+either is ignored. The fetch and the merge are separate so the merge is
+unit-testable without a network seam.
 """
 
 from __future__ import annotations
@@ -80,8 +82,8 @@ class EffectiveConfig:
     approval_downgrade_logins: frozenset[str]
     skip_downgrade_logins: frozenset[str]
     review_trigger_phrase: str | None
-    # Passed through raw when no whole repository pair exists, so the merge
-    # gate's own both-or-neither refusal still sees a half-set userConfig pair.
+    # The userConfig pair, passed through raw so the merge gate's own
+    # both-or-neither refusal still sees a half-set pair.
     review_bot_logins: frozenset[str] | None
     review_settle_minutes: str | None
     review_gate_context: str | None
@@ -186,11 +188,12 @@ def merge_repo_config(
 
     - Hold lists (`UNION_KEYS`): add-only union, so neither side drops an entry.
     - Review pair (`babysit_review_bot_logins` + `babysit_review_settle_minutes`):
-      the repository pair applies only when both halves are declared. Its
-      reviewer logins add to the `userConfig` reviewers (never replace them) and
-      its settle window is floored at the `userConfig` settle, so the repository
-      can lengthen the hold and never narrow it. A half-declared repository pair
-      is ignored with a note, and the `userConfig` pair passes through unchanged.
+      `userConfig`-only. The merge gate clears the settle hold when ANY listed
+      reviewer has reviewed the head, so a repository-writable reviewer list
+      could clear the hold before the operator's reviewer ran, and replacing the
+      operator's list could swap that reviewer out. Neither is decided here, so a
+      repository declaration of either key is ignored with a note and the
+      `userConfig` pair passes through unchanged.
     - `babysit_skip_downgrade_logins`: remove-only. When the repository declares
       the key, the effective set is the `userConfig` set intersected with it; a
       repository can never add a login. The `userConfig` value stays the key's
@@ -216,32 +219,12 @@ def merge_repo_config(
     if repo_skip is not None:
         skip &= repo_skip
 
-    repo_bots = _repo_set(repo, REVIEW_BOTS)
-    repo_settle = _repo_scalar(repo, REVIEW_SETTLE)
-    fallback_settle = fallback.get(REVIEW_SETTLE)
+    if REVIEW_BOTS in repo or REVIEW_SETTLE in repo:
+        notes.append(
+            f"{REVIEW_BOTS} and {REVIEW_SETTLE} are userConfig-only, so the "
+            "repository's declaration is ignored"
+        )
     bots = _fallback_set(fallback, REVIEW_BOTS) if REVIEW_BOTS in fallback else None
-    settle = fallback_settle
-    if repo_bots is not None and repo_settle is not None:
-        bots, settle = repo_bots | (bots or frozenset()), repo_settle
-        if bots != repo_bots:
-            used.add(REVIEW_BOTS)
-        if fallback_settle is not None:
-            floor = _settle_seconds(fallback_settle)
-            if floor is None:
-                raise RepoConfigError(
-                    f"userConfig {REVIEW_SETTLE} {fallback_settle!r} is invalid, so the "
-                    "repository settle window cannot be floored at it"
-                )
-            if floor > (_settle_seconds(repo_settle) or 0):
-                settle = fallback_settle
-                used.add(REVIEW_SETTLE)
-    else:
-        if repo_bots is not None or repo_settle is not None:
-            notes.append(
-                f"{REVIEW_BOTS} and {REVIEW_SETTLE} bind as one pair; the repository "
-                "declares only one, so its half is ignored"
-            )
-        used.update(key for key in (REVIEW_BOTS, REVIEW_SETTLE) if key in fallback)
 
     overrides: dict[str, str | None] = {}
     for key in OVERRIDE_KEYS:
@@ -260,7 +243,7 @@ def merge_repo_config(
         skip_downgrade_logins=skip,
         review_trigger_phrase=overrides["babysit_review_trigger_phrase"],
         review_bot_logins=bots,
-        review_settle_minutes=settle,
+        review_settle_minutes=fallback.get(REVIEW_SETTLE),
         review_gate_context=overrides["babysit_review_gate_context"],
         ci_gateway_context=overrides["babysit_ci_gateway_context"],
         fallback_keys_used=frozenset(used),

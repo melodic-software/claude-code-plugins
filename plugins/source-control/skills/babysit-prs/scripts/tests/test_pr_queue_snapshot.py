@@ -672,14 +672,17 @@ class PerRepoPolicyTests(unittest.TestCase):
             }
         ).install(self)
         args = argparse.Namespace(
-            trigger_phrase="flag phrase", review_gate_context="flag-gate"
+            trigger_phrase="flag phrase",
+            review_gate_context="flag-gate",
+            review_bot_logins="flag-bot",
         )
         base = snapshot.build_config(args)
         with_repo = snapshot.repo_classify_config(base, args, "owner/a")
         without_repo = snapshot.repo_classify_config(base, args, "owner/b")
         self.assertEqual(with_repo.review_trigger.trigger_phrase, "@bot review")
-        self.assertEqual(with_repo.review_trigger.reviewer_logins, {"bot"})
+        self.assertEqual(with_repo.review_trigger.reviewer_logins, {"flag-bot"})
         self.assertEqual(with_repo.review_trigger.gate_context, "gate-a")
+        self.assertEqual(without_repo.review_trigger.reviewer_logins, {"flag-bot"})
         self.assertEqual(without_repo.review_trigger.trigger_phrase, "flag phrase")
         self.assertEqual(without_repo.review_trigger.gate_context, "flag-gate")
         self.assertEqual(base.review_trigger.gate_context, "flag-gate")

@@ -41,10 +41,11 @@ Contract enforced here (encoded as code, not convention):
   `--approver-bot-logins`, and `--block-labels` are all non-empty. Any criterion
   failing is just another blocker, so the caller falls back to the human
   merge-ready list. Absent the flag the gate is byte-for-byte its prior self.
-- The merge method, dependency-manager logins, block labels, and review-settle
-  pair are resolved for the PR's own repository from its default-branch
-  `.claude/source-control.md` (`babysit_repo_config`); the matching flags are the
-  deprecated `userConfig` fallback. A repository config that cannot be read
+- The merge method, dependency-manager logins, and block labels are resolved for
+  the PR's own repository from its default-branch `.claude/source-control.md`
+  (`babysit_repo_config`); the matching flags are the deprecated `userConfig`
+  fallback. The review-settle pair stays `userConfig`-only: a repository
+  declaration of either key is ignored. A repository config that cannot be read
   refuses the run at exit 2.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
@@ -1511,10 +1512,8 @@ def main() -> int:
     # gate to invent how long that reviewer takes, and a window with no reviewer
     # set has nothing to wait for. Either alone is a usage error rather than a
     # silently-inert flag, so a half-configured hold can never read as an active one.
-    # These flag-shape checks run on the `userConfig` values alone: the flags are
-    # the deprecated fallback, and a half-set or invalid one is a usage error
-    # whatever the target repository declares. The effective hold is rebuilt from
-    # the repository's config once that is read.
+    # The pair is `userConfig`-only, so a half-set or invalid flag is a usage
+    # error whatever the target repository declares.
     if args.review_bot_logins is not None or args.review_settle_minutes is not None:
         missing = [
             name

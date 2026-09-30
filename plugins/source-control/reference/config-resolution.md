@@ -14,7 +14,7 @@
 How the skills in this plugin resolve the layered `.claude/source-control.md` config surface. The
 surface carries three key families: the tracked commit-subject / PR-title convention keys, read by
 `/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup`, the
-loop-lane keys, read by `/source-control:babysit-loop`, and ten babysit-prs repository-policy keys,
+loop-lane keys, read by `/source-control:babysit-loop`, and the babysit-prs repository-policy keys,
 read by `/source-control:babysit-prs`. Every consumer reads this one document; none bakes its own
 layering rules, and the three layers and per-key merge below govern the first two families. The
 repository-policy keys resolve per target repository under their own section.
@@ -24,12 +24,11 @@ Implements the tracked-rich-config extensibility contract in
 
 ## The config surface
 
-Markdown, one `## <key>` H2 per key, the value as the section body. The ten babysit-prs
+Markdown, one `## <key>` H2 per key, the value as the section body. Eight babysit-prs
 repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`,
-`babysit_skip_downgrade_logins`, `babysit_review_trigger_phrase`, `babysit_review_bot_logins`,
-`babysit_review_settle_minutes`, `babysit_review_gate_context`, `babysit_ci_gateway_context`) live
-on this surface too; their values and merge modes are in
+`babysit_skip_downgrade_logins`, `babysit_review_trigger_phrase`, `babysit_review_gate_context`,
+`babysit_ci_gateway_context`) live on this surface too; their values and merge modes are in
 [babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys). The convention keys:
 
 - `subject_pattern`: required; the literal keyword `Conventional Commits`, or an anchored regex
@@ -311,7 +310,7 @@ reconciles the two, and every rule below is fail-closed:
 
 ## babysit-prs repository-policy keys
 
-Ten `/source-control:babysit-prs` keys describe **repository tooling**: merge method, hold lists,
+Eight `/source-control:babysit-prs` keys describe **repository tooling**: merge method, hold lists,
 review triggers, and the CI and review gate contexts. `/source-control:babysit-prs` resolves them
 **per target repository, on every fleet cycle**, from that repository's tracked
 `.claude/source-control.md` on its **default branch**, read through the contents API
@@ -335,8 +334,8 @@ surface earlier. The split and its rationale are in
 | `babysit_merge_block_labels` | bullet list of labels | hold list: add-only union |
 | `babysit_extra_dependency_manager_logins` | bullet list of logins | hold list: add-only union |
 | `babysit_approval_downgrade_logins` | bullet list of logins | hold list: add-only union |
-| `babysit_review_bot_logins` | bullet list of logins | one pair with the settle minutes; adds to the fallback reviewers |
-| `babysit_review_settle_minutes` | number of minutes, at least one second | one pair with the review bot logins, never shorter than the fallback settle |
+| `babysit_review_bot_logins` | bullet list of logins | `userConfig`-only; a repository declaration is ignored |
+| `babysit_review_settle_minutes` | number of minutes, at least one second | `userConfig`-only; a repository declaration is ignored |
 | `babysit_skip_downgrade_logins` | bullet list of logins | remove-only |
 | `babysit_merge_method` | `squash`, `merge`, or `rebase` | repository value wins |
 | `babysit_review_trigger_phrase` | the review-request comment text | repository value wins |
@@ -348,11 +347,13 @@ Merge modes:
 - **Hold lists** are the union of the repository list and the fallback list. Either side can add an
   entry and neither can drop one, so a repository-writable file never shortens a hold or removes a
   veto label.
-- **The review pair** applies from the repository only when it declares both halves; a
-  half-declared repository pair is ignored with a note on stderr and the fallback pair applies
-  unchanged. The repository's reviewer logins add to the fallback reviewers and never replace them,
-  and when the fallback settle window is set, the effective window is never shorter than it, so the
-  repository can lengthen the hold and never narrow it.
+- **The review pair** is `userConfig`-only: a repository that declares either key is ignored with a
+  note on stderr, and the `userConfig` pair applies unchanged. The merge gate clears the settle hold
+  as soon as ANY listed reviewer has reviewed the live head, so a repository-writable reviewer list
+  that adds a login lets that login clear the hold before the operator's reviewer has reviewed,
+  and one that replaces the list can swap the operator's reviewer out. Either shortens or removes a
+  hold, so a repository does not supply the pair until the maintainer rules on how its pair
+  combines with the operator's.
 - **`babysit_skip_downgrade_logins`** is remove-only. When the repository declares the key, the
   effective set is the fallback set intersected with the repository list, so a repository can narrow
   the set and can never add a login. The fallback remains the only way to add one, which is why its
@@ -362,11 +363,13 @@ Merge modes:
   checks that must pass before the loop posts the review trigger, so anyone who can write the
   default branch can redirect them; they are read from the default branch only.
 
-Each key whose fallback value is used prints one deprecation note on stderr per process, naming the
-cascade key. The fallback is removed in a later minor release, with a CHANGELOG `Removed` entry, no
-earlier than 90 days after the release that introduced this resolver. Until then an operator with
-several identity domains on one machine can leave the fallback flags unset and declare the keys in
-each repository.
+Each of the seven keys other than the review pair and `babysit_skip_downgrade_logins` prints one
+deprecation note on stderr per process, naming the cascade key, whenever its fallback value is used.
+That fallback is removed in a later minor release, with a CHANGELOG `Removed` entry, no earlier than
+90 days after the release that introduced this resolver. Until then an operator with several
+identity domains on one machine can leave those fallback flags unset and declare the keys in each
+repository. The `userConfig` values of the review pair and of `babysit_skip_downgrade_logins` are
+not deprecated and raise no note.
 
 ## The three layers
 
