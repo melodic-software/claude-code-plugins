@@ -93,11 +93,15 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 if [[ $# -lt 1 ]]; then
-  printf 'Usage: check-evals-quality.sh <evals.json> [<evals.json> ...]\n' >&2
+  printf 'Usage: check-evals-quality.sh <evals.json> [<evals.json> ...] (run with --help)\n' >&2
   exit 2
 fi
 
 for f in "$@"; do
+  if [[ "$f" == -* && ! -f "$f" ]]; then
+    printf 'Error: unknown option: %s (run with --help)\n' "$f" >&2
+    exit 2
+  fi
   if [[ ! -f "$f" ]]; then
     printf 'Error: not a file: %s\n' "$f" >&2
     exit 2

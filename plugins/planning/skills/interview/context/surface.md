@@ -193,7 +193,7 @@ Rules R-A to R-K:
 
 ## Wording lint
 
-Every question states its decision in plain words. Before `add-round`, scan each title, recommendation and basis for bare ids (`[A-Z]+[0-9]+`) and coined terms, and define each inline or spell it out. `round.py` warns on a bare id that names no question in the file and on a recommendation or basis over the length budget (R12); treat a warning as a rewrite.
+Every question states its decision in plain words. Before `add-round`, scan each title, recommendation and basis for bare ids (`[A-Z]+[0-9]+`, other than version labels such as `V1`) and coined terms, and define each inline or spell it out. `round.py` warns on a bare id (other than a version label) that names no question in the file and on a recommendation or basis over the length budget (R12); treat a warning as a rewrite.
 
 ## Offers
 
