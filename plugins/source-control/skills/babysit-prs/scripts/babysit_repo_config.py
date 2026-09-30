@@ -323,8 +323,9 @@ def resolve(
 
     The fetched layer, or its error, is cached per repository for the process,
     so one run sees one view of each repository. A deprecation note naming the
-    repository key is printed once per key per process whenever a `userConfig`
-    value takes effect.
+    repository key is printed once per key per process whenever a deprecated
+    `userConfig` value takes effect. The review pair and
+    `babysit_skip_downgrade_logins` are not deprecated and print none.
     """
     cache_key = owner_repo.casefold()
     if cache_key not in _cache:
