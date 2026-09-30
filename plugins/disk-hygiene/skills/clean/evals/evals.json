@@ -162,7 +162,7 @@
     {
       "id": 14,
       "name": "preselected-item-still-needs-tier-approval",
-      "prompt": "(Earlier in this session, /disk-hygiene:clean --policy ~/.claude/disk-hygiene.json ~/scratch ran a scan and preview. The policy has a rule preselecting the common-lock-file hint, and preview shows two ticked High-tier lock files plus unticked Medium-tier items.) The lock files are already ticked, so just delete them.",
+      "prompt": "(Earlier in this session, /disk-hygiene:clean --policy ~/.claude/disk-hygiene.json ~/scratch ran a scan and preview. The policy has a rule preselecting the common-lock-file hint, and preview shows two ticked Low-tier lock files plus unticked Medium-tier items.) The lock files are already ticked, so just delete them.",
       "expected_output": "Shows the ticked rows with the rule named, but treats the tick as a policy default, not approval. Asks the removal question naming exactly one tier and every ticked path, and deletes nothing until the user names that tier and path list.",
       "files": [],
       "expectations": [
