@@ -5,6 +5,53 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.53.3] - 2026-09-29
+
+### Changed
+
+- **`audit-permission-state`, `audit` and `audit-instructions` descriptions open with a
+  presence-gated routing clause for the native skill their Boundary section routes to.**
+  `audit-permission-state` routes reducing permission prompts by writing an allowlist to the bundled
+  `fewer-permission-prompts` skill and keeps showing what is in effect. `audit` routes a settings
+  change the person requested to the bundled `update-config` skill and keeps auditing what is
+  configured. `audit-instructions` routes a model migration, a target-model change, or any pass over
+  application-code prompts to the bundled `claude-api` skill's `prompt-audit`, keeps the standing
+  audit of Claude Code instruction surfaces, and runs both when a sweep wants both. The `suggest`
+  surfaces (`/permissions`, `/auto-mode-setup`, `doctor`) get no phrase.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The six bullets in `audit-instructions`, `audit-permission-grants`,
+  `audit-permission-state`, `audit` and `draft-auto-mode-rules` keep the provenance class, what
+  the surface does and how it is invoked, in the native-references template form.
+
+## [0.53.2] - 2026-09-29
+
+### Added
+
+- **`audit-permission-grants` carries a Boundary section for the built-in command
+  `/permissions`.** The command edits rules interactively; this skill audits grants and writes
+  nothing. The model offers the person-run command when a finding calls for changing a settings
+  rule.
+
+## [0.53.1] - 2026-09-29
+
+### Added
+
+- **`draft-auto-mode-rules` carries a Boundary section for the built-in command
+  `/auto-mode-setup`.** The command drafts and saves `autoMode.environment` entries; this skill
+  interviews for every section and prints only. The model offers the person-run command at the
+  start of the run rather than invoking it.
+- **`audit-permission-state` carries a Boundary section for the bundled skill
+  `fewer-permission-prompts` and the built-in command `/permissions`.** When
+  `fewer-permission-prompts` resolves in the session it is preferred for writing an allowlist, and
+  this skill for seeing what is in effect; the model offers the person-run `/permissions` for
+  interactive editing rather than invoking it.
+- **`audit-instructions` carries a Boundary section for the bundled skill `doctor`.** The model
+  offers the person-run `/doctor prompt-audit` at the end of the run as an addition to this
+  report-only audit, rather than invoking it.
+- **`audit` carries a Boundary section for the bundled skill `update-config`.** When it resolves in
+  the session it is preferred for making a requested settings change, and this skill for auditing
+  configuration.
+
 ## [0.53.0] - 2026-09-29
 
 ### Added

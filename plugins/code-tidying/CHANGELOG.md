@@ -3,6 +3,16 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-09-29
+
+### Added
+
+- **`audit-dead-code` classifies unlisted extensions and extensionless scripts.** The source
+  classifier reads its extension list from one place, and an extensionless file with a `#!` first
+  line is classified by its interpreter. An unreferenced `.sol`, `.s` or shebang script is now an
+  `unreferenced-file` candidate and counts in `Summary coverage`. SKILL.md states how to extend the
+  list ([#5329](https://github.com/melodic-software/claude-code-plugins/issues/5329)).
+
 ## [0.24.0] - 2026-09-29
 
 ### Added

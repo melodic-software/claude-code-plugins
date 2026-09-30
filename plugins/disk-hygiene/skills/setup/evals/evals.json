@@ -32,20 +32,20 @@
       "expected_output": "Step 1 FAILs on the registration shape itself: exec form resolves `bash` on PATH, which on Windows finds the WSL relay System32\\bash.exe, the launch fails, and a failed hook launch is non-blocking so the guard silently enforces nothing.",
       "files": [],
       "expectations": [
-        "Fails on the presence of an args key or a bare interpreter name in command, not on the machine's environment",
+        "Fails on the bare interpreter name in command, not on the machine's environment",
         "Does NOT report the problem as a PATH-ordering issue and does NOT recommend reordering PATH or setting CLAUDE_CODE_GIT_BASH_PATH",
-        "Explains that shell form is resolved by Claude Code, so PATH order neither causes nor fixes it"
+        "Names the fix as command node with hooks/exec-bash.mjs first in args, then hooks/run-python-hook.sh"
       ]
     },
     {
       "id": 4,
-      "name": "missing-git-bash-reported-as-prerequisite-not-path-fix",
-      "prompt": "/disk-hygiene:setup check on a Windows machine with no Git Bash installed.",
-      "expected_output": "Reports the absent Git Bash as an environment prerequisite, because shell form falls back to PowerShell there and PowerShell cannot run the .sh launcher.",
+      "name": "missing-bash-fails-the-launcher-probe",
+      "prompt": "/disk-hygiene:setup check on a Windows machine with no Git Bash installed and no bash.exe on PATH outside System32.",
+      "expected_output": "FAILs the bash probe: no bash resolves in the order the exec-bash.mjs header lists, so every hook fails to launch, the user sees a hook error notice, the guard is not enforced, and the model is not told.",
       "files": [],
       "expectations": [
-        "Names Git Bash as a prerequisite for shell-form hook routing on Windows",
-        "Does not prescribe a PATH reordering remedy",
+        "Reads the resolution order from hooks/exec-bash.mjs rather than reciting it",
+        "Names CLAUDE_CODE_GIT_BASH_PATH, a Git for Windows install, or a bash.exe on PATH outside System32, Sysnative and WindowsApps as the remediation",
         "Still reports the wired-hook registration shape as correct when it is"
       ]
     },
