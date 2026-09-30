@@ -96,7 +96,8 @@ if command -v pgrep >/dev/null 2>&1 && [[ -d /proc/$$ ]]; then
     [[ -n "$cmd" ]] || continue
     root="$(owner_root "$cwd ")"
     abs_cmd=""
-    for tok in $cmd; do
+    read -ra toks <<<"$cmd"
+    for tok in "${toks[@]}"; do
       [[ "$tok" != /* && "$tok" == */* && -n "$cwd" ]] && tok="$cwd/$tok"
       abs_cmd+="$tok "
     done
