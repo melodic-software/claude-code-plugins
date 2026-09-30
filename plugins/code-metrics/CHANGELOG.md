@@ -3,6 +3,28 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3] - 2026-09-30
+
+### Fixed
+
+- **Reports are keyed per project and retention is scoped to the key.** `persist-report.sh` wrote
+  `<data>/reports/<skill>-<stamp>.json` with no project key and kept the newest 20 per skill across
+  every project on the machine, so a run in one repository could delete another's reports. Reports
+  now land in `<data>/reports/<state-key>/`, the key comes from the synced `lib/state-key.sh`, and
+  the newest-20 retention counts only that directory. Reports written before this change stay in
+  place, unkeyed, and a run names them once on stderr. When no key can be derived the run keeps no
+  report and says why.
+
+## [0.4.2] - 2026-09-30
+
+### Changed
+
+- **The duplication size limits cite their upstream basis.** `reference/collectors.md` has a
+  `Duplication size limits` table with a basis, verification date and recheck trigger for the jscpd
+  `--max-size` default, the SonarJS file-size limit and the SonarQube duplication rules. `config.md`
+  and the config template point at it instead of restating the figures. The jscpd row records that
+  the documented "no limit" default contradicts the 1mb skip a live run shows.
+
 ## [0.4.1] - 2026-09-30
 
 ### Fixed
