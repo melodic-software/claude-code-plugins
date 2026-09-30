@@ -649,7 +649,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `design` → `visualization:visualize`
 
-- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so visualize does not route the model to it. For a hand-tweakable visual layout (UI mockup, poster, one-pager) it renders its own rich page and, where the medium permits publishing, tells the person they can run /design instead of or alongside it. The canvas is a persistent, versioned, shareable Artifact; this skill's page paths are throwaway or plain-static. The Boundary section carries the suggest sentence, the split, and the mutation gate; the catalog spoke carries the surface facts. Switched from route to suggest by operator ruling at the 2026-09-29 interview.
+- **Verdict:** `complementary`: The bundled design skill is model-invocation-disabled, so visualize does not route the model to it. For a hand-tweakable visual layout (UI mockup, poster, one-pager) it renders its own rich page and, where the medium permits publishing, tells the person they can run /design instead of or alongside it. The canvas is a persistent, shareable Artifact whose edits save automatically; this skill's page paths are throwaway or plain-static. The Boundary section carries the suggest sentence, the split, and the mutation gate; the catalog spoke carries the surface facts. Switched from route to suggest by operator ruling at the 2026-09-29 interview.
 - **Integration:** `suggest`
 - **Native surface:** `design` (bundled skill; markers: gated, model-invocation-disabled)
 - **Our component:** `visualization:visualize` (skill)
