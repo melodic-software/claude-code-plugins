@@ -25,6 +25,7 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH="$HOOK_DIR/run-guards.sh"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
 
 export CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.."
 export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data"
@@ -35,12 +36,19 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # Git Bash rewrites an argument that is entirely a POSIX path before a native
-# jq sees it. Fixture files are created at the bash spelling; if the payload
-# carries the rewritten spelling the verifiers never find the file and never
-# call git, so the rev-parse count is 0 (#4527). Exported, not a jq() function:
-# `command -v jq` would then see the function and the no-jq PATH probe could
-# not prove jq was gone.
-export MSYS_NO_PATHCONV=1
+# jq sees it. Fixture files are created at the bash spelling, so payloads must
+# carry it unrewritten or the verifiers never find the file and never call git
+# (#4527). The suppression is scoped to this suite's own jq calls, never
+# exported: git.exe and the guards under test would inherit it and fail to
+# open a POSIX /tmp/... repo. The no-jq probe runs the dispatcher in a child
+# bash, which does not inherit the function. The one path jq must open itself,
+# hooks.json, goes through cygpath -m when it exists, because a native jq
+# cannot open a POSIX /c/... spelling.
+if declare -F jq >/dev/null; then
+  jq() { MSYS_NO_PATHCONV=1 command jq --binary "$@"; }
+fi
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+if command -v cygpath >/dev/null 2>&1; then HOOKS_JSON=$(cygpath -m "$HOOKS_JSON"); fi
 
 # Stub guards. Each one sources the real library exactly as a shipped guard
 # does, so the dispatcher's overrides are exercised through the same seam.
@@ -391,7 +399,7 @@ for d in "${path_dirs[@]}"; do
     NOJQ_PATH+="${NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+if PATH="$NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "could not build a PATH without jq"
 else
   run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does
@@ -607,7 +615,7 @@ for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dan
   block-hook-bypass flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
   block-root-delete-target cli-flag-verify skill-reference-verify stale-path-verify; do
-  n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOK_DIR/hooks.json")
+  n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOKS_JSON")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
@@ -620,7 +628,7 @@ done
 # is a verifier that silently never fires on it, and an `if` row with no gate
 # is a spawn that always early-exits. Both directions are pinned here, against
 # the scripts' source rather than a second hand-kept list.
-post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOK_DIR/hooks.json")
+post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOKS_JSON")
 post_n=$(jq 'length' <<<"$post_rows")
 if ((post_n > 1)); then ok "PostToolUse Write|Edit carries one row per gated extension ($post_n)"; else bad "PostToolUse Write|Edit carries $post_n row(s); expected one per gated extension"; fi
 ungated=$(jq -r '[.[] | select(has("if") | not)] | length' <<<"$post_rows")
@@ -745,7 +753,7 @@ if ((PRIMED_N > 0)); then
 else
   bad "PRIME_FILTERS could not be read out of run-guards.sh"
 fi
-DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh"))' "$HOOK_DIR/hooks.json")
+DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh"))' "$HOOKS_JSON")
 ALL_DISPATCHED=$(while IFS= read -r cmd; do guards_of "$cmd"; done <<<"$DISPATCH_CMDS" | sort -u)
 DISPATCHED_N=$(lines_of "$ALL_DISPATCHED" | wc -l | tr -d ' ')
 if ((DISPATCHED_N >= 10)); then
@@ -897,7 +905,7 @@ assert_contains "dispatched secret guard: names the pattern" "$GUARD_ERR" "AWS A
 # cancelled at its hooks.json timeout blocks nothing. Each run below is under
 # `timeout 20`, a hang backstop and the only timing check: a wall-clock
 # threshold on a shared shard would measure the shard.
-BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOK_DIR/hooks.json")
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOKS_JSON")
 read -r -a BASH_ROW_ARGS <<<"${BASH_ROW#*run-guards.sh }"
 ROW_CAP=""
 for ((i = 0; i + 1 < ${#BASH_ROW_ARGS[@]}; i++)); do
@@ -1093,7 +1101,7 @@ assert_contains "a --max-command-len that is not a whole number is reported" "$O
 # over-length command before they tokenize it, so the row answers at once and
 # the uncapped guards never see it. Each ceiling guard keeps its kill switch:
 # with the first disabled, the next one blocks.
-BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOK_DIR/hooks.json")
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOKS_JSON")
 read -r -a BASH_ROW_TOKS <<<"$BASH_ROW"
 BASH_ROW_ARGS=()
 for ((i = 0; i < ${#BASH_ROW_TOKS[@]}; i++)); do
@@ -1127,8 +1135,12 @@ fi
 
 HEREDOC_BODY=""
 while ((${#HEREDOC_BODY} < 70000)); do HEREDOC_BODY+=$'The quick brown fox jumps over the lazy dog, again.\n'; done
-HEREDOC_PAYLOAD=$(jq -nc --arg c "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" \
-  '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
+# Through stdin, not `--arg`: a native jq.exe gets the command line whole, and
+# Windows caps one at 32,767 characters, so a 70 KB argument leaves the payload
+# empty and every row case below sees no command at all.
+HEREDOC_PAYLOAD=$(printf '%s' "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" |
+  jq -Rsc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:.}}')
+[[ ${#HEREDOC_PAYLOAD} -gt 70000 ]] || bad "the ~70 KB payload was not built (${#HEREDOC_PAYLOAD} chars)"
 row_t0=${EPOCHREALTIME:-}
 ROW_ERR=$(cd "$HOOK_DIR" && RUN_GUARDS_PROFILE=1 bash "$DISPATCH" "${BASH_ROW_ARGS[@]}" <<<"$HEREDOC_PAYLOAD" 2>&1 >/dev/null)
 ROW_RC=$?
