@@ -35,9 +35,14 @@ DISPOSITIONS = frozenset({"keep", "remove", "review"})
 SOURCES = frozenset({"engine", "human"})
 
 
+def _prefix(path: str) -> str:
+    """The text every descendant path starts with. The scan target is ``.``."""
+    return "" if path == "." else f"{path}/"
+
+
 def descendant_set(path: str, entries: list[dict[str, Any]]) -> list[str]:
     """Inventoried paths strictly below ``path``, in stable order."""
-    prefix = f"{path}/"
+    prefix = _prefix(path)
     return sorted(
         entry["path"]
         for entry in entries
@@ -70,13 +75,54 @@ def identity_holds(
     A moved inode or a changed child set means the thing being described is not
     the thing that was described, so the record is not evidence for this entry.
     A set that was never walked, on either side, cannot be compared and is not
-    a change.
+    a change. Sets compare below their own entry, so a record made from one scan
+    target still holds for the same entry reached from another.
     """
     if record.get("identity") != identity_of(entry):
         return False
     stored = record.get("descendant_set")
     current = descendants_of(entry, entries)
-    return stored is None or current is None or stored == current
+    if stored is None or current is None:
+        return True
+    return _below(record["path"], stored) == _below(entry["path"], current)
+
+
+def _below(path: str, descendants: list[str]) -> list[str]:
+    prefix = _prefix(path)
+    return [item.removeprefix(prefix) for item in descendants]
+
+
+def _human_by_identity(
+    records: dict[tuple[str, str], dict[str, Any]],
+) -> dict[tuple[Any, Any, Any], list[dict[str, Any]]]:
+    """Operator answers indexed by the filesystem object they describe.
+
+    A missing device or inode cannot tell one object from another, so such a
+    record is never reused outside its own target and path.
+    """
+    index: dict[tuple[Any, Any, Any], list[dict[str, Any]]] = {}
+    for record in records.values():
+        identity = record["identity"]
+        if record["source"] == "human" and identity["device"] and identity["inode"]:
+            key = (identity["device"], identity["inode"], identity["kind"])
+            index.setdefault(key, []).append(record)
+    return index
+
+
+def _other_target_answer(
+    index: dict[tuple[Any, Any, Any], list[dict[str, Any]]],
+    target: str,
+    entry: dict[str, Any],
+    entries: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """An operator answer recorded under another scan target for this same entry."""
+    identity = identity_of(entry)
+    for record in index.get(
+        (identity["device"], identity["inode"], identity["kind"]), []
+    ):
+        if record["target"] != target and identity_holds(record, entry, entries):
+            return record
+    return None
 
 
 def _question(path: str) -> str:
@@ -225,12 +271,12 @@ def sync_catalog(
     entries = snapshot.get("entries") or []
     by_path = {entry["path"]: entry for entry in entries}
     records = _records_by_key(existing)
+    answers_elsewhere = _human_by_identity(records)
     state: dict[str, str] = {}
+    reused: set[str] = set()
     for path, entry in by_path.items():
         previous = records.get((target, path))
-        if previous is None:
-            continue
-        if identity_holds(previous, entry, entries):
+        if previous is not None and identity_holds(previous, entry, entries):
             stored = previous["descendant_set"]
             records[(target, path)] = {
                 **previous,
@@ -242,7 +288,10 @@ def sync_catalog(
                 "last_verified": run_id,
             }
             state[path] = "unchanged"
-        else:
+        elif _other_target_answer(answers_elsewhere, target, entry, entries):
+            records.pop((target, path), None)
+            reused.add(path)
+        elif previous is not None:
             records[(target, path)] = _unresolved_record(
                 target, entry, entries, run_id, previous
             )
@@ -253,6 +302,8 @@ def sync_catalog(
             path = conclusion.get("path") if isinstance(conclusion, dict) else None
             if not isinstance(path, str) or path not in by_path:
                 unmatched.append(str(path))
+                continue
+            if source == "engine" and path in reused:
                 continue
             if (target, path) not in records:
                 records[(target, path)] = _unresolved_record(
@@ -317,6 +368,11 @@ def _report(
 def annotate_entries(snapshot: dict[str, Any], catalog: dict[str, Any]) -> None:
     """Set ``prior_disposition`` on entries whose record identity still holds.
 
+    The record under this target and path decides first. Otherwise an operator
+    answer recorded under another scan target matches the same entry by
+    identity, and the scan target itself, which is not an entry, gets
+    ``target_prior_disposition``.
+
     The field is a report hint. It is not an approval and no plan copies it.
     ``prior_unresolved`` marks a record that still has an open question, so an
     unknown owner does not read as a settled keep.
@@ -324,15 +380,26 @@ def annotate_entries(snapshot: dict[str, Any], catalog: dict[str, Any]) -> None:
     target = str(snapshot.get("target"))
     entries = snapshot.get("entries") or []
     records = _records_by_key(catalog)
+    answers_elsewhere = _human_by_identity(records)
     for entry in entries:
-        record = records.get((target, entry["path"]))
         entry.pop("prior_disposition", None)
         entry.pop("prior_unresolved", None)
+        record = records.get((target, entry["path"]))
         if record is None or not identity_holds(record, entry, entries):
+            record = _other_target_answer(answers_elsewhere, target, entry, entries)
+        if record is None:
             continue
         entry["prior_disposition"] = record.get("disposition")
         if record.get("question"):
             entry["prior_unresolved"] = True
+    snapshot.pop("target_prior_disposition", None)
+    identity = snapshot.get("target_identity")
+    if isinstance(identity, dict):
+        answer = _other_target_answer(
+            answers_elsewhere, target, {**identity, "path": "."}, entries
+        )
+        if answer is not None:
+            snapshot["target_prior_disposition"] = answer["disposition"]
 
 
 def render_markdown(catalog: dict[str, Any], report: dict[str, Any]) -> str:

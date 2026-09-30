@@ -844,10 +844,18 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
 - A record is a hint. It records a conclusion, never an approval. Preview and apply do not read it,
   so a catalogued `remove` still needs the same preview, approval token, and revalidation as an
   entry that was never catalogued.
-- A record belongs to one scan target: the same entry reached from another target is not annotated
-  and is asked again.
-- A changed identity (device, inode, kind) or descendant set invalidates the record. It is replaced
-  by an unresolved `keep` with its question, and the next scan stops annotating it.
+- An operator answer follows the entry, not the scan target. A record with `source: human` whose
+  identity (device, inode, kind) and descendant set still hold matches the same entry when another
+  scan target reaches it, whatever path that scan gives it, so the answer is not asked again. The
+  scan annotates the entry, or sets `target_prior_disposition` when the scan target itself is the
+  answered entry. Matching looks at the record under this target and path first, then at answers
+  recorded under other targets. An engine record is reused only under its own target and path.
+  A matched answer is not copied: the next answer recorded under this target becomes its own record
+  and wins here.
+- A changed identity (device, inode, kind) or descendant set invalidates the record. Under its own
+  target it is replaced by an unresolved `keep` with its question, and the next scan stops
+  annotating it. An entry reached from another target whose identity or descendant set differs
+  from the answer is treated as never answered and is asked.
 - An engine finding with no owner is not a conclusion: the record stays `keep` and the report asks
   who owns it. Unknown stays visibly unknown, and `prior_unresolved` marks it on the next scan.
 - An operator answer clears the question with or without an owner, so `{"path": "<name>",

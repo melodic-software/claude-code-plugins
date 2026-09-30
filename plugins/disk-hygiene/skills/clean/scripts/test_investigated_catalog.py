@@ -54,6 +54,7 @@ class CatalogRulesTest(unittest.TestCase):
             _entry("cache/keep", inode=4, kind="file", logical_size=1),
         ]
         record = {
+            "path": "cache",
             "identity": catalog.identity_of(entries[0]),
             "descendant_set": catalog.descendant_set("cache", entries),
         }
@@ -182,6 +183,71 @@ class CatalogRulesTest(unittest.TestCase):
         self.assertEqual("keep", elsewhere["entries"][0]["prior_disposition"])
         partial, _ = catalog.sync_catalog(_snapshot(), merged, [], [], "run-j")
         self.assertEqual(2, len(partial["records"]))
+
+    def test_operator_answer_is_reused_by_identity_from_another_target(self) -> None:
+        first = _snapshot(
+            _entry("esupport", inode=20),
+            _entry("esupport/a", inode=21, kind="file"),
+            target="/root",
+        )
+        answered, _ = catalog.sync_catalog(
+            first, None, [], [{"path": "esupport", "disposition": "keep"}], "run-o"
+        )
+        reached = _snapshot(
+            _entry("vendor/esupport", inode=20),
+            _entry("vendor/esupport/a", inode=21, kind="file"),
+            target="/other",
+        )
+        catalog.annotate_entries(reached, answered)
+        self.assertEqual("keep", reached["entries"][0]["prior_disposition"])
+        again, report = catalog.sync_catalog(
+            reached,
+            answered,
+            [_finding("vendor/esupport", owner=None, disposition="remove")],
+            [],
+            "run-p",
+        )
+        self.assertEqual([], report["questions"])
+        self.assertEqual(answered, again)
+        own = _snapshot(_entry("a", inode=21, kind="file"), target="/root/esupport")
+        own["target_identity"] = {**_entry("esupport", inode=20), "size_qualifiers": []}
+        catalog.annotate_entries(own, answered)
+        self.assertEqual("keep", own["target_prior_disposition"])
+        own["target_identity"]["inode"] = 99
+        catalog.annotate_entries(own, answered)
+        self.assertNotIn("target_prior_disposition", own)
+
+    def test_identity_change_under_another_target_invalidates_the_answer(self) -> None:
+        first = _snapshot(_entry("esupport", inode=20), target="/root")
+        answered, _ = catalog.sync_catalog(
+            first, None, [], [{"path": "esupport", "disposition": "keep"}], "run-q"
+        )
+        moved = _snapshot(_entry("esupport", inode=77), target="/other")
+        catalog.annotate_entries(moved, answered)
+        self.assertNotIn("prior_disposition", moved["entries"][0])
+        grown = _snapshot(
+            _entry("esupport", inode=20),
+            _entry("esupport/new", inode=5, kind="file"),
+            target="/other",
+        )
+        catalog.annotate_entries(grown, answered)
+        self.assertNotIn("prior_disposition", grown["entries"][0])
+        _, report = catalog.sync_catalog(
+            moved, answered, [_finding("esupport", owner=None)], [], "run-r"
+        )
+        self.assertEqual(["esupport"], [item["path"] for item in report["questions"]])
+
+    def test_engine_records_are_not_reused_across_targets(self) -> None:
+        stored, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/root"),
+            None,
+            [_finding("esupport")],
+            [],
+            "run-s",
+        )
+        other = _snapshot(_entry("esupport", inode=20), target="/other")
+        catalog.annotate_entries(other, stored)
+        self.assertNotIn("prior_disposition", other["entries"][0])
 
     def test_malformed_records_are_ignored_not_fatal(self) -> None:
         snapshot = _snapshot(_entry("scratch"))
