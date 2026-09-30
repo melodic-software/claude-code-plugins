@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.3] - 2026-09-29
+
+### Added
+
+- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park, drop or open, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
+
 ## [0.47.2] - 2026-09-29
 
 ### Added
@@ -11,10 +17,6 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **`plan` carries a Boundary section for the built-in `/plan` command.** Plan mode stays the person's permission-mode switch, offered where Plan Mode Integration already suggests it; the skill keeps the persisted, approval-gated plan.
 
 ## [0.47.1] - 2026-09-29
-
-### Added
-
-- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park, drop or open, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
 
 ### Fixed
 
