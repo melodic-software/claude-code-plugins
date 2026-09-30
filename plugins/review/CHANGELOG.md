@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.1] - 2026-09-30
+
+### Changed
+
+- **Boundary text for native surfaces no longer asserts that the surface ships with Claude
+  Code.** The `code-review` bullet in `code-review` and the `security-review` bullet in
+  `security-review` keep the provenance class, what the surface does and how it is invoked, in the
+  native-references template form; `fanout`'s Boundary says the bundled command and the managed
+  service are not marketplace plugins.
+
 ## [0.34.0] - 2026-09-29
 
 ### Changed

@@ -3,11 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.2] - 2026-09-30
+## [0.49.3] - 2026-09-30
 
 ### Fixed
 
 - **The interview surface sets aside a counted own answer when the session revises the recommendation.** `reply --rec` and `revise --rec` stamp the set-aside fields on a question whose decision is an own answer, so the page and status stop showing the earlier own text as the decision, and the note field no longer prefills from it. Accept, alt and defer decisions stay, and a `record-terminal` after the revision counts ([#5453](https://github.com/melodic-software/claude-code-plugins/issues/5453)).
+
+## [0.49.2] - 2026-09-30
+
+### Changed
+
+- **The `/goal` Boundary bullet in `draft-goal-condition` and the `/plan` bullet in `plan` no
+  longer assert that the command ships with Claude Code.** Each keeps the provenance class, what
+  the command does and how it is invoked, in the native-references template form.
 
 ## [0.49.1] - 2026-09-30
 

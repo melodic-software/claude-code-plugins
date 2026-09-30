@@ -21,11 +21,10 @@ skill owns **what to look for**; the wrapper owns **how to post**.
 Two native Claude Code review surfaces share this lane's name, and the three get conflated on any
 open pull request:
 
-- **`code-review` (bundled skill, alias `/review`).** Ships with Claude Code rather than as a
-  marketplace plugin. A developer runs it in their session against the current diff, a PR number,
-  a branch, or a path; bare, it reports into the session. `--fix` edits the working tree,
-  `--comment` posts inline comments on the PR as that developer, and `ultra` launches a cloud
-  review. Claude may start it on its own where the session allows.
+- **`code-review` (bundled skill, alias `/review`)**: a developer runs it in their session against
+  the current diff, a PR number, a branch, or a path; bare, it reports into the session. `--fix`
+  edits the working tree, `--comment` posts inline comments on the PR as that developer, and `ultra`
+  launches a cloud review. Claude may start it on its own where the session allows.
 - **Managed Code Review (GitHub App service).** An org-level research preview on Team and
   Enterprise plans that reviews pull requests on its own triggers and posts inline findings.
 - **This skill (marketplace plugin).** The review logic the `claude-review` reusable workflow runs
