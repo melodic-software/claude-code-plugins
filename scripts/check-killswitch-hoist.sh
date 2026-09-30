@@ -55,8 +55,9 @@
 # `plugins/*/hooks/hooks.json` and implemented as shell scripts. Rule 2 covers
 # every event in the same files, with the same token walk. A hook implemented in another language sources no shell library, has no
 # `source` line to sit above, and is reported as NOT SCANNED rather than passed
-# silently — today that is disk-hygiene's destructive_guard.py and
-# context-budget's node handler.
+# silently — today that is disk-hygiene's destructive_guard.py, context-budget's
+# node handler, and the inline shell-form node-notice rows in guardrails and
+# disk-hygiene.
 #
 # Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
 # the whole family's contract, stated once in README.md, "The check-script
