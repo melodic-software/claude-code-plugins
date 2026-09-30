@@ -41,7 +41,7 @@ source "$HOOK_DIR/judge-lib.sh"
 
 # Two `if` rows can match one path and each starts this job; one runs.
 mkdir -p "$DATA/marks" "$DATA/pending/$PKEY/$SID"
-[[ -n "${TEST_JUDGE_HANDOFF:-}" ]] || (set -o noclobber && : >"$DATA/marks/judge-$call") 2>/dev/null || exit 0
+[[ -n "${TEST_JUDGE_HANDOFF:-}" ]] || (set -o noclobber && : >"$DATA/marks/judge-$SID-$call") 2>/dev/null || exit 0
 
 HELD=()
 pend="$DATA/pending/$PKEY/$SID/$call"
@@ -69,7 +69,7 @@ if [[ ! -f "$own" && -z "${TEST_JUDGE_HANDOFF:-}" ]]; then
   git -C "${file%/*}" check-ignore -q "$file" 2>/dev/null && exit 0
   info="$(jq -cn --arg f "$file" --arg r "$(git -C "${file%/*}" rev-parse --show-toplevel 2>/dev/null)" --arg s "$SID" \
     --argjson i "${info:-null}" '{file: $f, repo: (if $r == "" then null else $r end), names: [], base_ok: 0, lines: [],
-      writers: [{sid: $s, agent: ""}]} + ($i // {}) + {whole: true}')"
+      writers: [{sid: $s, agent: ""}], owner: $s} + ($i // {}) + {whole: true}')"
 fi
 [[ -n "$info" ]] || exit 0
 
@@ -90,4 +90,4 @@ done <<<"$KEYS"
 judge::now
 judge::slot $((NOW + JUDGE_STALE)) || exit 0
 HELD+=("$SLOT")
-judge::run "$info" "$keys" "$SID" "$JUDGE_RUN_TIMEOUT" "$HINT"
+judge::run "$info" "$keys" "$JUDGE_RUN_TIMEOUT" "$HINT"

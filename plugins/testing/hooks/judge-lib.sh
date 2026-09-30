@@ -74,7 +74,8 @@ judge::session_set() {
 # records name: the file, its repository, whether any record says "whole file"
 # (blocks:null), the block names and ordinals the writes created or changed,
 # the first recorded cant-fail-ok: count, the changed lines (the hint for a
-# whole-file bash harness), and the writers (session and agent ids).
+# whole-file bash harness), the writers (session and agent ids) and the last
+# writer's session (the owner of its verdicts).
 judge::load() {
   local s f files=()
   INFOS=()
@@ -90,7 +91,8 @@ judge::load() {
       names: ([.[].blocks | arrays | .[] | "\(.ordinal) \(.name)"] | unique),
       base_ok: (sort_by(.written_at) | .[0].ok_markers // 0),
       lines: ([.[].lines | arrays | .[]] | unique),
-      writers: ([.[] | {sid, agent: (.agent_id // "")}] | unique)}' 2>/dev/null)
+      writers: ([.[] | {sid, agent: (.agent_id // "")}] | unique),
+      owner: (sort_by(.written_at) | .[-1].sid)}' 2>/dev/null)
 }
 
 # judge::derive <info>: set KEYS to one line per in-doubt block of the file as
@@ -150,10 +152,11 @@ judge::derive() {
     printf '%s\n' "$s" >"$tmpd/d$n"
   done
   if ((n)); then
+    b=()
     while read -r m line; do
-      line="${line##*/k}"
-      KEYS+="${m:0:32} $(<"$tmpd/d$line")"$'\n'
+      b[${line##*/k}]="${m:0:32}"
     done < <(judge::sha "$tmpd"/k*)
+    for ((i = 1; i <= n; i++)); do KEYS+="${b[i]} $(<"$tmpd/d$i")"$'\n'; done
   fi
   rm -rf "$tmpd"
 }
@@ -263,13 +266,13 @@ judge::busy() {
   [[ -e "$DATA/locks/$2" ]] && ! judge::stale "$DATA/locks/$2" "$JUDGE_STALE"
 }
 
-# judge::runs_left: true while the session's optional judge-run limit allows
-# another run.
+# judge::runs_left [planned]: true while the session's optional judge-run
+# limit allows another run beyond the planned ones not yet started.
 judge::runs_left() {
   local cap="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS:-}" n
   [[ "$cap" =~ ^[0-9]+$ ]] || return 0
   n="$(find "$DATA/runs/$PKEY/$SID" -type f 2>/dev/null | wc -l)"
-  ((n < cap))
+  ((n + ${1:-0} < cap))
 }
 
 judge::class() {
@@ -373,12 +376,15 @@ judge::section1() {
   awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f' "$HOOK_DIR/../skills/test-value/SKILL.md" 2>/dev/null
 }
 
-# judge::run <info> <keys> <owner sid> <seconds> <hint>: one judge run over the
-# file's keys (the caller holds their locks and a slot), writing verdicts under
-# the owner's ledger. A key left without a verdict gets a failed attempt.
+# judge::run <info> <keys> <seconds> <hint>: one judge run over the file's keys
+# (the caller holds their locks and a slot), writing verdicts under the ledger
+# of the file's last writer, so a successor that adopts that session finds
+# them and their relay markers. A key left without a verdict gets a failed
+# attempt.
 judge::run() {
-  local info="$1" keys="$2" dir="$DATA/verdicts/$PKEY/$3" t="$4" hint="$5" file repo n budget raw sys prompt tbin rc kh
-  IFS=$'\t' read -r file repo < <(jq -r '[.file, (.repo // "")] | @tsv' <<<"$info")
+  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner n budget raw sys prompt tbin rc kh
+  IFS=$'\t' read -r file repo owner < <(jq -r '[.file, (.repo // ""), (.owner // "")] | @tsv' <<<"$info")
+  dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
   [[ -n "$repo" && -d "$repo" ]] || repo="${file%/*}"
   n="$(grep -c . <<<"$keys")"
   budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
@@ -390,8 +396,9 @@ judge::run() {
      keys: [inputs | select(. != "") | capture("^(?<kh>[^ ]+) (?<ordinal>[0-9]+) (?<start>[0-9]+)-(?<end>[0-9]+) (?<name>.*)$")
        | .ordinal |= tonumber | .start |= tonumber | .end |= tonumber]}' <<<"$keys" >"$raw.keys"
   if [[ -z "$MODEL" ]]; then
+    : >"$raw"
     judge::harvest "$raw" "no judge class differs from the writers"
-    rm -f "$raw.keys"
+    rm -f "$raw" "$raw.keys"
     return 0
   fi
   sys="$(cat "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)"$'\n\n'"$(judge::section1)"
@@ -443,8 +450,8 @@ judge::validate() {
     why="a quoted line is not in the file"
   elif [[ "$verdict" == FLAG ]]; then
     tmp="$(mktemp)"
-    jq -j .diff "$v" >"$tmp"
-    if [[ ! -s "$tmp" ]]; then
+    jq -r .diff "$v" >"$tmp"
+    if ! jq -e '.diff | length > 0' "$v" >/dev/null; then
       why="the FLAG proposes no diff"
     elif ! (cd "$repo" && git apply --check "$tmp") >/dev/null 2>&1; then
       why="the proposed diff does not apply"
@@ -520,15 +527,15 @@ judge::findings() {
     jq -rs --arg repo "$repo" --arg branch "$branch" --arg rule "$JUDGE_RULE" '
       def esc: tostring | gsub("\\|"; "\\|") | gsub("[\r\n]+"; " ");
       def rel: .file | ltrimstr($repo + "/");
-      def label: "\(.name)\(if .ordinal > 1 then " #\(.ordinal)" else "" end)";
+      def tname: "\(.name)\(if .ordinal > 1 then " #\(.ordinal)" else "" end)";
       map(select((.repo // "") == $repo)) as $v
       | ($v | map(select(.verdict == "FLAG"))) as $f
       | "---\ntype: review-findings\ndate: \(now | todate)\nbranch: \(if $branch == "" then "none" else $branch end)\n---\n\n## Findings\n\n"
       + "| Rank | Tier | Confidence | Location | Surface(s) | Finding | Action |\n|------|------|------------|----------|------------|---------|--------|\n"
-      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel):\(.value.start) | testing:test-judge | \($rule): test \(.value | label | esc) takes its expected value from the implementation: \(.value.source | esc) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel) \(.value | label | esc) |\n"] | join(""))
+      + ([$f | to_entries[] | "| \(.key + 1) | SUGGESTION |  | \(.value | rel):\(.value.start) | testing:test-judge | \($rule): test \(.value | tname | esc) takes its expected value from the implementation: \(.value.source | esc) | Replace the expected value with one from an independent source; the proposed diff (not applied) is under Verdicts, \(.value | rel) \(.value | tname | esc) |\n"] | join(""))
       + "\n## Surfaces\n\nRan: [testing:test-judge — \($v | length) test block(s) judged; findings: \($rule) \($f | length); declined (judged PASS): \($rule) \($v | map(select(.verdict == "PASS")) | length); UNKNOWN: \($v | map(select(.verdict == "UNKNOWN")) | length)]. Returned no result: [none].\n"
       + "\n## Verdicts\n\nEach verdict below is the judge'"'"'s output, quoted as data. Nothing here has been applied.\n"
-      + ([$v[] | "\n### \(.verdict) \(rel) \(label) (lines \(.start)-\(.end))\n\n"
+      + ([$v[] | "\n### \(.verdict) \(rel) \(tname) (lines \(.start)-\(.end))\n\n"
         + (if .reason != "" then "Reason: \(.reason)\n\n" else "" end)
         + "Judge: \(.model) at \(.effort) effort.\n\n"
         + (if .source != "" then "Where the expected value came from: \(.source)\n\n" else "" end)
