@@ -139,30 +139,10 @@ sufficient one. Specifically:
 - `docs/conventions/hook-precision/README.md` owns the over-fire discipline for a guard
   already in the tree. This ADR is the pre-ship counterpart and defers to it thereafter.
 
-## Session-log grading (#3756)
-
-The per-session hook event log from #3750 is the instrument for a fleet-wide pass:
-blocked-versus-fired per guard, with each block's `subject` available for a
-true/false-positive verdict. `block-hook-bypass` stays in #3721.
-
-**Claim:** no default-on guard is withdrawn, rescoped, or deleted on manufactured
-verdicts. Grading waits on two to four weeks of the operator's own sessions with
-`session_event_log_enabled` on (the switch stays off for consumers). Once that
-window exists, a read-only reduction may emit the findings table (guard, sessions,
-fires, blocks, quoted `subject`) with the true-positive and disposition columns
-blank for the operator. Each non-keep disposition is its own PR with the numbers
-in the body, per clauses 1-4 above. **Basis:** this ADR's "measure before shipping
-on the real corpus" clause; #3756 triage (2026-09-06) that synthetic sessions
-defeat the measurement and that labeling fires is operator judgment. **As of:**
-2026-09-28. **Recheck:** the operator notes a collection-window start date, or a
-session-log corpus large enough to fill the findings table lands in the
-observability store.
-
 ## Sources
 
 - #1270 (scoping, amended twice), #1284 (the two-guard PR, closed), #1319 (the shipped
-  guard), #1314 (the withdrawn guard's measurement and rescope), #3756 (session-log
-  grading parked until an operator collection window)
+  guard), #1314 (the withdrawn guard's measurement and rescope)
 - `docs/conventions/hook-precision/README.md` — over-fire discipline
 - `docs/plugin-philosophy.md` — one mechanism per concern (validation section)
 - `melodic-software/standards`, `conventions/engineering/enforceability-tiers.md` —

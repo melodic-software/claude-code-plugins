@@ -19,6 +19,8 @@ The last column is literally named `Done` and holds `[ ]` or `[x]`, not `Status`
 
 Cast a wide net. Objective: establish the initial evidence base and identify what we don't know yet. Survey the landscape before spending depth on any single source.
 
+At `low` the skill's Effort table caps this phase and puts a named artifact or folder ahead of any web query.
+
 **Launch ≥3 queries across ≥3 source categories in parallel**. Official docs, upstream source + releases, package registry, spec/standard, AI-synthesis (discovery only, never a terminal source), community corroborators. Take stock of what is actually connected THIS session and map the categories onto it; never hard-depend on one server. The category table, the two standing preferences, and why category diversity is the mechanism rather than a quota: [`source-categories.md`](source-categories.md).
 
 ### Phase 1 output. Write this list before composing any Phase 2 query
