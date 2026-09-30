@@ -227,6 +227,12 @@ async page => { // the user journey in order on one page, no reload after phase 
     // confirm understanding
     ok("the summary shows the restatement with Confirm and Something's off", /Ship green builds to staging/.test(await text("#restate")) && /Left to the plan stage/.test(await text("#restate")) && !!(await page.$('[data-understand="confirm"]')) && !!(await page.$('[data-understand="off"]')), (await text("#restate")).slice(0, 160));
     ok("Wrap up warns Understanding not confirmed yet", /Understanding not confirmed yet/.test(await text("#unconfWarn")));
+    for (const [w, h] of [[1440, 900], [390, 844]]) {
+      await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(200);
+      const hit = await page.evaluate(() => { const a = document.querySelector('[data-understand="confirm"]').getBoundingClientRect(), b = document.getElementById("offText").getBoundingClientRect(); return !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top); });
+      ok("at " + w + "x" + h + " Confirm does not overlap the What-is-off box", !hit);
+    }
+    await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(200);
     const n2 = (await events()).length;
     await tap('[data-understand="off"]', 400);
     ok("Something's off needs text: nothing posts without it", (await events()).length === n2 && /Say what is off first/.test(await text("#restate")), await text("#restate"));

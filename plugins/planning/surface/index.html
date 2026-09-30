@@ -152,7 +152,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .act-list li{display:grid;gap:2px;font-size:13.5px;border-left:2px solid var(--line);padding-left:10px}
 .act-list li.unseen{border-color:var(--chg)}
 .nudge-q{font-size:13px;color:var(--chg);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.ustate textarea{min-height:56px}
+.ustate textarea{display:block;width:100%;margin-top:8px;min-height:56px}
 .chip.plain{color:var(--muted);background:transparent;border:1px solid var(--line-strong)}
 .chip.plain::before{display:none}
 .chip.hot{color:var(--chg);background:transparent;border:1px solid var(--chg)}
@@ -1108,9 +1108,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const u = uState(), body = USECT.filter(([k]) => String((r.sections || {})[k] || "").trim()).map(([k, t]) => "<h5>" + t + "</h5>" + md(r.sections[k])).join("");
     const foot = u && u.alt === "confirm" ? '<p id="uDone"><b>Confirmed</b> ' + esc(fmt(u.at)) + "</p>"
       : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + inline(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
-      : '<div class="ustate"><div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button><span class="kbd">Or say what is off, then flag it.</span></div>' +
-        '<textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
-        '<div class="arow"><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>";
+      : '<div class="ustate"><textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
+        '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
+        '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>";
     return '<section class="blk" id="restate"><h4>Shared understanding, restated ' + esc(fmt(r.at)) + "</h4>" + body + foot + "</section>";
   }
   function cBoxHtml(){ // only what is still to confirm; Claude's confirmations are listed with their reasons below it
