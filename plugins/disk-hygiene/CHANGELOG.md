@@ -3,6 +3,15 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.2] - 2026-09-30
+
+### Fixed
+
+- **The manual-lane handoff says not to empty the bin after a recycle**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Step 2 of the
+  gated manual lane now states that a recycled path stays in the Recycle Bin or Trash and the
+  container is not emptied, so a recycle no longer turns into a second per-item bin delete.
+
 ## [0.29.1] - 2026-09-29
 
 ### Fixed
