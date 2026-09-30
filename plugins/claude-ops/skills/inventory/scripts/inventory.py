@@ -608,6 +608,28 @@ _NUMBER_RE = re.compile(
 )
 
 
+# The head of a function declaration or expression ending right at `{`.
+_NESTED_FUNCTION_RE = re.compile(r"function\s*\*?\s*[\w$]*\s*\([^()]*\)\s*\Z")
+
+
+def _mask_strings(text: str) -> str:
+    """`text` with each string and template literal blanked to spaces, so a
+    search for code (a parameter write) never matches quoted text."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        if text[i] in _QUOTES:
+            try:
+                end = _read_literal(text, i, n)[1]
+            except ValueError:
+                end = n
+            out.append(" " * (end - i))
+            i = end
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
 def _primitive_text(text: str, *, joined: bool) -> str | None:
     """How a template (or, `joined`, `Array.join`) renders a known
     primitive literal: `true`, `false`, `null`, `undefined`, or a plain
@@ -910,6 +932,8 @@ def _scan(
                 block
                 and depth == 0
                 and (prev == ")" or prev_word in ("else", "try", "finally"))
+                # A nested function declaration is not a branch of this body.
+                and not _NESTED_FUNCTION_RE.search(src, max(0, i - 400), i)
             ):
                 _scan(
                     src,
@@ -1760,7 +1784,7 @@ def _resolve_chain(
         nested = braces.enclosing(fn[0] - 1) is not None
         scope = {**shadow, **fn[1]} if nested else fn[1]
         if len(chain) == 2:
-            body = src[fn[0] : close]
+            body = _mask_strings(src[fn[0] : close])
             scope = {
                 **scope,
                 **{

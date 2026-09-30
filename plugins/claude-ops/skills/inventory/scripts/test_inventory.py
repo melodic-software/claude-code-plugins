@@ -1386,6 +1386,18 @@ class TestToolDescriptionShapes(unittest.TestCase):
             _tool(src, "Probe")["description_variants"], ["REAL", "FALLBACK"]
         )
 
+    def test_nested_returns_and_quoted_writes_do_not_leak(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Quoted";'
+            'function ff(x){return x;function inner(){return"WRONG"}}'
+            'function gg(x){let s="x=LOCAL";return x}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+            '$t({name:Rz,maxResultSizeChars:1,description:gg("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+        self.assertNotIn("description_variants", _tool(src, "Probe"))
+        self.assertEqual(_tool(src, "Quoted")["description"], "REAL")
+
     def test_a_partial_element_or_argument_keeps_a_runtime_alternative(self) -> None:
         src = (
             'var Qz="Probe",Rz="Bound";function ff(x){return`Use ${x}`}'
