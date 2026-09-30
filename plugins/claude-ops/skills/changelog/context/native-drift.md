@@ -52,6 +52,8 @@ From `<ws>/drift.json`, one section each, empty ones stated as "none":
   exists yet and that the next run has one.
 - **Invocability and markers**: `surface_changes.invocability` and `.markers`.
 - **Docs cross-check**: `docs_changes`, the block's status and each name whose status moved.
+- **Unresolved descriptions**: `unresolved_descriptions.current` and `.new`; null means the
+  extraction carried no `integrity.undetermined` block.
 - **Overlap**: `new_candidates`, and each `fired_triggers` row with its reasons.
   `rows_not_evaluable` counts store rows this extraction cannot judge (a live-roster or
   upstream-source observation, a name no lane holds, a broken lane).
@@ -65,6 +67,7 @@ From `<ws>/drift.json`, one section each, empty ones stated as "none":
 |---|---|---|
 | `candidate` | A `detect` candidate absent from `<prev>`'s candidates (never when `<prev>` has no detect report), at or over its threshold, re-derivable, with no store row | `claude-ops/audit-native-overlap: rule on <surface> overlap with <component>` |
 | `recheck` | A store row's trigger fired: its surface was removed or renamed since `<prev>`, its class changed, or its markers (hidden, gated, model-invocation-disabled) differ from the row | `claude-ops/audit-native-overlap: recheck <surface> row for <component>` |
+| `unresolved-description` | A name in the extraction's `integrity.undetermined.description_unresolved` that `<prev>` did not list (every listed name when `<prev>` recorded no list); detect scores that surface on its name, user-facing name and search hint only | `claude-ops/inventory: resolve the <surface> description the extraction left unresolved` |
 | `revalidate` | The self-check is degraded only because the CLI moved past `VALIDATED_AGAINST`, every lane is ok, and no surface changed since `<prev>` | `claude-ops/inventory: revalidate the extraction against Claude Code <version>` |
 | `inventory-degraded`, `inventory-broken` | Any other degraded or broken self-check, including a baseline run | `claude-ops/inventory: extraction <status> on Claude Code <version>` |
 | `batch-overflow` (the report's `overflow`, not in `items`) | `items` holds more than `max_items` entries (default 10, `--max-items`) | `claude-ops/changelog: <count> native-drift items exceed the batch cap on Claude Code <version>` |

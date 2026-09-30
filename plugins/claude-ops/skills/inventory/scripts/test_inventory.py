@@ -1203,6 +1203,121 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertEqual(inv.resolve_tool_ident("e", 10, index), "Bash")
 
 
+def _tool(src: str, name: str) -> dict:
+    return inv.extract_builtin_tools(src, inv.build_brace_map(src))[0][name]
+
+
+class TestToolDescriptionShapes(unittest.TestCase):
+    """Tool descriptions built by a call with arguments, from shapes seen in
+    Claude Code 2.1.285: the method passes a runtime value into a function
+    whose body selects or interpolates hoisted constants."""
+
+    def test_a_call_with_arguments_follows_the_function(self) -> None:
+        src = (
+            'var e="WRONG",Hq="ClaudeDesign",dp=`Short`,lp=`Work with Claude Design.`;'
+            "function kb(e){return`${e?dp:lp}\n\nMore.`}"
+            "$t({name:Hq,maxResultSizeChars:1,async description(){return kb(Rt())}});"
+        )
+        rec = _tool(src, "ClaudeDesign")
+        self.assertEqual(rec["description"], "Work with Claude Design.\n\nMore.")
+        self.assertEqual(rec["description_source"], "call")
+
+    def test_a_parameter_never_reads_a_same_named_binding(self) -> None:
+        src = (
+            'var e="Bound elsewhere",Qz="Bash";'
+            '$t({name:Qz,maxResultSizeChars:1,async description({description:e}){return e||"Run shell command"}});'
+            'var Pz="Probe";function pd(n){return n}'
+            "$t({name:Pz,maxResultSizeChars:1,async description(){return pd(1)}});"
+        )
+        self.assertEqual(_tool(src, "Bash")["description"], "Run shell command")
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_an_empty_fallback_is_not_a_value(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:ua()??""});'
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
+
+    def test_a_template_of_only_runtime_parts_is_unresolved(self) -> None:
+        src = (
+            'var Qz="Probe";function kb(e){return`${e.a}\n\n${e.b}`}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return kb(x)}});"
+        )
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description"], "")
+        self.assertEqual(rec["description_source"], "unresolved")
+
+    def test_a_parenthesized_ternary_and_a_joined_array_concatenate(self) -> None:
+        src = (
+            'var ah="Fetch ",am="schemas",ac="tools",ap=" now.",Qz="ToolSearch",Wz="WaitForMcpServers";'
+            "function Hj(){return ah+(xf()?am:ac)+ap}"
+            'function Gx(){return["Wait for servers.","",...["Then use them."]].join(`\n`)}'
+            "$t({name:Qz,maxResultSizeChars:1,async description(){return Hj()}});"
+            "$t({name:Wz,maxResultSizeChars:1,async description(){return Gx()}});"
+        )
+        self.assertEqual(_tool(src, "ToolSearch")["description"], "Fetch tools now.")
+        self.assertEqual(
+            _tool(src, "WaitForMcpServers")["description"],
+            "Wait for servers.\n\nThen use them.",
+        )
+
+    def test_a_template_substitution_resolves_its_constant(self) -> None:
+        src = (
+            'var Br="Grep",Sh="Bash";'
+            "function hL(e){if(n(e))return`Short via ${Sh}.`;return`ALWAYS use ${Br}, never ${Sh}.`}"
+            "$t({name:Br,maxResultSizeChars:1,async description(){return hL(void 0)}});"
+        )
+        rec = _tool(src, "Grep")
+        self.assertEqual(rec["description"], "ALWAYS use Grep, never Bash.")
+        self.assertEqual(rec["description_variants"][0], "Short via Bash.")
+
+
+def _modules(*bodies: str) -> str:
+    return "".join(f"\n// @bun @bytecode\n{b}" for b in bodies)
+
+
+class TestModuleScopedResolution(unittest.TestCase):
+    """A bundle of concatenated modules repeats minified names; a name
+    resolves inside its own module or through its import, never to the
+    nearest foreign binding."""
+
+    def test_an_imported_name_resolves_in_its_exporting_module(self) -> None:
+        src = _modules(
+            'var jd="Workflow";export{jd};',
+            'function f(){let jd=a?"remote_control_disabled":"host_exit"}',
+            'import{jd}from"/$bunfs/root/chunk-a.js";var Qz="Probe";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});",
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a Workflow script")
+
+    def test_a_name_neither_imported_nor_declared_is_a_runtime_value(self) -> None:
+        src = _modules(
+            'var jd="host_exit";',
+            'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});',
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a … script")
+
+    def test_a_name_two_modules_export_is_ambiguous(self) -> None:
+        src = _modules(
+            'var jd="One";export{jd};',
+            'var jd="Two";export{jd};',
+            'import{jd}from"/$bunfs/root/chunk-a.js";var Qz="Probe";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});",
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a … script")
+
+    def test_a_single_letter_function_resolves_only_at_module_top_level(self) -> None:
+        tool = 'var B="Projects";$t({name:B,maxResultSizeChars:1,async description(){return P({memory:1})}});'
+        body = "function P({memory:e}){return`Read and write the Project.`}" + tool
+        self.assertEqual(
+            _tool(_modules(body), "Projects")["description"],
+            "Read and write the Project.",
+        )
+        nested = "function o(){function P(){return`Nested.`}}" + tool
+        self.assertEqual(
+            _tool(_modules(nested), "Projects")["description_source"], "unresolved"
+        )
+        self.assertEqual(_tool(body, "Projects")["description_source"], "unresolved")
+
+
 class TestAgentAndToolIntegrity(unittest.TestCase):
     def _check(self, agents: dict, anotes: dict, tools: dict, tnotes: dict) -> dict:
         src = TestIntegrity()._src()

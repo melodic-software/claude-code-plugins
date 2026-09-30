@@ -21,7 +21,9 @@ Subcommands (standard library only; every input is a file the caller produced):
       when the previous summary recorded a detect report without its key, it is
       at or over detect's threshold, re-derivable, and without a store row. A
       missing previous summary is a baseline run: no surface diff, no new
-      candidates, triggers on state still evaluated. More than --max-items
+      candidates, triggers on state still evaluated. Each name in the
+      extraction's unresolved descriptions that the previous summary did not
+      list is an `unresolved-description` item. More than --max-items
       items (default 10) adds an `overflow` item that stands for the batch.
       Every fact is one backtick-free line clipped to FACT_CHARS, and each item's
       `quote` is the facts block a filed body carries. When `--store` names no file, the
@@ -145,6 +147,8 @@ def shape_error(kind: str, data: Any) -> str | None:
             bad.append("detect")
         if not _strs(data.get("candidates")):
             bad.append("candidates")
+        if not _strs(data.get("unresolved_descriptions")):
+            bad.append("unresolved_descriptions")
     elif kind == "detect":
         # Required, not optional: a summary with a detect block becomes the
         # candidate baseline, so `{}` would mark every later candidate new.
@@ -318,6 +322,13 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
             if isinstance(c, dict):
                 candidates.append(candidate_key(c))
     lanes = integrity.get("lanes") if isinstance(integrity.get("lanes"), dict) else {}
+    undetermined = integrity.get("undetermined")
+    unresolved = (
+        (undetermined.get("description_unresolved") or {}).get("names")
+        if isinstance(undetermined, dict)
+        and isinstance(undetermined.get("description_unresolved"), dict)
+        else None
+    )
     return {
         "schema": SCHEMA,
         "cli_version": integrity.get("cli_version"),
@@ -333,6 +344,11 @@ def summarize(inventory: Any, detect: Any) -> dict[str, Any]:
         "docs": docs_block,
         "detect": detect_block,
         "candidates": None if candidates is None else sorted(set(candidates)),
+        # Names whose description the extraction could not resolve; None when
+        # the inventory carries no `integrity.undetermined` block.
+        "unresolved_descriptions": sorted({n for n in unresolved if isinstance(n, str)})
+        if isinstance(unresolved, list)
+        else None,
     }
 
 
@@ -664,6 +680,33 @@ def diff(
             }
         )
 
+    # A description the extraction cannot resolve leaves detect scoring that
+    # surface on its name, user-facing name and search hint alone. Each name
+    # the previous summary did not already list is an item, so a release that
+    # adds a shape the resolver cannot read is filed, not absorbed.
+    unresolved = cur.get("unresolved_descriptions")
+    known_unresolved = (prev or {}).get("unresolved_descriptions")
+    new_unresolved = [
+        n
+        for n in unresolved or []
+        if not isinstance(known_unresolved, list) or n not in known_unresolved
+    ]
+    for name in new_unresolved:
+        items.append(
+            {
+                "kind": "unresolved-description",
+                "key": drift_key("unresolved-description", name, "inventory"),
+                "native": name,
+                "class": None,
+                "component": "inventory",
+                "facts": [
+                    f"{name}: description unresolved on Claude Code "
+                    f"{cur.get('cli_version') or 'unknown'}",
+                    "detect scores it on its name, user-facing name and search hint only",
+                ],
+            }
+        )
+
     inventory = inventory_verdict(cur, self_check_exit, surface)
     if inventory["verdict"] != "ok":
         kind = (
@@ -723,6 +766,9 @@ def diff(
         "surface_changes": surface,
         "docs_changes": diff_docs(prev, cur) if prev else None,
         "new_candidates": new_candidates if knows_candidates else None,
+        "unresolved_descriptions": None
+        if unresolved is None
+        else {"current": unresolved, "new": new_unresolved},
         "fired_triggers": fired,
         "rows_not_evaluable": not_evaluable,
         "store_present": isinstance(rows, list),
