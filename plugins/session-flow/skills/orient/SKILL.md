@@ -106,6 +106,32 @@ and point at `/session-flow:reanchor` to verify which still holds.
 - **`/session-flow:handoff`**. Writes a save-point and ends the session.
   Orientation writes nothing and ends nothing.
 
+## Boundary, the built-in `/recap` command
+
+Both answer "where were we", so a request to catch up can land on either.
+
+- **`/recap` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
+  It generates a one-line summary of the current conversation on demand, alongside the
+  automatic recap shown when you return to an idle terminal. It writes nothing to disk and
+  reads nothing outside the conversation. It is reserved for the person to run; the model does
+  not invoke it.
+- **This skill (marketplace plugin).** A four-part briefing that adds what the conversation
+  does not hold: handoff save-points, workflow checklists, running-retro ledgers, open PRs and
+  work items, git state, and off-thread work at a glance.
+
+**Routing.** When the person wants only a one-line reminder of this conversation, offer it to
+the person: you can run `/recap` instead of or alongside this skill. Make the offer at the end
+of the briefing, or at the start when the ask names only the current conversation. Prefer this
+skill whenever durable or off-thread state matters. An unattended run records the offer in its
+output instead of asking.
+
+**Mutation gate.** Neither writes files. This skill never runs `/recap` on the person's behalf.
+
+**Availability is never assumed.** The command can decline in some hosts, for example when the
+request is relayed from a chat thread, a routine, or a webhook; this section states what to do
+when the person can run it, never that it is present. The four-part records live in
+[reference/native-recap.md](reference/native-recap.md).
+
 ## What this skill does NOT do
 
 - **Writes nothing**, no files, no memory, no `/clear`. It is a read-only

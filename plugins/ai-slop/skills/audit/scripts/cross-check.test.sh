@@ -163,6 +163,7 @@ assert_contains "disagree: a file marker resets the line set" "$out" \
 if command -v jq >/dev/null 2>&1; then
   A="$TEST_TMPDIR/allowcfg"
   mkdir -p "$A/.claude"
+  git init -q "$A" >/dev/null 2>&1
   printf '%s\n' '{ "rule_allowed_paths": { "rule-em-dash": ["plain.*"] } }' >"$A/.claude/ai-slop.json"
   out="$(CLAUDE_PROJECT_DIR="$A" bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
   assert_contains "allowed: a rule_allowed_paths file is skipped" "$out" "CrossCheck: file=plain.md skipped=rule-allowed"
@@ -170,6 +171,7 @@ if command -v jq >/dev/null 2>&1; then
 
   X="$TEST_TMPDIR/disabledcfg"
   mkdir -p "$X/.claude"
+  git init -q "$X" >/dev/null 2>&1
   printf '%s\n' '{ "disabled_rules": ["rule-em-dash"] }' >"$X/.claude/ai-slop.json"
   out="$(CLAUDE_PROJECT_DIR="$X" bash "$CROSS" --targets "$T" --detector "$D" 2>&1)"
   assert_contains "disabled: the comparison is skipped" "$out" "CrossCheck: comparison skipped: rule-em-dash disabled"

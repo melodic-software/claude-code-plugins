@@ -147,6 +147,21 @@
     },
     {
       "id": 10,
+      "name": "work-loop-stale-in-flight-pr-escalates-younger-stays-excluded",
+      "prompt": "/work-items:work-loop\n\nCycle 4 of a drain. work_loop_in_flight_stale_days is unset. The frontier holds two agent-ready candidates. #320 is linked by closedByPullRequestsReferences to open ready PR #451 via 'Closes #320', created 30 days ago. #321 is linked to open draft PR #452, created 3 days ago. No escalation marker exists on either item. Both Open linked PRs queries succeed.",
+      "expected_output": "The in-flight check runs before classification. The unset key falls back to the manifest default of 14 days. #320's closing PR is 30 days old, past the bound, so it stops being silently excluded: it is not dispatched or classified, and step 5 escalates it with the human-gated label and a kind=escalated marker whose question names PR #451, ready state, and age (about 30 days) and asks the human to land, close, or unlink it. The cycle report lists it as 'stale in flight: #320 (PR #451, ready, open 30d) -> escalated'. #321's PR is 3 days old, within the bound, so it stays silently excluded: no comment, no label change, no dispatch, listed as 'in flight: #321 (PR #452, draft, open 3d)'. The escalation does not reset the no-progress streak.",
+      "files": [],
+      "expectations": [
+        "Applies the manifest default of 14 days when work_loop_in_flight_stale_days is unset",
+        "Does not dispatch or classify #320 and escalates it with the human-gated label and a kind=escalated marker",
+        "The escalation question names PR #451, its ready state, and its age, and asks to land, close, or unlink it",
+        "Names #320 in the cycle report as a stale in-flight item escalated",
+        "Keeps #321 silently excluded: no marker, no label change, no dispatch, reported as in flight",
+        "Does not count the escalation as progress for the no-progress streak"
+      ]
+    },
+    {
+      "id": 11,
       "name": "work-loop-paused-lane-drops-latch-on-account-switch",
       "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint, and the tee file holds a fresh snapshot whose account.email matches the new account with both windows at 40%. Later in the same run a second wake finds .claude.json unparseable.",
       "expected_output": "On the wake the lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser (never via the tee) and compares fingerprints, never printing or interpolating the address. The fingerprint differs, so it re-evaluates with the fresh tee snapshot whose account.email fingerprint equals the new account: both windows below 90, so it resumes, clearing rate_limit_latch, paused_until, and latched_account together in the durable state, and adds an account-switch: resumed line to the cycle report without the address or fingerprint. On the second wake the unparseable state file means cannot attribute: the lane keeps its existing state, with no spurious drop of a latch and no fabricated pause.",

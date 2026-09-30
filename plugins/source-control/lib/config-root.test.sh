@@ -111,6 +111,13 @@ if mklink "$HOME_DIR/.claude" "$TEST_TMPDIR/team-repo/.claude"; then
 else
   skip_case "team-equals-user-global symlink case needs a host that can create symlinks (uname: $(uname -s))"
 fi
+
+if mklink "$HOME_DIR/.claude/source-control.md" "$TEST_TMPDIR/own-repo/.claude/linked.md"; then
+  same "a team file that is itself a symlink to the user-global file equals it" \
+    "$TEST_TMPDIR/own-repo/.claude/linked.md" "$HOME_DIR/.claude/source-control.md"
+else
+  skip_case "file-symlink case needs a host that can create symlinks (uname: $(uname -s))"
+fi
 differ "a repo's own team file differs from the user-global file" \
   "$TEST_TMPDIR/own-repo/.claude/source-control.md" "$HOME_DIR/.claude/source-control.md"
 

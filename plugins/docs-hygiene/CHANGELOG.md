@@ -1,10 +1,32 @@
 # Changelog: docs-hygiene plugin
 
-## [0.23.18] - 2026-09-29
+## [0.23.20] - 2026-09-29
 
 ### Changed
 
 - The `extract-ssot` orchestrated-mode context carries the guard floor's new `Account switch` bullet, byte-for-byte with the reader contract.
+
+## [0.23.19] - 2026-09-29
+
+### Fixed
+
+- **`resolve-config.sh`** treats a `--root` that is the home directory (or an ancestor of it) or is
+  not inside a git working tree as having no team or overlay layer: `paths` reports both as
+  not-applicable and only the user-global file is read. A team or overlay path that is the
+  user-global file is reported as such and read once. The classifier is `lib/config-root.sh`, a
+  synced copy of the source-control resolver.
+
+## [0.23.18] - 2026-09-29
+
+### Fixed
+
+- **`audit-progressive-disclosure` checks upstream ownership before proposing a treatment.** A new
+  hard rule greps the repo for synced, vendored, generated or upstream markers on the target and
+  reads `docs/adr/` and `docs/decisions/` for a recorded tier or owner. On a hit the finding
+  stays, its treatment is `file with the owner, citing the decision`, and its disposition is
+  `upstream`. A Tier 3 row never carries a treatment. `tier-model.md` states the recorded-reason
+  and upstream-owner exemptions, and a synced-rule eval covers the routing
+  ([#5173](https://github.com/melodic-software/claude-code-plugins/issues/5173)).
 
 ## [0.23.17] - 2026-09-29
 

@@ -1,5 +1,24 @@
 # Changelog: discovery plugin
 
+## [0.25.11] - 2026-09-29
+
+### Added
+
+- **`explore` carries a Boundary section for the built-in `Explore` agent.** A bare locate
+  dispatches the built-in agent directly; a persisted exploration stays with this skill, which
+  keeps `Explore` as its locate-tier scout. The four-part record is in the skill's
+  `reference/native-explore.md`. The section's bullets follow the native-references template and
+  describe the built-in without asserting it is available.
+
+## [0.25.10] - 2026-09-29
+
+### Added
+
+- **`research-deep` carries a Boundary section for the bundled workflow `deep-research`.** The
+  workflow is reserved for the person to run, so the model offers `/deep-research` for a
+  single-topic deep report instead of or alongside this skill, and keeps multi-topic dispatch here.
+  Tier 1 no longer names the bundled workflow as a dispatch target.
+
 ## [0.25.9] - 2026-09-29
 
 ### Fixed
