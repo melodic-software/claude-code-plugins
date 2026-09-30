@@ -141,11 +141,10 @@ If /export is available in your session (gate basis: **Verification record: `/ex
 
 Both look back at how sessions went, so "how did I do" can land on either.
 
-- **`/insights` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
-  It generates an HTML report across your recent sessions on this machine: projects, usage
-  patterns, where things go wrong, features to try, and an auto mode recommendation. It writes
-  that report and nothing else. It is reserved for the person to run; the model does not invoke
-  it.
+- **`/insights` (built-in command)**: generates an HTML report across your recent sessions on this
+  machine: projects, usage patterns, where things go wrong, features to try, and an auto mode
+  recommendation. It writes that report and nothing else. It is reserved for the person to run; the
+  model does not invoke it.
 - **This skill (marketplace plugin).** A structured retrospective of one session or handoff chain:
   transcript metrics, five quality dimensions, feedback-memory regressions, and codification into
   rules or memory behind approval.

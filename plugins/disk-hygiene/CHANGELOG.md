@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.1] - 2026-09-30
+## [0.34.1] - 2026-09-30
 
 ### Fixed
 
@@ -13,10 +13,112 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   returns `large-target-confirmation-required`, as an ordinary unbounded walk does, on both the
   plain-target and `--root-children` paths. The walk still enters VCS and protected directories
   (exact totals need it) and now sums sizes straight into the per-child rollup and the target total
-  without retaining one entry per path. The payload, `inventory_mode: sizes-only` and
+  without retaining one entry per path; the empty-directory count stays exact and the
+  `empty_directory_paths` sample stays capped and sorted. The payload, `inventory_mode: sizes-only` and
   `rollup_precision` markers are unchanged. The skill, `scan-flags.md`, `safety-model.md`, the README
   and the fan-out worker brief state the gated behavior, superseding the earlier lines below that say
   `--sizes-only` skips the question.
+
+## [0.34.0] - 2026-09-30
+
+### Added
+
+- **`handoff-verify --path` is repeatable.** Pass `--path` once per approved path to report several paths in one call without writing a paths file. Each path gets the same validation as a `--paths` entry, and `--path` stays mutually exclusive with `--paths` in the parser and the guard.
+- **The apply and PowerShell deletion prompts list what they will delete.** The exact-engine apply prompt renders the plan's tier, path count, and every path; the PowerShell mutation prompt lists the path-shaped literals its command contains, noting the list may not be every path it acts on. Both prompts escape control characters in the listed text. Text only: every allow and ask verdict is unchanged, and an unreadable plan keeps the generic reason.
+
+### Changed
+
+- **`clean` gotcha: an allow rule cannot remove the deletion prompts.** The deletions are hook `ask` verdicts, which force a prompt, and the engine's read-only calls already get hook `allow`. The unsupported-platform handoff text names the repeatable `--path`.
+
+## [0.33.1] - 2026-09-30
+
+### Fixed
+
+- **PowerShell lane allows engine names in string data.** A here-string body or a quoted argument that only mentions an engine script name (for example a `gh issue create --body` text) no longer trips the engine-invocation deny. Only an invocation position (the command or an interpreter's script argument) counts.
+
+## [0.33.0] - 2026-09-30
+
+### Added
+
+- **Partial totals are labeled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  A scan that left any subtree unwalked, and every `--root-children` scan, sets `totals_are_lower_bounds`, and `truncation_reasons`
+  maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`, `scan-error` or
+  `root-child-unselected` (a sibling a `--root-children` run left unselected). A directory
+  whose scan failed is in `truncation_reasons` and `errors`, not in `truncated_paths`.
+- **Bounded empty directories are listed** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  The snapshot carries up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`.
+- **A hint may set `entry_types`** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)):
+  `file`, `directory`, `link` (a symlink or reparse point) or `other`. A hint that sets none matches
+  every kind. The overlay schema lists the key, so an overlay that uses it validates.
+- **Windows hints** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233))
+  cover a Visual Studio layout cache, Docker `bsdiff` leftovers and Electron updater downloads.
+- **A protected shell-folder refusal carries a `hint`**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)) naming which
+  targets are allowed.
+
+### Changed
+
+- **The skill states the Windows and macOS outcome up front**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)): a run ends in a
+  report plus the `execution-platform-unsupported` handoff.
+
+### Fixed
+
+- **The audit no longer double-counts a standing policy overlay**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)). When the project
+  directory is the home directory, the user and project overlay resolve to one file; it now applies
+  once and appears once in `policy_sources`.
+- **The baseline `*.tmp` and `*.lock` hints no longer match directories**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)), so a directory
+  such as `~/.codex/.tmp` is not hinted. They match files and links.
+
+## [0.32.1] - 2026-09-30
+
+### Changed
+
+- **`clean` names the hook note as the one primary source for `hook_python` and `data_root`.** The fallback is the probe: when the note is absent, one bare-python probe is denied, names the interpreter, and the rerun probe supplies `data_root`. `safety-model.md` records that the hook is the chosen delivery path and that the denied probe in the no-hook path is an accepted residual.
+
+## [0.32.0] - 2026-09-30
+
+### Added
+
+- **Virtual-disk images are protected by name**
+  ([#5228](https://github.com/melodic-software/claude-code-plugins/issues/5228)). `*.vhd`, `*.vhdx`,
+  `*.avhd`, `*.avhdx` (Hyper-V checkpoint disks), `*.vmdk`, `*.vdi`, `*.qcow2`, and `*.img`
+  (WSL's `ext4.vhdx` included) are the baseline `disk_image_name_globs`, matched case-insensitively. A matching file carries the `virtual-disk` size qualifier, so
+  its bytes leave `target_reclaimable_local_bytes` and the child roll-ups, and `hard_protection`
+  reports `virtual-disk`; scan, preview, apply, `handoff-verify`, and the root-children ladder refuse
+  it and any candidate that contains one.
+- **The volume an attached image backs is reported.** Windows asks `Get-DiskImage` (bounded at 20
+  seconds); Linux and WSL read the loop devices' backing files and mounts. An attached image adds
+  `attached-virtual-disk:<drive or mountpoint>`; a probe that errors, times out, or has no route adds
+  `virtual-disk-attach-unverified` and never reads as detached. Under WSL, which never sees the
+  Windows host's attachments, an image with no loop device reads as unverified, not detached.
+
+## [0.31.1] - 2026-09-30
+
+### Fixed
+
+- **The snapshot entry-cap error names the largest top-level children**
+  ([#5517](https://github.com/melodic-software/claude-code-plugins/issues/5517)). The error now lists
+  the top five top-level children by entry count so far, marks the one still being walked as a lower
+  bound, and points at `--sizes-only` and then `--root-children --root-child <name>` or `--max-depth`.
+
+## [0.31.0] - 2026-09-30
+
+### Added
+
+- **Investigated entries are recorded in a catalog**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). The new
+  `catalog` command writes investigated entries, each keyed by scan target, path and identity,
+  from a findings file or an operator answers file. The scan only reads the catalog and annotates
+  a scan entry that matches a record with `prior_disposition`. An operator's keep answer is stored
+  with the record, so a later scan reports the entry's prior conclusion instead of asking again,
+  and the report leads with new or changed entries. The catalog is replaced atomically, so an
+  interrupted write keeps the previous one. A record with any invalid field value or a subtree the
+  scan did not walk is skipped, never treated as a conclusion. The command refuses a snapshot
+  whose entries lack a path. The investigation procedure and research escalation are not part of
+  this slice.
 
 ## [0.30.0] - 2026-09-29
 

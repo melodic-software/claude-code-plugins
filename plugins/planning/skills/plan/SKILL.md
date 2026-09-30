@@ -311,10 +311,9 @@ Plan mode is also a natural moment for a **scoping confirm**. If you're entering
 
 The command and this skill share a name, so "plan this" can mean either.
 
-- **`/plan` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
-  `/plan [description]` enters plan mode, the read-only permission mode Plan Mode Integration
-  above describes, optionally starting on the description; `/plan open` views the session plan.
-  It is reserved for the person to run; the model does not invoke it.
+- **`/plan` (built-in command)**: `/plan [description]` enters plan mode, the read-only permission
+  mode Plan Mode Integration above describes, optionally starting on the description; `/plan open`
+  views the session plan. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an
   approval gate, and a persisted PLAN.md a cleared session can execute.
 

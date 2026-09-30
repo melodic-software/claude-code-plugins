@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 3, "end_line": 10 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "notes": {
+    "shape": "A lead-in sentence that calls the content 'officially documented behavior', followed by two bullets restating the listing's drop order, its budget default, the per-entry cap key, and what a manual-only skill does to its listing entry.",
+    "carve_outs": "None apply. 'Officially documented' asserts that a source exists and names none, so the sentence is not a pointer. Not owned content: every bullet describes the product.",
+    "rubric": "R1 holds: the product's documentation owns each behavior. R2 holds: a default percentage, a named setting and an ordering rule. R3 holds: stated as how the listing works now. R4 holds: the lead-in is the only attribution and it supplies no basis, date or trigger.",
+    "carries": "The hazard is a run that credits the lead-in as a citation. A claim that a source exists is not a source named at the span.",
+    "tier_reason": "A source was supplied, so source-fetched-similar. Report-only."
+  }
+}

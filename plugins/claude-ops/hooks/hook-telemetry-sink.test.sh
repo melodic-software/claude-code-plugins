@@ -183,4 +183,37 @@ LOG11="$P11/$ROOT_REL/hook-events.jsonl"
 assert_record "a metacharacter subject still satisfies the schema" "$LOG11"
 assert_eq "a metacharacter subject round-trips verbatim" "$HOSTILE" "$(jq -r '.subject' "$LOG11")"
 
+# --- shared file rotates over the byte cap, whatever the event-log toggle -----
+P12="$TEST_TMPDIR/p12"
+mkdir -p "$P12/$ROOT_REL"
+LOG12="$P12/$ROOT_REL/hook-events.jsonl"
+printf 'old-line-0123456789\n' >"$LOG12"
+printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
+  env CLAUDE_PROJECT_DIR="$P12" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=10 \
+    CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED=false bash "$SINK" >/dev/null 2>&1
+assert_eq "over the cap: .1 holds the old content" "old-line-0123456789" "$(cat "$LOG12.1")"
+assert_eq "over the cap: the live file holds exactly the new line" 1 "$(wc -l <"$LOG12" | tr -d ' ')"
+assert_record "over the cap: the new line satisfies the schema" "$LOG12"
+
+printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
+  env CLAUDE_PROJECT_DIR="$P12" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=100000 bash "$SINK" >/dev/null 2>&1
+assert_eq "under the cap: no rotation, the line appends" 2 "$(wc -l <"$LOG12" | tr -d ' ')"
+assert_eq "under the cap: .1 is untouched" "old-line-0123456789" "$(cat "$LOG12.1")"
+
+P13="$TEST_TMPDIR/p13"
+mkdir -p "$P13/$ROOT_REL"
+printf 'old\n' >"$P13/$ROOT_REL/hook-events.jsonl"
+run_sink "$P13" "$(envelope config-change-audit ConfigChange ok 4 x '')"
+assert_file_absent "default cap: a small file does not rotate" "$P13/$ROOT_REL/hook-events.jsonl.1"
+printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
+  env CLAUDE_PROJECT_DIR="$P13" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=abc bash "$SINK" >/dev/null 2>&1
+assert_file_absent "an invalid cap falls back to the default" "$P13/$ROOT_REL/hook-events.jsonl.1"
+assert_eq "an invalid cap still appends" 3 "$(wc -l <"$P13/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
+# 2^63 wraps negative in bash arithmetic; it must fall back to the default, not
+# rotate on every append.
+printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
+  env CLAUDE_PROJECT_DIR="$P13" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=9223372036854775808 bash "$SINK" >/dev/null 2>&1
+assert_file_absent "a cap past 2^63-1 falls back to the default" "$P13/$ROOT_REL/hook-events.jsonl.1"
+assert_eq "a cap past 2^63-1 still appends" 4 "$(wc -l <"$P13/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
+
 report
