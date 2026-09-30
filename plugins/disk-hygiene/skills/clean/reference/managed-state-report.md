@@ -35,7 +35,8 @@ PowerShell tool, run them there (`Get-Command <tool> -CommandType Application`, 
 read-only support work and the guard gives those commands no decision, so the session's ordinary
 permissions, and in auto mode its classifier, still decide. A profile alias or function can shadow
 a tool's name, so resolve with `Get-Command <tool> -CommandType Application`, run the command as
-`& '<Source>' <arguments>` with that resolved path, and treat a name that resolves only to an alias
+`& '<Source>' <arguments>` with that resolved path, once for each `;`-separated invocation in a
+compound command (`pulumi about; pulumi plugin ls` is two), and treat a name that resolves only to an alias
 or function as `absent-tool`. Otherwise the operator runs both
 outside the session, presence check first, and the report records what they paste. A probe nobody
 ran is reported as not run, never as a result.
