@@ -570,15 +570,13 @@ def _within_plugin_cache_family(value: str) -> bool:
 # before it matches flags, so an unknown subcommand fails closed.
 _ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
 
-# The subcommands allowed without a prompt. Named here rather than derived from
-# the grammar, so a subcommand added there is denied until it is listed.
-_READ_ONLY_ENGINE_SUBCOMMANDS = (
-    "scan",
-    "inventory",
-    "preview",
-    "handoff-verify",
-    "catalog",
+# The verdict `_decide` gives each admitted subcommand. Placed by hand, not
+# derived from the grammar: a newly declared subcommand is still denied until
+# someone decides whether it is read-only or a mutation that needs the prompt.
+_READONLY_ENGINE_SUBCOMMANDS = frozenset(
+    {"scan", "inventory", "preview", "handoff-verify", "catalog"}
 )
+_MUTATING_ENGINE_SUBCOMMANDS = frozenset({"apply", "handoff-apply"})
 
 
 def _engine_script_path() -> Path:
@@ -2697,6 +2695,19 @@ def _apply_ask_reason(command: str) -> str:
         return _APPLY_ASK_GENERIC_REASON
 
 
+_HANDOFF_APPLY_ASK_REASON = (
+    "disk-hygiene is ready to verify and delete one exact approved path, "
+    "including version-control content you acknowledged losing: unpushed "
+    "commits and untracked or ignored files do not come back. Confirm this "
+    "final mutation prompt only if it is the one path you just approved."
+)
+# The ask reason each mutating subcommand shows, given the command.
+_MUTATION_PROMPTS = {
+    "apply": _apply_ask_reason,
+    "handoff-apply": lambda _command: _HANDOFF_APPLY_ASK_REASON,
+}
+
+
 def _decide(command: str, tool_name: str, start: float) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
@@ -2767,7 +2778,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in _READ_ONLY_ENGINE_SUBCOMMANDS:
+    if command_kind in _READONLY_ENGINE_SUBCOMMANDS:
         return _settle(
             command,
             tool_name,
@@ -2776,29 +2787,38 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             f"exact-engine-{command_kind}",
             "Exact bundled disk-hygiene read-only gate invocation.",
         )
-    if command_kind == "apply" and enabled:
+    if command_kind in _MUTATING_ENGINE_SUBCOMMANDS and enabled:
         return _settle(
             command,
             tool_name,
             start,
             "ask",
-            "exact-engine-apply",
-            _apply_ask_reason(command),
+            f"exact-engine-{command_kind}",
+            _MUTATION_PROMPTS[command_kind](command),
         )
-    denied_by_kill_switch = command_kind == "apply"
+    if command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
+        readonly = [
+            name
+            for name in _ALLOWED_ENGINE_SUBCOMMANDS
+            if name in _READONLY_ENGINE_SUBCOMMANDS
+        ]
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "deny",
+            f"kill-switch-disabled-{command_kind}",
+            "Disk-hygiene execution is disabled; only exact bundled "
+            f"{', '.join(readonly[:-1])}, and {readonly[-1]} invocations are "
+            "permitted.",
+        )
     return _settle(
         command,
         tool_name,
         start,
         "deny",
-        "kill-switch-disabled-apply"
-        if denied_by_kill_switch
-        else "not-exact-engine-command",
-        "Disk-hygiene execution is disabled; only exact bundled "
-        + ", ".join(_READ_ONLY_ENGINE_SUBCOMMANDS[:-1])
-        + f", and {_READ_ONLY_ENGINE_SUBCOMMANDS[-1]} invocations are permitted."
-        if denied_by_kill_switch
-        else _bash_denial_guidance(authority),
+        "not-exact-engine-command",
+        _bash_denial_guidance(authority),
     )
 
 

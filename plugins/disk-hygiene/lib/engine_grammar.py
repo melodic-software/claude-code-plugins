@@ -306,10 +306,33 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             _data_root_flag(),
         ),
     ),
+    Subcommand(
+        "handoff-apply",
+        (
+            Flag("--execute", takes_value=False, required=True),
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            # One exact approved path per call: the engine verifies that path
+            # against live state and deletes it in the same process.
+            Flag(
+                "--path",
+                required=True,
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help="the one snapshot-relative approved path to verify and delete",
+            ),
+            Flag("--vcs-evidence", required=True, example="vcs-evidence.json"),
+            Flag("--report", required=True, example="report.json"),
+            _data_root_flag(),
+        ),
+        help=(
+            "verify one approved path as handoff-verify does, then delete it "
+            "only on a clear verdict (Linux only)"
+        ),
+    ),
 )
 
 # Ordered so a disclosure can name the read-only subcommands first and the
-# mutating one last.
+# mutating ones last.
 SUBCOMMAND_NAMES: tuple[str, ...] = tuple(spec.name for spec in SUBCOMMANDS)
 _SUBCOMMANDS_BY_NAME = {spec.name: spec for spec in SUBCOMMANDS}
 

@@ -85,11 +85,11 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
   remote, untracked files, no commits), never delete it without a clear `handoff-verify` verdict. Record
   `accept_unpublished` with the operator's reason for that exact approved path in
-  `vcs-evidence.json`, run `handoff-verify`, and delete only on a `clear` verdict through the §6
-  manual handoff lane: every other contest reason must be gone. Preview and apply keep VCS
-  protection categorical; the acknowledgement exists only in `handoff-verify`. Before deleting,
-  tell the operator plainly that unpushed commits and untracked or ignored files in that checkout
-  will be lost.
+  `vcs-evidence.json`; every other contest reason must be gone. On Linux, run `handoff-apply`
+  ([command](reference/safety-model.md#standalone-git-checkout-evidence)): it re-runs
+  `handoff-verify` and deletes only on a `clear` verdict. On Windows and macOS, run `handoff-verify`,
+  and delete only on a `clear` verdict through the §6 manual handoff lane. Before deleting, tell the
+  operator plainly that unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
@@ -466,16 +466,16 @@ and what the guard does when no Python resolves → "Hook launch form".
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
-  handoff-verify, catalog, and apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. The same denial text also admits literal-form read-only supporting commands whose
-  heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
-  `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
-  expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because
-  exported shell functions shadow them. Engine-gate mode answers those supporting commands with
-  `ask`; belt mode `allow`s them. The denial text is the source if this list and the guard
-  diverge. Do supporting inspection with non-Bash read-only tools when the command is not in that
-  set. Shell expansions, globs, splitting/escape forms, operators, redirections, aliases, and
-  exported functions fail closed.
+  handoff-verify, catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
+  runtime's own absolute interpreter. The same denial text also admits literal-form read-only
+  supporting commands whose heads are absolute paths under a trusted system directory: `[`,
+  `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete
+  `/usr/bin/[ ... ]` expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names
+  are denied because exported shell functions shadow them. Engine-gate mode answers those
+  supporting commands with `ask`; belt mode `allow`s them. The denial text is the source if this
+  list and the guard diverge. Do supporting inspection with non-Bash read-only tools when the
+  command is not in that set. Shell expansions, globs, splitting/escape forms, operators,
+  redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool
