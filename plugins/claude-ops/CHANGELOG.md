@@ -3,6 +3,36 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.76.0] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` hands decisions off instead of implementing them.** After the scope gate, a
+  row that fits the session goes through `/planning:plan`, `/implementation:implement` and
+  `/verification:confirm`, one PR per owner plugin. A row too large for the session is filed
+  through `/work-items:track` and worked later in its own PR. A stage whose plugin is missing is
+  reported as not executed, not done by hand. The phases are now ingest, explore, research, scope
+  gate, hand off, native-surface drift.
+- **The description, router and README describe `apply` as in-scope execution plus handoff**, not
+  a full integrate pipeline.
+- **Filing and the read marker are gated.** Rows too large are filed only after the user confirms the
+  batch. The ledger PR advances the marker only past releases whose rows are all applied in a merged
+  PR, nominated, recorded as declined or deferred, or filed.
+- **Eval 2 checks the handoff**: `apply` scopes the range and hands off, and does not plan,
+  implement or close issues itself.
+
+### Removed
+
+- **The plan, implement, verify and close-issues phases of `changelog apply`.** Planning and
+  implementing a change belongs to the stage skills, and closing issues by matching a title
+  to a changelog item is gone with them.
+
+## [0.75.2] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.75.1] - 2026-09-30
 
 ### Changed

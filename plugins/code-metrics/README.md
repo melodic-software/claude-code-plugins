@@ -92,9 +92,15 @@ document opens with a "Coverage of this run" table naming, per lane and measure,
 used or the reason none did, and a `status` of `complete`, `partial`, or `empty`, so a run that
 measured nothing can never read as green. The markdown table shows each function once with every
 collector's values on that line, rows over a reference first, and stops at 200 rows; every
-markdown run also writes the whole document under `CLAUDE_PLUGIN_DATA` (else
-`~/.claude/plugins/data/code-metrics/reports`) and names the path, so the rows past the cap need no
-second run. A repository that declares its deliberate replication in a registry
+markdown run also writes the whole document to
+`<CLAUDE_PLUGIN_DATA>/reports/<state-key>/<skill>-<stamp>.json` (`CLAUDE_PLUGIN_DATA` falls back to
+`~/.claude/plugins/data/code-metrics`) and names the path, so the rows past the cap need no second
+run. The state key names the project, so one project's runs share a directory and its newest 20
+documents per skill are kept; when the key cannot be derived no document is kept and the cap line
+says to re-run with `--json`. `CODE_METRICS_REPORT_DIR` overrides the directory. These documents
+hold the only copy of the rows past the 200-row cap, and Claude Code deletes the plugin data
+directory when the plugin is uninstalled from its last scope unless `--keep-data` is passed, so
+copy out any report you need first. A repository that declares its deliberate replication in a registry
 (`scope.registries`) sees each replicated function once, with the copy count beside the path.
 Measured paths are relative to the document's `root`. Field reference:
 `reference/report-schema.md`. Tool provenance stamps: `reference/collectors.md`.
