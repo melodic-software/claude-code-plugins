@@ -912,7 +912,7 @@ def apply_policy_overlay(result: dict[str, Any], overlay_path: Path) -> None:
     result["policy_sources"].append(str(overlay_path))
 
 
-HINT_ENTRY_TYPES = ("file", "directory", "other")
+HINT_ENTRY_TYPES = ("file", "directory", "link", "other")
 MAX_EMPTY_DIRECTORY_PATHS = 200
 
 
@@ -933,7 +933,7 @@ def validate_hint(hint: Any) -> None:
             or not all(value in HINT_ENTRY_TYPES for value in entry_types)
         ):
             raise HygieneError(
-                "hint entry_types must be a non-empty array containing file/directory/other"
+                "hint entry_types must be a non-empty array containing file/directory/link/other"
             )
     if hint["kind"] not in {"name_glob", "path_glob"}:
         raise HygieneError(f"unsupported hint kind: {hint['kind']}")
@@ -961,7 +961,8 @@ def matching_hints(
         validate_hint(hint)
         if "all" not in hint["os"] and current_os not in hint["os"]:
             continue
-        if kind is not None and kind not in hint.get("entry_types", HINT_ENTRY_TYPES):
+        entry_types = hint.get("entry_types")
+        if kind is not None and entry_types is not None and kind not in entry_types:
             continue
         subject = name if hint["kind"] == "name_glob" else relative
         if glob_matches(subject, hint["pattern"]):

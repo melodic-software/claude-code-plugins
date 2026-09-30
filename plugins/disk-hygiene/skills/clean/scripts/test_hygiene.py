@@ -211,6 +211,43 @@ class HygieneTests(unittest.TestCase):
             with self.assertRaisesRegex(hygiene.HygieneError, "entry_types"):
                 hygiene.validate_hint({**hint, "entry_types": bad})
 
+    def test_links_match_hints_without_entry_types_and_hints_listing_link(self) -> None:
+        policy = hygiene.load_policy(None)
+
+        def ids(name: str, kind: str) -> set[str]:
+            return {h["id"] for h in hygiene.matching_hints(name, name, policy, kind)}
+
+        self.assertIn("common-temp-directory", ids("tmp-x", "link"))
+        self.assertIn("common-temp-file", ids("x.tmp", "link"))
+        self.assertIn("common-lock-file", ids("x.lock", "link"))
+        link_only = {
+            "id": "link-only",
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": "*.x",
+            "entry_types": ["link"],
+            "confidence_ceiling": "low",
+            "reason": "fixture",
+        }
+        hygiene.validate_hint(link_only)
+        only = {**policy, "hints": [link_only]}
+        for kind, expected in (("link", ["link-only"]), ("file", []), ("directory", [])):
+            matched = hygiene.matching_hints("a.x", "a.x", only, kind)
+            self.assertEqual(expected, [h["id"] for h in matched], kind)
+
+    def test_scan_hints_a_symlink_by_its_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "real").mkdir(parents=True)
+            try:
+                (root / "tmp-link").symlink_to(root / "real", target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        row = next(e for e in snapshot["entries"] if e["path"] == "tmp-link")
+        self.assertEqual("link", row["kind"])
+        self.assertEqual(["common-temp-directory"], [h["id"] for h in row["hints"]])
+
     def test_empty_directory_paths_are_bounded(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -3478,6 +3515,29 @@ class HygieneTests(unittest.TestCase):
             self.assertFalse(row["walked"])
             self.assertEqual(["scan-error"], row["unwalked_reasons"])
             self.assertEqual(["locked"], [e["path"] for e in snapshot["errors"]])
+
+    def test_scan_error_child_has_a_reason_not_a_truncated_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "locked").mkdir(parents=True)
+            target = root.resolve()
+            real_scandir = os.scandir
+
+            def scandir(path: Any = ".") -> Any:
+                if Path(path) == target / "locked":
+                    raise PermissionError(13, "denied", str(path))
+                return real_scandir(path)
+
+            with (
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(hygiene.os, "scandir", scandir),
+            ):
+                snapshot = hygiene.scan_tree(target, hygiene.load_policy(None))
+        self.assertEqual([], snapshot["truncated_paths"])
+        self.assertEqual({"locked": "scan-error"}, snapshot["truncation_reasons"])
+        self.assertIs(True, snapshot["totals_are_lower_bounds"])
 
     def test_sizes_only_mount_state_error_marks_partial_rollup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

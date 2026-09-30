@@ -203,8 +203,9 @@ selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
 confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
 root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdout carries only their count and
-the snapshot the list; `truncation_reasons` maps each to `vcs-boundary`, `protected`, `depth-cut` or `scan-error`,
-as a tally under `--quiet`). `target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees
+the snapshot the list). `truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut` or
+`scan-error`, as a tally under `--quiet`; a directory whose scan failed is in it as `scan-error` and in `errors`, not
+in `truncated_paths`, so its keys can outnumber that list. `target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees
 only, and `totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked, so read those totals as
 lower bounds then; report the unwalked paths as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
@@ -228,8 +229,9 @@ and protected names. Without `--policy`, the engine also layers standing policy 
 `~/.claude/disk-hygiene.json` (user-global), then `<project>/.claude/disk-hygiene.json` via
 `--project-dir`. An explicit `--policy` is the invocation-specific choice and replaces both standing
 layers. Every overlay can only disable/add hints and add protected globs; none can weaken hard guards.
-A hint may set `entry_types` (`file`, `directory`, `other`) to match only those entry kinds; the
-baseline `*.tmp` and `*.lock` hints are file-only, so a directory such as `~/.codex/.tmp` is not
+A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match only those entry kinds,
+`link` being a symlink or reparse point; a hint that sets none matches every kind. The baseline
+`*.tmp` and `*.lock` hints match files and links, so a directory such as `~/.codex/.tmp` is not
 hinted. The engine does not probe processes: a `common-lock-file` hint stays at confidence `low`,
 and whether the lock is stale is proven during investigation (step 2), never by the engine. The
 snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;

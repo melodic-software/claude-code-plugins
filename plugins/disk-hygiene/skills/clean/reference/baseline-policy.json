@@ -28,7 +28,7 @@
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.tmp",
-      "entry_types": ["file"],
+      "entry_types": ["file", "link"],
       "confidence_ceiling": "medium",
       "reason": "Common temporary-file suffix; provenance and live ownership still need proof"
     },
@@ -61,7 +61,7 @@
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.lock",
-      "entry_types": ["file"],
+      "entry_types": ["file", "link"],
       "confidence_ceiling": "low",
       "reason": "Lock-looking file; only stale when its owner and process state prove it"
     },
@@ -136,7 +136,7 @@
       "pattern": "????????.???",
       "entry_types": ["directory"],
       "confidence_ceiling": "low",
-      "reason": "Directory named like the random 8.3 names Visual Studio's BackgroundDownload.exe creates under %TEMP% (reported in Microsoft forum threads and by the issue reporter; no official Microsoft doc names the layout, so the pattern is broad); confirm it holds a Visual Studio layout and that no installer or BackgroundDownload.exe process owns it"
+      "reason": "Directory named like the random 8.3 names Visual Studio's BackgroundDownload.exe creates under %TEMP%; the pattern is broad, so confirm it holds a Visual Studio layout and that no installer or BackgroundDownload.exe process owns it"
     },
     {
       "id": "windows-docker-desktop-update-bsdiff",
@@ -144,7 +144,7 @@
       "kind": "name_glob",
       "pattern": "*.bsdiff",
       "confidence_ceiling": "low",
-      "reason": "Docker Desktop update patch entry (bsdiff binary delta) as observed by the issue reporter; confirm Docker Desktop is not mid-update and the entry sits in its updater directory"
+      "reason": "Docker Desktop update patch entry (bsdiff binary delta); confirm Docker Desktop is not mid-update and the entry sits in its updater directory"
     },
     {
       "id": "windows-electron-updater-cache",

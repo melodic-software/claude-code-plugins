@@ -3,7 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.29.1] - 2026-09-29
+## [0.30.0] - 2026-09-29
+
+### Added
+
+- **Partial totals are labelled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  A scan that left any subtree unwalked sets `totals_are_lower_bounds`, and `truncation_reasons`
+  maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut` or `scan-error`. A directory
+  whose scan failed is in `truncation_reasons` and `errors`, not in `truncated_paths`.
+- **Bounded empty directories are listed** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  The snapshot carries up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`.
+- **A hint may set `entry_types`** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)):
+  `file`, `directory`, `link` (a symlink or reparse point) or `other`. A hint that sets none matches
+  every kind.
+- **Windows hints** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233))
+  cover a Visual Studio layout cache, Docker `bsdiff` leftovers and Electron updater downloads.
+- **A protected shell-folder refusal carries a `hint`**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)) naming which
+  targets are allowed.
+
+### Changed
+
+- **The skill states the Windows and macOS outcome up front**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)): a run ends in a
+  report plus the `execution-platform-unsupported` handoff.
 
 ### Fixed
 
@@ -11,17 +34,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)). When the project
   directory is the home directory, the user and project overlay resolve to one file; it now applies
   once and appears once in `policy_sources`.
-- **Partial totals are labelled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
-  A scan that left any subtree unwalked sets `totals_are_lower_bounds`, and `truncation_reasons`
-  maps each unwalked path to `vcs-boundary`, `protected`, `depth-cut` or `scan-error`.
-- **Bounded empty directories are listed.** The snapshot carries up to 200 sorted
-  `empty_directory_paths` with a truncation flag.
-- **The baseline `*.tmp` and `*.lock` hints match files only**, so a directory such as
-  `~/.codex/.tmp` is no longer hinted. A hint may set `entry_types`.
-- **Windows hints** cover a Visual Studio layout cache, Docker `bsdiff` leftovers and Electron
-  updater downloads.
-- **A protected shell-folder refusal carries a `hint`**, and the skill states up front that
-  Windows and macOS runs end in a report plus the `execution-platform-unsupported` handoff.
+- **The baseline `*.tmp` and `*.lock` hints no longer match directories**
+  ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)), so a directory
+  such as `~/.codex/.tmp` is not hinted. They match files and links.
 
 ## [0.29.0] - 2026-09-29
 

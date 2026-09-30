@@ -11,7 +11,9 @@ confirmation gate stay in [SKILL.md](../SKILL.md#arguments-and-boundaries).
 instead of a path map, and shortens the closing note, leaving every
 counter, byte total, error and policy source in place. The snapshot file carries the rollup, the
 truncated-path list and each path's reason in full in both modes, so read per-child detail and the coverage gaps there and
-pass `--quiet` whenever the run only needs the frontier summary.
+pass `--quiet` whenever the run only needs the frontier summary. `truncation_reasons` covers every
+unwalked path, including a directory whose scan failed (`scan-error`, also listed in `errors`), which
+`truncated_paths` omits, so the tally can sum to more than the `truncated_paths` count.
 
 ## `--root-children` and `--root-child`
 
