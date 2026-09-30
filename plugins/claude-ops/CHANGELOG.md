@@ -13,7 +13,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 - **`measure-hook-log-budget.sh` times S through the bash the launcher spawns** and records
   `invoking_bash_path`, `invoking_bash_native_path`, `launcher_bash_path`, `uname_s` and the PATH
   bash's own floor. On Windows the launcher resolves Git's `bin\bash.exe` wrapper, not the
-  `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S.
+  `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S. The two native
+  paths print in `cygpath -m` form (`C:/Program Files/Git/bin/bash.exe`), which the
+  shell-portability gate does not read as a GNU `\b` regex escape.
 
 ## [0.74.1] - 2026-09-30
 
