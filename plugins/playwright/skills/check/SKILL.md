@@ -19,7 +19,7 @@ Run the read-only check. Do not run `apply`. Do not install or download.
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Its pre-computed `playwright-cli` row does not run when the file is read, so run `command -v playwright-cli` and, when it resolves, `playwright-cli --version`, once each. For its browser step run `command -v` over the usual system Chrome and Chromium binary names, and for its artifact-directory step run `git check-ignore -q .playwright-cli/`. Report the PASS/FAIL/INFO table. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Its pre-computed `playwright-cli` row does not run when the file is read, so run `command -v playwright-cli` and, when it resolves, `playwright-cli --version`, once each. For its artifact-directory step run `git check-ignore -q .playwright-cli/`. Report the PASS/FAIL/INFO table. Stop.
 
 ## Next
 
