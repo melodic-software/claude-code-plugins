@@ -40,8 +40,8 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 One native Claude Code surface inspects two of this skill's four suspects, and the two get
 conflated whenever a session feels slow:
 
-- **`doctor` (bundled skill, alias `/checkup`).** Ships with Claude Code rather than as a
-  marketplace plugin. It health-checks the installation and offers to fix what it finds, and its
+- **`doctor` (bundled skill, alias `/checkup`)**: health-checks the installation and offers to
+  fix what it finds, and its
   checks include slow hooks and a newer version on the release channel. It reports first and asks
   before changing anything; `claude doctor` in the terminal prints read-only diagnostics without a
   session.

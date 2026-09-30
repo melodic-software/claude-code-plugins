@@ -44,11 +44,11 @@ only, at the cost of a second copy to keep in step.
 | Name rules | 0 | `check-skill.sh` check 1 accepts a missing `name` field, so a skill without one passes |
 | Body under 500 lines | 0 | Checked |
 | Description 1-1024 characters | 0, and `scripts/skill-description-cap-baseline.txt` is empty | Enforced by `check-skill.sh` check 2b |
-| Body under 5,000 tokens (recommendation) | 54 skills exceed it | None. Restructuring is out of scope |
+| Body under 5,000 tokens (recommendation) | Several skills exceed it | None. Restructuring is out of scope |
 
 ## Consequences
 
 The spec [`docs/specs/agent-doc-surfaces.md`](../specs/agent-doc-surfaces.md) points here for the
 `.agents` decision. Revisit the fourth decision when a Claude Code release documents a project
 `.agents/skills` path and a probe lists it. The 5,000-token recommendation stays advisory until
-someone takes on splitting the 54 bodies.
+someone takes on splitting the bodies that exceed it.

@@ -3,11 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.1] - 2026-09-29
+## [0.42.2] - 2026-09-30
 
 ### Fixed
 
 - **`setup` description fits the 1024-codepoint Agent Skills maximum.** The description keeps its trigger phrases and the check and apply summary; the first-run and schedule-summary detail lives in the skill body. The skill leaves the description-cap baseline.
+
+## [0.42.1] - 2026-09-29
+
+### Changed
+
+- **The work-loop recommends launching a background lane from inside an isolated linked worktree.** "Background-job launch mode" now says to `git worktree add` and run `claude --bg` from there, because a linked worktree outside `.claude/worktrees` keeps the lane's record write in place; the fallback wording for a non-isolated launch is kept
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
 
 ## [0.42.0] - 2026-09-29
 
