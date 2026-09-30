@@ -166,7 +166,7 @@ No em dashes in new text (the existing `report.md` uses them; do not copy them).
 - `grep -c '| Cause |' plugins/mutation-testing/skills/audit/templates/report.md` returns 1.
 - `grep -c 'A clean exercised run: /testing:test-value' plugins/mutation-testing/skills/audit/SKILL.md` returns 1.
 - `python3 -c "import json;d=json.load(open('plugins/mutation-testing/skills/audit/evals/evals.json'));print(len(d['evals']))"` prints at least 22.
-- `git diff origin/main -- plugins/mutation-testing/skills/audit/context/persist-findings.md | grep -c '^+.*rule-survivor-[a-z]*-'` returns 0 (no new rule id).
+- `test "$(git show origin/main:plugins/mutation-testing/skills/audit/context/persist-findings.md | grep -o 'rule-survivor-[a-z-]*' | sort -u)" = "$(grep -o 'rule-survivor-[a-z-]*' plugins/mutation-testing/skills/audit/context/persist-findings.md | sort -u)"` passes (no new rule id).
 - `grep -c 'exercised' docs/conventions/detector-findings/README.md` is at least 1.
 - `/skill-quality:check check plugins/mutation-testing` reports no FAIL.
 - `git diff origin/main -- plugins/mutation-testing docs/conventions | grep '^+' | grep -cP '\x{2014}'` returns 0 (no em dash added).
@@ -178,8 +178,9 @@ No em dashes in new text (the existing `report.md` uses them; do not copy them).
 - `plugins/mutation-testing/CHANGELOG.md` entry; `README.md` names `--exercised`, `tests` and
   `test-command`.
 - Live runs, one per scenario `calls-sut`, `no-assertion`, `copied-logic` and `unreached-branch`,
-  plus `calls-sut` with its tests left uncommitted. For each: copy `app.py` and the config to
-  `.work/tautological-tests-mutation-scope/live/<scenario>/` (memory slice, never committed),
+  plus `calls-sut` with its tests left uncommitted, run in `live/calls-sut-uncommitted/`. For
+  each: copy `app.py` and the config to
+  `.work/tautological-tests-mutation-scope/live/<run>/` (memory slice, never committed),
   `git init -b main`, commit `app.py`, then branch `tests` and add the scenario's test file
   (committed, or left uncommitted for the variant). Run from that directory:
   `claude -p --plugin-dir <worktree>/plugins/mutation-testing "/mutation-testing:audit"` and save
@@ -282,6 +283,9 @@ timing stated in the Brief (reviewer 14, DA 13); preflight ordering and restrict
 (DA 11); Phase 1 coverage-interaction column (DA 12); Displaced answers block added (DA 14);
 mixed-diff hint count (DA 16). Reviewer 3 (Q6) and reviewer 15 (the spec's Release 2 gate path) are
 open questions below; the single-language fixture (DA 11) is a recorded risk.
+
+Not re-stress-tested: DT12-DT16 and the revised phases were written after both passes and have not
+had a fresh-context review of their own. `/planning:plan review` before approval covers them.
 
 ## Execution shape
 
