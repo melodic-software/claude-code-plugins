@@ -100,15 +100,25 @@ PS_HERESTRING_EXPANDABLE=0
 # modeling escapes inside text it has already decided it cannot parse. Read by
 # ps::classify_git_command, where it is the trigger of last resort.
 PS_HERESTRING_EXPANDABLE_SUBEXPR=0
-# 1 when a line this library CONFIRMED as a here-string opener also carries a `#`
-# anywhere before the two-character opener suffix.
+# 1 when the here-string reduction cannot be trusted: the lines it dropped may be
+# live commands, or the text carries a CR this library does not split on. The
+# first shape that tripped it is in PS_REDUCTION_UNTRUSTED_REASON. Reasons, none
+# with an allow token:
+#   herestring-comment-char     — `#` on a confirmed opener prefix
+#   herestring-opener-untrusted — `'`, `"`, `\`, or backtick on that prefix
+#   herestring-comment-span     — a `<#` appears earlier in the command
+#   herestring-orphan-closer    — `'@` / `"@` at column zero with no confirmed opener
+#   bare-cr                     — a CR not followed by LF
 #
-# PowerShell's own tokenizer reads `#` outside a quoted string as the start of a
-# line comment, so the `@"` of `Write-Output x # @"` is comment TEXT and opens
-# nothing: the next line is a live command. This library reads the same line as
-# an opener and DROPS that next line as here-string body, which is how
-# `Write-Output x # @"` / `git push --force` / `"@ fine"` reaches the parser with
-# the git command already gone.
+# The comment-char reason, which the others generalize: a line this library
+# CONFIRMED as a here-string opener also carries a `#` anywhere before the
+# two-character opener suffix. PowerShell's own tokenizer reads `#` outside a
+# quoted string as the start of a line comment, so the `@"` of
+# `Write-Output x # @"` is comment TEXT and opens nothing: the next line is a
+# live command. This library reads the same line as an opener and DROPS that next
+# line as here-string body, which is how `Write-Output x # @"` /
+# `git push --force` / `"@ fine"` reaches the parser with the git command already
+# gone.
 #
 # The test is a plain substring test on the RAW line. It does not decide whether
 # the `#` is a comment, sits inside a string, or is glued to a token, and it
@@ -117,28 +127,18 @@ PS_HERESTRING_EXPANDABLE_SUBEXPR=0
 # refused whole. ACCEPTED OVER-BLOCK: `Write-Output "#1" @"` and `a#b @"` open a
 # real here-string in PowerShell and are refused here anyway.
 #
-# THIS SHAPE HAS NO ALLOW TOKEN, and cannot be given one. Every token-granted
+# THESE SHAPES HAVE NO ALLOW TOKEN, and cannot be given one. Every token-granted
 # sink round spends the caller's shared `_ps_sink_attempts` budget, so a sixth
 # grantable trigger pushes a command that settles in four rounds past the cap,
 # where block-dangerous-git.sh refuses as budget-exhausted without ever reading
 # the destructive sibling. The refusal is therefore unconditional in every
-# reader, and names this shape rather than the budget.
+# reader, and names the shape rather than the budget.
 #
-# Read by ps::classify_git_command (which turns it into sink trigger
-# `herestring-comment-char`), by ps::write_bypass, and by block-dangerous-git.sh,
-# which refuses on the flag itself at the top of its sink loop so the shape never
-# enters a token-granted round.
-#
-# Generalized (#4683) to a reduction-untrusted flag plus a reason. The comment-
-# char flag stays 1 for EVERY untrusted reason so existing FLAG-keyed readers
-# keep refusing; PS_SINK_TRIGGER / PS_REDUCTION_UNTRUSTED_REASON name the shape.
-# Reasons (no allow token on any of them):
-#   herestring-comment-char     — `#` on a confirmed opener prefix
-#   herestring-opener-untrusted — `'`, `"`, `\`, or backtick on that prefix
-#   herestring-comment-span     — a `<#` appears earlier in the command
-#   herestring-orphan-closer    — `'@` / `"@` at column zero with no confirmed opener
-#   bare-cr                     — a CR not followed by LF
-PS_HERESTRING_OPENER_COMMENT_CHAR=0
+# Read by ps::classify_git_command (which turns it into a sink trigger named for
+# the reason), by ps::write_bypass, and by each guard that classifies a
+# PowerShell command: block-dangerous-git.sh and block-no-verify.sh refuse on it
+# at the top of their sink loops so the shape never enters a token-granted round,
+# and the two commit guards refuse on it instead of deferring.
 PS_REDUCTION_UNTRUSTED=0
 PS_REDUCTION_UNTRUSTED_REASON=""
 # 1 when the last ps::_walk_quoted_spans_to pass crossed a DOUBLE-quote opener,
@@ -201,13 +201,15 @@ ps::_mark_untrusted() {
   ((PS_REDUCTION_UNTRUSTED)) && return 0
   PS_REDUCTION_UNTRUSTED=1
   PS_REDUCTION_UNTRUSTED_REASON="$1"
-  PS_HERESTRING_OPENER_COMMENT_CHAR=1
 }
 
 # True when TEXT contains a CR not immediately followed by LF. PowerShell ends
-# a statement at a bare CR; this library splits on LF only.
+# a statement at a bare CR; this library splits on LF only. The glob answers
+# "no CR at all" without the per-character walk, which is every command that
+# carries no CR.
 ps::has_bare_cr() {
   local s="$1" i n next
+  [[ "$s" == *$'\r'* ]] || return 1
   n=${#s}
   for ((i = 0; i < n; i++)); do
     [[ "${s:i:1}" == $'\r' ]] || continue
@@ -224,10 +226,13 @@ ps::payload_has_bare_cr() {
   local s="${1-}" t
   [[ -n "$s" ]] || return 1
   ps::has_bare_cr "$s" && return 0
-  t="${s//\\\\/}"
   # `*"\\r"*` is glob-star + one backslash + r: JSON's two-character `\r`
   # escape. A fully quoted pattern would treat `*` as literal; a single-quoted
-  # `'\\r'` is two backslashes and would miss the payload encoding.
+  # `'\\r'` is two backslashes and would miss the payload encoding. Dropping
+  # escaped backslashes below cannot create a `\r`, so a payload without one
+  # skips the rewrite.
+  [[ "$s" == *"\\r"* ]] || return 1
+  t="${s//\\\\/}"
   while [[ "$t" == *"\\r"* ]]; do
     t="${t#*"\\r"}"
     # JSON CRLF is the two-escape sequence `\r\n`, so the remainder after `\r`
@@ -410,9 +415,6 @@ ps::blank_herestrings() {
   PS_HERESTRING_QUOTE=""
   PS_HERESTRING_EXPANDABLE=0
   PS_HERESTRING_EXPANDABLE_SUBEXPR=0
-  # Read by the sourcing guard, not within this library.
-  # shellcheck disable=SC2034
-  PS_HERESTRING_OPENER_COMMENT_CHAR=0
   PS_REDUCTION_UNTRUSTED=0
   PS_REDUCTION_UNTRUSTED_REASON=""
   # Bare CR on the raw command, before space-folding. jq_fields may already have
@@ -2008,10 +2010,10 @@ ps::classify_git_command() {
 # pipeline consumer or following statement remains for normal checks.
 #
 # The no-token family (`herestring-comment-char`, `herestring-opener-untrusted`,
-# `herestring-comment-span`, `herestring-orphan-closer`, `bare-cr`) has NO arm here and must never reach this
-# function: none of them carries an allow token, and block-dangerous-git.sh
-# refuses on PS_HERESTRING_OPENER_COMMENT_CHAR at the top of its sink loop, ahead
-# of the allow-list question. The `*` default below blanks an unrecognized
+# `herestring-comment-span`, `herestring-orphan-closer`, `bare-cr`) has NO arm
+# here and must never reach this function: none of them carries an allow token,
+# and block-dangerous-git.sh refuses on PS_REDUCTION_UNTRUSTED at the top of its
+# sink loop, ahead of the allow-list question. The `*` default below blanks an unrecognized
 # trigger's command to nothing and the caller then exits 0, so an arm-less
 # trigger that DID reach a token-granted round would be a general bypass;
 # refusing before the question is what keeps that unreachable.
@@ -2466,7 +2468,7 @@ ps::write_bypass() {
   # PowerShell may run as commands, so a NO from the scans below would be a
   # statement about text the command does not have. Report a bypass by shape.
   # block-hook-bypass consults no allow-list on this return, so it is final.
-  # See PS_REDUCTION_UNTRUSTED / PS_HERESTRING_OPENER_COMMENT_CHAR.
+  # See PS_REDUCTION_UNTRUSTED.
   ((PS_REDUCTION_UNTRUSTED)) && return 0
 
   # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the

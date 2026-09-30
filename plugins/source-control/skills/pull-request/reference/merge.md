@@ -101,6 +101,14 @@ If a stash was created, report it and tell the user to inspect it with `git stas
 
 Worktree reuse (new branch from latest default branch in the same directory) is faster than remove+recreate and preserves gitignored files; the alternative is `ExitWorktree` + a fresh `EnterWorktree` for a clean slate.
 
+The worktree's lock stays while it is reused for the next task. When the worktree is not reused (leaving it with `ExitWorktree`), release the lock after the merge succeeds, so later cleanup does not find a lock nobody holds:
+
+```bash
+bash "<scripts-dir>/worktree-claim.sh" release <worktree-path> --session-id "${CLAUDE_SESSION_ID}"
+```
+
+`release` unlocks only a lock this session armed and exits non-zero on a foreign one; report that and leave the lock.
+
 **If on a regular branch (not in worktree):**
 
 1. **Check for uncommitted changes BEFORE checkout** with `git status --porcelain`. If uncommitted changes exist, they will be lost on the default-branch checkout (conflicting changes fail, non-conflicting changes silently carry over, neither desirable). Stash first: `git stash push -u -m "pre-merge-cleanup: <branch-name>"` (`-u` includes untracked files, since without it new files are silently skipped). Stashes survive branch deletion (stored in `.git/refs/stash`, not tied to branches)
