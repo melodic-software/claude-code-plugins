@@ -209,5 +209,11 @@ printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
   env CLAUDE_PROJECT_DIR="$P13" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=abc bash "$SINK" >/dev/null 2>&1
 assert_file_absent "an invalid cap falls back to the default" "$P13/$ROOT_REL/hook-events.jsonl.1"
 assert_eq "an invalid cap still appends" 3 "$(wc -l <"$P13/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
+# 2^63 wraps negative in bash arithmetic; it must fall back to the default, not
+# rotate on every append.
+printf '%s\n' "$(envelope config-change-audit ConfigChange ok 4 x '')" |
+  env CLAUDE_PROJECT_DIR="$P13" CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES=9223372036854775808 bash "$SINK" >/dev/null 2>&1
+assert_file_absent "a cap past 2^63-1 falls back to the default" "$P13/$ROOT_REL/hook-events.jsonl.1"
+assert_eq "a cap past 2^63-1 still appends" 4 "$(wc -l <"$P13/$ROOT_REL/hook-events.jsonl" | tr -d ' ')"
 
 report

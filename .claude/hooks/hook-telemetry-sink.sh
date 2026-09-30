@@ -146,7 +146,9 @@ mkdir -p "$root" 2>/dev/null || exit 0
 slog_event_record_to LINE envelope "$TS" "" "$EVENT" "$STATUS_OUT" \
   "${DURATION_MS:-0}" "${RUN_KEYS[@]}"
 max_bytes="${CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES:-}"
-[[ "$max_bytes" =~ ^[1-9][0-9]*$ ]] || max_bytes=10485760
+# At most 18 digits: bash arithmetic wraps a value past 2^63-1 negative, which
+# would rotate the file on every append.
+[[ "$max_bytes" =~ ^[1-9][0-9]{0,17}$ ]] || max_bytes=10485760
 
 # hook::append_jsonl plus a size cap: a <file> over <max_bytes> moves to
 # <file>.1 (replacing any older .1) before the append. Without flock (macOS,
