@@ -3,6 +3,60 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.67.0] - 2026-09-30
+
+### Added
+
+- **`worktree` proposes already-safe worktrees for cleanup after `worktree_reap_after_hours` (default 48).** The setting applies only to worktrees whose Work axis is `safe`; stranded and unknown worktrees are never proposed. A locked worktree past the age is proposed only when `worktree-claim.sh stale` proves its lane's lock stale, behind the existing confirmation gate; any other lock, this session's included, keeps it out of the proposal. `worktree_stale_days` keeps its `status` meaning.
+- **`worktree audit` scans the worktree root for unregistered directories** with the new `scripts/worktree-root-scan.sh`, classifying each as empty, husk (a `.git` file whose worktree registration git dropped while its main clone is intact), or foreign (content, no `.git`). Empty directories and husks holding only their `.git` file are proposed for removal by `cleanup`; a husk with other content, a worktree whose main clone was moved or deleted or a directory that cannot be listed (`unknown`), and foreign directories are reported only. `reference/worktree-root-convention.md` documents the classes.
+
+## [0.66.0] - 2026-09-30
+
+### Added
+
+- **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, each case has a `skill-fired` grader, and each case seeds a repository through `--scaffold`.
+
+## [0.65.5] - 2026-09-30
+
+### Fixed
+
+- **The `worktree-root-doctor` and `worktree-add-containment-gate` suites run on Windows Git Bash instead of skipping.** Their fixtures now build temp dirs with `native_mktemp_dir` in `scripts/test-helpers.sh`, which returns the `cygpath -m` form native git stores, so an `includeIf` path resolves. The gate suite skips, with a reason, when the temp root contains whitespace. The scripts under test are unchanged.
+
+## [0.65.4] - 2026-09-30
+
+### Changed
+
+- **`worktree` refreshes the nesting-invariant stamp from an authenticated probe run** on Claude Code 2.1.285
+  ([#5318](https://github.com/melodic-software/claude-code-plugins/issues/5318)). The owning-parent leak seen on 2.1.224 does not reproduce on dot-nested, plain-nested or external placement; an unrelated enclosing repo's scoped rule still loads. The expired-stamp marker is gone and the expiry moves to 2.1.305 or 2026-12-29.
+
+## [0.65.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The `commit` and `/commit-push-pr` bullets in `commit`, the `pr`, `/commit-push-pr` and
+  `/autofix-pr` bullets in `pull-request`, and the `/autofix-pr` bullet in `babysit-prs` keep the
+  provenance class, what the surface does and how it is invoked, in the native-references template
+  form.
+
+## [0.65.2] - 2026-09-30
+
+### Fixed
+
+- **`pr-linkage-validator.sh` leaves no scratch file in `TMPDIR`.** A body under 16000 characters is split through a here-string, so the validator creates no file it must remove. A longer body goes through one `pr-linkage-lines.<pid>` file that is removed right after the read. The gate hook and its tests no longer accumulate `pr-linkage-lines.<pid>` files.
+
+## [0.65.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.65.0] - 2026-09-29
 
 ### Changed

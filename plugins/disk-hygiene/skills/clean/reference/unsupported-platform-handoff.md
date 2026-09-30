@@ -37,10 +37,12 @@ engine plan:
      --data-root "${CLAUDE_PLUGIN_DATA}"
    ```
 
-   `--path` takes one path and may not repeat. For the multi-path reporting form, write the
-   approved list to `<run-dir>/handoff-paths.json` as
-   `{"version": 1, "paths": ["relative/exact.tmp"]}` (non-overlapping) and pass
-   `--paths "<run-dir>/handoff-paths.json"` instead; the engine takes exactly one of the two.
+   `--path` is repeatable: pass it once per approved path to report several paths in one call,
+   with no file write. Each path gets its own verdict, and the paths must not overlap. The
+   `--paths` file form reports the same way from
+   `{"version": 1, "paths": ["relative/exact.tmp"]}` written to
+   `<run-dir>/handoff-paths.json` and passed as `--paths "<run-dir>/handoff-paths.json"`. The
+   engine takes exactly one of `--path` and `--paths`, never both.
 
    It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
    against live state and emits one verdict each, `clear`, `drifted` (identity or descendant
@@ -108,7 +110,9 @@ engine plan:
    `"accept_unpublished": true` and the operator's `"reason"` to the entry whose `path` is the
    exact approved path, and tell the operator that unpushed commits and untracked or ignored files
    in it will be lost. The acknowledgement relaxes only those two gates; see
-   [the safety model](safety-model.md#standalone-git-checkout-evidence). Then run:
+   [the safety model](safety-model.md#standalone-git-checkout-evidence). This lane is for Windows
+   and macOS; on Linux the engine's `handoff-apply` (command in `safety-model.md`) reads the same evidence
+   file and does the verify and the deletion in one process. Then run:
 
    ```text
    "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
@@ -155,6 +159,8 @@ engine plan:
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
    permanent, disclose when a target's volume or policy may turn "reversible" removal permanent.
+   After a recycle, do not empty the Recycle Bin or Trash: emptying it would make any recycled
+   removal permanent and is the container-wide operation step 3 forbids.
 
    **Path length is a different failure, not a silent downgrade but a hard stop.** Those three
    caveats all describe a reversible operation quietly turning permanent. A path longer than the

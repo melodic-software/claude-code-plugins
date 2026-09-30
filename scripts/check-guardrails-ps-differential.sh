@@ -15,7 +15,10 @@
 # WHAT IS COMPARED. For each corpus command, sent as a PowerShell PreToolUse
 # payload on stdin (nothing is executed):
 #   * each blocking consumer run directly: block-dangerous-git, block-no-verify,
-#     block-convention-violation, block-noncanonical-commit, block-hook-bypass
+#     block-convention-violation, block-noncanonical-commit, block-hook-bypass,
+#     block-root-delete-target (the delete lane: it tokenizes on its own, not
+#     through the classifier, and judges an outside-tree target from the payload
+#     cwd, one absolute neutral directory for both arms)
 #     (flag-commit-pr-skill-bypass is advisory and always exits 0);
 #   * the production path: run-guards.sh with the argv of each tree's own
 #     hooks.json Bash|PowerShell row, which loads the library once per process;
@@ -114,7 +117,7 @@ if [[ ! -f "$BRANCH_ROOT/lib/powershell/ps-command.sh" ]]; then
   exit 2
 fi
 
-CONSUMERS=(block-dangerous-git block-no-verify block-convention-violation block-noncanonical-commit block-hook-bypass)
+CONSUMERS=(block-dangerous-git block-no-verify block-convention-violation block-noncanonical-commit block-hook-bypass block-root-delete-target)
 TOKENS=(dynamic-invocation launcher special-construct herestring-unbalanced herestring-subexpr)
 
 while IFS= read -r _v; do

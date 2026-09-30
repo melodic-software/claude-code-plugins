@@ -693,9 +693,11 @@ fi
 if [[ -n "$COMMAND" ]]; then
   # Bash-tool POSIX /tmp on a Git for Windows usertemp mount already lands in
   # %TEMP%. Skip that spelling only; /c/tmp, C:\tmp and drive-root \tmp stay
-  # blocked, and PowerShell is unchanged (#4251).
+  # blocked, and PowerShell is unchanged (#4251). The probe forks cygpath twice
+  # on Windows, and both matchers it steers need `tmp` in the command, so a
+  # command without it never pays for the probe.
   _DRIVE_TMP_SKIP_POSIX=0
-  if [[ "$TOOL_NAME" == "Bash" ]] && posix_tmp_maps_to_usertemp; then
+  if [[ "$TOOL_NAME" == "Bash" && "$NORM" == *tmp* ]] && posix_tmp_maps_to_usertemp; then
     _DRIVE_TMP_SKIP_POSIX=1
     _dt_lc="${COMMAND,,}"
     if [[ "$_dt_lc" == *'\tmp'* ]]; then

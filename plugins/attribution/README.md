@@ -46,6 +46,11 @@ Evidence tiers are discrete and evidence-gated, never verbalized probabilities:
 | `llm-suspected` | no lexical evidence is possible (paraphrase, summary) | no, human report |
 | `not-found` | budgets exhausted; every searched surface is named | no, human report |
 
+A passage that states a checkable external fact in its own words (a default, a limit) is judged
+against a second rubric, restated fact, and is never fix-eligible. A unanimous verdict that
+survives a refutation pass is relayed to the detector-findings report; anything else stays in the
+human report.
+
 `not-found` is a first-class neutral outcome. Absence of a located source is never read as
 evidence of a copy.
 

@@ -3,6 +3,24 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.63] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.6.62] - 2026-09-30
+
+### Changed
+
+- Test-only: the hook suites assert the telemetry envelope through the schema-driven `check_envelope` in the shared test helper `hooks/hook-test-sink.sh` instead of a transcribed field list. No behavior change.
+
+## [0.6.61] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.6.60] - 2026-09-29
 
 ### Changed

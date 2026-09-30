@@ -109,6 +109,7 @@ REGISTRY=(
   "check-skill-precompute-compose.sh|-|-|-"
   "check-spoke-plugin-root.sh|-|-|spoke_plugin_root"
   "check-stale-base-overlap.sh|-|-|-"
+  "check-test-tmp-cleanup.sh|git|-|-"
   "check-vendor-version-bump.sh|-|-|-"
 )
 
