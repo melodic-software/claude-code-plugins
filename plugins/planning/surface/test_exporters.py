@@ -1298,6 +1298,14 @@ class TestImportLedger(SessionCase):
                     "unknown field 'hld2'",
                 ),
                 (
+                    "open | round 1 | Who? | 2fa:: claude x; commitments:: +One",
+                    "unknown field '2fa'",
+                ),
+                (
+                    "open | round 1 | Who? | _hold:: claude x; commitments:: +One",
+                    "unknown field '_hold'",
+                ),
+                (
                     "answered | round 1 | Who? | answer:: accepted: x; aside:: accepted: y",
                     "contradictory fields 'answer' and 'aside'",
                 ),

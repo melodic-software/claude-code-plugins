@@ -102,7 +102,7 @@ TAIL = re.compile(r"; confirmed::(?=[ ;]|$)")
 ANSWER_MARK = re.compile(r"^answer::(?: |$)(.*)$", re.DOTALL)
 FIELDS = ("hold", "proposal", "was", "answer", "note", "aside", "commitments")
 NAMED = re.compile(rf"^({'|'.join(FIELDS)})::(?: |$)(.*)$", re.DOTALL)
-UNKNOWN_LEAD = re.compile(r"^([A-Za-z][\w ]*)::(?: |$)")
+UNKNOWN_LEAD = re.compile(r"^([^:;]+)::(?: |$)")
 ALT = re.compile(r"^alt (\S+?)(?:: (.*))?$", re.DOTALL)
 
 
