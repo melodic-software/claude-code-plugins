@@ -154,9 +154,14 @@ def shape_error(kind: str, data: Any) -> str | None:
             k for k in ("discovery", "integrity") if not isinstance(data.get(k), dict)
         ]
         candidates = data.get("candidates")
+        # A candidate's identity builds its dedupe key, so its leaves are
+        # required: a missing one would key the baseline as `None:None:None`.
         if not _objects(candidates) or not all(
-            _opt(c.get("native"), dict)
-            and _opt(c.get("component"), dict)
+            isinstance(c.get("native"), dict)
+            and isinstance(c["native"].get("name"), str)
+            and isinstance(c.get("component"), dict)
+            and isinstance(c["component"].get("plugin"), str)
+            and isinstance(c["component"].get("skill"), str)
             and _opt(c.get("evidence"), list)
             for c in candidates
         ):

@@ -578,6 +578,16 @@ class CliTests(unittest.TestCase):
                 *({k: v for k, v in full.items() if k != drop} for drop in full),
                 {**full, "candidates": "x"},
                 {**full, "candidates": [{"native": "x"}]},
+                {
+                    **full,
+                    "candidates": [{"native": {}, "component": {}, "evidence": []}],
+                },
+                {
+                    **full,
+                    "candidates": [
+                        {"native": {"name": "loop"}, "component": {"plugin": "p"}}
+                    ],
+                },
             ],
             "--store": [
                 [],
