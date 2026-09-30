@@ -173,10 +173,12 @@ The model cannot check presence: a model-invocation-disabled skill never enters
 its listing. So the skill renders its own page either way and offers the person a
 conditional sentence ("If /design is available in your session ..."), which the
 person checks against their own session. User invocation of `/design` survives
-the model-invocation gate. Identity is checkable from both sides: a `design`
-entry in the model's own skill listing can only be a shadowing local skill, so
-the offer is withheld and the shadowing named; otherwise the person confirms
-`/design`'s description reads "Make a new Design artifact from a brief".
+the model-invocation gate. The model sees only part of the identity question: a
+`design` entry in its own skill listing can only be a shadowing local skill, so
+the offer is withheld and the shadowing named, but a local `design` skill that
+disables model invocation shadows the command while staying hidden. So every
+offer asks the person to confirm `/design`'s description reads "Make a new
+Design artifact from a brief" before running it for a canvas.
 
 > Re-verified 2026-09-29 against a binary extraction of v2.1.285: one bundled
 > registration named `design`, `model_invocable` false (`disable_model_invocation`

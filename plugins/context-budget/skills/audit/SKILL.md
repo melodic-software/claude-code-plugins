@@ -12,7 +12,8 @@ metadata:
 
 ## Purpose
 
-`/context` itemizes skills, agents, and MCP tools natively. For those, run it and read the tables.
+`/context` itemizes skills, agents, and MCP tools natively. The model cannot invoke it in this
+session, so for those, ask the person to run it and read its tables (the Boundary section below).
 What it structurally cannot itemize is the built-in tool pool: `System tools` and
 `System tools (deferred)` are lump sums, and together they are typically the largest single
 contributor to the fixed startup payload. This skill measures that attribution on the consumer's
@@ -42,7 +43,7 @@ Two rules govern everything this skill says, per the plugin's
   Verified 2026-09-06 against Claude Code 2.1.263 and the commands reference
   (<https://code.claude.com/docs/en/commands>, the `/doctor` row). Recheck when that row stops
   naming the unused-component check, or when a release note names `/doctor`.
-- Per-skill / per-agent / per-MCP-tool attribution → `/context` natively.
+- Per-skill / per-agent / per-MCP-tool attribution → `/context` natively, which the person runs.
 - Live in-session occupancy over time → the `context-guard` plugin, if installed.
 - Settings correctness, permission-rule state → the `claude-config` plugin, if installed.
 
@@ -86,8 +87,9 @@ can run `/context` to see what fills the current window. Prefer this skill for s
 per-tool attribution, and whether a settings change saved anything. An unattended run records the
 offer in its output instead of asking.
 
-**Mutation gate.** Neither writes files by default. This skill never runs `/context` on the
-person's behalf.
+**Mutation gate.** Neither writes files by default. This skill never runs `/context` in the
+person's session. The engine's headless capture of `/context` output in a spawned measurement
+session is a separate path, covered under the engine's rungs below.
 
 **Availability is never assumed.** The command is gated; this section states what to do when the
 person can run it, never that it is present. The four-part records live in
