@@ -497,7 +497,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "afe8b87d549aef867adb49301d892e0814f13b98cef0c3d49f2479a92183eb77"
+  "c02c6aa427e0d64b7893d8123a6eeaf85ae00a9b36acfa65c29d39059b41072b"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -612,7 +612,7 @@ pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, he
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
   "### Step 2. Dispatch fresh-context validators" \
-  "4ac90f63d046510f8744728ca5c7e46feaaf5c703eefa596e14f8546d190b242"
+  "08a4752216efdc690cca29b0c77808b9d994b8599dc3f539eff7afda83fde8a8"
 pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
   "$AUDIT" \
   "### Step 4. Merge and triage" \
@@ -804,8 +804,8 @@ pin "SKILL.md: on the page, commitment parts are \`commits\` entries" "$SKILL" \
   "on the page, its parts are the question's \`commits\` entries"
 pin "loop.md defines commitment parts on the page" "$LOOP" \
   "**Commitment parts on the page.**"
-pin "loop.md: the register gate does not grade page parts" "$LOOP" \
-  "The register gate does not grade parts."
+pin "loop.md: an accepted or hedged page row with an unticked part exports open" "$LOOP" \
+  "an accepted or hedged row with an unticked part exports \`open\`"
 pin "loop.md: a mirrored terminal answer ticks no part" "$LOOP" \
   "a terminal answer mirrored with \`record-terminal\` ticks none"
 pin "loop.md: a hedged reply is never mirrored as accept" "$LOOP" \
