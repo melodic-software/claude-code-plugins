@@ -9,11 +9,11 @@
 # The rule: a suite whose non-comment lines mention `mktemp` and none of whose
 # non-comment lines match `trap ... EXIT` leaves its fixtures behind on every
 # run, and on an early exit or a failed assertion. An offender is a fail unless
-# it is listed in scripts/test-tmp-cleanup-baseline.txt, the suites that merged
-# before this gate existed. The baseline is a ratchet: an entry whose file is
-# gone or no longer offends is a fail too, so the list only shrinks. Fix a
-# suite by adding the trap, then delete its baseline line. Never add a suite to
-# the baseline: give it the trap instead.
+# it is listed in scripts/test-tmp-cleanup-baseline.txt, the known offenders.
+# The baseline is a ratchet: an entry whose file is gone or no longer offends
+# is a fail too, so the list only shrinks. Fix a suite by adding the trap, then
+# delete its baseline line. Never add a suite to the baseline: give it the trap
+# instead.
 #
 # Output follows the check-script contract (README.md, "The check-script
 # contract"): one finding per line on stderr, the clean-run statement on

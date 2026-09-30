@@ -1508,9 +1508,9 @@ jobs:
         continue-on-error: true
         run: scripts/check-pipefail-grep-q.sh
 
-      # A *.test.sh that runs mktemp must trap EXIT to remove it; suites that
-      # predate the gate are listed in scripts/test-tmp-cleanup-baseline.txt,
-      # which only shrinks. Self-test first, so a broken checker cannot mask a
+      # A *.test.sh that runs mktemp must trap EXIT to remove it; the known
+      # offenders are listed in scripts/test-tmp-cleanup-baseline.txt, which
+      # only shrinks. Self-test first, so a broken checker cannot mask a
       # regression.
       - name: Test the test-temp-cleanup gate
         if: needs.changes.outputs.run_shell == 'true'
