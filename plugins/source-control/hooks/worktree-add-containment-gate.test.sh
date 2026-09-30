@@ -4,8 +4,7 @@
 # git fixtures and assert allow (exit 0) / block (exit 2) plus the block
 # message's contents. Invoked from an UNRELATED cwd so any reliance on the test
 # runner's working directory (instead of the payload's own `cwd`) would
-# surface. No network. Skipped on Windows Git Bash hosts (2 known failures,
-# #5350).
+# surface. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,17 +15,13 @@ CASE_NUM=0
 # shellcheck source=../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../scripts/test-helpers.sh"
 
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) skip_suite "Windows Git Bash host: 2 known failures, tracked in #5350" ;;
-  *) ;;
-esac
-
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 command -v jq >/dev/null 2>&1 || skip_suite "jq not available (the hook itself fails open without it)"
 
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(native_mktemp_dir)"
 UNRELATED="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR" "$UNRELATED"' EXIT
+[[ "$TEST_TMPDIR" != *[[:space:]]* ]] || skip_suite "temp root contains whitespace; fixture commands interpolate paths unquoted"
 
 mkrepo() {
   local repo

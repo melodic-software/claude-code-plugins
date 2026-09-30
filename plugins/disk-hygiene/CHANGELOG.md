@@ -33,6 +33,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
   for `apply`, or that the engine removes only snapshot entries.
 
+## [0.33.1] - 2026-09-30
+
+### Fixed
+
+- **PowerShell lane allows engine names in string data.** A here-string body or a quoted argument that only mentions an engine script name (for example a `gh issue create --body` text) no longer trips the engine-invocation deny. Only an invocation position (the command or an interpreter's script argument) counts.
+
 ## [0.33.0] - 2026-09-30
 
 ### Added

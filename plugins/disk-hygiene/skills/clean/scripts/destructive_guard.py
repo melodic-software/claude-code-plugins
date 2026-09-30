@@ -706,6 +706,114 @@ def _carries_marker(word: str) -> bool:
     return name == _ENGINE_MARKER
 
 
+# PowerShell also closes a quote opened with ' by any of these and a " by the
+# double forms; a scanner that knows only the ASCII pair would see a different
+# string boundary than PowerShell does.
+_POWERSHELL_TYPOGRAPHIC_QUOTES = frozenset("‘’‚‛“”„")
+# Outside string data: expansion, subexpression, scriptblock, type/method,
+# splat, call/background, comment, statement-separator and redirection syntax.
+# Any of them can turn a string into code, so their presence keeps the gate.
+_POWERSHELL_CODE_CHARS = frozenset("$`#()[]{}@&;|<>")
+_POWERSHELL_HERE_STRING_OPEN = re.compile(r"@(['\"])[ \t]*\r?\n")
+_POWERSHELL_EXECUTORS = frozenset(
+    {
+        "pwsh",
+        "powershell",
+        "iex",
+        "invoke-expression",
+        "start-process",
+        "saps",
+        "start",
+        "cmd",
+        "bash",
+        "sh",
+        "wsl",
+        "invoke-item",
+        "ii",
+        "invoke-command",
+        "icm",
+        "start-job",
+        "sajb",
+    }
+)
+# Launchers that run their argument as the command.
+_LAUNCHER_WRAPPERS = frozenset(
+    {
+        "env",
+        "nohup",
+        "nice",
+        "time",
+        "timeout",
+        "setsid",
+        "stdbuf",
+        "sudo",
+        "doas",
+        "exec",
+        "command",
+    }
+)
+_POWERSHELL_INTERPRETER = re.compile(
+    r"(?<![\w.\-])(?:py|python[\w.\-]*)(?![\w\-])", re.IGNORECASE
+)
+
+
+def _powershell_without_string_data(command: str) -> str | None:
+    """``command`` with each string literal replaced by ``_``, or None to keep it.
+
+    Returns a rewrite only for ONE statement of an ordinary command whose
+    string literals cannot execute: single-quoted literals and here-strings
+    always qualify, double-quoted ones only without ``$`` or backtick (a
+    subexpression runs code). None, meaning the caller must classify the
+    command as written, for anything that could run a string: an interpreter
+    token outside string data, an executor as the command word, a
+    string in the command position, a launcher wrapper (``env``, ``sudo``,
+    ``timeout``) as the command word, code syntax outside strings, a second
+    statement (``Set-Content x.ps1 '...'; ./x.ps1``), ``--%``, typographic
+    quotes, or an unterminated literal.
+    """
+    if any(char in _POWERSHELL_TYPOGRAPHIC_QUOTES for char in command) or (
+        command.lstrip(" \t")[:1] in {"'", '"'}
+    ):
+        return None
+    out: list[str] = []
+    index = 0
+    while index < len(command):
+        here = _POWERSHELL_HERE_STRING_OPEN.match(command, index)
+        char = command[index]
+        if here:
+            quote = here.group(1)
+            closer = re.compile(r"\r?\n" + re.escape(quote) + "@").search(
+                command, here.end() - 1
+            )
+            if closer is None:
+                return None
+            body, index = command[here.end() : closer.start()], closer.end()
+        elif char in {"'", '"'}:
+            quote = char
+            end = command.find(quote, index + 1)
+            if end < 0:
+                return None
+            body, index = command[index + 1 : end], end + 1
+        else:
+            if char in _POWERSHELL_CODE_CHARS or (char.isspace() and char not in " \t"):
+                return None
+            out.append(char)
+            index += 1
+            continue
+        if quote == '"' and ("$" in body or "`" in body):
+            return None
+        out.append("_")
+    stripped = "".join(out)
+    words = stripped.split()
+    if not words or "--%" in words or _POWERSHELL_INTERPRETER.search(stripped):
+        return None
+    command_word = _PATH_SEPARATOR.split(words[0].casefold())[-1]
+    if command_word.endswith(".exe"):
+        command_word = command_word[: -len(".exe")]
+    blocked = _POWERSHELL_EXECUTORS | _LAUNCHER_WRAPPERS
+    return None if command_word in blocked else stripped
+
+
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
 
@@ -741,6 +849,21 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     - any command carrying the marker that the literal parser cannot prove is a
       mere mention (expansions, operators, unparsable quoting) — fail closed
       into the gate; the belt's own rules then decide.
+
+    On PowerShell, string DATA is a mention: when a command is one statement
+    of an ordinary command (``gh``, ``git``, ``Select-String``) whose literals
+    cannot execute, every single-quoted literal, here-string body, and
+    ``$``/backtick-free double-quoted literal is blanked before the rules above
+    run (``_powershell_without_string_data``), so a ``gh issue create --body``
+    here-string naming the engine defers. The command is classified as written
+    whenever a string could run: an interpreter token outside string data, an
+    executor or launcher wrapper as the command word (``pwsh -Command``, ``iex``, ``Start-Process``,
+    ``cmd``/``bash``/``sh``, ``Invoke-Item``), a call operator, a variable,
+    a subexpression, a scriptblock or type literal, or a second statement.
+    Identity is checked before blanking, so a string naming this plugin's own
+    engine by a resolving path still gates. Accepted residual: a command the
+    executor list does not name that runs a string naming the engine
+    (``ssh host './hygiene.py scan'``) reads as data.
 
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
     under any name — gates regardless of its filename. The marker-free fallback
@@ -790,6 +913,19 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         return not os.path.isabs(word) and _samefile(os.path.join(bundled.parent, word))
 
     allow_backslash = tool_name == "PowerShell"
+    data_free = _powershell_without_string_data(command) if allow_backslash else None
+    if data_free is not None:
+        # Identity is read on the command AS WRITTEN, before any literal is
+        # blanked: a word naming one of this plugin's engines gates even when
+        # it sits in string data.
+        if any(
+            _samefile(candidate)
+            or (_carries_marker(token) and _within_plugin_cache_family(candidate))
+            for token, word in _marker_tokens_with_words(command)
+            for candidate in (token, word)
+        ):
+            return True
+        command = data_free
     marker_candidates = _marker_tokens(command)
     if not any(_carries_marker(token) for token in marker_candidates):
         # No marker: the only relevant shape is a linked alias of the bundled
@@ -860,19 +996,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     # The effective command word: skip launcher wrappers, VAR=value
     # assignments, and option words — `env PATH=... hygiene.py apply` makes the
     # bare marker word the command even though it is not word 0.
-    _WRAPPERS = {
-        "env",
-        "nohup",
-        "nice",
-        "time",
-        "timeout",
-        "setsid",
-        "stdbuf",
-        "sudo",
-        "doas",
-        "exec",
-        "command",
-    }
+    _WRAPPERS = _LAUNCHER_WRAPPERS
     wrapper_indices = [
         index
         for index, word in enumerate(words)
@@ -1830,7 +1954,9 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
         # Invocation-shaped engine references only — the same classifier the
         # plugin-level engine gate uses, so read-only text processing that
         # merely NAMES the script (Select-String over a bare name, git diff)
-        # defers instead of being denied by a raw substring test. A command
+        # defers instead of being denied by a raw substring test, and so does
+        # a name inside string data no executor, interpreter, variable, or
+        # expansion can run (a `gh issue create --body` here-string). A command
         # whose argument IS the bundled engine (file identity) still denies,
         # even under a read-verb spelling: PowerShell aliases and profile
         # functions shadow cmdlet names, so a verb name proves nothing about
