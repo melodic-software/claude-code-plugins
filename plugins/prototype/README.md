@@ -9,7 +9,7 @@ It ships **two skills**, split by the shape of the question you're answering:
 | Skill | Invoke | Answers |
 |---|---|---|
 | `pressure-test` | `/prototype:pressure-test <scope>` | "Does this state machine / data model / API surface feel right?", an interactive terminal app driving a portable, liftable logic module by hand. |
-| `explore-directions` | `/prototype:explore-directions <scope>` | "What should this look like?". Several radically different visual variations on one route, switchable from a floating control bar (real stack, a self-contained HTML mockup, or, where the bundled `design` skill is available, an editable design-canvas Artifact, offered as an explicit opt-in). |
+| `explore-directions` | `/prototype:explore-directions <scope>` | "What should this look like?". Several radically different visual variations on one route, switchable from a floating control bar (real stack or a self-contained HTML mockup; for the mockup it also tells you that you can run `/design`, the bundled `design` skill's editable canvas, yourself). |
 
 Both skills share one throwaway discipline (no persistence, skip polish, surface the state, delete
 or absorb when done) and both capture the validated answer in a durable note before the code is

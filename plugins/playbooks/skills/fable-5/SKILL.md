@@ -1,5 +1,5 @@
 ---
-description: "Claude Fable 5's operating doctrine, authored by Fable 5 as standing instructions that arm the current session immediately, with chapters loading on demand at their trigger moments: calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, and trust boundaries. Use when: 'fable playbook', 'fable-5-playbook', 'operate like Fable', 'load the playbook', at the start of any substantive engineering session, or proactively before any multi-step task where judgment quality matters. Also hosts the per-model adaptation chapters (Fable 5.1, Opus 5.5, Opus 5, Opus 4.8, Sonnet 5): use when running on any model other than Fable 5, or when adapting a repo's prompts or instructions to one of them: 'fable 5.1 adaptation', 'opus 5.5 adaptation', 'model delta', 'model adaptation chapter'."
+description: "When the bundled claude-api skill resolves in this session, prefer it for current model, price, and API facts and the cost audit; this skill for the judgment and lasting mechanisms around them. Claude Fable 5's operating doctrine, standing instructions that arm the session at once, with chapters loading at their trigger moments: calibration, reasoning moves, problem framing, planning, debugging, execution, orchestration, verification, communication, recovery, context economy, and trust boundaries. Use when: 'fable playbook', 'fable-5-playbook', 'operate like Fable', 'load the playbook', at the start of any substantive engineering session, or proactively before any multi-step task where judgment quality matters. Also hosts the per-model adaptation chapters (Fable 5.1, Opus 5.5, Opus 5, Opus 4.8, Sonnet 5): use when running on any model other than Fable 5, or when adapting a repo's prompts or instructions to one of them: 'fable 5.1 adaptation', 'opus 5.5 adaptation', 'model delta', 'model adaptation chapter'."
 argument-hint: "[full | <chapter>]"
 user-invocable: true
 disable-model-invocation: false
@@ -158,10 +158,9 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 One native surface owns the live facts this playbook's chapters defer to, and the two get conflated
 when a chapter names a model, a price, or an API mechanism:
 
-- **`claude-api` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It is
-  the reference for current model IDs, pricing, parameters, caching, and migration guidance, and its
-  subcommands act: `prompt-audit` sweeps prompts, `cost-optimize` profiles an application's spend
-  and proposes levers, `hillclimb` searches model and effort against an eval. It resolves facts at
+- **`claude-api` (bundled skill)**: the reference for current model IDs, pricing, parameters,
+  caching, and migration guidance, and its subcommands act: `prompt-audit` sweeps prompts,
+  `cost-optimize` profiles an application's spend and proposes levers, `hillclimb` searches model and effort against an eval. It resolves facts at
   the moment of use and it changes files when asked.
 - **This skill (marketplace plugin).** Operating doctrine: how to reason, plan, verify, and
   communicate, with model-adaptation chapters that carry behavioral deltas and an API prompt-caching
