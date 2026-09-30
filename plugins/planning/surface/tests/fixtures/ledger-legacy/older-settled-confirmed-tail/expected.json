@@ -1,0 +1,105 @@
+{
+  "Q1": {
+    "title": "Who reads?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "mine; confirmed: keep",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: mine; confirmed: keep"
+    }
+  },
+  "Q2": {
+    "title": "Who writes?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "",
+      "seeded": true
+    },
+    "recommendation": "everyone; confirmed: One; Two",
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "accepted: everyone; confirmed: One; Two"
+    }
+  },
+  "Q3": {
+    "title": "Retention?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "defer",
+      "alt": null,
+      "text": "later; confirmed: z",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "deferred",
+      "round": 1,
+      "resolution": "later; confirmed: z"
+    }
+  },
+  "Q4": {
+    "title": "Region?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": {
+      "why": "Pruned.; confirmed: y",
+      "seeded": true
+    },
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "withdrawn",
+      "round": 1,
+      "resolution": "archived: Pruned.; confirmed: y"
+    }
+  },
+  "Q5": {
+    "title": "Store?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": "x",
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "y; confirmed: z"
+      }
+    ],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: x; was: y; confirmed: z"
+    }
+  }
+}

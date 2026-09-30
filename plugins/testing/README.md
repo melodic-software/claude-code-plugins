@@ -32,6 +32,11 @@ skills, one concern: proving behavior with tests.
   smoke-test playbook, and diagnosis loops ship inside the plugin and are referenced
   via `${CLAUDE_PLUGIN_ROOT}`.
 
+## Requirements
+
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
+  finds Bash. A missing `node` is a hook launch error, not a skip notice.
+
 ## Install
 
 ```shell
@@ -63,6 +68,44 @@ config-cascade convention.
 (`~/.claude/testing.yaml`, the team file, `.claude/testing.local.yaml`): adapters to turn off or
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
 rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the file.
+
+### Test files written through Bash
+
+`test-scan` also scans test files a Bash call changed (`cat > foo.test.ts`, `sed -i`, a generator
+script), when `test_guards_enabled` is on and Claude Code records the call's changed files. It reads
+`tool_response.bashEditDiff`, a best-effort beta field that Claude Code adds to the `PostToolUse`
+payload of a Bash call:
+
+- **Precondition.** Set `bashEditDiffEnabled: true` in your user settings, in `--settings`, or in
+  managed settings (a project `.claude/settings.json` value is ignored), or set the environment
+  variable `CLAUDE_CODE_BASH_EDIT_DIFF=1`. Without one of these the field was absent in every mode
+  probed (`default`, `acceptEdits`, `auto` and `bypassPermissions`), and the hook finds nothing to
+  scan. The probe rows are in
+  [probes.md](../../docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30).
+- **Scope.** A created test file reports every test block. A modified file reports only the blocks
+  its hunks touch, the same as an Edit. A file the repository ignores is skipped.
+- **Limits.** The payload carries hunks for the first five changed files only, so a modified test
+  file past the fifth is not scanned, and one call scans at most four test files. The shipped
+  adapters' globs decide what counts as a test file; a glob added through `.claude/testing.yaml` is
+  not covered on this path. `test-weaken` (PreToolUse) sees Write and Edit only: a Bash call that
+  removes assertions is not flagged. Windows Git Bash is not probed.
+- **Cost.** A Bash hook row cannot filter on the changed files, so the row has no `if` and Claude
+  Code starts its node launcher for every Bash call, whatever `test_guards_enabled` says. The
+  [hook budget](../../docs/conventions/hook-budget/README.md) is k × S, where S is one `bash -c :`
+  spawn and k the processes one fire starts. On WSL2, S was 1.0 ms (p50 of 50 samples interleaved
+  with the hook arms, at a load of about 5; Windows is not measured):
+  - Option off, the default: k = 1 (node; the option gate closes before bash starts), 22 ms, about
+    22 S.
+  - Option on, no recorded change, which is every Bash call for an opted-in user: k = 2 (node, then
+    bash), 30 ms, about 30 S.
+  - Option on, a call that changed one test file: the scan itself, 96 process creations and execs,
+    116 ms, about 115 S. It runs only for such a call, so it is not always-on.
+
+  The multiples read high because S is small on Linux: starting node costs about 22 ms against 1 ms
+  for bash. `.performance/ratchets.json` holds the first two paths as spawn-count ceilings
+  (`testing-posttooluse-bash-test-scan-option-off-spawns`, 1, and
+  `testing-posttooluse-bash-test-scan-no-diff-spawns`, 3). A ceiling counts process creations plus
+  execs, so the two-process path counts 3.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

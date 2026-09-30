@@ -31,14 +31,14 @@
 # visible skip would still read as a pass in the lane that runs this.
 #
 # NOT COVERED ELSEWHERE. plugins/claude-config/skills/audit/scripts/
-# check-plugin-drift.sh audits this same axis for CONSUMER repos, but it
-# resolves each marketplace through `source.repo` and records SKIP for a
-# marketplace that declares none. This repo's marketplace is a relative
-# `directory` source with no `repo` field, so that detector structurally
-# cannot see this repo's own drift. scripts/check-plugin-manifest-presence.sh
-# holds the catalog against the filesystem (manifest present, name matches,
-# no unregistered directory); it says nothing about whether a catalogued
-# plugin is ever enabled.
+# check-plugin-drift.sh audits this same axis for CONSUMER repos. It reads this
+# repo's catalog too (a relative `directory` source), but it diffs the catalog
+# only against the `enabledPlugins` keys of one settings file, reports a plugin
+# with no key as NEW (report only, exit 0), never reads the fleet list, and
+# checks no key order, so it cannot gate this repo.
+# scripts/check-plugin-manifest-presence.sh holds the catalog against the
+# filesystem (manifest present, name matches, no unregistered directory); it
+# says nothing about whether a catalogued plugin is ever enabled.
 #
 # WHAT IS CHECKED (both directions):
 #   1. UNENABLED PLUGIN  -- a .claude-plugin/marketplace.json entry that the

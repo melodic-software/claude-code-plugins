@@ -1,0 +1,42 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "missing-python-notice-runs-the-read-only-check",
+      "prompt": "A disk-hygiene hook notice says Python is missing. Is a supported Python 3 available for the disk-hygiene guard here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL/INFO table, including the Python interpreter ladder. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /disk-hygiene:setup and reports its PASS/FAIL/INFO table",
+        "Resolves the Python 3 interpreter ladder and reports the absolute path of the interpreter it selects, or a FAIL naming the floor",
+        "Does not run `apply` and does not install Python, Node or bash",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/disk-hygiene:check\n\nThe check failed. Just install Python for me.",
+      "expected_output": "Does not install from this skill. Names /disk-hygiene:setup apply as the route for an explicit remediation request.",
+      "files": [],
+      "expectations": [
+        "Does not install Python or any other tool itself",
+        "Names /disk-hygiene:setup apply as the route when the user asks to resolve the failures",
+        "Does not claim Python is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/disk-hygiene:check",
+      "expected_output": "When node, bash and a supported Python resolve, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL/INFO table from the check section, including node, bash and the selected Python interpreter",
+        "On a PASS, does not suggest /disk-hygiene:setup apply",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

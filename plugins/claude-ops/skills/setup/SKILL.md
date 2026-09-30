@@ -103,8 +103,9 @@ modify anything.
    skill moved to the hook log root, so rows left in the old file are read by nothing. The
    skill-usage store and the OTEL store under `.claude/observability/` are not retired and produce
    no finding.
-7. **Node.js for the hook launcher.** Every hook row starts through
-   `node "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs"`, so the hooks need `node` on PATH. Probe it
+7. **Node.js for the hook launcher.** Every hook row except
+   `hook-failure-audit` (shell form, no node) starts through
+   `node "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs"`, so those hooks need `node` on PATH. Probe it
    through the Bash tool with `command -v node`, which does not depend on the launcher. Resolves:
    PASS. Does not resolve: FAIL, the hooks do not launch and record nothing; the remediation is
    the person installing Node.js (this skill installs nothing) and starting a fresh session.

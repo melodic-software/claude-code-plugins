@@ -18,7 +18,7 @@ value to count against, not a bar.
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
 | `/code-metrics:audit-type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
-| `/code-metrics:setup` | `check` probes the interpreter, every configuration layer, and every collector; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
+| `/code-metrics:setup` | `check` probes the interpreter and every configuration layer, and runs one measure per collector on a bundled fixture; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
 
 ## Works in any repo
 

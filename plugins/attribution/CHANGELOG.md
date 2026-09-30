@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.8.1] - 2026-09-30
+## [0.8.2] - 2026-09-30
 
 ### Added
 
@@ -22,7 +22,8 @@
   whole `case.md`, and the source's own disclaimer paragraph was dropped. The combine rule is
   0.7.1's: a unanimous `STANDS` with one class is a finding, unanimous `CLEARED` is none, and a
   split routes to a human and gives none. Restated-fact cases were scored on the panel verdict
-  alone; the refutation pass was not run on them here.
+  alone; the refutation pass was not run on them here. The panel ran before the 0.8.1 punctuation
+  edits to `c12`, `c14`, `c16` and `c24`, which change no line.
 
   | Class | n | tp | fp | fn | tn | Precision | Recall | Previous (0.7.1) |
   |---|---|---|---|---|---|---|---|---|
@@ -70,6 +71,15 @@
   not converted to cases.
 - The blocked panels are not resolved here; each turns on a split the panel could not settle or
   on whether this repository owns a passage.
+
+## [0.8.1] - 2026-09-30
+
+### Fixed
+
+- **Removed the em dash in `skills/audit/context/persist-findings.md`.** Wording only; behavior is unchanged.
+- **Removed the em dashes in the `restated-fact` golden cases `c12`, `c14` and `c16`, and marked
+  the verbatim upstream text in the `c24` source as ignored by the ai-slop detector.** Punctuation
+  only, on the same lines, so every expected span is unchanged.
 
 ## [0.8.0] - 2026-09-29
 

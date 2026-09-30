@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-09-30
+
+### Added
+
+- **`test-scan` covers test files a Bash call changed.** A PostToolUse `Bash` hook reads `bashEditDiff`
+  and runs `test-scan` on each changed test file (up to four), behind the same opt-in. Claude Code
+  records the field only with `bashEditDiffEnabled: true` in user, `--settings` or managed settings,
+  or `CLAUDE_CODE_BASH_EDIT_DIFF=1`; without one of these it was absent in `default`, `acceptEdits`,
+  `auto` and `bypassPermissions` mode. The `Bash` row has no `if`, so its node launcher starts on
+  every Bash call, whatever `test_guards_enabled` says; the README states the cost
+  ([#5608](https://github.com/melodic-software/claude-code-plugins/issues/5608)).
+
+## [0.11.9] - 2026-09-30
+
+### Changed
+
+- **README declares the Node.js requirement.** A Requirements section states that every hook row launches through `node`, and that a missing `node` is a hook launch error. `/testing:setup` checks it.
+
 ## [0.11.8] - 2026-09-30
 
 ### Changed

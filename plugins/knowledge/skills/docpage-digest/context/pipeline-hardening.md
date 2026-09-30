@@ -42,12 +42,12 @@ Blockquotes and inline code spans are forbidden as quote carriers.
 Run after the pin (below), before verifier arms are believed complete:
 
 ```text
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/docpage-digest/scripts/check-fences-exact.py" \
+python3 "<skill-dir>/scripts/check-fences-exact.py" \
   --source <work-root>/source.md \
   --digest <work-root>/digests/01-….md \
   --digest <work-root>/digests/02-….md
 
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/docpage-digest/scripts/check-snippets.py" \
+python3 "<skill-dir>/scripts/check-snippets.py" \
   --source <work-root>/source.md \
   --digest <work-root>/digests/01-….md \
   --digest <work-root>/digests/02-….md

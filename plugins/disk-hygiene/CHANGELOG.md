@@ -3,6 +3,62 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.0] - 2026-09-30
+
+### Added
+
+- **A read-only managed-state owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
+  them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
+  registry match is reported. A match grants no approval and adds no delete path; the engine is
+  unchanged. The report neither shows nor runs a product-native destructive command; the registry
+  keeps each as data. Its presence check and read-only command run through the PowerShell tool or
+  the operator, because the skill's Bash guard denies them, and by the resolved application
+  executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
+  manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
+
+## [0.39.0] - 2026-09-30
+
+### Added
+
+- **Read-only `inventory` subcommand with a deep mode**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
+  --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
+  a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
+  validated KEEP reason (exit 5 when the validator fails); without a readable `/proc`, rows that depend
+  on the process table are UNKNOWN, not CANDIDATE. A home-directory target, or any target with
+  `--deep`, runs it before any `scan`, so a bare `/disk-hygiene:clean ~` starts there. The engine
+  grammar declares the subcommand read-only, so the destructive guard admits it beside `catalog`.
+  A superseded version a symlink points at is kept, a release outranks its own prerelease, a
+  plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
+  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. The walk does not enter a bind mount on the
+  same device (read from `/proc/self/mountinfo`), an open file counts as use of a `/tmp` entry, and
+  the report is written to a temporary file and renamed only when the walk finishes.
+  `skills/clean/SKILL.md` and its references document the attended workflow.
+
+## [0.38.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:check`, a model-invocable probe**
+  ([#5436](https://github.com/melodic-software/claude-code-plugins/issues/5436)). It reads the
+  `check` section of `setup` and installs nothing, so a hook notice can name a command Claude is
+  able to run. Its interpreter probes are not pre-granted in `allowed-tools`: a wildcarded
+  interpreter rule grants nothing under auto mode.
+
+### Changed
+
+- **Missing-Python hook notice:** `run-python-hook.sh` now ends its remedy with
+  `/disk-hygiene:check` instead of `/disk-hygiene:setup check`, which carries
+  `disable-model-invocation: true`.
+
+## [0.37.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** The hook rows launch through `node`, so a host without it skipped the destructive-command guard silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README documents the row.
+
 ## [0.36.0] - 2026-09-30
 
 ### Added

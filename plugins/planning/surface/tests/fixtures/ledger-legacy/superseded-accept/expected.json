@@ -1,0 +1,44 @@
+{
+  "Q1": {
+    "title": "Who writes?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "reconfirmed at plan approval: admin only; was: any enrolled user",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "reconfirmed at plan approval: admin only; was: any enrolled user"
+    }
+  },
+  "Q2": {
+    "title": "Who reads?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "reconfirmed at plan approval: admin only; was: any enrolled user; note: fine",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "reconfirmed at plan approval: admin only; was: any enrolled user; note: fine"
+    }
+  }
+}
