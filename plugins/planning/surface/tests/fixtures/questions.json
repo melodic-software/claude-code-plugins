@@ -14,12 +14,14 @@
     {
       "id": "content",
       "title": "Content and visuals",
-      "summary": "What rich content means and where it lives."
+      "summary": "What rich content means and where it lives.",
+      "summaryOf": ["Q1"]
     },
     {
       "id": "ordering",
       "title": "Ordering and groups",
       "summary": "How the rail groups and orders questions.",
+      "summaryOf": ["Q2", "Q3"],
       "dependsOn": [
         "content"
       ]

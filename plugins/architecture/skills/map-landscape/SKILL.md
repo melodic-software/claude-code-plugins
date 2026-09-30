@@ -206,8 +206,8 @@ End every run with this block, in this order, filled from the record and the scr
   Deployables are `/architecture:map-containers`. Configured neighbors are
   `/architecture:map-context`. Build edges are `/architecture:map-dependencies`. A traced entry
   point is `/architecture:map-flow`. Messages are `/architecture:map-events`. A declared schema
-  is `/architecture:map-data`. Infrastructure is `/architecture:map-deployment`. An explicit
-  state machine is `/architecture:map-states`. This skill is the landscape altitude only.
+  is `/architecture:map-data`. Infrastructure is `/architecture:map-deployment`.
+  This skill is the landscape altitude only.
 - Transitive hops beyond one. A repository named by a repository this one names is not charted.
 - Modify any repository other than the consumer, or write outside `<architecture_dir>` within it.
   External repositories are read-only reference in every mode.

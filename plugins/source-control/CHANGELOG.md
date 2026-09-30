@@ -3,12 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.64.0] - 2026-09-29
+## [0.65.0] - 2026-09-29
 
 ### Added
 
 - **`worktree` proposes already-safe worktrees for cleanup after `worktree_reap_after_hours` (default 48).** The setting applies only to worktrees whose Work axis is `safe`; stranded and unknown worktrees are never proposed. A locked worktree past the age is proposed only when `worktree-claim.sh stale` proves its lane's lock stale, behind the existing confirmation gate; any other lock, this session's included, keeps it out of the proposal. `worktree_stale_days` keeps its `status` meaning.
 - **`worktree audit` scans the worktree root for unregistered directories** with the new `scripts/worktree-root-scan.sh`, classifying each as empty, husk (a `.git` file whose worktree registration git dropped while its main clone is intact), or foreign (content, no `.git`). Empty directories and husks holding only their `.git` file are proposed for removal by `cleanup`; a husk with other content, a worktree whose main clone was moved or deleted (`unknown`), and foreign directories are reported only. `reference/worktree-root-convention.md` documents the classes.
+
+## [0.64.0] - 2026-09-29
+
+### Added
+
+- **`babysit-loop` promotion-evidence bootstrap contract and lane-start preflight.** `reference/promotion-evidence-bootstrap.md` names the agent-unwritable surfaces the trusted seam needs, and three path plugin options (`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`) are honored from user or managed settings only. The skill body substitutes their values at load, and step 0 of `cycle-shape.md` reports each missing, relative, or repo-inside surface once per lane at a merge-capable rung. The check is report-only: the rung, the fail-closed merge gate, and the safe-pass routing are unchanged. One eval covers a c3-autonomous lane with no bootstrap set.
 
 ## [0.63.0] - 2026-09-29
 
