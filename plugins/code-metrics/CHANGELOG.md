@@ -3,6 +3,16 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2] - 2026-09-30
+
+### Changed
+
+- **The duplication size limits cite their upstream basis.** `reference/collectors.md` has a
+  `Duplication size limits` table with a basis, verification date and recheck trigger for the jscpd
+  `--max-size` default, the SonarJS file-size limit and the SonarQube duplication rules. `config.md`
+  and the config template point at it instead of restating the figures. The jscpd row records that
+  the documented "no limit" default contradicts the 1mb skip a live run shows.
+
 ## [0.4.1] - 2026-09-30
 
 ### Fixed

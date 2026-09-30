@@ -30,7 +30,7 @@ duplication:
   ignore: []
   registries: []           # older name for scope.registries; read only when the scope-level list is empty
   max_lines: null          # files with more lines are skipped and reported; null (or 0) means no line cap
-  max_size: 1mb            # files larger than this are skipped and reported; jscpd 5's own guard, SonarJS uses 1000kb
+  max_size: 1mb            # files larger than this are skipped and reported; upstream guards: reference/collectors.md
   rollup_depth: 2          # per-directory rollup rows listed to this depth in the markdown report
 
 coverage:
