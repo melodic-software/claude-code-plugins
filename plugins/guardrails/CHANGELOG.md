@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.1] - 2026-09-29
+## [0.42.2] - 2026-09-30
 
 ### Fixed
 
@@ -12,6 +12,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Changed
 
 - Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.42.1] - 2026-09-29
+
+### Fixed
+
+- **`block-windows-drive-tmp` catches inline python `open (` and `getattr(__builtins__,'open')(`.** The inline-python write check required `open(` with no space and no `getattr` form, so a drive-root `\tmp` path opened either way passed. The README row names both shapes and the suite covers them.
 
 ## [0.42.0] - 2026-09-29
 
