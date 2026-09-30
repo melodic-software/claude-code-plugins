@@ -1033,6 +1033,10 @@ ForEach-Object with a positional member name|$t=[type]'System.Environment'; $t |
 subexpression inside an expandable string|"$(Set-Item ('E'+'nv:GIT_PAGER') x)"; & { git log }
 New-PSDrive on the Environment provider|New-PSDrive -Name E -PSProvider Environment -Root ''; Set-Item E:\GIT_PAGER x; & { git log }
 Add-Type compiling an environment write|Add-Type -TypeDefinition 'public class X{public static void S(){System.Environment.SetEnvironmentVariable("GIT_PAGER","x");}}'; [X]::S(); & { git log }
+native env wrapper setting GIT_EXTERNAL_DIFF|& { env GIT_EXTERNAL_DIFF=C:\tools\mutator.exe git diff --ext-diff }
+native env wrapper setting GIT_PAGER|& { env GIT_PAGER=C:\evil.exe git log }
+native env by path|& { /usr/bin/env GIT_PAGER=x git log }
+native env.exe by Windows path|& { C:\Tools\env.exe GIT_PAGER=x git log }
 Invoke-Command of a script block variable|Invoke-Command $sb; & { git log }
 Set-Location to a computed drive, then a relative write|Set-Location ('E'+'nv:'); Set-Content GIT_PAGER x; & { git log }
 Set-Location -Path with a computed drive, then a relative write|$d = 'Env' + ':'; Set-Location -Path $d; Set-Item GIT_PAGER 'C:\evil.exe'; & { git log }

@@ -1902,6 +1902,9 @@ ps::has_unprovable_env_write() {
     a="${t[k + 1]-;}"
     case "$head" in
     function | filter | set-alias | sal | new-alias | nal | add-type | new-psdrive | ndr | mount | invoke-command | icm) return 0 ;;
+    # A native `env` runs its command with the named variables set: the write
+    # spelled as program arguments instead of a provider path.
+    env | env.exe | */env | */env.exe | *\\env | *\\env.exe) return 0 ;;
     # A location change whose target is not a plain word, or arrives on the
     # pipeline (`'Env:' | Set-Location`), moves to a drive the scan cannot name.
     set-location | sl | cd | chdir | push-location | pushd) ps::_operands_plain_to nlit "${t[@]:k+1}" && ((nlit)) || dyn_cd=1 ;;
