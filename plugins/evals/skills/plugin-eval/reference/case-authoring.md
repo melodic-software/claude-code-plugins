@@ -64,7 +64,9 @@ unless the case routes it in explicitly.
 - [ ] Pair one **result** grader with one **process** grader per case: an outcome check (`regex`,
       `llm`, `file_exists`) plus a path check (`tool_used`, `tool_order`). That pairing is what
       separates "the answer was right" from "the plugin is why".
-- [ ] Prefer the four deterministic types. `regex`, `tool_used`, `tool_order`, and `file_exists` are
+- [ ] Split by expectation. A mechanical expectation (a format, a required or forbidden string, a
+      tool call, a created file) gets a deterministic grader; a holistic one (tone, completeness,
+      judgment) gets an `llm` judge. Prefer the four deterministic types. `regex`, `tool_used`, `tool_order`, and `file_exists` are
       free and stable; `llm` and `baseline` each cost three judge calls per run and get noisy on long
       inputs. Grade long output with a `regex` over the file's contents rather than a judge.
 - [ ] A grader that cannot pass without the plugin (a `tool_used` on `tool: Skill`, or anything
