@@ -45,8 +45,8 @@ harness, a doc, or the plugin does), and a claim that cannot meet the bar is
 `open-question`, emitted as an open question and never as a recommendation. One `research:`
 line covers the finding's claim and its remediation. A tier record needs the fetched
 primary and at least two independent corroborators, each naming the file the bytes were
-saved to (an absolute path with no spaces; a rung-2 read saves the text it received the same way). The
-collector checks each record rather than trusting it: the saved file exists and is
+saved to (an absolute path with no spaces, inside the directory that holds the ledger; a rung-2 read saves the text it received the same way). The
+collector checks each record rather than trusting it: the saved file resolves inside the ledger's directory, exists and is
 non-empty, and the span, which must sit on one line, is in it (`grep -F` semantics). A
 corroborator that repeats the primary's or another corroborator's URL does not count. Standards
 findings and emitted-finding samples are graded by their own fields below, and need `research:`

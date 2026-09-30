@@ -12,7 +12,8 @@
 # A tier record names the fetched bytes instead of asserting them:
 # `primary: <url> saved=<path> span=<quoted span>`, and each corroborator
 # is a `corroborator:` line of the same shape with its own URL. The span
-# must sit on one line of the saved file, which must exist and be non-empty.
+# must sit on one line of the saved file, which must exist, be non-empty and resolve
+# inside the notes file's own directory.
 #
 # The audit's other returns ride in the same file under `## Blindspots`,
 # `## Doc-worthy gotchas` and `## Unverified claims`. Those headings are
@@ -70,7 +71,9 @@ if [[ ! -f "$NOTES" ]]; then
   exit 2
 fi
 
-awk '
+DIR="$(cd "$(dirname "$NOTES")" && pwd -P)"
+
+awk -v dir="$DIR" '
 function trim(s) {
   sub(/\r$/, "", s)
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
@@ -80,7 +83,7 @@ function problem(msg) {
   print "problem: " msg
   bad = 1
 }
-function check_source(label, val,    i, j, url, rest, path, span, r, n, line, found) {
+function check_source(label, val,    i, j, url, rest, path, span, r, n, line, found, cmd) {
   if (val !~ /^[^ ]+ saved=[^ ]+ span=./) {
     problem("research-" label "-shape section=" section " title=" title)
     return 0
@@ -92,6 +95,14 @@ function check_source(label, val,    i, j, url, rest, path, span, r, n, line, fo
   path = substr(rest, 1, j - 1)
   span = substr(rest, j + 6)
   if (span ~ /^".*"$/) span = substr(span, 2, length(span) - 2)
+  gsub(/\047/, "\047\\\047\047", path)
+  cmd = "realpath -m -- \047" path "\047"
+  cmd | getline path
+  close(cmd)
+  if (index(path, dir "/") != 1) {
+    problem("research-" label "-path-outside-packet section=" section " title=" title)
+    return 0
+  }
   n = 0
   found = 0
   while ((r = (getline line < path)) > 0) {

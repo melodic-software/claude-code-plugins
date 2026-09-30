@@ -190,6 +190,14 @@ has "research-primary-span-not-in-file" "the unmatched span is named"
 run 1 "a corroborator whose span is not in its file is rejected" --notes "$(tier_ledger t-cspan.md "$SRC_A" "$SRC_B" "https://x.invalid/c saved=$SAVED_C span=invented")"
 has "research-corroborator-span-not-in-file" "the unmatched corroborator span is named"
 
+OUTSIDE="$(mktemp -d)"
+printf 'The default is 1 per session.\n' >"$OUTSIDE/page.md"
+run 1 "a primary saved outside the ledger directory is rejected" --notes "$(tier_ledger t-out.md "https://x.invalid/p saved=$OUTSIDE/page.md span=$SPAN" "$SRC_B" "$SRC_C")"
+has "research-primary-path-outside-packet" "the outside path is named"
+run 1 "a primary saved through a dot-dot escape is rejected" --notes "$(tier_ledger t-dots.md "https://x.invalid/p saved=$WORK/../$(basename "$OUTSIDE")/page.md span=$SPAN" "$SRC_B" "$SRC_C")"
+has "research-primary-path-outside-packet" "the escaping path is named"
+rm -rf "$OUTSIDE"
+
 run 1 "a primary that is not url, saved and span is rejected" --notes "$(tier_ledger t-shape.md "https://code.claude.com/docs/en/skills" "$SRC_B" "$SRC_C")"
 has "research-primary-shape" "the self-attested primary is named"
 
