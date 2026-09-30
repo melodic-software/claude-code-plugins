@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-09-30
+
+### Added
+
+- **`validate-evals` warns on undefined evaluative qualifiers (Q10)** ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)). An eval criterion that relies on `good`, `appropriate`, `reasonable`, `properly`, `correctly`, `useful`, `helpful`, `adequate` or `sensible` without saying what a grader must find now draws an advisory WARN. Items the whole-item hedge check (Q7) already flags are skipped. Like Q5-Q9 it never fails the run.
+
 ## [0.24.15] - 2026-09-29
 
 ### Fixed

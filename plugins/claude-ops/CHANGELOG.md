@@ -11,6 +11,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   copy of the shared fetcher) instead of calling `curl` on the changelog URL directly, so the fetch
   is verified against the publisher's index and recorded in a manifest like every other docs read.
 
+## [0.74.1] - 2026-09-30
+
+### Fixed
+
+- **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
 ## [0.74.0] - 2026-09-30
 
 ### Added

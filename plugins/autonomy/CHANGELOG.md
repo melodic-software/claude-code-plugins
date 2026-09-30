@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.20] - 2026-09-30
+
+### Changed
+
+- Test-only: the shared test helper `hooks/hook-test-sink.sh` gains the schema-driven envelope assertion `check_envelope`. No behavior change.
+
 ## [0.24.19] - 2026-09-30
 
 ### Changed
