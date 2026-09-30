@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.5] - 2026-09-30
+## [0.50.1] - 2026-09-30
 
 ### Fixed
 
 - **`check-plan-outcome.sh` prints at most 20 `path-hit=` lines** and a `path-hit-truncated=<n>` line when more exist, so a plan with many non-portable paths no longer floods stdout. `hits=` still reports the full count; the `criterion=portable-paths status=fail` line and exit code are unchanged ([#5478](https://github.com/melodic-software/claude-code-plugins/issues/5478)).
+
+## [0.50.0] - 2026-09-30
+
+### Added
+
+- **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
 ## [0.49.4] - 2026-09-30
 
