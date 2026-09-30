@@ -1255,6 +1255,110 @@ class TestImportLedger(SessionCase):
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
         self.assertEqual(load_state(fresh), load_state(self.dir))
 
+    def test_a_hedged_answer_exports_its_condition_and_round_trips(self):
+        qs = [
+            question("Q1", commits=["Runs weekly"]),
+            question(
+                "Q2",
+                terminal={
+                    "decision": "hedged",
+                    "text": "if a; b holds",
+                    "updatedAt": AT,
+                },
+            ),
+            question("Q3"),
+        ]
+        ev = [event(1, "Q1", "hedged", text="only if the lock is cheap")]
+        ev.append(event(2, "Q3", "accept", text="fine"))
+        self.session(qs, ev)
+        first = self.export("ledger")
+        rows = register_rows(first)
+        self.assertEqual(
+            rows,
+            [
+                "- Q1 | answered | round 1 | Question Q1? | answer:: hedged: Recommended "
+                "answer for Q1.; note:: only if the lock is cheap; commitments:: -Runs weekly",
+                "- Q2 | answered | round 1 | Question Q2? | answer:: hedged: Recommended "
+                "answer for Q2.; note:: if a\\; b holds",
+                "- Q3 | answered | round 1 | Question Q3? | answer:: accepted: Recommended "
+                "answer for Q3.; note:: fine",
+            ],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+        got = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            [
+                (q["terminal"]["decision"], q["terminal"]["text"])
+                for q in got["questions"]
+            ],
+            [
+                ("hedged", "only if the lock is cheap"),
+                ("hedged", "if a; b holds"),
+                ("accept", "fine"),
+            ],
+        )
+
+    def test_a_hedged_row_lists_its_condition_in_the_brief(self):
+        self.session(
+            [question("Q1")], [event(1, "Q1", "hedged", text="only if it is cheap")]
+        )
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn(
+            "- Q1 Short Q1: hedged: Recommended answer for Q1.; note: only if it is cheap",
+            brief,
+        )
+        self.assertIn("1 answered", brief)
+
+    def test_a_held_hedged_answer_keeps_its_condition_and_round_trips(self):
+        self.session(
+            [question("Q1", waiting=True, waitsOn="the lookup")],
+            [event(1, "Q1", "hedged", text="only if it is cheap")],
+        )
+        first = self.export("ledger")
+        rows = register_rows(first)
+        self.assertIn(
+            "hold:: claude the lookup; answer:: hedged: Recommended answer for Q1.; "
+            "note:: only if it is cheap",
+            rows[0],
+        )
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
+
+    def test_a_hedged_answer_with_no_condition_is_refused_on_import(self):
+        ledger = self.tmp / "hedged.md"
+        ledger.write_text(
+            "## Open-question register\n\n"
+            "- Q1 | answered | round 1 | T? | answer:: hedged: Do it\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertNotEqual(rc, 0)
+        self.assertIn("hedged answer with no condition", out)
+
+    def test_the_legacy_free_text_hedge_still_imports_as_own(self):
+        ledger = self.tmp / "legacy.md"
+        ledger.write_text(
+            "## Open-question register\n\n"
+            "- Q1 | answered | round 1 | T? | answer:: free-text: hedged: Do it if cheap\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        got = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        terminal = got["questions"][0]["terminal"]
+        self.assertEqual(
+            (terminal["decision"], terminal["text"]), ("own", "hedged: Do it if cheap")
+        )
+
     def test_an_escaped_answer_that_contradicts_its_row_is_refused(self):
         for i, row in enumerate(
             [

@@ -1329,6 +1329,25 @@ class TestRecordTerminal(DirCase):
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
 
 
+class TestRecordTerminalHedged(DirCase):
+    """record-terminal --decision hedged carries its condition in --text, one line."""
+
+    def test_a_condition_is_required_and_capped_at_a_line(self):
+        for extra in ([], ["--text", "  "], ["--text", "x" * 501]):
+            self.assert_refused("record-terminal", "Q1", "--decision", "hedged", *extra)
+        self.assertNotIn("terminal", self.q("Q1"))
+
+    def test_a_hedged_answer_is_recorded_and_validates(self):
+        rc, out, err = self.rp(
+            "record-terminal", "Q1", "--decision", "hedged", "--text", "if cheap"
+        )
+        self.assertEqual(rc, 0, out + err)
+        t = self.q("Q1")["terminal"]
+        self.assertEqual((t["decision"], t["text"]), ("hedged", "if cheap"))
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+
 class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 

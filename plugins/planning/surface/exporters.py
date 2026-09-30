@@ -19,15 +19,17 @@ present only when it has a value, each value escaped on its own (esc_field), joi
   proposal:: E(new)               a plan's proposal and the answer it displaced; always a pair,
   was:: E(old)                    written on every row whose question the plan superseded
   answer:: E(answer)              the decision that counts, on any status: `accepted: <rec>`,
-                                  `alt <key>: <text>` (`alt <key>` for a key the question does not
-                                  list), `free-text: <text>`, `deferred[: <text>]`, and on a
-                                  withdrawn row `archived: <why>` or `superseded by <id>`
-  note:: E(note)                  an accept's or an alternative's note; on a deferred or blocked
+                                  `hedged: <rec>`, `alt <key>: <text>` (`alt <key>` for a key the
+                                  question does not list), `free-text: <text>`,
+                                  `deferred[: <text>]`, and on a withdrawn row `archived: <why>`
+                                  or `superseded by <id>`
+  note:: E(note)                  an accept's or an alternative's note; a hedged answer's
+                                  condition, which it always has; on a deferred or blocked
                                   row, or a held row, whose answer is a bare `deferred`, the
                                   row's text as a ledger seeded it (written even when empty);
                                   on an open or superseded-by-plan row with no proposal, the
-                                  seeded text, but not beside a held row's accept or alternative,
-                                  whose note it is
+                                  seeded text, but not beside a held row's accept, hedged answer or
+                                  alternative, whose note it is
   aside:: E(aside)                the newest decision a user hold set aside, when none counts;
                                   import restores it still set aside
   commitments:: M(c1)[; M(c2)...] every commitment in order, M() being `+` (confirmed) or `-`
@@ -169,11 +171,13 @@ def split_fields(s):
 
 
 def decision_fields(q, rec):
-    """(answer, note): the decision in the resolution vocabulary, and the note an accept or an
-    alternative carries. An alternative whose key the question does not list is `alt <key>`."""
+    """(answer, note): the decision in the resolution vocabulary, and the note an accept, a hedged
+    accept (its condition) or an alternative carries. An alternative whose key the question does
+    not list is `alt <key>`."""
     decision, text = rec.get("decision"), rec.get("text") or ""
-    if decision == "accept":
-        return f"accepted: {q.get('recommendation') or 'the recommendation'}", text
+    if decision in ("accept", "hedged"):
+        word = "accepted" if decision == "accept" else "hedged"
+        return f"{word}: {q.get('recommendation') or 'the recommendation'}", text
     if decision == "alt":
         key = rec.get("alt") or ""
         alt = next(
@@ -326,7 +330,7 @@ def readable(status, fields, marked):
     decided = fields.get("answer") or fields.get("aside") or ""
     if fields.get("note"):
         # A decision's note is labeled; any other note is the row's own seeded text.
-        noted = decided.startswith("accepted: ") or ALT.match(decided)
+        noted = decided.startswith(("accepted: ", "hedged: ")) or ALT.match(decided)
         parts.append(("note: " if noted else "") + fields["note"])
     if status == "deferred" and fields.get("note") is None:
         # A page deferral; a seeded one's arbiter is in its own text.
@@ -351,9 +355,10 @@ def held_terminal(q, answer, note, at):
         decision, key, text = "alt", alt.group(1), note
         if not any(a.get("key") == key for a in q["alternatives"]):
             q["alternatives"].append({"key": key, "text": alt.group(2)})
-    elif answer.startswith("accepted: "):
-        decision, key, text = "accept", None, note
-        q["recommendation"] = answer[len("accepted: ") :]
+    elif answer.startswith(("accepted: ", "hedged: ")):
+        word, _, rec = answer.partition(": ")
+        decision, key, text = ("accept" if word == "accepted" else word), None, note
+        q["recommendation"] = rec
     else:
         decision, key, text = "own", None, answer
     return {"decision": decision, "alt": key, "text": text, "updatedAt": at}
@@ -469,7 +474,7 @@ def settle(q, responses, events, seed_rows):
             fields["note"] = note or None
         # The seeded text of a row still unsettled once the hold clears rides in note, unless
         # the decision's own note is there.
-        if said not in ("accept", "alt") and fields.get("note") is None:
+        if said not in ("accept", "hedged", "alt") and fields.get("note") is None:
             if kind == "aside" or status == "superseded-by-plan":
                 fields["note"] = seed_text(seed)
         return status if status == "superseded-by-plan" else "open", fields, "", False
@@ -524,9 +529,9 @@ def register(doc, resp):
                 "reserved": reserved,
                 "confirmed": confirmed,
                 "unconfirmed": unconfirmed,
-                # Accept and own carry the recommendation's commitments; an alternative
+                # Accept, hedged and own carry the recommendation's commitments; an alternative
                 # withdraws them and a defer's open row covers them.
-                "carries": decided.get("decision") in ("accept", "own"),
+                "carries": decided.get("decision") in ("accept", "hedged", "own"),
             }
         )
     return rows
@@ -727,7 +732,8 @@ def loose_ends(rows, doc, resp):
         if (
             text
             and not MID_SENTENCE.search(text)
-            and e.get("kind") in ("own", "note", "ask", "accept", "alt", "defer")
+            and e.get("kind")
+            in ("own", "note", "ask", "accept", "hedged", "alt", "defer")
         ):
             ends.append(
                 f"#{e['seq']} {e.get('id') or 'note'} ends mid-sentence: {clean(text)}"
@@ -972,7 +978,9 @@ def answer_kind(answer, where):
         return "defer"
     if answer.startswith(("archived: ", "superseded by ")):
         return "withdraw"
-    if answer.startswith(("accepted: ", "free-text: ")) or ALT.match(answer):
+    if answer.startswith(("accepted: ", "hedged: ", "free-text: ")) or ALT.match(
+        answer
+    ):
         return "decide"
     refuse(f"unreadable field 'answer' {answer!r}", where)
 
@@ -1017,8 +1025,10 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
         status == "blocked" or (note is not None and status in ("deferred", "open"))
     )
     noted = decided is not None and (
-        decided.startswith("accepted: ") or bool(ALT.match(decided))
+        decided.startswith(("accepted: ", "hedged: ")) or bool(ALT.match(decided))
     )
+    if decided is not None and decided.startswith("hedged: ") and not note:
+        refuse("a hedged answer with no condition in field 'note'", where)
     # Any other note on a row still unsettled is the seeded text of a row no decision counts on:
     # on a held row, one with no counted answer or a superseded-by-plan one.
     residual = (
