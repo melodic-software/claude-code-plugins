@@ -1,7 +1,7 @@
 # Explore worker procedure
 
 Load this file when you are the worker: an inline `/discovery:explore` run, or the dispatched
-`discovery:explorer`. The parent does not load it in order to dispatch. `SKILL.md` keeps the
+`discovery:explorer`. The parent does not load it to dispatch. `SKILL.md` keeps the
 routing gates and the outcome gate; this file is the procedure those gates grade.
 
 ## Purpose
