@@ -161,7 +161,7 @@ verbatim to a file and writes a manifest, and it applies the identity check
 [below](#a-200-does-not-mean-you-got-the-page-you-asked-for) as the **index-listed identity rule**:
 a slug the publisher's index does not list is unread, never fetched. A **publisher profile**
 (`--profile`, default `anthropic`) names the index, the path prefix, the raw channel and the content
-types. The Anthropic profile is tried first. A page whose channel does not resolve as the profile
+types. The Anthropic profile is the default. A page whose channel does not resolve as the profile
 declares is recorded unread with a reason, so the reader drops a rung and says so; the script never
 falls back to another channel itself.
 

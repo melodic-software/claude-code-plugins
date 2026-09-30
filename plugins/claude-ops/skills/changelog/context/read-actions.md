@@ -84,7 +84,7 @@ Page-specific shape, the only facts this skill keeps about the page:
 Slice a release or range out of the local copy with the block boundaries:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --out "$TMPDIR/docs" changelog
+bash "<skill-dir>/../../scripts/fetch-docs.sh" --out "$TMPDIR/docs" changelog
 jq -r '.pages[0] | "\(.state) \(.reason)"' "$TMPDIR/docs/manifest.json"
 awk '/<Update label="2.1.261"/,/^<\/Update>/' "$TMPDIR/docs/changelog.md"
 ```

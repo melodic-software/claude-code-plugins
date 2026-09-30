@@ -577,7 +577,9 @@ done
 DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
   '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
 if [[ ${#DOCS_WANT[@]} -gt 0 ]]; then
-  if ! bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$DOCS_MANIFEST" --index-url "$DOCS_INDEX_URL" "${DOCS_WANT[@]}" >/dev/null; then
+  # The engine reads the CLI version itself below and ignores the manifest's, so
+  # the fetcher runs no claude, whatever SETTINGS_AUDIT_ENGINE_CLAUDE_BIN names.
+  if ! FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$DOCS_MANIFEST" --index-url "$DOCS_INDEX_URL" "${DOCS_WANT[@]}" >/dev/null; then
     echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
     exit 2
   fi
