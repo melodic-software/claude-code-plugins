@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.20] - 2026-09-29
+
+### Fixed
+
+- **The engine gate probes far fewer files on commands that do not name the engine.** Without the `hygiene.py` marker, `_engine_gate_relevant` now reads each distinct word two ways with separate filters. The as-written identity probe runs only on words that carry a path separator, so ordinary arguments such as `status` or `--oneline` are no longer checked against the guard's working directory. The engine-directory reading still covers bare-word aliases inside the engine's directory, the shape that matters on shells that search the current directory before `PATH` (Windows `cmd`). Drive-qualified words such as `D:foo` are excluded from that reading, because Windows joins them onto drive D and drops the engine directory, so they could probe a dead drive. Candidates are deduplicated; the check is a pure predicate under `any()`, so this cannot change the result. The accepted residuals are unchanged apart from one that follows from the separator filter: an alias outside the engine's directory invoked by a bare name (for example a hard link in the working directory run as `python3 alias`) no longer gates.
+
 ## [0.28.19] - 2026-09-29
 
 ### Changed
