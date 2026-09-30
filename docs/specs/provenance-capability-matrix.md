@@ -143,6 +143,8 @@ Evidence-gated tiers, fixed mapping (S4-adopted):
 
 - fingerprint-confirmed: a matched span above the separation rule against an identity-checked
   fetched source. Fix-eligible; the only tier that reaches the relay for copy findings.
+- vendored-snapshot: source read from a committed snapshot because the live fetch was
+  unavailable or failed. Human flag, report-only, never fix-eligible.
 - source-fetched-similar: source fetched, similarity below the deterministic rule, judges say
   copy. Human flag, report-only.
 - llm-suspected: no lexical evidence possible (paraphrase, summary). Report-only, permanently.
