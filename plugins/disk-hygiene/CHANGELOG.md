@@ -3,11 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.1] - 2026-09-30
+## [0.34.2] - 2026-09-30
 
 ### Changed
 
 - **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work. The message is the only change: the guard matches and denies exactly as before.
+
+## [0.34.1] - 2026-09-30
+
+### Fixed
+
+- **The manual-lane handoff says not to empty the bin after a recycle**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Step 2 of the
+  gated manual lane now says not to empty the Recycle Bin or Trash after a recycle: emptying it
+  would make any recycled removal permanent and is the container-wide operation step 3 forbids.
 
 ## [0.34.0] - 2026-09-30
 
