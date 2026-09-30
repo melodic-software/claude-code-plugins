@@ -3,13 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.72.1] - 2026-09-30
+## [0.72.2] - 2026-09-30
 
 ### Changed
 
 - **Hook event log budget records Windows Git Bash figures.** `reference/hook-log-budget.md` and
   the README replace the unmeasured Windows placeholder with the captured spawn floor, parallel
   wall time, append integrity and `ls -t` tie. The switch stays off by default.
+
+## [0.72.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
 
 ## [0.72.0] - 2026-09-30
 
