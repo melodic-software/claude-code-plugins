@@ -55,7 +55,7 @@ guidance <200 lines per CLAUDE.md.
 | Convention | File(s) | Auto-read |
 |---|---|---|
 | AGENTS.md open standard (Linux Foundation-stewarded) | `AGENTS.md` root + nested, nearest wins | Native in Codex, Cursor, Copilot agent, Gemini CLI (config), Windsurf, Zed, Roo, others; and in Claude Code since v2.1.277, where no `CLAUDE.md` displaces it (row 9). Claude Code concatenates the ancestor chain rather than resolving nearest-wins |
-| Cursor rules | `.cursor/rules/*.mdc` (+ nested); legacy `.cursorrules` deprecated | Per-rule types: Always / Auto Attached (globs) / Agent Requested / Manual; also reads AGENTS.md + CLAUDE.md |
+| Cursor rules | `.cursor/rules/*.mdc` (+ nested); legacy `.cursorrules` deprecated | Per-rule types: Always / Auto Attached (globs) / Agent Requested / Manual; CLI observed to read `AGENTS.md`, `CLAUDE.md` and `CLAUDE.local.md` together, without `@`-import expansion; `.cursor/rules/*.md` is inert and an `.mdc` needs frontmatter (`plugins/instruction-placement/skills/migrate/reference/sources.md`) |
 | GitHub Copilot | `.github/copilot-instructions.md`; `.github/instructions/**.instructions.md` (`applyTo:` globs); AGENTS.md (agent) | Auto-added to matching requests |
 | Gemini CLI | `~/.gemini/GEMINI.md`; workspace + ancestors; JIT subdir scan; `@` imports; `context.fileName` configurable | Concatenated into every prompt |
 | Windsurf | `global_rules.md`; `.windsurf/rules/` (newer docs prefer `.devin/`); legacy `.windsurfrules`; AGENTS.md | Per-rule `trigger:` manual / always_on / model_decision / glob |
@@ -78,7 +78,8 @@ corroborate the competitor paths themselves.
 - Claude-side rows corroborate mostly within the single Anthropic publishing pool. **Accepted**:
   the effort's claim ladder requires verification against current official docs, not
   multi-publisher independence, for harness-behavior claims.
-- Cursor / Copilot / Windsurf / Cline rows are MEDIUM confidence (vendor doc hosts egress-blocked
+- Cursor / Copilot / Windsurf / Cline rows are MEDIUM confidence, except that Cursor's
+  AGENTS.md and CLAUDE.md loading is observed (see the row). Vendor doc hosts were egress-blocked
   in the research container; sourced via domain-filtered search + Anthropic's `/init` interop
   list as path corroborator). **Accepted for their purpose**: ecosystem awareness rows, not
   harness claims. Optional implementation-time task: re-fetch the four vendor pages from an
