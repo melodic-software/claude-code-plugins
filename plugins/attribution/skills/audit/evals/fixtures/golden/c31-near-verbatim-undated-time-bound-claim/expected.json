@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 9, "end_line": 18 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://howborisusesclaudecode.com/api/install"
+  },
+  "notes": {
+    "shape": "A file that mirrors a compiled page section by section, with its section numbers and titles, lifting the tail of one section and the opening of the next with light compression. Attribution is a per-section link to the maintainers' post. The first lifted lines have none, and a time-bound figure carries no as-of date.",
+    "carve_outs": "None apply. The per-section post link is not a quotation context and is not a record: it has no claim, no date and no trigger.",
+    "rubric": "C1 holds: the uses line and both paragraphs of the second section correspond sentence for sentence. C2 holds: the flaky-test framing, the 200% figure and the one-concern-per-agent structure are the source's. C3 holds: the file never names the compilation it mirrors, and lines 9 to 11 sit under no link at all. C4 holds: 'their' dropped and 'and' turned into a semicolon transform nothing.",
+    "measured": "fingerprint.mjs at k=5: containment 0.705, jaccard 0.437, longest matched span 49 words, runs at local lines 9-19. The heading and the post link add the two shorter runs.",
+    "tier_reason": "Both limbs fire against an identity-checked source.",
+    "carries": "This case fails a run that stops at the first link it finds in the file. The link belongs to one section, and the span begins above it."
+  }
+}

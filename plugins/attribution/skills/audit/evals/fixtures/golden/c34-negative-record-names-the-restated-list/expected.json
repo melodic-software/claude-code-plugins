@@ -1,0 +1,19 @@
+{
+  "negatives": true,
+  "findings": [],
+  "adjudication": {
+    "verdict": "CLEARED",
+    "panel": "three blind judges, unanimous on verdict and carve-out",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://code.claude.com/docs/en/scheduled-tasks.md"
+  },
+  "notes": {
+    "shape": "A two-sentence paragraph restating a documented list of backends and a version floor near-verbatim, followed directly by a record whose claim names that list and that floor.",
+    "carve_outs": "Conforming stamped record applies. The record is whole: claim (the backend list and the version floor, named), basis (a specific page and section), as-of date (ISO 8601) and a recheck trigger (a release note that adds or drops a backend or moves the floor, an event a reader can check). The restated paragraph is the claim the record covers.",
+    "rubric": "Not graded. Had it been, C1 and C2 would hold and C3 would FAIL: the attribution names the source, the section and the date.",
+    "measured": "fingerprint.mjs at k=5: containment 0.206, jaccard 0.134, longest matched span 28 words at local line 8. The span limb fires, which is why the candidate reaches judgment at all.",
+    "carries": "This case fails a run that flags the restated paragraph without reading the record two lines below it. The record's claim must name the restated facts; a record about something else would not clear it.",
+    "stamp_window": "The record's as-of date sits inside the configured expiry window today. Once it ages past that window the deterministic stamp rule reports it, which is a different rule and class from this one; re-stamp the case text when that happens."
+  }
+}

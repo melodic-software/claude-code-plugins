@@ -257,6 +257,79 @@
         "Does not report c21 as an unstamped restatement on the ground that the excerpt carries no four-part record",
         "Reports that all four files were examined, so a clean file is visible as coverage rather than absent from the report"
       ]
+    },
+    {
+      "id": 14,
+      "name": "adjudicated-copies-are-found-with-the-class-their-wording-supports",
+      "prompt": "/attribution:audit the nine cases c25 through c33 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the file's passage may derive from. Report what you find in each, then score the nine against their expected.json.",
+      "expected_output": "Each of the nine files carries a lifted span and an attribution, or none, that does not reach it. Eight are near-verbatim findings and c32 is a verbatim finding, each fingerprint-confirmed because the separation rule fires against the supplied source: c25 (part-and-date header names no source), c26 (the credited standard is not the source of the bullets), c27 (two lifted sentences inside original prose, no attribution), c28 (prose re-bulleted, no attribution), c29 (the post is credited and the compilation is not), c30 (the one citation names a different page), c31 (the link covers one section and the span begins above it), c32 (header names parts and dates only) and c33 (a local cross-reference beside two lifted rules). No case is reported as fix-eligible, and the answer says the verbatim and near-verbatim classes are still report-only.",
+      "files": [
+        "evals/fixtures/golden/c25-near-verbatim-filler-dropped/case.md",
+        "evals/fixtures/golden/c25-near-verbatim-filler-dropped/source.md",
+        "evals/fixtures/golden/c25-near-verbatim-filler-dropped/expected.json",
+        "evals/fixtures/golden/c26-near-verbatim-spec-credited-as-paraphrase/case.md",
+        "evals/fixtures/golden/c26-near-verbatim-spec-credited-as-paraphrase/source.md",
+        "evals/fixtures/golden/c26-near-verbatim-spec-credited-as-paraphrase/expected.json",
+        "evals/fixtures/golden/c27-near-verbatim-two-sentences-in-original-prose/case.md",
+        "evals/fixtures/golden/c27-near-verbatim-two-sentences-in-original-prose/source.md",
+        "evals/fixtures/golden/c27-near-verbatim-two-sentences-in-original-prose/expected.json",
+        "evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/case.md",
+        "evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/source.md",
+        "evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/expected.json",
+        "evals/fixtures/golden/c29-near-verbatim-compilation-credits-the-post/case.md",
+        "evals/fixtures/golden/c29-near-verbatim-compilation-credits-the-post/source.md",
+        "evals/fixtures/golden/c29-near-verbatim-compilation-credits-the-post/expected.json",
+        "evals/fixtures/golden/c30-near-verbatim-citation-names-other-file/case.md",
+        "evals/fixtures/golden/c30-near-verbatim-citation-names-other-file/source.md",
+        "evals/fixtures/golden/c30-near-verbatim-citation-names-other-file/expected.json",
+        "evals/fixtures/golden/c31-near-verbatim-undated-time-bound-claim/case.md",
+        "evals/fixtures/golden/c31-near-verbatim-undated-time-bound-claim/source.md",
+        "evals/fixtures/golden/c31-near-verbatim-undated-time-bound-claim/expected.json",
+        "evals/fixtures/golden/c32-verbatim-header-names-parts-only/case.md",
+        "evals/fixtures/golden/c32-verbatim-header-names-parts-only/source.md",
+        "evals/fixtures/golden/c32-verbatim-header-names-parts-only/expected.json",
+        "evals/fixtures/golden/c33-near-verbatim-local-cross-reference/case.md",
+        "evals/fixtures/golden/c33-near-verbatim-local-cross-reference/source.md",
+        "evals/fixtures/golden/c33-near-verbatim-local-cross-reference/expected.json"
+      ],
+      "expectations": [
+        "Reports a finding for each of c25 through c33, with class near-verbatim for every case except c32, which is verbatim",
+        "Gives each finding's span as the lifted lines named in that case's expected.json, which for c30 is the single line 8 and for c27 and c33 excludes the original prose around the lift",
+        "Names, for each case, what its attribution covers and why that does not reach the span: the part-and-date header of c25 and c32, the credited standard of c26, the absent attribution of c27 and c28, the credited post of c29, the citation of a different page in c30, the per-section link of c31 that starts below the span, and the local-only links of c33",
+        "Does not clear any case on the ground that the file cites something upstream, or that most of the file is original, or that the lift was re-bulleted",
+        "Reports no finding as fix-eligible and says every class is below min_n_per_class"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "matches-that-reach-judgment-are-cleared-on-their-own-record-or-citation",
+      "prompt": "/attribution:audit the five cases c34 through c38 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the passage matches. Report what you find in each.",
+      "expected_output": "All five passages match their source closely enough to fire the separation rule, and none is a finding. c34 and c37 are cleared on the conforming stamped record carve-out, quoting the claim, basis, as-of date and recheck trigger that name the restated facts. c38 is cleared on the quotation-context carve-out, because the quoted span is attributed at the span. c35 is cleared because the matched text is the file's own Sources entry, which is the citation and not a copy. c36 is cleared because the record at the head of the file names the row's values and the row adds a local severity scheme. Each is reported as examined.",
+      "files": [
+        "evals/fixtures/golden/c34-negative-record-names-the-restated-list/case.md",
+        "evals/fixtures/golden/c34-negative-record-names-the-restated-list/source.md",
+        "evals/fixtures/golden/c34-negative-record-names-the-restated-list/expected.json",
+        "evals/fixtures/golden/c35-negative-sources-entry-is-the-citation/case.md",
+        "evals/fixtures/golden/c35-negative-sources-entry-is-the-citation/source.md",
+        "evals/fixtures/golden/c35-negative-sources-entry-is-the-citation/expected.json",
+        "evals/fixtures/golden/c36-negative-record-covers-the-table-row/case.md",
+        "evals/fixtures/golden/c36-negative-record-covers-the-table-row/source.md",
+        "evals/fixtures/golden/c36-negative-record-covers-the-table-row/expected.json",
+        "evals/fixtures/golden/c37-negative-record-basis-clause-restates-the-doc/case.md",
+        "evals/fixtures/golden/c37-negative-record-basis-clause-restates-the-doc/source.md",
+        "evals/fixtures/golden/c37-negative-record-basis-clause-restates-the-doc/expected.json",
+        "evals/fixtures/golden/c38-negative-quotation-with-inline-code-attributed/case.md",
+        "evals/fixtures/golden/c38-negative-quotation-with-inline-code-attributed/source.md",
+        "evals/fixtures/golden/c38-negative-quotation-with-inline-code-attributed/expected.json"
+      ],
+      "expectations": [
+        "Produces no finding for c34 through c38",
+        "Clears c34 and c37 on the conforming stamped record carve-out and quotes the claim, the basis URL, the ISO as-of date and the recheck trigger from each",
+        "Clears c38 on the quotation-context carve-out and quotes the sentence that names the guide, the section and the URL beside the quoted span",
+        "Clears c35 on its failing criteria, stating that the matched text is the file's Sources entry and that the entry is the attribution its claims point at",
+        "Clears c36 on the record at the head of the file, stating that the record names the row's two values, and notes that the row also adds a local severity scheme",
+        "Reports that all five files were examined, so a cleared file is visible as coverage rather than absent from the report"
+      ]
     }
   ]
 }
