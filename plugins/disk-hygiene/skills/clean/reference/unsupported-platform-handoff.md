@@ -190,6 +190,16 @@ hooks and settings pages treat as forcing a prompt in `auto` and `bypassPermissi
 surfacing, and leave `dontAsk` first when the operator needs the confirm prompt. Engine
 invocations from PowerShell stay hard-denied.
 
+A deletion word inside a quoted literal (a commit message, a search term, an issue body) does
+not prompt when every command in the line is on a short list of commands that never run their
+string arguments: `git log`/`show`/`status`/`diff`/`commit`, `gh issue`/`pr`/`search`,
+`Write-Output`, `Get-ChildItem`, `Where-Object`, `Select-String`, `Get-Content` and similar
+readers and formatters. Any other command, a comment, a `$(...)` subexpression, a here-string, a
+backtick, a call operator `&`, a static or member call, or a non-ASCII character sends the whole
+line back to the plain word match, so a quoted word prompts again. Single-quoted literals are
+the safest form for message text. To keep prose out of the command line entirely, pass `gh`
+bodies through `--body-file <path>` or `-F <path>`.
+
 ## Hook registration outlives the cleanup
 
 Claude Code registers a skill's frontmatter hooks when the
