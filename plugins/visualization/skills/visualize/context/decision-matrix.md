@@ -193,33 +193,16 @@ the model-invocation gate.
 > model-invocable, changes its gating, or splits or merges its registrations, or
 > either page changes the description, the gate, or the version floor.
 
-> Verified 2026-09-11 against the installed v2.1.263 binary (string search of the
-> registrations) and three pages fetched that day. The `/design` row on
-> <https://code.claude.com/docs/en/commands> is labeled a bundled skill and
-> describes the canvas: artboards on one canvas, published as an artifact running
-> a research preview of Claude Design's editor, hand-editable where saving is
-> enabled, otherwise view-plus-PNG/PDF-export; "requires a session where artifacts
-> are available and Claude Code v2.1.234 or later". "Draft a design canvas" on
-> <https://code.claude.com/docs/en/artifacts> shows `/design <brief>`, and its
-> Availability table lists artifacts' gates (Pro, Max, Team, or Enterprise; a
-> claude.ai login; the Anthropic API provider; no CMEK, HIPAA, or Zero Data
-> Retention; CLI 2.1.183 or later; off by default in SDK, GitHub Action, and MCP
-> contexts). The binary carries two bundled registrations named `design`. The
-> canvas skill: menu line "Draft a design on a canvas Artifact, editable where
-> saving is enabled (Claude Design preview)", argument hint `[what to design]`,
-> `userInvocable` on and no model-invocation gate, subcommand dispatch with bare
-> words only, enabled by a first-party-context check, a rollout flag that now
-> defaults **on** (it defaulted off at v2.1.234), and an Artifact tool whose schema
-> carries `capabilities`. The Claude Design hub: menu line "Work with Claude
-> Design (claude.ai/design): create, import, export, sync, login", argument hint
-> `[sync|login|consent|revoke|import|export|status|<prompt>]`,
-> `disableModelInvocation` on, enabled only behind an `allow_design_sync` setting,
-> a policy gate, and a feature flag; a local `design consent | revoke` command sits
-> beside it. The changelog names no design-family surface through v2.1.268. The
-> design-sync family's registry disposition (defer, observed-only) lives in
-> `docs/native-surfaces/records.json`. Recheck when a release changes either
-> registration's invocation gate or enablement, the commands-page row stops
-> describing the canvas, or a release note first names a design-family surface.
+> Verified 2026-09-11 against pages fetched that day: the Availability table on
+> <https://code.claude.com/docs/en/artifacts> lists artifacts' gates (Pro, Max,
+> Team, or Enterprise; a claude.ai login; the Anthropic API provider; no CMEK,
+> HIPAA, or Zero Data Retention; CLI 2.1.183 or later; off by default in SDK,
+> GitHub Action, and MCP contexts), and the changelog names no design-family
+> surface through v2.1.268. The design-sync family's registry disposition (defer,
+> observed-only) lives in `docs/native-surfaces/records.json`, which also keeps
+> that day's v2.1.263 registration evidence as history. Recheck when the
+> Availability table changes or a release note first names a design-family
+> surface.
 
 ## Third-party visualization plugins
 
