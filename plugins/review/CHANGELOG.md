@@ -3,6 +3,15 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.0] - 2026-09-29
+
+### Changed
+
+- **`security-reviewer` applies the instruction-surface deletion lens.** The agent behind
+  `/review:quality-gate` security mode and `/review:fanout` now judges a deleted, narrowed or
+  softened standing instruction by consequence and reads the instruction exception register, as the
+  CI `security-review` skill already did, so local and CI review no longer differ on such a diff.
+
 ## [0.33.9] - 2026-09-29
 
 ### Changed
