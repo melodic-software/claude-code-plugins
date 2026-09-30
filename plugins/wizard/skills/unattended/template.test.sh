@@ -751,6 +751,185 @@ else
   fail "a dry run still enforces the elevation guard" "code=$code $(head -c 300 "$dir/err")"
 fi
 
+# Declared secrets: the mocks below stand in for the prompt (Read-Host) and the credential store (Get-Secret).
+# A function outranks a cmdlet in PowerShell command resolution, so the library's own calls reach the mocks.
+# Read-Host records 'prompt:<Prompt>' in $global:Log and answers 'typed-<Name>'.
+# An empty PSModulePath keeps a real SecretManagement install from answering when no store mock is defined.
+SECRET_MOCKS="$(
+  cat <<'PS'
+$global:Log = [System.Collections.Generic.List[string]]::new()
+function Read-Host {
+    param([string] $Prompt, [switch] $AsSecureString)
+    $global:Log.Add("prompt:$Prompt")
+    ConvertTo-SecureString ('typed-' + ($Prompt -replace '^Secret ', '')) -AsPlainText -Force
+}
+$env:PSModulePath = ''
+PS
+)"
+STORE_MOCK="$(
+  cat <<'PS'
+function Get-Secret {
+    [CmdletBinding()]
+    param([string] $Name, [switch] $AsPlainText)
+    if ($Name -like 'STORE_*') { "store-$Name" }
+}
+PS
+)"
+
+code="$(run_pwsh store-present "
+  $SECRET_MOCKS
+  $STORE_MOCK
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/store-present' -Secrets @(@{ Name = 'STORE_A' }) -Stages {
+    \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'STORE_A'))
+  }
+  \$global:Log -join '|'
+")"
+msg="$(tail -n 1 "$TEST_TMPDIR/store-present.out")"
+if [[ "$code" == 0 && "$msg" == 'got:store-STORE_A' ]]; then
+  pass "a declared secret resolves from the credential store when the store has it"
+else
+  fail "a declared secret resolves from the credential store when the store has it" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/store-present.err")"
+fi
+
+code="$(run_pwsh store-absent "
+  $SECRET_MOCKS
+  \$direct = Get-UnattendedStoreSecret -Name 'STORE_A'
+  \$ladder = Find-UnattendedSecret -Name 'STORE_A'
+  'command=' + [bool] (Get-Command Get-Secret -ErrorAction SilentlyContinue)
+  'direct=' + (\$null -eq \$direct)
+  'ladder=' + (\$null -eq \$ladder)
+")"
+if [[ "$code" == 0 && "$(cat "$TEST_TMPDIR/store-absent.out")" == $'command=False\ndirect=True\nladder=True' && ! -s "$TEST_TMPDIR/store-absent.err" ]]; then
+  pass "without a credential store the rung is skipped silently"
+else
+  fail "without a credential store the rung is skipped silently" "code=$code out=$(cat "$TEST_TMPDIR/store-absent.out") err=$(head -c 300 "$TEST_TMPDIR/store-absent.err")"
+fi
+
+printf 'file-loses' >"$TEST_TMPDIR/prec-file-vs-env"
+printf 'file-beats-store' >"$TEST_TMPDIR/prec-file-vs-store"
+code="$(PREC_ENV=env-value run_pwsh precedence "
+  $SECRET_MOCKS
+  $STORE_MOCK
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/precedence' -Secrets @(
+    @{ Name = 'PREC_ENV'; FilePath = '$TEST_TMPDIR/prec-file-vs-env' },
+    @{ Name = 'STORE_FILE'; FilePath = '$TEST_TMPDIR/prec-file-vs-store' },
+    @{ Name = 'STORE_ONLY'; FilePath = '$TEST_TMPDIR/prec-missing' },
+    @{ Name = 'PROMPT_ONLY'; FilePath = '$TEST_TMPDIR/prec-missing' }
+  ) -Stages {
+    foreach (\$name in 'PREC_ENV', 'STORE_FILE', 'STORE_ONLY', 'PROMPT_ONLY') {
+      \$global:Log.Add(\$name + '=' + (Resolve-UnattendedSecret -Name \$name))
+    }
+  }
+  \$global:Log -join '|'
+")"
+msg="$(tail -n 1 "$TEST_TMPDIR/precedence.out")"
+if [[ "$code" == 0 && "$msg" == 'prompt:Secret PROMPT_ONLY|PREC_ENV=env-value|STORE_FILE=file-beats-store|STORE_ONLY=store-STORE_ONLY|PROMPT_ONLY=typed-PROMPT_ONLY' ]]; then
+  pass "a declared secret resolves environment over file over store over prompt"
+else
+  fail "a declared secret resolves environment over file over store over prompt" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/precedence.err")"
+fi
+
+code="$(run_pwsh before-stage "
+  $SECRET_MOCKS
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/before-stage' -Secrets @(@{ Name = 'ORDER_A' }) -Stages {
+    \$global:Log.Add('stage')
+    \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'ORDER_A'))
+    \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'ORDER_A'))
+  }
+  \$global:Log -join '|'
+")"
+msg="$(tail -n 1 "$TEST_TMPDIR/before-stage.out")"
+if [[ "$code" == 0 && "$msg" == 'prompt:Secret ORDER_A|stage|got:typed-ORDER_A|got:typed-ORDER_A' ]]; then
+  pass "a declared secret is prompted before the first stage and a stage never prompts for it again"
+else
+  fail "a declared secret is prompted before the first stage and a stage never prompts for it again" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/before-stage.err")"
+fi
+
+code="$(run_pwsh two-prompts "
+  $SECRET_MOCKS
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/two-prompts' -Secrets @(@{ Name = 'TWO_A' }, @{ Name = 'TWO_B' }) -Stages {
+    \$global:Log.Add('stage')
+  }
+  \$global:Log -join '|'
+")"
+msg="$(tail -n 1 "$TEST_TMPDIR/two-prompts.out")"
+if [[ "$code" == 0 && "$msg" == 'prompt:Secret TWO_A|prompt:Secret TWO_B|stage' ]]; then
+  pass "every unresolved declared secret is prompted before any stage"
+else
+  fail "every unresolved declared secret is prompted before any stage" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/two-prompts.err")"
+fi
+
+code="$(DECL_ENV=declared-env run_pwsh undeclared "
+  $SECRET_MOCKS
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/undeclared' -Secrets @(@{ Name = 'DECL_ENV' }) -Stages {
+    \$global:Log.Add('stage')
+    \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'UNDECL_A'))
+  }
+  \$global:Log -join '|'
+")"
+msg="$(tail -n 1 "$TEST_TMPDIR/undeclared.out")"
+if [[ "$code" == 0 && "$msg" == 'stage|prompt:Secret UNDECL_A|got:typed-UNDECL_A' ]]; then
+  pass "an undeclared secret still resolves and prompts at first use"
+else
+  fail "an undeclared secret still resolves and prompts at first use" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/undeclared.err")"
+fi
+
+printf 'file-secret-value' >"$TEST_TMPDIR/leak-file"
+code="$(LEAK_ENV=env-secret-value run_pwsh leak "
+  $SECRET_MOCKS
+  $STORE_MOCK
+  Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/leak' -Secrets @(
+    @{ Name = 'LEAK_ENV' },
+    @{ Name = 'LEAK_FILE'; FilePath = '$TEST_TMPDIR/leak-file' },
+    @{ Name = 'STORE_LEAK' },
+    @{ Name = 'LEAK_PROMPT' }
+  ) -Stages {
+    foreach (\$name in 'LEAK_ENV', 'LEAK_FILE', 'STORE_LEAK', 'LEAK_PROMPT') {
+      Write-Host ('value ' + (Resolve-UnattendedSecret -Name \$name))
+    }
+  }
+  \$json = Get-Content -Raw '$TEST_TMPDIR/leak/result-latest.json' | ConvertFrom-Json
+  'names=' + (\$json.secrets -join '|')
+")"
+transcript="$(find "$TEST_TMPDIR/leak" -name 'transcript-*.log' | head -1)"
+leaked=0
+for value in env-secret-value file-secret-value store-STORE_LEAK typed-LEAK_PROMPT; do
+  grep -Fq "$value" "$transcript" "$TEST_TMPDIR/leak/result-latest.json" && leaked=1
+done
+if [[ "$code" == 0 && "$leaked" == 0 && "$(grep -Fc '***' "$transcript")" -ge 4 ]] \
+  && [[ "$(tail -n 1 "$TEST_TMPDIR/leak.out")" == 'names=LEAK_ENV|LEAK_FILE|STORE_LEAK|LEAK_PROMPT' ]]; then
+  pass "declared secret values stay out of the transcript and the result JSON, which lists names only"
+else
+  fail "declared secret values stay out of the transcript and the result JSON, which lists names only" "code=$code leaked=$leaked out=$(tail -n 1 "$TEST_TMPDIR/leak.out") err=$(head -c 300 "$TEST_TMPDIR/leak.err")"
+fi
+
+DECLARED_STAGES="$(
+  cat <<'PS'
+# STAGES
+Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Secrets @(@{ Name = 'DRY_SET_SECRET' }, @{ Name = 'DRY_DECL_UNSET' }) -Stages {
+    Invoke-IdempotentStep -Name 'make marker' -Done { $false } -Action { Set-Content -LiteralPath $env:DRY_MARKER -Value ran }
+    $null = Resolve-UnattendedSecret -Name 'DRY_DECL_UNSET'
+}
+PS
+)"
+for mode in whatif test; do
+  flag="-WhatIf"
+  [[ "$mode" == test ]] && flag="-Test"
+  dir="$TEST_TMPDIR/dry-declared-$mode"
+  code="$(run_launch "dry-declared-$mode" "$DECLARED_STAGES" "$flag")"
+  summary="$(summarize "$dir/results/result-dry-latest.json" 2>&1)"
+  prompted=0
+  # portability-ok: false positive, fixed-string grep with no -P option
+  grep -Fq 'NonInteractive' "$dir/err" && prompted=1
+  if [[ "$code" == 0 && "$prompted" == 0 && ! -e "$dir/marker" ]] \
+    && [[ "$summary" == "mode=$mode status=ok steps=2 resources=0 irreversible=0 delta=secret DRY_DECL_UNSET|make marker held=" ]] \
+    && grep -Fq '"DRY_DECL_UNSET"' "$dir/results/result-dry-latest.json"; then
+    pass "$flag reports a declared unresolved secret as a would-run delta entry and prompts nothing"
+  else
+    fail "$flag reports a declared unresolved secret as a would-run delta entry and prompts nothing" "code=$code summary=$summary err=$(head -c 300 "$dir/err")"
+  fi
+done
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'
   exit 0
