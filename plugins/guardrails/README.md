@@ -251,10 +251,11 @@ out of scope until such a signal exists.
   lanes it also says why the target was not scratch-exempt and lists the roots
   that exempt an unquoted literal target in this session, with no configuration
   needed for the temp tree when the project root is outside it. It says a quoted
-  or variable-carried target is never exempt. The PowerShell and python lanes
-  never consult a scratch root, so their message names none. The operator's
-  levers, narrowest first, are `block_hook_bypass_scratch_roots` (Bash redirect
-  targets only), a session-scoped disable via `claude --settings`, and the
+  or variable-carried target is never exempt. The python lane never consults a
+  scratch root, and the PowerShell lane consults one only for a single literal
+  destination, so their message names none. The operator's levers, narrowest
+  first, are `block_hook_bypass_scratch_roots` (Bash redirect targets and a
+  PowerShell command's single literal write destination), a session-scoped disable via `claude --settings`, and the
   user-global `block_hook_bypass_enabled` switch, which persists across every
   repository where guardrails is enabled. They arrive once per session and agent
   as a `systemMessage`, which Claude Code reads on exit 2 as on exit 0. Until a
@@ -361,6 +362,20 @@ out of scope until such a signal exists.
   (a hard-linked file, a `/`-spelled target on Windows, a temp tree spelled with
   capitals on POSIX); the 0.36.5 changelog entry lists them. Before 0.32.0 these
   redirects blocked anyway, which cost false positives with no true positive.
+
+  **On the PowerShell tool the roots exempt one literal write.** A command
+  that is exactly one write, `Out-File`, `Set-Content`, `Add-Content`,
+  `Tee-Object`, `Export-Csv` / `epcsv`, `Export-Clixml` or a `>`/`>>`
+  redirect, to one absolute destination (a drive path such as
+  `C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv`, or a `/` path on a
+  POSIX host) is judged by the same roots and the same symlink confirmation as
+  a Bash redirect. The destination is bound by `-Path`, `-FilePath`,
+  `-LiteralPath`, `-LP` or `-PSPath`, or given positionally, bare or single-quoted, and the write's
+  only other arguments are `-Append`, `-Force`, `-NoClobber`, `-NoNewline` or
+  `-NoTypeInformation`. Everything else keeps the block: a relative, `$`-carried,
+  double-quoted, wildcard or comma-listed destination; any other flag; a second
+  write; any variable, subexpression, script block, call operator, here-string,
+  comment, `;` or launcher in the command.
 
   **On Windows the temp default takes an 8.3 short-name spelling** (since
   **0.38.6**), because that is how `TEMP`, and so the harness scratchpad, is
@@ -1397,7 +1412,7 @@ reads it from.
 | `block_credential_read_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ALLOW` | Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read; empty blocks all |
 | `block_noncanonical_commit_allow` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NONCANONICAL_COMMIT_ALLOW` | Comma-separated form tokens to allow (currently: message-flag, which permits `-m` even when the message contains a newline) |
 | `block_no_verify_hook_manager_prefixes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES` | Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks) |
-| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. A quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
+| `block_hook_bypass_scratch_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS` | Comma-separated ABSOLUTE directories block-hook-bypass exempts as scratch/temp write targets (e.g. /tmp/scratch,/d/jobtmp/session). This list is empty by default and ADDS TO the two roots the guard already ships exempt: the host temp trees, which the harness scratchpad sits under, and the plugin data directory (<config dir>/plugins/data), where plugins persist their reports. Each is gated on CLAUDE_PROJECT_DIR naming a project root that does not contain it. Set this to name a scratch root of your own; the kill switch, not this option, is the whole-guard lever. The memory tier (`<memory_dir>/`, default `.work/`) is deliberately NOT a shipped default: secret-pattern-detection scans a Write there, so exempting Bash redirects to it would let a secret reach disk unscanned. Matching is on the effective stdout target after lexical normalization, at a path-component boundary, so a sibling merely sharing the name prefix, a `..` escape out of a root, and a discard-then-real-file redirect all still block. A relative target is resolved against the tool call's own cwd and refused when the command carries a cd/pushd/popd. On the Bash tool a quoted or escaped OPERAND is never exempt: the operand is marked so it survives the quote strip and the segment split as one word, and an operand carrying whitespace, `;`, `\|`, `&`, `(`, `)`, a newline or a backslash escape exempts nothing. Quotes elsewhere in the command no longer matter. On the PowerShell tool only a command that is one write to one absolute destination, bare or single-quoted, with no variable, subexpression, call operator or second write, is exempt. Symlinks are not followed for a CONFIGURED root (an operator naming a root accepts its contents); the shipped temp default resolves them before exempting |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long a silent pipe is tolerated before a blocking guard fails closed. Only a JSON payload the pipe closed on mid-document is allowed with a notice; a stalled pipe stays a block |
 
 ### How to set these

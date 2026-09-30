@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.43.2] - 2026-09-30
+## [0.43.3] - 2026-09-30
 
 ### Changed
 
@@ -11,6 +11,16 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 - `secret-pattern-detection` pre-matches a Windows write target against the environment's temp spellings and adds the `cygpath` drive spellings only after a hit, so a write outside temp spawns no resolver process.
 - **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
 - The `block-hook-bypass`, `secret-pattern-detection`, `run-guards` and `coverage-manifest` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
+
+## [0.43.2] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block.
+
+### Changed
+
+- Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
 
 ## [0.43.1] - 2026-09-30
 
