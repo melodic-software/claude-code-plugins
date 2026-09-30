@@ -59,7 +59,7 @@ Agent({
 })
 ```
 
-Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase. **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded at `Budget: low`: "Effort, source breadth"). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
@@ -142,6 +142,13 @@ below the doubled minimums. For a single named artifact or folder, read it direc
 `Glob`, `Grep`, or a listing) and let what it shows choose the queries; local reads do not count
 against the cap. A claim still short of its sources at the cap is a gap named in the artifact, not
 a reason to search on.
+
+**The verify-and-rework loop at `low` is bounded.** A verifier FAIL on a verifier-owned row (Owner
+column, "Outcome gate") is not reworked: no `SendMessage` resume of the researcher. Record it in the
+artifact as a Gap or Conflicts entry, or leave it as the named `verification: fail rows` value, and
+present the result with that caveat. Medium and above return a FAIL row to its phase as the gate
+routes. Rows the run owns and gate exit codes stay mandatory at every budget, and an ungradeable or
+missing artifact still takes the recovery ladder, resume before discard.
 
 ## Pre-dispatch envelope and baseline
 
