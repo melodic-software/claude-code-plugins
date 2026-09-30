@@ -303,6 +303,7 @@ INSTALLED_JSON=""
 scopes::installed_registry_to INSTALLED_JSON "${SETTINGS_AUDIT_ENGINE_INSTALLED_JSON:-}" "$USER_DIR"
 
 BASELINE_FILE="${SETTINGS_AUDIT_ENGINE_BASELINE_FILE:-$PLUGIN_ROOT/skills/audit/reference/required-permissions.md}"
+KNOWN_ISSUES_FILE="${SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE:-$PLUGIN_ROOT/skills/audit/reference/known-issues.md}"
 CR_FILE="${SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE:-$PLUGIN_ROOT/skills/audit/reference/consent-receipts.json}"
 
 SETTINGS="$PROJECT_ROOT/.claude/settings.json"
@@ -1993,6 +1994,26 @@ check_enum() {
 }
 [[ $PROJECT_OK -eq 1 ]] && check_enum "$SETTINGS" "$SURF_SETTINGS"
 [[ $USER_OK -eq 1 ]] && check_enum "$USER_SETTINGS" "$SURF_USER"
+
+# --- Category J: known-issues fix versions -----------------------------------------
+
+# A known-issues.md table row that says "fixed in vX.Y.Z" is compared with the
+# installed Claude Code version; a row without that phrase has no fix version
+# to check.
+if [[ -f "$KNOWN_ISSUES_FILE" ]]; then
+  ki_re='#([0-9]+)\].*[Ff]ixed in v?([0-9]+\.[0-9]+\.[0-9]+)'
+  while IFS= read -r line; do
+    [[ "$line" =~ $ki_re ]] || continue
+    ki_issue="${BASH_REMATCH[1]}" ki_fix="${BASH_REMATCH[2]}"
+    if [[ -z "$CLAUDE_VERSION" ]]; then
+      row J known-issue-fixed skip none known-issues "fix-version:#$ki_issue" "known-issues records #$ki_issue as fixed in v$ki_fix and the installed Claude Code version could not be read; not decided" -
+    elif version_lt "$CLAUDE_VERSION" "$ki_fix"; then
+      row J known-issue-fixed ok none known-issues "fix-version:#$ki_issue" "installed v$CLAUDE_VERSION predates v$ki_fix, where #$ki_issue is fixed" -
+    else
+      row J known-issue-fixed finding info known-issues "fix-version:#$ki_issue" "installed v$CLAUDE_VERSION is at or past v$ki_fix, where known-issues records #$ki_issue as fixed; the workaround may no longer be needed" -
+    fi
+  done <"$KNOWN_ISSUES_FILE"
+fi
 
 # --- Assemble ----------------------------------------------------------------------
 
