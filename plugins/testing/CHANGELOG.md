@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6] - 2026-09-30
+
+### Fixed
+
+- **`audit` eval names the repair routes.** The expectation names `/testing:write` and the review fix pass as where repair goes ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
 ## [0.11.5] - 2026-09-30
 
 ### Fixed
