@@ -116,6 +116,29 @@
         "There is no numbered priority-tier (P-number) column or label anywhere in the output",
         "The diff is read-only: a replace candidate is nominated, never edited or removed, and no repo file is edited"
       ]
+    },
+    {
+      "id": 9,
+      "name": "surface-discovery-on-both-repo-shapes",
+      "prompt": "Which repo surfaces could a Claude Code changelog item touch? Answer for this marketplace repo and for the consumer fixture at evals/fixtures/consumer-repo.",
+      "expected_output": "The skill runs scripts/discover-surfaces.sh once per root instead of hand-listing surfaces. For this repo the output starts with repo-shape: marketplace and lists the project classes plus the plugin classes (plugins, plugin skills, plugin agents, plugin hook dirs, plugin READMEs) with their counts, and ends with the excluded vendor-tree line. For the fixture it starts with repo-shape: consumer and lists only consumer classes (CLAUDE.md, path-scoped rules, project settings, mcp config, project hooks, project skills, project agents). No plugin class is claimed for the consumer. No file is edited.",
+      "files": [
+        "evals/fixtures/consumer-repo/.claude/agents/demo.md",
+        "evals/fixtures/consumer-repo/.claude/hooks/demo.sh",
+        "evals/fixtures/consumer-repo/.claude/rules/one.md",
+        "evals/fixtures/consumer-repo/.claude/settings.json",
+        "evals/fixtures/consumer-repo/.claude/skills/demo/SKILL.md",
+        "evals/fixtures/consumer-repo/.mcp.json",
+        "evals/fixtures/consumer-repo/CLAUDE.md"
+      ],
+      "expectations": [
+        "The response runs scripts/discover-surfaces.sh for each root rather than listing surfaces from memory or from a hand-written glob list",
+        "For this repo the response reports repo-shape marketplace and lists plugin classes (plugins, plugin skills, plugin agents, plugin hook dirs) with counts taken from the script output",
+        "For the fixture the response reports repo-shape consumer and lists only consumer classes: CLAUDE.md, path-scoped rules, project settings, mcp config, project hooks, project skills, project agents",
+        "Vendored upstream docs under */skills/*/vendor are excluded from the counts and the response says how many vendor trees were skipped",
+        "The response claims no plugin class (plugins, plugin skills, plugin agents, plugin hook dirs) for the consumer fixture",
+        "No repo file is edited"
+      ]
     }
   ]
 }
