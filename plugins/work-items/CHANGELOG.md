@@ -3,11 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.11] - 2026-09-29
+## [0.42.1] - 2026-09-29
 
 ### Fixed
 
 - **`setup` description fits the 1024-codepoint Agent Skills maximum.** The description keeps its trigger phrases and the check and apply summary; the first-run and schedule-summary detail lives in the skill body. The skill leaves the description-cap baseline.
+
+## [0.42.0] - 2026-09-29
+
+### Added
+
+- **The work-loop bounds its in-flight exclusion by PR age.** A candidate whose open closing PR is older than the new `work_loop_in_flight_stale_days` option (default 14) is no longer silently excluded: the lane escalates it with the `kind=escalated` marker naming the PR, its draft or ready state, and its age, and the cycle report lists it as `stale in flight`. Younger PRs stay excluded as before, and the escalation does not reset the no-progress streak
+  ([#5326](https://github.com/melodic-software/claude-code-plugins/issues/5326)).
 
 ## [0.41.10] - 2026-09-29
 
