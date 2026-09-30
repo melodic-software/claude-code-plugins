@@ -2,7 +2,7 @@
 
 Binary criteria for `/knowledge:video-digest watch`. A phase is not done when it *feels* done. It is done when artifact-grounded checks pass. Same discipline as an external-research outcome gate and a workflow checklist tick.
 
-**SSOT for numeric floors:** `outcomeFloors()` in `${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/evals/check-watch-outcomes.js` (do not duplicate numbers elsewhere without syncing).
+**SSOT for numeric floors:** `outcomeFloors()` in `<skill-dir>/extraction/evals/check-watch-outcomes.js` (do not duplicate numbers elsewhere without syncing).
 
 ## Tick discipline
 
@@ -50,7 +50,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 
 ## Outcome verification (host verify script)
 
-`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report`
+`node "<skill-dir>/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report`
 
 | ID | Binary criterion | FAIL → |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ Host verify scripts prove **traceability and shape** (JSON valid, batch files on
 
 ## Research gate (host verify script)
 
-`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"`
+`node "<skill-dir>/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"`
 
 | Criterion | FAIL → |
 | --- | --- |
