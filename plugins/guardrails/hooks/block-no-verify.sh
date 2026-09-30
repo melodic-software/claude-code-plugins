@@ -485,7 +485,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     # a later blanking round can acquire a commented opener. No token for it.
     if ((PS_REDUCTION_UNTRUSTED)); then
       PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
-      ps::print_unparsable_block_message
+      ps::print_unparsable_block_message "$COMMAND"
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
       exit 2
     fi
@@ -497,7 +497,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     fi
     sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
     if ! sink_allowed "$sink_allow"; then
-      ps::print_unparsable_block_message
+      ps::print_unparsable_block_message "$COMMAND"
       # The trigger rides along in the form token: five distinct shapes reach this
       # sink, and one collapsed token cannot show which of them is over-blocking.
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"
