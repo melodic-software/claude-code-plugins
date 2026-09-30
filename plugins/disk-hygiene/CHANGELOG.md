@@ -13,7 +13,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
   registry match is reported. A match grants no approval and adds no delete path; the engine is
   unchanged. The report neither shows nor runs a product-native destructive command; the registry
-  keeps each as data.
+  keeps each as data. Its presence check and read-only command run through the PowerShell tool or
+  the operator, because the skill's Bash guard denies them.
 
 ## [0.35.2] - 2026-09-30
 

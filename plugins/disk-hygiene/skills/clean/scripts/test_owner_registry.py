@@ -462,7 +462,9 @@ class OnlyTheEngineLanesDestroyTest(unittest.TestCase):
     it in process, then runs `handoff_apply`, which takes no plan and so no owner
     claim. Both reach `anchored_remove`. A registry command may appear only in
     `apply_plan`, so a destructive route built on the registry would sit behind
-    the tier and token gates.
+    the tier and token gates. Read-only commands are fenced the same way: the
+    report's probes are run by a session tool or the operator, never by shipped
+    code.
 
     The scan is static. It reads every shipped file, test files excepted. A
     non-Python file is checked for registry names, commands and deletion verbs,
