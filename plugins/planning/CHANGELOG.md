@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a reviewer return without its `### Summary` section as incomplete, whether or not the client marked it partial ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
+- **`plan-reviewer` record covers `maxTurns`** alongside the effort override, so the turn cap carries its own verification basis. `plan` Step 3 treats a reviewer return with neither its `### Summary` section nor `No plan gaps found.` as incomplete, whether or not the client marked it partial ([#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256)).
 
 ## [0.47.3] - 2026-09-29
 
