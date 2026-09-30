@@ -161,3 +161,60 @@ is the Phase 3 judge command with `timeout 150`, `TEST_JUDGE_ACTIVE=1`, `--syste
 | R2-P9 | 2.1.285 | a Stop hook logs `CLAUDE_CODE_SESSION_ATTENDED`, `CLAUDE_CODE_ENTRYPOINT` and `permission_mode`, haiku, with (b) and (d) re-run on sonnet because haiku did not enter auto mode: (a) interactive default and (b) interactive `--permission-mode auto`, both in tmux; (c) `claude -p`; (d) `claude -p --permission-mode auto`; (e) `claude --bg`. Pass rule fixed before running: (a) and (b) read exactly `1`; (c), (d) and (e) anything else or absent | re-ran 2026-09-30 after the DT15 amendment. ATTENDED / ENTRYPOINT / permission_mode: (a) `1` / `cli` / `default`; (b) `1` / `cli` / `default` (haiku shows "manual mode on"); (c) `0` / `sdk-cli` / `default`; (d) `0` / `sdk-cli` / `default`; (e) `0` / `cli` / `default`. SessionStart and UserPromptSubmit carry the same values. The Stop block forced a turn in all five. Haiku did not engage auto in (b) or (d), so both re-ran on sonnet: (b) `1` / `cli` / `auto` (pane "auto mode on"), (d) `0` / `sdk-cli` / `auto`. From the first run: in `-p` the forced turn's reply replaces the `-p` result; `systemMessage` goes to stream-json as `system`/`informational` and to the transcript as `hook_system_message`, not to text or json output. Logs `p9r-hooks.jsonl` (c, d), `p5r-hooks.jsonl` (a, b, e), `p5r-pane-a.txt`, `p5r-pane-b.txt`, `p5r-pane-b-sonnet.txt`, `p5r-bg-logs.txt` | holds | DT15 |
 | R2-P10 | 2.1.285 | `claude -p` haiku with two Stop hooks that each block once | both reasons arrive as two separate "Stop hook feedback" user messages in one Stop; one forced turn, which obeyed only one ("FORCED-B"); the next Stop has `stop_hook_active: true` for both and both allow | holds | DT16 |
 | R2-P11 | 2.1.285 | `claude -p` with the installed `testing` 0.11.5 plugin hook (option set through `pluginConfigs`) writing `src/sum.test.js`; separately the `setup check` consumer entry (`test-scan.sh --enabled` from the plugin cache, `*.it.js` through `.claude/testing.yaml`) writing `src/sum2.it.js` | both runs wrote `marks/call-<tool_use_id>` under `~/.claude/plugins/data/testing-melodic-software/`; the plugin hook through `CLAUDE_PLUGIN_DATA`, the consumer entry by deriving it from the cache path; both returned `rule-zero-assertion` | holds | DT8 |
+
+## `bashEditDiff` (Claude Code 2.1.285, WSL2, 2026-09-30)
+
+Question: does a PostToolUse `Bash` hook receive the files a Bash call changed, and in which modes?
+
+Run: `claude -p --model haiku --permission-mode <mode> --setting-sources project --allowedTools Bash
+--debug-file <log>` in a scratch git repository with one committed test file (`src/sum.test.ts`),
+one committed source file and a project `.claude/settings.json` whose PostToolUse `Bash` hook
+appended the whole hook input to a file. Three prompts, each told to use only Bash: (a) `sed -i` on
+the tracked test file, (b) `cat` with a heredoc writing the untracked `src/new.test.ts`, (c) `sed -i`
+on the tracked `README.md`. `bashEditDiffEnabled` was set through `--settings '<json>'` where a row
+says so. Auto mode ran on sonnet, because haiku does not engage it (the payload then reads
+`permission_mode: "default"`). The repository was reset between runs.
+
+- The field is `tool_response.bashEditDiff`, beside `stdout`, `stderr`, `interrupted`, `isImage` and
+  `noOutputExpected`. It is absent, not empty, when the call is not recorded.
+- Modes, for each of (a), (b) and (c) unless stated:
+
+  | Mode and setting | `bashEditDiff` |
+  |---|---|
+  | `default`, no setting | absent |
+  | `acceptEdits`, no setting | absent |
+  | `auto` (sonnet), no setting | absent (`-p`, and (a) interactive in tmux) |
+  | `bypassPermissions`, no setting | absent |
+  | `acceptEdits`, `bashEditDiffEnabled: true` in `--settings` | present |
+  | `auto` (sonnet), `bashEditDiffEnabled: true` in `--settings`, (a) only | present |
+  | `default`, `CLAUDE_CODE_BASH_EDIT_DIFF=1`, (a) only | present |
+  | `acceptEdits` or `auto`, `bashEditDiffEnabled: false`, (a) only | absent |
+  | `acceptEdits`, `bashEditDiffEnabled: true` in the project `.claude/settings.json`, (a) only | absent |
+
+  The docs (code.claude.com/docs/en/hooks#bash and settings-reference#basheditdiffenabled, fetched
+  2026-09-30) say auto and `bypassPermissions` record "only when Claude Code directs Claude to edit
+  files through Bash"; with a prompt that named `sed -i` and `cat >` neither recorded anything here.
+  A `true` counts only from user settings, `--settings` or managed settings, which the project-file
+  row confirms. The hook therefore sees the field only for a consumer who set the key at user or
+  managed scope, or the environment variable.
+- Shape, from the `acceptEdits` + `true` runs: `{"files": [...], "moreFiles": 0, "changedFiles":
+  [...]}`. `changedFiles` holds absolute paths. `files` holds `{"filePath": <absolute>, "hunks":
+  [{"oldStart", "oldLines", "newStart", "newLines", "lines": ["-old", "+new", " context"]}]}` per
+  file, plus `"created": true` on a new file. There is no separate patch string and no line-range
+  field. `unavailable`, `skipped` and `shared` never appeared.
+- An untracked new file appears. (b) listed `src/new.test.ts` with `created: true` and one hunk
+  (`oldStart: 0`, `newStart: 1`, every line prefixed `+`).
+- Limits: one call writing eight files (seven new `src/gen<N>.test.ts` and an edited `README.md`)
+  returned `changedFiles` with all eight, `files` with the first five (each with its hunks) and
+  `moreFiles: 3`. A routing hook therefore reads `changedFiles`, not `files`. A file the repository's
+  `.gitignore` ignores (`src/ignored.log`, written in the same call) was not listed.
+- A PostToolUse `if` row cannot filter on the changed files. It matches the command string: with
+  `bashEditDiffEnabled: true`, `Bash(*)` fired on both (a) and (b), `Bash(sed *)` fired only on (a),
+  `Bash(cat *)` only on (b), and `Bash(*.test.ts*)` fired on (a), whose command names
+  `src/sum.test.ts`, but was skipped for (b) ("Skipping hook due to if condition"), whose command is
+  a heredoc that names `src/new.test.ts` on its first line. A row that must see every Bash call that
+  changed a test file has to be `Bash(*)` and start a process for every Bash call, and decide from
+  `changedFiles`.
+- Not probed: Windows Git Bash (the shape, path separators and mode behavior there need the owner
+  or a fleet run); `PowerShell`, which the docs say has the same fields; a subagent's Bash call
+  (the `shared` flag); `moreFiles` beyond the 200-path cap; the `CLAUDE_CODE_BASH_EDIT_DIFF=0` case.
