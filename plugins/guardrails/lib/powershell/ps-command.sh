@@ -1754,6 +1754,57 @@ ps::_is_plain_word() {
   [[ "$1" =~ ^[a-z0-9_.:\\/~*?-]+$ ]]
 }
 
+# Judge the operands of one command, given as the tokens after its command word
+# (ps::has_unprovable_env_write's tokens). Assigns the number of plain-word
+# operands to the variable named by $1 and returns 1 when any operand is not one.
+# A `;` or an unmatched `)` ends the command. The value of `-Value` is content,
+# not a target, so it is skipped (a parenthesized value whole); every other
+# operand, named or positional, may be the path.
+ps::_operands_plain_to() {
+  local __op_out="$1" __op_a __op_name __op_val __op_depth __op_lit=0 __op_skip=0 __op_rc=0
+  shift
+  while (($#)); do
+    __op_a="$1"
+    shift
+    [[ "$__op_a" == ';' ]] && break
+    if ((__op_skip)); then
+      __op_skip=0
+      if [[ "$__op_a" == '(' ]]; then
+        __op_depth=1
+        while (($# && __op_depth > 0)); do
+          [[ "$1" == '(' ]] && __op_depth=$((__op_depth + 1))
+          [[ "$1" == ')' ]] && __op_depth=$((__op_depth - 1))
+          shift
+        done
+      fi
+      continue
+    fi
+    case "$__op_a" in
+    ')') break ;;
+    -*)
+      __op_name="${__op_a#-}"
+      __op_val=""
+      if [[ "$__op_name" == *:* ]]; then
+        __op_val="${__op_name#*:}"
+        __op_name="${__op_name%%:*}"
+      fi
+      if [[ "$__op_name" == va* ]]; then
+        [[ -n "$__op_val" ]] || __op_skip=1
+      elif [[ -n "$__op_val" ]]; then
+        ps::_is_plain_word "$__op_val" || __op_rc=1
+        __op_lit=$((__op_lit + 1))
+      fi
+      ;;
+    *)
+      ps::_is_plain_word "$__op_a" || __op_rc=1
+      __op_lit=$((__op_lit + 1))
+      ;;
+    esac
+  done
+  printf -v "$__op_out" '%s' "$__op_lit"
+  return "$__op_rc"
+}
+
 # True (0) when the text can write the process environment, or rebind `git`,
 # through a target this scan cannot prove is a plain literal. It refuses whatever
 # it cannot prove, so a target that is computed, held in a variable, splatted,
@@ -1765,16 +1816,17 @@ ps::_is_plain_word() {
 #   - an assignment to `$env:NAME` or `${env:NAME}`, alone, in a target list
 #     (`$env:X, $y = ...`) or as a foreach variable;
 #   - a provider cmdlet that stores a value (Set-, New-, Add-, Copy-, Move- and
-#     Rename- Item, Content and ItemProperty, and their aliases). Every operand
-#     except the value of `-Value` must be a plain word, and at least one must
-#     be present, so a path that is computed, held in a variable, splatted or
-#     arriving on the pipeline refuses. Delete-only verbs are left out: they
-#     cannot introduce a value. Out-File, `>` and Tee-Object cannot write the
-#     Env: drive at all;
+#     Rename- Item, Content and ItemProperty, their aliases, and `mkdir`, which
+#     wraps New-Item). Every operand except the value of `-Value` must be a
+#     plain word, and at least one must be present, so a path that is computed,
+#     held in a variable, splatted or arriving on the pipeline refuses.
+#     Delete-only verbs are left out: they cannot introduce a value. Out-File,
+#     `>` and Tee-Object cannot write the Env: drive at all;
 #   - a literal provider path into the Env:, Function: or Alias: drive, or a
 #     provider-qualified `Environment::`, anywhere in the text. A relative path
-#     resolves against the current location, so a write beside a `Set-Location`
-#     to a computed place refuses too;
+#     resolves against the current location, so a write beside a location change
+#     (Set-Location, cd, Push-Location) whose target is not a plain word, or is
+#     piped in, refuses too;
 #   - a word spliced from quoted parts (`Set'-'Item`, `E'nv':X`), which names
 #     what the parts spell and not what was written;
 #   - a static member (`::`) or a method call (`.Name(`, however the name is
@@ -1792,7 +1844,7 @@ ps::_is_plain_word() {
 # every in-process code path.
 ps::has_unprovable_env_write() {
   local IFS=$' \t\n'
-  local recovered="${1//\`/}" lc opaque s ch head a name val k j n nlit depth env_lhs skip=0 write_head=0 dyn_cd=0
+  local recovered="${1//\`/}" lc opaque s ch head a k j n nlit env_lhs write_head=0 dyn_cd=0
   local -a t=()
   lc="${recovered,,}"
   # shellcheck disable=SC2016  # literal PowerShell `$env:` text, not expansions
@@ -1850,53 +1902,13 @@ ps::has_unprovable_env_write() {
     a="${t[k + 1]-;}"
     case "$head" in
     function | filter | set-alias | sal | new-alias | nal | add-type | new-psdrive | ndr | mount | invoke-command | icm) return 0 ;;
-    set-location | sl | cd | chdir | push-location | pushd) [[ "$a" == ';' ]] || ps::_is_plain_word "$a" || dyn_cd=1 ;;
+    # A location change whose target is not a plain word, or arrives on the
+    # pipeline (`'Env:' | Set-Location`), moves to a drive the scan cannot name.
+    set-location | sl | cd | chdir | push-location | pushd) ps::_operands_plain_to nlit "${t[@]:k+1}" && ((nlit)) || dyn_cd=1 ;;
     foreach-object | foreach | '%') [[ "$a" == ';' || "$a" == '(' || ("$a" == -* && "$a" != -m*) ]] || return 0 ;;
-    set-item | si | new-item | ni | set-content | sc | add-content | ac | copy-item | cpi | copy | cp | move-item | mi | move | mv | rename-item | rni | ren | set-itemproperty | sp | new-itemproperty | copy-itemproperty | cpp | move-itemproperty | mp | rename-itemproperty | rnp)
+    set-item | si | new-item | ni | mkdir | md | set-content | sc | add-content | ac | copy-item | cpi | copy | cp | move-item | mi | move | mv | rename-item | rni | ren | set-itemproperty | sp | new-itemproperty | copy-itemproperty | cpp | move-itemproperty | mp | rename-itemproperty | rnp)
       write_head=1
-      nlit=0
-      for ((j = k + 1; j < n; j++)); do
-        a="${t[j]}"
-        if ((skip)); then
-          # The value of -Value: content, not a target. A parenthesized value
-          # is skipped whole.
-          skip=0
-          if [[ "$a" == '(' ]]; then
-            depth=1
-            while ((depth > 0 && ++j < n)); do
-              case "${t[j]}" in
-              '(') depth=$((depth + 1)) ;;
-              ')') depth=$((depth - 1)) ;;
-              *) ;;
-              esac
-            done
-          fi
-          continue
-        fi
-        case "$a" in
-        ';' | ')') break ;;
-        -*)
-          name="${a#-}"
-          val=""
-          if [[ "$name" == *:* ]]; then
-            val="${name#*:}"
-            name="${name%%:*}"
-          fi
-          if [[ "$name" == va* ]]; then
-            [[ -n "$val" ]] || skip=1
-          elif [[ -n "$val" ]]; then
-            ps::_is_plain_word "$val" || return 0
-            nlit=$((nlit + 1))
-          fi
-          ;;
-        *)
-          ps::_is_plain_word "$a" || return 0
-          nlit=$((nlit + 1))
-          ;;
-        esac
-      done
-      skip=0
-      ((nlit)) || return 0
+      ps::_operands_plain_to nlit "${t[@]:k+1}" && ((nlit)) || return 0
       ;;
     *) ;;
     esac

@@ -1035,6 +1035,10 @@ New-PSDrive on the Environment provider|New-PSDrive -Name E -PSProvider Environm
 Add-Type compiling an environment write|Add-Type -TypeDefinition 'public class X{public static void S(){System.Environment.SetEnvironmentVariable("GIT_PAGER","x");}}'; [X]::S(); & { git log }
 Invoke-Command of a script block variable|Invoke-Command $sb; & { git log }
 Set-Location to a computed drive, then a relative write|Set-Location ('E'+'nv:'); Set-Content GIT_PAGER x; & { git log }
+Set-Location -Path with a computed drive, then a relative write|$d = 'Env' + ':'; Set-Location -Path $d; Set-Item GIT_PAGER 'C:\evil.exe'; & { git log }
+Set-Location path arriving on the pipeline, then a relative write|$d | Set-Location; Set-Content GIT_PAGER x; & { git log }
+Push-Location with a colon-form computed path, then a relative write|Push-Location -LiteralPath:$d; Set-Content GIT_PAGER x; & { git log }
+mkdir with a computed path and a value|mkdir $p -Value x; & { git log }
 static call through a computed type|$e = [Environment]; $e::SetEnvironmentVariable('GIT_PAGER','x'); & { git log }
 method call with a computed name|$o.$m('GIT_PAGER','x'); & { git log }
 target list with an $env: name first|$env:GIT_PAGER, $x = 'C:\evil.exe', 1; & { git log }
@@ -1066,6 +1070,9 @@ run_pwsh "PS: ForEach-Object with a script block and a read-only git call (allow
 # shellcheck disable=SC2016
 run_pwsh "PS: a computed Set-Location with no write (allowed)" \
   "foreach (\$d in Get-ChildItem) { Set-Location \$d; git status }" 0
+# shellcheck disable=SC2016
+run_pwsh "PS: a literal Set-Location beside a literal-path write (allowed)" \
+  "Set-Location -Path C:\\repos; Set-Content out.txt -Value x; & { git log }" 0
 # shellcheck disable=SC2016
 run_pwsh "PS: a \$env: read inside a read-only git group (allowed)" \
   "foreach (\$d in 'a') { git -C \"\$env:USERPROFILE\\\$d\" status }" 0
@@ -1343,6 +1350,10 @@ pin_predicate "ps::has_unprovable_env_write: a call through a variable" \
   ps::has_unprovable_env_write $'& $c \'x\' \'v\'' 0
 pin_predicate "ps::has_unprovable_env_write: InvokeMember with a computed name" \
   ps::has_unprovable_env_write $'$m.InvokeMember((\'Set\'+\'EnvironmentVariable\'), $f)' 0
+pin_predicate "ps::has_unprovable_env_write: a named computed location, then a relative write" \
+  ps::has_unprovable_env_write $'Set-Location -Path $d; Set-Content a x' 0
+pin_predicate "ps::has_unprovable_env_write: a named literal location, then a relative write" \
+  ps::has_unprovable_env_write $'Set-Location -Path C:\\repos; Set-Content a x' 1
 pin_predicate "ps::has_unprovable_env_write: a member call split after the dot" \
   ps::has_unprovable_env_write $'$t.\n  InvokeMember(\'x\')' 0
 pin_predicate "ps::has_unprovable_env_write: a command word spliced from quoted parts" \
