@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.15] - 2026-09-29
+
+### Changed
+
+- **The `/batch` Boundary bullet in `implement-dispatch` no longer asserts that the skill ships
+  with Claude Code.** It keeps the provenance class, what the skill does and how it is invoked, in
+  the native-references template form.
+
 ## [0.19.14] - 2026-09-29
 
 ### Added

@@ -3,6 +3,14 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.13] - 2026-09-29
+
+### Changed
+
+- **The `/verify` Boundary bullet in `confirm` no longer asserts that the skill ships with Claude
+  Code.** It keeps the provenance class, what the skill does and how it is invoked, in the
+  native-references template form.
+
 ## [0.6.12] - 2026-09-29
 
 ### Added

@@ -3,6 +3,14 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.12] - 2026-09-29
+
+### Changed
+
+- **The `debug` Boundary bullet in `debug` no longer asserts that the bundled skill ships with
+  Claude Code.** It keeps the provenance class, what the skill does and how it is invoked, in the
+  native-references template form.
+
 ## [0.7.11] - 2026-09-29
 
 ### Added

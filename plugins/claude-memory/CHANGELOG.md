@@ -3,6 +3,14 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.12] - 2026-09-29
+
+### Changed
+
+- **The `/memory` Boundary bullet in `stateless` no longer asserts that the command ships with
+  Claude Code.** It keeps the provenance class, what the command does and how it is invoked, in the
+  native-references template form.
+
 ## [0.13.11] - 2026-09-29
 
 ### Added

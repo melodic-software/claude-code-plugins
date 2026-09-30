@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.5] - 2026-09-29
+
+### Changed
+
+- **The `/goal` Boundary bullet in `draft-goal-condition` and the `/plan` bullet in `plan` no
+  longer assert that the command ships with Claude Code.** Each keeps the provenance class, what
+  the command does and how it is invoked, in the native-references template form.
+
 ## [0.47.4] - 2026-09-29
 
 ### Fixed
