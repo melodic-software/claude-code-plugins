@@ -38,3 +38,23 @@ everything" is not selection.
 `--sizes-only` as implemented: it does not ask the large-scan question, so a known-large root walks
 without `--max-depth` or `--confirmed-large-scan`. It does not stop at VCS or protected
 directories: it sums through them, read-only, and writes no entries. It has no entry cap.
+
+## Coverage and hint fields
+
+`truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`,
+`scan-error` or `root-child-unselected`, as a tally under `--quiet`. A directory whose scan failed is
+in it as `scan-error` and in `errors`, and an unselected `--root-children` sibling is in it and in
+neither `truncated_paths` nor the entries, so its keys can outnumber `truncated_paths`.
+
+`target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees only.
+`totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked and on every
+`--root-children` scan, so read those totals as lower bounds then.
+
+A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match only those entry kinds,
+`link` being a symlink or reparse point; a hint that sets none matches every kind. The baseline
+`*.tmp` and `*.lock` hints match files and links, so a directory such as `~/.codex/.tmp` is not
+hinted. The scan does not probe processes, so a `common-lock-file` hint stays at confidence `low`
+and whether the lock is stale is proven during investigation (step 2 of the skill).
+
+The snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;
+`scan-complete` stdout carries only `empty_directory_count`.

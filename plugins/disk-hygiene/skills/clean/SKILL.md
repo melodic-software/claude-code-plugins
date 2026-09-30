@@ -31,16 +31,13 @@ metadata:
 
 # Disk hygiene
 
-On Windows and macOS a run ends in a report plus the `execution-platform-unsupported` handoff, so
-plan for no deletion lane there.
-
 Audit first; mutate only after a fresh deterministic preview and explicit approval of one tier. A
 filename pattern is a discovery hint, never proof that an entry is junk. **Safe tidiness is the
 primary objective; reclaimed bytes are secondary.** That posture does not change when the disk is
 full: there is no emergency lane and no rule that yields under pressure. The recorded no-proportionality
 decision (no rule yields, no regenerable-at-a-cost engine signal) lives in
 [the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
-optional execution lane.
+optional execution lane. On Windows and macOS a run ends in a report plus the `execution-platform-unsupported` handoff, so plan for no deletion lane there.
 
 ## Arguments and boundaries
 
@@ -210,11 +207,7 @@ selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
 confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
 root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdout carries only their count and
-the snapshot the list). `truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`,
-`scan-error` or `root-child-unselected`, as a tally under `--quiet`; a directory whose scan failed is in it as `scan-error` and in `errors`, and an
-unselected `--root-children` sibling is in it and in neither, not in `truncated_paths`, so its keys can outnumber that list. `target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees
-only, and `totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked and on every
-`--root-children` scan (which never walks the unselected siblings), so read those totals as lower bounds then; report the unwalked paths as coverage gaps, never as clean,
+the snapshot the list; `truncation_reasons` names each cause and `totals_are_lower_bounds` marks partial byte totals, see [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields)); report them as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only (see
@@ -240,16 +233,8 @@ and protected names. Without `--policy`, the engine also layers standing policy 
 `--project-dir`. An explicit `--policy` is the invocation-specific choice and replaces both standing
 layers. Every overlay can disable/add hints and add protected globs, and `version: 2` adds `rules`
 and `elevation`; none can weaken hard guards. The [overlay schema](reference/policy-overlay.schema.json)
-lists every field; version 1 files load unchanged.
-A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match only those entry kinds,
-`link` being a symlink or reparse point; a hint that sets none matches every kind. The baseline
-`*.tmp` and `*.lock` hints match files and links, so a directory such as `~/.codex/.tmp` is not
-hinted. The engine does not probe processes: a `common-lock-file` hint stays at confidence `low`,
-and whether the lock is stale is proven during investigation (step 2), never by the engine. The
-snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;
-`scan-complete` stdout carries only `empty_directory_count`.
-The scan output names its `policy_sources` and the effective `elevation`. Scan errors and unvisited
-protected roots are coverage gaps, not clean.
+lists every field; version 1 files load unchanged. The scan output names its `policy_sources` and
+the effective `elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields).
 
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the
