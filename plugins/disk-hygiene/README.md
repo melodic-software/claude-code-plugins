@@ -103,8 +103,9 @@ at preview. Backups remain the recovery boundary for user data.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
   descriptor-anchoring proof for its execution lane.
 
-Verify this machine's prerequisites and platform posture with `/disk-hygiene:setup check`;
-`/disk-hygiene:setup apply` resolves anything the check reports with guidance.
+Check this machine's prerequisites read-only with `/disk-hygiene:check`; Claude can run that on its own,
+for example when a hook notice says Python is missing. `/disk-hygiene:setup check` runs the same check,
+and `/disk-hygiene:setup apply` resolves anything it reports with guidance.
 
 ## How the guard is registered
 

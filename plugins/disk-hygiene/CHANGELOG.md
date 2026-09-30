@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.38.0] - 2026-09-30
+## [0.39.0] - 2026-09-30
 
 ### Added
 
@@ -17,6 +17,22 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   the operator, because the skill's Bash guard denies them, and by the resolved application
   executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
   manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
+
+## [0.38.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:check`, a model-invocable probe**
+  ([#5436](https://github.com/melodic-software/claude-code-plugins/issues/5436)). It reads the
+  `check` section of `setup` and installs nothing, so a hook notice can name a command Claude is
+  able to run. Its interpreter probes are not pre-granted in `allowed-tools`: a wildcarded
+  interpreter rule grants nothing under auto mode.
+
+### Changed
+
+- **Missing-Python hook notice:** `run-python-hook.sh` now ends its remedy with
+  `/disk-hygiene:check` instead of `/disk-hygiene:setup check`, which carries
+  `disable-model-invocation: true`.
 
 ## [0.37.0] - 2026-09-30
 
