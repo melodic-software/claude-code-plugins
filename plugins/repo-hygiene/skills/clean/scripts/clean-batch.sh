@@ -89,10 +89,11 @@ Gate:
                      repos=N planned=P bytes=K` (gitdirs=G for git/all). NEVER
                      mutates.
   --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
-                     instead of the default. The default is one directory per
-                     tier and repo set under ${CLAUDE_PLUGIN_DATA} (else
-                     ~/.claude/plugins/data/repo-hygiene): a repeat dry-run of
-                     the same set replaces its previous plan and manifests.
+                     instead of the default. The default is a new run
+                     directory under one durable directory per tier, repo set
+                     and skip list in ${CLAUDE_PLUGIN_DATA} (else
+                     ~/.claude/plugins/data/repo-hygiene): a repeat dry-run
+                     never replaces a plan you already confirmed.
   --list-paths-max N per-repo cap on the dry-run path listing (default 20;
                      0 lists none).
   --apply --batch-plan P
@@ -469,8 +470,8 @@ batch_reset_gitdirs
 
 # Batch plan + per-repo manifests live in one dir so they bundle and clean up
 # together; honor an explicit --batch-plan location for a stable, resumable path.
-# The default dir is keyed to the tier, the sorted repo set and the skip list, so a repeat dry-run
-# of the same set lands on the same path and replaces its stale plan and manifests.
+# The default lives in one durable directory per tier, sorted repo set and skip list, with a
+# fresh run directory per dry-run, so a later dry-run never replaces a plan already confirmed.
 if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
@@ -484,10 +485,10 @@ else
     printf 'repo\t%s\n' "${BATCH_TOPS[@]}"
     [[ ${#BATCH_SKIP_INPUTS[@]} -eq 0 ]] || printf 'skip\t%s\n' "${BATCH_SKIP_INPUTS[@]}"
   } | LC_ALL=C sort | cksum | cut -d' ' -f1)"
-  PLAN_DIR="$DATA_DIR/clean-batch/$TIER-$SET_KEY"
+  SET_DIR="$DATA_DIR/clean-batch/$TIER-$SET_KEY"
+  mkdir -p "$SET_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directory: $SET_DIR"
+  PLAN_DIR="$(mktemp -d "$SET_DIR/run.XXXXXX" 2>/dev/null)" || fail_usage "cannot create batch-plan directory under: $SET_DIR"
   PLAN="$PLAN_DIR/plan"
-  mkdir -p "$PLAN_DIR" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_DIR"
-  rm -f "$PLAN" "$PLAN_DIR"/*.manifest
 fi
 # Refuse to truncate an unrelated file: a typo'd --batch-plan path must not
 # silently destroy user data. An existing target is overwritten only when it is

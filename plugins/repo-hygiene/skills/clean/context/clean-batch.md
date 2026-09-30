@@ -47,9 +47,9 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
 ```
 
 Default: `--dry-run`. `--batch-plan FILE` is also accepted with `--dry-run`, to write the
-plan to another path than the default: one directory per tier, repo set and skip list under
-`${CLAUDE_PLUGIN_DATA}` (else `~/.claude/plugins/data/repo-hygiene`), replaced by a repeat
-dry-run of the same set. `--list-paths-max N` caps the dry-run path listing per repo (default 20). Output labels and full flag help: script `--help`.
+plan to another path than the default: a new `run.*` directory per dry-run under one directory
+per tier, repo set and skip list in `${CLAUDE_PLUGIN_DATA}` (else
+`~/.claude/plugins/data/repo-hygiene`), so a repeat dry-run never replaces a confirmed plan. `--list-paths-max N` caps the dry-run path listing per repo (default 20). Output labels and full flag help: script `--help`.
 
 ### Tiers
 
