@@ -9573,6 +9573,11 @@ class GuardTests(unittest.TestCase):
             "$f.'DeleteFile'('C:\\x')",
             "$m = 'DeleteFile'; $f.$m('C:\\x')",
             "$c = Get-Command 'Remove-Item'; $c.Invoke('x')",
+            "$fso | % 'DeleteFile'",
+            'python -c "import os; os.system(\'del x\')"',
+            "node -e \"require('child_process').execSync('rm x')\"",
+            "([type]'Management.Automation.ScriptBlock')::Create('rm x').Invoke()",
+            '"$(rm x"',
             # git and gh arguments that run strings.
             "git -c core.pager='rm x' log",
             "git grep -O'rm x' foo",
