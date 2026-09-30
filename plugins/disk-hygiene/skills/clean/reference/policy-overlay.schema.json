@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "policy-overlay.schema.json",
+  "title": "disk-hygiene policy overlay",
+  "description": "A standing policy file (~/.claude/disk-hygiene.json, <project>/.claude/disk-hygiene.json) or an explicit --policy file. Layers apply in that order and only add: an overlay can disable or add hints, add protected path globs, and, at version 2, add rules. No overlay can weaken a hard guard. The one exception to only-add is the version 2 elevation opt-in. The engine loader (load_policy, apply_policy_overlay) enforces the constraints this schema cannot express: hint ids in a rule must exist in the merged hint set, additional hint ids must not collide with an existing id, and a project file may set elevation only to never.",
+  "oneOf": [
+    { "$ref": "#/$defs/overlayV1" },
+    { "$ref": "#/$defs/overlayV2" }
+  ],
+  "$defs": {
+    "nonEmptyString": { "type": "string", "minLength": 1 },
+    "overlayV1": {
+      "type": "object",
+      "required": ["version"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "const": 1 },
+        "disabled_hint_ids": {
+          "description": "Hint ids removed from the merged hint set.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        },
+        "additional_hints": {
+          "description": "Hints added to the merged set. Each id must be new.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/hint" }
+        },
+        "additional_protected_path_globs": {
+          "description": "Globs whose matches are protected from deletion.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/protectionGlob" }
+        }
+      }
+    },
+    "overlayV2": {
+      "type": "object",
+      "required": ["version"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "const": 2 },
+        "disabled_hint_ids": { "$ref": "#/$defs/overlayV1/properties/disabled_hint_ids" },
+        "additional_hints": { "$ref": "#/$defs/overlayV1/properties/additional_hints" },
+        "additional_protected_path_globs": {
+          "$ref": "#/$defs/overlayV1/properties/additional_protected_path_globs"
+        },
+        "rules": {
+          "description": "Rules that decide what a hinted entry is preselected for. Rules match on hint id (an entry carries hints, not a class). Later layers append; when two rules match the same entry, the rule from the later layer wins.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/rule" }
+        },
+        "elevation": {
+          "description": "Whether the clean skill may offer a UAC-elevated re-check and removal for approved-tier paths that handoff-verify reports contested with needs-elevation as the only reason. Windows only; never sudo. Defaults to never. The last layer that sets it wins, and only the user-global file or an explicit --policy may set uac-prompt.",
+          "enum": ["never", "uac-prompt"],
+          "default": "never"
+        }
+      }
+    },
+    "hint": {
+      "type": "object",
+      "required": ["id", "os", "kind", "pattern", "confidence_ceiling", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "os": {
+          "type": "array",
+          "items": { "enum": ["all", "windows", "linux", "macos"] }
+        },
+        "kind": { "enum": ["name_glob", "path_glob"] },
+        "pattern": { "$ref": "#/$defs/nonEmptyString" },
+        "confidence_ceiling": { "enum": ["low", "medium", "high"] },
+        "reason": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "protectionGlob": {
+      "oneOf": [
+        { "$ref": "#/$defs/nonEmptyString" },
+        {
+          "type": "object",
+          "required": ["glob"],
+          "additionalProperties": false,
+          "properties": {
+            "glob": { "$ref": "#/$defs/nonEmptyString" },
+            "reason": { "$ref": "#/$defs/nonEmptyString" }
+          }
+        }
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "required": ["match", "preselect"],
+      "additionalProperties": false,
+      "properties": {
+        "match": {
+          "description": "Exactly one of hint_id or hint_ids. Every named id must exist in the merged hint set.",
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["hint_id"],
+              "additionalProperties": false,
+              "properties": { "hint_id": { "$ref": "#/$defs/nonEmptyString" } }
+            },
+            {
+              "type": "object",
+              "required": ["hint_ids"],
+              "additionalProperties": false,
+              "properties": {
+                "hint_ids": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/nonEmptyString" }
+                }
+              }
+            }
+          ]
+        },
+        "preselect": { "type": "boolean" },
+        "min_age_days": {
+          "description": "Minimum entry age in days.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_age_basis": {
+          "description": "The timestamp min_age_days is measured from. Only mtime is supported.",
+          "enum": ["mtime"]
+        }
+      }
+    }
+  }
+}
