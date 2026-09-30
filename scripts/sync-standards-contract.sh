@@ -89,6 +89,7 @@ if [[ "$mode" == "--check-bump" ]]; then
 
   if [[ "$stale" -ne 0 ]]; then
     echo "Bump the standards-contract frontmatter, add a changelog entry, and bump every carrying plugin." >&2
+    sync_cluster::print_sync_only_line
     exit 1
   fi
   echo "Contract changed vs $base with frontmatter, changelog, and every carrying plugin bumped."

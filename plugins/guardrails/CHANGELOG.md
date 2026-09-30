@@ -9,6 +9,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
 
+## [0.42.1] - 2026-09-29
+
+### Fixed
+
+- **`block-windows-drive-tmp` catches inline python `open (` and `getattr(__builtins__,'open')(`.** The inline-python write check required `open(` with no space and no `getattr` form, so a drive-root `\tmp` path opened either way passed. The README row names both shapes and the suite covers them.
+
 ## [0.42.0] - 2026-09-29
 
 ### Added
