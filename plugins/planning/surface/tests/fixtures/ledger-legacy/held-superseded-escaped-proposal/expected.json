@@ -1,0 +1,30 @@
+{
+  "Q1": {
+    "title": "Which?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": "nl\nx; was: y",
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "old\\path"
+      }
+    ],
+    "archived": null,
+    "hold": {
+      "waitsOn": "bench",
+      "by": "claude"
+    },
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: nl\nx; was: y; was: old\\path",
+      "proposal": [
+        "nl\nx; was: y",
+        "old\\path"
+      ]
+    }
+  }
+}
