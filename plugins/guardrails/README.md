@@ -44,10 +44,16 @@ is deliberate, not leftover work, so a dual-blocked PowerShell sink prints both
 denials instead of hiding one ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236))), and the merge
 of several guards' `additionalContext` into the one JSON document a hook process may
 emit. On the Bash/PowerShell row it also refuses (exit 2) a command holding more than
-256 command or process substitutions (`$(`, `<(`, `>(`, a backtick pair, counted as
-text whatever the quoting) before any guard runs, because the guards' combined cost
-grows with that count and a row cancelled at its 60-second `timeout` blocks nothing
+256 command or process substitutions (`$(`, `<(`, `>(`, a backtick pair) before any guard
+runs, because the guards' combined cost grows with that count and a row cancelled at its
+60-second `timeout` blocks nothing
 ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).
+On the Bash tool, text inside a single-quoted span does not count, whichever spelling it
+holds, because bash substitutes nothing there. Unquoted, double-quoted and heredoc-body
+substitutions (quoted delimiter or not) still count: `block-root-delete-target` reads
+even a `<<'EOF'` body as commands. A command that names a shell, `eval`, `su`, `env` or
+`alias`, or that has quoting the scan does not model, counts whole. PowerShell commands
+count as text, quotes included.
 It also tokenizes the event's command once and hands every guard that parses it
 the same segments. One exception to "every guard still runs": on the Bash/PowerShell
 row, a command longer than `MAX_COMMAND_LEN` (16384 characters, passed to the dispatcher
