@@ -1,0 +1,50 @@
+specification {
+  element container
+  deploymentNode environment
+  deploymentNode node
+}
+model {
+  c1_api = container 'api' {
+    technology 'ghcr.io/acme/api:1.4.0'
+    description 'replicas 3'
+  }
+  c2_api = container 'api' {
+    technology 'ghcr.io/acme/api:1.0.0'
+    description 'replicas 1'
+  }
+  c3_cron = container 'cron' {
+    technology 'ghcr.io/acme/cron:1.0.0'
+    description 'replicas undeclared'
+  }
+  c4_worker = container 'worker' {
+    technology 'ghcr.io/acme/worker:1.0.0'
+    description 'replicas undeclared'
+  }
+  c5_worker = container 'worker' {
+    technology 'ghcr.io/acme/worker:1.0.0'
+    description 'replicas undeclared'
+  }
+}
+deployment {
+  env1_prod = environment 'prod' {
+    n2_app = node 'app' 'network published'
+    instanceOf c1_api
+    instanceOf c3_cron
+    instanceOf c4_worker
+  }
+  env2_staging = environment 'staging' {
+    n6_app = node 'app' 'network published'
+    instanceOf c2_api
+    instanceOf c5_worker
+  }
+}
+views {
+  deployment view view1_prod {
+    title 'prod'
+    include env1_prod.**
+  }
+  deployment view view2_staging {
+    title 'staging'
+    include env2_staging.**
+  }
+}

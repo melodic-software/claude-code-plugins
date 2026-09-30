@@ -3,7 +3,7 @@
 
     registry-filter.py --root <dir> [--registry <file>]... [--zero-floor] [< report.json]
 
-Reads a `code-metrics/v1` document on stdin and prints it back with every
+Reads a `code-metrics/v2` document on stdin and prints it back with every
 clone group the registries sanction moved out of `measures[]` and into
 `excluded[]`. Design thread T8: deliberate replication a repository declares
 about itself is an EXCLUSION derived from that declaration, not a suppression

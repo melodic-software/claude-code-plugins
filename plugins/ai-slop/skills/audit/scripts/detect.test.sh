@@ -32,6 +32,12 @@ export HOME="$TEST_TMPDIR/home"
 export CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig"
 mkdir -p "$HOME" "$CLAUDE_PROJECT_DIR"
 
+# A fixture root that carries a team or overlay config layer must be a git working
+# tree: config-cascade step 2 gives a non-repo root no team or overlay layer.
+make_repo() {
+  git init -q "$1" >/dev/null 2>&1
+}
+
 FAILED=0
 CASE_NUM=0
 SKIPPED=0
@@ -40,7 +46,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=238
+EXPECTED_CASES=242
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -422,6 +428,7 @@ assert_contains "cutoff families: all five source-gap lines fire" "$out" "rule=a
 # quietly vacating those cases.
 RAP="$TEST_TMPDIR/rap-repo"
 mkdir -p "$RAP/.claude"
+make_repo "$RAP"
 cat >"$RAP/.claude/ai-slop.json" <<'EOF'
 { "rule_allowed_paths": { "rule-filler-phrases": ["quirks/**"] } }
 EOF
@@ -457,6 +464,7 @@ assert_contains "glob expansion: both exempt files counted as declined" "$out" "
 # it; the README states the semantics.
 WIDE="$TEST_TMPDIR/rap-wide"
 mkdir -p "$WIDE/.claude" "$WIDE/sub/deep"
+make_repo "$WIDE"
 cat >"$WIDE/.claude/ai-slop.json" <<'EOF'
 { "rule_allowed_paths": { "rule-filler-phrases": ["sub/*.md"] } }
 EOF
@@ -497,6 +505,7 @@ assert_contains "model phrases: bare bigrams do not fire (anchored roster only)"
 # fragment into three word alternates and "kiss" alone would match that line too.
 PREPO="$TEST_TMPDIR/phrase-repo"
 mkdir -p "$PREPO/.claude"
+make_repo "$PREPO"
 cat >"$PREPO/.claude/ai-slop.json" <<'EOF'
 {
   "phrase_add": ["chef.s kiss architecture"],
@@ -518,6 +527,7 @@ assert_contains "phrase config: add fires whole, remove silences, no word-split"
 # matching every line (an empty alternation "()" would).
 EMPTYREPO="$TEST_TMPDIR/phrase-empty"
 mkdir -p "$EMPTYREPO/.claude"
+make_repo "$EMPTYREPO"
 cat >"$EMPTYREPO/.claude/ai-slop.json" <<'EOF'
 { "phrase_remove": ["the part most people skip", "(the|my) honest take", "that.s the unlock"] }
 EOF
@@ -532,6 +542,7 @@ assert_contains "phrase config: emptied roster still reports its summary row" "$
 # alternation branch that matches every prose line).
 BADREPO="$TEST_TMPDIR/phrase-bad"
 mkdir -p "$BADREPO/.claude"
+make_repo "$BADREPO"
 cat >"$BADREPO/.claude/ai-slop.json" <<'EOF'
 { "phrase_add": ["", "broken ("] }
 EOF
@@ -547,6 +558,7 @@ assert_not_contains "phrase hygiene: empty-string element does not flood clean p
 # emptiness). The local overlay is the later layer.
 CLRREPO="$TEST_TMPDIR/phrase-clear"
 mkdir -p "$CLRREPO/.claude"
+make_repo "$CLRREPO"
 cat >"$CLRREPO/.claude/ai-slop.json" <<'EOF'
 { "phrase_add": ["chef.s kiss architecture"] }
 EOF
@@ -566,6 +578,7 @@ assert_contains "phrase config: explicit empty array clears the inherited add li
 # the read, so the partially parsed values never become the effective roster.
 TRUNCPHRASE="$TEST_TMPDIR/phrase-trunc"
 mkdir -p "$TRUNCPHRASE/.claude"
+make_repo "$TRUNCPHRASE"
 printf '%s\n' '{ "phrase_add": ["chef.s kiss architecture"] }' '{bad' >"$TRUNCPHRASE/.claude/ai-slop.json"
 cp "$CLRREPO/doc.md" "$TRUNCPHRASE/doc.md"
 out="$(CLAUDE_PROJECT_DIR="$TRUNCPHRASE" bash "$DETECT" "$TRUNCPHRASE/doc.md" 2>&1)"
@@ -574,6 +587,7 @@ assert_contains "phrase config: partially parsed layer is refused, no phrase add
 # disabled_rules covers the new rule like any other.
 DISREPO="$TEST_TMPDIR/phrase-disabled"
 mkdir -p "$DISREPO/.claude"
+make_repo "$DISREPO"
 cat >"$DISREPO/.claude/ai-slop.json" <<'EOF'
 { "disabled_rules": ["rule-model-era-phrases"] }
 EOF
@@ -649,10 +663,12 @@ assert_contains "chunking: limit 1 scans one file" "$out" "across 1 files scanne
 # spelling. Chunk options are ignored so a caller plans over the whole list.
 LT="$TEST_TMPDIR/list-targets"
 mkdir -p "$LT/sub" "$LT/vendor" "$LT/.claude"
+make_repo "$LT"
 printf 'one\n' >"$LT/a.md"
 printf 'two\n' >"$LT/sub/b.md"
 printf 'three\n' >"$LT/vendor/c.md"
 printf '%s\n' '{ "excluded_paths": ["vendor/**"] }' >"$LT/.claude/ai-slop.json"
+git -C "$LT" add -A >/dev/null 2>&1
 TAB=$'\t'
 out="$(CLAUDE_PROJECT_DIR="$LT" bash "$DETECT" --list-targets --offset 0 --limit 1 "$LT" "$LT/missing.md" 2>/dev/null)"
 rc=$?
@@ -698,6 +714,7 @@ assert_contains "empty paths-file: zero-file Summary" "$out" "0 findings across 
 
 cfgdir="$TEST_TMPDIR/repo/.claude"
 mkdir -p "$cfgdir"
+make_repo "$TEST_TMPDIR/repo"
 cp "$SLOP" "$TEST_TMPDIR/repo/allowed.md"
 cat >"$cfgdir/ai-slop.json" <<'EOF'
 {
@@ -716,6 +733,23 @@ out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/repo" bash "$DETECT" --show-config 2>&1)
 assert_contains "show-config: names the supplying layer" "$out" "$cfgdir/ai-slop.json"
 assert_contains "show-config: effective threshold shown" "$out" "threshold_ai_vocabulary=999"
 assert_contains "show-config: disabled rules shown" "$out" "disabled_rules=rule-significance-inflation"
+
+# Config-cascade step 2: a home or non-repo root has no team or overlay layer, and
+# the user-global file is read once, never again as team.
+HOMEROOT="$TEST_TMPDIR/home-root"
+mkdir -p "$HOMEROOT/.claude"
+printf '%s\n' '{ "thresholds": { "ai_vocabulary": 777 } }' >"$HOMEROOT/.claude/ai-slop.json"
+out="$(HOME="$HOMEROOT" CLAUDE_PROJECT_DIR="$HOMEROOT" bash "$DETECT" --show-config 2>&1)"
+assert_eq "home root: the user-global file is listed once" "$(printf '%s\n' "$out" | grep -c "$HOMEROOT/.claude/ai-slop.json")" "1"
+assert_contains "home root: the user-global threshold applies" "$out" "threshold_ai_vocabulary=777"
+make_repo "$HOMEROOT"
+out="$(HOME="$HOMEROOT" CLAUDE_PROJECT_DIR="$HOMEROOT" bash "$DETECT" --show-config 2>&1)"
+assert_eq "a git repository at the home is still a home root" "$(printf '%s\n' "$out" | grep -c "$HOMEROOT/.claude/ai-slop.json")" "1"
+NONREPO="$TEST_TMPDIR/non-repo-root"
+mkdir -p "$NONREPO/.claude"
+printf '%s\n' '{ "thresholds": { "ai_vocabulary": 555 } }' >"$NONREPO/.claude/ai-slop.json"
+out="$(CLAUDE_PROJECT_DIR="$NONREPO" bash "$DETECT" --show-config 2>&1)"
+assert_not_contains "a non-repo root: its .claude file is not a team layer" "$out" "$NONREPO/.claude/ai-slop.json"
 
 # --- Config parsing against a CRLF-emitting jq (#3343) ---------------------------
 
@@ -749,6 +783,7 @@ assert_contains "crlf jq: the shim is on PATH and emits a carriage return" "$shi
 
 crlfdir="$TEST_TMPDIR/crlf-repo/.claude"
 mkdir -p "$crlfdir"
+make_repo "$TEST_TMPDIR/crlf-repo"
 cp "$SLOP" "$TEST_TMPDIR/crlf-repo/allowed.md"
 cp "$SLOP" "$TEST_TMPDIR/crlf-repo/vendored.md"
 cat >"$crlfdir/ai-slop.json" <<'EOF'
@@ -802,6 +837,7 @@ assert_contains "crlf jq: scalar threshold parses without the carriage return" "
 # file caught mid-write looks like.
 truncdir="$TEST_TMPDIR/trunc-repo/.claude"
 mkdir -p "$truncdir"
+make_repo "$TEST_TMPDIR/trunc-repo"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 999 } }' '{bad' >"$truncdir/ai-slop.json"
 
 out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-repo" bash "$DETECT" --show-config 2>&1)"
@@ -817,6 +853,7 @@ assert_contains "malformed layer: refused under a CRLF-emitting jq too" "$out" "
 # on the key going unread for some unrelated reason.
 okdir="$TEST_TMPDIR/trunc-ok-repo/.claude"
 mkdir -p "$okdir"
+make_repo "$TEST_TMPDIR/trunc-ok-repo"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 999 } }' >"$okdir/ai-slop.json"
 out="$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR/trunc-ok-repo" bash "$DETECT" --show-config 2>&1)"
 assert_contains "malformed layer: the same value from a well-formed layer still applies" "$out" "threshold_ai_vocabulary=999 (rule"
