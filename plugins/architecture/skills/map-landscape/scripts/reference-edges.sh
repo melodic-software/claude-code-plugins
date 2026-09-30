@@ -64,6 +64,9 @@ set -uo pipefail
 
 FILE_CAP=5
 
+# shellcheck source=../../../lib/github-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/github-remote.sh"
+
 usage() {
   # Print the header comment block only, selected by comment marker so --help
   # stays correct as the block grows.
@@ -133,53 +136,19 @@ fi
 # Owner
 # ---------------------------------------------------------------------------
 
+origin_path() {
+  local url
+  url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
+  github_remote_path "$url"
+}
+
 # The owner segment of a github.com remote. Only github.com is read here: this
 # owner decides which BARE `owner/repo` tokens are trusted, and trusting a bare
 # token on a host whose path shape we have not verified is how fixture names
 # become systems.
-#
-# The origin's path on github.com, `owner/repo...`, when the remote's host IS
-# github.com. The host is the authority with the scheme and user info removed,
-# compared case-insensitively, with `www.` allowed. With a scheme, a port of
-# digits (possibly empty, as RFC 3986 allows) is removed; any other `:` after
-# the host is not a port and the URL names no github.com path. So
-# `evilgithub.com`, `github.com.evil.example`, `api.github.com`, a
-# `/github.com/` path on another server, a `file://` path and a relative path
-# all fail. A URL without a scheme counts only in the scp form `host:path`.
-github_remote_path() {
-  local url host rest scheme=0 result=1 had_nocase=0
-  url="$(git -C "$repo" remote get-url origin 2>/dev/null)" || return 1
-  url="${url%/}"
-  url="${url%.git}"
-  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
-  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
-  host="${url%%[:/]*}"
-  rest="${url#"$host"}"
-  if [[ $scheme -eq 1 ]]; then
-    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
-    [[ "$rest" == :* ]] && return 1
-    rest="${rest#/}"
-  else
-    [[ "$rest" == :* ]] || return 1
-    rest="${rest#:}"
-    rest="${rest#/}"
-  fi
-  # A remote rewrite can leave an empty segment (host//owner/repo). It is not
-  # part of the repository path.
-  while [[ "$rest" == /* ]]; do
-    rest="${rest#/}"
-  done
-  shopt -q nocasematch && had_nocase=1
-  shopt -s nocasematch
-  [[ "$host" == github.com || "$host" == www.github.com ]] && result=0
-  [[ $had_nocase -eq 1 ]] || shopt -u nocasematch
-  [[ $result -eq 0 && -n "$rest" ]] || return 1
-  printf '%s' "$rest"
-}
-
 remote_owner_segment() {
   local path
-  path="$(github_remote_path)" || return 1
+  path="$(origin_path)" || return 1
   case "$path" in
   */*) printf '%s' "${path%%/*}" ;;
   *) return 1 ;;
@@ -196,7 +165,7 @@ owner="$owner_override"
 # --owner, which moves the subject organization but not what this clone is.
 remote_slug() {
   local path o r
-  path="$(github_remote_path)" || return 1
+  path="$(origin_path)" || return 1
   o="${path%%/*}"
   r="${path#*/}"
   r="${r%%/*}"

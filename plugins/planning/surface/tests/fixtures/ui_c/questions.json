@@ -14,7 +14,12 @@
     {"id": "batch", "title": "Batch", "summary": "Accept all."}
   ],
   "visuals": [
-    {"id": "vc", "scope": "question:Q2", "title": "Chart", "format": "chart", "content": {"labels": ["Mon", "Tue"], "series": [{"name": "Saves", "data": [3, 5]}]}}
+    {"id": "vc", "scope": "question:Q2", "title": "Chart", "format": "chart", "content": {"labels": ["Mon", "Tue"], "series": [{"name": "Saves", "data": [3, 5]}]}},
+    {"id": "gl", "scope": "question:Q3", "title": "Loose note", "format": "svg", "order": 0, "content": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 10\"><rect width=\"20\" height=\"10\"/></svg>"},
+    {"id": "gb", "scope": "question:Q3", "group": "Checkout", "title": "Checkout flow, option B: two steps with a review page", "format": "markdown", "order": 2, "primary": true, "content": "bodymark-b"},
+    {"id": "gt", "scope": "question:Q3", "group": "Timeline", "title": "Rollout timeline", "format": "markdown", "order": 3, "content": "bodymark-t"},
+    {"id": "gc", "scope": "question:Q3", "group": "Checkout", "title": "Checkout flow, option C: abandoned", "format": "markdown", "order": 0, "archived": {"why": "superseded", "at": "2026-01-01T00:00:00Z"}, "content": "bodymark-c"},
+    {"id": "ga", "scope": "question:Q3", "group": "Checkout", "title": "Checkout flow, option A: single page with inline payment form", "format": "markdown", "order": 1, "content": "bodymark-a"}
   ],
   "questions": [
     {"id": "Q3", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Third", "title": "Should the third step run?", "recommendation": "Yes, third.", "commits": ["The third step owns its own log"], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on request"}]},

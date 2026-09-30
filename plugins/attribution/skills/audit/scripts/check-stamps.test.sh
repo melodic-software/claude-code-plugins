@@ -387,6 +387,7 @@ assert_eq "a stated recheck trigger clears the surface" \
 # --- Config cascade --------------------------------------------------------------
 
 mkdir -p "$CLAUDE_PROJECT_DIR/.claude"
+git init -q "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
 printf '%s\n' '{"stamp_expiry_days": 30}' >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 assert_eq "config sets the expiry window" \
   "$(run "$DIR/dated.md" 2>/dev/null | jq -r '.expiry_days')" "30"
