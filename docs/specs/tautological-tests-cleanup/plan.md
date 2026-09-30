@@ -33,10 +33,13 @@ Standards grounding: `AGENTS.md` (draft PRs, Conventional Commits titles, stop b
 convention file with a CLAUDE.md pointer the default config location; any cleanup setting reads the
 testing config wherever #5606 puts it (DT18).
 
-Dependency: Release 2b (PR #5603) owns the question "which production files do these tests
-exercise" through its DT3 static mapping and the `--exercised <test-path>` interface, which maps the
-named tests instead of the changed set. Phase 2 builds on that interface and cannot start before
-2b's Phase 4 lands.
+Dependency (settled, #5603): Release 2b owns the question "which production files do these tests
+exercise" through its DT3 static mapping. As the user decided on 2026-09-30, `--exercised` takes an
+optional test file or folder; given one, the mapping starts from the tests under that path, not the
+changed set. The effort cap applies and `--max` overrides it. 2b recognizes test files by asking
+the testing scanner (`cant-fail-scan.sh --file` reports which adapter claims each file) and refuses
+the scope when the testing plugin is not installed; cleanup lives in `testing`, so that holds.
+Phase 2 builds on this interface and cannot start before 2b's Phase 4 lands.
 
 Test strategy: TDD (Red, Green, Refactor) for every script. Test boundaries, all through their
 command lines:
@@ -62,22 +65,22 @@ same way.
 2. A16 (DT13), decided 2026-09-30 by the user. Add under spec Q3 and Q13: "Amended 2026-09-30 (user,
    A16): split mode leaves Release 3 until probe R2-P1 passes and the Release 2 judge's calibration
    shows that main-session tests carry provenance defects the Release 1 hooks and the judge both
-   miss. The design is kept in `docs/specs/tautological-tests-cleanup/PLAN.md` 'Deferred: split
+   miss. The design is kept in `docs/specs/tautological-tests-cleanup/plan.md` 'Deferred: split
    mode'."
-3. The Release 3 sanity check at spec:890 points at `docs/specs/tautological-tests-cleanup/PLAN.md`.
+3. The Release 3 sanity check at spec:890 points at `docs/specs/tautological-tests-cleanup/plan.md`.
 
 **Sanity Check:**
 
 - `grep -c 'A15' docs/specs/tautological-tests.md` returns at least 1.
 - `grep -c 'A16' docs/specs/tautological-tests.md` returns at least 1.
-- `grep -c 'docs/specs/tautological-tests-cleanup/PLAN.md' docs/specs/tautological-tests.md` returns
+- `grep -c 'docs/specs/tautological-tests-cleanup/plan.md' docs/specs/tautological-tests.md` returns
   at least 1, and `grep -c 'docs/topics/tautological-tests-cleanup' docs/specs/tautological-tests.md`
   returns 0.
 
 ### Phase 2: Mutation record, replay and compare (DT6, DT7, DT12) [TODO]
 
-Needs Release 2b's `--exercised <test-path>` interface and DT3 mapping (PR #5603). Pre-flight consumer check, first
-work item: `git grep -n 'mutation-testing:audit'` over `plugins/` and `docs/`, listing every caller
+Needs Release 2b's `--exercised <folder>` interface and DT3 mapping (PR #5603, settled). Pre-flight
+consumer check, first work item: `git grep -n 'mutation-testing:audit'` over `plugins/` and `docs/`, listing every caller
 and every reader of its findings file. The two new flags are additive, so the existing flag set and
 findings shape must stay unchanged for them.
 
@@ -88,7 +91,7 @@ findings shape must stay unchanged for them.
   `\t`, `\n`, `\\`, so a multi-line statement removal fits one row. No other plugin reads a record.
   A record lives for one batch in the caller's `.work/` directory.
 - `plugins/mutation-testing/skills/audit/SKILL.md`:
-  - `--record-mutants <file>` runs under 2b's `--exercised <test-path>` scope, not `--paths`: 2b's
+  - `--record-mutants <file>` runs under 2b's `--exercised <folder>` scope, not `--paths`: 2b's
     DT3 mapping starts from the named tests as they stand, because a recording runs before any
     test is edited. It mutates every mutable line in the mapped functions, one mutant each, with no
     diff intersection. 2b's effort cap and `--max` apply unchanged; the caller passes `--max`
@@ -116,7 +119,7 @@ findings shape must stay unchanged for them.
   exits 2; a sha mismatch and a malformed row exit 2; `timeout` then `killed` and `killed` then
   `timeout` are not losses; `killed` then `invalid` and `killed` then `no-coverage` are; a
   multi-line original round-trips its escapes.
-- The pre-flight caller list is recorded in this PLAN, before the SKILL.md edit, as one line at
+- The pre-flight caller list is recorded in this plan, before the SKILL.md edit, as one line at
   column 0 that starts with the literal prefix `Consumers of mutation-testing:audit:`.
 - `plugins/mutation-testing/skills/audit/evals/evals.json`: one case records and replays over a
   fixture with `tool: manual`, asserts the replay applies the same mutants, and asserts a deleted
@@ -132,7 +135,7 @@ findings shape must stay unchanged for them.
   returns at least 1.
 - `bash plugins/skill-quality/scripts/check-evals-quality.sh plugins/mutation-testing/skills/audit/evals/evals.json`
   exits 0.
-- `grep -c '^Consumers of mutation-testing:audit:' docs/specs/tautological-tests-cleanup/PLAN.md` returns 1.
+- `grep -c '^Consumers of mutation-testing:audit:' docs/specs/tautological-tests-cleanup/plan.md` returns 1.
 - Manual probe R3-P1, run once with `tool: manual`, in a scratch repo under
   `.work/tautological-tests-cleanup/probe/`: record over one test folder with no production diff
   and confirm K0 is non-empty; delete one killing assertion; replay: the report shows `Gate: block`
@@ -221,7 +224,7 @@ Other files:
 
 **Sanity Check:**
 
-- `grep -c '\[TODO\]' docs/specs/tautological-tests-cleanup/PLAN.md` returns 0.
+- `grep -c '\[TODO\]' docs/specs/tautological-tests-cleanup/plan.md` returns 0.
 - `git grep -n 'docs/topics/tautological-tests-cleanup' -- ':!docs/specs/tautological-tests-cleanup'`
   returns nothing.
 
@@ -281,7 +284,7 @@ The hook form, kept here for when detection proves too late:
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Release 2b's `--exercised <test-path>` does not ship | Low | High | Phase 2 waits on 2b; no fallback scope is built |
+| Release 2b's `--exercised <folder>` does not ship | Low | High | Phase 2 waits on 2b; no fallback scope is built |
 | A module-wide mutation run is slow or costly | High | Med | `--max` caps the recording run; replay runs the same list only; one folder per batch |
 | The gate passes while a deletion loses real regression detection | Med | High | The gate is necessary, not sufficient: every deletion needs a no-contract reason and the user's yes (DT4, DT5) |
 | The classifier misreads "contract exists" | Med | Med | K must cite `file:line`; rewrite is the default; eval cases; the user reviews the batch |

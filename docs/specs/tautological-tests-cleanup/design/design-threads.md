@@ -56,7 +56,7 @@ this session (0 hits); `go-testing.yaml` assertion `calls` (Explore report this 
 GRID.md `n/a` cells read this session; spec:63-71 (Q5 as amended).
 
 Decided 2026-09-30 (user): A15 approved. Wave 2 and SW1 leave Release 3 until a switch condition
-above fires; the next PR that edits the spec records A15 (PLAN Phase 1).
+above fires; the next PR that edits the spec records A15 (`plan.md` Phase 1).
 
 ## Round 2: `testing:cleanup`
 
@@ -154,7 +154,7 @@ user).
 Decision:
 
 - Scope: mutate the production code the batch's tests exercise. Release 2b's DT3 static mapping
-  (PR #5603) owns that question. The recording run passes 2b's `--exercised <test-path>` with the
+  (PR #5603) owns that question. The recording run passes 2b's `--exercised <folder>` with the
   batch folder, and no `--paths`. That form maps the named tests as they stand, not the changed
   set, which is empty before any test is edited.
 - No diff intersection. Today `--paths` is intersected with the changed lines (Phase 1 step 1), so a
@@ -208,7 +208,12 @@ Decided 2026-09-30 (user):
 - Release 2b's DT3 static mapping owns which production files the tests exercise. It replaces the
   `--paths` glob proposal and is passed to the recording run without `--paths`; cleanup depends on
   2b. `--exercised` excludes `--paths`, and the earlier `--record-mutants` required `--paths`, so
-  the recording run takes 2b's `--exercised <test-path>` form instead.
+  the recording run takes 2b's `--exercised <folder>` form instead.
+- The 2b interface is settled (#5603): `--exercised` takes an optional test file or folder, and
+  its mapping starts from the tests under that path. The effort cap applies and `--max` overrides
+  it. 2b recognizes test files through `cant-fail-scan.sh --file` and refuses the scope without the
+  testing plugin, which cleanup, a `testing` skill, always has. The recording run's
+  `--exercised <folder> --max <n>` form matches that interface.
 - Probe R3-P1 runs once, with `tool: manual`.
 
 ### DT7. Per-test kill attribution (resolved: not built)
@@ -302,7 +307,7 @@ PowerShell tool) and :34 (manual protocol); `mutation-testing:audit` SKILL.md:16
 
 ## Round 3: split mode
 
-Deferred out of Release 3 by A16 (DT13). DT13-DT16 are kept as the design to use if it ships; PLAN
+Deferred out of Release 3 by A16 (DT13). DT13-DT16 are kept as the design to use if it ships; `plan.md`
 "Deferred: split mode" holds the summary.
 
 ### DT13. Where split mode lives and its flow (deferred by A16)
@@ -340,7 +345,7 @@ Switch condition: probe R2-P1 passes, and the Release 2 judge's calibration show
 tests carry provenance defects the Release 1 hooks and the judge both miss. If it ships, the simpler
 form comes first: a done-time `git diff --quiet <freeze-sha> -- <files>` check, which detects an
 edit rather than preventing it. The test-writer agent, the validity check (DT15), the
-`split_mode_enabled` key, the freeze hook (DT14), probe R3-P3 and the Q4 clarification move to PLAN
+`split_mode_enabled` key, the freeze hook (DT14), probe R3-P3 and the Q4 clarification move to `plan.md`
 "Deferred: split mode".
 
 ### DT14. Freezing: how the implementer is kept off the tests (deferred with DT13)
@@ -360,7 +365,7 @@ the hook's data-directory resolution, so both read the same file.
 
 Q4 consistency: Q4 limits which detection signals may block. This deny is not a detection verdict.
 It is a lock the user asked for by opting in and starting split mode, released when split mode ends.
-The dated Q4 clarification goes with split mode if it ships (PLAN "Deferred: split mode").
+The dated Q4 clarification goes with split mode if it ships (`plan.md` "Deferred: split mode").
 
 Known gaps, recorded and not closed: Bash and script writes bypass the hook (the same gap
 spec:910 records, covered by guardrails `block-hook-bypass`); a freeze left by a crashed session is
@@ -388,8 +393,8 @@ Further limits, from the devil's-advocate pass (2026-09-30):
 - Refusals. `--split` refuses unless both `test_guards_enabled` and `split_mode_enabled` are on (a
   freeze nothing enforces is a false promise), and refuses to freeze a file the generated `if` rows
   do not match (a consumer-added pattern never reaches the hook, Q6).
-- Lifetime. A session-keyed list does not survive `/clear` or a fork if either issues a new
-  `session_id` (unconfirmed). The skill states that `/clear` ends split mode, and the deny message
+- Lifetime. A session-keyed list does not survive `/clear`: probe R2-P8 on #5605 confirmed that
+  `/clear` issues a new `session_id` and `--resume` keeps it; a fork was not probed. The skill states that `/clear` ends split mode, and the deny message
   names the list file and the release command, `/testing:write --split --end`.
 
 ### DT15. Validity check before freezing (deferred with DT13)
@@ -440,7 +445,7 @@ are the scripts' command lines); `testing:plan` classification table (seam altit
 judgment.
 
 Decided 2026-09-30 (user): the comparator lives in `mutation-testing` (DT6), and the split-mode
-seams (`test-freeze.sh`, `test-pretool.sh`, `freeze-list.sh`, the regenerated rows) move to PLAN
+seams (`test-freeze.sh`, `test-pretool.sh`, `freeze-list.sh`, the regenerated rows) move to `plan.md`
 "Deferred: split mode" with DT13.
 
 ### DT18. Configuration, extension and observability (resolved)
@@ -465,6 +470,6 @@ Release 3 with DT13.
 
 ## Dependency order
 
-DT1 orders the work. DT6 needs Release 2b's exercised scope (PR #5603) and two
+DT1 orders the work. DT6 needs Release 2b's exercised scope (PR #5603, interface settled) and two
 `mutation-testing:audit` flags before the cleanup gate works. A15 (DT2) and A16 (DT13) are decided
 and go into the spec with the next PR that edits it.
