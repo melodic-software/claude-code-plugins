@@ -981,6 +981,15 @@ run_pwsh "PS: git -c core.pager inside grouping (blocked)" \
 run_pwsh "PS: git --exec-path inside grouping (blocked)" \
   "foreach (\$d in 'a') { git --exec-path=. status }" 2
 # shellcheck disable=SC2016
+run_pwsh "PS: braced GIT_EXTERNAL_DIFF beside a read-only git group (blocked)" \
+  "\${env:GIT_EXTERNAL_DIFF}='C:\\t\\m.exe'; & { git diff --ext-diff }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: Env: drive GIT_PAGER beside a read-only git group (blocked)" \
+  "Set-Item Env:\\GIT_PAGER 'C:\\t\\m.exe'; & { git log }" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: SetEnvironmentVariable beside a read-only git group (blocked)" \
+  "[Environment]::SetEnvironmentVariable('GIT_PAGER','x'); & { git log }" 2
+# shellcheck disable=SC2016
 run_pwsh "PS: an alias-shaped subcommand inside grouping (blocked)" \
   "foreach (\$d in 'a') { git co main }" 2
 # shellcheck disable=SC2016

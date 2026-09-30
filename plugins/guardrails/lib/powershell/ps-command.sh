@@ -1643,8 +1643,10 @@ ps::git_command_is_readonly() {
 #      a built-in, so `git status` always means status;
 #   c. `-c <name>=<value>`, `--exec-path`, `--git-dir` and every other global
 #      option outside the four above stop the walk, and what they leave in
-#      subcommand position is not on the list. `$env:GIT_*` anywhere refuses too,
-#      because GIT_PAGER / GIT_EXTERNAL_DIFF turn a read into execution.
+#      subcommand position is not on the list. A GIT_* environment variable
+#      anywhere refuses too (`$env:GIT_X`, `${env:GIT_X}`, `Env:\GIT_X`,
+#      `[Environment]::SetEnvironmentVariable`), because GIT_PAGER /
+#      GIT_EXTERNAL_DIFF turn a read into execution.
 # `-C` is compared case-sensitively: git reads `-c` as a config override.
 #
 # Dual-mode verbs are argument-aware, as in the blocklist's carve-out: `remote`
@@ -1664,8 +1666,7 @@ ps::git_command_is_interrogation_only() {
   local recovered="${1//\`/}" lc opaque s tok ch i k j sub next n_probe=0 n_git=0
   local -a toks=()
   lc="${recovered,,}"
-  # shellcheck disable=SC2016  # a literal PowerShell `$env:` prefix, not an expansion
-  [[ "$lc" == *'$env:git_'* ]] && return 1
+  [[ "$lc" =~ env:[/\\]?git_ || "$lc" == *setenvironmentvariable* ]] && return 1
   ps::has_dynamic_invocation "$1" && return 1
   ps::has_launcher "$1" && return 1
   ps::call_target_is_bare_subexpression "$recovered" && return 1
