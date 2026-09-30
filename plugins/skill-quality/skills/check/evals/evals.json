@@ -59,7 +59,7 @@
       "expectations": [
         "Output does NOT author a new skill / SKILL.md",
         "Output states that skill-quality is a QA/validation gate, not an authoring tool",
-        "Output redirects the user to an appropriate skill-authoring path"
+        "Output redirects the user to /playbooks:skill-authoring or skill-creator for writing the skill"
       ]
     },
     {

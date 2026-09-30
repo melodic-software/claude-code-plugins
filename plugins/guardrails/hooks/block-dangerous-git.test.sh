@@ -772,6 +772,12 @@ run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
 run_pwsh "PS: wsl.exe -e git reset --hard (launcher sink, blocked — #4242)" "wsl.exe -e git reset --hard" 2
 run_pwsh "PS: wsl echo hi (git-free launcher, allowed)" "wsl echo hi" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: call operator on a quoted exe path, no git (allowed)" '& "C:\tools\tool.exe" arg' 0
+run_pwsh "PS: function definition and call, no git (allowed)" 'function f { Get-ChildItem }; f' 0
+run_pwsh "PS: call operator beside git status (blocked)" '& "C:\tools\tool.exe" arg; git status' 2
+assert_contains "PS: call operator refusal names dynamic invocation" "$GUARD_ERR" "Trigger: a dynamic invocation"
+run_pwsh "PS: function body carrying git (blocked)" 'function f { git status }; f' 2
+assert_contains "PS: function body refusal names {}/() grouping" "$GUARD_ERR" "{}/() grouping"
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \
   "$(printf 'git push `\n --force')" 2
 
