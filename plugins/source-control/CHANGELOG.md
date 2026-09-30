@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
-- **19 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, and each case has a `skill-fired` grader.
+- **17 `claude plugin eval` cases for `commit`, `pull-request`, and `worktree`.** Each mechanical expectation (subject format, trailer, forbidden commands, tool order, helper use) has a deterministic `regex` or `tool_used` grader, and each case has a `skill-fired` grader.
 
 ## [0.65.0] - 2026-09-29
 
