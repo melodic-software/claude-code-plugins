@@ -674,6 +674,11 @@ def hard_protection(
         reasons.append("target-root")
     if is_volume_root(path) and is_os_managed_target(path):
         reasons.append("os-managed-root")
+    # Only the entry itself: a directory that merely carries an image-style name
+    # holds no image, and its contents are judged entry by entry. A path that
+    # cannot be stat'ed reads as not-a-directory, which fails closed.
+    if is_virtual_disk_name(path.name) and not path.is_dir():
+        reasons.append("virtual-disk")
     current = path
     while is_within(current, target):
         linkish, cloud_placeholder = link_and_cloud_state(current)
@@ -741,6 +746,7 @@ def baseline_policy() -> dict[str, Any]:
         "version": SCHEMA_VERSION,
         "protected_exact_names": list(baseline.get("protected_exact_names", [])),
         "protected_name_globs": list(baseline.get("protected_name_globs", [])),
+        "disk_image_name_globs": list(baseline.get("disk_image_name_globs", [])),
         "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
@@ -781,6 +787,23 @@ def baseline_protected_name_globs() -> tuple[str, ...]:
     a build-time constant.
     """
     return tuple(baseline_policy()["protected_name_globs"])
+
+
+@functools.lru_cache(maxsize=1)
+def baseline_disk_image_name_globs() -> tuple[str, ...]:
+    """Bundled disk-image name patterns, read from the baseline like the protected globs."""
+    return tuple(baseline_policy()["disk_image_name_globs"])
+
+
+def is_virtual_disk_name(name: str) -> bool:
+    """True when a file name is a virtual-disk image (``*.vhdx``, ``*.vmdk``, ...).
+
+    A disk image holds a whole machine or volume: it is sparse or dynamically
+    sized, is usually held open by a hypervisor or WSL, and its name says
+    nothing about whether the guest inside is disposable. Matched casefolded
+    through ``glob_matches``, so ``DISK.VMDK`` and ``ext4.vhdx`` both hit.
+    """
+    return any(glob_matches(name, glob) for glob in baseline_disk_image_name_globs())
 
 
 def load_policy(
@@ -941,6 +964,10 @@ def metadata(
         qualifiers.append("not-walked")
     if is_cloud_placeholder_stat(info):
         qualifiers.append("cloud-placeholder")
+    # An image's size is a guest disk's capacity or growth ceiling, and the file
+    # is never deletable by name, so its bytes are not reclaimable.
+    if kind == "file" and is_virtual_disk_name(path.name):
+        qualifiers.append("virtual-disk")
     # Directories carry st_nlink >= 2 for "." / ".." (and higher for each
     # subdirectory) on POSIX; that is not multi-name hard-linking of content.
     # Only regular files with more than one directory entry share one object.
@@ -1748,6 +1775,8 @@ def root_child_skip_reason(
             return "hidden"
         if attributes & FILE_ATTRIBUTE_SYSTEM:
             return "system"
+    if is_reg and is_virtual_disk_name(name):
+        return "virtual-disk"
     if has_protected_name(path, exact_names):
         return "baseline-protected-name"
     mounted, mount_error = mount_state(path, known_linux_mounts)
@@ -4519,7 +4548,7 @@ def main(argv: list[str] | None = None) -> int:
                                 "target_reclaimable_local_bytes excludes every "
                                 "entry whose size_qualifiers is non-empty "
                                 "(cloud-placeholder, hardlinked, sparse, "
-                                "not-walked); target_logical_bytes is the walked "
+                                "virtual-disk, not-walked); target_logical_bytes is the walked "
                                 "roll-up and may understate truncated subtrees."
                             )
                         ),

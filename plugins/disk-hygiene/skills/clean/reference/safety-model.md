@@ -69,6 +69,13 @@ bounded conditions.
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
+- no virtual-disk image file, matched by name and case-insensitively against the baseline
+  `disk_image_name_globs` (`*.vhd`, `*.vhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`; WSL's
+  `ext4.vhdx` is covered by `*.vhdx`). The entry reports `virtual-disk` in `protected_reasons` and
+  `size_qualifiers`, so any candidate that is or contains one is blocked in preview, apply, and
+  `handoff-verify`, and its bytes stay out of every reclaimable total. An image is a whole guest
+  disk, usually held open by a hypervisor or WSL, so the name proves nothing about it being
+  disposable; the owning product's own compaction or removal is the path;
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
@@ -580,7 +587,7 @@ payload names what was in scope.)
 | `walked` | `true` only when the child's whole subtree was inventoried |
 | `logical_bytes` | Recursive LOGICAL total, qualifiers included; `null` unless `walked` |
 | `reclaimable_local_bytes` | Recursive total over unqualified files only, the bytes deleting the child is expected to return locally; `null` unless `walked` |
-| `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, …); `null` unless `walked` |
+| `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, `virtual-disk`, …); `null` unless `walked` |
 | `entry_count` | Inventoried descendants, excluding the child's own record; `null` unless `walked` |
 | `newest_mtime_ns` | Newest `mtime_ns` across the child and its inventoried descendants; `null` unless `walked` |
 | `unwalked_reasons` | Sorted causes when `walked` is false: `depth-cut`, `protected`, `vcs-boundary`, `scan-error`, `descendant-not-walked`, or the bare `not-walked` fallback when the walk recorded no more specific cause. Empty when `walked` |
@@ -606,7 +613,7 @@ is in `truncated_paths`.
 
 The third failure mode, a byte figure that overstates what deleting would return, is closed by
 pairing, not by omission. `logical_bytes` is a logical total, so a cloud placeholder's REMOTE size, a
-hard link's shared object, and a sparse file's unallocated extent all inflate it; `size_qualifiers`
+hard link's shared object, a sparse file's unallocated extent, and a virtual-disk image's capacity all inflate it; `size_qualifiers`
 says which of those are present in the subtree and `reclaimable_local_bytes` counts only unqualified
 files, exactly as `target_reclaimable_local_bytes` does for the target. Rank a child on the
 reclaimable figure and state the qualified bytes separately with their reasons. Never read

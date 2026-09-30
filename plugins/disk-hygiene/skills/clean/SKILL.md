@@ -76,7 +76,7 @@ or more explicit `--root-child <name>` flags, after the human clears the confirm
 root-children row, it audits only those admitted children into one snapshot. A general "clean
 everything" is not selection. With no target, ask once. Reject an
 OS-managed root (unless `--root-children` on the volume root itself), a non-root mount target, a protected shell-folder root
-or descendant, a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
+or descendant, a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink, or a Windows reparse point. A whole-volume root that
 is not OS-managed (a Windows Dev Drive) is a valid target, but
 as a known-large root it is gated like a home target (see step 1): the scan returns
 `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
@@ -334,7 +334,7 @@ handoff.
 An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty. Exclude every qualified
 entry from any reclaimable-bytes total and state the qualified bytes separately with their reasons, a
 `cloud-placeholder` carries its REMOTE size while occupying roughly nothing locally; a `hardlinked` name shares one
-object with other names; a `sparse` file's logical size overstates local allocation; and `not-walked` means the subtree
+object with other names; a `sparse` file's logical size overstates local allocation; a `virtual-disk` image (never deletable by name) is a guest disk's capacity, not reclaimable space; and `not-walked` means the subtree
 was never inventoried, so `logical_size` is `null` rather than `0`, except on the target's own record, which keeps its
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
 `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself.

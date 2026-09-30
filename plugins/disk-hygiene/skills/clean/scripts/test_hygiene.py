@@ -528,6 +528,61 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual([], entries["notes.txt"]["protected_reasons"])
             self.assertEqual([], entries["notes.txt"]["size_qualifiers"])
 
+    def test_disk_image_names_match_case_insensitively(self) -> None:
+        for name in (
+            "Dev.vhdx",
+            "DISK.VMDK",
+            "ext4.vhdx",
+            "a.vhd",
+            "b.vdi",
+            "c.qcow2",
+            "boot.IMG",
+        ):
+            self.assertTrue(hygiene.is_virtual_disk_name(name), name)
+        for name in ("vhdx", "notes.txt", "disk.img.bak", "initrd.img-6.1.0"):
+            self.assertFalse(hygiene.is_virtual_disk_name(name), name)
+
+    def test_scan_qualifies_and_protects_a_disk_image_but_not_a_plain_file(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "Dev.vhdx").write_bytes(b"x" * 4096)
+            (root / "DISK.VMDK").write_bytes(b"x" * 4096)
+            (root / "plain.dat").write_bytes(b"x" * 4096)
+            (root / "images.img").mkdir()
+            (root / "images.img" / "inner.dat").write_bytes(b"x" * 10)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            entries = hygiene.entry_map(snapshot)
+
+            for name in ("Dev.vhdx", "DISK.VMDK"):
+                self.assertEqual(["virtual-disk"], entries[name]["size_qualifiers"])
+                self.assertIn("virtual-disk", entries[name]["protected_reasons"])
+                self.assertIsNone(hygiene.entry_reclaimable_local_bytes(entries[name]))
+            self.assertEqual([], entries["plain.dat"]["size_qualifiers"])
+            self.assertEqual([], entries["plain.dat"]["protected_reasons"])
+            self.assertEqual(
+                4096, hygiene.entry_reclaimable_local_bytes(entries["plain.dat"])
+            )
+            # A directory that only carries an image-style name holds no image.
+            self.assertEqual([], entries["images.img"]["size_qualifiers"])
+            self.assertEqual([], entries["images.img"]["protected_reasons"])
+            self.assertEqual(4096 + 10, snapshot["target_reclaimable_local_bytes"])
+
+    def test_disk_image_bytes_leave_the_child_rollup(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "vm").mkdir(parents=True)
+            (root / "vm" / "ext4.vhdx").write_bytes(b"x" * 4096)
+            (root / "vm" / "note.txt").write_bytes(b"x" * 7)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            rollup = {row["name"]: row for row in snapshot["children_rollup"]}
+            self.assertEqual(7, snapshot["target_reclaimable_local_bytes"])
+            self.assertEqual(7, rollup["vm"]["reclaimable_local_bytes"])
+            self.assertEqual(4096 + 7, rollup["vm"]["logical_bytes"])
+            self.assertIn("virtual-disk", rollup["vm"]["size_qualifiers"])
+
     def test_tenant_cloud_sync_root_name_is_protected(self) -> None:
         # The OneDrive for Business sync root embeds the organization name, so
         # no exact name can cover it and a consumer overlay cannot either:
@@ -1319,6 +1374,15 @@ class HygieneTests(unittest.TestCase):
                     "cloud-placeholder",
                     hygiene.root_child_skip_reason(path, exact_names=set()),
                 )
+
+    def test_root_child_disk_image_file_is_withheld(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "docker_data.VHDX"
+            path.write_bytes(b"x")
+            self.assertEqual(
+                "virtual-disk",
+                hygiene.root_child_skip_reason(path, exact_names=set()),
+            )
 
     def test_linux_swapfile_is_os_owned_by_name(self) -> None:
         self.assertTrue(
@@ -2241,6 +2305,36 @@ class HygieneTests(unittest.TestCase):
                 "baseline-protected-name", result["candidates"][0]["blockers"]
             )
             self.assertIsNone(result["approval_token"])
+
+    def test_preview_and_apply_refuse_a_disk_image_even_from_a_forged_snapshot(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "vm").mkdir(parents=True)
+            image = root / "vm" / "Dev.vhdx"
+            image.write_bytes(b"x" * 4096)
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            for entry in snapshot["entries"]:
+                entry["protected_reasons"] = []
+                entry["size_qualifiers"] = []
+            for path in ("vm/Dev.vhdx", "vm"):
+                plan = {"version": 1, "tier": "high", "candidates": [candidate(path)]}
+                with (
+                    mock.patch.object(
+                        hygiene, "handle_state", return_value=("clear", None)
+                    ),
+                    mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                    mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                ):
+                    result = hygiene.preview(snapshot, plan)
+                    report = hygiene.apply_plan(snapshot, plan)
+                self.assertIn("virtual-disk", result["candidates"][0]["blockers"])
+                self.assertIsNone(result["approval_token"])
+                self.assertEqual("protected", report["skipped"][0]["outcome"])
+                self.assertIn("virtual-disk", report["skipped"][0]["detail"])
+                self.assertEqual(0, report["paths_removed"])
+                self.assertTrue(image.exists())
 
     def test_preview_accepts_a_snapshot_lacking_the_new_entry_fields(self) -> None:
         # A previous engine's snapshot carries no size_qualifiers or
