@@ -85,6 +85,7 @@ write_claude_stub() {
   cat >"$case_dir/stubs/claude" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CLAUDE_STUB_LOG"
+if IFS= read -r -t 1 _stdin_line; then printf 'stdin was open\n' >>"$CLAUDE_STUB_LOG.stdin"; fi
 verb="${1:-} ${2:-}"
 case "$verb" in
 "plugin marketplace")
@@ -1169,6 +1170,58 @@ out=$(run_sync "$case_dir" --marketplace market1)
 rc=$?
 assert_exit "no journal root: exit 2" 2 "$rc"
 assert_contains "no journal root: names the flag" "$(cat "$case_dir/stderr.txt")" "--journal-root"
+
+# ============================================================================
+# Case: the claude CLI never inherits the caller's stdin, so a confirmation
+# prompt cannot block a run
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.3.0
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {"alpha@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]}
+}'
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=()
+out=$(printf 'yes\n' | run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+rc=$?
+assert_exit "stdin: exit 0" 0 "$rc"
+if [[ -s "$case_dir/claude.log" ]]; then
+  pass "stdin: the run issued claude calls"
+else
+  fail "stdin: the run issued claude calls" "claude.log is empty, so the probe below is vacuous"
+fi
+if [[ -e "$case_dir/claude.log.stdin" ]]; then
+  fail "stdin: claude sees no caller stdin" "the stub read: $(cat "$case_dir/claude.log.stdin")"
+else
+  pass "stdin: claude sees no caller stdin"
+fi
+
+# ============================================================================
+# Case: --help and a usage error work on a machine with no jq
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+nojq_bin="$case_dir/nojq-bin"
+mkdir -p "$nojq_bin"
+for tool in bash cat dirname date; do
+  ln -s "$(command -v "$tool")" "$nojq_bin/$tool"
+done
+out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --help 2>&1)
+rc=$?
+assert_exit "--help without jq: exit 0" 0 "$rc"
+assert_contains "--help lists the exit codes" "$out" "Exit: 0 the run completed"
+out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --nonsense 2>&1)
+rc=$?
+assert_exit "usage error without jq: exit 2" 2 "$rc"
+out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --journal-root "$case_dir/j" 2>&1)
+rc=$?
+assert_exit "run without jq: exit 2" 2 "$rc"
+assert_contains "run without jq: actionable notice" "$out" "jq required"
 
 # ============================================================================
 if ((FAILED > 0)); then

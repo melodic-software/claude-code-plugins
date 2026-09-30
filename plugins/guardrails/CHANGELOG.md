@@ -3,11 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.42.3] - 2026-09-30
+## [0.42.4] - 2026-09-30
 
 ### Fixed
 
 - **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
+## [0.42.3] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` allows a computed PowerShell call whose target resolves to a single-quoted non-writer literal.** `$p = 'git'; & $p 'status' bare` was refused by the positional-write arm. The arm now skips a call site whose variable resolves to such a literal; an unresolved target stays blocked and no allow token was added.
+- **The computed-call positional arm has its own block reason.** It reports form `powershell-computed-positional` with a reason that names the computed call, instead of the cmdlet/redirect message with Write/Edit advice. The telemetry schema lists the new form token.
 
 ## [0.42.2] - 2026-09-30
 
