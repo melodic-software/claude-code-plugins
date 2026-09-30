@@ -358,7 +358,7 @@ out of scope until such a signal exists.
   `C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv`, or a `/` path on a
   POSIX host) is judged by the same roots and the same symlink confirmation as
   a Bash redirect. The destination is bound by `-Path`, `-FilePath`,
-  `-LiteralPath` or given positionally, bare or single-quoted, and the write's
+  `-LiteralPath`, `-LP` or `-PSPath`, or given positionally, bare or single-quoted, and the write's
   only other arguments are `-Append`, `-Force`, `-NoClobber`, `-NoNewline` or
   `-NoTypeInformation`. Everything else keeps the block: a relative, `$`-carried,
   double-quoted, wildcard or comma-listed destination; any other flag; a second

@@ -2124,6 +2124,8 @@ run_pwsh_cwd "PS exempt: single-quoted destination plus a switch (allowed)" \
   "Get-ChildItem | Export-Csv -Path '$PSD/my out.csv' -NoTypeInformation" 0
 run_pwsh_cwd "PS exempt: Tee-Object -FilePath into plugin data (allowed)" \
   "Get-ChildItem | Tee-Object -FilePath $PSD/t.txt" 0
+# The home path is assembled so no contiguous Windows user-home literal sits in
+# this file: the machine-specific-path scan and the hardcoded-path hook reject one.
 WIN_HOME="C:\\"'Users\me'
 run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
   "Get-ChildItem | Export-Csv -Path ${WIN_HOME}"'\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
@@ -2146,6 +2148,12 @@ run_pwsh_cwd "PS exempt: second write form still blocks" \
   "Get-ChildItem | Export-Csv -Path $PSD/a.csv | Out-File $PSD/b.txt" 2
 run_pwsh_cwd "PS exempt: redirect with a tee-named destination is one write" \
   "Get-ChildItem > $PSD/tee.txt" 0
+run_pwsh_cwd "PS exempt: quoted > inside a cmdlet destination is not a redirect" \
+  "Get-ChildItem | Export-Csv -Path '$PSD/a>b.csv'" 0
+run_pwsh_cwd "PS exempt: a real redirect beside a cmdlet write still blocks" \
+  "Get-ChildItem | Export-Csv -Path $PSD/a.csv > $PSD/b.txt" 2
+run_pwsh_cwd "PS exempt: -PSPath binds the destination" \
+  "Get-ChildItem | Out-File -PSPath $PSD/out.txt" 0
 run_pwsh_cwd "PS exempt: project-root destination blocks" \
   "Get-ChildItem | Out-File -FilePath $PROJ/out.txt" 2
 run_pwsh_cwd "PS exempt: relative destination blocks" \

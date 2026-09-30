@@ -1425,10 +1425,12 @@ block_bypass() {
 #     untrusted. Here-strings, splats, subexpressions, call operators, comments
 #     and statement lists are therefore all out, and a single-quoted span, the
 #     only quoting left, is a literal with nothing to evaluate.
-#   - exactly ONE write form, counted over the raw text so a mention inside a
-#     quoted span counts too: one of ps::write_bypass's cmdlet and alias names,
-#     or one `>`/`>>` redirect. A command naming a second writer, or an
-#     IO.File / StreamWriter, keeps its block.
+#   - exactly ONE write form, counted over the split words: one word that is
+#     exactly one of ps::write_bypass's cmdlet and alias names (a single-quoted
+#     word counts, its quotes removed), or one unquoted `>`/`>>` redirect. A
+#     destination that merely contains such a name, or a `>` inside quotes, is
+#     not a form. A command naming a second writer, or an IO.File /
+#     StreamWriter, keeps its block.
 #   - a cmdlet write is Out-File, Set-Content, Add-Content (`ac`), Tee-Object
 #     (`tee`), Export-Csv (`epcsv`) or Export-Clixml, as the first word of its
 #     pipeline segment. Its arguments are one destination, bound by -Path,
@@ -1445,7 +1447,7 @@ block_bypass() {
 #   - scratch_target_exempt grants it, `\` folded to `/` and case-folded as the
 #     Bash lane's segment scan delivers its targets.
 _bbh_ps_write_exempt() {
-  local cmd="$1" lc n=0 cmdlet="" t i ch v="" r="" have=0 inq=0 j k start=-1 end
+  local cmd="$1" lc n=0 cmdlet="" t="" i ch v="" r="" have=0 inq=0 j k start=-1 end
   local a op_r="" op_v="" op_n=0
   local -a tv=() tr=()
   ((PS_REDUCTION_UNTRUSTED)) && return 1
@@ -1458,8 +1460,6 @@ _bbh_ps_write_exempt() {
   ps::has_launcher "$cmd" && return 1
   lc="${cmd,,}"
   [[ "$lc" == *io.file* || "$lc" == *streamwriter* ]] && return 1
-  t="${lc//>>/>}"
-  t="${t//[^>]/}"
   # Split into words, `|` and `>` markers, keeping each word's raw spelling.
   # A marker's raw form is the bare character; a quoted `'|'` word keeps quotes.
   for ((i = 0; i <= ${#cmd}; i++)); do
@@ -1501,6 +1501,9 @@ _bbh_ps_write_exempt() {
     [[ "${tv[k],,}" =~ $re ]] || continue
     n=$((n + 1))
     cmdlet="${BASH_REMATCH[1]}"
+  done
+  for ((k = 0; k < ${#tr[@]}; k++)); do
+    if [[ "${tr[k]}" == '>' ]]; then t+='>'; fi
   done
   if ((n == 1 && ${#t} == 0)); then
     case "$cmdlet" in
