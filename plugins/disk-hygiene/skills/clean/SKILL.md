@@ -332,8 +332,11 @@ low or zero reclaimable-byte figure as a reason to skip a finding that otherwise
 ### Prior conclusions
 
 An entry with `prior_disposition` was concluded on an earlier run and its identity still holds;
-`prior_unresolved` marks one whose owner is still unknown. Both are hints, never approval. To record
-a conclusion or an operator's "keep, don't re-raise" answer, see the
+`prior_unresolved` marks one whose owner is still unknown. Both are hints, never approval: classify
+and approve the entry as if it had no record. In the report, lead with new or changed entries, give
+each unchanged entry one line, and end with the open questions. When the operator answers "keep,
+don't re-raise", record it with `catalog --answers` so the entry is not asked again while its
+identity holds; a changed inode or child set asks again. Catalog syntax and rules:
 [investigated catalog](reference/safety-model.md#investigated-catalog).
 
 ## 4. Build one exact-tier plan
