@@ -180,12 +180,13 @@ jobs:
   #
   # GUARDRAILS (#4527). The guardrails suites whose guards branch on OSTYPE,
   # cygpath or MSYS run here: block-windows-drive-tmp, hardcoded-path-check,
-  # block-hook-bypass, secret-pattern-detection and run-guards. Each is a step
-  # of its own so its log shows its own duration against this job's 20-minute
-  # timeout. coverage-manifest stays on the Linux lane: it is a
-  # README/permissions sync check with no OSTYPE branch, so a Windows run adds
-  # no coverage. A host-gated case that cannot run must print a counted SKIP
-  # line.
+  # block-hook-bypass, secret-pattern-detection, run-guards and
+  # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
+  # `jq.exe` on a Windows host writes CRLF after every line, so its family and
+  # README lookups miss there and only a Windows run exercises that. Each suite
+  # is a step of its own so its log shows its own duration against this job's
+  # 20-minute timeout. A host-gated case that cannot run must print a counted
+  # SKIP line.
   #
   # HOST-SKIP SUITES (#3683). Three suites probe the host at run time and two
   # print a SKIP line when they cannot pin their cases, so their Windows
@@ -268,6 +269,8 @@ jobs:
         run: bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
       - name: Test run-guards on Windows
         run: bash plugins/guardrails/hooks/run-guards.test.sh
+      - name: Test coverage-manifest on Windows
+        run: bash plugins/guardrails/hooks/coverage-manifest.test.sh
       # The host-skip suites of #3683, named explicitly: each probes the host at
       # run time, so a green step is only evidence once its log shows whether
       # the probe fired or the cases ran.
