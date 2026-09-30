@@ -23,7 +23,9 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   state root's `logs` folder. The banner and coverage note say the transcript omits the stderr
   banners.
 - **audit:** the DNS health check's reproduce command and its catalog entry use a valid
-  `Test-Connection` invocation for the gateway probe.
+  `Test-Connection` invocation for the gateway probe, limited to the selected default route.
+- **audit:** the reliability check's recorded command and its catalog entry show the client-side
+  7-day `Where-Object` cutoff the script runs, not a server-side `-Filter`.
 
 ### Changed
 
