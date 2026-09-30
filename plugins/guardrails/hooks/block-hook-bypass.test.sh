@@ -2145,7 +2145,7 @@ run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
 # shellcheck disable=SC2031 # reads the host's real OSTYPE
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]]; then
   PS_POSIX_SKIP=1
-  bhb_skip "PowerShell exempt-root rows with a POSIX-spelled destination not asserted (PowerShell on Windows resolves /x against the current drive)"
+  printf 'SKIP: PowerShell exempt-root rows with a POSIX-spelled destination not asserted (PowerShell on Windows resolves /x against the current drive; no coverage here, not a pass)\n'
 fi
 run_pwsh_cwd "PS exempt: Export-Csv -Path into plugin data (allowed)" \
   "Get-ChildItem | Export-Csv -Path $PSD/out.csv" 0
