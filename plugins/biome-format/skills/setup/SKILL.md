@@ -57,8 +57,9 @@ when disabled: the runner must start `node` before `exec-bash.mjs` can evaluate 
    skip notice instead of formatting (README Requirements states how often it repeats). The
    `SessionStart` probe resolves biome separately: read
    `${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh` for its walk limit and file tests
-   and compare them with the hook's, instead of assuming they match. A PASS here means the
-   hook resolves it.
+   and compare them with the hook's, instead of assuming they match. The probe does not check
+   for a Biome config, so it reports a missing biome in repositories with no `biome.json` too;
+   only the per-edit hook's skip notice is opt-in gated. A PASS here means the hook resolves it.
 4. **Consumer Biome config.** Mirror the hook's opt-in walk: it records the topmost
    governing config found walking from the edited file's directory up to the repo root, and
    deliberately accepts only the config names the hook treats as the opt-in. Read the hook:
