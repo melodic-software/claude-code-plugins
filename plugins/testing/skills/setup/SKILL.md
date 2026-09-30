@@ -81,8 +81,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      was read); recheck when a ruff release note changes the default rule set.
    - Bash, PowerShell and Go: no maintained rule.
 3. **instruction**: the optional line, naming the one file Claude Code loads at the repository
-   root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.md` when `CLAUDE.local.md` sits beside
-   `AGENTS.md`, else `CLAUDE.local.md` alone, else `AGENTS.md`, else `CLAUDE.md` in
+   root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}`. `CLAUDE.local.md` always loads. By default Claude Code reads `AGENTS.md`
    only when no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists. Verified 2026-09-30
    against code.claude.com/docs/en/memory; recheck when a Claude Code release note changes the

@@ -283,9 +283,7 @@ check() {
     file=CLAUDE.md
   elif [[ -f "$ROOT/.claude/CLAUDE.md" ]]; then
     file=.claude/CLAUDE.md
-  elif [[ -f "$ROOT/CLAUDE.local.md" && -f "$ROOT/AGENTS.md" ]]; then
-    file=CLAUDE.md note=' (CLAUDE.local.md here keeps AGENTS.md from loading)'
-  elif [[ -f "$ROOT/CLAUDE.local.md" && ! -f "$ROOT/AGENTS.md" ]]; then
+  elif [[ -f "$ROOT/CLAUDE.local.md" ]]; then
     file=CLAUDE.local.md note=' (it is personal; a CLAUDE.md would share the line with the team)'
   elif [[ ! -f "$ROOT/AGENTS.md" ]]; then
     # shellcheck disable=SC2088 # printed for the user, not expanded
