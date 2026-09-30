@@ -61,8 +61,8 @@ directory, a symlink, or a Windows reparse point.
 ```
 
 `--project-dir` is optional; pass it, as a literal absolute path, when the consumer project has
-standing policy files. Never pass `${CLAUDE_PROJECT_DIR}` or `${CLAUDE_PLUGIN_DATA}`: the guard
-rejects shell expansion, so pass the literal values. What each flag does, including the large-target and volume-root rules, is in
+standing policy files. Pass literal values only: the guard rejects shell expansion, so never pass
+an environment-variable reference. What each flag does, including the large-target and volume-root rules, is in
 [scan-flags.md](../clean/reference/scan-flags.md). For a home directory or another large target,
 start with `--max-depth 1`, then scan the subtrees the evidence justifies. Never pass
 `--confirmed-large-scan` on your own: an unbounded walk needs a person's answer.
@@ -71,7 +71,7 @@ For a subtree worker, the brief to paste into the spawn prompt is
 [fan-out-worker-brief.md](../clean/reference/fan-out-worker-brief.md). Before spawning, replace every
 `${...}` token and `<placeholder>` in it with the literal absolute value you hold from the probe
 (`hook_python`, `data_root`) or from step 2: a worker cannot expand `${...}` tokens, and its data
-root is the probe's `data_root`, not `${CLAUDE_PLUGIN_DATA}`. A worker returns scan evidence only.
+root is the probe's `data_root`. A worker returns scan evidence only.
 
 ## 3. Read and report the snapshot
 
