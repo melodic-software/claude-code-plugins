@@ -271,6 +271,57 @@ PR: none
 Unpushed: no upstream, 2 commits not on origin/main
 Loss: 2 commits only on this branch
 Reason: upstream gone, 2 commits not on origin/main"
+assert_contains "MainCheckout names the branch" "$gone_out" "MainCheckout: main"
+assert_contains "MainCheckout reports the dirty count" "$gone_out" "MainCheckoutDirty: 0"
+assert_not_contains "no operation, no OperationInProgress line" "$gone_out" "OperationInProgress:"
+
+# An operation in progress demotes every deletable tier to REVIEW and names the file.
+op_file="$(git -C "$NU_REPO" rev-parse --path-format=absolute --git-path MERGE_HEAD)"
+git -C "$NU_REPO" rev-parse HEAD >"$op_file"
+op_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+rm -f "$op_file"
+assert_contains "operation in progress is announced" "$op_out" "OperationInProgress: $op_file"
+assert_contains "operation is named in the MainCheckout block" "$op_out" "MainCheckoutOperation: MERGE_HEAD $op_file"
+assert_contains "operation demotes LOSSY to REVIEW with the reason" "$op_out" "Reason: operation in progress: $op_file"
+assert_not_contains "no LOSSY tier while an operation is in progress" "$op_out" "Tier: LOSSY"
+assert_not_contains "no SAFE tier while an operation is in progress" "$op_out" "Tier: SAFE"
+assert_not_contains "no LIKELY-SAFE tier while an operation is in progress" "$op_out" "Tier: LIKELY-SAFE"
+
+# Detached HEAD is reported and does not block.
+git -C "$NU_REPO" checkout -q --detach
+det_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+git -C "$NU_REPO" checkout -q main
+assert_contains "detached HEAD is reported" "$det_out" "MainCheckout: detached at "
+assert_not_contains "detached HEAD is not an operation" "$det_out" "OperationInProgress:"
+
+# A real conflicted merge writes MERGE_HEAD itself; the conflicted and untracked
+# files count toward the dirty total.
+CM="$TEST_TMPDIR/cm-repo"
+git init -q -b main "$CM"
+git -C "$CM" config user.email "t@example.com"
+git -C "$CM" config user.name "Test"
+echo base >"$CM/f"
+git -C "$CM" add f
+git -C "$CM" commit -qm base
+git -C "$CM" branch feat/conflict
+echo main-side >"$CM/f"
+git -C "$CM" commit -qam main-side
+git -C "$CM" checkout -q feat/conflict
+echo feat-side >"$CM/f"
+git -C "$CM" commit -qam feat-side
+git -C "$CM" checkout -q main
+git -C "$CM" merge feat/conflict >/dev/null 2>&1 || true
+echo scratch >"$CM/untracked"
+mkdir "$CM/newdir"
+echo a >"$CM/newdir/a"
+echo b >"$CM/newdir/b"
+cm_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$CM' && bash '$AUDIT'")"
+check_facts "conflicted-merge repo" "$CM" "$cm_out"
+assert_contains "conflicted merge is named in the MainCheckout block" "$cm_out" "MainCheckoutOperation: MERGE_HEAD "
+assert_contains "dirty count covers the conflicted file, an untracked file and each file in an untracked directory" "$cm_out" "MainCheckoutDirty: 4"
+assert_not_contains "no SAFE tier mid-merge" "$cm_out" "Tier: SAFE"
+assert_not_contains "no LIKELY-SAFE tier mid-merge" "$cm_out" "Tier: LIKELY-SAFE"
+assert_not_contains "no LOSSY tier mid-merge" "$cm_out" "Tier: LOSSY"
 
 # Gone upstream with NO origin/<default> to compare against (feature-only clone /
 # unfetched remote HEAD): the script cannot prove the branch is merged, so it must
@@ -350,8 +401,8 @@ assert_contains "capture row: never-pushed (no upstream, 1 not on default) carri
 assert_contains "capture row: tracked (ahead 1, behind 1) carries LOSSY" "$cap_body" "feat/tracked	$tracked_tip	LOSSY	none	origin/feat/tracked	1	1	"
 assert_not_contains "a #-leading branch name does not fail the seal" "$tip_out" "TipCaptureError:"
 assert_contains "capture row: #-leading branch is a row, not a comment" "$cap_body" "#7-lead	$lead_tip	"
-# Rows are counted by shape (nine columns, a commit id second), as the seal does.
-rows="$(awk -F'\t' 'NF == 9 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 { n++ } END { print n + 0 }' "$cap")"
+# Rows are counted by shape (ten columns, a commit id second), as the seal does.
+rows="$(awk -F'\t' 'NF == 10 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 { n++ } END { print n + 0 }' "$cap")"
 heads="$(git -C "$NU_REPO" for-each-ref refs/heads/ | wc -l | tr -d ' ')"
 if [[ "$rows" == "$heads" ]]; then
   pass "capture has one row per local branch ($rows)"
@@ -644,6 +695,224 @@ cap3_out="$(PATH="$STUB_BIN:$PATH" CLEAN_LOSS_COMMITS_SHOWN=3 bash -c "cd '$LR' 
 assert_contains "CLEAN_LOSS_COMMITS_SHOWN caps the listing" "$cap3_out" "LossCommit: feat/many $(lr_short feat/many ~2) many 10
 LossCommit: feat/many and 9 more"
 assert_no_line "CLEAN_LOSS_COMMITS_SHOWN: the fourth commit is not listed" "$cap3_out" '^LossCommit: feat/many [0-9a-f]+ many 9$'
+
+# Landed proof. Work that origin/main already holds under other SHAs, with no PR
+# data to say so: a rebase or cherry-pick merge is found by patch-id, a squash by
+# the patch-id of the branch's whole diff. Either is LIKELY-SAFE with a Landed
+# line and never LOSSY. Work only partly on main, an empty branch, and a landed
+# branch whose PR is OPEN keep their verdicts.
+LP="$TEST_TMPDIR/landed-repo"
+git init -q --bare "$TEST_TMPDIR/landed-origin.git"
+git init -q -b main "$LP"
+git -C "$LP" config user.email "t@example.com"
+git -C "$LP" config user.name "Test"
+lp_commit() { # <file> <message>
+  echo "$1" >"$LP/$1"
+  git -C "$LP" add "$1"
+  git -C "$LP" commit -qm "$2"
+}
+lp_commit a init
+git -C "$LP" remote add origin "$TEST_TMPDIR/landed-origin.git"
+git -C "$LP" push -q origin HEAD:main
+git -C "$LP" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+for b in rebased squashed partial empty open; do
+  git -C "$LP" checkout -q -b "feat/$b" main
+  case "$b" in
+  rebased) lp_commit r1 "rebased one" ;;
+  squashed)
+    lp_commit s1 "squashed one"
+    lp_commit s2 "squashed two"
+    ;;
+  partial)
+    lp_commit p1 "partial one"
+    lp_commit p2 "partial two"
+    ;;
+  empty) git -C "$LP" commit -q --allow-empty -m "empty marker" ;;
+  open) lp_commit o1 "open one" ;;
+  *) ;;
+  esac
+  git -C "$LP" checkout -q main
+done
+lp_commit m1 "main moves on"
+git -C "$LP" cherry-pick feat/rebased >/dev/null
+git -C "$LP" merge -q --squash feat/squashed
+git -C "$LP" commit -qm "squash feat/squashed"
+git -C "$LP" cherry-pick feat/partial~1 >/dev/null
+git -C "$LP" cherry-pick feat/open >/dev/null
+git -C "$LP" commit -q --allow-empty -m "empty marker"
+git -C "$LP" push -q origin main
+git -C "$LP" fetch -q --prune origin
+lp_tip() { git -C "$LP" rev-parse "refs/heads/$1"; }
+lp_refs_before="$(git -C "$LP" for-each-ref | wc -l | tr -d ' ')"
+lp_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$LP' && bash '$AUDIT'")"
+check_facts "landed repo" "$LP" "$lp_out"
+check_loss_invariants "landed repo" "$lp_out"
+assert_contains "cherry-picked branch: LIKELY-SAFE by patch-id, loss not assessed" "$lp_out" "Branch: feat/rebased
+Tip: $(lp_tip feat/rebased)
+Tier: LIKELY-SAFE
+Age days: 0
+PR: none
+Unpushed: no upstream, 1 commits not on origin/main
+Loss: not assessed (LIKELY-SAFE)
+Reason: landed by patch-id (git cherry)
+Landed: landed by patch-id (git cherry)"
+assert_contains "squash-merged branch: LIKELY-SAFE by tree patch-id" "$lp_out" "Branch: feat/squashed
+Tip: $(lp_tip feat/squashed)
+Tier: LIKELY-SAFE
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: not assessed (LIKELY-SAFE)
+Reason: landed as a squash (tree patch-id)
+Landed: landed as a squash (tree patch-id)"
+assert_contains "half-landed branch: still LOSSY, no Landed line" "$lp_out" "Branch: feat/partial
+Tip: $(lp_tip feat/partial)
+Tier: LOSSY
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: 2 commits only on this branch
+Reason: no upstream, 2 commits not on origin/main"
+assert_contains "branch with no net change proves nothing: still LOSSY" "$lp_out" "Branch: feat/empty
+Tip: $(lp_tip feat/empty)
+Tier: LOSSY"
+assert_contains "only the half-landed and empty branches are in the loss block" "$lp_out" "LossBlockEnd: 2"
+assert_not_contains "no LossBranch for a landed branch" "$lp_out" "LossBranch: feat/rebased"
+assert_not_contains "no LossBranch for a squashed branch" "$lp_out" "LossBranch: feat/squashed"
+assert_contains "summary counts the landed branches as likely-safe" "$lp_out" "likely-safe=3"
+assert_no_line "only landed branches carry a Landed line" "$(printf '%s\n' "$lp_out" | awk '/^Tier: /{t=$2} /^Landed: /&&t!="LIKELY-SAFE"{print}')" '.'
+lp_refs_after="$(git -C "$LP" for-each-ref | wc -l | tr -d ' ')"
+if [[ "$lp_refs_before" == "$lp_refs_after" ]]; then
+  pass "landed proof creates no ref"
+else
+  fail "landed proof creates no ref" "$lp_refs_before refs" "$lp_refs_after"
+fi
+if command -v jq >/dev/null 2>&1; then
+  lp_bin="$TEST_TMPDIR/landed-pr-bin"
+  mkdir -p "$lp_bin"
+  printf '[{"headRefName":"feat/open","state":"OPEN","number":9,"headRefOid":"%s"}]\n' "$(lp_tip feat/open)" >"$lp_bin/prs.json"
+  cat >"$lp_bin/gh" <<FAKEGH
+#!/usr/bin/env bash
+case "\$*" in
+  *pr\ list*) cat "$lp_bin/prs.json" ;;
+  *) exit 1 ;;
+esac
+FAKEGH
+  chmod +x "$lp_bin/gh"
+  lp_pr_out="$(PATH="$lp_bin:$PATH" bash -c "cd '$LP' && bash '$AUDIT'")"
+  assert_contains "landed branch with an OPEN PR keeps its verdict" "$lp_pr_out" "Branch: feat/open
+Tip: $(lp_tip feat/open)
+Tier: REVIEW"
+  assert_not_contains "an OPEN PR gets no Landed line" "$(printf '%s\n' "$lp_pr_out" | awk '/^Branch: feat\/open$/{p=1} p{print} /^Reason: /{if(p)exit}')" "Landed:"
+else
+  skip_case "landed proof against an OPEN PR needs jq"
+fi
+
+# The proof is recorded in the capture's landed column (`-` on every branch that
+# is not landed), and dropped with the tier when an operation in progress demotes
+# the branch.
+tsv() { local IFS=$'\t' && printf '%s\t' "$*"; }
+capture_of() { cat "$(printf '%s\n' "$1" | sed -n 's/^TipCapture: //p')"; }
+lp_cap="$(capture_of "$lp_out")"
+assert_contains "capture row: a cherry-picked branch records its proof" "$lp_cap" "$(tsv feat/rebased "$(lp_tip feat/rebased)" LIKELY-SAFE none none - - 1 'landed by patch-id (git cherry)')"
+assert_contains "capture row: a squashed branch records its proof" "$lp_cap" "$(tsv feat/squashed "$(lp_tip feat/squashed)" LIKELY-SAFE none none - - 2 'landed as a squash (tree patch-id)')"
+assert_contains "capture row: an unlanded branch records none" "$lp_cap" "$(tsv feat/partial "$(lp_tip feat/partial)" LOSSY none none - - 2 -)"
+lp_op="$(git -C "$LP" rev-parse --path-format=absolute --git-path MERGE_HEAD)"
+git -C "$LP" rev-parse HEAD >"$lp_op"
+lp_op_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$LP' && bash '$AUDIT'")"
+rm -f "$lp_op"
+assert_not_contains "an operation in progress drops the Landed line with the tier" "$lp_op_out" "Landed:"
+assert_contains "an operation in progress records no proof" "$(capture_of "$lp_op_out")" "$(tsv feat/rebased "$(lp_tip feat/rebased)" REVIEW none none - - 1 -)"
+
+# Tree equality. Work that landed as commits split differently from the branch's,
+# with nothing since on origin/main: no commit's patch-id matches and the branch's
+# whole diff matches no single commit, yet the branch's tree is main's tree.
+TE="$TEST_TMPDIR/tree-repo"
+git init -q --bare "$TEST_TMPDIR/tree-origin.git"
+git init -q -b main "$TE"
+git -C "$TE" config user.email "t@example.com"
+git -C "$TE" config user.name "Test"
+te_commit() { # <message> <file>...
+  local msg="$1" f
+  shift
+  for f in "$@"; do echo "$f" >"$TE/$f"; done
+  git -C "$TE" add "$@"
+  git -C "$TE" commit -qm "$msg"
+}
+te_commit init a
+git -C "$TE" remote add origin "$TEST_TMPDIR/tree-origin.git"
+git -C "$TE" push -q origin HEAD:main
+git -C "$TE" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+git -C "$TE" checkout -q -b feat/split main
+te_commit "branch one" p q
+te_commit "branch two" r
+git -C "$TE" checkout -q main
+te_commit "main one" p
+te_commit "main two" q r
+git -C "$TE" push -q origin main
+git -C "$TE" fetch -q --prune origin
+assert_no_line "tree fixture premise: git cherry finds no landed commit" "$(git -C "$TE" cherry origin/main feat/split)" '^-'
+te_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$TE' && bash '$AUDIT'")"
+check_facts "tree-equality repo" "$TE" "$te_out"
+check_loss_invariants "tree-equality repo" "$te_out"
+assert_contains "differently split commits, same final tree: LIKELY-SAFE by tree equality" "$te_out" "Branch: feat/split
+Tip: $(git -C "$TE" rev-parse refs/heads/feat/split)
+Tier: LIKELY-SAFE
+Age days: 0
+PR: none
+Unpushed: no upstream, 2 commits not on origin/main
+Loss: not assessed (LIKELY-SAFE)
+Reason: landed as identical content (tree equals origin/main)
+Landed: landed as identical content (tree equals origin/main)"
+git -C "$TE" checkout -q feat/split
+te_more="$(te_commit "branch three" s && git -C "$TE" rev-parse HEAD)"
+git -C "$TE" checkout -q main
+te_more_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$TE' && bash '$AUDIT'")"
+assert_contains "one more commit on the branch breaks the equality: LOSSY" "$te_more_out" "Branch: feat/split
+Tip: $te_more
+Tier: LOSSY"
+
+# A merge commit is not listed by git cherry, so a branch whose merge carries
+# content no commit on origin/main holds would read as fully landed by patch-id.
+# A branch with a merge gets no cherry proof, and the whole-diff checks then find
+# the extra content missing.
+MG="$TEST_TMPDIR/merge-repo"
+git init -q --bare "$TEST_TMPDIR/merge-origin.git"
+git init -q -b main "$MG"
+git -C "$MG" config user.email "t@example.com"
+git -C "$MG" config user.name "Test"
+mg_commit() { # <file> <message>
+  echo "$1" >"$MG/$1"
+  git -C "$MG" add "$1"
+  git -C "$MG" commit -qm "$2"
+}
+mg_commit a init
+git -C "$MG" remote add origin "$TEST_TMPDIR/merge-origin.git"
+git -C "$MG" push -q origin HEAD:main
+git -C "$MG" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+git -C "$MG" checkout -q -b side main
+mg_commit s "side one"
+git -C "$MG" checkout -q -b feat/evil main
+mg_commit x "branch one"
+git -C "$MG" merge -q --no-ff --no-commit side >/dev/null 2>&1
+echo evil >"$MG/extra"
+git -C "$MG" add extra
+git -C "$MG" commit -qm "merge side with extra content"
+git -C "$MG" checkout -q main
+git -C "$MG" cherry-pick side feat/evil^1 >/dev/null
+git -C "$MG" branch -q -D side
+git -C "$MG" push -q origin main
+git -C "$MG" fetch -q --prune origin
+mg_cherry="$(git -C "$MG" cherry origin/main feat/evil)"
+assert_no_line "merge fixture premise: git cherry calls every listed commit landed" "$mg_cherry" '^\+'
+assert_contains "merge fixture premise: git cherry lists the branch's own commits" "$mg_cherry" "- "
+mg_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$MG' && bash '$AUDIT'")"
+check_facts "merge-commit repo" "$MG" "$mg_out"
+check_loss_invariants "merge-commit repo" "$mg_out"
+assert_contains "a merge with unlanded content is not a landed proof: LOSSY" "$mg_out" "Branch: feat/evil
+Tip: $(git -C "$MG" rev-parse refs/heads/feat/evil)
+Tier: LOSSY"
+assert_not_contains "a merge with unlanded content gets no Landed line" "$mg_out" "Landed:"
 
 # PR state as a competing signal. An OPEN PR is an active claim on the branch and
 # a MERGED PR means the count overstates the loss (a squash lands the work under a
@@ -1163,12 +1432,18 @@ else
   fail "fixtures: at least 200 branches, and 100 more than the small one" "200+" "$big_heads and $small_heads"
 fi
 
+# The git calls the landed proof makes, counted per branch that reaches it.
+PROOF_CALLS=' (merge-base|diff --quiet|rev-list --merges|rev-parse [^ ]*\^\{tree\}|cherry|commit-tree) '
 big_out="$(run_audit_shimmed "$FIXTURES/big" "$FIXTURES/big.tsv")"
 big_spawns="$(spawn_count)"
 big_logs="$(grep -c ' log --format=' "$SPAWN_LOG")"
+big_proof="$(grep -c -E "$PROOF_CALLS" "$SPAWN_LOG")"
+big_mb="$(grep -c ' merge-base ' "$SPAWN_LOG")"
 small_out="$(run_audit_shimmed "$FIXTURES/small" "$FIXTURES/small.tsv")"
 small_spawns="$(spawn_count)"
 small_logs="$(grep -c ' log --format=' "$SPAWN_LOG")"
+small_proof="$(grep -c -E "$PROOF_CALLS" "$SPAWN_LOG")"
+small_mb="$(grep -c ' merge-base ' "$SPAWN_LOG")"
 
 check_loss_invariants "big fixture" "$big_out"
 check_facts "big fixture" "$FIXTURES/big/repo" "$big_out"
@@ -1196,7 +1471,7 @@ PR: none
 Unpushed: no upstream (no origin/main to compare)
 Loss: undetermined (tip unresolved)"
 unresolved="$(grep -c '^Tip: unresolved$' <<<"$big_out")"
-capture_rows="$(awk -F'\t' 'NF == 9 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 { n++ } END { print n + 0 }' "$FIXTURES/big.tsv")"
+capture_rows="$(awk -F'\t' 'NF == 10 && $2 ~ /^[0-9a-f]+$/ && length($2) >= 40 { n++ } END { print n + 0 }' "$FIXTURES/big.tsv")"
 if [[ "$unresolved" == 3 && "$capture_rows" == $((big_heads - 3)) ]]; then
   pass "ambiguous short names: 3 unresolved tips, and they alone have no capture row"
 else
@@ -1218,8 +1493,16 @@ done
 # LossCommit listing is walked per branch: a shared walk can reorder it when
 # commit dates tie or skew). Everything else, including the ambiguous-name
 # branches that take the per-branch commands, is the same at 242 branches as at 85.
-big_fixed=$((big_spawns - big_logs))
-small_fixed=$((small_spawns - small_logs))
+# The landed-proof step is the other per-branch work: one merge-base call and at
+# most six more (diff, merge listing, cherry, tree ids, commit-tree, cherry) for
+# each branch that reaches it.
+big_fixed=$((big_spawns - big_logs - big_proof))
+small_fixed=$((small_spawns - small_logs - small_proof))
+if [[ "$big_proof" -le $((7 * big_mb)) && "$small_proof" -le $((7 * small_mb)) ]]; then
+  pass "landed-proof calls are at most seven per branch that reaches it ($big_proof for $big_mb, $small_proof for $small_mb)"
+else
+  fail "landed-proof calls are at most seven per branch that reaches it" "$((7 * big_mb)) and $((7 * small_mb))" "$big_proof and $small_proof"
+fi
 big_lossy="$(grep -c '^LossBranch: ' <<<"$big_out")"
 small_lossy="$(grep -c '^LossBranch: ' <<<"$small_out")"
 if [[ "$big_logs" == "$big_lossy" && "$small_logs" == "$small_lossy" ]]; then
@@ -1318,6 +1601,11 @@ Tier: REVIEW"
   else
     fail "ancestor verdicts do not depend on which path answered" "no difference" "$(diff <(printf '%s\n' "${an_views[0]}") <(printf '%s\n' "${an_views[1]}") | head -10)"
   fi
+  an_op="$(git -C "$AN" rev-parse --path-format=absolute --git-path MERGE_HEAD)"
+  git -C "$AN" rev-parse HEAD >"$an_op"
+  an_op_out="$(cd "$AN" && PATH="$SHIM_BIN:$PATH" SHIM_PRS="$an_bin/prs.json" bash "$AUDIT" --capture-file "$TEST_TMPDIR/an-op.tsv")"
+  rm -f "$an_op"
+  assert_contains "an operation in progress demotes the ancestor SAFE to REVIEW" "$(field "$an_op_out" feat/ancestor Tier) $(field "$an_op_out" feat/ancestor Reason)" "REVIEW operation in progress: $an_op"
   an_out="${an_views[0]}"
   for pair in agent-a1b2c3:agent agent-xyz:none claude/web1:claude plan/p:plan stranded/s:stranded pre-wipe/w:pre-wipe feat/plain:none main:none; do
     assert_contains "family of ${pair%%:*} is ${pair#*:}" "$(field "$an_out" "${pair%%:*}" Family)" "${pair#*:}"
