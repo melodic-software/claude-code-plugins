@@ -664,7 +664,7 @@ version_lt() {
 
 # settings-reference, parsed once: every ### `key` heading, the first line of
 # its section that begins "Deprecated", the first "Requires Claude Code
-# vX.Y.Z", and the section body, code fences included (the first section of a
+# vX.Y.Z", the first Type bullet, and the section body, code fences included (the first section of a
 # repeated key wins). A section ends at the next heading of any level outside a
 # code fence. The working copy holds no \001, so it carries the newlines of a
 # body from the awk to the array; a leading \001 keeps read from trimming it.
@@ -672,9 +672,14 @@ declare -A SR_KEY=()
 declare -A SR_DEPRECATED=()
 declare -A SR_REQUIRES=()
 declare -A SR_BODY=()
-declare -A PERM_TYPE_KEYS=()
+# TYPE_KEYS holds each nested key an "object with ..." Type bullet names, as
+# parent.child, which covers one with no heading of its own. NESTED_PARENT holds
+# every dotted path the page documents a child under: the objects check_keys
+# descends into.
+declare -A TYPE_KEYS=()
+declare -A NESTED_PARENT=()
 if [[ -n "$SR" ]]; then
-  while IFS=$'\t' read -r k dep req body; do
+  while IFS=$'\t' read -r k dep req typ body; do
     [[ -n "$k" ]] || continue
     SR_KEY[$k]=1
     [[ "$dep" != "-" ]] && SR_DEPRECATED[$k]="$dep"
@@ -682,18 +687,25 @@ if [[ -n "$SR" ]]; then
     if [[ -z "${SR_BODY[$k]+x}" ]]; then
       body="${body#$'\001'}"
       SR_BODY[$k]="${body//$'\001'/$'\n'}"
+      if [[ "$typ" == "* **Type**: object with "* ]]; then
+        while [[ "$typ" =~ \`([A-Za-z_][A-Za-z0-9_]*)\`(.*) ]]; do
+          TYPE_KEYS["$k.${BASH_REMATCH[1]}"]=1
+          typ="${BASH_REMATCH[2]}"
+        done
+      fi
     fi
   done < <(awk '
-    function flush() { if (key != "") printf "%s\t%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req), body; key = "" }
+    function flush() { if (key != "") printf "%s\t%s\t%s\t%s\t%s\n", key, (dep == "" ? "-" : dep), (req == "" ? "-" : req), (typ == "" ? "-" : typ), body; key = "" }
     /^[[:space:]]*```/ { fence = !fence; if (key != "") body = body $0 "\001"; next }
     fence { if (key != "") body = body $0 "\001"; next }
     /^(#|##|###|####) / {
       flush()
-      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = ""; body = "\001" }
+      if ($0 ~ /^### `[^`]+`$/) { key = $0; sub(/^### `/, "", key); sub(/`$/, "", key); dep = ""; req = ""; typ = ""; body = "\001" }
       next
     }
     key == "" { next }
     dep == "" && /^[[:space:]]*Deprecated/ { dep = $0; sub(/^[[:space:]]+/, "", dep); gsub(/\t/, " ", dep) }
+    typ == "" && /^\* \*\*Type\*\*:/ { typ = $0; gsub(/\t/, " ", typ) }
     req == "" && match($0, /Requires Claude Code v[0-9]+\.[0-9]+\.[0-9]+/) { req = substr($0, RSTART + 22, RLENGTH - 22) }
     { body = body $0 "\001" }
     END { flush() }
@@ -722,13 +734,12 @@ type_values() {
   '
 }
 
-# The permissions object's Type bullet names the nested keys it takes, which
-# covers one with no heading of its own.
-if [[ -n "$SR" ]]; then
-  while IFS= read -r pk; do
-    [[ -n "$pk" ]] && PERM_TYPE_KEYS[$pk]=1
-  done < <(sr_section permissions | grep -m1 -E '^\* \*\*Type\*\*:' | grep -oE '`[^`]+`' | tr -d '`')
-fi
+for k in "${!SR_KEY[@]}" "${!TYPE_KEYS[@]}"; do
+  while [[ "$k" == *.* ]]; do
+    k="${k%.*}"
+    NESTED_PARENT[$k]=1
+  done
+done
 
 # Positive control: a page that was read but has no heading for two keys every
 # version documents (a soft 404, a reshaped page) did not parse, and every row
@@ -807,11 +818,15 @@ if [[ $LOCAL_OK -eq 1 ]]; then
   fi
 fi
 
-# Documented and deprecated keys: every top-level and permissions.* key is
-# looked up on settings-reference. A key with no heading there is not reported
+# Documented and deprecated keys: every top-level key, and every key inside an
+# object the page documents children of (permissions, sandbox, worktree, an
+# "object with ..." Type bullet), is looked up on settings-reference. An object
+# the page documents no child of, such as env or hooks, is not descended into.
+# A key with no heading there is not reported
 # as ignored, because the page omits keys the CLI manages itself; the installed
 # binary settles it, searched once for every such key after the scopes are read.
 KP_SURF=() KP_KEY=() KP_LEAF=() KP_PTR=()
+NESTED_PARENTS_JSON="$(printf '%s\0' "${!NESTED_PARENT[@]}" | jq -Rsc 'split("\u0000")[:-1]')"
 check_keys() {
   # check_keys <file> <surface>
   local file="$1" surface="$2" k leaf ptr dep since
@@ -825,7 +840,7 @@ check_keys() {
       row A key-documented not-inspectable none "$surface" "key-page-not-fetched:$k" "$SR_UNREAD_WHY; whether $k is documented is not decided" -
       continue
     fi
-    if [[ -z "${SR_KEY[$k]:-}" ]] && ! [[ "$ptr" == /permissions/* && -n "${PERM_TYPE_KEYS[$leaf]:-}" ]]; then
+    if [[ -z "${SR_KEY[$k]:-}" && -z "${TYPE_KEYS[$k]:-}" ]]; then
       KP_SURF+=("$surface") KP_KEY+=("$k") KP_LEAF+=("$leaf") KP_PTR+=("$ptr")
       continue
     fi
@@ -847,7 +862,12 @@ check_keys() {
     fi
     row A key-deprecated finding warning "$surface" "deprecated-key:$k" "settings-reference: \"$dep\"" "$ptr"
     # An empty key name has no literal to look up, so it is left out here.
-  done < <(jqf "$file" -j 'if type == "object" then ((keys_unsorted[] | select(. != "$schema" and . != "") | [., ., "/" + .]), ((.permissions // {}) | if type == "object" then keys_unsorted[] | select(. != "") | ["permissions." + ., ., "/permissions/" + .] else empty end)) | map(gsub("\u0000"; "\\u0000")) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
+  done < <(jqf "$file" -j --argjson parents "$NESTED_PARENTS_JSON" '
+    def esc: gsub("~"; "~0") | gsub("/"; "~1");
+    def ent($p; $q): to_entries[] | . as $e | select($e.key != "" and ($p != "" or $e.key != "$schema"))
+      | (if $p == "" then $e.key else "\($p).\($e.key)" end) as $np | "\($q)/\($e.key | esc)" as $nq
+      | [$np, $e.key, $nq], (if ($e.value | type) == "object" and ($np | IN($parents[])) then $e.value | ent($np; $nq) else empty end);
+    if type == "object" then ent(""; "") | map(gsub("\u0000"; "\\u0000")) | (.[0], "\u0000", .[1], "\u0000", .[2], "\u0000") else empty end')
 }
 [[ $PROJECT_OK -eq 1 ]] && check_keys "$SETTINGS" "$SURF_SETTINGS"
 [[ $LOCAL_OK -eq 1 ]] && check_keys "$LOCAL" "$SURF_LOCAL"

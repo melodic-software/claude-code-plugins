@@ -1498,6 +1498,34 @@ assert_eq "case 52: a custom:<slug> theme matches its placeholder entry" "ok" "$
 assert_eq "case 52: a key the fixture page does not document has no row" "0" "$(jq '[.rows[] | select(.claim | startswith("promptCacheTtl:"))] | length' <<<"$out")"
 assert_eq "case 52: settings.local.json values are never echoed" "0" "$(jq '[.rows[] | select(.claim=="editorMode:secret-value")] | length' <<<"$out")"
 
+# --- Case 53: nested keys are checked inside objects the page documents children of ----
+m="$(make_machine nested)"
+mkdir -p "$m/docs"
+cp "$DOCS/llms.txt" "$DOCS/env-vars.md" "$m/docs/"
+{
+  cat "$DOCS/settings-reference.md"
+  printf '## Sandbox settings\n\n'
+  section sandbox '* **Type**: object with `enabled` and `network`'
+  section sandbox.enabled
+  section sandbox.network '* **Type**: object with the sub-keys below'
+  section sandbox.network.allowedDomains '* **Type**: array of strings'
+  section statusLine '* **Type**: object with `type` set to `"command"` and a `command` string, plus optional `padding` as a number'
+} >"$m/docs/settings-reference.md"
+make_cli "$m/claude-nested" "2.1.281 (Claude Code)" enabledPlugins permissions zzBinaryOnly
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {sandbox:{enabled:true,zzBinaryOnly:1,zzMissing:1,network:{allowedDomains:[],zzNetMissing:1}},statusLine:{type:"command",command:"x",padding:1,zzStatusMissing:1},env:{ANY_VARIABLE:"1"}}' >"$m/project/.claude/settings.json"
+out=$(CLI_BIN="$m/claude-nested" DOCS_FIXTURE="$m/docs" run "$m" --json 2>&1) || true
+nested_status() { jq -r --arg c "$1" '.rows[] | select(.claim == $c) | "\(.status) \(.severity)"' <<<"$out"; }
+assert_eq "case 53: a nested key with its own heading is documented" "ok none" "$(nested_status documented-key:sandbox.enabled)"
+assert_eq "case 53: a key two objects deep is documented" "ok none" "$(nested_status documented-key:sandbox.network.allowedDomains)"
+assert_eq "case 53: a key named only in the Type bullet is documented" "ok none" "$(nested_status documented-key:statusLine.padding)"
+assert_eq "case 53: the object itself is still a documented key" "ok none" "$(nested_status documented-key:sandbox.network)"
+assert_eq "case 53: an unknown nested key the binary carries is info" "finding info" "$(nested_status undocumented-key:sandbox.zzBinaryOnly)"
+assert_eq "case 53: an unknown nested key in neither is a warning" "finding warning" "$(nested_status undocumented-key:sandbox.zzMissing)"
+assert_eq "case 53: an unknown key two objects deep is a warning" "finding warning" "$(nested_status undocumented-key:sandbox.network.zzNetMissing)"
+assert_eq "case 53: an unknown key of a Type-bullet object is a warning" "finding warning" "$(nested_status undocumented-key:statusLine.zzStatusMissing)"
+assert_eq "case 53: the anchor is the nested JSON pointer's" "$(bash "$SCRIPT" anchor --excerpt "/sandbox/network/zzNetMissing")" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:sandbox.network.zzNetMissing") | .identity.sites[0]["anchor/v1"]' <<<"$out")"
+assert_eq "case 53: an object the page documents no child of is not descended into" "0" "$(jq '[.rows[] | select(.claim | test("key:env\\."))] | length' <<<"$out")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0
