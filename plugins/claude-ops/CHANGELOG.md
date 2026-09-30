@@ -3,12 +3,6 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.71.2] - 2026-09-29
-
-### Fixed
-
-- **`prerequisites.json` names a check the model can run.** The `node` entry pointed at `/claude-ops:setup check`, which is manual-only, so the fleet report could only relay it. It now names `/claude-ops:prerequisites`, which is model-invocable, read-only and probes `node` itself.
-
 ## [0.71.1] - 2026-09-29
 
 ### Fixed

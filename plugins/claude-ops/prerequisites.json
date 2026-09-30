@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "node",
-      "check": "/claude-ops:prerequisites",
+      "check": "/claude-ops:setup check",
       "install": "install Node.js from https://nodejs.org/en/download"
     }
   ]
