@@ -6350,6 +6350,360 @@ class HandoffVerifyTests(unittest.TestCase):
         self.assertEqual("level0", ordered[-1])
 
 
+linux_only = unittest.skipUnless(
+    hygiene.os_key() == "linux", "the in-engine deletion lane is Linux-only"
+)
+needs_git = unittest.skipUnless(
+    shutil.which("git"), "git is required for the VCS evidence fixture"
+)
+
+
+@linux_only
+@needs_git
+class HandoffApplyTests(unittest.TestCase):
+    """handoff-apply: verify one approved path in-process, delete only on `clear`."""
+
+    ACK_REASON = "throwaway test repo"
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.target = self.base / "target"
+        self.target.mkdir()
+        (self.target / "keep.txt").write_text("keep\n", encoding="utf-8")
+        for patcher in (
+            mock.patch.object(hygiene, "standing_policy_paths", return_value=[]),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+        ):
+            self.addCleanup(patcher.stop)
+            patcher.start()
+
+    def checkout(self, name: str = "checkout", *, commit: bool = True) -> Path:
+        return HandoffVerifyTests.create_throwaway(
+            self.target, commit=commit, name=name
+        )
+
+    def evidence(self, name: str = "checkout", *, accept: bool = True):
+        entry: dict[str, Any] = {"path": name, "remote": None, "stash_copies": []}
+        if accept:
+            entry |= {"accept_unpublished": True, "reason": self.ACK_REASON}
+        return {name: entry}
+
+    def snapshot(self) -> dict[str, Any]:
+        return hygiene.scan_tree(self.target.resolve(), hygiene.load_policy(None))
+
+    def apply(self, snapshot, evidence, path: str = "checkout") -> dict[str, Any]:
+        return hygiene.handoff_apply(snapshot, path, evidence)
+
+    def assert_nothing_removed(self, report, checkout: Path) -> None:
+        self.assertEqual("blocked", report["status"])
+        self.assertEqual([], report["removed"])
+        self.assertEqual(0, report["paths_removed"])
+        self.assertTrue((checkout / "tracked.txt").exists())
+        self.assertTrue((checkout / ".git").is_dir())
+        self.assertTrue((self.target / "keep.txt").exists())
+
+    def test_acknowledged_checkout_is_deleted_and_the_report_shows_the_ack(
+        self,
+    ) -> None:
+        for commit in (False, True):
+            name = f"checkout-{'committed' if commit else 'empty'}"
+            with self.subTest(commit=commit):
+                checkout = self.checkout(name, commit=commit)
+                report = self.apply(self.snapshot(), self.evidence(name), name)
+                self.assertEqual("completed", report["status"], report["skipped"])
+                self.assertEqual([], report["skipped"])
+                self.assertFalse(checkout.exists())
+                self.assertTrue((self.target / "keep.txt").exists())
+                self.assertEqual("clear", report["verdict"]["verdict"])
+                self.assertEqual(
+                    [{"repository": name, "reason": self.ACK_REASON}],
+                    report["accept_unpublished"],
+                )
+                removed = [item["path"] for item in report["removed"]]
+                self.assertEqual(name, removed[-1])
+                self.assertEqual(f"{name}/.git", removed[-2])
+                self.assertTrue(report["removed"][-2]["contents_purged"])
+
+    def test_unacknowledged_checkout_stays_contested_and_nothing_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        report = self.apply(self.snapshot(), self.evidence(accept=False))
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertEqual([], report["accept_unpublished"])
+        detail = report["skipped"][0]["detail"]
+        self.assertIn("vcs-evidence-status-not-clean", detail)
+        self.assertIn("vcs-evidence-remote-not-declared", detail)
+
+    def test_an_acknowledgement_for_another_path_authorizes_nothing(self) -> None:
+        acked = self.checkout("acked")
+        plain = self.checkout("plain")
+        snapshot = self.snapshot()
+        with self.assertRaisesRegex(hygiene.HygieneError, "outside approved paths"):
+            hygiene.validate_vcs_evidence(
+                {"version": 1, "repositories": list(self.evidence("acked").values())},
+                ["plain"],
+            )
+        report = self.apply(snapshot, self.evidence("plain", accept=False), "plain")
+        self.assert_nothing_removed(report, plain)
+        self.assertTrue(acked.exists())
+
+    def test_an_acknowledged_nested_repository_does_not_authorize_its_parent(
+        self,
+    ) -> None:
+        parent = self.checkout("parent")
+        HandoffVerifyTests.create_throwaway(parent, commit=True, name="sub")
+        evidence = self.evidence("parent", accept=False)
+        evidence |= self.evidence("parent/sub")
+        report = self.apply(self.snapshot(), evidence, "parent")
+        self.assert_nothing_removed(report, parent)
+        self.assertTrue((parent / "sub" / ".git").is_dir())
+
+    def test_an_unduplicated_stash_still_blocks_an_acknowledged_checkout(self) -> None:
+        checkout = self.checkout()
+        (checkout / "tracked.txt").write_text("stashed\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(checkout), "stash", "push", "-qm", "wip"], check=True
+        )
+        report = self.apply(self.snapshot(), self.evidence())
+        self.assert_nothing_removed(report, checkout)
+        self.assertEqual("contested", report["verdict"]["verdict"])
+        self.assertIn(
+            "vcs-evidence-stash-not-duplicated", report["skipped"][0]["detail"]
+        )
+
+    def test_a_changed_descendant_set_or_identity_blocks(self) -> None:
+        def add_file(checkout: Path) -> None:
+            (checkout / "late.txt").write_text("added after scan\n", encoding="utf-8")
+
+        def rewrite_file(checkout: Path) -> None:
+            (checkout / "tracked.txt").write_text("rewritten\n" * 3, encoding="utf-8")
+
+        for name, change in (("descendants", add_file), ("identity", rewrite_file)):
+            with self.subTest(change=name):
+                checkout = self.checkout(name)
+                snapshot = self.snapshot()
+                change(checkout)
+                report = self.apply(snapshot, self.evidence(name), name)
+                self.assertEqual("blocked", report["status"])
+                self.assertEqual("drifted", report["verdict"]["verdict"])
+                self.assertEqual([], report["removed"])
+                self.assertTrue((checkout / ".git").is_dir())
+                self.assertTrue((checkout / "tracked.txt").exists())
+
+    def test_the_verdict_is_computed_in_process_for_exactly_the_one_path(self) -> None:
+        self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        with mock.patch.object(
+            hygiene, "handoff_verify", wraps=hygiene.handoff_verify
+        ) as verify:
+            self.apply(snapshot, evidence)
+        verify.assert_called_once_with(snapshot, ["checkout"], evidence)
+
+    def test_preview_never_evaluates_the_acknowledgement(self) -> None:
+        self.checkout()
+        snapshot = self.snapshot()
+        plan = {"version": 1, "tier": "high", "candidates": [candidate("checkout")]}
+        with mock.patch.object(
+            hygiene,
+            "verify_vcs_checkout_evidence",
+            side_effect=AssertionError("preview must not evaluate evidence"),
+        ):
+            preview = hygiene.preview(snapshot, plan)
+        self.assertEqual("blocked", preview["status"])
+        self.assertIn("truncated-not-inventoried", preview["candidates"][0]["blockers"])
+
+    def clear_verdict(self, snapshot, evidence, path: str = "checkout"):
+        return hygiene.handoff_verify(snapshot, [path], evidence)
+
+    def test_every_non_vcs_check_still_runs_after_the_verdict(self) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        self.assertEqual("clear", canned["verdicts"][0]["verdict"])
+        cases = {
+            "live-handle": (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("open", "pid 1")
+                ),
+                "locked",
+            ),
+            "tracked-state-unverified": (
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="vcs-state-unverified"
+                ),
+                "protected",
+            ),
+            "git-not-found": (
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="git-not-found"
+                ),
+                "protected",
+            ),
+        }
+        for name, (patcher, outcome) in cases.items():
+            with (
+                self.subTest(case=name),
+                mock.patch.object(hygiene, "handoff_verify", return_value=canned),
+                patcher,
+            ):
+                report = self.apply(snapshot, evidence)
+            self.assertEqual("blocked", report["status"])
+            self.assertEqual([], report["removed"])
+            self.assertEqual(outcome, report["skipped"][0]["outcome"])
+            self.assertTrue((checkout / ".git").is_dir())
+            self.assertTrue((checkout / "tracked.txt").exists())
+
+    def test_an_entry_that_changes_after_the_verdict_is_skipped(self) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        (checkout / "untracked.txt").write_text("changed after verdict\n" * 2)
+        with mock.patch.object(hygiene, "handoff_verify", return_value=canned):
+            report = self.apply(snapshot, evidence)
+        self.assertEqual("completed-with-skips", report["status"])
+        self.assertEqual(
+            ["checkout/untracked.txt", "checkout"],
+            [item["path"] for item in report["skipped"]],
+        )
+        self.assertTrue((checkout / "untracked.txt").exists())
+        self.assertTrue(checkout.is_dir())
+
+    def test_a_mount_inside_git_metadata_blocks_before_anything_is_removed(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        evidence = self.evidence()
+        canned = self.clear_verdict(snapshot, evidence)
+        mounted = (self.target.resolve() / "checkout" / ".git" / "hooks").absolute()
+        real, _ = hygiene.linux_mount_points()
+        with (
+            mock.patch.object(hygiene, "handoff_verify", return_value=canned),
+            mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(real | {mounted}, None)
+            ),
+        ):
+            report = self.apply(snapshot, evidence)
+        skipped = {item["path"]: item for item in report["skipped"]}
+        self.assertIn("nested-mount-point", skipped["checkout/.git"]["detail"])
+        self.assertTrue((checkout / ".git" / "hooks").is_dir())
+        self.assertTrue(checkout.is_dir())
+
+    def test_a_consumer_glob_inside_git_metadata_blocks_the_purge(self) -> None:
+        checkout = self.checkout()
+        snapshot = self.snapshot()
+        snapshot["policy"]["additional_protected_path_globs"] = [
+            "checkout/.git/hooks/*"
+        ]
+        report = self.apply(snapshot, self.evidence())
+        skipped = {item["path"]: item for item in report["skipped"]}
+        self.assertEqual("consumer-protected-path", skipped["checkout/.git"]["detail"])
+        self.assertTrue((checkout / ".git" / "hooks").is_dir())
+
+    def test_a_link_inside_git_metadata_is_unlinked_not_followed(self) -> None:
+        checkout = self.checkout()
+        outside = self.base / "outside"
+        outside.mkdir()
+        (outside / "precious.txt").write_text("precious\n", encoding="utf-8")
+        (checkout / ".git" / "escape").symlink_to(outside)
+        report = self.apply(self.snapshot(), self.evidence())
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertFalse(checkout.exists())
+        self.assertEqual("precious\n", (outside / "precious.txt").read_text("utf-8"))
+
+    def cli(self, snapshot, evidence, *extra: str) -> tuple[int, dict[str, Any]]:
+        (self.base / "snapshot.json").write_text(json.dumps(snapshot), "utf-8")
+        (self.base / "evidence.json").write_text(
+            json.dumps({"version": 1, "repositories": list(evidence.values())}), "utf-8"
+        )
+        argv = [
+            "handoff-apply",
+            "--snapshot",
+            str(self.base / "snapshot.json"),
+            "--path",
+            "checkout",
+            "--vcs-evidence",
+            str(self.base / "evidence.json"),
+            "--report",
+            str(self.base / "report.json"),
+            "--data-root",
+            str(self.base),
+            *extra,
+        ]
+        output = io.StringIO()
+        with redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_cli_deletes_an_acknowledged_checkout_and_writes_the_report(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(self.snapshot(), self.evidence(), "--execute")
+        self.assertEqual(0, status)
+        self.assertEqual("completed", payload["status"])
+        self.assertFalse(checkout.exists())
+        written = json.loads((self.base / "report.json").read_text("utf-8"))
+        self.assertEqual(
+            [{"repository": "checkout", "reason": self.ACK_REASON}],
+            written["accept_unpublished"],
+        )
+
+    def test_cli_requires_execute_and_removes_nothing_without_it(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(self.snapshot(), self.evidence())
+        self.assertEqual(2, status)
+        self.assertEqual("invalid-or-blocked", payload["status"])
+        self.assertIn("--execute", payload["error"])
+        self.assertTrue((checkout / ".git").is_dir())
+
+    def test_cli_exits_three_for_an_unacknowledged_checkout(self) -> None:
+        checkout = self.checkout()
+        status, payload = self.cli(
+            self.snapshot(), self.evidence(accept=False), "--execute"
+        )
+        self.assertEqual(3, status)
+        self.assertEqual("blocked", payload["status"])
+        self.assertTrue((checkout / ".git").is_dir())
+
+    def test_cli_rejects_evidence_naming_a_path_other_than_the_approved_one(
+        self,
+    ) -> None:
+        checkout = self.checkout()
+        other = self.checkout("other")
+        status, payload = self.cli(self.snapshot(), self.evidence("other"), "--execute")
+        self.assertEqual(2, status)
+        self.assertIn("outside approved paths", payload["error"])
+        self.assertTrue((checkout / ".git").is_dir())
+        self.assertTrue((other / ".git").is_dir())
+
+
+class HandoffApplyPlatformTests(unittest.TestCase):
+    def test_a_non_linux_host_refuses_before_verifying_anything(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(hygiene, "os_key", return_value="macos"),
+                mock.patch.object(hygiene, "handoff_verify") as verify,
+            ):
+                report = hygiene.handoff_apply(snapshot, "junk.tmp", {})
+            verify.assert_not_called()
+            self.assertEqual("blocked", report["status"])
+            self.assertEqual([], report["removed"])
+            self.assertIsNone(report["verdict"])
+            self.assertEqual(hygiene.PLATFORM_BLOCKER, report["skipped"][0]["detail"])
+            self.assertTrue(junk.exists())
+
+
 class _ClosedPipeStderr(io.StringIO):
     """A stderr stand-in whose writes fail the way a lost hook-host pipe does."""
 
