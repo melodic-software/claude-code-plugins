@@ -271,7 +271,7 @@ for d in likec4 c4-plantuml; do
   assert_equals "hostile record $d render exits 0" "$?" "0"
   hmd="$(cat "$TEST_TMPDIR/hostile-$d/deployment.md")"
   assert_contains "hostile record $d diff row is present" "$hmd" "| parameter |"
-  assert_contains "hostile record $d draws the relationship" "$hmd" "$([[ $d == c4-plantuml ]] && echo 'Rel(n2_svc, c1_api, "routes' || echo '.n2_svc -> env1_a.cn1_')"
+  assert_contains "hostile record $d draws the relationship" "$hmd" "$([[ $d == c4-plantuml ]] && echo 'Rel(n2_svc, c1_api, "[redacted]")' || echo '.n2_svc -> env1_a.cn1_')"
   assert_no_leak "hostile $d render" "$hmd$hsum"
   assert_equals "hostile $d name stays inside one fenced block" "$(grep -c '```' "$TEST_TMPDIR/hostile-$d/deployment.md")" "2"
   assert_equals "hostile $d name adds no @enduml" "$(grep -c '@enduml' "$TEST_TMPDIR/hostile-$d/deployment.md")" "$([[ $d == c4-plantuml ]] && echo 1 || echo 0)"
