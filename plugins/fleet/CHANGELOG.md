@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-09-30
+
+### Changed
+
+- **`reach`'s description fits the 500-character listing budget and the 1,024-character field cap.** Its core triggers and the same-lane and other-machine routes are kept ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
 ## [0.2.0] - 2026-09-29
 
 ### Added
