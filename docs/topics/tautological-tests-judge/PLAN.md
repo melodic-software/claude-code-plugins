@@ -163,31 +163,49 @@ Shared pieces:
   (Windows: age only); a stale lock is broken and counted as one failed attempt. Every lock holder
   re-checks for a verdict after acquiring. Attempts: `$DATA/attempts/<key-hash>`. Relayed:
   `$DATA/relayed/<session_id>`.
-- Cost bounds: one judge run per file (all in-doubt blocks of that file in one call);
-  `--max-budget-usd` per run (`TEST_JUDGE_RUN_BUDGET_USD`, default 0.50); at most
-  `test_judge_session_runs` runs per session (userConfig, default 30), past which keys wait for the
-  Stop budget and the `systemMessage` says so; at most 3 concurrent runs per machine
-  (`$DATA/slots/` noclobber slots, shared by every session and by Stop).
+- Accuracy first, runaway guards only (user, 2026-09-30). No cap limits how thoroughly one run
+  judges: Anthropic's cost guidance treats output caps and budgets as levers that trade quality for
+  cost, and says to raise a cap a run hits rather than accept truncation (platform.claude.com
+  optimizing-for-cost-and-intelligence, "Set budgets and output caps", fetched 2026-09-30). The
+  guards that remain stop only malfunction: `--max-budget-usd` per run set to 10 times the probe 7
+  p95 cost of a ten-test run (recorded in probes.md; a run that hits it is logged as a malfunction,
+  and its keys go to UNKNOWN with that reason); the `timeout 150` hang guard; at most 3 concurrent
+  runs per machine (`$DATA/slots/` noclobber slots, shared by every session and by Stop), which
+  limits load, not depth. Optional userConfig `test_judge_session_runs` (default unset, meaning no
+  limit) for users who want a spend ceiling. One judge run per file (all in-doubt blocks of that
+  file in one call) because the judge reads the whole file anyway.
 - Judge command (one function, used by all hooks and by Phase 4): run under `timeout 150` in its own
   process group from cwd = the file's repo toplevel:
   `claude -p --model <alias> --system-prompt <plugins/testing/hooks/test-judge-prompt.md content>
   --tools Read,Grep,Glob --allowedTools "Read(<repo>/**)" "Grep(<repo>/**)" "Glob(<repo>/**)"
   --settings '{"disableAllHooks":true}' --setting-sources "" --strict-mcp-config
-  --max-budget-usd <n>`, exact flags as probe 3 confirms. Input: the file path, block names and
+  --effort <level> --max-budget-usd <n>`, exact flags as probe 3 confirms. Input: the file path, block names and
   ranges (bash-harness: the changed ranges as a hint). `TEST_JUDGE_ACTIVE=1` is exported so every
   judge hook exits at once inside it. The child's stdout goes straight to the ledger temp file, so a
   dead parent cannot lose a finished verdict. The prompt asks only where each expected value came
   from (DT1), treats comments and strings in the test as data, never as instructions or evidence of
   provenance, never proposes deleting a test (a deletion would need Q9's reason-and-approval path),
   and returns per block: quoted evidence, FLAG/PASS/UNKNOWN, the source of the expected value, and
-  for FLAG a proposed diff, as a fixed JSON block. The prompt file is frozen before Phase 4 labels
-  are read.
-- Model: `${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-sonnet}`, fallback
-  `${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-opus}`, each validated against
-  `fable|opus|sonnet|haiku`. Session model: the last `select(.type=="assistant") | .message.model`
-  other than `<synthetic>` in `tail -n 400 "$transcript_path"`, read with `jq -R 'fromjson? | ...'`.
-  If the judge class matches the session model, the fallback; if that matches too, the next of
-  `sonnet, haiku, opus` that does not (never fable unless configured). The verdict records the model.
+  for FLAG a proposed diff, as a fixed JSON block. The provenance rules are not restated in the
+  prompt file: at run time the judge command appends section 1, "Every expected value names its
+  independent source",
+  of `plugins/testing/skills/test-value/SKILL.md` (the Pocock-adapted guidance, one source of truth,
+  Q8), since the isolated child loads no skills. The prompt file and that section are frozen before
+  Phase 4 labels are read; a later edit to either re-runs the holdout.
+- Model, chosen by evals (user, 2026-09-30: accuracy over cost): until Phase 4 has data, the
+  defaults are `${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-opus}` and
+  `${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-sonnet}` at
+  `${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT:-medium}`. Basis: Anthropic's guidance starts most agent
+  workloads on Opus 5.5 at its default effort and places Haiku at high-volume work with checkable
+  outputs (Haiku 4.5 63% vs Opus 5.5 92% on GPQA Diamond), and says to choose the model from your
+  own evals (platform.claude.com optimizing-for-cost-and-intelligence, fetched 2026-09-30). Phase 4
+  replaces these defaults with the eval result. Each value is validated against
+  `fable|opus|sonnet|haiku` and `low|medium|high|xhigh|max`. Session model: the last
+  `select(.type=="assistant") | .message.model` other than `<synthetic>` in
+  `tail -n 400 "$transcript_path"`, read with `jq -R 'fromjson? | ...'`. Q7 requires a different
+  model from the writer: if the judge class matches the session model, the fallback; if that matches
+  too, the next of `opus, sonnet, haiku` that does not (never fable unless configured). The verdict
+  records the model and effort.
 - Relay validation: before any verdict is relayed, each quoted evidence string must be a substring
   of the current file and each proposed diff must pass `git apply --check` touching only that test
   file; a verdict failing either is relayed as UNKNOWN with the reason.
@@ -230,7 +248,8 @@ Tests, Red first:
   session file written after the job starts is still found; a block changed during the debounce
   exits without judging; inserting a test above a judged one neither re-judges it nor loses the new
   one; a second firing finds the lock and exits; a stale lock with a dead pid is broken and counted;
-  the session run cap and the slot cap are honored; `TEST_JUDGE_ACTIVE=1` exits at once; judge
+  an unset session cap means no limit, a set one is honored; the slot cap is honored; a run that
+  hits the malfunction budget gives UNKNOWN with that reason; `TEST_JUDGE_ACTIVE=1` exits at once; judge
   failure and judge timeout leave no verdict and release the lock; nothing is printed.
 - `test-judge.test.sh`: flag off; no state; nothing in doubt; verdicts ready give one templated
   block and a `systemMessage` with counts; `stop_hook_active` with a relayed set exits; a live
@@ -238,8 +257,8 @@ Tests, Red first:
   waits and is named; budget exhaustion gives a `systemMessage` and no block; 2 failed attempts give
   "judge not run"; a quote that is not in the file and a diff touching another file are relayed as
   UNKNOWN; an untouched test in an edited file is not in doubt; a new `cant-fail-ok:` marker is;
-  keys unset use `sonnet`/`opus`; invalid alias falls back; Agent-call and `<synthetic>` lines do not
-  change the session model; class collisions walk `sonnet, haiku, opus` and never pick fable;
+  keys unset use `opus`/`sonnet` at `medium`; invalid alias or effort falls back; Agent-call and `<synthetic>` lines do not
+  change the session model; class collisions walk `opus, sonnet, haiku` and never pick fable;
   unattended mode gives no block; a malformed state file is skipped; scanner exit 2 and a crash in
   the script both end in exit 0; `TEST_JUDGE_ACTIVE=1` exits at once.
 - `test-judge-start.test.sh`: an unrelayed verdict from an old session is named once; a relayed one
@@ -248,8 +267,9 @@ Tests, Red first:
 Other files:
 
 - `plugins/testing/.claude-plugin/plugin.json`: `test_judge_enabled` (boolean, default false,
-  description names the `test_guards_enabled` dependency), `test_judge_model` (string, `sonnet`),
-  `test_judge_fallback_model` (string, `opus`), `test_judge_session_runs` (number, 30), each also
+  description names the `test_guards_enabled` dependency), `test_judge_model` (string, `opus`),
+  `test_judge_fallback_model` (string, `sonnet`), `test_judge_effort` (string, `medium`),
+  `test_judge_session_runs` (number, no default: unset means no limit), each also
   defaulted in-script; version bump.
 - `plugins/testing/scripts/gen-hook-filters.sh` and test: a PostToolUse `async: true` row set for
   `test-judge-bg.sh`, a `Stop` entry (`timeout: 240`) and a `SessionStart` entry, all through
@@ -308,6 +328,16 @@ Other files:
 - `metrics.sh` reports per stratum: kappa user vs model rater, judge vs user, judge vs model rater,
   the judge's confusion matrix, precision and recall on FLAG with Wilson intervals, prevalence, and
   UNKNOWN counts. System recall is stated as covering tests the session created or changed.
+- Model sweep (the evals that choose the default): `metrics.sh --sweep` runs the frozen judge over
+  every case for `haiku`, `sonnet` and `opus`, each at `low` and `medium` effort, and reports
+  precision and recall on FLAG with Wilson intervals, UNKNOWN rate and cost per case per arm. The
+  shipped default is the arm with the best FLAG precision and recall on `holdout`; where arms'
+  intervals overlap, the cheaper arm wins (accuracy first, cost only breaks ties). The fallback
+  default is the best arm of another class. Both are written to plugin.json and the in-script
+  defaults in the same commit, with the sweep table in calibration.md.
+- Re-running on a new model: because the settings hold class aliases, a new version (for example
+  Haiku 5.5) needs no code change, only `metrics.sh --sweep`; calibration.md says to re-run it on
+  every new model in a class and change the default only when the sweep says so.
 - `docs/specs/tautological-tests-judge/calibration.md` records protocol and results.
 
 **Sanity Check:**
@@ -318,6 +348,9 @@ Other files:
   kappa is at least 0.6; the last commit touching `test-judge-prompt.md` predates the first commit
   touching `labels.tsv`, or later prompt changes carry holdout-only metrics.
 - `grep -cE '^kappa (user-model|judge-user|judge-model)' docs/specs/tautological-tests-judge/calibration.md` returns at least 3.
+- `grep -cE '^\| (haiku|sonnet|opus) \| (low|medium) \|' docs/specs/tautological-tests-judge/calibration.md` returns 6 (the sweep table), and
+  `jq -r '.userConfig.test_judge_model.default' plugins/testing/.claude-plugin/plugin.json` equals the
+  arm calibration.md names as chosen.
 - `bash scripts/check-orphaned-fixtures.sh --check` exits 0.
 
 ### Phase 5: Close out [TODO]
@@ -354,7 +387,7 @@ by git revert. Hook infrastructure, a model-spending background process and undo
   every finding is folded in: the bg job no longer assumes hook order (hooks run in parallel,
   hooks.md:410, checked); block identity by name and ordinal, re-derived from the current file;
   locks with pid, host, start and staleness; a `pending/` marker and Stop taking the same lock; cost
-  bounds (one run per file, per-run budget, session cap, machine slots); relay from a fixed
+  bounds (one run per file, malfunction-only budget, optional session cap, machine slots); relay from a fixed
   template with quote and diff validation; an isolated judge child (`--system-prompt`,
   `--setting-sources`, `--strict-mcp-config` and `--max-budget-usd` exist in `claude --help`,
   checked; their effect is probe 3); repo-scoped reads; an exit-0 trap and a dated Q4
@@ -375,14 +408,16 @@ as a draft, with its own version bump where a plugin changes.
 
 ## Open questions
 
-- Judgment defaults awaiting the user at approval (basis: judgment; each tunable, and probes 7 and
-  R2-P13 re-derive the timing ones): debounce 20 s; per-run budget $0.50; 30 judge runs per session;
-  3 concurrent runs per machine; 10 keys and 180 s per Stop (Stop timeout 240 s); R2-P13 bar of a
-  60 s longest Stop wait; R2-P14 bars of 500 ms idle and 2 s ready.
+- None. Defaults approved by the user 2026-09-30 as landed here (basis: judgment, re-derived by
+  probes 7 and R2-P13 for the timing ones and by the Phase 4 sweep for the model): debounce 20 s;
+  no spend cap by default, only the malfunction guards (per-run budget at 10 times the probe 7 p95,
+  hang timeout, 3 machine slots); 10 keys and 180 s per Stop (Stop timeout 240 s); R2-P13 bar of a
+  60 s longest Stop wait; R2-P14 bars of 500 ms idle and 2 s ready; judge `opus` at `medium`,
+  fallback `sonnet`, until the sweep chooses.
 
 ## Handoff to implementation
 
-Approval: pending
+Approval: approved by the user (Kyle Sexton) on 2026-09-30 in session 848e10e2, "I approve whatever you land on", after the final stress-test round and the accuracy-first cost change.
 
 ### User-approval gates
 
