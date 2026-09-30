@@ -62,9 +62,9 @@
 #   SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE  consent-receipts.json to read the receipt records from
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
-#   SETTINGS_AUDIT_ENGINE_DOCS_FIXTURE_DIR  directory holding llms.txt and <slug>.md; when set,
+#   FETCH_DOCS_FIXTURE_DIR              directory holding llms.txt and <slug>.md; when set,
 #                                       nothing is fetched and pages resolve through that llms.txt
-#   SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL the docs index (default https://code.claude.com/docs/llms.txt)
+#   FETCH_DOCS_INDEX_URL                the docs index (default https://code.claude.com/docs/llms.txt)
 #   SETTINGS_AUDIT_ENGINE_CLAUDE_BIN    the claude CLI to version and search (else `command -v claude`)
 #   SETTINGS_AUDIT_FIXTURE_DIR          passed through to check-plugin-drift.sh
 #   SETTINGS_AUDIT_MANAGED_PATH         passed through to the managed-scope library
@@ -559,7 +559,7 @@ if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
 fi
 trap 'rm -rf "$DOCS_TMP"' EXIT
 
-DOCS_INDEX_URL="${SETTINGS_AUDIT_ENGINE_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
+DOCS_INDEX_URL="${FETCH_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
 # Every control character but tab and newline, CR included, is dropped from the
 # working copy of a page, so text quoted from it into a row or the table never
 # carries one. Byte counts are taken from the page as read.
@@ -577,7 +577,9 @@ done
 DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
   '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
 if [[ ${#DOCS_WANT[@]} -gt 0 ]]; then
-  if ! bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$DOCS_MANIFEST" --index-url "$DOCS_INDEX_URL" "${DOCS_WANT[@]}" >/dev/null; then
+  # The engine reads the CLI version itself below and ignores the manifest's, so
+  # the fetcher runs no claude, whatever SETTINGS_AUDIT_ENGINE_CLAUDE_BIN names.
+  if ! FETCH_DOCS_CLAUDE_BIN='' bash "$FETCH_DOCS" --out "$DOCS_TMP/fetch" --manifest "$DOCS_MANIFEST" --index-url "$DOCS_INDEX_URL" "${DOCS_WANT[@]}" >/dev/null; then
     echo "ERROR: $FETCH_DOCS failed; the docs pages could not be requested" >&2
     exit 2
   fi

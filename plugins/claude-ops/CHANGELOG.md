@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.74.2] - 2026-09-30
+## [0.75.1] - 2026-09-30
 
 ### Changed
 
@@ -16,6 +16,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `usr\bin\bash.exe` on PATH, so a floor taken with the PATH bash understated S. The two native
   paths print in `cygpath -m` form (`C:/Program Files/Git/bin/bash.exe`), which the
   shell-portability gate does not read as a GNU `\b` regex escape.
+
+## [0.75.0] - 2026-09-30
+
+### Changed
+
+- **`changelog-status` fetches the Claude Code changelog through `scripts/fetch-docs.sh`** (a synced
+  copy of the shared fetcher) instead of calling `curl` on the changelog URL directly, so the fetch
+  is verified against the publisher's index and recorded in a manifest like every other docs read.
 
 ## [0.74.1] - 2026-09-30
 
