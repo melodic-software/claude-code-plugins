@@ -279,7 +279,7 @@ available, and skipping it is what manufactures the resume rule's problem one co
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <grounded-findings file>`.
 Exit 1 means a category was skipped or a remediation has no research line: re-dispatch step 2 with
 the collector's `problem:` lines, and do not present a ledger the collector rejects. The corrected
-ledger is a new packet file, `audit-notes-2.md`, which the Resume rule's closed set does not
+ledger is a new packet file, the next unused `audit-notes-<n>.md`, which the Resume rule's closed set does not
 include: after a compaction the rejected ledger is what resumes, so grade it again on resume
 before presenting.
 `research: open-question` and `verdict: unvalidated` pass the collector; the effort table says
@@ -347,7 +347,7 @@ runs is used when installed, with a one-line fallback when absent:
 - `/discovery:research`, the research seam, when the effort row runs it: one call per remediation
   at or above the severity floor. A remediation it grounds becomes `research: tier-0` or `tier-1`
   with its primary and corroborator count; one it cannot ground stays `open-question`. Write the
-  updated ledger as a new packet file, `audit-notes-2.md` (packet files are write-once), re-seal,
+  updated ledger as a new packet file, the next unused `audit-notes-<n>.md` (packet files are write-once; the step 3 correction may already hold `-2`), re-seal,
   and grade it again with `collect-categories.sh`. The Resume rule's closed set does not include
   that file, so after a compaction the pre-research ledger is what resumes: re-run this seam on it
   before step 6, and until then treat every `open-question` as `needs-decision`. *Absent:* apply the primary-plus-two-corroborators discipline in
