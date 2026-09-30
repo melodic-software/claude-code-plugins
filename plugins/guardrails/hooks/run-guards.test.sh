@@ -38,11 +38,15 @@ fi
 # Git Bash rewrites an argument that is entirely a POSIX path before a native
 # jq sees it. Fixture files are created at the bash spelling, so payloads must
 # carry it unrewritten or the verifiers never find the file and never call git
-# (#4527). Exported, not a jq() function: `command -v jq` would then see the
-# function and the no-jq PATH probe could not prove jq was gone. The one path
-# jq must open itself, hooks.json, goes through cygpath -m when it exists,
-# because a native jq cannot open a POSIX /c/... spelling.
-export MSYS_NO_PATHCONV=1
+# (#4527). The suppression is scoped to this suite's own jq calls, never
+# exported: git.exe and the guards under test would inherit it and fail to
+# open a POSIX /tmp/... repo. The no-jq probe runs the dispatcher in a child
+# bash, which does not inherit the function. The one path jq must open itself,
+# hooks.json, goes through cygpath -m when it exists, because a native jq
+# cannot open a POSIX /c/... spelling.
+if declare -F jq >/dev/null; then
+  jq() { MSYS_NO_PATHCONV=1 command jq --binary "$@"; }
+fi
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v cygpath >/dev/null 2>&1; then HOOKS_JSON=$(cygpath -m "$HOOKS_JSON"); fi
 
@@ -1131,8 +1135,12 @@ fi
 
 HEREDOC_BODY=""
 while ((${#HEREDOC_BODY} < 70000)); do HEREDOC_BODY+=$'The quick brown fox jumps over the lazy dog, again.\n'; done
-HEREDOC_PAYLOAD=$(jq -nc --arg c "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" \
-  '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
+# Through stdin, not `--arg`: a native jq.exe gets the command line whole, and
+# Windows caps one at 32,767 characters, so a 70 KB argument leaves the payload
+# empty and every row case below sees no command at all.
+HEREDOC_PAYLOAD=$(printf '%s' "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" |
+  jq -Rsc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:.}}')
+[[ ${#HEREDOC_PAYLOAD} -gt 70000 ]] || bad "the ~70 KB payload was not built (${#HEREDOC_PAYLOAD} chars)"
 row_t0=${EPOCHREALTIME:-}
 ROW_ERR=$(cd "$HOOK_DIR" && RUN_GUARDS_PROFILE=1 bash "$DISPATCH" "${BASH_ROW_ARGS[@]}" <<<"$HEREDOC_PAYLOAD" 2>&1 >/dev/null)
 ROW_RC=$?
