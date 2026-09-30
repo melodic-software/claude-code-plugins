@@ -20,8 +20,17 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 - **`settings-reference` sections are indexed once per run** instead of rescanned on every lookup, and
   a key containing U+0000 stays in one row.
-- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and slugs resolve
-  exactly.
+- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`.
+
+## [0.53.4] - 2026-09-29
+
+### Fixed
+
+- **`scripts/fetch-docs.sh`:** a slug resolves only to the top-level docs page
+  (`/docs/en/<slug>.md` or `/docs/<slug>.md`). A nested page with the same basename, such as
+  `plugins/cli-reference.md`, no longer shadows the top-level page, so `--discover` no longer marks
+  the top-level page not-in-index
+  ([#5496](https://github.com/melodic-software/claude-code-plugins/issues/5496)).
 
 ## [0.53.3] - 2026-09-29
 

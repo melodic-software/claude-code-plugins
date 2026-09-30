@@ -208,19 +208,12 @@ link_urls() {
   }' "$OUT/llms.txt"
 }
 
-# index_link <slug>: the index link URL whose slug is exactly <slug>. A suffix
-# match would resolve `cli-reference` to `plugins/cli-reference`.
+# index_link <slug>: the first link URL in the index whose path is exactly
+# /docs/en/<slug>.md or /docs/<slug>.md, on any scheme (or none) and host (an off-origin link is
+# reported by the caller). A page nested under another path (plugins/x.md) is
+# a different slug and never matches x.
 index_link() {
-  local u s
-  link_urls | while IFS= read -r u; do
-    s="${u#*://}"
-    s="${s#*/docs/}"
-    s="${s#en/}"
-    [[ "${s%.md}" == "$1" ]] && {
-      printf '%s\n' "$u"
-      break
-    }
-  done
+  link_urls | awk -v a="/docs/en/$1.md" -v b="/docs/$1.md" '{ p = $0; sub(/^([A-Za-z][A-Za-z0-9+.-]*:)?\/\/[^\/]+/, "", p) } p == a || p == b { print; exit }'
 }
 
 # slug_of <url>: the slug an index link names: its path under /docs/, without a
