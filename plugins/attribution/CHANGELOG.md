@@ -8,6 +8,13 @@
   rewritten synthetically from a finding a unanimous blind panel adjudicated on real repo text,
   plus cleared negatives. The set is now 38 cases: verbatim 3, near-verbatim 13, negative 15,
   restated-fact 6, paraphrase 1.
+- No fixture reaches the separation rule against its real source: `fingerprint.mjs` measures every
+  `case.md` and `source.md` from c25 to c38 below both limbs (containment under 0.3, longest
+  span under 15 words), while each positive case still fires against its own synthetic
+  `source.md`. The measure is lexical and does not cover a sentence-by-sentence paraphrase.
+
+### What this entry does not support
+
 - Verbatim stays at 3 cases, below the more-than-10 target: 49 of 68 candidate panels have not
   run, and four panels were split or turned on an owner-only call, so they are not converted.
   Four of the nine converted findings share one source. No class is declared fix-eligible and no

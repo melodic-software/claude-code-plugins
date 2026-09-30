@@ -12,12 +12,12 @@ widget report --view timeline --since 10m
 
 ## Guidance
 
-- Pick the smallest view that makes the key point clear.
-- Place each view next to the short text it supports.
-- Keep only the tasks, cache keys, agents, and locks needed to answer the reader's current
-  question or the options to resolve the current discussion point.
-- You may use one of these, you may use several, it is unlikely you will use all of them. Use
-  your discretion and do not overwhelm the reader.
+- Choose the narrowest view that still carries the main finding.
+- Put each view beside the sentence it backs up.
+- Include only the jobs, cache entries, workers and locks that bear on what the reader asked,
+  or on the choices still open in the thread.
+- Any one view can work, several can, and all four together almost never do. Use restraint and
+  do not pad the page.
 
 ## Sharing a report
 

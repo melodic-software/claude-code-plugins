@@ -16,12 +16,12 @@ Install the runner from your package manager, then run `widget init` in the repo
 
 ### Use Widget Runner for Learning
 
-- Enable "Explanatory" or "Learning" output style in `widget config` to have the runner explain the *why* behind each cache miss
-- Have the runner generate visual HTML reports explaining an unfamiliar task graph
-- Ask the runner to draw ASCII diagrams of new pipelines and monorepos
-- Build a spaced-repetition learning job: explain your understanding, the runner asks follow-ups to fill gaps
+- Set the report detail to `verbose` in `widget config` and the runner says why each cache entry was evicted
+- Ask for a printable summary page whenever a task graph is new to you
+- Request a text sketch of the package layout before you touch a monorepo you have not seen
+- Schedule a recap job that quizzes you on last week's builds, then fills in whatever you got wrong
 
-**Key takeaway:** Widget Runner isn't just for running builds - it's a powerful learning tool when you configure it to explain and teach.
+**Key takeaway:** The runner does more than build things; set it up to narrate and quiz, and it doubles as a teacher.
 
 ## 16. Output styles
 
