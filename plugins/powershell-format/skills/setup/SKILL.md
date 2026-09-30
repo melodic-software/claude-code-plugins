@@ -29,8 +29,9 @@ the repository, user settings, or the plugin cache.
 
 Note the deliberate asymmetry vs the sibling formatter plugins: only `jq` and `node` absence
 are prerequisite defects here. A machine without PowerShell, or without the PSScriptAnalyzer
-module, or a repo without a settings file, is treated as **not-applicable, not missing**: the
-hook stays quiet by design, so `check` reports these as INFO, never FAIL.
+module, or a repo without a settings file, is INFO in `check`, never FAIL: the edit hook stays
+quiet by design. A machine without PowerShell still gets the `SessionStart` probe's notice once per
+session while the plugin is enabled.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 offers remediation guidance. Both are non-interactive. Never prompt when the action is given.
@@ -66,14 +67,13 @@ restores the FAIL semantics.
    prerequisites.
 4. **`pwsh` (PowerShell 7+).** Probe read-only:
    `pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString()'`. INFO,
-   not FAIL: the hook probes `pwsh` only (never legacy `powershell.exe`) and stays quiet when
-   it is absent. A machine without PowerShell is not-applicable by design. Report the version
-   when present.
+   not FAIL: the hook probes `pwsh` only (never legacy `powershell.exe`) and the edit hook stays
+   quiet when it is absent, while the `SessionStart` probe reports it once per session on every
+   host where the plugin is enabled. Report the version when present.
 5. **PSScriptAnalyzer module.** Probe **only when `pwsh` resolved** (chain behind step 4 so
    the probe never errors on a pwsh-less box):
    `pwsh -NoProfile -NonInteractive -Command 'if (Get-Module -ListAvailable -Name PSScriptAnalyzer) { "present" } else { "absent" }'`.
-   INFO, not FAIL: absent → the hook is a clean quiet no-op (same not-applicable
-   classification). This probe is read-only. `Get-Module -ListAvailable` inspects, it does
+   INFO, not FAIL: absent → the hook is a clean quiet no-op, with no probe notice. This probe is read-only. `Get-Module -ListAvailable` inspects, it does
    not format, lint, or mutate.
 6. **`PSScriptAnalyzerSettings.psd1` opt-in.** INFO: the hook runs **only when a
    `PSScriptAnalyzerSettings.psd1` governs the edited file** (walking up from the file to the
@@ -100,7 +100,8 @@ Run `check`, then for each finding point at the resolution. This skill installs 
 - `pwsh` absent (and PowerShell support is wanted): point at installing
   [PowerShell 7+](https://learn.microsoft.com/powershell/scripting/install/installing-powershell);
   this skill never installs it. If PowerShell is genuinely not applicable on this machine,
-  leaving it absent is a valid end state. The hook stays quiet.
+  leaving it absent is a valid end state. The edit hook stays quiet; the once-per-session probe
+  notice is the only signal, and `powershell_format_enabled` false or disabling the plugin stops it.
 - PSScriptAnalyzer module absent: `Install-Module PSScriptAnalyzer` is **user-scope guidance
   only**. State the command for the reader to run; this skill never runs it.
 - no `PSScriptAnalyzerSettings.psd1` (and linting/formatting is wanted): explain that adding a
