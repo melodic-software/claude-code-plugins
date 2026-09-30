@@ -184,7 +184,8 @@ Verdicts:
   `f(x) == f(x)` to pin determinism. The rule keeps firing on that shape, as NUnit2009, testifylint
   `useless-assert` and staticcheck SA4000 do, with no name-based exemption; a deliberate
   determinism contract carries `cant-fail-ok: determinism contract` and is counted as exempt.
-  `test_observer.py` carries it; medley's test, in another repository, does not yet.
+  `test_observer.py` carries it; medley's test, in another repository, was rewritten as two named
+  runs instead of carrying the marker.
 - The rest are the true positives the earlier sections and the classification record:
   `mock-only-oracle` findings are interaction-as-output tests (patched `os._exit`, spied
   `process.stdout.write`, Pester `Should -Invoke`, NSubstitute `Received`); `conditional-assertion`
