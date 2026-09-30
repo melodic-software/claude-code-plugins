@@ -15,7 +15,9 @@ discovery round trip.
 
 Report-only: it never blocks the expansion. It always exits 0, and it prints
 nothing when it cannot produce the values, which leaves the skill on the
-kill-switch probe's ``hook_python`` and ``data_root`` fields.
+kill-switch probe's ``hook_python`` and ``data_root`` fields. The launcher
+(``hooks/run-python-hook.sh``, context mode) blocks the expansion with a reason
+when no Python interpreter resolves, so this script never runs in that case.
 """
 
 from __future__ import annotations
