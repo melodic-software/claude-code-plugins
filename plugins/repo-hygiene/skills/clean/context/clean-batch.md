@@ -108,7 +108,8 @@ fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply. Pass the plan back.
 
-Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
+`RUNTIME_PROCS` and `RECENT_BUILD` are scoped to the batch repositories and `IDE_OPEN` is
+machine-wide. Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
 `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run
 `preflight.sh` again before confirming. `planned=` bytes can exceed `removed=`
 bytes when entries vanished between the runs; both numbers are correct.
