@@ -81,7 +81,7 @@
       "id": 7,
       "name": "reports-whether-node-resolves-for-the-hook-launcher",
       "prompt": "/claude-ops:setup check, on a host where `command -v node` finds nothing.",
-      "expected_output": "check probes `command -v node` through the Bash tool, not through a hook, and reports the Node.js row as FAIL: every hook row starts through node, so the hooks do not launch and record nothing. The remediation is the person installing Node.js and starting a fresh session; the skill installs nothing.",
+      "expected_output": "check probes `command -v node` through the Bash tool, not through a hook, and reports the Node.js row as FAIL: every hook row except `hook-failure-audit` starts through node, so those hooks do not launch and record nothing. The remediation is the person installing Node.js and starting a fresh session; the skill installs nothing.",
       "files": [],
       "expectations": [
         "The probe is `command -v node` run through the Bash tool",

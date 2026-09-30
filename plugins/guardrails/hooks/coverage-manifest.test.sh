@@ -19,6 +19,7 @@ README="$PLUGIN_ROOT/README.md"
 BASELINE="$PLUGIN_ROOT/../claude-config/skills/audit/reference/required-permissions.md"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "FAIL: jq is required for these tests" >&2

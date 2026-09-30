@@ -73,8 +73,15 @@ EVIDENCE_VOCABULARY = frozenset(
 # Bumped whenever a section is added or a field's meaning changes. /2 added the
 # environment block, size attribution, the report header, shaped unknown samples,
 # grouped PID rows, the content_read flags and the sentinels block. /3 added
-# unreferenced_versions and its note.
-SCHEMA = "claude-install-state/3"
+# unreferenced_versions and its note. /4 caps unreferenced_versions in the JSON at
+# UNREFERENCED_VERSIONS_CAP entries (largest first) and adds
+# unreferenced_versions_total and unreferenced_versions_truncated.
+SCHEMA = "claude-install-state/4"
+
+# Entries of unreferenced_versions kept in the stdout JSON. The complete list goes to
+# --versions-out, because the report is read end to end and this list grows with every
+# plugin update.
+UNREFERENCED_VERSIONS_CAP = 25
 
 # --------------------------------------------------------------------------
 # Secrets: paths whose CONTENTS are never opened by this engine.
@@ -1823,6 +1830,13 @@ def scan(
 
     opened: set[str] = set()
     versions, versions_note = unreferenced_versions(root, rows, opened=opened)
+    versions_total = len(versions)
+    versions_truncated = versions_total > UNREFERENCED_VERSIONS_CAP
+    if versions_truncated:
+        versions_note = (
+            f"The JSON lists only the {UNREFERENCED_VERSIONS_CAP} largest of {versions_total} "
+            "unreferenced versions. Re-run with --versions-out PATH to write the complete list."
+        )
     entries = rollup(rows, days, authored_threshold, frozenset(opened))
     for entry in entries:
         entry["file_count_sampled"] = counts[entry["entry"]].as_dict(
@@ -1855,8 +1869,11 @@ def scan(
         "entries": entries,
         "largest_subtrees": largest_subtrees(rows, entries),
         "node_modules": node_modules_bucket(rows),
-        "unreferenced_versions": versions,
+        "unreferenced_versions": versions[:UNREFERENCED_VERSIONS_CAP],
+        "unreferenced_versions_total": versions_total,
+        "unreferenced_versions_truncated": versions_truncated,
         "unreferenced_versions_note": versions_note,
+        "_versions": versions,
         "sentinels": sentinels_block(root),
         "numeric_names": numeric,
         "recent_writers": recent_writers(rows, recent_hours),
@@ -1984,6 +2001,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Write the COMPLETE per-file listing here (every file, always)",
     )
+    parser.add_argument(
+        "--versions-out",
+        default=None,
+        help="Write the COMPLETE unreferenced_versions list here as JSON (the report caps it)",
+    )
     args = parser.parse_args(argv)
 
     root = resolve_root(args.root)
@@ -2006,7 +2028,7 @@ def main(argv: list[str] | None = None) -> int:
         interval=args.sample_interval,
         authored_threshold=args.authored_threshold,
         recent_hours=args.recent_hours,
-        exclude=self_excluded(root, [args.csv]),
+        exclude=self_excluded(root, [args.csv, args.versions_out]),
         own_config_dir=own_config_dir,
         invocation={
             "root": str(root),
@@ -2015,10 +2037,34 @@ def main(argv: list[str] | None = None) -> int:
             "authored_threshold": args.authored_threshold,
             "recent_hours": args.recent_hours,
             "csv": args.csv,
+            "versions_out": args.versions_out,
         },
     )
 
     rows: list[FileRow] = report.pop("_rows")
+    versions: list[dict] = report.pop("_versions")
+    if args.versions_out:
+        try:
+            Path(args.versions_out).write_text(
+                json.dumps(versions, indent=2) + "\n", encoding="utf-8"
+            )
+        except OSError as exc:
+            print(
+                f"error: cannot write --versions-out {args.versions_out}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        report["unreferenced_versions_file"] = {
+            "path": args.versions_out,
+            "count": len(versions),
+            "evidence": MEASURED,
+        }
+        if report["unreferenced_versions_truncated"]:
+            report["unreferenced_versions_note"] = (
+                f"The JSON lists only the {UNREFERENCED_VERSIONS_CAP} largest of "
+                f"{len(versions)} unreferenced versions; all {len(versions)} are in "
+                f"{args.versions_out}."
+            )
     if args.csv:
         try:
             count = write_csv(rows, Path(args.csv))

@@ -6,6 +6,14 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.3.6] - 2026-09-30
+
+Patch: clarification.
+
+- **The Adopters table records `/prototype:explore-directions`'s and `/visualization:visualize`'s
+  `## Boundary` sections and description phrases for the built-in `ClaudeDesign` tool**
+  (integration `route`).
+
 ## [3.3.5] - 2026-09-30
 
 Patch: clarification.

@@ -1353,13 +1353,21 @@ as before.
 - **bash 5.0+** and **jq**, the guards' runtime. Without **jq**, each guard
   fails **open** (disabled) and prints a one-line stderr notice, never a silent
   disable.
-- **Node.js** on `PATH`. Every hook row starts through `hooks/exec-bash.mjs`, which finds bash
+- **Node.js** on `PATH`. Every guard row starts through `hooks/exec-bash.mjs`, which finds bash
   and runs the guard; the script declares no minimum Node version. Claude Code resolves an
   exec-form `command` on `PATH` ([exec form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)).
   Its hooks reference documents a hook that cannot start as a
   [non-blocking error](https://code.claude.com/docs/en/hooks#other-exit-codes) for most events,
   with a missing script as the example, and does not document a `command` absent from `PATH`.
-  `/guardrails:setup check` reports a missing `node`.
+  `/guardrails:setup check` reports a missing `node`. A `SessionStart` row in shell form
+  (`"shell": "bash"`, no `args`) runs `command -v node` and needs no node itself. When node is
+  absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
+  tells the model that the guards cannot launch and enforce nothing. It prints nothing when node
+  is present. It does not read the per-guard toggles, because an unset toggle exports no
+  environment variable and the row would need every guard's key listed by hand; a host that turns
+  every guard off should disable the plugin instead. Basis: https://code.claude.com/docs/en/hooks, "SessionStart" (plain stdout reaches
+  Claude only, and exit-2 stderr reaches the user only) and "JSON output" (`systemMessage` is a
+  warning shown to the user).
 - On Windows, **Git Bash** (the hooks run via Git Bash's bash).
 - `cli-flag-verify` runs `<bin> --help` for the binaries it scans; findings
   require those binaries on PATH (missing binaries are skipped, never flagged).

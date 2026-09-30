@@ -13,6 +13,18 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **The `userConfig` values for seven of those keys are a fallback:** the merge method, block labels, extra dependency-manager logins, approval-downgrade logins, review trigger phrase, review gate context and CI gateway context. Each use prints one stderr note per key per process. The fallback is removed in a later minor release, no earlier than 90 days after this one. `babysit_skip_downgrade_logins` keeps its `userConfig` value as its only additive source, so it is not deprecated and prints no note.
 
+## [0.67.2] - 2026-09-30
+
+### Changed
+
+- **README moves the Node.js requirement into a Requirements section.** The statement is unchanged: without `node` on `PATH` the hooks do not launch.
+
+## [0.67.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.67.0] - 2026-09-30
 
 ### Added

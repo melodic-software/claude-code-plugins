@@ -1,6 +1,19 @@
 {
   "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, detects the guard silently failing to launch, and hands /disk-hygiene:clean the guard's interpreter and data root when it expands.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "command -v node >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"disk-hygiene: node is not on PATH, so its destructive-delete guard cannot launch and enforces nothing. Install Node.js and restart Claude Code.\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"WARNING: node is not on PATH, so the destructive-delete guard of the disk-hygiene plugin cannot launch and enforces nothing. Tell the user.\"}}'",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
