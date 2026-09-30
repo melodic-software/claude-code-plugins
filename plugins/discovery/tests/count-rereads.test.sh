@@ -94,6 +94,11 @@ expect "Bash cat is a read, ls scans its directory, grep scans its file" "$B" \
   '^REREAD: /repo/a\.md$' '^SCAN->READ: /repo/docs/d\.md$' '^SCAN->READ: /repo/g\.md$' \
   '^REREAD count: 1$' '^SCAN->READ count: 2$'
 
+E="$WORK/grep-e.jsonl"
+turn "$E" 1 "$(bash_of 'grep -e needle /repo/e.md')"
+turn "$E" 2 "$(read_of /repo/e.md)"
+expect "grep -e keeps its first file operand" "$E" '^SCAN->READ: /repo/e\.md$' '^SCAN->READ count: 1$'
+
 S="$WORK/same-turn.jsonl"
 turn "$S" 1 "$(grep_of /repo/a.md)" "$(read_of /repo/a.md)"
 expect "a scan and a read in one turn is not SCAN->READ" "$S" '^SCAN->READ count: 0$'

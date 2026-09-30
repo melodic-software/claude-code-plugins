@@ -67,7 +67,9 @@ def bash_effect(command: str) -> tuple[str, str, list[str]] | None:
     elif prog == "sed" and "-n" in args:
         files = operands(args)[1:]  # the first operand is the script
     elif prog == "grep":
-        return "scan", prog, operands(args, ("-e", "-f", "-m", "-A", "-B", "-C"))[1:]
+        files = operands(args, ("-e", "-f", "-m", "-A", "-B", "-C"))
+        # the first operand is the pattern unless -e or -f supplied it
+        return "scan", prog, files if "-e" in args or "-f" in args else files[1:]
     elif prog == "ls":
         return "scan", prog, operands(args)
     else:
