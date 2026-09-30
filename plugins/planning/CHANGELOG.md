@@ -8,6 +8,11 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Added
 
 - **The interview page badges its title while the tab is hidden.** The title shows a count of new activity and notes that land while the tab is hidden, and the count clears when the tab is shown ([#5473](https://github.com/melodic-software/claude-code-plugins/issues/5473)).
+## [0.47.4] - 2026-09-29
+
+### Fixed
+
+- **Interview surface question cards keep their badge row in column 2** when a question has several `dependsOn` entries. `.qid` spanned a fixed three rows while the card emitted a variable number of needs lines, so the badges landed in the emptied left column and squeezed the title ([#5191](https://github.com/melodic-software/claude-code-plugins/issues/5191)).
 
 ## [0.47.3] - 2026-09-29
 
