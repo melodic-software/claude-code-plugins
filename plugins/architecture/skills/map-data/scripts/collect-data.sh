@@ -25,7 +25,7 @@
 # (ICollection/List/IList/IEnumerable/HashSet<T> for a collection, T or T? for a
 # reference). The foreign key is one column, HasForeignKey("Col") or
 # HasForeignKey(e => e.Col); HasPrincipalKey is one column the same way.
-# Requiredness is IsRequired() or IsRequired(false) and, when neither is
+# Requiredness is IsRequired(), IsRequired(true) or IsRequired(false) and, when neither is
 # written, the foreign-key property's declared type on the dependent class: T?,
 # Nullable<T> and string? are optional, a built-in value type is required.
 # Unreadable: a composite key, a navigation with no single declared type, and a
@@ -1189,8 +1189,12 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     optional=""
     if [[ "$part" =~ IsRequired\(false\) ]]; then
       optional="yes"
-    elif [[ "$part" =~ IsRequired\(\) ]]; then
+    elif [[ "$part" =~ IsRequired\((true)?\) ]]; then
       optional="no"
+    elif [[ "$part" == *IsRequired* ]]; then
+      ef_bad=1
+      ef_why="IsRequired takes an argument other than true or false"
+      break
     elif ef_optional "$module" "$fk_entity" "$fk"; then
       optional="$EF_OPT"
     else

@@ -289,6 +289,35 @@ efnn="$(cat "$TEST_TMPDIR/ef-docs-nonnull.json")"
 assert_contains "ef non-nullable fk cardinality" "$efnn" '"cardinality":"||--o{"'
 assert_contains "ef non-nullable fk optional" "$efnn" '"optional":"no"'
 
+mk_ef_docs_repo "$TEST_TMPDIR/ef-docs-req-true" "int?" ".IsRequired(true)"
+bash "$COLLECT" --repo "$TEST_TMPDIR/ef-docs-req-true" --out "$TEST_TMPDIR/ef-docs-req-true.json" --generated-on 2026-09-28
+efrt="$(cat "$TEST_TMPDIR/ef-docs-req-true.json")"
+assert_contains "ef IsRequired(true) beats a nullable fk" "$efrt" '"optional":"no"'
+
+mk_ef_docs_repo "$TEST_TMPDIR/ef-docs-req-flag" "int?" ".IsRequired(flag)"
+bash "$COLLECT" --repo "$TEST_TMPDIR/ef-docs-req-flag" --out "$TEST_TMPDIR/ef-docs-req-flag.json" --generated-on 2026-09-28
+efrf="$(cat "$TEST_TMPDIR/ef-docs-req-flag.json")"
+assert_contains "ef IsRequired with an unsupported argument refused" "$efrf" '"status": "refused"'
+assert_not_contains "ef IsRequired with an unsupported argument emits no relationship" "$efrf" '"tool":"ef-fluent"'
+
+repo_efm="$TEST_TMPDIR/ef-docs-many"
+mk_ef_docs_repo "$repo_efm" "int" ""
+cat >"$repo_efm/src/PostConfiguration.cs" <<'CS'
+public class BlogConfiguration : IEntityTypeConfiguration<Blog>
+{
+    public void Configure(EntityTypeBuilder<Blog> builder)
+    {
+        builder.HasMany(e => e.Posts).WithOne(e => e.Blog).HasForeignKey(e => e.BlogId).HasPrincipalKey(e => e.BlogId);
+    }
+}
+CS
+commit_all "$repo_efm"
+bash "$COLLECT" --repo "$repo_efm" --out "$TEST_TMPDIR/ef-docs-many.json" --generated-on 2026-09-28
+efm="$(cat "$TEST_TMPDIR/ef-docs-many.json")"
+assert_contains "ef HasMany-WithOne direction" "$efm" '"from":"src/Post","to":"src/Blog"'
+assert_contains "ef HasMany-WithOne cardinality" "$efm" '"cardinality":"||--o{"'
+assert_contains "ef lambda HasPrincipalKey" "$efm" '"references":"BlogId"'
+
 repo_efx="$TEST_TMPDIR/ef-docs-refused"
 init_repo "$repo_efx"
 mkdir -p "$repo_efx/src"
