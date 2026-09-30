@@ -21,6 +21,16 @@
     "Dropbox (*)",
     "OneDrive - *"
   ],
+  "disk_image_name_globs": [
+    "*.vhd",
+    "*.vhdx",
+    "*.avhd",
+    "*.avhdx",
+    "*.vmdk",
+    "*.vdi",
+    "*.qcow2",
+    "*.img"
+  ],
   "os_temp_recommendation_threshold_bytes": 1073741824,
   "hints": [
     {
@@ -28,6 +38,7 @@
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.tmp",
+      "entry_types": ["file", "link"],
       "confidence_ceiling": "medium",
       "reason": "Common temporary-file suffix; provenance and live ownership still need proof"
     },
@@ -60,6 +71,7 @@
       "os": ["all"],
       "kind": "name_glob",
       "pattern": "*.lock",
+      "entry_types": ["file", "link"],
       "confidence_ceiling": "low",
       "reason": "Lock-looking file; only stale when its owner and process state prove it"
     },
@@ -126,6 +138,32 @@
       "pattern": "temp_git_*",
       "confidence_ceiling": "medium",
       "reason": "AI-agent Git scratch/staging directory leaked outside a worktree; confirm no session or clone still references it"
+    },
+    {
+      "id": "windows-vs-background-download-layout",
+      "os": ["windows"],
+      "kind": "name_glob",
+      "pattern": "????????.???",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "low",
+      "reason": "Directory named like the random 8.3 names Visual Studio's BackgroundDownload.exe creates under %TEMP%; the pattern is broad, so confirm it holds a Visual Studio layout and that no installer or BackgroundDownload.exe process owns it"
+    },
+    {
+      "id": "windows-docker-desktop-update-bsdiff",
+      "os": ["windows"],
+      "kind": "name_glob",
+      "pattern": "*.bsdiff",
+      "confidence_ceiling": "low",
+      "reason": "Docker Desktop update patch entry (bsdiff binary delta); confirm Docker Desktop is not mid-update and the entry sits in its updater directory"
+    },
+    {
+      "id": "windows-electron-updater-cache",
+      "os": ["windows"],
+      "kind": "name_glob",
+      "pattern": "*-updater",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "low",
+      "reason": "Possible electron-updater cache directory (%LOCALAPPDATA%\\<app>-updater, whose 'pending' subdirectory holds the staged installer); the name is generic, so confirm the owning app, that the pending installer is not an update still to be applied, and that the app is not running"
     }
   ]
 }

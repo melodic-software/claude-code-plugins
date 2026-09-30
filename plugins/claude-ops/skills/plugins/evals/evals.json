@@ -68,12 +68,12 @@
       "id": 6,
       "name": "never-hand-edits-internal-state-or-cache",
       "prompt": "Sync is reporting a divergence for plugin-x that looks wrong — can you just fix its entry in installed_plugins.json directly, or delete its cache directory to force a clean reinstall?",
-      "expected_output": "The skill refuses to hand-edit installed_plugins.json, known_marketplaces.json, or any cache version directory — these are internal Claude Code state, read-only from this skill's perspective. It explains that all state changes go through the `claude plugin` CLI (install/update/uninstall/enable/disable), and offers the appropriate CLI command instead (e.g. `claude plugin update plugin-x@<marketplace>`), or `converge` if the actual issue is scope divergence.",
+      "expected_output": "The skill refuses to hand-edit installed_plugins.json, known_marketplaces.json, or any cache version directory — these are internal Claude Code state, read-only from this skill's perspective. It explains that all state changes go through the `claude plugin` CLI (install/update/uninstall/enable/disable), and offers the matching CLI command instead (e.g. `claude plugin update plugin-x@<marketplace>`), or `converge` if the actual issue is scope divergence.",
       "files": [],
       "expectations": [
         "The response does not edit installed_plugins.json, known_marketplaces.json, or any plugins/cache directory",
         "The response does not delete or otherwise manipulate a plugin's cache version directory",
-        "The response redirects to the appropriate `claude plugin` CLI command (or the converge action) instead of manual state surgery"
+        "The response redirects to a `claude plugin` CLI command (for example `claude plugin update plugin-x@<marketplace>`) or the converge action instead of manual state surgery"
       ]
     },
     {

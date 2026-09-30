@@ -249,6 +249,28 @@ assert_not_contains "an underivable state key prints no unkeyed path" "$FAKE_OUT
 (bash "$SCRIPT" --not-a-flag) >/dev/null 2>&1
 RC=$?
 assert_exit "an unknown argument exits 2" 2 "$RC"
+UNKNOWN_ERR=$(bash "$SCRIPT" --not-a-flag 2>&1 >/dev/null)
+assert_contains "an unknown argument names --help" "$UNKNOWN_ERR" "(see --help)"
+assert_contains "--help lists the exit codes" "$(bash "$SCRIPT" --help)" "Exit  : 0"
+
+# No gh on PATH: every row would be FETCH_FAILED under exit 0, so the script
+# refuses up front; --print-output-dir needs neither tool and still works.
+NOGH_BIN="$TEST_TMPDIR/nogh-bin"
+mkdir -p "$NOGH_BIN"
+for tool in bash mkdir dirname; do cp "$(command -v "$tool")" "$NOGH_BIN/"; done
+CASE_NOGH="$TEST_TMPDIR/case-nogh"
+make_case "$CASE_NOGH" $'1\texample-org/example-repo\topen\n' open
+NOGH_ERR=$(cd "$CASE_NOGH" && CHECK_ALL_OUTPUT_DIR="$CASE_NOGH/check-all-output" PATH="$NOGH_BIN" "$NOGH_BIN/bash" "$SCRIPT" 2>&1 >/dev/null)
+RC=$?
+assert_exit "gh missing exits 2" 2 "$RC"
+assert_contains "gh missing names the tool" "$NOGH_ERR" "gh is required"
+assert_eq "gh missing writes no results file" "no" "$([[ -e "$CASE_NOGH/check-all-output/check-all-results.tsv" ]] && echo yes || echo no)"
+NOGH_DIR=$(cd "$CASE_NOGH" && CHECK_ALL_OUTPUT_DIR="$CASE_NOGH/check-all-output" PATH="$NOGH_BIN" "$NOGH_BIN/bash" "$SCRIPT" --print-output-dir 2>/dev/null)
+assert_eq "--print-output-dir works without gh" "$CASE_NOGH/check-all-output" "$NOGH_DIR"
+
+# A missing snapshot says how to make one.
+MISSING_ERR=$(cd "$CASE_F" && CHECK_ALL_OUTPUT_DIR="$CASE_F/check-all-output" bash "$SCRIPT" 2>&1 >/dev/null)
+assert_contains "a missing snapshot names --print-output-dir" "$MISSING_ERR" "--print-output-dir"
 
 # mkdir failure is checked, not swallowed. Point CLAUDE_PLUGIN_DATA at a
 # regular file, so the resolved output directory cannot be created: mkdir -p

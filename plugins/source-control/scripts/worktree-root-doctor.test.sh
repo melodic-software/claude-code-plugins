@@ -5,7 +5,7 @@
 # doctor's findings lines and exit codes. Every fixture reproduces one of the
 # silent-failure classes the doctor exists to make loud. No network.
 # Retired-alias rewrite is owned by worktree-root-legacy.sh (delete after
-# 2026-12-31). Skipped on Windows Git Bash hosts (9 known failures, #5350).
+# 2026-12-31).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,14 +16,9 @@ CASE_NUM=0
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
-case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*) skip_suite "Windows Git Bash host: 9 known failures, tracked in #5350" ;;
-  *) ;;
-esac
-
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 
-TEST_TMPDIR="$(mktemp -d)"
+TEST_TMPDIR="$(native_mktemp_dir)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 HOME_DIR="$TEST_TMPDIR/home"

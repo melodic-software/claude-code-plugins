@@ -1,0 +1,10 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative. A model-adaptation chapter states the model's thinking default and the frequency steer, and tags the span with the guide and the section it comes from.",
+    "carve_outs": "Distilling-file surface applies. The attribution that accounts for the fact is the inline citation on the span: (guide, \"Calibrating effort and thinking depth\"). Quote that line; the carve-out needs it.",
+    "rubric": "Not graded. The paragraph that follows the tagged one is the chapter's own correction and states no external fact.",
+    "carries": "Per-span source tags are the second attribution shape the carve-out names, after a Sources section. A run that recognizes only Sources sections fails this case."
+  }
+}

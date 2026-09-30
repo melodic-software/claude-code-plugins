@@ -105,9 +105,9 @@ Resolve the range, check the cap, and check version alignment:
 
 ### Phase 1. Explore
 
-Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
+Orient on repo impact for EACH changelog item. Run `bash "${CLAUDE_SKILL_DIR}/scripts/discover-surfaces.sh"` first: its output is the surface list, and `context/repo-surfaces.md` gives per-class examples and scoped grep patterns:
 
-1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL listed surfaces
+1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL surface classes the script printed
 2. Classify each item per `context/classification-rubric.md` into one action lens per owner surface it touches: **correct**, **replace**, **adopt**, **note**, or **skip**
 3. Group by owner surface and write each correct, replace and adopt row with its required sentence. A skip item leaves no row
 
@@ -201,9 +201,11 @@ with the items filed or skipped.
 
 ## Actions: fetch, diff, status (read-only)
 
-The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**:
+The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**.
+Its fetch command writes this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put
+that path in place of the placeholder before running it.
 
-- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (`curl` the `.md`, slice the release blocks locally) and display a version, a range, or the newest release. No edits
+- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (the plugin's `fetch-docs.sh` writes the `.md` to a file; slice the release blocks locally) and display a version, a range, or the newest release. No edits
 - **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits decision rows grouped by owner surface, each with its lens and required sentence, plus a docs-lag section, and saves its working set for `apply`. Answers "is this range worth an `apply`?"
 - **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 
@@ -222,7 +224,7 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 | `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the read marker, range, cap, and fetch route are defined there. |
 | `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
 | `context/decisions.md` | Writing or reading decision rows, choosing where a decision is recorded (plugin CHANGELOG, audit-native-overlap nomination, ledger), fanning out, or saving and reusing the working set. |
-| `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
+| `context/repo-surfaces.md` | Phase 1 explore, after running `scripts/discover-surfaces.sh`: per-class examples of what an item changes, and scoped grep patterns. |
 | `context/classification-rubric.md` | Assigning a lens (correct, replace, adopt, note, skip) to an item, and defending a skip. |
 | `context/native-drift.md` | Running `apply` Phase 7: the extraction commands, the previous-run summary, the drift report, and filing its items. |
 | `scripts/native_drift.py` | Phase 7's summary, diff and trigger evaluation. Covered by `scripts/test_native_drift.py`. |

@@ -155,6 +155,16 @@ Three rules bind every read, whichever rung it comes from:
 | 2: primary, degraded | The `.md` channel fetched through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only for a page short enough to arrive whole, and the read must show it arrived whole |
 | 3: mirror | A verbatim third-party mirror of the same docs, with the freshness step below | Verbatim text, **one rung below a primary read**; the record says so |
 
+`lib/fetch-docs.sh` is the rung-1 implementation. A plugin carries it as `scripts/fetch-docs.sh`,
+and `scripts/sync-fetch-docs.sh` keeps every carried copy identical to `lib/`. It reads a page
+verbatim to a file and writes a manifest, and it applies the identity check
+[below](#a-200-does-not-mean-you-got-the-page-you-asked-for) as the **index-listed identity rule**:
+a slug the publisher's index does not list is unread, never fetched. A **publisher profile**
+(`--profile`, default `anthropic`) names the index, the path prefix, the raw channel and the content
+types. The Anthropic profile is the default. A page whose channel does not resolve as the profile
+declares is recorded unread with a reason, so the reader drops a rung and says so; the script never
+falls back to another channel itself.
+
 Rung 1 is the default. It was verified against `env-vars` on 2026-08-10: `curl` returned
 `text/markdown`, 361,797 bytes over 458 lines carrying 315 variable rows including the full
 `CLAUDE_CODE_MAX_*` range, and two fetches seconds apart hashed identically
