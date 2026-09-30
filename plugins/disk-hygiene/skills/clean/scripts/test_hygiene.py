@@ -3746,6 +3746,18 @@ class StandingPolicyTests(unittest.TestCase):
                 policy["policy_sources"],
             )
 
+    def test_project_dir_equal_to_home_applies_overlay_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            overlay = self.write_policy(
+                home, {"additional_hints": [self.hint("user-hint", "user-*")]}
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(None, home)
+            self.assertEqual(["baseline", str(overlay)], policy["policy_sources"])
+            ids = [hint["id"] for hint in policy["hints"]]
+            self.assertEqual(1, ids.count("user-hint"))
+
     def test_explicit_policy_replaces_standing_layers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"

@@ -725,7 +725,11 @@ def standing_policy_paths(project_dir: Path | None) -> list[Path]:
     layers = [Path.home() / ".claude" / "disk-hygiene.json"]
     if project_dir is not None:
         layers.append(project_dir / ".claude" / "disk-hygiene.json")
-    return [path for path in layers if path.is_file()]
+    unique: dict[Path, Path] = {}
+    for path in layers:
+        if path.is_file():
+            unique.setdefault(path.resolve(), path)
+    return list(unique.values())
 
 
 def baseline_policy() -> dict[str, Any]:
