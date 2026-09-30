@@ -78,6 +78,7 @@ mkagent below discovery:explorer 2026-08-03 39
 mkagent other general-purpose 2026-08-04 7
 mkagent late discovery:researcher 2026-09-10 3
 mkagent live discovery:researcher 2026-09-11 6 "" running
+mkagent oldlive discovery:researcher 2026-08-06 6 "" running
 mkdir -p "$ROOT/proj/sess/subagents"
 : >"$ROOT/proj/sess/subagents/agent-nometa.jsonl"
 
@@ -97,6 +98,8 @@ expect "--since keeps later dispatches" 0 '2026-09-10' --root "$ROOT" --since 20
 expect "--json emits per-dispatch rows and a summary" 0 '"at_ceiling": 1' --root "$ROOT" --json
 expect_absent "transcript content is never printed" 'secret prompt' --root "$ROOT" --json
 expect_absent "a dispatch with no final stop_reason is excluded" '2026-09-11' --root "$ROOT"
+expect "the unfinished note counts every unfinished dispatch" 0 '2 unfinished' --root "$ROOT"
+expect "the unfinished note honors --since" 0 '1 unfinished' --root "$ROOT" --since 2026-09-01
 expect "a missing root exits 2" 2 'cannot read root' --root "$WORK/absent"
 
 mkagent resumed discovery:researcher 2026-08-05 40

@@ -86,10 +86,8 @@ def analyze(jsonl: Path, ceiling: int) -> dict | None:
     except (OSError, UnicodeDecodeError):
         return None
     hit = len(ids) >= ceiling or stopped
-    if not (hit or last_stop not in (None, "tool_use")):
-        return {"complete": False}
     return {
-        "complete": True,
+        "complete": hit or last_stop not in (None, "tool_use"),
         "date": first_ts[:10]
         if isinstance(first_ts, str) and len(first_ts) >= 10
         else "unknown",
@@ -171,10 +169,11 @@ def main() -> int:
             info = analyze(Path(dirpath, name), args.ceiling)
             if info is None:
                 skipped += 1
-            elif not info["complete"]:
-                unfinished += 1
             elif not since or (info["date"][:1].isdigit() and info["date"] >= since):
-                rows.append({"agentType": agent, **info})
+                if info["complete"]:
+                    rows.append({"agentType": agent, **info})
+                else:
+                    unfinished += 1
 
     rows.sort(key=lambda r: (r["date"], r["agentType"]))
     summary = summarize(rows)
