@@ -136,7 +136,11 @@ if [[ "${1:-}" == "identity" ]]; then
   path-scoped-rule | nested-agents-md | skill | linter | deletion) ;;
   *) id_die "--destination must be path-scoped-rule, nested-agents-md, skill, linter, or deletion" ;;
   esac
-  ID_FILE="${ID_FILE#./}"
+  case "/$ID_FILE/" in
+  */./* | */../* | *//* | *\\*) id_die "--file must be a canonical relative path (no ., .., empty or backslash segments): $ID_FILE" ;;
+  esac
+  command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 ||
+    id_die "identity needs sha256sum or shasum"
   EXPLICIT=("$ID_FILE")
 fi
 

@@ -319,6 +319,12 @@ ident --file CLAUDE.md --start 1 --lane demote >/dev/null
 assert_eq "identity: a missing --destination is a usage error" "2" "$?"
 ident --file "$idr/CLAUDE.md" --start 1 --lane demote --destination skill >/dev/null
 assert_eq "identity: an absolute --file is a usage error" "2" "$?"
+for bad in ./CLAUDE.md ././CLAUDE.md docs/../CLAUDE.md docs//x.md 'docs\x.md'; do
+  ident --file "$bad" --start 1 --lane demote --destination skill >/dev/null
+  assert_eq "identity: noncanonical --file '$bad' is a usage error" "2" "$?"
+done
+PATH=/nonexistent "$BASH" "$SCRIPT" identity --root "$idr" --file CLAUDE.md --start 1 --lane demote --destination skill >/dev/null 2>&1
+assert_eq "identity: no sha256 utility is a usage error, not a bogus id" "2" "$?"
 out="$(ident --file CLAUDE.md --start 1 --lane bogus --destination skill)"
 assert_has "identity: a usage error prints usage text" "$out" "  detect.sh identity [--root <dir>] --file <path> --start <n>"
 
