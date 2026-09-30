@@ -988,6 +988,7 @@ def baseline_policy() -> dict[str, Any]:
         "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
+        "hint_sources": {},
         "rules": [],
         "elevation": "never",
         "policy_sources": ["baseline"],
@@ -1065,7 +1066,8 @@ def load_policy(
     for path in overlays:
         apply_policy_overlay(result, path, project_scope=path == project_layer)
     # A class rule covers every hint carrying the class across all layers, so a
-    # later layer's hint joins an earlier layer's rule.
+    # later layer's hint joins an earlier layer's rule; `hint_sources` records
+    # which layer supplied each hint so a match can be traced to it.
     for rule in result["rules"]:
         if "class" in rule:
             rule["hint_ids"] = [
@@ -1073,6 +1075,10 @@ def load_policy(
                 for hint in result["hints"]
                 if hint.get("class") == rule["class"]
             ]
+            rule["hint_sources"] = {
+                hint_id: result["hint_sources"].get(hint_id, "baseline")
+                for hint_id in rule["hint_ids"]
+            }
     return result
 
 
@@ -1142,6 +1148,7 @@ def apply_policy_overlay(
         hint for hint in result["hints"] if hint.get("id") not in disabled_set
     ]
     result["hints"].extend(additions)
+    result["hint_sources"].update({hint["id"]: str(overlay_path) for hint in additions})
     result["additional_protected_path_globs"].extend(protections)
     result["rules"].extend(rules)
     result["elevation"] = elevation
@@ -1343,6 +1350,9 @@ def apply_rules(
         }
         if "class" in rule:
             entry["policy_rule"]["class"] = rule["class"]
+            entry["policy_rule"]["hint_source"] = rule.get("hint_sources", {}).get(
+                hint_id, rule["source"]
+            )
         entry["preselected"] = rule["preselect"] and not entry["protected_reasons"]
         if entry["preselected"] and "min_age_days" in rule:
             reason = rule_in_flight_reason(

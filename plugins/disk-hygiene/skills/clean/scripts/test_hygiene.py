@@ -639,6 +639,7 @@ class HygieneTests(unittest.TestCase):
                         "source": str(path),
                         "index": 0,
                         "class": "backup",
+                        "hint_sources": {"bak-file": str(path), "orig-file": str(path)},
                     }
                 ],
                 hygiene.load_policy(path)["rules"],
@@ -667,6 +668,21 @@ class HygieneTests(unittest.TestCase):
                 policy = hygiene.load_policy(None)
             (rule,) = policy["rules"]
             self.assertEqual(["bak-file", "orig-file"], rule["hint_ids"])
+            self.assertEqual(
+                {"bak-file": str(user), "orig-file": str(project)},
+                rule["hint_sources"],
+            )
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "a.orig").write_text("old", encoding="utf-8")
+            entries = hygiene.entry_map(hygiene.scan_tree(root.resolve(), policy))
+            self.assertEqual(
+                {"source": str(user), "hint_source": str(project)},
+                {
+                    key: entries["a.orig"]["policy_rule"][key]
+                    for key in ("source", "hint_source")
+                },
+            )
 
     def test_scan_records_a_directory_atime_from_before_it_was_listed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -781,6 +797,7 @@ class HygieneTests(unittest.TestCase):
                     "index": 0,
                     "hint_id": "bak-file",
                     "class": "backup",
+                    "hint_source": str(overlay),
                 },
                 entries["a.bak"]["policy_rule"],
             )

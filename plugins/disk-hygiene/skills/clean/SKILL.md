@@ -399,7 +399,7 @@ it is, why removable, risk, whether it is an empty directory, the single tier, a
 Process another tier only with a new plan, preview, and question.
 
 A candidate a policy rule matched carries `policy_rule` (overlay `source`, rule `index`, matched
-`hint_id`; a rule matches a hint by id or by the hint's `class`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
+`hint_id`; a rule matches a hint by id or by the hint's `class`, and then `hint_source` names the layer that supplied the hint: show it when it differs from `source`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
 rows ticked with the rule named beside them. A tick is a policy-file default, not a user message:
 the gate still needs the tier and path list named. Preview unticks a candidate with any blocker but
 `execution-platform-unsupported`, or whose plan tier ranks above the matched hint's
