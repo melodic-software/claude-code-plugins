@@ -31,11 +31,12 @@
 # unapproved `settings.json` does not run headlessly.
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# STATUS: RUN 2026-08-15 on Claude Code 2.1.232 — INCONCLUSIVE. All four arms
-# completed the fixture setup, but the InstructionsLoaded hook produced zero
-# trace events on every arm (`claude -p` reported "Not logged in"). That is a
-# fixture failure, not evidence of absence — see fixtures/README.md. Re-run
-# under an authenticated CLI and refresh the record with the outcome.
+# STATUS: RUN 2026-09-30 on Claude Code 2.1.285, authenticated, ADJUDICATED. The
+# owning-parent leak does not reproduce on dot-nested, plain-nested or external
+# (5 InstructionsLoaded events per arm). On unrelated-nested the ENCLOSING
+# unrelated repo's scoped rule loads via the glob-match load reason; the "PARENT rule
+# loaded?" line checks the worktree's owner, so read the trace for that. See
+# fixtures/README.md for the record. A zero-event run is a fixture failure.
 # ─────────────────────────────────────────────────────────────────────────────
 #
 # Costs one `claude -p` turn per arm. Network and an authenticated CLI required.

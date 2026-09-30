@@ -15,6 +15,9 @@ unvalidated tree.
 
 - The side-effecting skill is manual-only (`disable-model-invocation: true`). Automated, scheduled,
   remote, or otherwise unattended sessions audit and stop.
+- The investigated-entry catalog under the plugin data root records what a run or the operator
+  concluded about an entry. `prior_disposition` is a hint on the next scan. It never authorizes
+  deletion or skips approval, preview, or revalidation.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
@@ -340,6 +343,7 @@ use the same admission ladder as directories.
 | OS-owned file names (`pagefile.sys`, `/swapfile`, `/swap.img`, `vmlinuz*`, `.file`, …) | Per-platform file set |
 | Hidden, System, `$`-prefixed, or dot-prefixed names | Fail closed on concealment |
 | Symlinks, reparse points, cloud placeholders | Ambiguous identity |
+| Virtual-disk image files (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`) | A whole guest disk; the name proves nothing about it being disposable |
 | Nested mounts and baseline-protected shell-folder names | Existing hard stops |
 | Fifos, sockets, devices, and other non-regular types | `not-regular-file-or-directory` |
 

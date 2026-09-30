@@ -74,10 +74,9 @@ full convention: `docs/conventions/recommendation-basis/README.md` in the market
 "Help me set up Claude in GitHub Actions" is a setup walkthrough this skill could give, and a
 built-in command performs it.
 
-- **`/install-github-app` (built-in command).** Ships with Claude Code rather than as a
-  marketplace plugin. Installs the Claude GitHub App for one repository, with an optional step
-  that sets up the GitHub Actions workflows and secrets. It is reserved for the person to run; the
-  model does not invoke it.
+- **`/install-github-app` (built-in command)**: installs the Claude GitHub App for one repository,
+  with an optional step that sets up the GitHub Actions workflows and secrets. It is reserved for
+  the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** Read-only design guidance across the GitHub settings plane,
   grounded in live `gh` state and the fetched GitHub docs; changes only through `--apply`.
 

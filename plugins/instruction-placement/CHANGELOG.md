@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.4] - 2026-09-30
+
+### Fixed
+
+- **Test suites put every fixture under one trapped temp root.** The `discover`, `render-index`, `detect`, and `glob-tools` tests remove their fixtures on exit, including after an assertion abort.
+
+## [0.16.3] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
 ## [0.16.2] - 2026-09-30
 
 ### Changed

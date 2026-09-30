@@ -59,13 +59,13 @@ Agent({
 })
 ```
 
-Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase. **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
+Write its `verification_line` over `verification: pending`; a FAIL row returns to its phase (bounded at `Budget: low`). **On the cost path** (you skip the verifier for cost) write `verification: skipped (cost)`; never leave `pending` after this boundary. Values: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md` ("The `verification:` values"). Brief, write-back, project fit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md` ("The orchestration boundary").
 
 ## Outcome gate (run before presenting)
 
 Research is not done when the phases finish. It's done when it passes this gate. Check what the run ACHIEVED against what good research requires, **grounded in the run's own artifacts** (the evidence table, the Phase 1/2 written gap lists, the fetch log), NOT in your recollection of "did I do a good job." The context that ran the phases is the one grading them, so only artifact-grounded binary criteria bite.
 
-Each criterion is binary. Read it off an artifact, not from memory. **Any FAIL returns to the named phase; do not present until all pass.** And **the Owner column is not decoration.** Rows the run can read off an artifact stay with the run. A row where the run would judge the quality of *its own choices* belongs to a **verifier**, a fresh context that never saw the run, dispatched by the parent as a sibling once the artifact is on disk. One row needs the consuming project's conventions and belongs to the **parent**. So a dispatched run returns `verification: pending` and renders no verdict on a verifier row; an inline run hands those rows to a fresh context too. The Owner column governs over any enumeration of these rows in an agent definition or sibling skill.
+Each criterion is binary. Read it off an artifact, not from memory. **Any FAIL returns to the named phase (bounded at `Budget: low`: "Effort, source breadth"); do not present until all pass.** And **the Owner column is not decoration.** Rows the run can read off an artifact stay with the run. A row where the run would judge the quality of *its own choices* belongs to a **verifier**, a fresh context that never saw the run, dispatched by the parent as a sibling once the artifact is on disk. One row needs the consuming project's conventions and belongs to the **parent**. So a dispatched run returns `verification: pending` and renders no verdict on a verifier row; an inline run hands those rows to a fresh context too. The Owner column governs over any enumeration of these rows in an agent definition or sibling skill.
 
 | # | Binary criterion | Owner | FAIL → |
 |---|---|---|---|
@@ -107,7 +107,7 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 10. **Task size does not reduce phase count**, a one-line config change gets the same treatment as a multi-file feature. Only the Effort table reduces it, at the row caller effort or a `breadth=` token selects
 11. **Confidence tracked per claim**. HIGH / MEDIUM / LOW per the discipline file's "Confidence calibration." A LOW-confidence claim is not a basis for a code edit; iterate until HIGH
 12. **Primary source fetched directly, not via the SERP**. For every accepted claim, name the canonical doc home and fetch it directly with whatever direct-fetch tool is connected this session, top-down through the discipline file's artifact ladder (an announcement page is not the vendor's deepest artifact); SERP + synthesis tools only DISCOVER what to fetch and find corroborators, never serve as the terminal source
-13. **Outcome gate before presenting**, the run self-checks its own evidence table + written gap lists + fetch log against binary criteria; any FAIL returns to the named phase (see "Outcome gate")
+13. **Outcome gate before presenting**, the run self-checks its own evidence table + written gap lists + fetch log against binary criteria; any FAIL returns to the named phase (see "Outcome gate"; bounded at `Budget: low`: "Effort, source breadth")
 14. **Bounded corpora are enumerated before they are searched**, when the topic has a finite, knowable set of things to cover, Phase 0 writes `research-checklist.md` naming every item and its per-item depth criterion BEFORE any query runs, and the gate fails on any unmarked row. Distinct from discipline 9: the gap list chases *unknowns* surfaced by searching, this enforces exhaustive coverage of a set that was knowable up front. Recipe: the discipline file's "Corpus enumeration"
 15. **Every accepted claim follows from its sources jointly**, name what each source measures and why the claim follows from them together; verbatim quotes are not that evidence. Recipe: the discipline file's "Joint-inference check"
 
@@ -130,12 +130,25 @@ version.
 
 | Effort | Source breadth |
 |---|---|
-| `low` | Phase 0 if bounded, Phase 1 at existing floors, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
+| `low` | Phase 0 if bounded, Phase 1 at existing floors and under the cap below, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
 | `medium` | Phase 0 through 2 in full (per-gap Phase 2 queries plus falsification). Skip Phase 3 and Phase 4 |
 | `high`, `xhigh`, `max` | Current full workflow |
 
 The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
 file's "Effort, source breadth".
+
+**Phase 1 at `low` is capped at 6 web queries and fetches combined**, above the 3-query floor and
+below the doubled minimums. For a single named artifact or folder, read it directly first (`Read`,
+`Glob`, `Grep`, or a listing) and let what it shows choose the queries; local reads do not count
+against the cap. A claim still short of its sources at the cap is a gap named in the artifact, not
+a reason to search on.
+
+**The verify-and-rework loop at `low` is bounded.** A verifier FAIL on a verifier-owned row (Owner
+column, "Outcome gate") is not reworked: no `SendMessage` resume of the researcher. Record it in the
+artifact as a Gap or Conflicts entry, or leave it as the named `verification: fail rows` value, and
+present the result with that caveat. Medium and above return a FAIL row to its phase as the gate
+routes. Rows the run owns and gate exit codes stay mandatory at every budget, and an ungradeable or
+missing artifact still takes the recovery ladder, resume before discard.
 
 ## Pre-dispatch envelope and baseline
 
@@ -153,7 +166,7 @@ Source breadth: <low|medium|high|xhigh|max>
 Evidence use: <internal|publish>
 ```
 
-`Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
+At `Budget: low` the parent contract's "`Budget:` vocabulary" sets the `Turn budget:` value. `Source breadth:` is `${CLAUDE_EFFORT}` as this load rendered it (a literal placeholder means the body was read from disk: write `high`). Why each field exists and how a missing one degrades: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), which the dispatch does not need.
 
 **Pre-dispatch:** create the memory slice and touch `<that slice>/.research-dispatch` as the gate's freshness baseline, then hand that file to the gate as `--newer-than`. Without it a slice that already holds an earlier run's index passes every on-disk check even when this dispatch wrote nothing at all. On an N-topic fan-out one baseline at the slice root serves every sub-slice. Run the form matching this session's shell, because the POSIX form's `touch` is not a command in PowerShell and its directory flag is a parameter error there:
 

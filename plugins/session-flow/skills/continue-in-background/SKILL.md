@@ -213,12 +213,11 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 Three built-in commands also keep work moving off this terminal, so "continue in the background"
 can mean any of them.
 
-- **`/subtask`, `/fork`, `/background` (built-in commands, alias `/bg`).** Ship with Claude Code
-  rather than as a marketplace plugin. `/subtask <task>` sends a subagent off with the full
-  conversation and returns its result here. `/fork` copies the conversation into a new background
-  session while this one keeps working. `/background [prompt]` detaches this session itself and
-  frees the terminal. None writes a save-point. All three are reserved for the person to run; the
-  model does not invoke them.
+- **`/subtask`, `/fork`, `/background` (built-in commands, alias `/bg`)**: `/subtask <task>` sends a
+  subagent off with the full conversation and returns its result here. `/fork` copies the
+  conversation into a new background session while this one keeps working. `/background [prompt]`
+  detaches this session itself and frees the terminal. None writes a save-point. All three are
+  reserved for the person to run; the model does not invoke them.
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
   tree, and launches a fresh `claude --bg` session seeded only with the rails resume prompt, so
   the continuation carries no conversation history and survives on disk.
