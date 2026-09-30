@@ -1313,6 +1313,13 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(rec["description_variants"], ["Use …", "Use X"])
         self.assertEqual(rec["description_source"], "template")
 
+    def test_a_reassigned_parameter_is_not_its_argument(self) -> None:
+        src = (
+            'var Qz="Probe";function ff(x){x=g();return`Use ${x}`}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Use …")
+
     def test_a_partial_element_or_argument_keeps_a_runtime_alternative(self) -> None:
         src = (
             'var Qz="Probe",Rz="Bound";function ff(x){return`Use ${x}`}'

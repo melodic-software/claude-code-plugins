@@ -1582,11 +1582,17 @@ def _resolve_chain(
         nested = braces.enclosing(fn[0] - 1) is not None
         scope = {**shadow, **fn[1]} if nested else fn[1]
         if len(chain) == 2:
+            body = src[fn[0] : close]
             scope = {
                 **scope,
-                **_bound_arguments(
-                    src, braces, fn[2], chain[1][2], hops=hops - 1, shadow=shadow
-                ),
+                **{
+                    # A parameter the body reassigns is not its argument.
+                    name: values
+                    for name, values in _bound_arguments(
+                        src, braces, fn[2], chain[1][2], hops=hops - 1, shadow=shadow
+                    ).items()
+                    if not _binding_pattern(name).search(body)
+                },
             }
         _scan(
             src,
