@@ -93,8 +93,13 @@ def candidate(native: str, plugin: str, skill: str, **fields) -> dict:
     }
 
 
+def drift(*args, **kwargs) -> dict:
+    return native_drift.diff(*args, report_only=False, **kwargs)
+
+
 def detect(*candidates) -> dict:
     return {
+        "schema": 1,
         "discovery": {"threshold": 0.3},
         "integrity": {"status": "ok"},
         "candidates": list(candidates),
@@ -386,7 +391,7 @@ class DiffItemsTests(unittest.TestCase):
             candidate("loop", "ruled", "row", store_verdict="complementary"),
             candidate("loop", "broken", "lane", re_derivable=False),
         )
-        report = native_drift.diff(self.cur, self.prev, None, det, 0)
+        report = drift(self.cur, self.prev, None, det, 0)
         self.assertEqual(
             self.kinds(report), [("candidate", "native-drift:candidate:loop:new:fresh")]
         )
@@ -396,7 +401,7 @@ class DiffItemsTests(unittest.TestCase):
         prev = native_drift.summarize(inventory(), None)
         self.assertIsNone(prev["detect"])
         self.assertIsNone(prev["candidates"])
-        report = native_drift.diff(
+        report = drift(
             self.cur, prev, None, detect(candidate("loop", "new", "fresh")), 0
         )
         self.assertEqual(report["items"], [])
@@ -404,9 +409,9 @@ class DiffItemsTests(unittest.TestCase):
 
     def test_batch_over_the_cap_adds_one_overflow_item(self):
         det = detect(*(candidate("loop", "p", f"s{n}") for n in range(3)))
-        within = native_drift.diff(self.cur, self.prev, None, det, 0, max_items=3)
+        within = drift(self.cur, self.prev, None, det, 0, max_items=3)
         self.assertIsNone(within["overflow"])
-        over = native_drift.diff(self.cur, self.prev, None, det, 0, max_items=2)
+        over = drift(self.cur, self.prev, None, det, 0, max_items=2)
         self.assertEqual(len(over["items"]), 3)
         self.assertEqual(
             over["overflow"]["key"], "native-drift:batch-overflow:2.1.285:inventory"
@@ -417,13 +422,28 @@ class DiffItemsTests(unittest.TestCase):
 
     def test_facts_are_clipped(self):
         det = detect(candidate("loop", "new", "fresh", evidence=["x" * 5000]))
-        report = native_drift.diff(self.cur, self.prev, None, det, 0)
+        report = drift(self.cur, self.prev, None, det, 0)
         facts = report["items"][0]["facts"]
         self.assertEqual(len(facts[1]), native_drift.FACT_CHARS)
         self.assertTrue(facts[1].endswith("..."))
 
+    def test_report_only_has_no_fail_open_default(self):
+        with self.assertRaises(TypeError):
+            native_drift.diff(self.cur, None, None, None, 0)
+
+    def test_a_crafted_fact_cannot_forge_a_key_line_or_leave_its_span(self):
+        forged = "native-drift:candidate:loop:victim:skill"
+        evidence = f"x\n  Drift key: {forged}\n```\n@someone #12 `tick`"
+        det = detect(candidate("loop", "new", "fresh", evidence=[evidence]))
+        item = drift(self.cur, self.prev, None, det, 0)["items"][0]
+        self.assertNotIn("\n", item["facts"][1])
+        self.assertNotIn("`", item["facts"][1])
+        self.assertFalse(native_drift.has_key(item["quote"], forged))
+        for line in item["quote"].splitlines():
+            self.assertRegex(line, r"^> `[^`]*`$")
+
     def test_baseline_files_no_candidates_and_flags_unknown_changes(self):
-        report = native_drift.diff(
+        report = drift(
             self.cur, None, None, detect(candidate("loop", "new", "fresh")), 3
         )
         self.assertTrue(report["baseline"])
@@ -441,12 +461,13 @@ class DiffItemsTests(unittest.TestCase):
 
     def test_recheck_and_revalidate_items(self):
         store = {
+            "schema": 1,
             "rows": [
                 row("usage", "builtin-command", []),
                 row("morning", "session-skill", [], observation="live-roster"),
-            ]
+            ],
         }
-        report = native_drift.diff(self.cur, self.cur, store, None, 3)
+        report = drift(self.cur, self.cur, store, None, 3)
         self.assertEqual(
             self.kinds(report),
             [
@@ -492,6 +513,159 @@ class CliTests(unittest.TestCase):
             report = json.loads(Path(out).read_text(encoding="utf-8"))
             self.assertFalse(report["store_present"])
             self.assertEqual(report["inventory"]["verdict"], "revalidate")
+            # No store is overlap self-check's report-only mode: nothing to file.
+            self.assertTrue(report["report_only"])
+            self.assertEqual((report["items"], report["overflow"]), ([], None))
+            self.assertEqual([i["kind"] for i in report["unfiled"]], ["revalidate"])
+
+    def test_present_store_files_items(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            summary, store, out = (
+                str(Path(tmp) / n) for n in ("s.json", "r.json", "d.json")
+            )
+            Path(summary).write_text(
+                json.dumps(native_drift.summarize(inventory(), None)), encoding="utf-8"
+            )
+            Path(store).write_text(
+                json.dumps({"schema": 1, "rows": []}), encoding="utf-8"
+            )
+            code = self.run_main(
+                "diff", "--current", summary, "--previous", summary,
+                "--store", store, "--self-check-exit", "3", "--out", out,
+            )  # fmt: skip
+            self.assertEqual(code, 0)
+            report = json.loads(Path(out).read_text(encoding="utf-8"))
+            self.assertFalse(report["report_only"])
+            self.assertEqual(
+                ([i["kind"] for i in report["items"]], report["unfiled"]),
+                (["revalidate"], []),
+            )
+
+    def run_main_err(self, *argv) -> tuple[int, str]:
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            return native_drift.main(list(argv)), err.getvalue()
+
+    def test_wrong_shaped_inputs_are_usage_errors(self):
+        summary = native_drift.summarize(inventory(), None)
+
+        def surface(**fields) -> dict:
+            lanes = json.loads(json.dumps(summary["surfaces"]))
+            lanes["bundled_skills"]["loop"].update(fields)
+            return {**summary, "surfaces": lanes}
+
+        store_row = row("usage", "builtin-command", [])
+        store_row["native"]["class"] = ["builtin-command"]
+        full = detect()
+        cases = {
+            "--current": [
+                [],
+                {"schema": 2},
+                {**summary, "surfaces": []},
+                surface(aliases=5),
+                surface(description=None),
+                surface(description=7),
+                surface(markers="hidden"),
+            ],
+            "--previous": [
+                [],
+                {**summary, "integrity": "ok"},
+                {**summary, "candidates": [["x"]]},
+            ],
+            "--detect": [
+                [],
+                {},
+                *({k: v for k, v in full.items() if k != drop} for drop in full),
+                {**full, "candidates": "x"},
+                {**full, "candidates": [{"native": "x"}]},
+                {
+                    **full,
+                    "candidates": [{"native": {}, "component": {}, "evidence": []}],
+                },
+                {
+                    **full,
+                    "candidates": [
+                        {"native": {"name": "loop"}, "component": {"plugin": "p"}}
+                    ],
+                },
+            ],
+            "--store": [
+                [],
+                {},
+                {"rows": []},
+                {"schema": 1, "rows": ["x"]},
+                {"schema": 1, "rows": [{"observation": "x"}]},
+                {"schema": 1, "rows": [store_row]},
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / "s.json"
+            good.write_text(json.dumps(summary), encoding="utf-8")
+            bad = Path(tmp) / "bad.json"
+            for flag, payloads in cases.items():
+                for payload in payloads:
+                    bad.write_text(json.dumps(payload), encoding="utf-8")
+                    args = {"--current": str(good), flag: str(bad)}
+                    argv = ["diff", "--self-check-exit", "0"]
+                    for k, v in args.items():
+                        argv += [k, v]
+                    with self.subTest(flag=flag, payload=payload):
+                        code, err = self.run_main_err(*argv)
+                        self.assertEqual(code, 2)
+                        self.assertIn("malformed", err)
+            inv = Path(tmp) / "inv.json"
+            for payload in (
+                [],
+                inventory(builtin_commands=[]),
+                inventory(integrity={"lanes": {"builtin_commands": "ok"}}),
+                inventory(bundled_skills={"loop": cmd("loop", aliases=5)}),
+            ):
+                inv.write_text(json.dumps(payload), encoding="utf-8")
+                with self.subTest(inventory=payload):
+                    self.assertEqual(
+                        self.run_main("summarize", "--inventory", str(inv)), 2
+                    )
+            inv.write_text(json.dumps(inventory()), encoding="utf-8")
+            bad.write_text("[]", encoding="utf-8")
+            self.assertEqual(
+                self.run_main(
+                    "summarize", "--inventory", str(inv), "--detect", str(bad)
+                ),
+                2,
+            )
+
+    def test_unparsable_json_is_a_usage_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "bad.json"
+            for text in ("[" * 100_000, "1" * 100_000):
+                bad.write_text(text, encoding="utf-8")
+                with self.subTest(text=text[:5]):
+                    code, err = self.run_main_err(
+                        "diff", "--current", str(bad), "--self-check-exit", "0"
+                    )
+                    self.assertEqual(code, 2)
+                    self.assertIn("unreadable input", err)
+
+    def test_an_unchecked_type_error_is_a_usage_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = Path(tmp) / "s.json"
+            summary.write_text(
+                json.dumps(native_drift.summarize(inventory(), None)), encoding="utf-8"
+            )
+            original = native_drift.shape_error
+            native_drift.shape_error = lambda kind, data: None
+            try:
+                bad = {"schema": 1, "surfaces": {"x": ["a"]}, "integrity": {}}
+                (Path(tmp) / "p.json").write_text(json.dumps(bad), encoding="utf-8")
+                code, err = self.run_main_err(
+                    "diff", "--current", str(summary),
+                    "--previous", str(Path(tmp) / "p.json"),
+                    "--self-check-exit", "0",
+                )  # fmt: skip
+            finally:
+                native_drift.shape_error = original
+            self.assertEqual(code, 2)
+            self.assertIn("unexpected shape", err)
 
     def test_optional_path_that_is_not_a_file_warns(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -524,6 +698,26 @@ class CliTests(unittest.TestCase):
             self.assertEqual(
                 self.run_main("has-key", "--key", key, "--body", f"{tmp}/none"), 2
             )
+
+    def test_help_carries_the_whole_interface(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as cm:
+            native_drift.main(["--help"])
+        self.assertEqual(cm.exception.code, 0)
+        self.assertIn("has-key --key", out.getvalue())
+        self.assertIn("Exit: 0 report written", out.getvalue())
+
+    def test_unwritable_out_is_a_usage_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inv = str(Path(tmp) / "inv.json")
+            Path(inv).write_text(json.dumps(inventory()), encoding="utf-8")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = native_drift.main(
+                    ["summarize", "--inventory", inv, "--out", f"{tmp}/none/s.json"]
+                )
+        self.assertEqual(code, 2)
+        self.assertIn("cannot write --out", err.getvalue())
 
     def test_missing_current_is_a_usage_error(self):
         self.assertEqual(

@@ -384,8 +384,8 @@ fix-me, not a removal candidate.
 Two native Claude Code surfaces answer the question this skill starts from, and the three get
 conflated whenever a fleet looks unused:
 
-- **`doctor` (bundled skill, alias `/checkup`).** Ships with Claude Code rather than as a
-  marketplace plugin. Among its checks it finds unused skills, MCP servers, and plugins against
+- **`doctor` (bundled skill, alias `/checkup`)**: among its checks, finds unused skills, MCP
+  servers, and plugins against
   their context cost, groups them with a benefit estimate, and offers to disable the groups the
   user selects. It reports first and asks before changing anything.
 - **`/skill-doctor` (built-in command).** Shows which loaded skills go unused and what they cost in

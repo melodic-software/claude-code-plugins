@@ -22,7 +22,7 @@ async page => {
     for (const q of s.questions.questions) {
       const r = s.responses.responses[q.id], dec = (r && r.decision) || (q.terminal && q.terminal.decision);
       if (!["accept", "own"].includes(dec) || q.archived || !(q.commits || []).length) continue;
-      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
+      const cf = new Set(s.responses.events.filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && e.seq <= q.commitsSinceSeq)).map(e => String(e.alt)).concat((q.commitsConfirmed || []).map(c => String(c.index))));
       n += q.commits.filter((c, i) => !cf.has(String(i))).length;
     }
     return n;
@@ -359,6 +359,13 @@ async page => {
     await page.click("#dlgOk"); await page.waitForTimeout(900);
     const acc3 = (await events()).filter(e => e.kind === "accept" && e.id === "A2").length;
     ok("once A2 is opened again, Accept all accepts it", acc3 === 1, String(acc3));
+    { // the shell revised Q1's commitments after phase 1 ticked one: that tick belongs to the old list
+      const s2 = await state(), q1 = s2.questions.questions.find(q => q.id === "Q1");
+      await pick("Q1");
+      const rows = await page.$$eval("#dscroll [data-confirm]", els => els.map(e => e.checked));
+      ok("a revise of the commitments drops the old confirm tick", q1.commitsSinceSeq > 0 && rows.length === 2 && rows.every(c => !c), JSON.stringify(rows) + " since " + q1.commitsSinceSeq);
+      ok("counter agrees after the commitments were replaced", (await counter()) === (openAssumptions(s2) ? open(openAssumptions(s2)) : ""), (await counter()) + " vs " + openAssumptions(s2));
+    }
     // SPEC 5.6: wrap-up freeze
     await page.keyboard.press("w"); await page.waitForTimeout(300);
     const n0 = (await events()).length;

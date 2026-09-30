@@ -1,0 +1,14 @@
+{
+  "tools": [
+    {
+      "name": "shfmt",
+      "check": "/bash-format:check",
+      "install": "host package or release binary, https://github.com/mvdan/sh#shfmt"
+    },
+    {
+      "name": "shellcheck",
+      "check": "/bash-format:check",
+      "install": "host package or release binary, https://github.com/koalaman/shellcheck#installing"
+    }
+  ]
+}

@@ -3,6 +3,24 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.9.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.9.0] - 2026-09-29
+
+### Changed
+
+- **The reader contract requires a paused consumer to drop a latched pause on an account switch.** The Operable floor block gains an `Account switch` bullet: a consumer MUST read `.oauthAccount.emailAddress` from `.claude.json` directly at pause entry and on every re-evaluation, and when it differs from the latched account it re-evaluates against the new account's windows: below 90 it drops the latch and resumes, at or above 90 it re-latches, and with no fresh snapshot that attributes the new account the windows are unknown, so it drops the latch and runs reactive-only. The latched account is the `account.email` of the snapshot that tripped the pause, and a snapshot without one leaves the pause unattributed. An unreadable or absent state file keeps the latch. The Invariants and boundaries paragraph and the recheck trigger name the dependency on that internal key, and the multi-account README bullet describes the lane behavior.
+
 ## [0.8.38] - 2026-09-29
 
 ### Fixed

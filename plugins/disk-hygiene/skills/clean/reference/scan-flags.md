@@ -7,10 +7,14 @@ confirmation gate stay in [SKILL.md](../SKILL.md#arguments-and-boundaries).
 ## `--quiet`
 
 `--quiet` shapes the scan's stdout and nothing else: it omits `children_rollup`, prints
-`truncated_paths` as a count instead of the list, and shortens the closing note, leaving every
-counter, byte total, error and policy source in place. The snapshot file carries the rollup and the
-truncated-path list in full in both modes, so read per-child detail and the coverage gaps there and
-pass `--quiet` whenever the run only needs the frontier summary.
+`truncated_paths` as a count instead of the list, prints `truncation_reasons` as a per-reason tally
+instead of a path map, and shortens the closing note, leaving every
+counter, byte total, error and policy source in place. The snapshot file carries the rollup, the
+truncated-path list and each path's reason in full in both modes, so read per-child detail and the coverage gaps there and
+pass `--quiet` whenever the run only needs the frontier summary. `truncation_reasons` covers every
+unwalked path, including a directory whose scan failed (`scan-error`, also listed in `errors`), which
+`truncated_paths` omits, and every sibling a `--root-children` run left unselected
+(`root-child-unselected`), so the tally can sum to more than the `truncated_paths` count.
 
 ## `--root-children` and `--root-child`
 
@@ -31,6 +35,32 @@ everything" is not selection.
 
 ## `--sizes-only`
 
-`--sizes-only` as implemented: it does not ask the large-scan question, so a known-large root walks
-without `--max-depth` or `--confirmed-large-scan`. It does not stop at VCS or protected
-directories: it sums through them, read-only, and writes no entries. It has no entry cap.
+`--sizes-only` goes through the same large-scan gate as an ordinary unbounded walk: a known-large
+root returns `large-target-confirmation-required` without `--max-depth` or `--confirmed-large-scan`.
+It does not stop at VCS or protected directories: it sums through them, read-only, for exact totals,
+and keeps no per-path entries. It has no entry cap.
+
+When an inventory scan hits the entry cap, the error lists the top five top-level children by entry
+count so far. The child still being walked is a lower bound, and children not yet reached are not
+counted. Size candidates with `--sizes-only`, then rerun with `--root-children --root-child <name>`
+on bounded children or with `--max-depth`.
+
+## Coverage and hint fields
+
+`truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut`,
+`scan-error` or `root-child-unselected`, as a tally under `--quiet`. A directory whose scan failed is
+in it as `scan-error` and in `errors`, and an unselected `--root-children` sibling is in it and in
+neither `truncated_paths` nor the entries, so its keys can outnumber `truncated_paths`.
+
+`target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees only.
+`totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked and on every
+`--root-children` scan, so read those totals as lower bounds then.
+
+A hint may set `entry_types` (`file`, `directory`, `link`, `other`) to match only those entry kinds,
+`link` being a symlink or reparse point; a hint that sets none matches every kind. The baseline
+`*.tmp` and `*.lock` hints match files and links, so a directory such as `~/.codex/.tmp` is not
+hinted. The scan does not probe processes, so a `common-lock-file` hint stays at confidence `low`
+and whether the lock is stale is proven during investigation (step 2 of the skill).
+
+The snapshot lists up to 200 sorted `empty_directory_paths` with `empty_directory_paths_truncated`;
+`scan-complete` stdout carries only `empty_directory_count`.

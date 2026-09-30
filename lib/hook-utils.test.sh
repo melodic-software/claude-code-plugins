@@ -154,13 +154,7 @@ unset HOOK_TELEMETRY_SINK
 if [[ -s "$SINK_FILE" ]]; then
   ok "envelope shape: sink received data"
   # Validate all 7 required common fields
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$SINK_FILE" >/dev/null 2>&1; then
-      ok "envelope shape: field '$field' present"
-    else
-      fail "envelope shape: field '$field' missing. envelope=$(cat "$SINK_FILE")"
-    fi
-  done
+  if check_envelope "$SINK_FILE"; then ok "envelope shape: matches envelope schema"; else fail "envelope shape: does not match envelope schema. envelope=$(cat "$SINK_FILE")"; fi
   # Validate data sub-fields
   for subfield in tool file findings; do
     if jq -e ".data | has(\"$subfield\")" "$SINK_FILE" >/dev/null 2>&1; then
@@ -199,9 +193,7 @@ if [[ -s "$SINK_FILE" ]]; then
   fi
 else
   fail "envelope shape: sink file empty — emit did not fire or sink did not write"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    fail "envelope shape: field '$field' not verifiable (no envelope)"
-  done
+  fail "envelope shape: envelope not verifiable (no envelope)"
   for subfield in tool file findings; do
     fail "envelope shape: data.$subfield not verifiable (no envelope)"
   done
@@ -807,6 +799,120 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
 else
   ok "under_temp_root: Windows drive-spelling case SKIPPED (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)"
 fi
+
+# --- Test 12f: temp-root candidates gain cygpath drive spellings -------------
+# Cygwin bash reports TEMP and TMP as /tmp, so on a Windows bash the drive
+# spellings come from cygpath. A stub cygpath maps the POSIX candidate to real
+# directories outside every temp tree and logs each call, so this runs on any
+# host. Each case is a fresh bash, so no case inherits another's cache.
+TW_DIR="$(cd "$HOOK_DIR/.." && pwd -P)/.work/hu-tempwin-$$"
+case "$TW_DIR" in
+/tmp/* | /var/tmp/*)
+  ok "temp_root_candidates: cygpath drive spellings SKIPPED (the checkout sits under temp at $TW_DIR; no coverage here, not a pass)"
+  ;;
+*)
+  mkdir -p "$TW_DIR/bin" "$TW_DIR/posix" "$TW_DIR/long" "$TW_DIR/short~1" "$TW_DIR/mixed"
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'TWEOF'
+printf '%s\n' "$*" >>"$TW_LOG"
+[[ -z "${TW_FAIL:-}" ]] || exit 1
+long=0
+for a in "$@"; do
+  case "$a" in
+  -l) long=1 ;;
+  -m | --) ;;
+  *)
+    if ((long)); then
+      [[ "$a" == "$TW_SHORT" ]] && a=$TW_LONG
+    else
+      [[ "$a" == "$TW_FROM" ]] && a=$TW_TO
+    fi
+    printf '%s\n' "$a"
+    ;;
+  esac
+done
+TWEOF
+  } >"$TW_DIR/bin/cygpath"
+  chmod +x "$TW_DIR/bin/cygpath"
+  TW_POSIX="$TW_DIR/posix|/tmp"
+  [[ -d /var/tmp ]] && TW_POSIX="$TW_POSIX|/var/tmp"
+  # tw_run <ostype> [NAME=value...]: prints the candidates of two calls in one
+  # shell, then the number of cygpath calls, one per line.
+  tw_run() {
+    local ostype="$1"
+    shift
+    : >"$TW_DIR/log"
+    # shellcheck disable=SC2016 # $1..$3 are the child's own positional parameters
+    env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" \
+      TW_SHORT="$TW_DIR/short~1" TW_LONG="$TW_DIR/long" "$@" \
+      PATH="$TW_DIR/bin:$PATH" "$BASH" -c '
+        OSTYPE="$1"
+        source "$2"
+        hook::_temp_root_candidates
+        (IFS="|"; printf "%s\n" "${_HOOK_TEMP_CANDS[*]}")
+        hook::_temp_root_candidates
+        (IFS="|"; printf "%s\n" "${_HOOK_TEMP_CANDS[*]}")
+        _HOOK_UTR_TARGET_PHYSICAL=0
+        if hook::under_temp_root "$3"; then echo in; else echo out; fi
+      ' _ "$ostype" "$HOOK_DIR/hook-utils.sh" "$TW_DIR/long/f"
+    local calls=0 line
+    while IFS= read -r line; do calls=$((calls + 1)); done <"$TW_DIR/log"
+    printf '%s\n' "$calls"
+  }
+  tw_case() {
+    local label="$1" want="$2" got
+    shift 2
+    got=$(tw_run "$@")
+    got=${got//$'\n'/ }
+    if [[ "$got" == "$want" ]]; then
+      ok "temp_root_candidates: $label"
+    else
+      fail "temp_root_candidates: $label: want '$want', got '$got'"
+    fi
+  }
+  # 8.3 answer: the long form comes first, two cygpath calls, none on the second
+  # call, and a target under the long form is under a temp root.
+  TW_83="$TW_POSIX|$TW_DIR/long|$TW_DIR/short~1"
+  tw_case "8.3 mixed answer adds long then short, 2 calls then 0" \
+    "$TW_83 $TW_83 in 2" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/short~1"
+  tw_case "cygwin OSTYPE takes the same arm" \
+    "$TW_83 $TW_83 in 2" cygwin TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/short~1"
+  # No `~` in the answer: one call.
+  tw_case "mixed answer without ~ adds it with 1 call" \
+    "$TW_POSIX|$TW_DIR/mixed $TW_POSIX|$TW_DIR/mixed out 1" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/mixed"
+  # A spelling already in the list is not added twice.
+  tw_case "a spelling equal to a POSIX candidate is deduped" \
+    "$TW_POSIX $TW_POSIX out 1" msys TW_FROM="$TW_DIR/posix" TW_TO=/tmp
+  # A spelling that is not a directory is dropped, like any candidate.
+  tw_case "a spelling that is not a directory is dropped" \
+    "$TW_POSIX $TW_POSIX out 1" msys TW_FROM="$TW_DIR/posix" TW_TO="C:/no/such/dir"
+  # A failing cygpath leaves the POSIX candidates. The failure is not cached, so
+  # each of the three candidate lookups (two direct, one in under_temp_root)
+  # asks again, one call each.
+  tw_case "a failing cygpath adds nothing" \
+    "$TW_POSIX $TW_POSIX out 3" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" TW_FAIL=1
+  # POSIX hosts never call cygpath, even with one on PATH.
+  tw_case "a Linux OSTYPE never calls cygpath" \
+    "$TW_POSIX $TW_POSIX out 0" linux-gnu TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long"
+  # --no-drive stops before cygpath even on a Windows OSTYPE.
+  : >"$TW_DIR/log"
+  # shellcheck disable=SC2016 # $1 is the child's own positional parameter
+  tw_nodrive=$(env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" \
+    PATH="$TW_DIR/bin:$PATH" "$BASH" -c '
+      OSTYPE=msys
+      source "$1"
+      hook::_temp_root_candidates --no-drive
+      (IFS="|"; printf "%s" "${_HOOK_TEMP_CANDS[*]}")
+    ' _ "$HOOK_DIR/hook-utils.sh")
+  if [[ "$tw_nodrive" == "$TW_POSIX" && ! -s "$TW_DIR/log" ]]; then
+    ok "temp_root_candidates: --no-drive adds no spelling and calls no cygpath"
+  else
+    fail "temp_root_candidates: --no-drive: want '$TW_POSIX' and no call, got '$tw_nodrive' and '$(<"$TW_DIR/log")'"
+  fi
+  rm -rf "$TW_DIR"
+  ;;
+esac
 
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must
@@ -5131,6 +5237,92 @@ es_to=""
 hook::extract_bash_subject_to es_to Bash 'TOKEN="a b" curl x'
 if [[ "$es_to" == Bash ]]; then ok "subject: a quoted assignment value never reaches the subject"; else fail "subject leaked: $es_to"; fi
 unset es_case es_tool es_cmd es_to es_print
+
+# --- gitignore scope gate (#4671) ---------------------------------------------
+# A fixture repository with an ignored scratch tier, a tracked file matching an
+# ignore pattern, and an ordinary file. Global excludes are neutralized so a
+# developer's own ignore rules cannot decide what the suite sees.
+if command -v git >/dev/null 2>&1; then
+  GI_ROOT="$(mktemp -d)"
+  GREPO="$GI_ROOT/grepo"
+  mkdir -p "$GREPO/.work" "$GREPO/src"
+  git -C "$GREPO" init -q
+  git -C "$GREPO" config core.excludesFile /dev/null
+  git -C "$GREPO" config user.email t@t.t
+  git -C "$GREPO" config user.name t
+  printf '.work/\n*.gen.sh\n' >"$GREPO/.gitignore"
+  printf 'x\n' >"$GREPO/.work/scratch.sh"
+  printf 'x\n' >"$GREPO/src/plain.sh"
+  printf 'x\n' >"$GREPO/src/tracked.gen.sh"
+  git -C "$GREPO" add -f src/tracked.gen.sh
+  git -C "$GREPO" commit -q -m init
+
+  if hook::file_is_gitignored "$GREPO/.work/scratch.sh"; then
+    ok "gitignored: an ignored untracked file reads as ignored"
+  else
+    fail "gitignored: .work/scratch.sh did not read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GREPO/src/tracked.gen.sh"; then
+    ok "gitignored: a tracked file matching an ignore pattern reads as not ignored"
+  else
+    fail "gitignored: a tracked file read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GREPO/src/plain.sh"; then
+    ok "gitignored: an ordinary file reads as not ignored"
+  else
+    fail "gitignored: src/plain.sh read as ignored"
+  fi
+
+  NOREPO="$GI_ROOT/norepo"
+  mkdir -p "$NOREPO"
+  printf 'x\n' >"$NOREPO/loose.sh"
+  if ! hook::file_is_gitignored "$NOREPO/loose.sh"; then
+    ok "gitignored: a file in no repository reads as not ignored"
+  else
+    fail "gitignored: a file in no repository read as ignored"
+  fi
+  if ! hook::file_is_gitignored "$GI_ROOT/missing-dir/gone.sh"; then
+    ok "gitignored: a vanished directory fails toward acting (not ignored)"
+  else
+    fail "gitignored: a vanished directory read as ignored"
+  fi
+
+  # An inherited GIT_DIR naming ANOTHER repository must not answer: the
+  # other repository ignores nothing, so honoring it would lint the file.
+  OTHER="$GI_ROOT/other"
+  mkdir -p "$OTHER"
+  git -C "$OTHER" init -q
+  if (GIT_DIR="$OTHER/.git" GIT_WORK_TREE="$OTHER" hook::file_is_gitignored "$GREPO/.work/scratch.sh"); then
+    ok "gitignored: an inherited GIT_DIR/GIT_WORK_TREE is cleared (still ignored)"
+  else
+    fail "gitignored: an inherited GIT_DIR/GIT_WORK_TREE decided the answer"
+  fi
+
+  if hook::gitignored_out_of_scope "false" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: ignored file with the opt-in off is out of scope"
+  else
+    fail "out_of_scope: ignored file with the opt-in off stayed in scope"
+  fi
+  if ! hook::gitignored_out_of_scope "true" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: the opt-in 'true' keeps an ignored file in scope"
+  else
+    fail "out_of_scope: the opt-in 'true' did not keep the file in scope"
+  fi
+  if hook::gitignored_out_of_scope "yes; rm -rf /" "$GREPO/.work/scratch.sh"; then
+    ok "out_of_scope: a garbage opt-in value reads as the default (off)"
+  else
+    fail "out_of_scope: a garbage opt-in value opened the gate"
+  fi
+  if ! hook::gitignored_out_of_scope "false" "$GREPO/src/plain.sh"; then
+    ok "out_of_scope: an ordinary file stays in scope with the opt-in off"
+  else
+    fail "out_of_scope: an ordinary file was put out of scope"
+  fi
+  rm -rf "$GI_ROOT"
+  unset GI_ROOT GREPO NOREPO OTHER
+else
+  ok "gitignore scope checks skipped (git absent)"
+fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

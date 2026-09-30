@@ -14,6 +14,19 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
+
+# A plain `ln -s` on Git Bash copies the target, so a fixture link is asked for
+# as a native symlink and confirmed with -L. A host that cannot make one counts
+# a no-coverage skip instead of asserting against a copy.
+bhb_skips=0
+bhb_skip() {
+  echo "SKIP: $* (no coverage here, not a pass)"
+  bhb_skips=$((bhb_skips + 1))
+}
+make_link() { # <target> <link> -> 0 when <link> is a real symlink
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]]
+}
 
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 #
@@ -1083,6 +1096,103 @@ run_pwsh "PS: all-variable staged positional call (allowed — outside scope, #2
 run_pwsh "PS: pipeline into & \$w computed operand (still blocked — #2848)" \
   "\$data | & \$w \$out" 2
 
+# --- #4234: a call variable assigned a single-quoted non-writer literal earlier
+# in the same command is a literal target; the positional arm skips that site.
+# Every other shape keeps the block.
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, bare subcommand positionals (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; & $sh x.sh record dir' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, quoted-bare-quoted operands (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; & $sh "$r/packet-seal.sh" record "$s/d"' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target inside a foreach body (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; foreach ($t in '"'"'a'"'"','"'"'b'"'"') { & $sh "$r/seal.sh" record "$s/$t"; "seal $t=$LASTEXITCODE" }; & $sh "$r/prune.sh" --root $b' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, pipeline into the call (allowed — #4234)" \
+  '$py='"'"'python3'"'"'; $data | & $py tool.py' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved literal target, quoted-bare-quoted with one root variable (allowed — #4234)" \
+  '$sh='"'"'C:/Program Files/Git/bin/bash.exe'"'"'; $r='"'"'C:/s'"'"'; & $sh "$r/packet-seal.sh" record "$r/out"' 0
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned to a computed value (blocked — #4234)" \
+  '$sh='"'"'bash.exe'"'"'; $sh=$x; & $sh a b c' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted target stays unresolved (blocked — #4234)" \
+  '$sh="bash.exe"; & $sh a b c' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assigned after the call, three positionals (blocked — #4234)" \
+  '& $sh a b c; $sh='"'"'bash.exe'"'"'' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: another variable is the call target (blocked — #4234)" \
+  '$sh='"'"'bash.exe'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a writer name (blocked — #4234)" \
+  '$w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is the sc alias (blocked — #4234)" \
+  '$w='"'"'sc'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a module-qualified writer (blocked — #4234)" \
+  '$w='"'"'Microsoft.PowerShell.Management\Set-Content'"'"'; & $w f.txt x' 2 # portability-ok: PowerShell module-qualified command string in a test fixture, not a regex/sed construct
+# shellcheck disable=SC2016
+run_pwsh "PS: literal is a writer script path (blocked — #4234)" \
+  '$w='"'"'C:/tools/Out-File.ps1'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: double-quoted assignment (blocked — #4234)" \
+  '$sh="bash"; & $sh x.sh record dir' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: concatenated literal assignment (blocked — #4234)" \
+  '$w='"'"'Set-'"'"'+'"'"'Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: literal with a method call (blocked — #4234)" \
+  '$w='"'"'bash'"'"'.Replace('"'"'bash'"'"','"'"'Set-Content'"'"'); & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assignment only after the call (blocked — #4234)" \
+  '& $sh x.sh record dir; $sh='"'"'bash'"'"'' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned to a writer (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: reassigned by a compound operator (blocked — #4234)" \
+  '$w='"'"'Set-'"'"'; $w+='"'"'Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: assignment inside a script block (blocked — #4234)" \
+  '& { $sh='"'"'bash'"'"' }; & $sh x.sh record dir' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: scope-qualified reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $script:w='"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: scope-qualified call target (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; & $script:w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: braced call target (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; & ${w} f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: Set-Variable reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; sv w '"'"'Set-Content'"'"'; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: set alias of Set-Variable by name (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $n='"'"'Set-Content'"'"'; set w $n; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: foreach loop variable reassignment (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; foreach ($w in '"'"'Set-Content'"'"') { & $w f.txt x }' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: automatic variable rebound by the pipeline (blocked — #4234)" \
+  '$_='"'"'bash'"'"'; '"'"'Set-Content'"'"' | % { & $_ f.txt x }' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved target still refused on a splat (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh @p' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: resolved target still refused on a redirect (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh x > f.txt' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: one resolved call does not exempt another variable (blocked — #4234)" \
+  '$sh='"'"'bash'"'"'; & $sh a b; & $w f.txt x' 2
+# shellcheck disable=SC2016
+run_pwsh "PS: variable names are case-insensitive (blocked — #4234)" \
+  '$w='"'"'bash'"'"'; $W='"'"'Set-Content'"'"'; & $w f.txt x' 2
+
 # Quoted `>` / `-value` text must not trip the write-signal probes.
 run_pwsh "PS: & \$tool quoted greater-than message (allowed)" \
   "& \$tool -Message \"CPU > 90%\"" 0
@@ -1187,7 +1297,7 @@ run_pwsh "PS: fd-dup on a non-leftmost call site (blocked — #2927)" \
   "& \$w; & \$w2 2>&1 f.txt x" 2
 # The deliberately ACCEPTED behavior change: once the merge is stripped, one
 # literal positional before it and one after it read as the Path+Value pair. That
-# is consistent with `& $py script.py arg`, which already blocked, so the class is
+# is consistent with `& $py script.py arg` (an unassigned target blocks), so the class is
 # narrow — it needs BOTH sides of the merge to carry a positional.
 # shellcheck disable=SC2016
 run_pwsh "PS: positional on each side of an fd-dup (blocked — accepted #2927 change)" \
@@ -1413,6 +1523,30 @@ assert_eq "message: PowerShell write stderr is verdict, remedy, pointer" \
 $MSG_USE
 $MSG_REMEDY_SWITCHES
 $MSG_POINTER" "$GUARD_ERR"
+# The positional-operand arm names its own rule and gives no Write/Edit advice: the
+# fix is a literal call target or a flag, not a different tool.
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $tool f.txt x' -- "${MSG_ENV[@]}"
+assert_exit "message: computed positional call blocks" 2 "$GUARD_RC"
+assert_contains "message: computed positional names the rule" "$GUARD_ERR" \
+  "with 2+ positional operands is read as Set-Content <path> <value>"
+assert_contains "message: computed positional names the literal-path rewrite" "$GUARD_ERR" \
+  "call the program by a literal quoted path"
+assert_absent "message: computed positional gives no Write/Edit advice" "$GUARD_ERR" "Use the Write or Edit tool"
+assert_absent "message: computed positional gives no write-cmdlet verdict" "$GUARD_ERR" "PowerShell file-write cmdlet/redirect"
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $tool -Value x f.txt' -- "${MSG_ENV[@]}"
+assert_contains "message: computed -Value arm keeps the write verdict" "$GUARD_ERR" \
+  "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+TEL_POS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINK_POS="$(make_sink "cat >\"$TEL_POS\"")"
+env HOOK_TELEMETRY_SINK="$SINK_POS" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(jq -cn --arg c '& $tool f.txt x' '{tool_name:"PowerShell",tool_input:{command:$c}}')" >/dev/null 2>&1 || true
+if wait_for_sink "$TEL_POS"; then
+  assert_eq "telemetry: computed positional form" "powershell-computed-positional" "$(jq -r '.data.form' "$TEL_POS" | tr -d '\r')"
+else
+  bad "telemetry: no envelope written on a computed positional block"
+fi
 guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\"" \
   -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_eq "message: PowerShell python write stderr is verdict, remedy, pointer" \
@@ -1591,7 +1725,7 @@ for d in "${latch_path_dirs[@]}"; do
     LATCH_NOJQ_PATH+="${LATCH_NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$LATCH_NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+if PATH="$LATCH_NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "latch: could not build a PATH without jq"
 else
   LATCH_DIR3="$TEST_TMPDIR/latch-data-nojq"
@@ -1951,11 +2085,16 @@ PD_PROJ="/tmp/bhb-plugin-data-proj-$$"
 PD_REAL_CFG="/tmp/bhb-plugin-data-cfg-$$"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 mkdir -p "$PD_REAL_CFG/plugins/data" "$PD_PROJ/src"
-ln -s "$PD_PROJ" "$PD_REAL_CFG/plugins/data/to-repo"
+PD_HAVE_LINK=0
+make_link "$PD_PROJ" "$PD_REAL_CFG/plugins/data/to-repo" && PD_HAVE_LINK=1
 run_cwd "plugin data: fires on its own when the temp default stands down (allowed)" \
   "echo hello > $PD_REAL_CFG/plugins/data/r/report.md" "$PD_PROJ" 0 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
-run_cwd "plugin data: symlink escape into the repository blocks" \
-  "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+if ((PD_HAVE_LINK)); then
+  run_cwd "plugin data: symlink escape into the repository blocks" \
+    "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+else
+  bhb_skip "plugin data: symlink escape into the repository not asserted (no real symlink on this host)"
+fi
 # The reverse escape: a CLAUDE_PROJECT_DIR that is a symlink whose physical
 # target sits UNDER the plugin data directory. The lexical gate sees a project
 # root that does not contain the directory and enables the default, but
@@ -1966,15 +2105,118 @@ PD_INNER="$PD_REAL_CFG/plugins/data/projreal"
 PD_LINK="/tmp/bhb-plugin-data-projlink-$$"
 mkdir -p "$PD_INNER/src"
 rm -f "$PD_LINK"
-ln -s "$PD_INNER" "$PD_LINK"
-run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
-  "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
-# A sibling report directory under the same plugin data root is still exempt:
-# the refusal is scoped to the project's own physical subtree, not the root.
-run_cwd "plugin data: a report beside the symlinked project is still allowed" \
-  "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+if make_link "$PD_INNER" "$PD_LINK"; then
+  run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
+    "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+  # A sibling report directory under the same plugin data root is still exempt:
+  # the refusal is scoped to the project's own physical subtree, not the root.
+  run_cwd "plugin data: a report beside the symlinked project is still allowed" \
+    "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+else
+  bhb_skip "plugin data: project root symlinked INTO the directory not asserted (no real symlink on this host)"
+fi
 rm -f "$PD_LINK"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
+
+# --- PowerShell: one write to one literal destination under an exempt root ---
+# The PowerShell lane blocks on cmdlet/redirect co-occurrence, but a command
+# that is exactly one write whose single literal, absolute destination lies
+# under an exempt root is judged by the same axis as a Bash redirect. Anything
+# else in the command that could write, evaluate or rebind the destination keeps
+# the block.
+PS_POSIX_SKIP=0
+run_pwsh_cwd() {
+  local label="$1" command="$2" expected="$3"
+  shift 3
+  ((PS_POSIX_SKIP)) && return 0
+  expect "$label" "$expected" --tool PowerShell --command "$command" --cwd "$PROJ" -- \
+    CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=" "$@"
+}
+PSD="$PD_HOME/.claude/plugins/data/x"
+# The home path is assembled so no contiguous Windows user-home literal sits in
+# this file: the machine-specific-path scan and the hardcoded-path hook reject one.
+WIN_HOME="C:\\"'Users\me'
+run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
+  "Get-ChildItem | Export-Csv -Path ${WIN_HOME}"'\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
+# On a Windows host PowerShell resolves a POSIX-spelled destination against the
+# current drive, so the guard refuses it there and the rows below, every one
+# POSIX-spelled, cannot tell an exemption from a block. The drive-spelled row
+# above is the one that runs on Windows.
+# shellcheck disable=SC2031 # reads the host's real OSTYPE
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]]; then
+  PS_POSIX_SKIP=1
+  printf 'SKIP: PowerShell exempt-root rows with a POSIX-spelled destination not asserted (PowerShell on Windows resolves /x against the current drive; no coverage here, not a pass)\n'
+fi
+run_pwsh_cwd "PS exempt: Export-Csv -Path into plugin data (allowed)" \
+  "Get-ChildItem | Export-Csv -Path $PSD/out.csv" 0
+run_pwsh_cwd "PS exempt: Out-File -FilePath into plugin data (allowed)" \
+  "Get-ChildItem | Out-File -FilePath $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: positional Out-File into plugin data (allowed)" \
+  "Get-ChildItem | Out-File $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: producer > into plugin data (allowed)" \
+  "Write-Output hi > $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: >> append into plugin data (allowed)" \
+  "echo hi >> $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: single-quoted destination plus a switch (allowed)" \
+  "Get-ChildItem | Export-Csv -Path '$PSD/my out.csv' -NoTypeInformation" 0
+run_pwsh_cwd "PS exempt: Tee-Object -FilePath into plugin data (allowed)" \
+  "Get-ChildItem | Tee-Object -FilePath $PSD/t.txt" 0
+run_pwsh_cwd "PS exempt: temp tree (allowed)" \
+  "Write-Output hi > /tmp/bhb-ps-probe/out.txt" 0
+run_pwsh_cwd "PS exempt: configured scratch root (allowed)" \
+  "Get-ChildItem | Out-File /var/jobtmp/f.txt" 0 "$SCRATCH_ENV=/var/jobtmp"
+((PS_POSIX_SKIP)) || expect_both "dispatched parity: PowerShell Export-Csv into plugin data allowed" 0 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh --cwd "$PROJ" \
+  --command "Get-ChildItem | Export-Csv -Path $PSD/out.csv" -- \
+  CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+# Destinations outside every exempt root, or not literal, keep the block.
+run_pwsh_cwd "PS exempt: ProgramData destination blocks" \
+  'Get-ChildItem | Export-Csv -Path C:\ProgramData\x.csv' 2
+run_pwsh_cwd "PS exempt: destination named out-file.csv counts as one write" \
+  "Get-ChildItem | Export-Csv -Path $PSD/out-file.csv" 0
+run_pwsh_cwd "PS exempt: destination under a tee folder counts as one write" \
+  "Get-ChildItem | Export-Csv -Path $PSD/tee/ac/report.csv" 0
+run_pwsh_cwd "PS exempt: second write form still blocks" \
+  "Get-ChildItem | Export-Csv -Path $PSD/a.csv | Out-File $PSD/b.txt" 2
+run_pwsh_cwd "PS exempt: redirect with a tee-named destination is one write" \
+  "Get-ChildItem > $PSD/tee.txt" 0
+run_pwsh_cwd "PS exempt: quoted > inside a cmdlet destination is not a redirect" \
+  "Get-ChildItem | Export-Csv -Path '$PSD/a>b.csv'" 0
+run_pwsh_cwd "PS exempt: a real redirect beside a cmdlet write still blocks" \
+  "Get-ChildItem | Export-Csv -Path $PSD/a.csv > $PSD/b.txt" 2
+run_pwsh_cwd "PS exempt: -PSPath binds the destination" \
+  "Get-ChildItem | Out-File -PSPath $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: project-root destination blocks" \
+  "Get-ChildItem | Out-File -FilePath $PROJ/out.txt" 2
+run_pwsh_cwd "PS exempt: relative destination blocks" \
+  "Get-ChildItem | Out-File out.txt" 2
+run_pwsh_cwd "PS exempt: \$var destination blocks" \
+  "Get-ChildItem | Out-File -FilePath \$d/out.txt" 2
+run_pwsh_cwd "PS exempt: double-quoted destination blocks" \
+  "Get-ChildItem | Out-File -FilePath \"$PSD/out.txt\"" 2
+run_pwsh_cwd "PS exempt: dot-dot escape out of plugin data blocks" \
+  "Get-ChildItem | Out-File $PSD/../../settings.json" 2
+run_pwsh_cwd "PS exempt: comma list naming a second destination blocks" \
+  "'x' | Set-Content -Path $PSD/a.txt,$PROJ/b.txt" 2
+run_pwsh_cwd "PS exempt: colon-attached -FilePath blocks" \
+  "Get-ChildItem | Out-File -FilePath:$PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: unmodeled flag keeps the block" \
+  "Get-ChildItem | Out-File -Encoding utf8 $PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: no project root blocks" \
+  "Get-ChildItem | Out-File $PSD/out.txt" 2 "$PROJ_ENV="
+# The one write must be the only thing that trips the PowerShell write check.
+run_pwsh_cwd "PS exempt: two writes, one outside, blocks" \
+  "Get-ChildItem | Tee-Object -FilePath $PSD/a.txt | Out-File $PROJ/b.txt" 2
+run_pwsh_cwd "PS exempt: write plus & \"x\" blocks" \
+  "& \"x\" | Out-File $PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: pipeline-fed Set-Content -Value blocks" \
+  "Get-ChildItem $PROJ | Set-Content -Value $PSD/x.txt" 2
+run_pwsh_cwd "PS exempt: StreamWriter beside the write blocks" \
+  "New-Object IO.StreamWriter $PROJ/x.txt | Out-File $PSD/y.txt" 2
+run_pwsh_cwd "PS exempt: sc Set-Content form beside the write blocks" \
+  "Get-ChildItem | sc -Path $PROJ/y.txt | Out-File $PSD/z.txt" 2
+run_pwsh_cwd "PS exempt: second redirect beside the write blocks" \
+  "Write-Output hi > $PSD/a.txt; Write-Output x > $PROJ/b.txt" 2
 
 # --- symlink escape out of a SHIPPED default (P1 on #3727) -------------------
 # The lexical compare alone exempted a redirect on its spelling, so a symlink
@@ -2001,11 +2243,11 @@ if [[ "$SYMLINK_PROJ" != "${SYMLINK_PROJ,,}" ]]; then
   # Not a silent skip: the case-folding residual is documented in the hook, and a
   # mixed-case checkout path cannot exercise this assertion at all.
   printf 'SKIP: symlink confirmation not asserted — checkout path carries capitals (%s), which the folded segment scan cannot resolve\n' "$SYMLINK_PROJ"
-else
+elif rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ" && mkdir -p "$SYMLINK_TEMP" "$SYMLINK_PROJ/src" &&
+  ! make_link "$SYMLINK_PROJ" "$SYMLINK_TEMP/to-proj"; then
+  bhb_skip "symlink escape out of the temp default not asserted (no real symlink on this host)"
   rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ"
-  mkdir -p "$SYMLINK_TEMP" "$SYMLINK_PROJ/src"
-  ln -s "$SYMLINK_PROJ" "$SYMLINK_TEMP/to-proj"
-
+else
   run_cwd "symlink: escape out of the temp default still blocks" \
     "echo secret > $SYMLINK_TEMP/to-proj/src/tracked.py" "$SYMLINK_PROJ" 2 \
     "$PROJ_ENV=$SYMLINK_PROJ"
@@ -2096,7 +2338,10 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
   rmdir "$WIN_JDIR" "$WIN_JPROJ/src" "$WIN_JPROJ" 2>/dev/null || :
   if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
     # The harness hands out its scratchpad in TEMP's own spelling, which on a
-    # volume that generates short names is the 8.3 one (#4678).
+    # volume that generates short names is the 8.3 one (#4678). Under Cygwin
+    # bash, where TEMP reads `/tmp`, this case depends on the cygpath drive
+    # spellings in the temp candidates. The Windows lane runs it on a runner
+    # whose TEMP carries RUNNER~1.
     run_cwd "windows temp: an 8.3 short-name target allowed with a non-temp project root" \
       "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
     run_cwd "windows temp: a nonexistent name~9 component under temp blocks" \
@@ -2133,9 +2378,8 @@ S83="/tmp/bhb-4678-$$"
 S83_WIN=(OSTYPE=cygwin "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ")
 rm -rf "$S83"
 mkdir -p "$S83/longname/claude"
-if [[ ! -d /usr ]] || ! ln -s "$S83/longname" "$S83/longna~1" 2>/dev/null ||
-  ! test -L "$S83/longna~1" || ! ln -s /usr "$S83/tousr~1" 2>/dev/null; then
-  printf 'SKIP: 8.3 simulation not asserted (no symlink could be made on this host; no coverage here, not a pass)\n'
+if [[ ! -d /usr ]] || ! make_link "$S83/longname" "$S83/longna~1" || ! make_link /usr "$S83/tousr~1"; then
+  bhb_skip "8.3 simulation not asserted (no symlink could be made on this host)"
 else
   run_cwd "8.3 sim: short-name temp target allowed with a non-temp project root" \
     "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}"
@@ -2166,7 +2410,7 @@ else
     ;;
   *)
     if [[ "$S83_PROJ" == "${S83_PROJ,,}" ]] && mkdir -p "$S83_PROJ/src" &&
-      ln -s "$S83_PROJ/src" "$S83_PROJ/srcali~1" 2>/dev/null; then
+      make_link "$S83_PROJ/src" "$S83_PROJ/srcali~1"; then
       run_cwd "8.3 sim: an existing short path outside temp blocks" \
         "echo secret > $S83_PROJ/srcali~1/tracked.py" "$PROJ" 2 "${S83_WIN[@]}"
     else
@@ -2676,7 +2920,7 @@ run_pwsh "PS: quoted Path+Value flanked by an apostrophe-bearing string (blocked
   "Write-Host \"it's fine\"; & \$w 'f.txt' 'x'" 2
 # Double-quoted operands are expandable (about_Quoting_Rules) but still
 # present. A `$`-free double-quoted pair is two visible literals, same as the
-# unquoted `& $py script.py arg` already blocked by the #2722 signal.
+# unquoted `& $py script.py arg` with an unassigned target, blocked by the #2722 signal.
 # shellcheck disable=SC2016
 run_pwsh "PS: unquoted two-positional computed call (blocked — #2722 control for #2906)" \
   "& \$py script.py arg" 2
@@ -2805,4 +3049,5 @@ assert_contains "two blocking guards dispatched: this guard's reason survives" \
 assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
   "$GUARD_ERR" "--no-verify / -n skips the hooks"
 
+echo "symlink-fixture groups skipped: $bhb_skips"
 report

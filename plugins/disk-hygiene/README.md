@@ -7,14 +7,18 @@ that it is not work product. Safe tidiness is the primary objective; reclaimable
 secondary signal, so zero-byte and empty-directory residue stay visible in reports.
 
 The default lane is read-only. Cleanup is available only through a fresh, exact-path preview followed
-by explicit approval of one confidence tier. The engine then rechecks every candidate before removing
-only the entries captured in the snapshot; it never follows links or recursively deletes an
-unvalidated tree.
+by explicit approval of one confidence tier, or, on Linux, through `handoff-apply` for one approved
+standalone Git checkout. The engine then rechecks every candidate before removing only the entries
+captured in the snapshot, except the Git metadata contents `handoff-apply` empties (see the safety
+contract); it never follows links or recursively deletes an unvalidated tree.
 
 ## Safety contract
 
 - The side-effecting skill is manual-only (`disable-model-invocation: true`). Automated, scheduled,
   remote, or otherwise unattended sessions audit and stop.
+- The investigated-entry catalog under the plugin data root records what a run or the operator
+  concluded about an entry. `prior_disposition` is a hint on the next scan. It never authorizes
+  deletion or skips approval, preview, or revalidation.
 - Confidence controls report ordering, never authorization. High, medium, and low each require a
   separate approval naming every path with provenance, what the entry is, why it is removable, and
   risk; logical / reclaimable byte counts come last and never drop empty directories from the
@@ -23,25 +27,30 @@ unvalidated tree.
   via `--root-children` with an explicit child selection), user shell-folder roots,
   VCS metadata/tracked content, mount points (including Linux bind mounts), every Windows reparse
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
-  predicates cannot be disabled by policy. The sole VCS exception is a read-only manual-handoff
-  evidence mode for an entire standalone Git checkout: it requires empty porcelain status, every
-  local head SHA confirmed through the checkout's GitHub remote, every stash SHA present in an
-  independent checkout (or no stashes), and the existing exact-path operator approval. Without all
-  four, categorical protection remains, except that an `accept_unpublished` acknowledgement on the
-  evidence entry (one exact approved path, with a reason) waives the first two, the empty status and
-  the heads confirmed on the remote, and the verdict reports them as accepted-unpublished. The stash
-  gate and the exact-path operator approval still apply.
+  predicates cannot be disabled by policy. The sole VCS exception is the evidence mode for an
+  entire standalone Git checkout: `handoff-verify` reads it without changing anything, and on Linux
+  `handoff-apply` runs the same checks and then deletes that one approved path. It requires empty
+  porcelain status, every local head SHA confirmed through the checkout's GitHub remote, every stash
+  SHA present in an independent checkout (or no stashes), and the existing exact-path operator
+  approval. Without all four, categorical protection remains, except that an `accept_unpublished`
+  acknowledgement on the evidence entry (one exact approved path, with a reason) waives the first
+  two, the empty status and the heads confirmed on the remote, and the verdict reports them as
+  accepted-unpublished. The stash gate and the exact-path operator approval still apply.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
 - Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
   A dry-run result is evidence for the report, never authorization for this engine to remove it.
 - The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
-  calls made from literal shell words, returns `ask` for the one canonical apply shape, and denies
-  every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
+  calls made from literal shell words, returns `ask` for the two exact mutating shapes, `apply` and
+  `handoff-apply`, and denies every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
   filename, redirection, and operator syntax is rejected before argument parsing.
 - Deletion walks the validated snapshot bottom-up. New entries are not traversed; they make the
-  directory non-empty and therefore skipped. After captured children are removed, a directory is
+  directory non-empty and therefore skipped. The one exception is Linux `handoff-apply`, which
+  empties a verified checkout's `.git` contents, entries the snapshot never inventoried, under the
+  mount, consumer-glob, readability, device, and link checks in the
+  [safety model](skills/clean/reference/safety-model.md#standalone-git-checkout-evidence). After
+  captured children are removed, a directory is
   reopened with `O_NOFOLLOW`, checked empty through its descriptor, and matched by device, inode, and
   type immediately before descriptor-relative `rmdir`. The report leads with tidiness outcomes
   (paths removed, empty directories cleared, and the locked, changed, protected, needs-elevation,
@@ -110,13 +119,14 @@ user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROO
 from user/managed/`--settings` scope since Claude Code 2.1.207, so a repo cannot forge it), register
 unconditionally, and fail closed to enabled.
 
-Hook-lifetime caveat: docs scope a skill hook to the component's lifetime, but session-long firing
-of the belt has been observed on at least one Claude Code build (producer-reported; see
-issue #1105). If unrelated commands are denied after a clean run ends, start a new session and see
-that issue. The plugin-level engine gate fires inside subagents. The skill-frontmatter belt was
-observed not to reach a subagent, and #4228 records that its reach was inconsistent within one
-session, so a fanned-out worker's Bash lane is not reliably belt-guarded and "evidence only" is an
-instruction to the worker, not an enforced denial. `skills/clean/SKILL.md` holds the detail.
+Hook lifetime: the hooks page says Claude Code registers a skill's frontmatter hooks when the skill is
+invoked and keeps running them for the rest of the session, on turns after the skill's own turn as
+well. The belt therefore keeps denying after a clean run ends. Start a new session to clear it. The
+plugin-level engine gate fires inside subagents. The skill-frontmatter belt does not: the subagents
+page lists settings, managed-policy and plugin hooks as the ones that apply inside subagents, and a
+Bash call from a subagent ran unguarded on Claude Code 2.1.285. A fanned-out worker's Bash lane is
+not belt-guarded, so "evidence only" is an instruction to the worker, not an enforced denial.
+`skills/clean/SKILL.md` holds the detail.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
@@ -232,9 +242,9 @@ walking the rest of the home. Every volume root, OS-managed or a Windows Dev Dri
 strict child ladder described under Volume-root coverage; only a target that is not a volume root
 gets the relaxed directory listing.
 
-`--sizes-only` writes per-child byte totals and no entries. As implemented it skips the
-large-scan confirmation, sums through VCS and protected directories read-only, and has no entry
-cap.
+`--sizes-only` writes per-child byte totals and no entries. It goes through the same large-scan
+confirmation as an unbounded walk, sums through VCS and protected directories read-only, and has no
+entry cap.
 
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
@@ -262,6 +272,29 @@ Policy files all share one shape:
   ]
 }
 ```
+
+Version 2 adds preselect `rules`, an age threshold, and an elevation opt-in
+([schema](skills/clean/reference/policy-overlay.schema.json)). A version 1 file keeps working.
+
+```json
+{
+  "version": 2,
+  "rules": [
+    {"match": {"hint_ids": ["common-lock-file"]}, "preselect": true, "min_age_days": 7}
+  ],
+  "elevation": "never"
+}
+```
+
+A rule ticks matching candidates in the approval list; it never approves. The approval question still
+names one tier and its path list, and a tick never raises a candidate above its hint's
+`confidence_ceiling` or past a blocker. With `min_age_days`, an entry modified inside the window (or
+a directory whose newest descendant is, or whose coverage is incomplete) stays unticked and is
+labeled in-flight. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
+project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
+that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
+elevation lane has not been proven in a Windows UAC pilot; see the
+[safety model](skills/clean/reference/safety-model.md#opt-in-elevation).
 
 Without `--policy`, standing policy files layer over the baseline when present:
 `~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's
@@ -316,6 +349,7 @@ use the same admission ladder as directories.
 | OS-owned file names (`pagefile.sys`, `/swapfile`, `/swap.img`, `vmlinuz*`, `.file`, …) | Per-platform file set |
 | Hidden, System, `$`-prefixed, or dot-prefixed names | Fail closed on concealment |
 | Symlinks, reparse points, cloud placeholders | Ambiguous identity |
+| Virtual-disk image files (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`) | A whole guest disk; the name proves nothing about it being disposable |
 | Nested mounts and baseline-protected shell-folder names | Existing hard stops |
 | Fifos, sockets, devices, and other non-regular types | `not-regular-file-or-directory` |
 
@@ -332,10 +366,11 @@ selectable.
 - Use `/source-control:worktree status`/`cleanup` (if installed) for git worktree checkouts such as a
   `.worktrees/` tree, run those actions from the checkout's own main repository, as they manage the
   current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
-  metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the manual
-  handoff's optional VCS evidence mode can return `clear` only after the proof gates in the
+  metadata but does not manage worktree lifecycle. For a redundant standalone checkout, the optional
+  VCS evidence mode can return `clear` only after the proof gates in the
   [safety model](skills/clean/reference/safety-model.md) pass, or an `accept_unpublished`
-  acknowledgement waives the first two for that one approved path.
+  acknowledgement waives the first two for that one approved path. On Linux, `handoff-apply` then
+  deletes that one path in the same call; on Windows and macOS the deletion is the manual handoff.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
@@ -348,12 +383,12 @@ measurements below carry the conditions they were taken under.
 
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
-  returns a hook-issued `ask` for the canonical engine apply call (same `permissionDecision: "ask"`
-  as the PowerShell deletion lane; `dontAsk` auto-denies instead of prompting). The guard rejects shell
-  expansion and operator syntax instead of validating only the post-split argument vector; script
-  identity follows the host path rules and remains case-sensitive on POSIX. No `eval`, dynamic shell
-  construction, or downloads are used. Paths cross the process boundary as JSON or individually
-  quoted CLI arguments.
+  returns a hook-issued `ask` for the canonical engine `apply` and `handoff-apply` calls (same
+  `permissionDecision: "ask"` as the PowerShell deletion lane; `dontAsk` auto-denies instead of
+  prompting). The guard rejects shell expansion and operator syntax instead of validating only the
+  post-split argument vector; script identity follows the host path rules and remains
+  case-sensitive on POSIX. No `eval`, dynamic shell construction, or downloads are used. Paths cross
+  the process boundary as JSON or individually quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
   `true`) gating the execution tiers. Setting it `false` puts `/disk-hygiene:clean` in audit-only

@@ -3,6 +3,92 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0] - 2026-09-30
+
+### Added
+
+- **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL (the first that is not skip-listed), so a duplicate clone is reported once as `skipped duplicate of <path>`. Only `--fleet` dedupes clones: `--repo` and `--repos-from` never drop a repo, so two clones named there are both cleaned.
+- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. PRs are looked up in `origin`'s repository (`gh pr list --repo`), not the one gh resolves for the directory. It writes no tip capture. In a multi-repo run, a second clone of one `origin` is reported as a duplicate. It cannot combine with `--remote-families`, which reads the remote-tracking refs by family.
+- **`git-branch-audit.sh --read-only` writes nothing under the git dir (#5234).** It creates no tip capture, `.part` file, directory or loose object: the landed proof's squash step runs in a throwaway object directory, and the `MainCheckoutDirty:` status read does not refresh the index. It prints `TipCaptureSkipped:` where it would print `TipCapture:`, and `git-branch-delete.sh` refuses without a capture. Where the throwaway directory cannot be made, the landed proof is skipped.
+
+### Changed
+
+- **The git-tier dry-run counts what the apply ops act on (#5234).** `planned=` and `bytes=` cover the worktrees `git worktree prune` would remove and, only when `git gc --auto` would run (loose objects above `gc.auto`, or packs above `gc.autoPackLimit`), the loose objects and garbage. A store below both limits counts 0 and stays `would-clean`, and its `Reason:` says the remote prune is not measured. `Summary:` gains `git_bytes=`, and the `all` tier also gains `caches_bytes=` and `build_bytes=`.
+
+### Fixed
+
+- **The `clean` repository-context block reports "not a repository" from a non-repo cwd instead of skipping the block (#5234).**
+
+## [0.17.0] - 2026-09-30
+
+### Changed
+
+- **The batch plan defaults to a durable per-repo-set directory (#5215).** `clean-batch.sh` without
+  `--batch-plan` now writes the plan and manifests to `clean-batch/<tier>-<key>` under
+  `${CLAUDE_PLUGIN_DATA}`, else `~/.claude/plugins/data/repo-hygiene`, instead of a `mktemp`
+  directory. Each dry-run writes a new `run.*` directory under its tier, repo set and skip list, so
+  a later dry-run never replaces a plan already confirmed, and removes that set's `run.*`
+  directories older than 14 days. `--batch-plan FILE` still overrides.
+
+### Added
+
+- **The batch dry-run lists the planned paths per repo (#5215).** Each repo's paths print largest
+  first, read from the manifests apply consumes, capped at 20 per repo by the new
+  `--list-paths-max N`, with an `N more, see plan file: <path>` tail when the cap truncates.
+
+## [0.16.0] - 2026-09-30
+
+### Added
+
+- **`git-branch-audit.sh --remote-families` reports `refs/remotes/origin/*` by branch family (#5220).**
+  Each family (pre-wipe, claude, plan, stranded, agent-`<hex>` and the rest) gets a count, an owner,
+  a stated retention rule and a per-branch verdict. A remote branch is landed when its tip equals
+  or is an ancestor of the `headRefOid` of a merged PR, which covers squash merges. The mode is
+  read-only and deletes nothing; a branch that is unlanded and on no other ref is KEEP-UNIQUE.
+
+## [0.15.0] - 2026-09-30
+
+### Added
+
+- **`git-branch-audit.sh` proves a branch landed without a PR record (#5230).** When the PR map
+  has no entry, it runs `git cherry` against the default branch (every commit equivalent; skipped
+  for a branch with a merge commit, which `git cherry` does not list), then a tree-equality check
+  against the default branch, then the patch-id of the branch's whole diff (a squash), before
+  falling to REVIEW or LOSSY. A proof makes the branch LIKELY-SAFE with a `Landed:` line, recorded
+  in a new `landed` column of the tip capture, and `git-branch-delete.sh` runs the same proof
+  again at delete time in place of its remote-reachability check, so a landed branch is deletable
+  through the audit's own capture. The squash check writes one unreferenced loose object per
+  branch it reaches, which `git gc` prunes.
+- **`git-branch-audit.sh` prints a `MainCheckout:` block** with the branch or detached state, the
+  dirty file count, and any merge, revert, rebase, cherry-pick or bisect in progress, naming the
+  file that shows it. It describes the checkout the audit runs from, a linked worktree when it
+  runs from one; an operation in another worktree is not detected. It emits no deletable tier
+  (`SAFE`, `LIKELY-SAFE` or `LOSSY`) while an operation is in progress, and
+  `git-branch-delete.sh` refuses to delete then.
+
+## [0.14.0] - 2026-09-29
+
+### Changed
+
+- **The clean skill's destructive guard also matches bare branch and remote-branch deletion (#3852).**
+  `git branch -D`/`-d`/`--delete`, `git push --delete`, `git push -d` and `git push origin :ref` (also `+:ref`)
+  are blocked while the skill is active; a push with `--dry-run`/`-n` is allowed. The
+  `CLEAN_GUARD_ACK` prefix lifts the block and is the documented way to run one during a clean
+  session. The guard is a best-effort net over command text: option spellings it does not parse,
+  aliases, and disabling the guard still bypass it. `git-branch-delete.sh` deletes with
+  `git update-ref -d`, so the confirmed path is unaffected. The guard header, `SKILL.md`, and
+  README state the new coverage.
+- **The guard's global-option prefix accepts flag-only options (`-p`, `-P`, `--no-pager`).** The
+  `clean`, `reset --hard`, `checkout --`, `stash drop`/`clear` and `worktree remove` patterns share
+  it, so `git --no-pager clean -fd` and the other destructive forms are now blocked after those
+  options too.
+
+## [0.13.1] - 2026-09-29
+
+### Fixed
+
+- **`clean` preflight `RUNTIME_PROCS` lists only processes in the repositories being cleaned (#5217).** A `dotnet`, `aspire`, or MCP-server process counts when its working directory or command line is under a passed ROOT (the invoking repository when none), and each line is tagged `[repo: <ROOT>]`. Matches elsewhere on the machine are counted in the new `RUNTIME_PROCS_UNATTRIBUTED` line instead of being reported as risks. Without `/proc` (Windows, macOS) `RUNTIME_PROCS` is machine-wide and marked `(unscoped)`; the invoking process chain is never listed.
+
 ## [0.13.0] - 2026-09-29
 
 ### Added

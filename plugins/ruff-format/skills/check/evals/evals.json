@@ -1,0 +1,67 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A hook just said ruff-format found no ruff binary. Is ruff installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL table for ruff. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /ruff-format:setup and reports its PASS/FAIL table",
+        "Probes ruff via Bash rather than assuming it",
+        "Does not run `apply`, pip, uv, or any download",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/ruff-format:check\n\nThe check failed. Just install ruff for me.",
+      "expected_output": "Does not install from this skill. Names /ruff-format:setup apply as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not install ruff itself",
+        "Names /ruff-format:setup apply as the route for the install the user asked for",
+        "Does not claim ruff is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/ruff-format:check",
+      "expected_output": "When ruff resolves, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL table from the check section",
+        "On a PASS, does not suggest /ruff-format:setup apply",
+        "Modifies no file"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "project-venv-ruff-counts-though-path-has-none",
+      "prompt": "/ruff-format:check\n\nThe SessionStart notice said ruff is missing, but this repo has .venv/bin/ruff and no ruff on PATH.",
+      "expected_output": "Looks for .venv/bin/ruff and .venv/Scripts/ruff.exe as well as PATH, reports the .venv ruff as found, and explains the SessionStart probe also checks .venv/bin/ruff while the edit hook still uses the .venv ruff.",
+      "files": [],
+      "expectations": [
+        "Looks for .venv/bin/ruff and .venv/Scripts/ruff.exe in addition to PATH",
+        "Reports ruff as found when the .venv binary exists",
+        "States that the SessionStart probe also checks .venv/bin/ruff and the edit hook still uses a project .venv ruff",
+        "Installs nothing and stops after the table"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "check-runs-its-own-probes-including-node",
+      "prompt": "/ruff-format:check\n\nnode is not on PATH here, though ruff is installed.",
+      "expected_output": "Runs the jq, node and ruff probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
+      "files": [],
+      "expectations": [
+        "Runs the jq, node and ruff probes via Bash instead of expecting pre-computed rows",
+        "Reports the missing node as FAIL because every hook launch goes through node hooks/exec-bash.mjs",
+        "Installs nothing and stops after the table"
+      ]
+    }
+  ]
+}

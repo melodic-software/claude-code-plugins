@@ -5,7 +5,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   add-round       add several groups, questions and visuals from one JSON file, in one write
   group           add or update a question group
   reply           append a Claude line to a question's thread; optional revised recommendation
-  revise          change a question's wording, recommendation or alternatives
+  revise          change a question's wording, recommendation, alternatives or commitments
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
   note-reply      reply in the Notes to Claude thread
   record-terminal record an answer the user gave in the terminal
@@ -28,7 +28,12 @@ New questions need a `commits` key (an explicit empty list is allowed; `--commit
 flags) and at least two alternatives.
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
-unhandled user event on it), unless --force. revise --alt keeps at least two alternatives.
+unhandled user event on it), unless --force. A recommendation change also sets aside the
+question's counted `own` answer; record-terminal --decision own records the resolved decision.
+revise --alt keeps at least two alternatives.
+revise --commit replaces the commitment list (`--commit none` alone clears it); when the list
+changes, the recorded confirmations are dropped and confirm events at or below the question's
+commitsSinceSeq no longer count.
 reply --handled N marks every event with seq at or below N handled, including other questions'
 events; prefer `handle` with explicit seqs.
 """
@@ -106,6 +111,7 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
+VERSION_LABEL = re.compile(r"V[0-9]+")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 
 if os.name == "nt":
@@ -208,15 +214,12 @@ def mark_handled(doc, seqs):
 
 
 def guard_revision(d, doc, qid, seq, force):
-    """Refuse a revision when the user acted on the question after the event being answered.
+    """Refuse a revision when the user acted on the question after the event being answered, and return the responses it read.
     Without --seq, only an unhandled user event on the question blocks it."""
+    snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
     if force:
-        return
-    events = [
-        e
-        for e in load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
-        if e.get("id") == qid
-    ]
+        return snapshot
+    events = [e for e in snapshot.get("events", []) if e.get("id") == qid]
     if seq is None:
         newer = [
             e["seq"]
@@ -235,12 +238,23 @@ def guard_revision(d, doc, qid, seq, force):
         sys.exit(
             f"refused: {qid} has {why} (#{max(newer)}). Read it first, or pass --force."
         )
+    return snapshot
 
 
 def require_affects(qid, affects):
     if affects is None:
         sys.exit(
             f"refused: a recommendation change on {qid} needs --affects <id,...>|none (R2)"
+        )
+
+
+def set_aside_own(r, doc, q):
+    """A recommendation revision answers the user's own text, so a counted `own` decision stops
+    counting (the same stamps as a user hold, without the hold). Accept, alt and defer stay."""
+    latest = exporters.latest_decision(q, r.get("responses", {}))
+    if latest and latest.get("decision") == "own":
+        q.update(
+            setAsideAt=now(), setAsideSeq=r.get("seq", 0), setAsideRev=doc["rev"] + 1
         )
 
 
@@ -303,7 +317,7 @@ def add_question(doc, q):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget and bare ids that name no question here."""
+    """Warnings, never refusals: R12 length budget and bare ids (not version labels like V1) that name no question here."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         rec = q.get("recommendation") or ""
@@ -321,12 +335,41 @@ def lint_questions(doc, qs):
         for field in ("title", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
-                if tok not in ids and tok not in seen:
+                if (
+                    tok not in ids
+                    and tok not in seen
+                    and not VERSION_LABEL.fullmatch(tok)
+                ):
                     seen.add(tok)
                     warn(
                         f"{q['id']} {field} names {tok}, which is not a question id in this "
                         "file; spell it out or use the question's id"
                     )
+
+
+def group_members(doc, gid):
+    """Ids of every question in the group, archived and superseded included: the page lists them all."""
+    return sorted(q["id"] for q in doc["questions"] if q.get("group") == gid)
+
+
+def record_summary_of(doc, gid):
+    next(x for x in doc["groups"] if x["id"] == gid)["summaryOf"] = group_members(
+        doc, gid
+    )
+
+
+def warn_stale_summaries(doc, qs):
+    """One warning per group whose summary was written for a different set of questions."""
+    for gid in dict.fromkeys(q.get("group") for q in qs):
+        g = next((x for x in doc["groups"] if x["id"] == gid), None)
+        if g is None or "summaryOf" not in g:
+            continue
+        added = [i for i in group_members(doc, gid) if i not in g["summaryOf"]]
+        if added:
+            warn(
+                f"group {gid} summary predates {len(added)} questions; refresh it with: "
+                f"round.py group {gid} --summary ..."
+            )
 
 
 def put_group(doc, g):
@@ -337,6 +380,8 @@ def put_group(doc, g):
         cur = {"id": g["id"]}
         doc["groups"].append(cur)
     cur.update({k: v for k, v in g.items() if v is not None})
+    if g.get("summary") is not None:
+        record_summary_of(doc, g["id"])
     if not cur.get("title"):
         sys.exit(f"a new group needs a title: {g['id']}")
     known = {x["id"] for x in doc["groups"]}
@@ -369,6 +414,7 @@ def op_meta(d, doc, a):
 
 def op_add(d, doc, a):
     touched = add_question(doc, a.question)
+    warn_stale_summaries(doc, [a.question])
     check_primaries(doc)
     return touched, f"added {a.question['id']}"
 
@@ -386,6 +432,10 @@ def op_add_round(d, doc, a):
         if a.round is not None:
             q.setdefault("round", a.round)
         touched += add_question(doc, q)
+    for g in a.groups or []:
+        if g.get("summary") is not None:
+            record_summary_of(doc, g["id"])
+    warn_stale_summaries(doc, a.questions or [])
     known = {v.get("id") for v in doc["visuals"]}
     for v in a.visuals or []:
         if not v.get("id"):
@@ -479,7 +529,7 @@ def op_reply(d, doc, a):
     if a.rec:
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
-        guard_revision(d, doc, a.id, a.seq, a.force)
+        set_aside_own(guard_revision(d, doc, a.id, a.seq, a.force), doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."
@@ -507,10 +557,14 @@ def op_revise(d, doc, a):
         ("text", a.text, TEXT_CAP),
     ):
         capped(f"revise {field}", val, cap)
+    commits = a.commit
+    if commits is not None:
+        for i, c in enumerate(commits, 1):
+            capped(f"revise commitment {i}", c, LINE_CAP)
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
-    guard_revision(d, doc, a.id, a.seq, a.force)
+    snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     changed = []
     for field, val in (
         ("title", a.title),
@@ -522,6 +576,7 @@ def op_revise(d, doc, a):
             q[field] = val
             changed.append(field)
     if a.rec is not None:
+        set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."
@@ -537,6 +592,13 @@ def op_revise(d, doc, a):
             )
         q["alternatives"] = alts
         changed.append("alternatives")
+    if commits is not None and commits != (q.get("commits") or []):
+        q["commits"] = commits
+        q.pop("commitsConfirmed", None)
+        q["commitsSinceSeq"] = load_json(d / "responses.json", EMPTY_RESPONSES).get(
+            "seq", 0
+        )
+        changed.append("commitments")
     if not changed:
         sys.exit("nothing to revise")
     q["contentRev"] = (q.get("contentRev") or 0) + 1
@@ -877,6 +939,7 @@ OP_ARGS = {
             "why": None,
             "text": None,
             "alternatives": None,
+            "commits": None,
             "seq": None,
             "affects": None,
             "force": False,
@@ -956,6 +1019,7 @@ def cmd_apply(d, a):
             )
             if op["op"] == "revise":
                 args.alt = args.alternatives
+                args.commit = args.commits
             if op["op"] == "handle":
                 args.seq = args.seqs
             t, msg = fn(d, doc, args)
@@ -1508,13 +1572,20 @@ def main(argv=None):
     )
     s.set_defaults(fn=write_op(op_reply, "reply"))
 
-    s = sub.add_parser("revise", help="change wording, recommendation or alternatives")
+    s = sub.add_parser(
+        "revise", help="change wording, recommendation, alternatives or commitments"
+    )
     s.add_argument("id")
     for f in ("title", "short", "facts", "basis", "rec", "why", "text"):
         s.add_argument("--" + f)
     s.add_argument("--affects", help=affects_help)
     s.add_argument(
         "--alt", action="append", help="key:text, repeatable; replaces all alternatives"
+    )
+    s.add_argument(
+        "--commit",
+        action="append",
+        help="repeatable; replaces all commitments; `--commit none` alone clears them",
     )
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"
@@ -1613,6 +1684,8 @@ def main(argv=None):
     s.set_defaults(fn=cmd_lease)
 
     a = p.parse_args(argv)
+    if a.cmd == "revise" and a.commit == ["none"]:
+        a.commit = []
     if not a.dir:
         p.error("--dir DATA_DIR is required (the data dir holding questions.json)")
     d = Path(a.dir).resolve()

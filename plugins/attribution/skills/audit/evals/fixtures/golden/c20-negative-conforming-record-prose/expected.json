@@ -1,0 +1,11 @@
+{
+  "negatives": true,
+  "findings": [],
+  "notes": {
+    "shape": "Hard negative in prose. The same clause as c15 with the cap, the basis URL, an ISO verification date and a recheck trigger inside the sentence.",
+    "carve_outs": "Conforming pointer or record applies. The record is whole: claim (the cap), basis (a specific page), as-of date (ISO 8601), trigger (that page moving the cap, an event a reader can check).",
+    "rubric": "Not graded. Had it been, R4 would FAIL.",
+    "carries": "Read this with c15. The fact and the sentence are the same, and the verdict differs on the record alone. A run that flags both has not read the parts; a run that clears both has not checked that they are present.",
+    "stamp_window": "As for c17: the as-of date is inside the configured expiry window today, and a later expiry is the stamp rule's finding."
+  }
+}

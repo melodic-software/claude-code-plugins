@@ -84,8 +84,6 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
-# shellcheck source=rewrite-guard.sh
-source "$HOOK_DIR/rewrite-guard.sh"
 
 # The whole prologue: the start stamp, the buffered payload, the jq gate, the
 # parsed path with its basename and directory, the repo root (the CWD typos
@@ -145,7 +143,7 @@ fi
 # (dim-9 doctrine).
 if [[ -z "$TYPOS_BIN" ]]; then
   if hook::notice_once "typos-format-typos" "$INPUT" prerequisite; then
-    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on this hook's PATH — spell-check skipped for this edit (probe re-runs on every matching edit; this notice latches once per session, shared by every agent, and is renewed every eighth skip with the install route kept). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Install: https://github.com/crate-ci/typos#install
+    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on this hook's PATH — spell-check skipped for this edit (probe re-runs on every matching edit; this notice latches once per session, shared by every agent, and is renewed every eighth skip with the install route kept). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here. Run /typos-format:check. It does not install. Install: cargo install typos-cli, a host package or a release binary, https://github.com/crate-ci/typos#install
 PATH probed: ${PATH:-<unset>}"
   fi
   emit_skipped

@@ -35,7 +35,7 @@ Orchestrate the PR lifecycle from quality review through merge and cleanup, with
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained: it runs on `git`, `gh`, `jq`, and its bundled scripts (skill-private ones under `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/`, plugin-shared ones under `${CLAUDE_PLUGIN_ROOT}/scripts/`). `jq` is required for correctness (the merge and readiness paths pipe `gh api` output through it): check `command -v jq` before the first phase that parses, missing, stop with the install remediation (<https://jqlang.org/download/>; a separate install under Git Bash on native Windows) instead of failing mid-phase. Where a phase names an adjacent capability, a code-review skill or agents, a simplifier, a build/test/lint verifier, an external research skill, an exploration skill, a work-item tracker, a CI-log-audit agent, a GitHub-events push channel. Treat it as **optional**: if your environment provides it (a skill, plugin, agent, or MCP server), invoke it; otherwise proceed with the inline guidance, which stands on its own. Never block a phase because an adjacent tool is absent.
+This skill is self-contained: it runs on `git`, `gh`, `jq`, and its bundled scripts (skill-private ones under `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/`, plugin-shared ones under `${CLAUDE_PLUGIN_ROOT}/scripts/`, which the `reference/` files call `<scripts-dir>`: substitute the resolved path before a command from them reaches Bash). `jq` is required for correctness (the merge and readiness paths pipe `gh api` output through it): check `command -v jq` before the first phase that parses, missing, stop with the install remediation (<https://jqlang.org/download/>; a separate install under Git Bash on native Windows) instead of failing mid-phase. Where a phase names an adjacent capability, a code-review skill or agents, a simplifier, a build/test/lint verifier, an external research skill, an exploration skill, a work-item tracker, a CI-log-audit agent, a GitHub-events push channel. Treat it as **optional**: if your environment provides it (a skill, plugin, agent, or MCP server), invoke it; otherwise proceed with the inline guidance, which stands on its own. Never block a phase because an adjacent tool is absent.
 
 Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.md`, and rules. Notably: PR body template, branch naming, merge style (this skill defaults to squash), review-reply identity (some projects post bot-identity replies via a wrapper; default is plain `gh`), and any extra pre-PR gates. Read them before creating or merging.
 
@@ -243,13 +243,13 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 Three native surfaces cover parts of this lifecycle, and they get conflated with it whenever a PR
 is opened or watched.
 
-- **`pr` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Creates one
-  GitHub pull request generically: gathers branch context and applies Claude Code's own title,
-  body, and attribution through `gh`. The model and the person can both invoke it.
-- **`/commit-push-pr` (built-in command).** Ships with Claude Code. Commits, pushes, and opens a PR
-  in one prompt-driven step. The model and the person can both invoke it.
-- **`/autofix-pr` (built-in command).** Ships with Claude Code. Spawns a cloud session that watches
-  the current branch's PR and pushes fixes when CI fails or reviewers comment. Reserved for the
+- **`pr` (bundled skill)**: creates one GitHub pull request generically; it gathers branch
+  context and applies Claude Code's own title, body, and attribution through `gh`. The model and
+  the person can both invoke it.
+- **`/commit-push-pr` (built-in command)**: commits, pushes, and opens a PR in one prompt-driven
+  step. The model and the person can both invoke it.
+- **`/autofix-pr` (built-in command)**: spawns a cloud session that watches the current branch's
+  PR and pushes fixes when CI fails or reviewers comment. Reserved for the
   person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The whole lifecycle: prep with verified findings, a draft
   under this repository's PR title and body contract, the ready flip after merging the base,

@@ -328,6 +328,10 @@ run_win "quoted /usr/bin/cp to /tmp/x (blocked)" '"/usr/bin/cp" ./a /tmp/x' 2
 run_win "single-quoted /usr/bin/cp to /tmp/x (blocked)" "'/usr/bin/cp' ./a /tmp/x" 2
 run_win "./bin/mkdirs /tmp/x (allowed — verb substring)" './bin/mkdirs /tmp/x' 0
 run_win "python open /tmp write (blocked)" "python3 -c \"open('/tmp/x','w').write('a')\"" 2
+run_win "python open ( C:/tmp write (blocked)" "python3 -c \"open ('C:/tmp/x','w').write('a')\"" 2
+run_win "python getattr open C:/tmp write (blocked)" "python3 -c \"getattr(__builtins__,'open')('C:/tmp/x','w')\"" 2
+run_win "python open C:/tmp write (blocked)" "python3 -c \"open('C:/tmp/x','w').write('a')\"" 2
+run_win "python open C:/Temp write (allowed — tmp-only scope, twin of C:/tmp)" "python3 -c \"open('C:/Temp/x','w').write('a')\"" 0
 # Git for Windows resolves /usr/bin/mkdir to mkdir.exe under Program Files.
 # The verb regex stops at a space, so neither spelling matched and the write
 # was allowed (#4527). C:/tmp stays a drive root on a usertemp /tmp host.
@@ -472,6 +476,14 @@ run_win "usertemp: redirect >foo\\tmp\\x path component (allowed)" 'echo x > foo
   "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >\\tmpdir\\x sibling (allowed)" 'echo x > \tmpdir\x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >\\TMP\\x upper case (blocked)" 'echo x > "\TMP\x"' 2 "${USERTEMP_ENV[@]}"
+
+# The usertemp probe forks cygpath, and a Windows Bash hook pays a process
+# creation per fork. A command with no `tmp` in it must not reach the probe.
+usertemp_trace() {
+  env OSTYPE=msys "${USERTEMP_ENV[@]}" bash -x "$HOOK" <<<"$(msys_command_json "$1")" 2>&1 >/dev/null
+}
+assert_absent "usertemp: a benign command never probes cygpath" "$(usertemp_trace 'git status --short')" "cygpath"
+assert_contains "usertemp: a /tmp command does probe cygpath" "$(usertemp_trace 'mkdir -p /tmp/x')" "cygpath"
 
 # Mount-table fallback: with no usable cygpath the guard reads `mount`, and the
 # usertemp flag only counts on the /tmp mount's own line. The stub cygpath always

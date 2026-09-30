@@ -25,6 +25,7 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DISPATCH="$HOOK_DIR/run-guards.sh"
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
 
 export CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.."
 export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data"
@@ -35,12 +36,19 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # Git Bash rewrites an argument that is entirely a POSIX path before a native
-# jq sees it. Fixture files are created at the bash spelling; if the payload
-# carries the rewritten spelling the verifiers never find the file and never
-# call git, so the rev-parse count is 0 (#4527). Exported, not a jq() function:
-# `command -v jq` would then see the function and the no-jq PATH probe could
-# not prove jq was gone.
-export MSYS_NO_PATHCONV=1
+# jq sees it. Fixture files are created at the bash spelling, so payloads must
+# carry it unrewritten or the verifiers never find the file and never call git
+# (#4527). The suppression is scoped to this suite's own jq calls, never
+# exported: git.exe and the guards under test would inherit it and fail to
+# open a POSIX /tmp/... repo. The no-jq probe runs the dispatcher in a child
+# bash, which does not inherit the function. The one path jq must open itself,
+# hooks.json, goes through cygpath -m when it exists, because a native jq
+# cannot open a POSIX /c/... spelling.
+if declare -F jq >/dev/null; then
+  jq() { MSYS_NO_PATHCONV=1 command jq --binary "$@"; }
+fi
+HOOKS_JSON="$HOOK_DIR/hooks.json"
+if command -v cygpath >/dev/null 2>&1; then HOOKS_JSON=$(cygpath -m "$HOOKS_JSON"); fi
 
 # Stub guards. Each one sources the real library exactly as a shipped guard
 # does, so the dispatcher's overrides are exercised through the same seam.
@@ -391,7 +399,7 @@ for d in "${path_dirs[@]}"; do
     NOJQ_PATH+="${NOJQ_PATH:+:}$d"
   fi
 done
-if PATH="$NOJQ_PATH" command -v jq >/dev/null 2>&1; then
+if PATH="$NOJQ_PATH" type -P jq >/dev/null 2>&1; then
   bad "could not build a PATH without jq"
 else
   run_nojq() { # run_nojq <stdin-string> <guard>... -> OUT, ERR, RC as run does
@@ -607,7 +615,7 @@ for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dan
   block-hook-bypass flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
   block-root-delete-target cli-flag-verify skill-reference-verify stale-path-verify; do
-  n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOK_DIR/hooks.json")
+  n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOKS_JSON")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
@@ -620,7 +628,7 @@ done
 # is a verifier that silently never fires on it, and an `if` row with no gate
 # is a spawn that always early-exits. Both directions are pinned here, against
 # the scripts' source rather than a second hand-kept list.
-post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOK_DIR/hooks.json")
+post_rows=$(jq -c '[.hooks.PostToolUse[] | select(.matcher == "Write|Edit") | .hooks[]]' "$HOOKS_JSON")
 post_n=$(jq 'length' <<<"$post_rows")
 if ((post_n > 1)); then ok "PostToolUse Write|Edit carries one row per gated extension ($post_n)"; else bad "PostToolUse Write|Edit carries $post_n row(s); expected one per gated extension"; fi
 ungated=$(jq -r '[.[] | select(has("if") | not)] | length' <<<"$post_rows")
@@ -745,7 +753,7 @@ if ((PRIMED_N > 0)); then
 else
   bad "PRIME_FILTERS could not be read out of run-guards.sh"
 fi
-DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh"))' "$HOOK_DIR/hooks.json")
+DISPATCH_CMDS=$(jq -r '.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh"))' "$HOOKS_JSON")
 ALL_DISPATCHED=$(while IFS= read -r cmd; do guards_of "$cmd"; done <<<"$DISPATCH_CMDS" | sort -u)
 DISPATCHED_N=$(lines_of "$ALL_DISPATCHED" | wc -l | tr -d ' ')
 if ((DISPATCHED_N >= 10)); then
@@ -897,7 +905,7 @@ assert_contains "dispatched secret guard: names the pattern" "$GUARD_ERR" "AWS A
 # cancelled at its hooks.json timeout blocks nothing. Each run below is under
 # `timeout 20`, a hang backstop and the only timing check: a wall-clock
 # threshold on a shared shard would measure the shard.
-BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOK_DIR/hooks.json")
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOKS_JSON")
 read -r -a BASH_ROW_ARGS <<<"${BASH_ROW#*run-guards.sh }"
 ROW_CAP=""
 for ((i = 0; i + 1 < ${#BASH_ROW_ARGS[@]}; i++)); do
@@ -944,17 +952,77 @@ assert_eq "cap: no guard is sourced past the cap" "" "$(cat "$SEEN")"
 cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
 
-# Every spelling counts, quoted or not, and backticks count in pairs.
-for spelling in '<(:)' '>(:)' '$((1))' "'\$(:)'" '"$(:)"'; do
-  cap_run "$(tool_payload Bash "echo $(rep "$spelling" "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
-  assert_exit "cap: $((ROW_CAP + 1)) of $spelling are refused" 2 "$RC"
+# A single-quoted span does not count. Every reading bash, the library or the
+# root-delete guard's substitution scan could take differently counts, and so
+# does a command naming anything a guard re-parses an argument of. A refusal
+# must come from the count: rc=70 or an unbound variable would be the
+# dispatcher failing, which allows the command.
+OVER=$((ROW_CAP + 1))
+QS=$(rep '$(:)' "$OVER")
+NL=$'\n'
+cap_quoted() { # <label> <expected rc> <command>
+  cap_run "$(tool_payload Bash "$3")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+  assert_exit "cap quoted: $1" "$2" "$RC"
+  assert_absent "cap quoted: $1, no could-not-run" "$ERR" "rc=70"
+  assert_absent "cap quoted: $1, no unbound variable" "$ERR" "unbound variable"
+  if [[ $2 == 2 ]]; then
+    assert_contains "cap quoted: $1, refused by the count" "$ERR" "$CAP_MSG"
+  else
+    assert_contains "cap quoted: $1, the guard ran" "$(cat "$SEEN")" "Bash"
+  fi
+}
+# Every spelling: skipped in single quotes, counted unquoted and in double
+# quotes. Backticks count in pairs.
+for spelling in '<(:)' '>(:)' '$((1))' '$(:)' '"$(:)"' '`:`'; do
+  many=$(rep "$spelling" "$OVER")
+  cap_quoted "$OVER of $spelling in one single-quoted string reach the guards" 0 "echo '$many'"
+  cap_quoted "$OVER of $spelling unquoted are refused" 2 "echo $many"
+  cap_quoted "$OVER of $spelling in double quotes are refused" 2 "echo \"${many//\"/}\""
 done
+cap_quoted "$OVER in one single-quoted span reach the guards" 0 "echo '$QS'"
+cap_quoted "$OVER single-quoted spans reach the guards" 0 "echo $(rep "'\$(:)'" "$OVER")"
+cap_quoted "$OVER backtick pairs in a quoted body reach the guards" 0 "gh pr create --title 'x' --body '$(rep '`a` in Git Bash ' "$OVER")'"
+cap_quoted "a PR-body-like command with 300 inline-code spans reaches the guards" 0 "gh pr create --title 'x' --body '$(rep 'Run `check` first. ' 300)'"
+cap_quoted "quoted spans over the cap and unquoted ones under it reach the guards" 0 "echo '$(rep '$(:)' 300)' $(rep '$(:)' 100)"
+cap_quoted "unquoted spans over the cap count beside quoted ones under it" 2 "echo '$(rep '$(:)' 100)' $QS"
+cap_quoted "a plain comment before the span is skipped" 0 "# note${NL}echo '$QS'"
+cap_quoted "a mid-word # starts no comment" 0 "x#'${NL}$QS${NL}'"
+cap_quoted "an unclosed single quote counts" 2 "echo '$QS"
+cap_quoted "a single quote inside double quotes is literal" 2 "echo \"it's\" $QS '"
+cap_quoted "an escaped \\' opens no span" 2 "echo \\' $QS \\'"
+cap_quoted "an ANSI-C span counts" 2 "echo \$'$QS'"
+cap_quoted "\$\$' counts" 2 "echo \$\$'$QS'"
+cap_quoted "a span after \\\$ counts" 2 "echo \\\$'$QS'"
+cap_quoted "a quote in a comment counts the rest" 2 "# it's${NL}echo '$QS'"
+cap_quoted "a backtick outside a span counts the rest" 2 "echo \`:\` '$QS'"
+cap_quoted "a substitution in double quotes counts the rest" 2 "echo \"\$(:)\" '$QS'"
+for form in "'EOF'" '"EOF"' '\EOF'; do
+  cap_quoted "a <<$form body counts" 2 "cat <<$form${NL}$QS${NL}EOF"
+  cap_quoted "$OVER backtick pairs in a <<$form body count" 2 "cat <<$form${NL}$(rep '`:`' "$OVER")${NL}EOF"
+done
+cap_quoted "a <<-'EOF' body counts" 2 "cat <<-'EOF'${NL}$QS${NL}EOF"
+cap_quoted "an unquoted <<EOF body counts" 2 "cat <<EOF${NL}$QS${NL}EOF"
+cap_quoted "a quoted heredoc body with no terminator counts" 2 "cat <<'EOF'${NL}$QS"
+cap_quoted "a heredoc inside \"\$(...)\" counts" 2 "git commit -m \"\$(cat <<'EOF'${NL}$QS${NL}EOF${NL})\""
+cap_quoted "a span in (( )) counts" 2 "(( '$QS' ))"
+cap_quoted "a span in \${x:offset} counts" 2 "echo \${x:'$QS'}"
+cap_quoted "a span in an array subscript counts" 2 "a['$QS']=5"
+for cmd in "eval '$QS'" "bash -c '$QS'" "sudo sh -lc '$QS'" "'/bin/bash' -c '$QS'" "b'ash' -c '$QS'" \
+  "git -c 'alias.x=!$QS' x"; do
+  cap_quoted "a re-parsed argument counts: ${cmd:0:24}" 2 "$cmd"
+done
+cap_quoted "a re-parsed argument counts: a Windows-path shell" 2 "\"C:\\Program Files\\Git\\bin\\bash.exe\" -c '$QS'" # portability-ok: a Windows path in the command under test, not a GNU grep word boundary
+# 16 KB of the shape that costs the scan the most steps finishes well inside
+# the timeout backstop.
+cap_quoted "a 16 KB command of tiny spans is refused" 2 "echo $(rep "'a'\$(:)" 2300)"
 cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: $ROW_CAP backtick pairs reach the guards" 0 "$RC"
 cap_run "$(tool_payload Bash "echo $(rep '`:`' "$ROW_CAP")\`")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: an unpaired backtick past the pairs counts as one more" 2 "$RC"
 cap_run "$(tool_payload PowerShell "echo $(rep '$(1)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: a PowerShell command past the cap is refused" 2 "$RC"
+cap_run "$(tool_payload PowerShell "echo '$(rep '$(1)' "$((ROW_CAP + 1))")'")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
+assert_exit "cap: a PowerShell command counts single-quoted text" 2 "$RC"
 cap_run "$(write_json "$TEST_TMPDIR/w.txt" "$(rep '$(:)' "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: a payload with no command field is not counted" 0 "$RC"
 # An unprimed payload (a NUL in it) is counted whole.
@@ -983,6 +1051,14 @@ assert_contains "cap row: 2,339 are refused by the count" "$ERR" "$CAP_MSG"
 cap_run "$(tool_payload Bash "$(subst_cmd 2330 '; rm -rf /')")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: 2,330 substitutions then a root delete are refused" 2 "$RC"
 assert_contains "cap row: that one is refused by the count too" "$ERR" "$CAP_MSG"
+# Single-quoted, the same payload reaches the guards, and a root delete behind
+# it is refused by its own guard, not by the count.
+cap_run "$(tool_payload Bash "echo '$(rep '$(: rm)' 2339)'")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: 2,339 single-quoted substitutions reach the guards" 0 "$RC"
+cap_run "$(tool_payload Bash "echo '$(rep '$(: rm)' 2300)'; rm -rf /")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: a root delete after them is refused" 2 "$RC"
+assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem root"
+assert_absent "cap row: the count did not" "$ERR" "$CAP_MSG"
 # --- over-length: the first block ends the chain (#4528) ----------------------
 # Past --max-command-len the guards after a block would only add reasons to a
 # decided verdict, and a row that outlives its hooks.json timeout is cancelled
@@ -1025,7 +1101,7 @@ assert_contains "a --max-command-len that is not a whole number is reported" "$O
 # over-length command before they tokenize it, so the row answers at once and
 # the uncapped guards never see it. Each ceiling guard keeps its kill switch:
 # with the first disabled, the next one blocks.
-BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOK_DIR/hooks.json")
+BASH_ROW=$(jq -r '.hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end' "$HOOKS_JSON")
 read -r -a BASH_ROW_TOKS <<<"$BASH_ROW"
 BASH_ROW_ARGS=()
 for ((i = 0; i < ${#BASH_ROW_TOKS[@]}; i++)); do
@@ -1059,8 +1135,12 @@ fi
 
 HEREDOC_BODY=""
 while ((${#HEREDOC_BODY} < 70000)); do HEREDOC_BODY+=$'The quick brown fox jumps over the lazy dog, again.\n'; done
-HEREDOC_PAYLOAD=$(jq -nc --arg c "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" \
-  '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:$c}}')
+# Through stdin, not `--arg`: a native jq.exe gets the command line whole, and
+# Windows caps one at 32,767 characters, so a 70 KB argument leaves the payload
+# empty and every row case below sees no command at all.
+HEREDOC_PAYLOAD=$(printf '%s' "cat > /tmp/out.txt <<'EOF'"$'\n'"${HEREDOC_BODY}EOF" |
+  jq -Rsc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x",tool_input:{command:.}}')
+[[ ${#HEREDOC_PAYLOAD} -gt 70000 ]] || bad "the ~70 KB payload was not built (${#HEREDOC_PAYLOAD} chars)"
 row_t0=${EPOCHREALTIME:-}
 ROW_ERR=$(cd "$HOOK_DIR" && RUN_GUARDS_PROFILE=1 bash "$DISPATCH" "${BASH_ROW_ARGS[@]}" <<<"$HEREDOC_PAYLOAD" 2>&1 >/dev/null)
 ROW_RC=$?

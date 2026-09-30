@@ -45,16 +45,10 @@ function Get-WindowsDiscoveryProbe {
 
     $commandProbes = @(
         @{
-            Dimension = 'Docker Desktop'
-            Commands  = @('docker')
-            CheckId   = 'docker-disk-usage'
-            Rationale = 'docker system df reports image+volume disk usage; trend candidate.'
-        }
-        @{
-            Dimension = 'WSL distros'
-            Commands  = @('wsl')
-            CheckId   = 'wsl-disk-usage'
-            Rationale = 'wsl --list --verbose + per-distro vhdx size; trend candidate.'
+            Dimension = 'Container runtimes'
+            Commands  = @('docker', 'wsl')
+            CheckId   = 'container-disk-usage'
+            Rationale = 'docker system df + per-distro WSL vhdx size; trend candidate.'
         }
         @{
             Dimension = '.NET SDK'

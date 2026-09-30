@@ -29,17 +29,17 @@ This document is the fleet checklist. Per-hook notices must:
 5. **Never** widen the probe into nvm/rbenv layout guesses. That is bootstrap work
    (#2739 / #2748), not a hook-side search expansion.
 
-| Plugin | Hook | Probe order | Filesystem / repo-local route | Notice key |
-|---|---|---|---|---|
-| `markdown-format` | `hooks/markdown-format.sh` | `command -v markdownlint-cli2`, then walk `node_modules/.bin` from the edited file up to `$REPO_ROOT` | `npm i -D markdownlint-cli2` | `markdown-format-markdownlint-cli2` |
-| `biome-format` | `hooks/biome-format.sh` | walk `node_modules/.bin/biome` from file, then `command -v biome` | `npm i -D @biomejs/biome` | `biome-format-biome` |
-| `ruff-format` | `hooks/ruff-format.sh` | walk `.venv/{bin,Scripts}/ruff` from file, then `command -v ruff` | project `.venv` / `pip install ruff` | `ruff-format-ruff` |
-| `bash-format` | `hooks/bash-format.sh` | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | `bash-format-shfmt`, `bash-format-shellcheck` |
-| `typos-format` | `hooks/typos-format.sh` | `command -v typos` | cargo / release binary | `typos-format-typos` |
-| `go-format` | `hooks/go-format.sh` | `command -v goimports`, `command -v go` | `go install …/goimports@latest` | `go-format-goimports` |
-| `powershell-format` | `hooks/powershell-format.sh` | `command -v pwsh` | host PowerShell install | (early exit; see hook) |
-| `actionlint` | `hooks/actionlint-check.sh` | `command -v actionlint` | release binary / `go install` | `actionlint` skip notice |
-| `eol-normalizer` | `hooks/normalize-eol.sh` | `command -v perl` (optional fast path) | pure-shell fallback when perl missing | n/a (degrades, does not skip) |
+| Plugin | Hook | Probe order | Filesystem / repo-local route | Notice key | Check skill |
+|---|---|---|---|---|---|
+| `markdown-format` | `hooks/markdown-format.sh` | `command -v markdownlint-cli2`, then walk `node_modules/.bin` from the edited file up to `$REPO_ROOT` | `npm i -D markdownlint-cli2` | `markdown-format-markdownlint-cli2` | `/markdown-format:check`; SessionStart probe |
+| `biome-format` | `hooks/biome-format.sh` | walk `node_modules/.bin/biome` from file, then `command -v biome` | `npm i -D @biomejs/biome` | `biome-format-biome` | `/biome-format:check`; SessionStart probe |
+| `ruff-format` | `hooks/ruff-format.sh` | walk `.venv/{bin,Scripts}/ruff` from file, then `command -v ruff` | project `.venv` / `pip install ruff` | `ruff-format-ruff` | `/ruff-format:check`; SessionStart probe |
+| `bash-format` | `hooks/bash-format.sh` | `command -v shfmt`, `command -v shellcheck` | host package / release binary (no npm form) | `bash-format-shfmt`, `bash-format-shellcheck` | `/bash-format:check`; SessionStart probe |
+| `typos-format` | `hooks/typos-format.sh` | `command -v typos` | cargo / release binary | `typos-format-typos` | `/typos-format:check`; SessionStart probe |
+| `go-format` | `hooks/go-format.sh` | `command -v goimports`, `command -v go` | `go install …/goimports@latest` | `go-format-goimports` | `/go-format:check`; SessionStart probe |
+| `powershell-format` | `hooks/powershell-format.sh` | `command -v pwsh` | host PowerShell install | `powershell-format-trust-*` (trust-gate skip); a missing `pwsh` exits early | `/powershell-format:check`; SessionStart probe |
+| `actionlint` | `hooks/actionlint-check.sh` | `command -v actionlint` | release binary / `go install` | `actionlint-actionlint` | `/actionlint:check`; SessionStart probe |
+| `eol-normalizer` | `hooks/normalize-eol.sh` | `command -v perl` (optional fast path) | pure-shell fallback when perl missing | n/a (degrades, does not skip) | n/a |
 
 Bootstrap hardening that puts fleet tools on the **harness** process PATH (or pins them as
 repo `devDependencies`) is out of scope for the per-hook notice sweep. See #2739.
