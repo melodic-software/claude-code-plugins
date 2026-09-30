@@ -1485,6 +1485,28 @@ assert_eq "message: PowerShell write stderr is verdict, remedy, pointer" \
 $MSG_USE
 $MSG_REMEDY_SWITCHES
 $MSG_POINTER" "$GUARD_ERR"
+# The positional-operand arm names its own rule and gives no Write/Edit advice: the
+# fix is a literal call target or a flag, not a different tool.
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $tool f.txt x' -- "${MSG_ENV[@]}"
+assert_exit "message: computed positional call blocks" 2 "$GUARD_RC"
+assert_contains "message: computed positional names the rule" "$GUARD_ERR" \
+  "with 2+ positional operands is read as Set-Content <path> <value>"
+assert_absent "message: computed positional gives no Write/Edit advice" "$GUARD_ERR" "Use the Write or Edit tool"
+assert_absent "message: computed positional gives no write-cmdlet verdict" "$GUARD_ERR" "PowerShell file-write cmdlet/redirect"
+# shellcheck disable=SC2016
+guard_invoke --tool PowerShell --command '& $tool -Value x f.txt' -- "${MSG_ENV[@]}"
+assert_contains "message: computed -Value arm keeps the write verdict" "$GUARD_ERR" \
+  "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+TEL_POS="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINK_POS="$(make_sink "cat >\"$TEL_POS\"")"
+env HOOK_TELEMETRY_SINK="$SINK_POS" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(jq -cn --arg c '& $tool f.txt x' '{tool_name:"PowerShell",tool_input:{command:$c}}')" >/dev/null 2>&1 || true
+if wait_for_sink "$TEL_POS"; then
+  assert_eq "telemetry: computed positional form" "powershell-computed-positional" "$(jq -r '.data.form' "$TEL_POS" | tr -d '\r')"
+else
+  bad "telemetry: no envelope written on a computed positional block"
+fi
 guard_invoke --tool PowerShell --command "python3 -c \"open('x','w').write('a')\"" \
   -- "${MSG_ENV[@]}" "CLAUDE_PROJECT_DIR=$MSG_PROJ"
 assert_eq "message: PowerShell python write stderr is verdict, remedy, pointer" \

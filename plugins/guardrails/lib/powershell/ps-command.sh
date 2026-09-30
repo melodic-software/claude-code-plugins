@@ -2454,8 +2454,13 @@ ps::print_unparsable_git_block_message() {
 # SCOPE: this covers the write-GATE bypass only. Secret-pattern and hardcoded-path
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
+# PS_WRITE_BYPASS_ARM names the arm behind the last 0 return when a caller needs a
+# message specific to it: "computed-positional" for the positional-operand probe,
+# empty for every other arm.
+PS_WRITE_BYPASS_ARM=""
 ps::write_bypass() {
   local cmd="$1" scan lcs seg head lcq lcq_bt blanked_gate opaque_gate
+  PS_WRITE_BYPASS_ARM=""
   ps::blank_herestrings "$cmd"
   # The write twin of the git refusal: the reduction just dropped lines that
   # PowerShell may run as commands, so a NO from the scans below would be a
@@ -2573,8 +2578,12 @@ ps::write_bypass() {
       [[ "$blanked_gate" == *'--%'* ]] ||
       ps::computed_call_has_splat_operand "$blanked_gate" ||
       [[ "$blanked_gate" == *'>'* ]] ||
-      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]] ||
-      ps::computed_call_has_positional_write_signal "$opaque_gate" "$lcq_bt"; then
+      [[ "$blanked_gate" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]]; then
+      return 0
+    fi
+    if ps::computed_call_has_positional_write_signal "$opaque_gate" "$lcq_bt"; then
+      # shellcheck disable=SC2034 # read by the sourcing guard
+      PS_WRITE_BYPASS_ARM="computed-positional"
       return 0
     fi
   fi
