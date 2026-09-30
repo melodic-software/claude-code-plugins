@@ -643,6 +643,136 @@ expect_stdout "clean verdict places superseded after answered" "answered=1 super
 # 45. The ungradeable line carries the field too, in the same position.
 expect_stdout "ungradeable verdict carries superseded=0" "answered=0 superseded=0 brief=unchecked status=ungradeable" --ledger "$noreg"
 
+# 46. --procedure: a clean, contiguous, fully-resolved ledger passes and says so.
+proc_clean="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | withdrawn | round 2 | What format? | no longer needed
+EOT
+)"
+expect_exit "--procedure clean ledger -> 0" 0 --ledger "$proc_clean" --procedure
+expect_stdout "--procedure clean ledger reports procedure=ok" "status=clean procedure=ok" --ledger "$proc_clean" --procedure
+
+# 47. Omitting the flag is explicit, and the same ledger's exit code is unchanged.
+expect_stdout "omitted --procedure reports procedure=unchecked" "status=clean procedure=unchecked" --ledger "$proc_clean"
+
+# 48. A round gap fails: round 3 present, round 2 missing.
+proc_gap="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q2 | answered | round 3 | What format? | html
+EOT
+)"
+expect_exit "--procedure round gap -> 1" 1 --ledger "$proc_gap" --procedure
+expect_stdout "--procedure round gap reports procedure=fail" "status=incomplete procedure=fail" --ledger "$proc_gap" --procedure
+if [[ "$(stderr_of --ledger "$proc_gap" --procedure)" == *"round 2 has no register row"* ]]; then pass "--procedure names the missing round"; else fail "--procedure names the missing round"; fi
+expect_exit "round gap without --procedure -> 0" 0 --ledger "$proc_gap"
+
+# 49. Rounds must start at 1.
+proc_start="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 2 | Who writes? | admin
+EOT
+)"
+expect_exit "--procedure rounds not starting at 1 -> 1" 1 --ledger "$proc_start" --procedure
+
+# 50. A round field that is not `round <N>` fails.
+proc_badround="$(
+  mkledger <<'EOT'
+- Q1 | answered | first | Who writes? | admin
+EOT
+)"
+expect_exit "--procedure malformed round field -> 1" 1 --ledger "$proc_badround" --procedure
+
+# 51. An empty resolution fails for every retired status, missing field included.
+for retired in answered deferred withdrawn blocked; do
+  proc_empty="$(
+    mkledger <<EOT
+- Q1 | $retired | round 1 | Who writes? |
+EOT
+  )"
+  expect_exit "--procedure empty $retired resolution -> 1" 1 --ledger "$proc_empty" --procedure
+done
+proc_nofield="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Who writes?
+EOT
+)"
+expect_exit "--procedure missing resolution field -> 1" 1 --ledger "$proc_nofield" --procedure
+expect_exit "empty resolution without --procedure -> 0" 0 --ledger "$proc_nofield"
+proc_pipe="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Which output | JSON or XML? |
+EOT
+)"
+proc_huge="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 100000000000 | Who writes? | admin
+EOT
+)"
+expect_exit "--procedure huge round number fails fast -> 1" 1 --ledger "$proc_huge" --procedure
+expect_exit "--procedure pipe in question with empty resolution -> 1" 1 --ledger "$proc_pipe" --procedure
+proc_pipe_ok="$(
+  mkledger <<'EOT'
+- Q1 | answered | round 1 | Which output | JSON or XML? | JSON
+EOT
+)"
+expect_exit "--procedure pipe in question with a resolution -> 0" 0 --ledger "$proc_pipe_ok" --procedure
+
+# 52. An open row has no resolution yet; --procedure does not fail it, and status stays open.
+proc_open="$(
+  mkledger <<'EOT'
+- Q1 | open | round 1 | Who writes? |
+EOT
+)"
+expect_stdout "--procedure leaves an open row's empty resolution alone" "status=open procedure=ok" --ledger "$proc_open" --procedure
+
+# 53. With --brief, every template section must be present.
+proc_brief_full="$TMP/proc-brief-full.md"
+cat >"$proc_brief_full" <<'EOT'
+## Brief
+
+### TLDR
+- x
+
+### Goal
+x
+
+### Constraints
+- x
+
+### Acceptance criteria
+- x
+
+### Captured assumptions
+- x
+
+### Out-of-scope
+- x
+
+### Deferred questions
+- Q1: x
+
+## Plan
+EOT
+proc_brief_short="$TMP/proc-brief-short.md"
+grep -v -e '^### Out-of-scope' "$proc_brief_full" >"$proc_brief_short"
+proc_retired="$(
+  mkledger <<'EOT'
+- Q1 | deferred | round 1 | Who writes? | post-V1
+EOT
+)"
+expect_exit "--procedure --brief with every section -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_full" --procedure
+expect_exit "--procedure --brief missing Out-of-scope -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_short" --procedure
+if [[ "$(stderr_of --ledger "$proc_retired" --brief "$proc_brief_short" --procedure)" == *"out[- ]of[- ]scope"* ]]; then pass "--procedure names the missing Brief section"; else fail "--procedure names the missing Brief section"; fi
+expect_exit "Brief missing a section without --procedure -> 0" 0 --ledger "$proc_retired" --brief "$proc_brief_short"
+proc_brief_plan="$TMP/proc-brief-plan.md"
+{ cat "$proc_brief_short"; printf '\n### Out-of-scope\n- x\n'; } >"$proc_brief_plan"
+expect_exit "--procedure --brief section only under ## Plan -> 1" 1 --ledger "$proc_retired" --brief "$proc_brief_plan" --procedure
+
+# 54. Ungradeable stays exit 2 and reports procedure=unchecked.
+expect_stdout "ungradeable with --procedure reports procedure=unchecked" "status=ungradeable procedure=unchecked" --ledger "$noreg" --procedure
+expect_exit "--procedure alone without a ledger -> 2" 2 --procedure
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1
