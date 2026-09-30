@@ -226,6 +226,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/claude-ops:observability`, `/context-budget:audit` | `## Boundary` sections for the bundled `explain-usage` skill (integration `route`, verdict `complementary`); no description phrase |
 | `/session-flow:orient`, `/session-flow:continue-in-background`, `/session-flow:retro` | `## Boundary` sections for `/recap`, for `/subtask`, `/fork` and `/background`, and for `/insights` (integration `suggest`, verdict `complementary`); no description phrase |
 | `/planning:draft-goal-condition`, `/planning:plan` | `## Boundary` sections for `/goal` and `/plan` (integration `suggest`, verdict `complementary`); no description phrase |
+| `/discovery:explore`, `/planning:plan`, `/firecrawl:firecrawl` | `## Boundary` sections for the built-in `Explore` and `Plan` agents and the built-in `WebFetch` and `WebSearch` tools (integration `route`, verdict `complementary`); the `discovery:explorer` agent's `Explore` row is registry-only; detail in each skill's `reference/` or `context/` file; no description phrase |
 
 Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per
 unit, each running apply, verify, PR, close, never a single fleet-wide edit, because each phrase
