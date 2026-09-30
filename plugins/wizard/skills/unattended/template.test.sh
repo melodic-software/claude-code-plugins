@@ -875,6 +875,146 @@ else
   fail "a declared secret resolves environment over file over store over prompt" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/precedence.err")"
 fi
 
+# Native store rungs: stub `security` (macOS Keychain) and `pass` (Linux) print "native-<name>" for a NATIVE_ or ALL_ name
+# and exit 1 otherwise; each appends its own name to $STUB_LOG so a test can tell which command was consulted.
+# WIZARD_PLATFORM is the platform seam; PATH puts the stubs first, or holds only pwsh for the absent-command case.
+STUBS="$TEST_TMPDIR/stubs"
+NOSTUBS="$TEST_TMPDIR/nostubs"
+mkdir -p "$STUBS" "$NOSTUBS"
+ln -s "$(command -v pwsh)" "$NOSTUBS/pwsh"
+# shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
+printf '%s\n' '#!/bin/sh' 'echo security >>"$STUB_LOG"' 'case "$3" in NATIVE_* | ALL_*) echo "native-$3" ;; *) exit 1 ;; esac' >"$STUBS/security"
+# shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
+printf '%s\n' '#!/bin/sh' 'echo pass >>"$STUB_LOG"' 'case "$3" in NATIVE_* | ALL_*) echo "native-$3" ;; DIR_*) printf "%s\n" "$3" "|-- child" ;; *) exit 1 ;; esac' >"$STUBS/pass"
+chmod +x "$STUBS/security" "$STUBS/pass"
+# pass is asked only for names that are entry files in the store; DIR_A is a directory there, as pass itself lists it.
+PASS_STORE="$TEST_TMPDIR/pass-store"
+mkdir -p "$PASS_STORE/DIR_A"
+for entry in NATIVE_A NATIVE_ONLY NATIVE_LEAK UNKNOWN_A DIR_A/child; do
+  : >"$PASS_STORE/$entry.gpg"
+done
+export PASSWORD_STORE_DIR="$PASS_STORE"
+
+for spec in macos:security:pass linux:pass:security; do
+  IFS=: read -r plat cmd other <<<"$spec"
+  tag="native-$plat"
+  log="$TEST_TMPDIR/$tag.log"
+  : >"$log"
+
+  code="$(STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$STUBS:$PATH" run_pwsh "$tag-present" "
+    $SECRET_MOCKS
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-present' -Secrets @(@{ Name = 'NATIVE_A' }) -Stages {
+      \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'NATIVE_A'))
+    }
+    \$global:Log -join '|'
+  ")"
+  msg="$(tail -n 1 "$TEST_TMPDIR/$tag-present.out")"
+  # portability-ok: false positive, plain sort with no -V option
+  consulted="$(sort -u "$log" | tr '\n' ' ')"
+  if [[ "$code" == 0 && "$msg" == 'got:native-NATIVE_A' && "$consulted" == "$cmd " ]]; then
+    pass "$plat: a declared secret resolves from the native store, and $other is never consulted"
+  else
+    fail "$plat: a declared secret resolves from the native store, and $other is never consulted" "code=$code msg=$msg consulted=$consulted err=$(head -c 300 "$TEST_TMPDIR/$tag-present.err")"
+  fi
+
+  code="$(STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$NOSTUBS" run_pwsh "$tag-absent" "
+    $SECRET_MOCKS
+    \$direct = Get-UnattendedNativeSecret -Name 'NATIVE_A'
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-absent' -Secrets @(@{ Name = 'NATIVE_A' }) -Stages {
+      \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'NATIVE_A'))
+    }
+    'direct=' + (\$null -eq \$direct)
+    \$global:Log -join '|'
+  ")"
+  if [[ "$code" == 0 && "$(tail -n 2 "$TEST_TMPDIR/$tag-absent.out")" == $'direct=True\nprompt:Secret NATIVE_A|got:typed-NATIVE_A' && ! -s "$TEST_TMPDIR/$tag-absent.err" ]]; then
+    pass "$plat: without the $cmd command the rung is skipped silently and the prompt answers"
+  else
+    fail "$plat: without the $cmd command the rung is skipped silently and the prompt answers" "code=$code out=$(cat "$TEST_TMPDIR/$tag-absent.out") err=$(head -c 300 "$TEST_TMPDIR/$tag-absent.err")"
+  fi
+
+  : >"$log"
+  code="$(STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$STUBS:$PATH" run_pwsh "$tag-miss" "
+    $SECRET_MOCKS
+    \$PSNativeCommandUseErrorActionPreference = \$true
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-miss' -Secrets @(@{ Name = 'UNKNOWN_A' }) -Stages {
+      \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'UNKNOWN_A'))
+    }
+    \$global:Log -join '|'
+  ")"
+  msg="$(tail -n 1 "$TEST_TMPDIR/$tag-miss.out")"
+  # portability-ok: false positive, plain sort with no -V option
+  consulted="$(sort -u "$log" | tr '\n' ' ')"
+  if [[ "$code" == 0 && "$msg" == 'prompt:Secret UNKNOWN_A|got:typed-UNKNOWN_A' && "$consulted" == "$cmd " && ! -s "$TEST_TMPDIR/$tag-miss.err" ]]; then
+    pass "$plat: a name the native store does not know is skipped silently and the prompt answers"
+  else
+    fail "$plat: a name the native store does not know is skipped silently and the prompt answers" "code=$code msg=$msg consulted=$consulted err=$(head -c 300 "$TEST_TMPDIR/$tag-miss.err")"
+  fi
+
+  if [[ "$plat" == linux ]]; then
+    : >"$log"
+    code="$(STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$STUBS:$PATH" run_pwsh "$tag-dir" "
+      $SECRET_MOCKS
+      Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-dir' -Secrets @(@{ Name = 'DIR_A' }) -Stages {
+        \$global:Log.Add('got:' + (Resolve-UnattendedSecret -Name 'DIR_A'))
+      }
+      \$global:Log -join '|'
+    ")"
+    msg="$(tail -n 1 "$TEST_TMPDIR/$tag-dir.out")"
+    if [[ "$code" == 0 && "$msg" == 'prompt:Secret DIR_A|got:typed-DIR_A' && ! -s "$log" ]]; then
+      pass "$plat: a name that is a pass directory, not an entry, is never read and the prompt answers"
+    else
+      fail "$plat: a name that is a pass directory, not an entry, is never read and the prompt answers" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/$tag-dir.err")"
+    fi
+  fi
+
+  printf 'file-loses' >"$TEST_TMPDIR/$tag-file-vs-env"
+  printf 'file-beats-store' >"$TEST_TMPDIR/$tag-file-vs-store"
+  code="$(ALL_ENV=env-value STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$STUBS:$PATH" run_pwsh "$tag-precedence" "
+    $SECRET_MOCKS
+    function Get-Secret {
+      [CmdletBinding()]
+      param([string] \$Name, [switch] \$AsPlainText)
+      if (\$Name -like 'ALL_*') { \"store-\$Name\" }
+    }
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-precedence' -Secrets @(
+      @{ Name = 'ALL_ENV'; FilePath = '$TEST_TMPDIR/$tag-file-vs-env' },
+      @{ Name = 'ALL_FILE'; FilePath = '$TEST_TMPDIR/$tag-file-vs-store' },
+      @{ Name = 'ALL_STORE' },
+      @{ Name = 'NATIVE_ONLY' },
+      @{ Name = 'PROMPT_ONLY' }
+    ) -Stages {
+      foreach (\$name in 'ALL_ENV', 'ALL_FILE', 'ALL_STORE', 'NATIVE_ONLY', 'PROMPT_ONLY') {
+        \$global:Log.Add(\$name + '=' + (Resolve-UnattendedSecret -Name \$name))
+      }
+    }
+    \$global:Log -join '|'
+  ")"
+  msg="$(tail -n 1 "$TEST_TMPDIR/$tag-precedence.out")"
+  if [[ "$code" == 0 && "$msg" == 'prompt:Secret PROMPT_ONLY|ALL_ENV=env-value|ALL_FILE=file-beats-store|ALL_STORE=store-ALL_STORE|NATIVE_ONLY=native-NATIVE_ONLY|PROMPT_ONLY=typed-PROMPT_ONLY' ]]; then
+    pass "$plat: environment beats file beats SecretManagement beats the native store beats the prompt"
+  else
+    fail "$plat: environment beats file beats SecretManagement beats the native store beats the prompt" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/$tag-precedence.err")"
+  fi
+
+  code="$(STUB_LOG="$log" WIZARD_PLATFORM=$plat PATH="$STUBS:$PATH" run_pwsh "$tag-leak" "
+    $SECRET_MOCKS
+    Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/$tag-leak' -Secrets @(@{ Name = 'NATIVE_LEAK' }) -Stages {
+      Write-Host ('value ' + (Resolve-UnattendedSecret -Name 'NATIVE_LEAK'))
+    }
+  ")"
+  transcript="$(find "$TEST_TMPDIR/$tag-leak" -name 'transcript-*.log' | head -1)"
+  leaked=0
+  # portability-ok: false positive, fixed-string grep with no -P option
+  grep -Fq 'native-NATIVE_LEAK' "$transcript" "$TEST_TMPDIR/$tag-leak/result-latest.json" && leaked=1
+  # portability-ok: false positive, fixed-string grep with no -P option
+  masked="$(grep -Fc '***' "$transcript")"
+  if [[ "$code" == 0 && "$leaked" == 0 && "$masked" -ge 1 ]]; then
+    pass "$plat: a native store value stays out of the transcript and the result JSON"
+  else
+    fail "$plat: a native store value stays out of the transcript and the result JSON" "code=$code leaked=$leaked masked=$masked err=$(head -c 300 "$TEST_TMPDIR/$tag-leak.err")"
+  fi
+done
+
 code="$(run_pwsh before-stage "
   $SECRET_MOCKS
   Invoke-UnattendedRun -ResultDirectory '$TEST_TMPDIR/before-stage' -Secrets @(@{ Name = 'ORDER_A' }) -Stages {

@@ -1,0 +1,66 @@
+{
+  "Q1": {
+    "title": "Question Q1?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "own",
+      "alt": null,
+      "text": "mine",
+      "seeded": true
+    },
+    "recommendation": null,
+    "alternatives": [],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "answered",
+      "round": 1,
+      "resolution": "free-text: mine"
+    }
+  },
+  "Q2": {
+    "title": "Question Q2?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": {
+      "why": "superseded by Q1",
+      "seeded": true
+    },
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "withdrawn",
+      "round": 1,
+      "resolution": "superseded by Q1"
+    }
+  },
+  "Q3": {
+    "title": "Question Q3?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "A; b",
+        "confirmed": true
+      }
+    ],
+    "terminal": null,
+    "recommendation": null,
+    "alternatives": [],
+    "archived": {
+      "why": "superseded by Q1",
+      "seeded": true
+    },
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "withdrawn",
+      "round": 1,
+      "resolution": "superseded by Q1"
+    }
+  }
+}

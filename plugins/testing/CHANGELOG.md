@@ -3,7 +3,7 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.0] - 2026-09-30
+## [0.13.0] - 2026-09-30
 
 ### Added
 
@@ -17,7 +17,9 @@ All notable changes to the `testing` plugin are documented here. Format follows
   (`null` when unknown, meaning the whole file) and the `cant-fail-ok:` count. `<pkey>` hashes the
   project directory and the transcript directory, so a `/clear` or fork successor finds its
   predecessor's writes. Session state and the task-end judge's state directories are pruned after
-  7 days. The record also carries `lines`, the lines the write changed (`null` when unknown).
+  7 days. The record also carries `lines`, the lines the write changed (`null` when unknown). A
+  test file a Bash call changed gets the same record, one per file as `<tool_use_id>-<n>`, when
+  Claude Code records the call's `bashEditDiff`.
 - **hooks:** an opt-in task-end test judge (`test_judge_enabled`, off by default, needs
   `test_guards_enabled`). A separate headless `claude -p` run asks one question of each test block
   the session created or changed: where did its expected value come from? It answers FLAG, PASS or
@@ -37,6 +39,30 @@ All notable changes to the `testing` plugin are documented here. Format follows
   the Stop's own unfinished run to let go of them, and are shown at the next task end. The README and
   `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
   reaches.
+
+## [0.12.0] - 2026-09-30
+
+### Added
+
+- **`test-scan` covers test files a Bash call changed.** A PostToolUse `Bash` hook reads `bashEditDiff`
+  and runs `test-scan` on each changed test file (up to four), behind the same opt-in. Claude Code
+  records the field only with `bashEditDiffEnabled: true` in user, `--settings` or managed settings,
+  or `CLAUDE_CODE_BASH_EDIT_DIFF=1`; without one of these it was absent in `default`, `acceptEdits`,
+  `auto` and `bypassPermissions` mode. The `Bash` row has no `if`, so its node launcher starts on
+  every Bash call, whatever `test_guards_enabled` says; the README states the cost
+  ([#5608](https://github.com/melodic-software/claude-code-plugins/issues/5608)).
+
+## [0.11.9] - 2026-09-30
+
+### Changed
+
+- **README declares the Node.js requirement.** A Requirements section states that every hook row launches through `node`, and that a missing `node` is a hook launch error. `/testing:setup` checks it.
+
+## [0.11.8] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
 
 ## [0.11.7] - 2026-09-30
 

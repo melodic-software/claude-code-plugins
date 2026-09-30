@@ -1,5 +1,5 @@
 {
-  "description": "Names what a Write or Edit to a test file removes and scans the written file for tests that cannot fail (opt-in: test_guards_enabled); a task-end judge asks where each new test's expected value came from (opt-in: test_judge_enabled, which needs test_guards_enabled).",
+  "description": "Names what a Write or Edit to a test file removes and scans the written file, or a test file a Bash call changed, for tests that cannot fail (opt-in: test_guards_enabled); a task-end judge asks where each new test's expected value came from (opt-in: test_judge_enabled, which needs test_guards_enabled).",
   "hooks": {
     "PreToolUse": [
       {
@@ -1051,6 +1051,23 @@
             "if": "Edit(test_*.py)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan-bash.sh"
+            ],
+            "timeout": 10,
+            "statusMessage": "Scanning test files the command changed..."
           }
         ]
       },

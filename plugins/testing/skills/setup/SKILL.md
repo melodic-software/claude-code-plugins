@@ -66,7 +66,10 @@ or UNKNOWN with quoted evidence and a proposed diff it never applies.
   applies a fix; its model class differs from every model that wrote the tests; its malfunction guards.
 - Reach: only blocks the session created or changed or that gained a marker, judged by their own
   text, so a stub in `beforeEach` or a snapshot in a `.snap` file is outside it; a bash test script
-  is one whole file; writes through Bash or an MCP tool are not recorded.
+  is one whole file; a test file a Bash call changed is recorded and judged at the Stop when Claude
+  Code records the call's changed files (`bashEditDiffEnabled: true` in user, `--settings` or
+  managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`); writes through an MCP tool are not
+  recorded.
 - A glob added only through the settings entry `check` prints is recorded in the same plugin data
   directory as the shipped rows, so the Stop hook judges those tests at the task end. No background
   job starts for them, so that judging happens at the Stop rather than ahead of it.
@@ -119,6 +122,11 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    entry holds a `<marketplace>` placeholder the user must replace. With no installed copy that takes
    `--enabled`, the entry says so on stderr and exits 0. Show it; the user merges it into their
    settings.
+
+Then probe the hook launcher, which the script does not: run `command -v node` via Bash and report
+`node` as a FAIL row when it is absent. Every hook row launches through `node hooks/exec-bash.mjs`,
+so a missing `node` is a hook launch error, not a skip notice, and a hook cannot report its own
+missing launcher.
 
 ## `apply`
 

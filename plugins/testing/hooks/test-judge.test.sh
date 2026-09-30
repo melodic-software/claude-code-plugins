@@ -406,6 +406,21 @@ stub_reset
 out="$(payload z1 stop "" '{"hook_event_name": "Stop"}' | TEST_JUDGE_ACTIVE=1 bash "$HOOK")"
 check "TEST_JUDGE_ACTIVE=1 exits at once" '[[ -z "$out" && "$(stub_calls)" == 0 ]]'
 
+# A test file a Bash call created (bashEditDiff recorded) is recorded by the
+# Bash route of test-scan and judged at the Stop; no background job runs for
+# a Bash call.
+transcript sbash claude-sonnet-5
+BF="$REPO/src/bashmade.test.ts"
+js_file "$BF" bashmade
+jq -cn --arg t "$TDIR/sbash.jsonl" --arg c "$REPO" --arg f "$BF" '{hook_event_name: "PostToolUse", tool_name: "Bash",
+  session_id: "sbash", tool_use_id: "tb1", transcript_path: $t, cwd: $c, tool_input: {command: "gen"},
+  tool_response: {stdout: "", stderr: "", interrupted: false, bashEditDiff: {changedFiles: [$f], moreFiles: 0,
+    files: [{filePath: $f, created: true, hunks: [{oldStart: 0, oldLines: 0, newStart: 1, newLines: 5, lines: ["+x"]}]}]}}}' |
+  bash "$HOOK_DIR/test-scan-bash.sh" >/dev/null 2>&1
+stub_reset
+stop sbash
+check "a Bash-written test file is judged at the Stop" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 bashmade"* && "$(field .reason)" == *"reviewed 1 test "* ]]'
+
 # A judge run whose parent died before splitting its output leaves a raw file
 # in the ledger directory; the next Stop harvests it instead of judging again.
 transcript h1 claude-sonnet-5

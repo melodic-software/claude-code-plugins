@@ -23,8 +23,8 @@ check() {
 
 check "shipped hooks.json is in sync (--check exits 0)" 'bash "$GEN" --check'
 
-check "PostToolUse runs test-scan and test-judge-bg, PreToolUse runs test-weaken" \
-  '[[ "$(jq -r "[.hooks.PostToolUse[].hooks[].args[-1] | sub(\".*/\"; \"\")] | unique | join(\" \")" "$HOOKS")" == "test-judge-bg.sh test-scan.sh" &&
+check "PostToolUse Write|Edit runs test-scan and test-judge-bg, PreToolUse runs test-weaken" \
+  '[[ "$(jq -r "[.hooks.PostToolUse[] | select(.matcher == \"Write|Edit\") | .hooks[].args[-1] | sub(\".*/\"; \"\")] | unique | join(\" \")" "$HOOKS")" == "test-judge-bg.sh test-scan.sh" &&
     "$(jq -r "[.hooks.PreToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-weaken.sh ]]'
 
 # The judge rows: the background job on the same `if` rows as test-scan,
@@ -45,8 +45,12 @@ check "every judge row is gated on test_guards_enabled and test_judge_enabled" \
 check "the description names both options" \
   '[[ "$(judge .description)" == *test_guards_enabled* && "$(judge .description)" == *test_judge_enabled* ]]'
 
+check "PostToolUse has one Bash row, behind the same option gate, running test-scan-bash.sh" \
+  '[[ "$(jq -r "[.hooks.PostToolUse[] | select(.matcher == \"Bash\") | .hooks[] | .args[1:] | join(\" \")] | join(\"|\")" "$HOOKS")" == "--require-true TEST_GUARDS_ENABLED "*/test-scan-bash.sh ]]'
+check "PreToolUse has no Bash row" '[[ "$(jq "[.hooks.PreToolUse[] | select(.matcher | test(\"Bash\"))] | length" "$HOOKS")" == 0 ]]'
+
 for event in PostToolUse PreToolUse; do
-  rows="$(jq -r --arg e "$event" '.hooks[$e][].hooks[] | .if // "MISSING"' "$HOOKS")"
+  rows="$(jq -r --arg e "$event" '.hooks[$e][] | select(.matcher == "Write|Edit") | .hooks[] | .if // "MISSING"' "$HOOKS")"
   check "$event: every row has an if" '[[ -n "$rows" && "$rows" != *MISSING* ]]'
   check "$event: no glob appears twice for one script" \
     '[[ "$(jq -r --arg e "$event" ".hooks[\$e][].hooks[] | \"\(.args[-1]) \(.if)\"" "$HOOKS" | sort | uniq -d)" == "" ]]'

@@ -3,6 +3,143 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-09-30
+
+### Added
+
+- **Class-matched policy rules, atime/ctime age basis, and a reference in-flight input**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A schema v2 rule
+  can match on a hint `class` as well as `hint_id`/`hint_ids`. `min_age_days` can be measured on
+  `mtime`, `atime` or `ctime` through `min_age_basis`. `scan --in-flight-refs <json>` reads
+  `{"references":[{"path","reason"}]}` and leaves a path (and its ancestors) referenced by open
+  work unticked, with the reason shown in the preview. The policy overlay schema,
+  `skills/clean/SKILL.md` and `skills/clean/reference/scan-flags.md` document all three.
+
+## [0.40.0] - 2026-09-30
+
+### Added
+
+- **A read-only managed-state owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
+  them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
+  registry match is reported. A match grants no approval and adds no delete path; the engine is
+  unchanged. The report neither shows nor runs a product-native destructive command; the registry
+  keeps each as data. Its presence check and read-only command run through the PowerShell tool or
+  the operator, because the skill's Bash guard denies them, and by the resolved application
+  executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
+  manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
+
+## [0.39.0] - 2026-09-30
+
+### Added
+
+- **Read-only `inventory` subcommand with a deep mode**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
+  --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
+  a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
+  validated KEEP reason (exit 5 when the validator fails); without a readable `/proc`, rows that depend
+  on the process table are UNKNOWN, not CANDIDATE. A home-directory target, or any target with
+  `--deep`, runs it before any `scan`, so a bare `/disk-hygiene:clean ~` starts there. The engine
+  grammar declares the subcommand read-only, so the destructive guard admits it beside `catalog`.
+  A superseded version a symlink points at is kept, a release outranks its own prerelease, a
+  plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
+  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. The walk does not enter a bind mount on the
+  same device (read from `/proc/self/mountinfo`), an open file counts as use of a `/tmp` entry, and
+  the report is written to a temporary file and renamed only when the walk finishes.
+  `skills/clean/SKILL.md` and its references document the attended workflow.
+
+## [0.38.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:check`, a model-invocable probe**
+  ([#5436](https://github.com/melodic-software/claude-code-plugins/issues/5436)). It reads the
+  `check` section of `setup` and installs nothing, so a hook notice can name a command Claude is
+  able to run. Its interpreter probes are not pre-granted in `allowed-tools`: a wildcarded
+  interpreter rule grants nothing under auto mode.
+
+### Changed
+
+- **Missing-Python hook notice:** `run-python-hook.sh` now ends its remedy with
+  `/disk-hygiene:check` instead of `/disk-hygiene:setup check`, which carries
+  `disable-model-invocation: true`.
+
+## [0.37.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** The hook rows launch through `node`, so a host without it skipped the destructive-command guard silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README documents the row.
+
+## [0.36.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:audit`, a model-invocable read-only scan**
+  ([#5516](https://github.com/melodic-software/claude-code-plugins/issues/5516)). A delegated or
+  orchestrated session can run the probe and one engine `scan` and report the snapshot with its
+  coverage gaps. It runs no `preview` or `apply` and hands any removal to `/disk-hygiene:clean`,
+  which stays manual-only.
+
+## [0.35.2] - 2026-09-30
+
+### Fixed
+
+- **The engine gate probes half as many files on commands that do not name the engine**
+  ([#3527](https://github.com/melodic-software/claude-code-plugins/issues/3527)). Without the
+  `hygiene.py` marker, `_engine_gate_relevant` now deduplicates its candidates, so each distinct
+  word is probed once as written and once joined to the engine's own directory:
+  `git log --oneline --graph --decorate origin/main` drops from 24 probes to 12. The
+  engine-directory reading skips a word qualified with a drive other than the engine's, such as
+  `D:foo`: Windows joins it onto that drive and drops the engine's directory, so the reading only
+  repeated the as-written probe of the same path. A bare `alias` and `C:alias` beside an engine on
+  `C:` still read against the engine's directory. The as-written reading stays unconditional,
+  because a bare name reaches a link in the working directory (`python3 alias`) and a separator
+  filter would have stopped gating it. Flags and other non-path words are therefore still probed
+  against the working directory, so an unreachable path given as a word can still stall the hook.
+  A link invoked with another drive's qualifier (`D:alias` beside an engine on `C:`) still does not
+  gate; the other accepted residuals are unchanged.
+
+## [0.35.1] - 2026-09-30
+
+### Changed
+
+- **`safety-model.md` records how the `apply --execute` ask behaves under `bypassPermissions`**
+  ([#5609](https://github.com/melodic-software/claude-code-plugins/issues/5609)). A four-part
+  verification record states which modes were probed (headless default, `--bg` default, headless
+  `bypassPermissions`), which were not (interactive `bypassPermissions`, auto mode, the Windows
+  PowerShell tool), and what the official docs and upstream issues say.
+
+## [0.35.0] - 2026-09-30
+
+### Added
+
+- **`handoff-apply`, a Linux route for a standalone Git checkout**
+  ([#5178](https://github.com/melodic-software/claude-code-plugins/issues/5178)). For one exact
+  approved path, `handoff-apply --execute` re-runs `handoff-verify` in the same process and deletes
+  on any `clear` verdict: one that passes every evidence gate, or one where `accept_unpublished` with
+  the operator's reason in `vcs-evidence.json` waives the first two, so a contested throwaway
+  checkout no longer has to be removed outside the engine. Preview and token apply keep VCS
+  protection categorical; the acknowledgement is evaluated only in the handoff verification path.
+  The Bash guard asks for the exact `handoff-apply` shape. Windows and macOS keep `handoff-verify`
+  and the manual handoff lane.
+- **`handoff-apply` is the one lane that removes entries outside the snapshot.** The snapshot
+  records a repository's `.git` directory without its descendants, so the engine empties that
+  uninventoried metadata fd-relative before removing it. The purge refuses on a mount point at or
+  under the metadata directory, on any consumer protection glob match over a live `os.walk`, and on
+  a directory it cannot read (fail closed); it requires every directory to stay on the metadata
+  directory's device and unlinks links rather than following them. Each child is matched against
+  the consumer protection globs again as the purge reaches it. The hard-protection name check
+  is not applied to those contents.
+
+### Changed
+
+- **clean docs:** `safety-model.md` carries the `handoff-apply` command block and `SKILL.md` names the Linux
+  route in the throwaway-checkout bullet, still telling the operator plainly that unpushed commits
+  and untracked or ignored files will be lost. `safety-model.md`, `unsupported-platform-handoff.md`
+  and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
+  for `apply`, or that the engine removes only snapshot entries.
+
 ## [0.34.4] - 2026-09-30
 
 ### Fixed

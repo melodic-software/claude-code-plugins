@@ -1,0 +1,31 @@
+{
+  "Q1": {
+    "title": "Question Q1?",
+    "round": 1,
+    "commits": [
+      {
+        "text": "One writer",
+        "confirmed": true
+      },
+      {
+        "text": "Third",
+        "confirmed": true
+      }
+    ],
+    "terminal": {
+      "decision": "accept",
+      "alt": null,
+      "text": "fine; really",
+      "seeded": false
+    },
+    "recommendation": "Rec Q1",
+    "alternatives": [],
+    "archived": null,
+    "hold": {
+      "waitsOn": "vendor quote",
+      "by": "claude"
+    },
+    "setAside": [],
+    "seed": null
+  }
+}

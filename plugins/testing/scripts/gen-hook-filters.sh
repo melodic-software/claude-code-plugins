@@ -11,6 +11,12 @@
 # depth (gitignore syntax). The task-end judge's background job (async) takes
 # the same PostToolUse rows; its Stop and SessionStart entries have no `if`.
 #
+# PostToolUse also gets one Bash row with no `if`: a Bash `if` matches
+# the command string, not the files the call changed (probes.md), so
+# test-scan-bash.sh filters the payload's changed files by the same globs.
+# The judge has no Bash row: test-scan records a Bash-written test file like
+# any other write, and the Stop hook judges what no background job did.
+#
 # Usage: gen-hook-filters.sh [--check]
 #   (no arg)  rewrite hooks/hooks.json
 #   --check   exit 1 when hooks/hooks.json differs from what would be written
@@ -46,10 +52,12 @@ json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
   }];
   def judge($script; $extra): [{hooks: [cmd(["TEST_GUARDS_ENABLED", "TEST_JUDGE_ENABLED"]; $script) + $extra]}];
   {
-    description: "Names what a Write or Edit to a test file removes and scans the written file for tests that cannot fail (opt-in: test_guards_enabled); a task-end judge asks where each new test'"'"'s expected value came from (opt-in: test_judge_enabled, which needs test_guards_enabled).",
+    description: "Names what a Write or Edit to a test file removes and scans the written file, or a test file a Bash call changed, for tests that cannot fail (opt-in: test_guards_enabled); a task-end judge asks where each new test'"'"'s expected value came from (opt-in: test_judge_enabled, which needs test_guards_enabled).",
     hooks: {
       PreToolUse: rows("test-weaken.sh"; {timeout: 10, statusMessage: "Checking the edit for removed assertions or skipped tests..."}),
       PostToolUse: (rows("test-scan.sh"; {timeout: 10, statusMessage: "Scanning the test file for tests that cannot fail..."})
+        + [{matcher: "Bash", hooks: [cmd(["TEST_GUARDS_ENABLED"]; "test-scan-bash.sh")
+            + {timeout: 10, statusMessage: "Scanning test files the command changed..."}]}]
         + rows("test-judge-bg.sh"; {async: true})),
       Stop: judge("test-judge.sh"; {timeout: 240, statusMessage: "Collecting the test judge'"'"'s verdicts..."}),
       SessionStart: judge("test-judge-start.sh"; {timeout: 30})
