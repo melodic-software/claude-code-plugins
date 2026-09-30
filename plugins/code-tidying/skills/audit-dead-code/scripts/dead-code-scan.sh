@@ -929,7 +929,12 @@ lane_grep() {
     sym_detail='no symbol definition matched the extractor set'
   fi
   emit_unreferenced_files
-  dc_account_lane_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"}
+  local -a searched_nolane=()
+  for f in ${NOLANE_FILES[@]+"${NOLANE_FILES[@]}"}; do
+    [[ $f != *$'\t'* && $f != *$'\n'* ]] || continue
+    if dc_ref_key_ok "${f##*/}" || dc_ref_key_ok "$f"; then searched_nolane+=("$f"); fi
+  done
+  dc_account_lane_files ran ${DEF_FILES[@]+"${DEF_FILES[@]}"} ${searched_nolane[@]+"${searched_nolane[@]}"}
   lane_line grep '.' ran "$inspected_n" \
     "$sym_detail; $FILE_REF_EMITTED unreferenced-file candidate(s)"
 }
