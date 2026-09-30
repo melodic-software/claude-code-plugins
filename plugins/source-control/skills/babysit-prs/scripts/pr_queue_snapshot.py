@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
@@ -34,6 +35,7 @@ import babysit_checks as checks_engine
 import babysit_delta as delta
 import babysit_gh as gh
 import babysit_lease as leases
+import babysit_repo_config as repo_policy
 import babysit_review_trigger as trigger
 import babysit_state as state_store
 from babysit_feedback import FeedbackConfig
@@ -92,6 +94,33 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
         ),
         advisory_fix_round_cap=int(
             getattr(args, "fix_round_cap", None) or delta.ADVISORY_FIX_ROUND_CAP
+        ),
+    )
+
+
+def repo_classify_config(
+    config: delta.ClassifyConfig, args: argparse.Namespace, repo: str
+) -> delta.ClassifyConfig:
+    """`config` with one repository's effective policy applied.
+
+    The six policy keys this snapshot reads come from the repository's
+    default-branch config, with the flags as the deprecated `userConfig` fallback.
+    Raises `RepoConfigError` when that config cannot be read.
+    """
+    effective = repo_policy.resolve(repo, repo_policy.fallback_from_args(args))
+    return replace(
+        config,
+        feedback=replace(
+            config.feedback,
+            approval_downgrade_logins=effective.approval_downgrade_logins,
+            skip_downgrade_logins=effective.skip_downgrade_logins,
+        ),
+        review_trigger=replace(
+            config.review_trigger,
+            trigger_phrase=effective.review_trigger_phrase or "",
+            reviewer_logins=effective.review_bot_logins or frozenset(),
+            gate_context=effective.review_gate_context or "",
+            ci_gateway_context=effective.ci_gateway_context or "",
         ),
     )
 
@@ -197,12 +226,15 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
                 owners=_csv_list(args.owners), authors=authors, limit=args.limit
             )
 
-    trigger_config = config.review_trigger
     prs: list[dict[str, Any]] = []
     pr_error_keys: list[str] = []
     for repo, number in targets:
         key = f"{repo}#{number}"
         try:
+            # An unreadable repository config leaves the PR unclassified (never
+            # merge-ready) and is recorded like a hydration failure.
+            pr_config = repo_classify_config(config, args, repo)
+            trigger_config = pr_config.review_trigger
             pr = gh.view_pr(repo, number)
             pr["comments"] = gh.fetch_issue_comments(repo, number)
             pr["_issue_comments_complete"] = True
@@ -243,7 +275,7 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
                     generated_at,
                     review_evidence,
                     reaction_signals,
-                    config,
+                    pr_config,
                 )
             )
         except Exception as exc:

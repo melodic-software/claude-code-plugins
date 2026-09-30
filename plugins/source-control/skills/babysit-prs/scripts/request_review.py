@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+import babysit_repo_config as repo_policy
 from babysit_delta import compute_branch_freshness, head_repository_scope
 from babysit_feedback import fetch_current_human_stop, human_stop_blocks_automation
 from babysit_gh import (
@@ -48,10 +49,18 @@ def _csv(value: str | None) -> frozenset[str]:
     return frozenset(parse_csv_set(value))
 
 
-def build_trigger_config(args: argparse.Namespace) -> ReviewTriggerConfig:
+def build_trigger_config(args: argparse.Namespace, repo: str) -> ReviewTriggerConfig:
+    """The trigger config for one repository.
+
+    The phrase and reviewer logins come from the repository's default-branch
+    config, with the flags as the deprecated `userConfig` fallback. An unreadable
+    repository config raises `RepoConfigError`, so the run refuses before it
+    opens any state.
+    """
+    effective = repo_policy.resolve(repo, repo_policy.fallback_from_args(args))
     return ReviewTriggerConfig(
-        trigger_phrase=str(args.trigger_phrase or ""),
-        reviewer_logins=_csv(getattr(args, "review_bot_logins", None)),
+        trigger_phrase=effective.review_trigger_phrase or "",
+        reviewer_logins=effective.review_bot_logins or frozenset(),
         extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
     )
 
@@ -279,8 +288,8 @@ def run_locked(
     # Parse before the phrase check so a malformed --pr still refuses first,
     # the same order as before the preamble moved into the helper. The helper
     # parses again; both calls are pure.
-    parse_repo_number(args.pr)
-    config = build_trigger_config(args)
+    target_repo, _ = parse_repo_number(args.pr)
+    config = build_trigger_config(args, target_repo)
     recognizer = trigger_regex(config.trigger_phrase)
     if recognizer is None:
         raise RuntimeError("a non-empty review trigger phrase is required")
@@ -430,7 +439,7 @@ def run_locked(
                 "--method",
                 "POST",
                 "-f",
-                f"body={args.trigger_phrase}",
+                f"body={config.trigger_phrase}",
             ]
         )
     except Exception as exc:

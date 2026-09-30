@@ -50,6 +50,20 @@ HEADING_RE = re.compile(r"^#{1,6}\s+(.*?)\s*#*\s*$")
 H2_PREFIX = "## "
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
 
+# Each key's deprecated `userConfig` value arrives as this CLI flag's parsed dest.
+FLAG_DESTS = {
+    "babysit_merge_method": "method",
+    "babysit_merge_block_labels": "block_labels",
+    "babysit_extra_dependency_manager_logins": "extra_dependency_manager_logins",
+    "babysit_approval_downgrade_logins": "approval_downgrade_logins",
+    "babysit_skip_downgrade_logins": "skip_downgrade_logins",
+    "babysit_review_trigger_phrase": "trigger_phrase",
+    REVIEW_BOTS: "review_bot_logins",
+    REVIEW_SETTLE: "review_settle_minutes",
+    "babysit_review_gate_context": "review_gate_context",
+    "babysit_ci_gateway_context": "ci_gateway_context",
+}
+
 GhRunner = Callable[[list[str]], subprocess.CompletedProcess[str]]
 RepoLayer = dict[str, str | frozenset[str]]
 
@@ -251,13 +265,22 @@ def merge_repo_config(
     )
 
 
-def fetch_repo_config(owner_repo: str, gh_runner: GhRunner = gh_capture) -> RepoLayer:
+def fallback_from_args(args: object) -> dict[str, str | None]:
+    """The `userConfig` fallback mapping from a parsed CLI namespace.
+
+    A flag the calling script does not define reads as unset.
+    """
+    return {key: getattr(args, dest, None) for key, dest in FLAG_DESTS.items()}
+
+
+def fetch_repo_config(owner_repo: str, gh_runner: GhRunner | None = None) -> RepoLayer:
     """The repository layer from the default branch; empty when the file is absent.
 
     Only a 404 that `gh` itself reported means "no file". Every other failure
     (another status, no status, a timeout, a missing gh, an unexpected payload,
     a parse error) raises `RepoConfigError`.
     """
+    gh_runner = gh_runner or gh_capture
     owner, _, name = owner_repo.partition("/")
     if not is_owner_repo_pair(owner, name):
         raise RepoConfigError(f"not an owner/repo pair: {owner_repo!r}")
@@ -308,7 +331,7 @@ def _note_once(token: str, message: str) -> None:
 def resolve(
     owner_repo: str,
     fallback: Mapping[str, str | None],
-    gh_runner: GhRunner = gh_capture,
+    gh_runner: GhRunner | None = None,
 ) -> EffectiveConfig:
     """Effective policy for one target repository; raises `RepoConfigError`.
 

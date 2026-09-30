@@ -20,11 +20,13 @@ import tempfile
 import unittest
 from unittest import mock
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_delta as delta
 import babysit_feedback as feedback
 import babysit_gh as gh
+from repo_config_fake import RepoConfigFake
 import pr_queue_snapshot as snapshot
 
 
@@ -346,6 +348,9 @@ class SinglePrScopeSelfLoginTests(unittest.TestCase):
     single-PR runs even though `--pr` scope is a supported invocation.
     """
 
+    def setUp(self) -> None:
+        RepoConfigFake().install(self)
+
     def test_single_pr_run_resolves_me_into_self_logins(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             args = argparse.Namespace(
@@ -379,6 +384,9 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
     self). Both cases are asserted here against `build_snapshot`; both fail
     against the pre-fix author-union behavior.
     """
+
+    def setUp(self) -> None:
+        RepoConfigFake().install(self)
 
     def _resolve_via_snapshot(self, args: argparse.Namespace) -> list[str]:
         # view_pr raises so the per-PR loop is a no-op; the assertion is about
@@ -432,6 +440,9 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
     other `--pr` test in this module stops the per-PR loop before `classify_pr`,
     so only these two drive a real classification end to end.
     """
+
+    def setUp(self) -> None:
+        RepoConfigFake().install(self)
 
     SELF = "kyle-sexton"
 
@@ -530,6 +541,148 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
             trigger_phrase="please review",
         )
         self.assertTrue(classified["foreign_activity"]["detected"])
+
+
+class PerRepoPolicyTests(unittest.TestCase):
+    """A queue run resolves the policy keys from each PR's own repository.
+
+    The same clean bot approval is ignored under one repository's config and
+    surfaced as material under another's; an unreadable repository config leaves
+    only that repository's PRs unclassified.
+    """
+
+    APPROVAL = {
+        "id": 21,
+        "author": {"login": "claude", "__typename": "Bot"},
+        "body": (
+            "Verdict: Approve. Checked every blocking criterion; all blocking "
+            "checks are inapplicable."
+        ),
+    }
+
+    @staticmethod
+    def _pr(repo: str, number: int) -> dict[str, object]:
+        return {
+            "repo": repo,
+            "number": number,
+            "url": "u",
+            "title": "t",
+            "state": "OPEN",
+            "author": {"login": "someone", "__typename": "User"},
+            "headRefName": f"feature-{number}",
+            "headRefOid": "a" * 40,
+            "baseRefName": "main",
+            "headRepository": {"nameWithOwner": repo},
+            "headRepositoryOwner": {"login": repo.split("/")[0]},
+            "isCrossRepository": False,
+            "isDraft": False,
+            "maintainerCanModify": True,
+            "baseRepositoryArchived": False,
+            "mergeStateStatus": "CLEAN",
+            "mergeable": "MERGEABLE",
+            "reviewDecision": "",
+            "reviews": [],
+            "latestReviews": [],
+            "comments": [],
+            "statusCheckRollup": [],
+            "updatedAt": "2026-07-09T00:00:00Z",
+        }
+
+    def _snapshot(
+        self, files: dict[str, str | int], targets: list[tuple[str, int]], **flags: str
+    ) -> dict[str, dict]:
+        RepoConfigFake(files).install(self)
+        with tempfile.TemporaryDirectory() as state_dir:
+            args = argparse.Namespace(
+                pr=None,
+                author=None,
+                owners="owner",
+                limit=10,
+                state_dir=state_dir,
+                write_state=False,
+                **flags,
+            )
+            with (
+                mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"),
+                mock.patch.object(gh, "resolve_authors", return_value=[]),
+                mock.patch.object(gh, "discover_prs", return_value=(targets, [])),
+                mock.patch.object(gh, "view_pr", side_effect=self._pr),
+                mock.patch.object(
+                    gh, "fetch_issue_comments", return_value=[self.APPROVAL]
+                ),
+                mock.patch.object(gh, "fetch_pull_request_reviews", return_value=[]),
+                mock.patch.object(
+                    gh, "fetch_unresolved_review_comments", return_value=[]
+                ),
+                mock.patch.object(
+                    delta,
+                    "find_open_prs_for_head_ref",
+                    side_effect=lambda pr: [pr["key"]],
+                ),
+            ):
+                return snapshot.build_snapshot(args)
+
+    def test_two_repositories_resolve_different_effective_policy(self) -> None:
+        result = self._snapshot(
+            {
+                "owner/strict": "## babysit_approval_downgrade_logins\n- claude\n",
+                "owner/plain": "## babysit_merge_method\nsquash\n",
+            },
+            [("owner/plain", 1), ("owner/strict", 2)],
+        )
+        self.assertEqual(result["errors"], [])
+        feedback_by_key = {pr["key"]: pr["feedback"] for pr in result["prs"]}
+        self.assertEqual(len(feedback_by_key["owner/strict#2"]["material"]), 1)
+        self.assertEqual(feedback_by_key["owner/plain#1"]["material"], [])
+        self.assertEqual(feedback_by_key["owner/plain#1"]["blocking"], [])
+
+    def test_repository_declaration_adds_to_the_userconfig_flag(self) -> None:
+        result = self._snapshot(
+            {"owner/strict": "## babysit_approval_downgrade_logins\n- other-bot\n"},
+            [("owner/strict", 2), ("owner/plain", 1)],
+            approval_downgrade_logins="claude",
+        )
+        material = {pr["key"]: pr["feedback"]["material"] for pr in result["prs"]}
+        self.assertEqual(len(material["owner/strict#2"]), 1)
+        self.assertEqual(len(material["owner/plain#1"]), 1)
+
+    def test_unreadable_repository_config_leaves_only_its_prs_unclassified(
+        self,
+    ) -> None:
+        result = self._snapshot(
+            {"owner/broken": 500},
+            [("owner/broken", 3), ("owner/plain", 1)],
+        )
+        self.assertEqual([pr["key"] for pr in result["prs"]], ["owner/plain#1"])
+        self.assertEqual(len(result["errors"]), 1)
+        self.assertTrue(result["errors"][0].startswith("owner/broken#3: "))
+        self.assertIn(".claude/source-control.md", result["errors"][0])
+        self.assertFalse(result["complete"])
+        self.assertEqual(snapshot.exit_code_for(result), 1)
+
+    def test_repository_trigger_config_reaches_the_gate_state(self) -> None:
+        RepoConfigFake(
+            {
+                "owner/a": (
+                    "## babysit_review_trigger_phrase\n@bot review\n\n"
+                    "## babysit_review_bot_logins\n- bot\n\n"
+                    "## babysit_review_settle_minutes\n5\n\n"
+                    "## babysit_review_gate_context\ngate-a\n"
+                )
+            }
+        ).install(self)
+        args = argparse.Namespace(
+            trigger_phrase="flag phrase", review_gate_context="flag-gate"
+        )
+        base = snapshot.build_config(args)
+        with_repo = snapshot.repo_classify_config(base, args, "owner/a")
+        without_repo = snapshot.repo_classify_config(base, args, "owner/b")
+        self.assertEqual(with_repo.review_trigger.trigger_phrase, "@bot review")
+        self.assertEqual(with_repo.review_trigger.reviewer_logins, {"bot"})
+        self.assertEqual(with_repo.review_trigger.gate_context, "gate-a")
+        self.assertEqual(without_repo.review_trigger.trigger_phrase, "flag phrase")
+        self.assertEqual(without_repo.review_trigger.gate_context, "flag-gate")
+        self.assertEqual(base.review_trigger.gate_context, "flag-gate")
 
 
 if __name__ == "__main__":
