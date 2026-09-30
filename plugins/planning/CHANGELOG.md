@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
+## [0.47.11] - 2026-09-30
+
+### Added
+
+- **`surface/wake.sh`** wraps the interview wake loop's compound command (`round.sh apply` then `watch.sh`) so each wake sends one short call. `watch.sh` emits it as the `next` command, and `context/surface.md` and the surface README document it ([#5462](https://github.com/melodic-software/claude-code-plugins/issues/5462)).
+
 ## [0.47.10] - 2026-09-30
 
 ### Changed

@@ -18,7 +18,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 cd "$here" || exit 1
 files=()
-for f in server.py round.py round.sh watch.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
+for f in server.py round.py round.sh watch.sh wake.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
   [[ -f "$f" ]] && files+=("$f")
 done
 

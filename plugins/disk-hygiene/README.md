@@ -264,6 +264,29 @@ Policy files all share one shape:
 }
 ```
 
+Version 2 adds preselect `rules`, an age threshold, and an elevation opt-in
+([schema](skills/clean/reference/policy-overlay.schema.json)). A version 1 file keeps working.
+
+```json
+{
+  "version": 2,
+  "rules": [
+    {"match": {"hint_ids": ["common-lock-file"]}, "preselect": true, "min_age_days": 7}
+  ],
+  "elevation": "never"
+}
+```
+
+A rule ticks matching candidates in the approval list; it never approves. The approval question still
+names one tier and its path list, and a tick never raises a candidate above its hint's
+`confidence_ceiling` or past a blocker. With `min_age_days`, an entry modified inside the window (or
+a directory whose newest descendant is, or whose coverage is incomplete) stays unticked and is
+labeled in-flight. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
+project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
+that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
+elevation lane has not been proven in a Windows UAC pilot; see the
+[safety model](skills/clean/reference/safety-model.md#opt-in-elevation).
+
 Without `--policy`, standing policy files layer over the baseline when present:
 `~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's
 `.claude/disk-hygiene.json`. An explicit `--policy` file is the invocation-specific choice and

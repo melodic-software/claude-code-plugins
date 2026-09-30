@@ -229,6 +229,18 @@ Describe 'Test-EnvironmentHealth' -Tag 'check' {
             $result.detail.shadowed_executables | Should -HaveCount 1
             $result.detail.shadowed_executables[0].winner_scope | Should -Be 'machine'
             $result.detail.shadowed_executables[0].warn | Should -BeTrue
+            $result.detail.process_path_shadow_warn_count | Should -Be 1
+            $result.summary | Should -Match '^Process PATH: 1 shadowed'
+            $result.summary | Should -Not -Match 'Persisted'
+        }
+
+        It 'keeps persisted-PATH and process-PATH findings in separate summary clauses' {
+            $fx = Import-EnvironmentFixture -Name 'persisted-and-shadow' -TempRoot $script:tmpDir
+            $env:PATH = $fx.ProcessPath
+            Install-EnvironmentMocks $fx
+
+            $result = Invoke-EnvironmentHealthAsObject
+            $result.summary | Should -Match 'Persisted PATH/environment: .*DISABLE_AUTOUPDATER.*\. Process PATH: 1 shadowed'
         }
     }
 
