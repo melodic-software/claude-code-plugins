@@ -73,6 +73,39 @@ bounded conditions.
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
+- no virtual-disk image file, matched by name and case-insensitively against the baseline
+  `disk_image_name_globs` (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`; WSL's
+  `ext4.vhdx` is covered by `*.vhdx`). The entry reports `virtual-disk` in `protected_reasons` and
+  `size_qualifiers`, so any candidate that is or contains one is blocked in preview, apply, and
+  `handoff-verify`, and its bytes stay out of every reclaimable total. An image is a whole guest
+  disk, usually held open by a hypervisor or WSL, so the name proves nothing about it being
+  disposable; the owning product's own compaction or removal is the path. Each image also gets an
+  attach probe, which adds one more reason:
+  - `attached-virtual-disk:<mount>` for each drive letter (`D:`) or mount point the attached image
+    backs, or a bare `attached-virtual-disk` when it is attached with no mounted volume;
+  - `virtual-disk-attach-unverified` when the probe errors, times out, or has no route on the
+    platform, or when it runs under WSL and finds no loop device for the image. An unanswered probe
+    never reads as detached;
+  - nothing more for a detached image, which keeps only `virtual-disk`.
+
+  Windows asks `Get-DiskImage` through a PowerShell call bounded at 20 seconds. Linux reads
+  `/sys/block/loop*/loop/backing_file` and the loop devices' mounts. WSL sees only its own loop
+  devices, never the Windows host's attachments, so a WSL image with no loop device reads as
+  unverified rather than detached; a loop device that does back it is reported as attached. WSL is
+  detected from a `microsoft` kernel release or `/proc/sys/fs/binfmt_misc/WSLInterop`. macOS has no
+  probe and always reads as unverified.
+
+  **Claim:** `Get-DiskImage` is documented for virtual hard disk and ISO images, so for a `.vmdk`,
+  `.vdi`, `.qcow2`, or `.img` the Windows route may error (`virtual-disk-attach-unverified`) or
+  answer not attached (bare `virtual-disk`); what it returns for those formats, and for an image
+  another process holds open, such as a running WSL distro's `ext4.vhdx`, has not been observed.
+  The image keeps `virtual-disk` and the block either way. **Basis:** the cmdlet's page
+  `https://learn.microsoft.com/en-us/powershell/module/storage/get-diskimage?view=windowsserver2025-ps`,
+  fetched whole as rendered HTML: "Gets one or more disk image objects (virtual hard disk or ISO)"
+  and "reports whether the specified ISO or VHD file is currently attached"; its image-path
+  examples are an `.iso` and a `.vhdx`, and the page names no VMDK, VDI, QCOW2, or IMG. No
+  Windows host has run this route. **As of:** 2026-09-29. **Recheck:** the operator's Windows pilot (an attached VHDX, a
+  `.vmdk`, and a running WSL distro's `ext4.vhdx`), or that page naming more image formats;
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
@@ -276,6 +309,9 @@ reports `data_root: none` on both sides. Verified 2026-09-27 against https://cod
 typing `/skillname` fires it, it matches on `command_name`, and `additionalContext` reaches Claude
 alongside the expanded prompt); recheck when that section changes, or if a release note names the
 event. Whether `command_name` carries the leading `/` was not observed, so the matcher admits both.
+
+The hook is the chosen primary delivery path for both values. The one denied bare-python probe in
+the no-hook path is an accepted residual: the probe cannot supply `hook_python` to itself.
 
 `--max-depth` accepts only a bare positive-integer literal. `--confirmed-large-scan`, `--quiet`
 and `--root-children` are the valueless scan flags; the guard permits at most one of each and
@@ -585,7 +621,7 @@ payload names what was in scope.)
 | `walked` | `true` only when the child's whole subtree was inventoried |
 | `logical_bytes` | Recursive LOGICAL total, qualifiers included; `null` unless `walked` |
 | `reclaimable_local_bytes` | Recursive total over unqualified files only, the bytes deleting the child is expected to return locally; `null` unless `walked` |
-| `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, …); `null` unless `walked` |
+| `size_qualifiers` | Union of the qualifiers observed in the subtree (`cloud-placeholder`, `hardlinked`, `sparse`, `virtual-disk`, …); `null` unless `walked` |
 | `entry_count` | Inventoried descendants, excluding the child's own record; `null` unless `walked` |
 | `newest_mtime_ns` | Newest `mtime_ns` across the child and its inventoried descendants; `null` unless `walked` |
 | `unwalked_reasons` | Sorted causes when `walked` is false: `depth-cut`, `protected`, `vcs-boundary`, `scan-error`, `descendant-not-walked`, or the bare `not-walked` fallback when the walk recorded no more specific cause. Empty when `walked` |
@@ -611,7 +647,7 @@ is in `truncated_paths`.
 
 The third failure mode, a byte figure that overstates what deleting would return, is closed by
 pairing, not by omission. `logical_bytes` is a logical total, so a cloud placeholder's REMOTE size, a
-hard link's shared object, and a sparse file's unallocated extent all inflate it; `size_qualifiers`
+hard link's shared object, a sparse file's unallocated extent, and a virtual-disk image's capacity all inflate it; `size_qualifiers`
 says which of those are present in the subtree and `reclaimable_local_bytes` counts only unqualified
 files, exactly as `target_reclaimable_local_bytes` does for the target. Rank a child on the
 reclaimable figure and state the qualified bytes separately with their reasons. Never read
