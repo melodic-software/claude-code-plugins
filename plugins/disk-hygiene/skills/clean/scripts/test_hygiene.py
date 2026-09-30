@@ -10292,15 +10292,14 @@ class GuardTests(unittest.TestCase):
     ) -> Callable[[str, str], bool]:
         """The engine-gate predicate with the marker-free branch frozen as it was.
 
-        Every candidate, duplicates included, was read as written and, when
-        relative, against the engine's directory. Marker-carrying commands
+        On PowerShell, string data is blanked and identity is read on the
+        command as written before the blanked command is classified. Then every
+        candidate, duplicates included, is read as written and, when relative,
+        against the engine's directory. Commands that still carry the marker
         delegate to ``real``, whose branches for them are unchanged.
         """
 
         def relevant(command: str, tool_name: str = "Bash") -> bool:
-            tokens = guard._marker_tokens(command)
-            if any(guard._carries_marker(token) for token in tokens):
-                return real(command, tool_name)
             bundled = guard._engine_script_path()
 
             def samefile(word: str) -> bool:
@@ -10309,11 +10308,27 @@ class GuardTests(unittest.TestCase):
                 except (OSError, ValueError):
                     return False
 
-            words = guard._literal_shell_words(
-                command, allow_backslash=tool_name == "PowerShell"
+            powershell = tool_name == "PowerShell"
+            data_free = (
+                guard._powershell_without_string_data(command) if powershell else None
             )
+            scanned = command if data_free is None else data_free
+            tokens = guard._marker_tokens(scanned)
+            if any(guard._carries_marker(token) for token in tokens):
+                return real(command, tool_name)
+            if data_free is not None and any(
+                samefile(candidate)
+                or (
+                    guard._carries_marker(token)
+                    and guard._within_plugin_cache_family(candidate)
+                )
+                for token, word in guard._marker_tokens_with_words(command)
+                for candidate in (token, word)
+            ):
+                return True
+            words = guard._literal_shell_words(scanned, allow_backslash=powershell)
             candidates = list(tokens) + (
-                [token.strip("'\"") for token in command.split()]
+                [token.strip("'\"") for token in scanned.split()]
                 if words is None
                 else list(words)
             )
@@ -10342,12 +10357,14 @@ class GuardTests(unittest.TestCase):
         return link
 
     def test_engine_gate_marker_free_split_keeps_verdict_parity(self) -> None:
-        """Splitting the two identity readings moves no allow/ask/deny verdict.
+        """Deduping candidates and filtering the engine-directory reading move no verdict.
 
         Each command runs through the real guard twice, once with the frozen
-        marker-free predicate patched in, for both tools and both kill-switch
-        states. The link commands are in the corpus so parity is also asserted
-        where the verdict gates, not only where both predicates defer.
+        baseline patched in, for both tools and both kill-switch states. The
+        link commands are in the corpus so parity is also asserted where the
+        verdict gates, not only where both predicates defer. The PowerShell row
+        names the link inside a string literal, which the baseline blanks
+        before it reads candidates.
         """
         tag = os.getpid()
         in_dir = self._hard_link_or_skip(SCRIPT_DIR / f"engine-alias-{tag}")
@@ -10380,6 +10397,7 @@ class GuardTests(unittest.TestCase):
             "Get-ChildItem -Path C:\\Users -Recurse",
             "Remove-Item -Recurse -Force .\\build",
             'Write-Host "hi"; Get-Location',
+            f"Write-Host '{in_dir.name}'",
             "& python .\\tools\\hygiene.py --help",
             f"cd {scripts} && python hygiene.py. apply --plan p --token t",
             f'python3 "{script}" scan --help',
@@ -10452,54 +10470,36 @@ class GuardTests(unittest.TestCase):
                     command,
                 )
 
-    def test_engine_gate_bare_link_outside_engine_dir_defers(self) -> None:
-        """A bare-name link outside the engine directory no longer gates.
+    def test_engine_gate_bare_link_outside_engine_dir_gates(self) -> None:
+        """A link in the working directory gates by bare name, outside the engine dir.
 
-        The as-written probe now needs a separator, so a link in the working
-        directory invoked as `cleanup` is the accepted residual. The old
-        predicate gated it; the differential pins where the two diverge.
+        Only the as-written reading can see it, so a word with no separator
+        must be probed as written. `test_hygiene.py` is a decoy that keeps the
+        command in the marker-free branch.
         """
         real = guard._engine_gate_relevant
         old = self._old_marker_free_engine_gate(real)
         with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
             self._hard_link_or_skip(Path(tmp) / "cleanup")
-            self.addCleanup(os.chdir, os.getcwd())
-            os.chdir(tmp)
-            command = "cleanup apply test_hygiene.py"
-            self.assertTrue(old(command, "Bash"))
-            self.assertFalse(real(command, "Bash"))
-            self.assertTrue(real(f"./cleanup {command}", "Bash"))
+            with chdir_context(tmp):
+                command = "cleanup apply test_hygiene.py"
+                self.assertTrue(old(command, "Bash"))
+                for spelled in (command, f"./{command}"):
+                    self.assertTrue(real(spelled, "Bash"), spelled)
+                result = self.run_guard_engine_gate(command, "Bash", enabled=False)
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
-    def test_engine_gate_backslash_word_is_probed_as_written_on_nt(self) -> None:
-        """Under `os.name == "nt"` a backslash counts as a separator for Bash."""
-        probed: list[str] = []
-
-        def samefile(word: object, other: object) -> bool:
-            probed.append(os.fspath(word))
-            return False
-
-        command = "'sub\\alias' apply"
-        engine = guard._engine_script_path()
-        for name, expected in (("nt", True), ("posix", False)):
-            probed.clear()
-            with (
-                mock.patch.object(guard.os, "name", name),
-                mock.patch.object(guard, "_engine_script_path", return_value=engine),
-                mock.patch.object(guard.os.path, "samefile", samefile),
-            ):
-                guard._engine_gate_relevant(command, "Bash")
-            self.assertEqual(expected, "sub\\alias" in probed, name)
-
-    def test_engine_gate_marker_free_probes_stay_inside_the_engine_dir(self) -> None:
+    def test_engine_gate_marker_free_probes_each_distinct_word_twice(self) -> None:
         """Counted `os.path.samefile` calls for marker-free commands.
 
-        Only a separator-carrying word is probed as written; every other probe
-        is a distinct word joined to the engine's directory. A flag costs one
-        such probe: a file named like a flag can sit beside the engine and run
-        as `python3 -- -alias`, so flags are not exempt.
+        Each distinct word is probed once as written and once joined to the
+        engine's directory, flags included: a link named like a flag can sit in
+        the working directory or beside the engine and run as `python3 -- -alias`.
+        The baseline probed every duplicate candidate too.
         """
         probes_before = 24
-        probes_after = 7
+        probes_after = 12
         bundled = guard._engine_script_path()
         engine_dir = os.fspath(bundled.parent)
         real = guard._engine_gate_relevant
@@ -10521,29 +10521,35 @@ class GuardTests(unittest.TestCase):
             "git --no-pager -c x",
             "npm run build -- --watch",
         ):
-            seen = probes(real, command)
-            self.assertEqual(len(dict.fromkeys(command.split())), len(seen), seen)
-            for path in seen:
-                self.assertEqual(engine_dir, os.path.dirname(path), command)
+            expected = [
+                path
+                for word in dict.fromkeys(command.split())
+                for path in (word, os.path.join(engine_dir, word))
+            ]
+            self.assertEqual(expected, probes(real, command), command)
         # Windows joins a drive-relative word onto its own drive and drops the
-        # base (`ntpath.join("C:\\eng", "D:foo") == "D:foo"`), so the old
-        # engine-directory reading probed drive D. Windows drive parsing is
-        # patched in so the check runs on every host.
+        # base (`ntpath.join("C:\\eng", "D:foo") == "D:foo"`), so the
+        # engine-directory reading only repeated the as-written probe of drive
+        # D. Windows drive parsing is patched in so the check runs on every
+        # host.
         with mock.patch.object(guard.os.path, "splitdrive", ntpath.splitdrive):
             engine_drive = ntpath.splitdrive(engine_dir)[0].casefold()
             other = "Z:foo" if engine_drive == "d:" else "D:foo"
-            self.assertEqual([], probes(real, other))
+            self.assertEqual([other], probes(real, other))
             self.assertIn(os.path.join(engine_dir, other), probes(old, other))
 
-    def test_engine_gate_reads_a_same_drive_word_against_the_engine_dir(self) -> None:
-        """`alias` and `C:alias` beside an engine on `C:` gate; `D:alias` is not read.
+    def test_engine_gate_reads_drive_less_and_same_drive_words_against_the_engine_dir(
+        self,
+    ) -> None:
+        """`alias` and `C:alias` beside an engine on `C:` gate; `D:alias` is probed once.
 
-        `ntpath.join("C:\\eng", "C:alias")` is `C:\\eng\\alias`, so a link
-        beside the engine invoked as `C:alias` gated before the split and must
-        still, whatever the drive letter's case; a bare `alias` has no drive
-        and joins the same way. Only a word on another drive drops the
-        engine's directory. Windows path handling is patched in so
-        the check runs on every host.
+        A bare relative `alias` has no drive and `ntpath.join("C:\\eng",
+        "C:alias")` is `C:\\eng\\alias`, so a link beside the engine invoked
+        either way gated before the filter and must still, whatever the drive
+        letter's case. Only a word on another drive drops the engine's
+        directory, so its engine-directory reading would repeat the as-written
+        probe and is skipped. Windows path handling is patched in so the check
+        runs on every host.
         """
         engine = PureWindowsPath("C:\\eng\\hygiene.py")
         link = "C:\\eng\\alias"
@@ -10563,14 +10569,15 @@ class GuardTests(unittest.TestCase):
             mock.patch.object(guard.os.path, "samefile", samefile),
         ):
             for command in ("alias apply", "C:alias apply", "c:alias apply"):
-                self.assertTrue(old(command, "Bash"), command)
-                self.assertTrue(real(command, "Bash"), command)
+                with self.subTest(command=command):
+                    self.assertTrue(old(command, "Bash"))
+                    self.assertTrue(real(command, "Bash"))
             probed.clear()
             self.assertFalse(old("D:alias apply", "Bash"))
-            self.assertIn("D:alias", probed)
+            self.assertEqual(4, probed.count("D:alias"))
             probed.clear()
             self.assertFalse(real("D:alias apply", "Bash"))
-            self.assertEqual([], [path for path in probed if path.startswith("D:")])
+            self.assertEqual(1, probed.count("D:alias"))
 
     def test_engine_gate_defers_consumer_windows_path_on_powershell(self) -> None:
         """Native consumer paths must defer on PowerShell, not fail closed (P2 r6).

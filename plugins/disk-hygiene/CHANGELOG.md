@@ -3,6 +3,24 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.5] - 2026-09-30
+
+### Fixed
+
+- **The engine gate probes half as many files on commands that do not name the engine**
+  ([#3527](https://github.com/melodic-software/claude-code-plugins/issues/3527)). Without the
+  `hygiene.py` marker, `_engine_gate_relevant` now deduplicates its candidates, so each distinct
+  word is probed once as written and once joined to the engine's own directory, so
+  `git log --oneline --graph --decorate origin/main` drops from 24 probes to 12. The
+  engine-directory reading skips a word qualified with a drive other than the engine's, such as
+  `D:foo`: Windows joins it onto that drive and drops the engine's directory, so the reading only
+  repeated the as-written probe of the same path. A bare `alias` and `C:alias` beside an engine on
+  `C:` still read against the engine's directory. The as-written reading stays unconditional,
+  because a bare name reaches a link in the working directory (`python3 alias`) and a separator
+  filter would have stopped gating it. Flags and other non-path words are therefore still probed
+  against the working directory, so an unreachable path given as a word can still stall the hook,
+  and the accepted residuals are unchanged.
+
 ## [0.34.4] - 2026-09-30
 
 ### Fixed

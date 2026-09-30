@@ -23,13 +23,14 @@ follow: (1) the strongest identified candidate for the 17s itself is
 ``_engine_gate_relevant``'s marker-free fallback, which runs on *every* Bash/
 PowerShell command in *every* session (not only disk-hygiene commands) when
 resolving the plugin-level engine gate. It calls ``os.path.samefile`` on each
-distinct separator-carrying whitespace token (or literal shell word) as
-written — a slow or unreachable path argument in an unrelated command is a
-real, user-reachable way to stall this hook for longer than milliseconds — and
-on each distinct relative, non-empty word not on another drive, joined to the
-engine's own directory, so a word that names no path costs one probe inside
-that directory; (2) empty stderr is not what an uncaught Python
-exception normally produces (the default handler writes a traceback), so an
+distinct whitespace token (or literal shell word) as written — a slow or
+unreachable path argument in an unrelated command is a real, user-reachable
+way to stall this hook for longer than milliseconds, and the as-written probe
+stays unfiltered because a bare name reaches a link in the working directory —
+and on each distinct relative, non-empty word with no drive or the engine's
+own, joined to the engine's own directory; (2) empty stderr is not what an
+uncaught Python exception normally produces (the default handler writes a
+traceback), so an
 external kill (antivirus/EDR scanning the ``python3`` process, a transient OS
 resource issue) remains an open, unconfirmed possibility this module cannot
 fix from inside the interpreter. What IS fixable and is fixed here: the
@@ -851,16 +852,14 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     A word that is the SAME FILE as the bundled engine — a symlink or hard link
     under any name — gates regardless of its filename. Without the marker, each
     distinct whitespace token (or ``_literal_shell_words`` word) is read two
-    ways: as written when it carries a path separator (``/``, plus ``\\`` on
-    Windows or under PowerShell), and joined to the engine's own directory when
-    it is relative, non-empty and not qualified with another drive. A link
-    beside the engine therefore gates invoked bare or as ``./alias``, and
+    ways: as written, and joined to the engine's own directory when it is
+    relative, non-empty and has no drive or the engine's own. A link in the
+    working directory therefore gates invoked bare (``python3 alias``) as well
+    as by path, a link beside the engine gates bare or as ``./alias``, and
     ``C:alias`` reads against the engine's directory on the engine's own drive.
     Accepted residuals, all of the copy-evasion class the gate can never close
-    (a byte copy is a different file): an alias outside the engine's directory
-    named with no separator (PATH-installed, or in the working directory as
-    ``python3 alias``), an alias qualified with a drive other than the engine's
-    (``D:alias``), an alias inside a command the literal parser rejects when the
+    (a byte copy is a different file): a PATH-installed alias with no
+    separator, an alias inside a command the literal parser rejects when the
     marker is absent, and a copied engine. This is a belt, not the
     authority: an invocation smuggled past it still answers to the engine's own
     preview/approval-token containment (and to the skill-frontmatter belt for
@@ -887,7 +886,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
 
         Read two ways: as written (``_samefile``), and — when relative —
         against the ENGINE'S OWN directory (``_in_engine_dir``). The
-        marker-free branch applies its own filter to each reading; the
+        marker-free branch filters the second reading by drive; the
         marker-carrying branch uses both unfiltered. The second reading is
         what closes the Windows filename-alias class. Win32 discards trailing
         dots and spaces from a filename and resolves `::$DATA` to the main
@@ -921,9 +920,10 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     marker_candidates = _marker_tokens(command)
     if not any(_carries_marker(token) for token in marker_candidates):
         # No marker: the only relevant shape is a linked alias of the bundled
-        # engine. Unparsable marker-free commands cannot fail closed (that
-        # would gate every command with an operator), so identity-check their
-        # whitespace tokens — a literal alias path gates even beside an
+        # engine invoked by path. Unparsable marker-free commands cannot fail
+        # closed (that would gate every command with an operator), so scan
+        # their whitespace tokens and identity-check every one, not only
+        # separator-carrying words — a literal alias path gates even beside an
         # operator.
         #
         # The path-legal tokens are scanned as well, and carry this branch's
@@ -934,16 +934,14 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # would miss the engine under a name that is not the marker. Adding
         # candidates can only ever gate more, never less.
         #
-        # Each distinct candidate gets two independently filtered readings.
-        # As written only when it carries a separator, so ordinary arguments
-        # (`status`, `--oneline`, `main`) are never probed against the guard's
-        # cwd. Against the engine's directory when it is relative, non-empty
-        # and not qualified with another drive: Windows joins `D:foo` onto drive
-        # D and discards the engine's directory, so that word would probe
-        # another drive and never this one, while `C:foo` on the engine's own
-        # drive still resolves inside the engine's directory. A word that names
-        # no path costs one probe inside the engine's directory and none
-        # elsewhere.
+        # Each distinct candidate is read two ways. As written, always: a bare
+        # name reaches a link in the shell's working directory (`python3
+        # alias`), so no word is skipped. Against the engine's directory when it
+        # is relative, non-empty and has no drive or the engine's own: Windows
+        # joins `D:foo` onto drive D and discards the engine's directory, so
+        # that reading would repeat the as-written probe of the same path, while
+        # `C:foo` on the engine's own drive still resolves inside the engine's
+        # directory.
         candidates = list(marker_candidates)
         words = _literal_shell_words(command, allow_backslash=allow_backslash)
         candidates += (
@@ -951,10 +949,9 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             if words is None
             else list(words)
         )
-        separators = "/\\" if allow_backslash or os.name == "nt" else "/"
         engine_drive = os.path.splitdrive(bundled.parent)[0].casefold()
         return any(
-            (any(sep in candidate for sep in separators) and _samefile(candidate))
+            _samefile(candidate)
             or (
                 bool(candidate)
                 and not os.path.isabs(candidate)
