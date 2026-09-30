@@ -189,6 +189,92 @@ class HygieneTests(unittest.TestCase):
             }
             self.assertIn(expected, matched, name)
 
+    def test_file_only_hints_skip_directories(self) -> None:
+        policy = hygiene.load_policy(None)
+        for name, hint_id in (("x.tmp", "common-temp-file"), ("x.lock", "common-lock-file")):
+            as_dir = {h["id"] for h in hygiene.matching_hints(name, name, policy, "directory")}
+            as_file = {h["id"] for h in hygiene.matching_hints(name, name, policy, "file")}
+            self.assertNotIn(hint_id, as_dir, name)
+            self.assertIn(hint_id, as_file, name)
+
+    def test_invalid_entry_types_is_rejected(self) -> None:
+        hint = {
+            "id": "h",
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": "*.x",
+            "confidence_ceiling": "low",
+            "reason": "fixture",
+        }
+        hygiene.validate_hint({**hint, "entry_types": ["file"]})
+        for bad in (["symlink"], [], "file"):
+            with self.assertRaisesRegex(hygiene.HygieneError, "entry_types"):
+                hygiene.validate_hint({**hint, "entry_types": bad})
+
+    def test_overlay_schema_hint_lists_entry_types_as_the_engine_accepts_them(self) -> None:
+        schema = json.loads(
+            (SCRIPT_DIR.parent / "reference" / "policy-overlay.schema.json").read_text("utf-8")
+        )
+        hint = schema["$defs"]["hint"]
+        self.assertIn("entry_types", hint["properties"])
+        self.assertNotIn("entry_types", hint["required"])
+        entry_types = hint["properties"]["entry_types"]
+        self.assertEqual(entry_types["minItems"], 1)
+        self.assertEqual(tuple(entry_types["items"]["enum"]), hygiene.HINT_ENTRY_TYPES)
+
+    def test_links_match_hints_without_entry_types_and_hints_listing_link(self) -> None:
+        policy = hygiene.load_policy(None)
+
+        def ids(name: str, kind: str) -> set[str]:
+            return {h["id"] for h in hygiene.matching_hints(name, name, policy, kind)}
+
+        self.assertIn("common-temp-directory", ids("tmp-x", "link"))
+        self.assertIn("common-temp-file", ids("x.tmp", "link"))
+        self.assertIn("common-lock-file", ids("x.lock", "link"))
+        link_only = {
+            "id": "link-only",
+            "os": ["all"],
+            "kind": "name_glob",
+            "pattern": "*.x",
+            "entry_types": ["link"],
+            "confidence_ceiling": "low",
+            "reason": "fixture",
+        }
+        hygiene.validate_hint(link_only)
+        only = {**policy, "hints": [link_only]}
+        for kind, expected in (("link", ["link-only"]), ("file", []), ("directory", [])):
+            matched = hygiene.matching_hints("a.x", "a.x", only, kind)
+            self.assertEqual(expected, [h["id"] for h in matched], kind)
+
+    def test_scan_hints_a_symlink_by_its_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "real").mkdir(parents=True)
+            try:
+                (root / "tmp-link").symlink_to(root / "real", target_is_directory=True)
+            except OSError as exc:
+                self.skipTest(f"symlink unavailable: {exc}")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+        row = next(e for e in snapshot["entries"] if e["path"] == "tmp-link")
+        self.assertEqual("link", row["kind"])
+        self.assertEqual(["common-temp-directory"], [h["id"] for h in row["hints"]])
+
+    def test_empty_directory_paths_are_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            for i in range(hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5):
+                (root / f"d{i:04d}").mkdir()
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            self.assertEqual(
+                hygiene.MAX_EMPTY_DIRECTORY_PATHS + 5, snapshot["empty_directory_count"]
+            )
+            self.assertEqual(
+                hygiene.MAX_EMPTY_DIRECTORY_PATHS, len(snapshot["empty_directory_paths"])
+            )
+            self.assertEqual(sorted(snapshot["empty_directory_paths"]), snapshot["empty_directory_paths"])
+            self.assertTrue(snapshot["empty_directory_paths_truncated"])
+
     def test_platform_scoped_hints_are_also_case_insensitive(self) -> None:
         # Separated from the OS-agnostic rows and run under a pinned os_key:
         # `matching_hints` filters by the current OS BEFORE matching, so asserting
@@ -207,6 +293,26 @@ class HygieneTests(unittest.TestCase):
                     hint["id"] for hint in hygiene.matching_hints(name, name, policy)
                 }
                 self.assertIn("macos-finder-metadata", matched, name)
+
+    def test_windows_junk_class_hints_match_on_windows_only(self) -> None:
+        policy = hygiene.load_policy(None)
+        rows = (
+            ("f3uooyhj.wep", "directory", "windows-vs-background-download-layout"),
+            ("Update-1.2.3.bsdiff", "file", "windows-docker-desktop-update-bsdiff"),
+            ("myapp-updater", "directory", "windows-electron-updater-cache"),
+        )
+        for os_name, expect in (("windows", True), ("linux", False)):
+            with mock.patch.object(hygiene, "os_key", return_value=os_name):
+                for name, kind, hint_id in rows:
+                    matched = {
+                        h["id"] for h in hygiene.matching_hints(name, name, policy, kind)
+                    }
+                    self.assertEqual(expect, hint_id in matched, (os_name, name))
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            as_file = {
+                h["id"] for h in hygiene.matching_hints("myapp-updater", "myapp-updater", policy, "file")
+            }
+            self.assertNotIn("windows-electron-updater-cache", as_file)
 
     def test_atomic_write_staging_remnants_are_hinted_as_a_class(self) -> None:
         # The producer-specific hint encodes one filename while its own reason
@@ -2928,6 +3034,16 @@ class HygieneTests(unittest.TestCase):
             self.assertNotIn("root-only.tmp", paths)
             self.assertTrue(snapshot["root_children_mode"])
             self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
+            # The unselected siblings are not truncated paths, yet the byte
+            # totals leave them out, so the flag is set and each is named.
+            self.assertEqual([], snapshot["truncated_paths"])
+            for unselected in ("ccxp", "Windows", "root-only.tmp"):
+                self.assertEqual(
+                    "root-child-unselected", snapshot["truncation_reasons"][unselected]
+                )
+            self.assertNotIn("builds", snapshot["truncation_reasons"])
+            self.assertIs(True, payload["totals_are_lower_bounds"])
+            self.assertIs(True, snapshot["totals_are_lower_bounds"])
 
     def test_root_children_scan_honours_quiet_without_losing_the_snapshot(  # identifier, not prose # spellchecker:disable-line
         self,
@@ -3386,6 +3502,31 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(2, code)
             self.assertIn("mount points are not valid audit targets", payload["error"])
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_scan_refusal_of_shell_folder_descendant_carries_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "Documents" / "child"
+            data_root = base / "plugin-data"
+            target.mkdir(parents=True)
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(False, None)
+                    ),
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("profile-hive roots are not valid", payload["error"])
+            self.assertIn("child directory of Documents", payload["hint"])
+            self.assertIn("no protected name anywhere in their path", payload["hint"])
 
     def test_preview_denies_os_managed_root_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -4318,6 +4459,29 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(["scan-error"], row["unwalked_reasons"])
             self.assertEqual(["locked"], [e["path"] for e in snapshot["errors"]])
 
+    def test_scan_error_child_has_a_reason_not_a_truncated_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            (root / "locked").mkdir(parents=True)
+            target = root.resolve()
+            real_scandir = os.scandir
+
+            def scandir(path: Any = ".") -> Any:
+                if Path(path) == target / "locked":
+                    raise PermissionError(13, "denied", str(path))
+                return real_scandir(path)
+
+            with (
+                mock.patch.object(
+                    hygiene, "linux_mount_points", return_value=(set(), None)
+                ),
+                mock.patch.object(hygiene.os, "scandir", scandir),
+            ):
+                snapshot = hygiene.scan_tree(target, hygiene.load_policy(None))
+        self.assertEqual([], snapshot["truncated_paths"])
+        self.assertEqual({"locked": "scan-error"}, snapshot["truncation_reasons"])
+        self.assertIs(True, snapshot["totals_are_lower_bounds"])
+
     def test_sizes_only_mount_state_error_marks_partial_rollup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "target"
@@ -5015,6 +5179,8 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
                 "truncated_paths",
+                "truncation_reasons",
+                "totals_are_lower_bounds",
                 "stdlib_shadowing",
                 "children_rollup",
                 "errors",
@@ -5036,7 +5202,8 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertEqual(set(default) - {"children_rollup"}, set(quiet))
         # Every field the caller decides on survives, with the same value the
         # default run reported: quiet is a projection, never a recomputation.
-        for field in set(quiet) - {"note", "target", "snapshot", "truncated_paths"}:
+        shaped = {"note", "target", "snapshot", "truncated_paths", "truncation_reasons"}
+        for field in set(quiet) - shaped:
             self.assertEqual(default[field], quiet[field], field)
         self.assertEqual(
             len(cast("list[object]", default["truncated_paths"])),
@@ -5116,6 +5283,49 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertGreater(default_growth, 5000)
         self.assertLess(quiet_growth * 10, default_growth)
         self.assertLess(len(large_quiet_raw) * 4, len(large_raw))
+
+    def test_depth_cut_scan_reports_lower_bound_and_reason(self) -> None:
+        (default, _, snapshot), _ = self._both_modes(2)
+        self.assertIs(True, default["totals_are_lower_bounds"])
+        self.assertIs(True, snapshot["totals_are_lower_bounds"])
+        expected = {"child_000": "depth-cut", "child_001": "depth-cut"}
+        self.assertEqual(expected, default["truncation_reasons"])
+        self.assertEqual(expected, snapshot["truncation_reasons"])
+
+    def test_full_scan_reports_exact_totals(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            self._fixture(root, 2)
+            data_root = Path(temporary) / "data"
+            data_root.mkdir()
+            output = data_root / "runs" / "snapshot.json"
+            stdout_io = io.StringIO()
+            with redirect_stdout(stdout_io):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                        "--confirmed-large-scan",
+                    ]
+                )
+            payload = json.loads(stdout_io.getvalue())
+        self.assertEqual(0, code)
+        self.assertIs(False, payload["totals_are_lower_bounds"])
+        self.assertEqual({}, payload["truncation_reasons"])
+        self.assertEqual([], payload["truncated_paths"])
+
+    def test_quiet_reasons_are_a_tally_with_no_per_path_list(self) -> None:
+        _, (quiet, raw, snapshot) = self._both_modes(3)
+        self.assertEqual({"depth-cut": 3}, quiet["truncation_reasons"])
+        self.assertIs(True, quiet["totals_are_lower_bounds"])
+        for name in snapshot["truncated_paths"]:
+            self.assertNotIn(name, raw)
+        self.assertEqual(3, len(snapshot["truncation_reasons"]))
 
     def test_shaping_without_quiet_returns_the_payload_untouched(self) -> None:
         payload = {
@@ -5221,6 +5431,18 @@ class StandingPolicyTests(unittest.TestCase):
                 ["baseline", str(user_path), str(project_path)],
                 policy["policy_sources"],
             )
+
+    def test_project_dir_equal_to_home_applies_overlay_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            overlay = self.write_policy(
+                home, {"additional_hints": [self.hint("user-hint", "user-*")]}
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(None, home)
+            self.assertEqual(["baseline", str(overlay)], policy["policy_sources"])
+            ids = [hint["id"] for hint in policy["hints"]]
+            self.assertEqual(1, ids.count("user-hint"))
 
     def test_explicit_policy_replaces_standing_layers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

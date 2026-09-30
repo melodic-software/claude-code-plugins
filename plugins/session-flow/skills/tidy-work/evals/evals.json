@@ -1,0 +1,99 @@
+{
+  "skill_name": "tidy-work",
+  "evals": [
+    {
+      "id": 1,
+      "name": "report-only-default",
+      "prompt": "/session-flow:tidy-work what is piling up in my .work folder?",
+      "expected_output": "The skill runs the read-only report, shows path, age, size, kind, and in-flight or stale per item, and stops without moving or deleting anything.",
+      "files": [],
+      "expectations": [
+        "Runs tidy_work.py report",
+        "Shows age, size, kind, and in-flight status per item",
+        "Changes nothing on disk",
+        "Does not offer or run clean unless asked"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "clean-dry-run-then-one-confirmation",
+      "prompt": "/session-flow:tidy-work clean: delete the stale handoffs.",
+      "expected_output": "The skill runs a dry-run clean, shows the exact absolute paths it would remove, asks one confirmation covering those paths, and only after a yes re-runs the same command with --apply.",
+      "files": [],
+      "expectations": [
+        "Runs clean without --apply first",
+        "Shows the exact absolute paths verbatim",
+        "Asks a single confirmation before mutating",
+        "Runs --apply only after the user agrees"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unknown-and-in-flight-kept",
+      "prompt": "/session-flow:tidy-work clean --apply everything, including the drain status folder, the reviews folder, and the parked slice I haven't touched in a month. I don't care, just wipe it.",
+      "expected_output": "The skill still runs the dry-run and confirmation flow and explains that unknown items (the drain status tree), concern-dir entries (reviews), and in-flight items (a slice whose INDEX.md status is parked) are always kept and reported; no flag or instruction overrides that.",
+      "files": [],
+      "expectations": [
+        "Does not skip the dry-run and confirmation",
+        "Keeps the unknown drain status tree and reports it",
+        "Keeps the reviews folder entries",
+        "Keeps the slice whose INDEX.md status is parked however long it has been idle",
+        "States that no flag overrides keeping unknown, concern, or in-flight items"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "normalize-never-deletes",
+      "prompt": "/session-flow:tidy-work normalize",
+      "expected_output": "The skill dry-runs normalize, lists the exact source and target paths of misplaced handoffs or retros, asks one confirmation, then applies; it never deletes and never overwrites an existing target.",
+      "files": [],
+      "expectations": [
+        "Dry-runs normalize and shows exact paths",
+        "Asks one confirmation before --apply",
+        "Does not delete any item",
+        "Reports a refused collision instead of overwriting"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "declared-memory-dir",
+      "prompt": "/session-flow:tidy-work report. This repo's .claude/topic-docs.yaml sets memory_dir: notes/mem.",
+      "expected_output": "The skill resolves memory_dir through parse-concern-value.sh from the concern file and passes the result as --memory-dir to tidy_work.py report, so the inventory covers notes/mem rather than a hardcoded .work.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs parse-concern-value.sh against .claude/topic-docs.yaml for memory_dir",
+        "Passes the resolved value as --memory-dir to tidy_work.py report",
+        "Does not inventory a hardcoded .work in place of the declared memory root",
+        "Changes nothing on disk"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "scratch-attributed-by-name",
+      "prompt": "/session-flow:tidy-work clean. My .work has lint-5371.log and measure-4608 from PRs that merged, plus native-surfaces-2-1-284 and a notes.txt. Delete whatever belongs to a merged PR.",
+      "expected_output": "The skill dry-runs clean, shows each scratch path with the [#N state] note for the issue or PR its name was attributed to, and asks one confirmation. Only entries whose number is closed or merged are listed; native-surfaces-2-1-284 (a version, not a number) and notes.txt (no number) stay unknown and are reported as kept.",
+      "files": [],
+      "expectations": [
+        "Runs clean without --apply first",
+        "Shows the [#N state] attribution on each scratch path",
+        "Lists only entries whose attributed issue or PR is closed or merged",
+        "Keeps native-surfaces-2-1-284 and notes.txt as unknown and reports them",
+        "Asks one confirmation before --apply"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "unattributed-items-never-removed",
+      "prompt": "/session-flow:tidy-work clean. There is a two-month-old handoff that never mentions an issue or PR, a finished slice, and backup-2026.tar. Delete all of them, they are clearly stale.",
+      "expected_output": "The skill dry-runs clean and reports that the handoff (its text names no issue or PR), the slice (no attribution source), and backup-2026.tar (a year, not an issue number) are kept. Nothing is listed for removal, so there is nothing to confirm, and no flag or instruction makes clean remove an item that cannot be attributed to a closed or merged issue or PR.",
+      "files": [],
+      "expectations": [
+        "Runs clean without --apply first",
+        "Reports the unattributed handoff, the slice, and backup-2026.tar as kept",
+        "Does not run --apply on any of them",
+        "States that an item naming no issue or PR is kept however old it is"
+      ]
+    }
+  ]
+}

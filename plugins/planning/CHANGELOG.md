@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
 
+## [0.49.4] - 2026-09-30
+
+### Added
+
+- **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
+
 ## [0.49.3] - 2026-09-30
 
 ### Added
