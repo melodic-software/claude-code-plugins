@@ -6916,6 +6916,95 @@ class GuardTests(unittest.TestCase):
             result["hookSpecificOutput"]["permissionDecisionReason"],
         )
 
+    def _handoff_apply_command(self, tail: str | None = None) -> str:
+        script = SCRIPT_DIR / "hygiene.py"
+        if tail is None:
+            tail = (
+                "--execute --snapshot s --path rel/junk --vcs-evidence e "
+                "--report r" + self.authorize_data_root()
+            )
+        return f'"{self.python_command()}" "{script}" handoff-apply {tail}'
+
+    def test_guard_forces_final_prompt_for_exact_handoff_apply(self) -> None:
+        result = self.run_guard(self._handoff_apply_command())
+        output = result["hookSpecificOutput"]
+        self.assertEqual("ask", output["permissionDecision"])
+        self.assertIn("one exact approved path", output["permissionDecisionReason"])
+
+    def test_guard_denies_every_malformed_handoff_apply(self) -> None:
+        data_root = self.authorize_data_root()
+        head = "--execute --snapshot s --path rel/junk"
+        tails = {
+            "no --vcs-evidence": f"{head} --report r{data_root}",
+            "--plan beside --path": f"{head} --vcs-evidence e --report r --plan p{data_root}",
+            "--approval-token beside --path": (
+                f"{head} --vcs-evidence e --report r "
+                f"--approval-token {'a' * 24}{data_root}"
+            ),
+            "repeated --path": f"{head} --path rel/other --vcs-evidence e --report r{data_root}",
+            "flag-shaped value": (
+                f"--execute --snapshot s --path -rf --vcs-evidence e --report r{data_root}"
+            ),
+            "no --data-root": f"{head} --vcs-evidence e --report r",
+            "unauthorized --data-root": (
+                f'{head} --vcs-evidence e --report r --data-root "/somewhere/else"'
+            ),
+            "no --execute": f"--snapshot s --path rel/junk --vcs-evidence e --report r{data_root}",
+        }
+        for label, tail in tails.items():
+            with self.subTest(label):
+                result = self.run_guard(self._handoff_apply_command(tail))
+                self.assertEqual(
+                    "deny", result["hookSpecificOutput"]["permissionDecision"]
+                )
+
+    def test_disabled_guard_denies_exact_handoff_apply(self) -> None:
+        result = self.run_guard_disabled(self._handoff_apply_command())
+        output = result["hookSpecificOutput"]
+        self.assertEqual("deny", output["permissionDecision"])
+        reason = output["permissionDecisionReason"]
+        self.assertIn("execution is disabled", reason)
+        self.assertIn("scan, preview, and handoff-verify invocations", reason)
+        self.assertNotIn("handoff-apply", reason)
+
+    def test_every_grammar_subcommand_has_exactly_one_verdict_class(self) -> None:
+        readonly = guard._READONLY_ENGINE_SUBCOMMANDS
+        mutating = guard._MUTATING_ENGINE_SUBCOMMANDS
+        self.assertFalse(readonly & mutating)
+        self.assertEqual(set(guard._ALLOWED_ENGINE_SUBCOMMANDS), readonly | mutating)
+        self.assertEqual(set(mutating), set(guard._MUTATION_PROMPTS))
+
+    def test_existing_engine_verdicts_hold_beside_handoff_apply(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        python = self.python_command()
+        data_root = self.authorize_data_root()
+        cases = {
+            "apply": (
+                f"apply --execute --snapshot s --plan p --confirm-tier high "
+                f"--approval-token {'a' * 24} --report r",
+                "ask",
+                "deny",
+            ),
+            "preview": ("preview --snapshot s --plan p", "allow", "allow"),
+            "handoff-verify --path": (
+                "handoff-verify --snapshot s --path rel/junk --vcs-evidence e",
+                "allow",
+                "allow",
+            ),
+            "handoff-verify --paths": (
+                "handoff-verify --snapshot s --paths p.json",
+                "allow",
+                "allow",
+            ),
+        }
+        for label, (tail, when_enabled, when_disabled) in cases.items():
+            command = f'"{python}" "{script}" {tail}{data_root}'
+            with self.subTest(label):
+                enabled = self.run_guard(command)["hookSpecificOutput"]
+                disabled = self.run_guard_disabled(command)["hookSpecificOutput"]
+                self.assertEqual(when_enabled, enabled["permissionDecision"])
+                self.assertEqual(when_disabled, disabled["permissionDecision"])
+
     def test_guard_denies_apply_through_another_engine_path(self) -> None:
         command = f'"{self.python_command()}" C:/tmp/hygiene.py apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
         command += self.authorize_data_root()
@@ -7313,6 +7402,26 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
         (entry,) = self.decision_records()
         self.assertEqual("kill-switch-disabled-apply", entry["rule"])
+
+    def test_handoff_apply_verdicts_are_recorded_under_their_own_rules(self) -> None:
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        root = self._data_root.resolve().as_posix()
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-apply --execute '
+            "--snapshot s --path rel/junk --vcs-evidence e --report r "
+            f'--data-root "{root}"'
+        )
+        for enabled, verdict, rule in (
+            (True, "ask", "exact-engine-handoff-apply"),
+            (False, "deny", "kill-switch-disabled-handoff-apply"),
+        ):
+            with self.subTest(enabled=enabled):
+                result = self.run_guard_engine_gate(command, "Bash", enabled=enabled)
+                assert result is not None
+                self.assertEqual(
+                    verdict, result["hookSpecificOutput"]["permissionDecision"]
+                )
+                self.assertEqual(rule, self.decision_records()[-1]["rule"])
 
     def test_engine_gate_defer_records_nothing(self) -> None:
         """The always-on hot path stays free: no decision, no record, no cost."""
