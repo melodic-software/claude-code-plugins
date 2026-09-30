@@ -274,11 +274,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-native-overlap/scripts/overlap.py" d
 `dismiss` refuses a pair that already has a verdict row, a native surface absent from the
 extraction, and a component absent from the repo. It writes the native surface and its class, the
 component, the reason, `as_of` (the extraction's CLI version, or `--as-of`), `date` (today, or
-`--date`), and a `fingerprint` of each side's description: the first 32 hex characters of the
-SHA-256 of the whitespace-collapsed text. Re-running it on the same pair refreshes the record.
-Then run `generate`.
+`--date`), and a `fingerprint` of each side: the first 32 hex characters of the SHA-256 of the
+whitespace-collapsed text. The native side hashes the text detection scores, each registration's
+`description`, `argument_hint`, and `search_hint` in order, so a tool with no description still
+resurfaces when its hint changes; the component side hashes its description. Re-running it on the
+same pair refreshes the record. Then run `generate`.
 
-`detect` suppresses a dismissed pair while both fingerprints match. When either side's description
+`detect` suppresses a dismissed pair while both fingerprints match. When either side's hashed text
 changes, the pair comes back as a candidate flagged "resurfaced: description changed", naming the
 side, and a human rules on it again: re-dismiss, or write a verdict row in its place. A side the
 run did not observe is not compared. A verdict row always wins: a ruled overlap never resurfaces,
