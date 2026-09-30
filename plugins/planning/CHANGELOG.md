@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/api/state` reports `answered` per question**, true when a page or terminal decision counts (the rule the page uses). `state` is dependency staleness, so a question with a terminal decision still reads `open`; the README and `questions.schema.json` say so ([#5459](https://github.com/melodic-software/claude-code-plugins/issues/5459)).
 
+## [0.47.8] - 2026-09-29
+
+### Added
+
+- **`surface/DEFERRED.md`** lists the interview page's deferred work, each entry marked build (with its issue), park, drop or open, and the surface README links it ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
+
 ## [0.47.7] - 2026-09-29
 
 ### Fixed
