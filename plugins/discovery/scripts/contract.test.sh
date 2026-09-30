@@ -249,10 +249,10 @@ assert_present 'research-deep names the verifier, its write-back and the cost sk
 # for it, and that criterion 11 may not be hand-graded.
 # ---------------------------------------------------------------------------
 #
-# setup/SKILL.md is exempt from the first check: its `apply` step 4 renders the
-# gate rules an operator adds to user settings (#4233), and the skill body is
-# where ${CLAUDE_PLUGIN_ROOT} is substituted, so what lands in settings is the
-# absolute root.
+# setup/SKILL.md is exempt from the first check: its `check` step 6 prints the
+# gate rules an operator pastes into user settings (#4233), and the skill body
+# is where ${CLAUDE_PLUGIN_ROOT} is substituted, so what the operator pastes is
+# the absolute root.
 # ---------------------------------------------------------------------------
 root_rules="$(surface | grep -v '/skills/setup/SKILL.md$' | xargs grep -nEI 'Bash\(\$\{CLAUDE_PLUGIN_ROOT\}' 2>/dev/null)"
 if [[ -z "$root_rules" ]]; then
