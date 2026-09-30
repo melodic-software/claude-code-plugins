@@ -140,7 +140,7 @@ rm -f "$RESOLVED.err"
 for adapter in "$SCRIPTS"/collectors/*.py; do
   name="${adapter##*/}"
   name="${name%.py}"
-  [[ "$name" == test_* ]] && continue
+  [[ "$name" == test_* || "$name" == adapter_paths ]] && continue
   if version="$("${PY[@]}" "$adapter" probe 2>/dev/null)"; then
     row PASS "collector $name" "$version"
   else

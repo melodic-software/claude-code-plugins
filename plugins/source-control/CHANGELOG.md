@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.67.1] - 2026-09-30
+## [0.67.2] - 2026-09-30
 
 ### Changed
 
 - **README moves the Node.js requirement into a Requirements section.** The statement is unchanged: without `node` on `PATH` the hooks do not launch.
+
+## [0.67.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
 
 ## [0.67.0] - 2026-09-30
 
