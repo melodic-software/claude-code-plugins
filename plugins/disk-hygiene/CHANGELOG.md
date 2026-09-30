@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.4] - 2026-09-30
+
+### Fixed
+
+- **`scan --sizes-only` asks the large-scan question and keeps no per-path entries**
+  ([#4009](https://github.com/melodic-software/claude-code-plugins/issues/4009)). `--sizes-only`
+  no longer skips the `--confirmed-large-scan` gate: a large root without `--max-depth` or the flag
+  returns `large-target-confirmation-required`, as an ordinary unbounded walk does, on both the
+  plain-target and `--root-children` paths. The walk still enters VCS and protected directories
+  (exact totals need it) and now sums sizes straight into the per-child rollup and the target total
+  without retaining one entry per path; the empty-directory count stays exact and the
+  `empty_directory_paths` sample stays capped and sorted. The payload, `inventory_mode: sizes-only` and
+  `rollup_precision` markers are unchanged. The skill, `scan-flags.md`, `safety-model.md`, the README
+  and the fan-out worker brief state the gated behavior, superseding the earlier lines below that say
+  `--sizes-only` skips the question.
+
 ## [0.34.3] - 2026-09-30
 
 ### Fixed
