@@ -136,14 +136,14 @@ while (($#)); do
     exit 0
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
 done
 
 if [[ -z "$MODE" ]]; then
-  err "a mode is required: --hook-events, --otel-store or --pipeline"
+  err "a mode is required: --hook-events, --otel-store or --pipeline (see --help)"
   exit 3
 fi
 
