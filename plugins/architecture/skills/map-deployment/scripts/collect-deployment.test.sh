@@ -248,10 +248,16 @@ cat >"$TEST_TMPDIR/hostile.json" <<EOF
     {"environment":"a","tool":"compose","evidence":"compose.yaml"},
     {"environment":"b","tool":"compose","evidence":"compose.yaml"}
   ],
-  "nodes": [],
+  "nodes": [
+    {"id":"a/api","env":"a","tool":"compose","kind":"compute","name":"h\`\`\`}@enduml'\"","detail":"$(gh_tok S)","evidence":"compose.yaml"},
+    {"id":"a/svc-x","env":"a","tool":"kubernetes","kind":"network","name":"svc","detail":"","evidence":"compose.yaml"}
+  ],
   "placements": [
-    {"container":"api","env":"a","tool":"compose","node":"default","image":"https://u:${fake}-IMG@reg.example.com/api:1","replicas":"1","ports":"","networks":"default","evidence":"compose.yaml"},
+    {"container":"api","env":"a","tool":"compose","node":"default","compute":"a/api","image":"https://u:${fake}-IMG@reg.example.com/api:1","replicas":"1","ports":"","networks":"default","evidence":"compose.yaml"},
     {"container":"x\`\`\`}@enduml'\"","env":"a","tool":"compose","node":"default","image":"i\`\`\`'\\\\","replicas":"1","ports":"","networks":"default","evidence":"compose.yaml"}
+  ],
+  "relationships": [
+    {"from":"a/svc-x","to":"api","to_compute":"a/api","env":"a","tool":"kubernetes","label":"routes \`\`\`}@enduml $(gh_tok P)","evidence":"compose.yaml"}
   ],
   "parameters": [],
   "diffs": [
@@ -265,6 +271,7 @@ for d in likec4 c4-plantuml; do
   assert_equals "hostile record $d render exits 0" "$?" "0"
   hmd="$(cat "$TEST_TMPDIR/hostile-$d/deployment.md")"
   assert_contains "hostile record $d diff row is present" "$hmd" "| parameter |"
+  assert_contains "hostile record $d draws the relationship" "$hmd" "$([[ $d == c4-plantuml ]] && echo 'Rel(n2_svc, c1_api, "routes' || echo '.n2_svc -> env1_a.cn1_')"
   assert_no_leak "hostile $d render" "$hmd$hsum"
   assert_equals "hostile $d name stays inside one fenced block" "$(grep -c '```' "$TEST_TMPDIR/hostile-$d/deployment.md")" "2"
   assert_equals "hostile $d name adds no @enduml" "$(grep -c '@enduml' "$TEST_TMPDIR/hostile-$d/deployment.md")" "$([[ $d == c4-plantuml ]] && echo 1 || echo 0)"
