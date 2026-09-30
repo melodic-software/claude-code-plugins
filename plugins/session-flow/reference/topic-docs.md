@@ -34,18 +34,19 @@ digits, optionally prefixed `pr`, `issue`, or `gh`); `report` and the `clean` dr
 issue or PR and its state, and `clean` removes it only once the issue is closed or the PR merged.
 A name with no such token or with several is unknown. `normalize` moves a handoff (with its
 `.slots.json` sidecar) or running-retro file that sits in the wrong directory into `handoffs/` or
-`running-retros/`; it never deletes and refuses to overwrite. `clean` removes
-only items of a known kind that are not in flight. Both are dry runs that print exact absolute
-paths until `--apply`, and neither modifies content git tracks: each refuses a memory root whose
-`.gitignore` lacks a line `*`, and every command rejects a memory root that is the repository root.
-An unknown item, such as another tool's own folder, is always reported and always kept, as is every
-entry of another skill's concern dir (`reviews/`, `exports/`, `overengineering/`, `enforceability/`,
-`docs-hygiene/`, `lanes/`), which that skill reads back. An item is in flight when a slice's
-`INDEX.md` `status:` (or a child slice's) is anything but `done`, a checklist has an unfinished
-stage, it changed within the window (default 14 days), a later handoff that is itself kept names
-it, or a handoff or running-retro names an issue or PR (a `github.com` URL, `owner/repo#N`, or
-`#N`), or a scratch item's number, that is not closed or merged or whose state is unknown. No
-writer records an issue or PR in frontmatter, so the references are read from the text.
+`running-retros/`; it never deletes and refuses to overwrite. `clean` removes only items of a known
+kind that are not in flight. Both are dry runs that print exact absolute paths until `--apply`, and
+neither modifies content git tracks: each refuses a memory root whose `.gitignore` lacks a line `*`,
+and every command rejects a memory root that is the repository root. An unknown item, such as
+another tool's own folder, is always reported and always kept, as is every entry of another skill's
+concern dir (`reviews/`, `exports/`, `overengineering/`, `enforceability/`, `docs-hygiene/`,
+`lanes/`), which that skill reads back. An item is in flight when a slice's `INDEX.md` `status:` (or
+a child slice's) is anything but `done`, a checklist has an unfinished stage, a `.git` file or
+directory sits under it (a clone or worktree), it changed within the window (default 14 days), a
+later handoff that is itself kept names it, or a handoff or running-retro names an issue or PR (a
+`github.com` URL, `owner/repo#N`, or `#N`), or a scratch item's number, that is not closed or merged
+or whose state is unknown. No writer records an issue or PR in frontmatter, so the references are
+read from the text.
 
 The running-retro **detached observer** ([`observer.md`](./observer.md)) writes autonomous post-end
 findings to that same `running-retros/` ledger (matched by `session_id`), so the autonomous and

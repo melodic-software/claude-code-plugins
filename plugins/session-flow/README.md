@@ -339,7 +339,8 @@ only once that issue is closed or that PR is merged. Both actions are dry runs t
 paths and ask one confirmation before `--apply`, and neither modifies anything git tracks. Unknown
 items (a name with no number or several, or a tool's own folder), the entries of other skills'
 concern dirs (`reviews/`, `exports/`), and in-flight items (a slice whose `INDEX.md` status is not
-`done`, a recent change, a handoff or scratch entry naming an open issue or PR) are always kept.
+`done`, a recent change, a clone or worktree inside it, a handoff or scratch entry naming an open
+issue or PR) are always kept.
 Opt-in only: nothing runs unless invoked.
 
 ```shell

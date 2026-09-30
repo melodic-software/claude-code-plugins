@@ -38,6 +38,8 @@ An item is in flight, and so kept, when any of these holds:
     - a `workflow-checklist.md` in it has an unticked stage not marked SKIP
     - it changed within `--days` days (default 14)
     - a later handoff that is itself kept mentions it by name
+    - a `.git` file or directory sits under it (a clone or worktree can hold
+      commits that exist nowhere else)
     - a handoff, running-retro, or scratch item names an issue or PR (a
       github.com URL, `owner/repo#N`, or `#N` in a handoff or running-retro's
       text, `#N` in a scratch item's name) that is not closed, not merged, or
@@ -52,8 +54,9 @@ closed link from a number that is no issue or PR: that one is unknown) unless
 state, or `--offline` treats every link as unknown (in flight). A link missing
 from the table is unknown. A closed PR that was not merged is `closed-unmerged`
 and keeps its item. A link is looked up only when nothing cheaper already keeps
-the item, except a scratch item's: its state is the attribution the report and
-the `clean` dry run show.
+the item, except a scratch item's. Each state looked up is shown in brackets on
+the report row and on the `clean` dry-run path, so the confirmation covers the
+issue or PR each path was matched to.
 
 `normalize` moves a handoff (with its sidecar) or running-retro file that sits
 in the wrong place (the root, or the other one's directory) into `handoffs/` or
@@ -246,6 +249,17 @@ def _slice_status(index: Path) -> str:
         return ""
 
 
+def _holds_git(path: Path) -> bool:
+    """True when a `.git` file or directory sits under path: a clone or worktree
+    can hold commits that exist nowhere else, and the tracked-path guard cannot
+    see into it."""
+    if not path.is_dir() or path.is_symlink():
+        return False
+    return any(
+        ".git" in (*dirs, *files) for _, dirs, files in os.walk(path, followlinks=False)
+    )
+
+
 def _open_work(directory: Path) -> list[str]:
     """Why a slice or checklist directory is not finished: every INDEX.md under
     it (child slices included) whose status is not `done`, and every checklist
@@ -342,8 +356,8 @@ def _gh_api(path: str, jq: str, cwd: Path | None, *flags: str) -> str | None:
 
 
 _GH_STATE_JQ = (
-    'if .pull_request then (if .pull_request.merged_at then "merged" '
-    'else "closed-unmerged" end) else .state end'
+    'if .state == "open" then "open" elif .pull_request.merged_at then "merged" '
+    'elif .pull_request then "closed-unmerged" else .state end'
 )
 
 
@@ -407,6 +421,8 @@ def mark_in_flight(
             for mtime, text in kept_handoffs
         ):
             item.reasons.append("named by a later handoff")
+        if not item.reasons and _holds_git(item.path):
+            item.reasons.append("holds a git repository or worktree")
         if item.reasons and item.kind != "scratch":
             return
         for ref in item.links:
@@ -488,8 +504,8 @@ def _to_dict(item: Item, now: float) -> dict[str, object]:
 
 
 def _attribution(item: Item) -> str:
-    """The issues or PRs a scratch item's name points at, with their states."""
-    if item.kind != "scratch" or not item.states:
+    """The issues or PRs the item was matched to, with the states looked up."""
+    if not item.states:
         return ""
     return (
         " [" + ", ".join(f"{ref} {state}" for ref, state in item.states.items()) + "]"

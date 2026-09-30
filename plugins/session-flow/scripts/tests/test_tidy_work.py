@@ -410,12 +410,16 @@ def test_clean_dry_run_changes_nothing_and_prints_absolute_paths(env):
     assert result.returncode == 0, result.stderr
     assert snapshot(repo, home) == before
     listed = [
-        Path(line.split(": ", 1)[1])
+        Path(line.split(": ", 1)[1].split(" [", 1)[0])
         for line in result.stdout.splitlines()
         if line.startswith("would remove: ")
     ]
     assert {p.name for p in listed} == STALE
     assert all(p.is_absolute() for p in listed)
+    closed = repo / ".work" / "handoffs" / HANDOFF_CLOSED
+    assert (
+        f"would remove: {closed.as_posix()} [#7 closed]" in result.stdout.splitlines()
+    )
 
 
 def test_clean_apply_removes_only_stale_known_items(env):
@@ -769,6 +773,24 @@ def test_clean_removes_scratch_only_when_its_number_is_closed_or_merged(env):
     assert applied.returncode == 0, applied.stderr
     survivors = {name for name in (*SCRATCH, *NOT_ATTRIBUTED) if (work / name).exists()}
     assert survivors == {"pr4120.md", "reverify-4186", *NOT_ATTRIBUTED}
+
+
+def test_an_item_holding_a_git_repository_or_worktree_is_kept(env):
+    work = scratch(env)
+    (work / "measure-4608" / "clone" / ".git").mkdir(parents=True)
+    write(work / "measure-4608" / "clone" / ".git" / "HEAD", "ref: refs/heads/main\n")
+    write(work / "lint-5371.d" / "tree" / ".git", "gitdir: /elsewhere\n")
+    age(work / "measure-4608", 60)
+    age(work / "lint-5371.d", 60)
+    items = report(env, *links(env[0], SCRATCH_STATE))
+    for name in ("measure-4608", "lint-5371.d"):
+        assert items[name]["reasons"] == ["holds a git repository or worktree"], name
+    assert items["measure-4608"]["links"] == {"#4608": "merged"}
+    result = run_tidy(env, "clean", *links(env[0], SCRATCH_STATE), "--apply")
+    assert result.returncode == 0, result.stderr
+    assert (work / "measure-4608" / "clone" / ".git" / "HEAD").exists()
+    assert (work / "lint-5371.d" / "tree" / ".git").exists()
+    assert not (work / "lint-5371.log").exists()
 
 
 def test_clean_keeps_recent_scratch_however_closed_its_number(env):

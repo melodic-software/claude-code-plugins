@@ -60,8 +60,8 @@ stays unknown.
    pre-approves. For `report` alone, stop here.
 3. **Dry-run `normalize` or `clean`.** Run the same script with the action name and no
    `--apply`. It prints the exact absolute path of every move or removal and changes nothing; a
-   scratch path carries `[#N state]`, the issue or PR its name was attributed to. Show those
-   lines to the user verbatim.
+   path whose issue or PR was looked up carries `[#N state]`, and for a scratch path that is the
+   number its name was attributed to. Show those lines to the user verbatim.
 4. **Ask one confirmation** covering exactly the listed paths. A refusal, or silence, ends the
    run with nothing changed.
 5. **Apply.** After a yes, re-run the identical command with `--apply`. That call is not
@@ -79,6 +79,8 @@ too:
 - a slice whose `INDEX.md` `status:` is not `done`, or that holds a child slice whose status is
   not `done` (`active`, `parked`, missing, and unrecognized all keep it)
 - a workflow checklist with an unfinished stage
+- anything with a `.git` file or directory under it (a clone or worktree can hold commits that
+  exist nowhere else)
 - a change inside the window
 - a later handoff that names the item, unless that handoff is itself stale and going away
 - a handoff or running retro that names an issue or PR that is not closed or merged, or one whose
