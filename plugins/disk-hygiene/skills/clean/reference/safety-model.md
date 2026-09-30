@@ -783,7 +783,8 @@ read-only, for exact totals), keeps no per-path entries, and has no entry cap. I
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
-or cleanup contract.
+or cleanup contract. The report each registry match produces is specified in
+[managed-state-report.md](managed-state-report.md).
 
 The baseline policy therefore ships no discovery hint for another product's managed state. A hint
 for a class the engine will never act on tells the operator to look for residue the plugin has

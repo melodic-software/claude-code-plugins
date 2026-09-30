@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "note": "An entry is a hint for an owner claim, never authorization. A path matching an entry is a starting point for proving the owning product manages it, not proof. Commands are data for an operator to read; nothing here runs them. Paths are relative to the home directory. A null command means the product has none; manual_step names the in-app or settings action instead.",
+  "entries": [
+    {
+      "id": "docker-desktop",
+      "owner": "Docker Desktop",
+      "path_patterns": {
+        "windows": ["AppData/Local/Docker"],
+        "macos": ["Library/Containers/com.docker.docker"]
+      },
+      "tool": "docker",
+      "read_only_command": "docker system df",
+      "destructive_native_command": "docker image prune; docker builder prune",
+      "manual_step": null,
+      "platforms": ["windows", "macos"],
+      "verification": {
+        "claim": "docker system df reports reclaimable space; docker image prune and docker builder prune are the owner's removal commands; the two data paths were seen on a Windows and a macOS host",
+        "basis": [
+          "https://docs.docker.com/reference/cli/docker/system/df/",
+          "https://docs.docker.com/reference/cli/docker/image/prune/",
+          "https://docs.docker.com/reference/cli/docker/builder/prune/",
+          "operator probe of the data paths recorded in issue 4006, no official page found"
+        ],
+        "as_of": "2026-09-30",
+        "recheck": "a Docker CLI release note that renames or removes one of the three commands, or a Docker Desktop release note that moves its data directory"
+      }
+    },
+    {
+      "id": "nvidia-shader-cache",
+      "owner": "NVIDIA driver shader cache",
+      "path_patterns": {
+        "windows": ["AppData/Local/NVIDIA"]
+      },
+      "tool": "nvidia-smi",
+      "read_only_command": null,
+      "destructive_native_command": null,
+      "manual_step": "Manual step in Windows Disk Cleanup: select DirectX Shader Cache",
+      "platforms": ["windows"],
+      "verification": {
+        "claim": "the NVIDIA shader cache sits under the listed Windows path and Windows Disk Cleanup offers a DirectX Shader Cache item",
+        "basis": ["operator probe recorded in issue 4006, no official page fetched"],
+        "as_of": "2026-09-30",
+        "recheck": "an NVIDIA driver release note that moves the shader cache, or a Windows build whose Disk Cleanup drops the DirectX Shader Cache item"
+      }
+    },
+    {
+      "id": "cursor",
+      "owner": "Cursor",
+      "path_patterns": {
+        "windows": ["AppData/Roaming/Cursor"],
+        "macos": ["Library/Application Support/Cursor"],
+        "linux": [".config/Cursor"]
+      },
+      "tool": "cursor",
+      "read_only_command": null,
+      "destructive_native_command": null,
+      "manual_step": "In-app cache clearing in Cursor",
+      "platforms": ["windows", "macos", "linux"],
+      "verification": {
+        "claim": "Cursor keeps its state under the listed per-platform user-data paths and offers in-app cache clearing",
+        "basis": ["operator probe recorded in issue 4006, no official page fetched"],
+        "as_of": "2026-09-30",
+        "recheck": "a Cursor changelog entry that moves the user-data directory or removes in-app cache clearing"
+      }
+    },
+    {
+      "id": "openai-codex-cli",
+      "owner": "OpenAI Codex CLI",
+      "path_patterns": {
+        "windows": [".codex"],
+        "macos": [".codex"],
+        "linux": [".codex"]
+      },
+      "tool": "codex",
+      "read_only_command": null,
+      "destructive_native_command": null,
+      "manual_step": "Adjust Codex history retention in its configuration",
+      "platforms": ["windows", "macos", "linux"],
+      "verification": {
+        "claim": "Codex keeps user configuration under ~/.codex and config.toml offers history.max_bytes and history.persistence",
+        "basis": [
+          "https://learn.chatgpt.com/docs/config-file/config-basic",
+          "https://learn.chatgpt.com/docs/config-file/config-reference"
+        ],
+        "as_of": "2026-09-30",
+        "recheck": "a Codex release note that changes the config directory or the history.* keys"
+      }
+    },
+    {
+      "id": "chezmoi",
+      "owner": "chezmoi",
+      "path_patterns": {
+        "windows": [".cache/chezmoi"],
+        "macos": [".cache/chezmoi"],
+        "linux": [".cache/chezmoi"]
+      },
+      "tool": "chezmoi",
+      "read_only_command": "chezmoi doctor",
+      "destructive_native_command": null,
+      "manual_step": null,
+      "platforms": ["windows", "macos", "linux"],
+      "verification": {
+        "claim": "chezmoi's default cacheDir is ~/.cache/chezmoi on every listed platform and chezmoi doctor checks for problems",
+        "basis": [
+          "https://www.chezmoi.io/reference/configuration-file/variables/",
+          "https://www.chezmoi.io/reference/commands/doctor/"
+        ],
+        "as_of": "2026-09-30",
+        "recheck": "a chezmoi release note that changes the default cacheDir or the doctor command"
+      }
+    },
+    {
+      "id": "pulumi",
+      "owner": "Pulumi",
+      "path_patterns": {
+        "windows": [".pulumi"],
+        "macos": [".pulumi"],
+        "linux": [".pulumi"]
+      },
+      "tool": "pulumi",
+      "read_only_command": "pulumi about; pulumi plugin ls",
+      "destructive_native_command": "pulumi plugin rm <unused version>",
+      "manual_step": null,
+      "platforms": ["windows", "macos", "linux"],
+      "verification": {
+        "claim": "the plugin cache lives under ~/.pulumi by default, pulumi about prints environment information, pulumi plugin ls lists the cache, and pulumi plugin rm (alias of remove) deletes cached plugins",
+        "basis": [
+          "https://www.pulumi.com/docs/iac/cli/commands/pulumi_plugin_ls/",
+          "https://www.pulumi.com/docs/iac/cli/commands/pulumi_plugin_rm/",
+          "https://www.pulumi.com/docs/iac/cli/commands/pulumi_about/"
+        ],
+        "as_of": "2026-09-30",
+        "recheck": "a Pulumi CLI release note that changes the plugin cache location or the plugin ls, plugin rm or about commands"
+      }
+    }
+  ]
+}
