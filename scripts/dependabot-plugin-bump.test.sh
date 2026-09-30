@@ -85,6 +85,11 @@ if awk '/^## \[1\.0\.1\]/{seen=1} seen && /^## \[1\.0\.0\]/{exit !(prev=="")} {p
 else
   fail "inserted entry runs into the next heading: $(cat "$repo/plugins/alpha/CHANGELOG.md")"
 fi
+if grep -q 'bundle or dist artifact' "$repo/plugins/alpha/CHANGELOG.md"; then
+  fail "a clean tree with no dist change got the bundle note"
+else
+  ok "a clean tree with no dist change gets no bundle note"
+fi
 # Gate passes
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump main >/dev/null 2>&1); then
   ok "gate --check-bump passes after bump"
@@ -130,6 +135,26 @@ else
   fail "multi plugin: alpha=$va beta=$vb"
 fi
 rm -rf "$repo"
+
+# --- a bundle rebuilt in the working tree, not yet committed, gets the note ---
+for shape in modified untracked; do
+  mk_repo repo
+  mk_plugin "$repo" alpha 1.0.0
+  mkdir -p "$repo/plugins/alpha/server/dist"
+  [[ "$shape" == modified ]] && echo old >"$repo/plugins/alpha/server/dist/index.min.js"
+  init_git "$repo"
+  begin_pr "$repo"
+  echo x >>"$repo/plugins/alpha/server/package-lock.json"
+  git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+  echo new >"$repo/plugins/alpha/server/dist/index.min.js"
+  (cd "$repo" && bash scripts/dependabot-plugin-bump.sh main --pr 5 >/dev/null 2>&1)
+  if grep -q 'Committed bundle or dist artifact changed' "$repo/plugins/alpha/CHANGELOG.md"; then
+    ok "an uncommitted $shape dist file gets the bundle note"
+  else
+    fail "an uncommitted $shape dist file got no bundle note: $(cat "$repo/plugins/alpha/CHANGELOG.md")"
+  fi
+  rm -rf "$repo"
+done
 
 # --- no plugin paths: no-op ---
 mk_repo repo
