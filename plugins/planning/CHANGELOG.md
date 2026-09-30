@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.49.0] - 2026-09-30
+## [0.50.0] - 2026-09-30
 
 ### Added
 
 - **The surface nudges when an answer note ends mid-sentence.** Beside the Save button, a note that stops on a word like "and" or "the" shows "This note looks cut off. Finish it before saving?" It does not block saving, and a note ending in `?` keeps the Ask Claude nudge instead ([#5454](https://github.com/melodic-software/claude-code-plugins/issues/5454)).
+
+## [0.49.0] - 2026-09-30
+
+### Added
+
+- **`revise` accepts commitments.** `round.py revise --commit` replaces a question's `commits` (repeatable), and the `revise` op takes a `commits` list. Confirm ticks made against the previous commitment list are cleared when the list changes, so a tick can no longer carry over to a commitment written for the old recommendation, and a `confirm` from a page still showing the old list is refused as stale ([#5452](https://github.com/melodic-software/claude-code-plugins/issues/5452)).
 
 ## [0.48.1] - 2026-09-30
 
