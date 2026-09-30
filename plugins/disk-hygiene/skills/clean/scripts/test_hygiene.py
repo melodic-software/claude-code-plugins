@@ -294,6 +294,28 @@ class HygieneTests(unittest.TestCase):
                 }
                 self.assertIn("macos-finder-metadata", matched, name)
 
+    def test_windows_device_names_are_hinted_on_linux_only(self) -> None:
+        policy = hygiene.load_policy(None)
+
+        def device_hints(name: str, kind: str = "file") -> set[str]:
+            return {
+                hint["id"]
+                for hint in hygiene.matching_hints(name, name, policy, kind)
+                if hint["id"].startswith("windows-device-name-")
+            }
+
+        with mock.patch.object(hygiene, "os_key", return_value="linux"):
+            for name in (
+                "nul", "NUL", "nul.txt", "Con", "prn", "aux.log", "COM1", "com9.dat", "lpt3",
+            ):
+                self.assertTrue(device_hints(name), name)
+            for name in ("notes.txt", "console", "com10", "null", "auxiliary"):
+                self.assertFalse(device_hints(name), name)
+            self.assertFalse(device_hints("nul", "directory"))
+        for other in ("windows", "macos"):
+            with mock.patch.object(hygiene, "os_key", return_value=other):
+                self.assertFalse(device_hints("nul"), other)
+
     def test_windows_junk_class_hints_match_on_windows_only(self) -> None:
         policy = hygiene.load_policy(None)
         rows = (
