@@ -46,7 +46,7 @@ For a single-topic ask, pick the tier by the task's breadth as the table defines
 
 | Tier | Condition | Execution |
 |---|---|---|
-| 1. Workflow engine (preferred) | The Workflow tool is available AND a deep-research workflow exists (a built-in deep-research workflow, or one the consuming project ships) AND the task is heavy/broad (or unknown scope) | Dispatch that workflow with the topic |
+| 1. Workflow engine (preferred) | The Workflow tool is available AND a deep-research workflow exists (one the consuming project ships; the bundled `deep-research` workflow is the person's to run, per the Boundary section below) AND the task is heavy/broad (or unknown scope) | Dispatch that workflow with the topic |
 | 2. Isolated subagent | No workflow path AND the task is heavy | Dispatch the purpose-built `discovery:researcher` agent with a resolved envelope |
 | 3. Inline | Task clearly small/targeted (single fact, one obvious source, narrow lookup) | Invoke `/discovery:research` via the Skill tool, inline in this session |
 
@@ -78,7 +78,7 @@ Agent({
 
 ### Tier 1. Workflow engine (preferred)
 
-If your tool list includes the Workflow tool and a deep-research workflow is available (check the consuming project's workflow registry first, a project-provided engine may superset the built-in one), dispatch it with the topic and, if it accepts one, the artifact destination: `<memory_dir>/<slug>/RESEARCH.md`, resolved per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Do not re-run the research inline, and do not surface the return as-is, an engine is a producing context like any other, so close the post-dispatch boundary below first.
+If your tool list includes the Workflow tool and a deep-research workflow is available (a project-provided engine in the consuming project's workflow registry; the bundled `deep-research` workflow is offered to the person, never dispatched here), dispatch it with the topic and, if it accepts one, the artifact destination: `<memory_dir>/<slug>/RESEARCH.md`, resolved per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). The engine runs in the background; its completion notification carries the summary + artifact path. Do not re-run the research inline, and do not surface the return as-is, an engine is a producing context like any other, so close the post-dispatch boundary below first.
 
 If no workflow engine resolves, fall through to Tier 2.
 
@@ -105,6 +105,33 @@ Parent-side handling of a `discovery:researcher` return specifically, the gate's
 ## Relationship to `/discovery:research` (parent skill)
 
 This variant tracks `/discovery:research`'s conventions. Same discipline file, same artifact contract, same outcome gate. There is no separate copy here; update the parent and this dispatcher follows.
+
+## Boundary, the bundled `deep-research` workflow
+
+A native workflow also answers "research this deeply" with a cited report, so a request for deep
+research can mean either surface.
+
+- **`deep-research` (bundled workflow).** Ships with Claude Code rather than as a marketplace
+  plugin. `/deep-research <question>` scopes one question, fans out web searches, fetches and
+  cross-checks sources, votes on each claim, and returns one cited report. It is reserved for the
+  person to run: its registration disables model invocation, so the model does not start it and
+  Tier 1 does not dispatch it.
+- **This skill (marketplace plugin).** Splits a multi-topic ask across per-topic
+  `discovery:researcher` workers under the `/discovery:research` discipline (source tiers, recency
+  gate, coverage ledger), and grades every run off disk with a fresh verifier before surfacing it.
+
+**Routing.** Offer it to the person at the start of the run, before dispatching: for a single-topic
+ask that wants one deep cited report, "you can run `/deep-research <question>` instead of or
+alongside this skill"; for a multi-topic ask, only as an addition for one topic that needs
+adversarial claim-checking. If the person takes it instead, stop. An unattended run records the
+offer in its output instead of asking, and dispatches.
+
+**Mutation gate.** This skill writes only its own research slice. It never starts the workflow on
+the person's behalf, and a report from the person's own run is not a graded `RESEARCH.md`.
+
+**Availability is never assumed.** The workflow needs the WebSearch tool, and bundled surfaces vary
+by settings, plan, and host; this section states what to offer, never that it is present. The
+four-part records live in [reference/native-deep-research.md](reference/native-deep-research.md).
 
 ## Gotchas
 
