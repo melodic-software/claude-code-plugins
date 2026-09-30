@@ -55,20 +55,23 @@ directory, a symlink, or a Windows reparse point.
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" \
-  --data-root "<data_root>" [--project-dir "${CLAUDE_PROJECT_DIR}"] \
+  --data-root "<data_root>" [--project-dir "<project-dir>"] \
   [--policy "<policy.json>"] [--max-depth <N>] [--sizes-only] [--quiet] \
   [--root-children [--root-child <name>]...]
 ```
 
-`--project-dir` is optional; pass it when the consumer project has standing policy files. What each
-flag does, including the large-target and volume-root rules, is in
+`--project-dir` is optional; pass it, as a literal absolute path, when the consumer project has
+standing policy files. Never pass `${CLAUDE_PROJECT_DIR}` or any other `${...}` token: the guard
+rejects shell expansion. What each flag does, including the large-target and volume-root rules, is in
 [scan-flags.md](../clean/reference/scan-flags.md). For a home directory or another large target,
 start with `--max-depth 1`, then scan the subtrees the evidence justifies. Never pass
 `--confirmed-large-scan` on your own: an unbounded walk needs a person's answer.
 
 For a subtree worker, the brief to paste into the spawn prompt is
-[fan-out-worker-brief.md](../clean/reference/fan-out-worker-brief.md). A worker returns scan
-evidence only.
+[fan-out-worker-brief.md](../clean/reference/fan-out-worker-brief.md). Before spawning, replace every
+`${...}` token and `<placeholder>` in it with the literal absolute value you hold from the probe
+(`hook_python`, `data_root`) or from step 2: a worker cannot expand `${...}` tokens, and its data
+root is the probe's `data_root`, not `${CLAUDE_PLUGIN_DATA}`. A worker returns scan evidence only.
 
 ## 3. Read and report the snapshot
 
@@ -108,6 +111,13 @@ Run by a person when the findings warrant removal; it takes the same target, not
   permission mode that asks may hold it for a person. That is the "waiting for a person" stop in
   step 1, not a reason to skip the probe.
 - Under an inline `--plugin-dir` load the probe can report `data_root` as `null` even though the
-  plugin data directory exists. Stop as step 1 says; do not substitute a guessed path.
+  plugin data directory exists. Stop as step 1 says; do not substitute a guessed path. **Claim:** the
+  guard derives `data_root` only from the `<plugins>/cache/<marketplace>/<name>` install layout or a
+  registered directory marketplace, so a checkout loaded inline reports `null`. **Basis:** the probe
+  run from a checkout with neither reported `hook_python` resolved and `data_root: null` on Claude Code
+  2.1.285 (Linux); the derivation rule is in
+  [safety-model.md](../clean/reference/safety-model.md), "Local-directory marketplace installs".
+  **As of:** 2026-09-30. **Recheck:** the guard's data-root derivation changes, or a Claude Code
+  release documents a plugin data path for `--plugin-dir` loads.
 - A hint match is discovery evidence only. Reporting "N hinted entries" as "N safe deletions" is the
   failure this skill exists to avoid.

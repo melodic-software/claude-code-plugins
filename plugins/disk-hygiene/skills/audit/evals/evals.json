@@ -18,7 +18,7 @@
       "id": 2,
       "name": "null-data-root-stops",
       "prompt": "Run a disk-hygiene audit report on ~/scratch-audit. The probe reports data_root as null.",
-      "expected_output": "Reports the audit as not run, relays the recovery the guard's denial names, and submits no engine call.",
+      "expected_output": "Reports the audit as not run because the install layout proved no data root, and submits no engine call, so there is no guard denial to relay.",
       "files": [],
       "expectations": [
         "Submits no hygiene.py call",
