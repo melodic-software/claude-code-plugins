@@ -7,7 +7,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\me\.claude\plugins\data\x\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block. Other `Export-*` cmdlets are no longer treated as writes.
+- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\me\.claude\plugins\data\x\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block.
 
 ### Changed
 
