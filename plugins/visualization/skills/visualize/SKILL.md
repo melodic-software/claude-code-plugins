@@ -270,7 +270,11 @@ hand-tweakable layouts, so a request for a mockup or a one-pager can mean either
 **Routing:** when the form is a hand-tweakable layout and Step 3's medium permits publishing,
 render this skill's page and tell the person: If /design is available in your session (gate
 basis: the verification record below), you can run it instead of or alongside this skill for a
-hand-editable design canvas.
+hand-editable design canvas. A local skill named `design` at any level silently shadows the
+bundled command, and the bundled one never appears in your skill listing, so a `design` entry in
+that listing is a shadowing local skill: do not make the offer, and tell the person a local
+`design` skill shadows the bundled canvas command. Otherwise, add that `/design`'s description
+should read "Make a new Design artifact from a brief"; anything else is not the canvas.
 
 **Mutation gate:** the canvas publishes a persistent Artifact under the person's account, so it is
 never a silent default and nothing tracked in a repository references it. This skill never runs it.
