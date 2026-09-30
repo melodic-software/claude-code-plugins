@@ -10232,6 +10232,31 @@ class GuardTests(unittest.TestCase):
             with self.subTest(cwd=cwd.name, command=command), chdir_context(cwd):
                 self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
                 self.assertFalse(guard._engine_gate_relevant(rev_form, "Bash"))
+                self.assertIn(
+                    "resolves to the installed engine from the current directory "
+                    "is still gated",
+                    self._gated_reason(command),
+                )
+
+    def test_engine_gate_denial_names_the_payload_word_it_gated(self) -> None:
+        cases = (
+            'gh issue list --search "python3 hygiene.py"',
+            'gh issue list --search "hygiene.py scan"',
+            'echo "run python3 hygiene.py"',
+            '"python3 hygiene.py scan"',
+        )
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for command in cases:
+                with self.subTest(command):
+                    self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+                    reason = self._gated_reason(command)
+                    word = next(w for w in command.split('"') if "hygiene.py" in w)
+                    self.assertIn(f"{word!r} holds the engine filename", reason)
+                    self.assertNotIn("not this hook's Python", reason)
+                    self.assertNotIn("word(s)", reason)
+            self.assertFalse(
+                guard._engine_gate_relevant("gh issue list --search hygiene.py", "Bash")
+            )
 
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
         """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.

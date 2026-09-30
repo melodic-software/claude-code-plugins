@@ -698,6 +698,29 @@ def _carries_marker(word: str) -> bool:
     return name == _ENGINE_MARKER
 
 
+def _is_interpreter(word: str) -> bool:
+    base = Path(word.casefold()).name
+    return base.startswith("python") or base in {"py", "py.exe"}
+
+
+def _reads_as_engine_payload(word: str) -> bool:
+    """Whether a word that is not the engine path still reads as an engine call.
+
+    A quoted compound payload (sh -c / pwsh -Command) whose first token is the
+    engine or an interpreter, or any word holding both the engine filename and
+    "python". The gate and its denial reason share this test, so the reason
+    names the word the gate acted on.
+    """
+    folded = word.casefold()
+    if _carries_marker(word) or _ENGINE_MARKER not in folded:
+        return False
+    if " " in word:
+        first_token = folded.split()[0]
+        if _carries_marker(first_token) or _is_interpreter(first_token):
+            return True
+    return "python" in folded
+
+
 # PowerShell also closes a quote opened with ' by any of these and a " by the
 # double forms; a scanner that knows only the ASCII pair would see a different
 # string boundary than PowerShell does.
@@ -875,10 +898,6 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     the rest of the session once that belt has registered).
     """
 
-    def _is_interpreter(word: str) -> bool:
-        base = Path(word.casefold()).name
-        return base.startswith("python") or base in {"py", "py.exe"}
-
     bundled = _engine_script_path()
 
     def _samefile(word: str) -> bool:
@@ -1022,7 +1041,6 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         if Path(word.casefold()).name in _WRAPPERS
     ]
     for index, word in enumerate(words):
-        folded = word.casefold()
         if _carries_marker(word):
             if _samefile(word) or _within_plugin_cache_family(word):
                 # The word is one of THIS PLUGIN'S engines — the bundled one,
@@ -1056,13 +1074,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
                 # (`git diff -- hygiene.py`) still defer.
                 return True
             continue
-        if _ENGINE_MARKER in folded and " " in word:
-            first_token = folded.split()[0]
-            if _carries_marker(first_token) or _is_interpreter(first_token):
-                # A quoted compound payload (sh -c / pwsh -Command) whose first
-                # token is the engine or an interpreter is an invocation.
-                return True
-        if _ENGINE_MARKER in folded and "python" in folded:
+        if _reads_as_engine_payload(word):
             return True
     return False
 
@@ -2188,9 +2200,10 @@ def _engine_mismatch_reason(command: str, authority: str | None) -> str:
     """One sentence naming what ``classify_exact_engine_command`` refuses.
 
     Deny path only; the caller has already denied and this decides nothing. It
-    walks the classifier's stages in order, except that an engine operand of a
-    command that is not the hook's Python is named first: that word is what the
-    gate acts on, whatever the command's length.
+    walks the classifier's stages in order, except that when the command is not
+    the hook's Python, an engine operand or a word that reads as an engine
+    payload is named first: that word is what the gate acts on, whatever the
+    command's length.
     """
     tokens = _literal_shell_words(command)
     if tokens is None:
@@ -2201,6 +2214,17 @@ def _engine_mismatch_reason(command: str, authority: str | None) -> str:
         if python_ok
         else next((word for word in tokens[1:] if _resolves_to_engine(word)), None)
     )
+    payload = (
+        None
+        if python_ok or operand is not None
+        else next((word for word in tokens if _reads_as_engine_payload(word)), None)
+    )
+    if payload is not None:
+        return (
+            f"{engine_grammar.clip_token(payload)} holds the engine filename with "
+            "an interpreter or as its first word, so the gate reads it as an "
+            "engine call."
+        )
     if operand is not None:
         named = (
             "is the engine path"
@@ -2266,7 +2290,9 @@ _ENGINE_GATE_SCOPE = (
     "Any command that contains the engine filename together with a pipe, "
     "redirect, ;, substitution, or an absolute engine-path operand is gated. "
     "The read-only forms that work name the engine by a relative path or bare "
-    "name in a plain git show, git grep, grep or rg with no pipe, redirect or ;."
+    "name in a plain git show, git grep, grep or rg with no pipe, redirect or ;. "
+    "A relative path or bare name that resolves to the installed engine from "
+    "the current directory is still gated."
 )
 
 

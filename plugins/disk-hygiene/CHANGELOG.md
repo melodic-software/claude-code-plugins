@@ -7,7 +7,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Changed
 
-- **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work. The message is the only change: the guard matches and denies exactly as before.
+- **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work, adding that a relative path or bare name which resolves to the installed engine from the current directory is still gated. A quoted word the gate reads as an engine call, such as a `gh --search` query naming an interpreter and the engine, is named as the gated word. The message is the only change: the guard matches and denies exactly as before.
 
 ## [0.40.0] - 2026-09-30
 
