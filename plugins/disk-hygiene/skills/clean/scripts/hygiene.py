@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import ctypes
 import datetime as dt
 import fnmatch
@@ -663,6 +664,100 @@ def is_os_managed_target(
     return False
 
 
+# The device path, not DiskImage.Number, tells a VHD (a physical drive with
+# partitions) from an optical image (.iso/.img, a CD-ROM device with one volume).
+WINDOWS_DISK_IMAGE_PROBE = r"""
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+$image = Get-DiskImage -ImagePath $env:DISK_HYGIENE_IMAGE
+if (-not $image.Attached) { 'detached'; exit 0 }
+'attached'
+if ($image.DevicePath -match '^\\\\\.\\PHYSICALDRIVE(\d+)$') {
+  Get-Partition -DiskNumber $Matches[1] -ErrorAction SilentlyContinue |
+    ForEach-Object AccessPaths
+} else {
+  Get-Volume -DiskImage $image -ErrorAction SilentlyContinue |
+    Where-Object DriveLetter | ForEach-Object { "$($_.DriveLetter):" }
+}
+"""
+
+
+def windows_disk_image_mounts(path: Path) -> list[str] | None:
+    powershell = shutil.which("powershell")
+    if not powershell:
+        raise OSError("powershell not found")
+    encoded = base64.b64encode(WINDOWS_DISK_IMAGE_PROBE.encode("utf-16-le")).decode()
+    # ponytail: one PowerShell spawn per image per engine call; batch one
+    # Get-DiskImage per scan if image-heavy targets make scans slow.
+    run = subprocess.run(
+        [powershell, "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=20,
+        check=False,
+        env={**os.environ, "DISK_HYGIENE_IMAGE": str(path)},
+    )
+    # Exit code and sentinel only: Windows PowerShell writes CLIXML progress
+    # records to a redirected stderr even on success.
+    lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
+    if run.returncode != 0 or not lines or lines[0] not in {"attached", "detached"}:
+        raise ValueError(
+            f"Get-DiskImage exit {run.returncode}: {run.stderr.strip()[:200]}"
+        )
+    if lines[0] == "detached":
+        return None
+    return sorted(
+        {line.rstrip("\\") for line in lines[1:] if not line.startswith("\\\\?\\")}
+    )
+
+
+def linux_loop_mounts(
+    path: Path,
+    sys_block: Path = Path("/sys/block"),
+    mountinfo: Path = Path("/proc/self/mountinfo"),
+) -> list[str] | None:
+    if not sys_block.is_dir():
+        raise OSError(f"{sys_block} is not readable")
+    image = os.path.realpath(path)
+    devices = {
+        backing.parent.parent.name
+        for backing in sys_block.glob("loop*/loop/backing_file")
+        if backing.read_text(encoding="utf-8").strip() == image
+    }
+    if not devices:
+        return None
+    mounts: set[str] = set()
+    for line in mountinfo.read_text(encoding="utf-8").splitlines():
+        fields = line.split()
+        if "-" not in fields[6:]:
+            continue
+        separator = fields.index("-", 6)
+        if len(fields) < separator + 3:
+            raise ValueError(f"malformed mountinfo line: {line[:200]}")
+        source = fields[separator + 2].removeprefix("/dev/")
+        if re.sub(r"p\d+$", "", source) in devices:
+            mounts.add(_decode_mountinfo_path(fields[4]))
+    return sorted(mounts)
+
+
+def virtual_disk_attachment(path: Path) -> list[str] | None:
+    """Where an attached disk image is mounted, or None when it is detached.
+
+    An attached image with no mounted volume returns an empty list. Raises
+    OSError, subprocess.SubprocessError, or ValueError when the host cannot
+    tell, including on a platform with no probe. Windows asks Get-DiskImage;
+    Linux (WSL included, which sees only its own loop devices, never the
+    Windows host's attachments) reads the loop devices' backing files.
+    """
+    if os.name == "nt":
+        return windows_disk_image_mounts(path)
+    if os_key() == "linux":
+        return linux_loop_mounts(path)
+    raise OSError("no virtual-disk attach probe on this platform")
+
+
 def hard_protection(
     path: Path,
     target: Path,
@@ -679,6 +774,17 @@ def hard_protection(
     # cannot be stat'ed reads as not-a-directory, which fails closed.
     if is_virtual_disk_name(path.name) and not path.is_dir():
         reasons.append("virtual-disk")
+        try:
+            mounts = virtual_disk_attachment(path)
+        except (OSError, subprocess.SubprocessError, ValueError):
+            # Never read an unanswered probe as detached.
+            reasons.append("virtual-disk-attach-unverified")
+        else:
+            if mounts is not None:
+                reasons.extend(
+                    [f"attached-virtual-disk:{mount}" for mount in mounts]
+                    or ["attached-virtual-disk"]
+                )
     current = path
     while is_within(current, target):
         linkish, cloud_placeholder = link_and_cloud_state(current)

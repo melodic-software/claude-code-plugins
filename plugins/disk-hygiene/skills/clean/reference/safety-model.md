@@ -75,7 +75,20 @@ bounded conditions.
   `size_qualifiers`, so any candidate that is or contains one is blocked in preview, apply, and
   `handoff-verify`, and its bytes stay out of every reclaimable total. An image is a whole guest
   disk, usually held open by a hypervisor or WSL, so the name proves nothing about it being
-  disposable; the owning product's own compaction or removal is the path;
+  disposable; the owning product's own compaction or removal is the path. Each image also gets an
+  attach probe, which adds one more reason:
+  - `attached-virtual-disk:<mount>` for each drive letter (`D:`) or mount point the attached image
+    backs, or a bare `attached-virtual-disk` when it is attached with no mounted volume;
+  - `virtual-disk-attach-unverified` when the probe errors, times out, or has no route on the
+    platform. An unanswered probe never reads as detached;
+  - nothing more for a detached image, which keeps only `virtual-disk`.
+
+  Windows asks `Get-DiskImage` through a PowerShell call bounded at 20 seconds. It knows only
+  VHD, VHDX, and optical images, so a `.vmdk`, `.vdi`, or `.qcow2`, and an image another process
+  holds open, such as a running distro's `ext4.vhdx`, reads as unverified. Linux, WSL included,
+  reads `/sys/block/loop*/loop/backing_file` and the loop devices' mounts, so under WSL only
+  Linux loop attachments are visible, never the Windows host's. macOS has no probe and always
+  reads as unverified;
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
