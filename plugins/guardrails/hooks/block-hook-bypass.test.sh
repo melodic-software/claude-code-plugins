@@ -16,6 +16,18 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 jq_crlf_free
 
+# A plain `ln -s` on Git Bash copies the target, so a fixture link is asked for
+# as a native symlink and confirmed with -L. A host that cannot make one counts
+# a no-coverage skip instead of asserting against a copy.
+bhb_skips=0
+bhb_skip() {
+  echo "SKIP: $* (no coverage here, not a pass)"
+  bhb_skips=$((bhb_skips + 1))
+}
+make_link() { # <target> <link> -> 0 when <link> is a real symlink
+  MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]]
+}
+
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 #
 # CLAUDE_PROJECT_DIR is cleared ahead of the caller's own env words, which is a
@@ -2073,11 +2085,16 @@ PD_PROJ="/tmp/bhb-plugin-data-proj-$$"
 PD_REAL_CFG="/tmp/bhb-plugin-data-cfg-$$"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 mkdir -p "$PD_REAL_CFG/plugins/data" "$PD_PROJ/src"
-ln -s "$PD_PROJ" "$PD_REAL_CFG/plugins/data/to-repo"
+PD_HAVE_LINK=0
+make_link "$PD_PROJ" "$PD_REAL_CFG/plugins/data/to-repo" && PD_HAVE_LINK=1
 run_cwd "plugin data: fires on its own when the temp default stands down (allowed)" \
   "echo hello > $PD_REAL_CFG/plugins/data/r/report.md" "$PD_PROJ" 0 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
-run_cwd "plugin data: symlink escape into the repository blocks" \
-  "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+if ((PD_HAVE_LINK)); then
+  run_cwd "plugin data: symlink escape into the repository blocks" \
+    "echo hello > $PD_REAL_CFG/plugins/data/to-repo/src/main.py" "$PD_PROJ" 2 "$PROJ_ENV=$PD_PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+else
+  bhb_skip "plugin data: symlink escape into the repository not asserted (no real symlink on this host)"
+fi
 # The reverse escape: a CLAUDE_PROJECT_DIR that is a symlink whose physical
 # target sits UNDER the plugin data directory. The lexical gate sees a project
 # root that does not contain the directory and enables the default, but
@@ -2088,13 +2105,16 @@ PD_INNER="$PD_REAL_CFG/plugins/data/projreal"
 PD_LINK="/tmp/bhb-plugin-data-projlink-$$"
 mkdir -p "$PD_INNER/src"
 rm -f "$PD_LINK"
-ln -s "$PD_INNER" "$PD_LINK"
-run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
-  "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
-# A sibling report directory under the same plugin data root is still exempt:
-# the refusal is scoped to the project's own physical subtree, not the root.
-run_cwd "plugin data: a report beside the symlinked project is still allowed" \
-  "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+if make_link "$PD_INNER" "$PD_LINK"; then
+  run_cwd "plugin data: project root symlinked INTO the directory keeps the block" \
+    "echo hello > $PD_INNER/src/main.py" "$PD_LINK" 2 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+  # A sibling report directory under the same plugin data root is still exempt:
+  # the refusal is scoped to the project's own physical subtree, not the root.
+  run_cwd "plugin data: a report beside the symlinked project is still allowed" \
+    "echo hello > $PD_REAL_CFG/plugins/data/other/report.md" "$PD_LINK" 0 "$PROJ_ENV=$PD_LINK" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=$PD_REAL_CFG"
+else
+  bhb_skip "plugin data: project root symlinked INTO the directory not asserted (no real symlink on this host)"
+fi
 rm -f "$PD_LINK"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 
@@ -2123,11 +2143,11 @@ if [[ "$SYMLINK_PROJ" != "${SYMLINK_PROJ,,}" ]]; then
   # Not a silent skip: the case-folding residual is documented in the hook, and a
   # mixed-case checkout path cannot exercise this assertion at all.
   printf 'SKIP: symlink confirmation not asserted — checkout path carries capitals (%s), which the folded segment scan cannot resolve\n' "$SYMLINK_PROJ"
-else
+elif rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ" && mkdir -p "$SYMLINK_TEMP" "$SYMLINK_PROJ/src" &&
+  ! make_link "$SYMLINK_PROJ" "$SYMLINK_TEMP/to-proj"; then
+  bhb_skip "symlink escape out of the temp default not asserted (no real symlink on this host)"
   rm -rf "$SYMLINK_TEMP" "$SYMLINK_PROJ"
-  mkdir -p "$SYMLINK_TEMP" "$SYMLINK_PROJ/src"
-  ln -s "$SYMLINK_PROJ" "$SYMLINK_TEMP/to-proj"
-
+else
   run_cwd "symlink: escape out of the temp default still blocks" \
     "echo secret > $SYMLINK_TEMP/to-proj/src/tracked.py" "$SYMLINK_PROJ" 2 \
     "$PROJ_ENV=$SYMLINK_PROJ"
@@ -2255,9 +2275,8 @@ S83="/tmp/bhb-4678-$$"
 S83_WIN=(OSTYPE=cygwin "TEMP=$S83/longna~1" "$PROJ_ENV=$PROJ")
 rm -rf "$S83"
 mkdir -p "$S83/longname/claude"
-if [[ ! -d /usr ]] || ! ln -s "$S83/longname" "$S83/longna~1" 2>/dev/null ||
-  ! test -L "$S83/longna~1" || ! ln -s /usr "$S83/tousr~1" 2>/dev/null; then
-  printf 'SKIP: 8.3 simulation not asserted (no symlink could be made on this host; no coverage here, not a pass)\n'
+if [[ ! -d /usr ]] || ! make_link "$S83/longname" "$S83/longna~1" || ! make_link /usr "$S83/tousr~1"; then
+  bhb_skip "8.3 simulation not asserted (no symlink could be made on this host)"
 else
   run_cwd "8.3 sim: short-name temp target allowed with a non-temp project root" \
     "echo hello > $S83/longna~1/claude/x/probe.txt" "$PROJ" 0 "${S83_WIN[@]}"
@@ -2288,7 +2307,7 @@ else
     ;;
   *)
     if [[ "$S83_PROJ" == "${S83_PROJ,,}" ]] && mkdir -p "$S83_PROJ/src" &&
-      ln -s "$S83_PROJ/src" "$S83_PROJ/srcali~1" 2>/dev/null; then
+      make_link "$S83_PROJ/src" "$S83_PROJ/srcali~1"; then
       run_cwd "8.3 sim: an existing short path outside temp blocks" \
         "echo secret > $S83_PROJ/srcali~1/tracked.py" "$PROJ" 2 "${S83_WIN[@]}"
     else
@@ -2927,4 +2946,5 @@ assert_contains "two blocking guards dispatched: this guard's reason survives" \
 assert_contains "two blocking guards dispatched: the sibling guard's reason survives" \
   "$GUARD_ERR" "--no-verify / -n skips the hooks"
 
+echo "symlink-fixture groups skipped: $bhb_skips"
 report
