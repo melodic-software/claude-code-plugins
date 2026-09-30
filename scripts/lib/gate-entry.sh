@@ -15,13 +15,14 @@
 # report a pass. --all and --paths never consult a ref.
 #
 # Adoption: classify and finish are used by check-shell-portability,
-# check-skill-portability, and check-skill-precompute-compose. Only require_base
-# is used by check-guardrails-ps-differential. affected-tests,
-# check-changed-skills, check-docs-only, check-changelog-parity,
-# check-contract-slice-prune, check-skill-description-voice,
-# check-stale-base-overlap, and check-vendor-version-bump still dispatch modes
-# and map exits themselves; the
-# #3413 triage brief scoped out adding modes to other gates.
+# check-skill-portability, check-skill-precompute-compose, check-changed-skills,
+# check-stale-base-overlap, check-vendor-version-bump, check-contract-slice-prune,
+# and check-changelog-parity. check-guardrails-ps-differential uses only
+# require_base. Three gates stay outside:
+#   check-docs-only                exits 0 on every fail-closed path, an
+#                                  unresolvable ref included, so the full suite runs
+#   affected-tests                 exits 0, 1, 2, or 3, not the 0/1/2 map above
+#   check-skill-description-voice  keeps its own dispatch and exit mapping
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/gate-entry.sh is sourced-only\n' >&2
@@ -76,11 +77,34 @@ gate_entry::require_base() {
 # GE_PATHS is the file list in paths mode. Returns 2 on a usage error and
 # does not exit, so the caller can print its own usage line. An unresolvable
 # base ref exits 2 from this shell. --all and --paths do not call git.
+#
+# A gate with its own flag modes sets GE_FLAGS before the call, one entry per
+# mode: "--check" takes no ref, "--check-bump:ref" takes one <base-ref>. Only
+# the declared flags are accepted then, not <base>, --all, or --paths. GE_MODE
+# is the flag, GE_REF the ref. GE_BAD_REF_MSG, when set, replaces the shared
+# diagnostic for an unresolvable ref.
 gate_entry::classify() {
   GE_MODE=""
   GE_REF=""
   GE_PATHS=()
   if (($# == 0)); then
+    return 2
+  fi
+  if [[ -n "${GE_FLAGS[*]-}" ]]; then
+    local _ge_spec
+    for _ge_spec in "${GE_FLAGS[@]}"; do
+      [[ "${_ge_spec%:ref}" == "$1" ]] || continue
+      GE_MODE="$1"
+      shift
+      if [[ "$_ge_spec" != *:ref ]]; then
+        (($# == 0)) || return 2
+        return 0
+      fi
+      (($# == 1)) || return 2
+      GE_REF="$1"
+      gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
+      return 0
+    done
     return 2
   fi
   case "$1" in
@@ -109,7 +133,7 @@ gate_entry::classify() {
       return 2
     fi
     GE_MODE=base
-    gate_entry::require_base "$GE_REF"
+    gate_entry::require_base "$GE_REF" "${GE_BAD_REF_MSG-}"
     ;;
   esac
   return 0

@@ -135,13 +135,6 @@ jq() { command jq "$@" | tr -d '\r'; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
-for bin in gh jq; do
-  type -P "$bin" >/dev/null 2>&1 || {
-    err "$bin not found (required)"
-    exit 4
-  }
-done
-
 MAX_BODY_BYTES=65536 # 64 KiB — a telemetry body, not an essay
 MIN_BODY_BYTES=16    # sanity floor for the body — below this is not telemetry
 
@@ -221,10 +214,18 @@ while (($#)); do
     exit 0
     ;;
   *)
-    err "unknown argument: $1"
+    err "unknown argument: $1 (see --help)"
     exit 3
     ;;
   esac
+done
+
+# After the parse loop, so `--help` answers on a machine missing either tool.
+for bin in gh jq; do
+  type -P "$bin" >/dev/null 2>&1 || {
+    err "$bin not found (required)"
+    exit 4
+  }
 done
 
 [[ "$ISSUE" =~ ^[0-9]+$ ]] || {

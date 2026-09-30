@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.30.0] - 2026-09-29
+## [0.31.0] - 2026-09-30
 
 ### Added
 
@@ -13,6 +13,34 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Changed
 
 - **`clean` gotcha: an allow rule cannot remove the deletion prompts.** The deletions are hook `ask` verdicts, which force a prompt, and the engine's read-only calls already get hook `allow`. The unsupported-platform handoff text names the repeatable `--path`.
+
+## [0.30.0] - 2026-09-29
+
+### Added
+
+- **Policy overlay version 2: preselect rules, an age threshold, and an elevation opt-in**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A `version: 2`
+  overlay accepts `rules`: each names one or more hint ids and ticks matching candidates in the
+  approval list (`policy_rule` and `preselected` on the candidate). A tick is a default, not
+  approval, and never overrides a blocker or the hint's `confidence_ceiling`. `min_age_days` holds
+  the tick for an entry modified inside the window and reports `in_flight_reason`. The `elevation`
+  field (`never` by default, or `uac-prompt` on Windows from the user-global file or `--policy`
+  only) lets the skill offer an operator-approved elevated re-check for paths contested only for
+  `needs-elevation`. The `scan-complete` output carries the effective `elevation`. Version 1 files
+  load unchanged, and `reference/policy-overlay.schema.json` describes both versions. The elevation
+  lane has not been proven in a Windows UAC pilot.
+
+## [0.29.2] - 2026-09-30
+
+### Fixed
+
+- **Belt lifetime and subagent reach state what a probe showed**
+  ([#3856](https://github.com/melodic-software/claude-code-plugins/issues/3856)). The README said docs
+  scope a skill hook to the component's lifetime. The hooks page says Claude Code keeps a skill's
+  frontmatter hooks for the rest of the session, and a probe on Claude Code 2.1.285 (Linux) confirmed
+  the belt denies on turns after the skill's own turn. The same probe ran a subagent's Bash call
+  without the belt, so the README and `skills/clean/SKILL.md` now record non-inheritance with that
+  basis instead of "inconsistent reach". No behavior changed.
 
 ## [0.29.1] - 2026-09-29
 

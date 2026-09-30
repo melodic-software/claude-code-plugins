@@ -79,13 +79,16 @@ directory outside the project.
   [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
-- **PowerShell 7+** (`pwsh`) on `PATH`. The hook probes `pwsh` only; legacy
-  Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent, the hook
-  stays quiet by design: a machine without PowerShell is treated as
-  not-applicable, not as a missing prerequisite.
+- **PowerShell 7+** (`pwsh`) on `PATH`
+  ([install](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)). The
+  hook probes `pwsh` only; legacy Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent,
+  the edit hook stays quiet, and a SessionStart probe reports the missing `pwsh` once per session,
+  from `prerequisites.json`, naming `/powershell-format:check`. The probe runs wherever the plugin
+  is enabled and `powershell_format_enabled` is not false. `/powershell-format:check` is read-only
+  and installs nothing.
 - The **PSScriptAnalyzer** module installed
-  (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet (same
-  not-applicable classification).
+  (`Install-Module PSScriptAnalyzer`). If absent, the hook stays quiet, with no
+  probe notice.
 - A **`PSScriptAnalyzerSettings.psd1`** in your repo. That file is the opt-in.
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
