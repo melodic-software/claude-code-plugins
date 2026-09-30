@@ -66,7 +66,7 @@ the engine returns `root-children-selection-required`. A general "clean everythi
 selection. `--sizes-only` skips the large-scan question. What each of the three flags does
 exactly, including the admission ladder, is in [scan-flags.md](reference/scan-flags.md). With no
 target, ask once. Reject an OS-managed root (unless `--root-children` on the volume root itself), a
-non-root mount target, a protected shell-folder root or descendant, a missing directory, a symlink,
+non-root mount target, a protected shell-folder root or descendant, a virtual-disk image file by name (`*.vhd`, `*.vhdx`, `*.avhd`, `*.avhdx`, `*.vmdk`, `*.vdi`, `*.qcow2`, `*.img`, which includes WSL's `ext4.vhdx`), a missing directory, a symlink,
 or a Windows reparse point. A whole-volume root that is not OS-managed (a Windows Dev Drive) is a
 valid target, but as a known-large root it is gated like a home target (see step 1): the scan
 returns `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
@@ -115,14 +115,12 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   guard would deny. The guard is the backstop, not the sole enforcer. Every engine call and the
   probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
   needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
-  functions can replace them. The expansion of this command normally carries a `disk-hygiene guard
-  values` note naming both as `hook_python` and `data_root`, resolved by the guard's own code
-  before the skill loads; use them from the first call. The probe's `hook_python` and `data_root`
-  fields are the same two values, computed by the same guard code; when the note is absent, take
-  both from the probe. The probe itself needs `<hook-python>`: if neither source has supplied it,
-  submit the probe once with bare `python`, and the guard denies that read-only call and names its
-  interpreter; rerun the probe with it. Never submit a scan to learn either value. A `data_root` of
-  `none` in the note or `null` from the probe means the install layout proved no data root, so the
+  functions can replace them. The expansion of this command normally carries a `disk-hygiene guard values`
+  note naming `hook_python` and `data_root`, resolved by the guard's own code; use both from the
+  first call. Only when the note is absent, submit the probe once with bare `python`: the guard
+  denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
+  take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value.
+  A `data_root` of `none` in the note or `null` from the probe means the install layout proved no data root, so the
   guard denies every engine call: report the audit as not run, relay the recovery the guard's
   denial names, and submit no engine call. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
   in `hygiene.py`, the floor's single origin), stop with the declared prerequisite instead of
@@ -333,7 +331,7 @@ handoff.
 An entry's `logical_size` is reclaimable local bytes only when its `size_qualifiers` is empty. Exclude every qualified
 entry from any reclaimable-bytes total and state the qualified bytes separately with their reasons, a
 `cloud-placeholder` carries its REMOTE size while occupying roughly nothing locally; a `hardlinked` name shares one
-object with other names; a `sparse` file's logical size overstates local allocation; and `not-walked` means the subtree
+object with other names; a `sparse` file's logical size overstates local allocation; a `virtual-disk` image (never deletable by name) is a guest disk's capacity, not reclaimable space; and `not-walked` means the subtree
 was never inventoried, so `logical_size` is `null` rather than `0`, except on the target's own record, which keeps its
 partial walked sum alongside a `not-walked` qualifier, so read that number as a floor. Prefer the snapshot's
 `target_reclaimable_local_bytes` (and preview/apply `reclaimable_local_bytes*`) over summing `logical_size` yourself.

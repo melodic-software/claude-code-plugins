@@ -3,11 +3,31 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.73.2] - 2026-09-30
+## [0.74.1] - 2026-09-30
 
 ### Fixed
 
 - **`plugins` evals name the route.** Two undefined-qualifier expectations now name the `claude plugin` CLI command or `converge` action a grader must find ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
+## [0.74.0] - 2026-09-30
+
+### Added
+
+- **`changelog` has a surface-discovery script**, `scripts/discover-surfaces.sh [root]`. It prints
+  `repo-shape: marketplace|consumer`, then one line per surface class present with its count and
+  glob, and reports how many vendored skill files it excluded. It recognizes marketplace,
+  standalone-plugin and consumer repos, and counts skills and conventions by their `SKILL.md` and
+  `README.md` files. Covered by
+  `scripts/discover-surfaces.test.sh` and a consumer fixture.
+- **`changelog` has an eval that runs discovery on both repo shapes**: the marketplace shape on this
+  repo and the consumer shape on the fixture.
+
+### Changed
+
+- **`changelog` explore runs the discovery script** and greps only the classes it prints, where it
+  read a fixed surface list.
+- **`context/repo-surfaces.md` is an examples spoke**: per-class examples of what an item changes,
+  not a checklist. A class the script does not print does not exist in the repo.
 
 ## [0.73.1] - 2026-09-30
 

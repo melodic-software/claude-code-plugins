@@ -1,5 +1,14 @@
 # Changelog: session-flow plugin
 
+## [0.40.3] - 2026-09-30
+
+### Changed
+
+- **Boundary bullets for native commands no longer assert that the command ships with Claude
+  Code.** The `/subtask`, `/fork` and `/background` bullet in `continue-in-background`, the
+  `/recap` bullet in `orient` and the `/insights` bullet in `retro` keep the provenance class, what
+  the command does and how it is invoked, in the native-references template form.
+
 ## [0.40.2] - 2026-09-29
 
 ### Changed
