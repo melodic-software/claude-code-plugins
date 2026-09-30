@@ -201,9 +201,9 @@ batch_emit() {
   printf '%s\n' '---'
 }
 
-# Repo-selection surface for the read-only audit scripts (git-branch-audit.sh,
+# Repo-selection surface for the audit scripts (git-branch-audit.sh,
 # git-stash-audit.sh): the --repo / --repos-from / --skip / --skip-from that
-# clean-batch.sh takes, without its gate, because an audit mutates nothing.
+# clean-batch.sh takes, without its gate, because an audit deletes nothing.
 BATCH_REPO_INPUTS=()
 BATCH_ARG_SHIFT=0
 BATCH_ARG_ERROR=""

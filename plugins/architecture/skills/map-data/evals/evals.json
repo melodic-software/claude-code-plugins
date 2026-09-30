@@ -84,7 +84,7 @@
     {
       "id": 7,
       "name": "losing-tier-does-not-block-the-winner",
-      "prompt": "/architecture:map-data\n\norders/schema.prisma declares User and Post with a required foreign key. orders/migrations/001/migration.sql agrees. tests/Sample.cs has a lambda chain, modelBuilder.Entity<Post>().HasOne(p => p.Author).WithMany().HasForeignKey(p => p.AuthorId). No --scope argument. The run is non-interactive.",
+      "prompt": "/architecture:map-data\n\norders/schema.prisma declares User and Post with a required foreign key. orders/migrations/001/migration.sql agrees. tests/Sample.cs has a lambda chain, modelBuilder.Entity<Post>().HasOne(p => p.Author).WithMany().HasForeignKey(p => p.AuthorId), and no class in the repository declares an Author property. No --scope argument. The run is non-interactive.",
       "expected_output": "The Prisma schema wins and only orders is a module, so render-data.sh draws User ||--o{ Post with exit 0. The unreadable EF chain is a not-compared row, not a refusal.",
       "narration": true,
       "expectations": [
