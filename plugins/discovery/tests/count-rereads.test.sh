@@ -106,6 +106,17 @@ turn "$E" 1 "$(bash_of 'grep -e needle /repo/e.md')"
 turn "$E" 2 "$(read_of /repo/e.md)"
 expect "grep -e keeps its first file operand" "$E" '^SCAN->READ: /repo/e\.md$' '^SCAN->READ count: 1$'
 
+L="$WORK/grep-long.jsonl"
+turn "$L" 1 "$(bash_of 'grep --regexp=needle /repo/l.md')" "$(bash_of 'grep -eneedle /repo/m.md')"
+turn "$L" 2 "$(read_of /repo/l.md)" "$(read_of /repo/m.md)"
+expect "grep --regexp= and -eNEEDLE keep their file operand" "$L" \
+  '^SCAN->READ: /repo/l\.md$' '^SCAN->READ: /repo/m\.md$' '^SCAN->READ count: 2$'
+
+R="$WORK/partial-shell.jsonl"
+turn "$R" 1 "$(bash_of 'head -n 20 /repo/a.md')" "$(bash_of "sed -n '1,20p' /repo/b.md")"
+turn "$R" 2 "$(read_of /repo/a.md)" "$(read_of /repo/b.md)"
+expect "head and sed -n are partial reads, not a REREAD" "$R" '^REREAD count: 0$'
+
 S="$WORK/same-turn.jsonl"
 turn "$S" 1 "$(grep_of /repo/a.md)" "$(read_of /repo/a.md)"
 expect "a scan and a read in one turn is not SCAN->READ" "$S" '^SCAN->READ count: 0$'

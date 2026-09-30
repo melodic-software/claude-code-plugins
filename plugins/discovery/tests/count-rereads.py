@@ -4,8 +4,8 @@
 Usage: python3 count-rereads.py <agent-transcript.jsonl>
 
 A turn is one distinct assistant message.id, the unit turns-to-complete.py
-counts. Reads are `Read` tool calls and Bash `cat`, `sed -n` or `head` on one
-file; a `Read` with an offset or limit is a partial read and is ignored.
+counts. Reads are `Read` tool calls and Bash `cat` on one file; a `Read` with
+an offset or limit, and Bash `head` or `sed -n`, are partial reads and are ignored.
 
   REREAD: <path>       a full read of a file already read with no Edit or
                        Write to it in between
@@ -62,14 +62,14 @@ def bash_effect(command: str) -> tuple[str, str, list[str]] | None:
     prog, args = tokens[0], tokens[1:]
     if prog == "cat":
         files = operands(args)
-    elif prog == "head":
-        files = operands(args, ("-n", "-c"))
-    elif prog == "sed" and "-n" in args:
-        files = operands(args)[1:]  # the first operand is the script
     elif prog == "grep":
         files = operands(args, ("-e", "-f", "-m", "-A", "-B", "-C"))
-        # the first operand is the pattern unless -e or -f supplied it
-        return "scan", prog, files if "-e" in args or "-f" in args else files[1:]
+        # the first operand is the pattern unless -e, -f or their long or attached forms supplied it
+        has_pattern_opt = any(
+            a in ("-e", "-f") or a.startswith(("--regexp", "--file", "-e", "-f"))
+            for a in args
+        )
+        return "scan", prog, files if has_pattern_opt else files[1:]
     elif prog == "ls":
         return "scan", prog, operands(args)
     else:
