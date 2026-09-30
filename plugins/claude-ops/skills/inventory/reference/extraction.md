@@ -209,9 +209,12 @@ The 2.1.285 bytecode bundle concatenates about two thousand modules, each openin
 a local `"host_exit"` ternary in another). So an identifier longer than one character resolves by
 module: a name its module imports resolves to the one top-level declaration in the one module that
 exports it; any other name resolves inside its own module, nearest before the reader, else first
-after; a name neither imported nor declared there is unresolved. A single-character identifier is
-function-local: a binding is trusted only within `SHORT_VALUE_LOCALITY_BYTES` before the reader,
-and a function only as the one top-level `function X(` of its own module. A source with no module
+after (a function declaration always, being hoisted; a value binding only at the module's top level
+and only when the read is deferred, reached through a getter, method, arrow or function-valued
+field that runs after the module loads); a name neither imported nor declared there is
+unresolved. A single-character identifier is function-local: a binding is trusted only within
+`SHORT_VALUE_LOCALITY_BYTES` before the reader and inside its module, and a function only as the
+one top-level `function X(` of its own module. A source with no module
 headers keeps the plain nearest-preceding rule. A skill field that resolves to nothing falls back to
 its descriptor object, then to `menuDescription`.
 

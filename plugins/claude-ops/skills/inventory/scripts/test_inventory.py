@@ -1241,6 +1241,11 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(rec["description"], "REAL")
         self.assertNotIn("description_variants", rec)
 
+    def test_a_nullish_fallback_keeps_an_empty_string(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:""??"FALLBACK"});'
+        self.assertEqual(_tool(src, "Probe")["description"], "")
+        self.assertEqual(_tool(src, "Probe")["description_source"], "literal")
+
     def test_an_empty_fallback_is_not_a_value(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:ua()??""});'
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
@@ -1320,6 +1325,14 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
         self.assertEqual(_tool(src, "Lazy")["description"], "later")
+
+    def test_an_eager_call_does_not_read_a_later_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function dd(){return zz}'
+            "$t({name:Qz,maxResultSizeChars:1,description:dd()});"
+            'var zz="later";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
 
     def test_a_name_two_modules_export_is_ambiguous(self) -> None:
         src = _modules(

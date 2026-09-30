@@ -785,6 +785,7 @@ def _scan(
     hops: int,
     anchor: int | None,
     shadow: frozenset[str] = frozenset(),
+    deferred: bool = False,
 ) -> int:
     """Collect the string values an expression (or a function body) yields.
 
@@ -813,7 +814,15 @@ def _scan(
             and (c in _QUOTES or c in _ID_START or c in "([")
         ):
             i = _operand(
-                src, braces, i, n, acc, hops=hops, anchor=anchor, shadow=shadow
+                src,
+                braces,
+                i,
+                n,
+                acc,
+                hops=hops,
+                anchor=anchor,
+                shadow=shadow,
+                deferred=deferred,
             )
             at_value, prev, prev_word = False, "x", ""
             continue
@@ -840,6 +849,7 @@ def _scan(
                     hops=hops,
                     anchor=anchor,
                     shadow=shadow,
+                    deferred=deferred,
                 )
             i, at_value, prev, prev_word = close + 1, False, "}", ""
             continue
@@ -900,6 +910,7 @@ def _operand(
     hops: int,
     anchor: int | None,
     shadow: frozenset[str] = frozenset(),
+    deferred: bool = False,
 ) -> int:
     """Read one operand in value position; record it when it is a string value.
 
@@ -909,7 +920,7 @@ def _operand(
     parameter, a call the reader cannot follow) renders as an ellipsis, and
     a result with no static word left in it is unresolved, never recorded.
     """
-    kw = {"hops": hops, "anchor": anchor, "shadow": shadow}
+    kw = {"hops": hops, "anchor": anchor, "shadow": shadow, "deferred": deferred}
     if src[i] == "(":
         close = _match_close(src, braces, i, n)
         k = _skip_ws(src, close, n)
@@ -992,7 +1003,8 @@ def _operand(
     if fallback:
         # `a||b`: when every value `a` can take is a non-empty string, `b`
         # never shows, so it is skipped; otherwise `b` is read as a value.
-        if not values or not all(values):
+        # `a??b` tests only null and undefined, so any string `a` keeps it.
+        if not values or (src.startswith("||", i) and not all(values)):
             return i
         while src.startswith(("||", "??"), i):
             i = _operand(src, braces, _skip_ws(src, i + 2, n), n, _Values(), **kw)
@@ -1079,6 +1091,7 @@ def _read_string(
     hops: int,
     anchor: int | None,
     shadow: frozenset[str],
+    deferred: bool = False,
 ) -> tuple[str, int, set[str]]:
     """A string or template literal: (text, index past it, how it was read).
 
@@ -1114,6 +1127,7 @@ def _read_string(
                     hops=hops - 1,
                     anchor=anchor,
                     shadow=shadow,
+                    deferred=deferred,
                 )
                 if hops > 1
                 else None
@@ -1184,9 +1198,10 @@ def _arrow_body(
     hops: int,
     anchor: int | None,
     shadow: frozenset[str] = frozenset(),
+    deferred: bool = False,
 ) -> int:
     acc.via.add("arrow")
-    kw = {"hops": hops, "anchor": anchor, "shadow": shadow}
+    kw = {"hops": hops, "anchor": anchor, "shadow": shadow, "deferred": True}
     k = _skip_ws(src, k, n)
     if src.startswith("{", k):
         close = braces.pairs.get(k)
@@ -1282,7 +1297,7 @@ def _declaration(
     ident: str,
     at: int,
     pattern_for: Any,
-    later_ok: Any = lambda _src, _braces, _at: True,
+    later_ok: Any = lambda _m: True,
 ) -> re.Match[str] | None:
     """The declaration of `ident` that the code at `at` reads.
 
@@ -1316,8 +1331,9 @@ def _declaration(
     found = None
     for m in pattern.finditer(src, lo, at):
         found = m
-    if found is None and later_ok(src, braces, at):
-        found = pattern.search(src, at, hi)
+    if found is None:
+        later = pattern.search(src, at, hi)
+        found = later if later is not None and later_ok(later) else None
     return found
 
 
@@ -1326,29 +1342,19 @@ def _binding_pattern(ident: str) -> re.Pattern[str]:
     return re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
 
 
-def _in_function_body(src: str, braces: BraceMap, at: int) -> bool:
-    """Whether `at` sits directly in a function body, which runs after the
-    module has initialized: a binding later in the module is set by then. An
-    object literal evaluated at load time reads it before its initializer."""
-    enc = braces.enclosing(max(at - 1, 0))
-    # A template substitution's `${` is not a scope: look past it.
-    while enc is not None and enc[0] > 0 and src[enc[0] - 1] == "$":
-        enc = braces.enclosing(enc[0] - 1)
-    if enc is None:
-        return False
-    j = enc[0] - 1
-    while j >= 0 and src[j] in " \t\r\n":
-        j -= 1
-    return j >= 0 and (src[j] == ")" or src.startswith("=>", j - 1))
-
-
-def _binding_value(src: str, braces: BraceMap, ident: str, at: int) -> int | None:
+def _binding_value(
+    src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool = False
+) -> int | None:
     """Offset of the `ident=` value `at` reads.
 
     A single-character name is function-local: the nearest binding before
     `at` in `at`'s own module, within `SHORT_VALUE_LOCALITY_BYTES`. A longer
-    one follows the module rule in `_declaration`; a binding after `at` is
-    taken only when `at` is in a function body.
+    one follows the module rule in `_declaration`. A binding after `at` is
+    taken only when the read is `deferred`, reached through a getter, a
+    method, an arrow, or a function-valued field, which run after the module
+    has loaded, and only when that binding is at the module's top level: an
+    eager read, such as a field's `f()` call at load time, sees no later
+    initializer.
     """
     if len(ident) == 1:
         v = _nearest_binding(src, ident, at)
@@ -1356,7 +1362,14 @@ def _binding_value(src: str, braces: BraceMap, ident: str, at: int) -> int | Non
         if v is None or v < lo or at - v > SHORT_VALUE_LOCALITY_BYTES:
             return None
         return v
-    m = _declaration(src, braces, ident, at, _binding_pattern, _in_function_body)
+    m = _declaration(
+        src,
+        braces,
+        ident,
+        at,
+        _binding_pattern,
+        lambda later: deferred and braces.enclosing(later.start()) is None,
+    )
     return m.end() if m else None
 
 
@@ -1405,6 +1418,7 @@ def _resolve_chain(
     hops: int,
     anchor: int | None,
     shadow: frozenset[str] = frozenset(),
+    deferred: bool = False,
 ) -> list[str] | None:
     """The string values a constant, a call, or a member read yields.
 
@@ -1420,7 +1434,11 @@ def _resolve_chain(
     # A bare identifier naming a function declaration is a function-valued
     # field, which the registrars read through a getter: resolve it as a call
     # when the declaration is nearer than any `ident=` binding.
-    v = _binding_value(src, braces, ident, at) if len(chain) == 1 else None
+    v = (
+        _binding_value(src, braces, ident, at, deferred=deferred)
+        if len(chain) == 1
+        else None
+    )
     fn = _function_body(src, braces, ident, at) if len(chain) == 1 else None
     if fn is not None and v is not None and (fn[0] > at or fn[0] < v):
         fn = None
@@ -1444,6 +1462,8 @@ def _resolve_chain(
             hops=hops - 1,
             anchor=None,
             shadow=fn[1],
+            # A function-valued field is read through a getter: deferred.
+            deferred=deferred or len(chain) == 1,
         )
         acc.via.add("call")
     elif len(chain) == 2 and chain[1][0] == "prop":
@@ -1496,6 +1516,7 @@ def _eval_field(
             hops=hops,
             anchor=anchor,
             shadow=_params_before(src, pos),
+            deferred=True,
         )
         return kind
     close = braces.pairs.get(open_i, len(src))

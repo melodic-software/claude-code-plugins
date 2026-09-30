@@ -683,7 +683,11 @@ def diff(
     # A description the extraction cannot resolve leaves detect scoring that
     # surface on its name, user-facing name and search hint alone. Each name
     # the previous summary did not already list is an item, so a release that
-    # adds a shape the resolver cannot read is filed, not absorbed.
+    # adds a shape the resolver cannot read is filed, not absorbed. Unlike a
+    # candidate, an unknown previous state (a baseline, or an older summary)
+    # files every listed name: each is a standing gap in the extraction, not
+    # a claim that it just appeared, the list is short, and the key dedupes a
+    # refiled item against the open one.
     unresolved = cur.get("unresolved_descriptions")
     known_unresolved = (prev or {}).get("unresolved_descriptions")
     new_unresolved = [

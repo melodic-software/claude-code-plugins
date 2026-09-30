@@ -491,6 +491,11 @@ class DiffItemsTests(unittest.TestCase):
         self.assertEqual(drift(prev, cur, None, None, 0)["items"], [])
         # A previous summary that never recorded the list files every name once.
         self.assertEqual(len(drift(cur, self.prev, None, None, 0)["items"]), 2)
+        # A baseline run (no previous summary) files every listed name too.
+        self.assertEqual(
+            [i["kind"] for i in drift(cur, None, None, None, 0)["items"]],
+            ["unresolved-description", "unresolved-description"],
+        )
         # An inventory without the block knows nothing and files nothing.
         self.assertIsNone(self.cur["unresolved_descriptions"])
         self.assertIsNone(
