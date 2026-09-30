@@ -1,24 +1,13 @@
-# dependency-graph.json
+# dependency-graph.json as the renderer reads it
 
-The record `map-components` renders. `dependency-graph.sh` in `map-dependencies`
-is the shared writer. [component-graph.sh](../scripts/component-graph.sh) is the
-fallback when that file is absent and that writer is not on disk. Both are
-schema_version 1, one object per line, with a node line's first key `id` and an
-edge line's first key `from`.
-
-`dependency-graph.sh` also writes `result`, `message`, `cycles`, and `findings`.
-A package id is `pkg:` plus the Include. An unresolved project reference is
-`kind` `project` with `status` `unresolved`, and its `to` is not a charted
-project. `node_threshold` is 40. The fallback writes `subject`,
-`unknown_reason`, and `unshipped`, uses package ids `nuget:<Include>`, uses edge
-`kind` `unresolved`, and sets `node_threshold` to 24. The example below is the
-fallback shape. The renderer accepts both: a project edge whose `to` is not a
-charted project is unresolved, and `ecosystem` `unknown` draws no diagram. The
-reason is `unknown_reason` when that field is set, otherwise `message`.
+`dependency-graph.sh` in `map-dependencies` writes the record, and its header is
+the schema (`--help` prints it). This page is what `render-components.sh` takes
+from it. A record with no `result` key did not come from that script, and the
+renderer exits 1 on it.
 
 ## Physical shape
 
-One object per line. A reader exits 1 on any other layout, including a
+One object per line. The renderer exits 1 on any other layout, including a
 compacted record and a record with one key per line. Empty arrays may sit on
 the key's line (`"nodes": []`).
 
@@ -28,47 +17,45 @@ A node line's first key is `id`. An edge line's first key is `from`.
 {
   "schema_version": 1,
   "generated_on": "YYYY-MM-DD",
-  "subject": "<directory basename, or the origin repository name>",
+  "result": "ok",
+  "message": "",
   "ecosystem": "dotnet",
-  "unknown_reason": "",
-  "unshipped": "",
-  "node_threshold": 24,
+  "node_threshold": 40,
+  "cycles_truncated": false,
   "nodes": [
-    {"id":"src/Api/Api.csproj","name":"Api","path":"src/Api/Api.csproj","ecosystem":"dotnet","kind":"project"}
+    {"id":"src/Api/Api.csproj","name":"Api","path":"src/Api/Api.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"src/Domain/Domain.csproj","name":"Domain","path":"src/Domain/Domain.csproj","ecosystem":"dotnet","kind":"project"}
   ],
   "edges": [
-    {"from":"src/Api/Api.csproj","to":"src/Domain/Domain.csproj","kind":"project","evidence":"src/Api/Api.csproj: <ProjectReference Include=\"..\\Domain\\Domain.csproj\""}
-  ]
+    {"from":"src/Api/Api.csproj","to":"src/Domain/Domain.csproj","kind":"project","status":"resolved","evidence":"src/Api/Api.csproj: <ProjectReference Include=\"..\\Domain\\Domain.csproj\" />"}
+  ],
+  "cycles": [],
+  "findings": []
 }
 ```
 
 ## Fields
 
-| Field | Meaning |
+| Field | What the renderer does with it |
 |---|---|
-| `ecosystem` | `dotnet` when the .NET adapter ran. `unknown` otherwise, with both arrays empty. The reason is `unknown_reason` or, from `dependency-graph.sh`, `message`. |
-| `node_threshold` | Component count above which the view aggregates. Default 24 when the field is absent. |
-| node `kind` | `project` or `package`. |
-| node `namespace` | Optional. Namespace grouping uses it when present, else the node `name`. |
-| edge `kind` | `project` (internal), `package` (external, collapsed), or `unresolved`. A `project` edge whose `to` is not a charted project, including `dependency-graph.sh`'s `status` `unresolved`, is unresolved. |
-| edge `evidence` | `<repo-relative file>: <matched declaration>`. |
-
-`ProjectReference` and `PackageReference` are accepted as edge kinds and treated
-as `project` and `package`. A breaking change to this shape bumps
-`schema_version`.
+| `ecosystem` | `dotnet` renders a view. `unknown` writes the record's `message` and draws no diagram. |
+| `message` | The reason shown for an `unknown` record. |
+| `node_threshold` | Component count above which the view aggregates. 40 when absent. |
+| node `kind` | `project` is a component. `package` is not one. |
+| node `namespace` | Optional. The project file's `RootNamespace`, else its `AssemblyName`. Namespace grouping uses it when present, else the node `name`. |
+| node `test` | Optional, `"yes"` on a test project. A test project is never counted toward a project's indegree and is never offered as a deployable. |
+| edge `kind` and `status` | A `project` edge with `status` `resolved` whose two ends are charted projects is an arrow. A `project` edge with `status` `unresolved` is listed and never drawn. A `package` edge is collapsed. |
+| edge `evidence` | `<repo-relative file>: <matched declaration>`, cited in the edge table. |
 
 ## What an edge is
 
-A `project` edge's `to` is the repo-relative path of a project file this scan
-charted, after resolving the Include relative to the declaring project and
-collapsing `.` and `..`. A missing target, a path that escapes the root, an
-absolute path, or a glob is `unresolved`. The `to` of an unresolved edge is the
-Include text. It is never matched by project name to some other file on disk.
+A resolved `project` edge's `to` is the repo-relative path of a project file the
+scan charted. An unresolved edge's `to` is the Include text. It is never matched
+by project name to some other file on disk, even when that text equals a charted
+project's id.
 
-A package edge's `to` is `pkg:<Include>` from `dependency-graph.sh` and
-`nuget:<Include>` from the fallback. Package nodes are collapsed on the
-diagram. Their declarations stay in the evidence table.
+A package edge's `to` is `pkg:<Include>`. Package nodes are collapsed on the
+diagram. Their declarations stay in the edge table.
 
-`ecosystem: unknown` is the result for an unrecognized ecosystem. The renderer
-writes `unknown_reason` when set, otherwise `message`, and does not draw a
-diagram.
+`ecosystem: unknown` is the result for an unrecognized ecosystem. It is not an
+empty architecture.

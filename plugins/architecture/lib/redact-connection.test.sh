@@ -85,6 +85,49 @@ mail="$(shape "Smtp.Host" "https://alice:P4ss-UNIQUE-991@smtp.example.com/send")
 assert_contains "mail: host survives" "$mail" "smtp.example.com"
 assert_not_contains "mail: password is absent" "$mail" "P4ss-UNIQUE-991"
 
+# A database name identifies a sql store beside its host and port. It is kept
+# only as a plain identifier that carries no credential.
+db_catalog="$(shape "ConnectionStrings.Orders" "Server=tcp:orders.database.windows.net,1433;Initial Catalog=Orders;User ID=sa;Password=${leak_sql};")"
+assert_equals "database: Initial Catalog is kept, lower-cased" "$db_catalog" $'sql\torders.database.windows.net\t1433\torders\t'
+assert_not_contains "database: password is absent" "$db_catalog" "$leak_sql"
+db_key="$(shape "Db" "Host=pg.example.com;Database=Billing;Username=app;Password=${leak_sql}")"
+assert_equals "database: Database is kept" "$db_key" $'sql\tpg.example.com\t\tbilling\t'
+db_after="$(shape "Db" "Server=db.example.com;Password=${leak_sql};Database=sales")"
+assert_equals "database: a password before the database is dropped" "$db_after" $'sql\tdb.example.com\t\tsales\t'
+assert_not_contains "database: password before is absent" "$db_after" "$leak_sql"
+db_before="$(shape "Db" "Server=db.example.com;Database=sales;Password=${leak_sql}")"
+assert_equals "database: a password after the database is dropped" "$db_before" $'sql\tdb.example.com\t\tsales\t'
+db_quoted="$(shape "Db" "Server=db.example.com;Password=\"x;Database=${leak_sql};Pooling=false\";User ID=sa")"
+assert_equals "database: a quoted password cannot supply the database" "$db_quoted" $'sql\tdb.example.com\t'
+assert_not_contains "database: quoted password is absent" "$db_quoted" "$leak_sql"
+db_space="$(shape "Db" "Server=db.example.com;Database=my db")"
+assert_equals "database: a name that is not an identifier is dropped" "$db_space" $'sql\tdb.example.com\t'
+db_token="$(shape "Db" "Server=db.example.com;Database=AK""IAFAKEFAKEFAKE0000")"
+assert_equals "database: a name that reads as a credential is dropped" "$db_token" $'sql\tdb.example.com\t'
+msbuild_token="\$(DbName)"
+db_macro="$(shape "Db" "Server=db.example.com;Database=${msbuild_token}")"
+assert_equals "database: an unevaluated MSBuild token is dropped" "$db_macro" $'sql\tdb.example.com\t'
+mongo="$(shape "Catalog.Uri" "mongodb+srv://svc:${leak_sql}@mongo.example.com/Catalog?authSource=admin&pass""word=${leak_sql}")"
+assert_equals "scheme: mongodb+srv is mongodb, the path is the database" "$mongo" $'sql\tmongo.example.com\t\tcatalog\tmongodb'
+assert_not_contains "scheme: userinfo and query password are absent" "$mongo" "$leak_sql"
+pg="$(shape "Pg.Uri" "postgresql://app:${leak_sql}@pg.example.com:5432/Orders")"
+assert_equals "scheme: postgresql is postgres" "$pg" $'sql\tpg.example.com\t5432\torders\tpostgres'
+my="$(shape "My.Uri" "mysql://app:${leak_sql}@my.example.com:3306")"
+assert_equals "scheme: a URL with no path names no database" "$my" $'sql\tmy.example.com\t3306\t\tmysql'
+pg_bad="$(shape "Pg.Uri" "postgres://pg.example.com/orders;pass""word=${leak_sql}")"
+assert_equals "scheme: a path that is not an identifier names no database" "$pg_bad" $'sql\tpg.example.com\t\t\tpostgres'
+assert_not_contains "scheme: path credential is absent" "$pg_bad" "$leak_sql"
+
+# A Data Source that names a local file is not a server.
+for lite_file in app.db APP.DB data.sqlite data.sqlite3 legacy.mdb northwind.mdf; do
+  lite_shape="$(shape "ConnectionStrings.Lite" "Data Source=${lite_file};Foreign Keys=True" || true)"
+  assert_equals "file source: Data Source=$lite_file is not a host" "$lite_shape" ""
+done
+lite_server="$(shape "ConnectionStrings.Lite" "Server=tcp:legacy.mdf,1433;User ID=sa" || true)"
+assert_equals "file source: a Server value naming a file is not a host either" "$lite_server" ""
+lite_real="$(shape "Db" "Data Source=sql.example.com;Initial Catalog=Sales")"
+assert_equals "file source: a Data Source server is still a host" "$lite_real" $'sql\tsql.example.com\t\tsales\t'
+
 bare="$(shape "Owner" "alice@example.com" || true)"
 assert_equals "an email is not a connection" "$bare" ""
 
@@ -130,6 +173,8 @@ clean "image" "Image" "ghcr.io/acme/api:1.0.0"
 clean "image digest" "Image" "ghcr.io/acme/api@sha256:$(printf 'a%.0s' {1..64})"
 clean "plain url" "Auth.Authority" "https://login.example.com/tenant"
 clean "host and port" "Cache" "cache.example.com:6380"
+clean "an empty key with a plain line" "" $'Clerk\tFiles a claim'
+secret "an empty key with a bearer line" "" $'Gate\tsends Bearer '"${fake}"
 
 exec_out="$(bash "$SCRIPT_DIR/redact-connection.sh" 2>&1)"
 assert_equals "executing the wrapper exits 2" "$?" "2"

@@ -29,6 +29,10 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
+    # Microsoft.CodeAnalysis.Testing's analyzer and code-fix test types. The
+    # engine adds }.RunAsync( on their initializer in a file that imports the
+    # harness (cant-fail-scan.awk, BEGIN).
+    - 'CSharp(Analyzer|CodeFix|CodeRefactoring|SourceGenerator)Test[[:space:]]*<'
   # xUnit's *Async assertions return a Task (xUnit2021).
   async:
     - 'Assert[[:space:]]*\.[[:space:]]*[A-Za-z]+Async[[:space:]]*[<(]'

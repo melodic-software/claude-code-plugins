@@ -138,6 +138,28 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 - **Does not investigate the bug.** Step 2's survey is a fast grounding pass, not deep work. A fix that needs real investigation should be scoped separately.
 - **Does not auto-fix typos in the user's description.** "There is a bug in `flusH()`" may be intentional in some languages. Ask one question.
 
+## Boundary, the built-in `/bug` command
+
+"Report a bug" can mean a defect in the person's own code or one in Claude Code itself.
+
+- **`/bug` (built-in command, alias `/share`).** Ships with Claude Code rather than as a
+  marketplace plugin. Sends a report about Claude Code, with the conversation, to Anthropic. It is
+  reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** A five-field report for a defect in the person's code,
+  grounded in their repository, filed nowhere unless they ask.
+
+**Routing.** When the defect is in Claude Code itself (the CLI, a built-in command, a bundled
+skill), offer it to the person: you can run `/bug` instead of or alongside this skill. Keep this
+skill for defects in the person's code. An unattended run records the offer in its output instead
+of asking.
+
+**Mutation gate.** `/bug` sends the conversation off the machine; only the person decides that.
+This skill never runs `/bug` on the person's behalf.
+
+**Availability is never assumed.** This section states what to do when the person can run
+`/bug`, never that it is present in their host. The four-part records live in
+[context/native-bug.md](context/native-bug.md).
+
 ## Gotchas
 
 - **Repro steps must be backed.** If you cannot derive them from the user's description, the source, or a test, mark `(unknown — needs reporter confirmation)`. Inventing repro is worse than admitting a gap.
@@ -150,4 +172,5 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 ## Cross-references
 
 - [`context/template.md`](context/template.md). Read it before emitting a report: the full Markdown template, the `--file` frontmatter, and the "No bug confirmed" form
+- [`context/native-bug.md`](context/native-bug.md). The basis of the `/bug` Boundary section; read it when its recheck trigger fires
 - Consumer conventions (naming, areas, priority labels, tracker choice) come from the consuming project's own `CLAUDE.md` / rules. This skill reads them rather than imposing its own

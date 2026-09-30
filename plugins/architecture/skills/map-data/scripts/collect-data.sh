@@ -16,11 +16,13 @@
 #
 #   1. model      Prisma schema (*.prisma)
 #   2. orm        Entity Framework fluent chains with an IsRequired declaration
-#   3. migration  SQL under a migrations directory
+#   3. migration  SQL under a migrations directory (root or nested), replayed from a stated statement subset
 #
 # A recognized mechanism this script does not extract (Django models, SQLAlchemy
-# columns, EF [ForeignKey] annotations, an EF chain it cannot read, implicit
-# Prisma many-to-many) refuses the record. A shipped diagram plus an unread
+# columns, EF [ForeignKey] annotations, implicit
+# Prisma many-to-many) refuses the record, as does an EF chain or an ALTER TABLE
+# action it cannot read when that tier wins. A losing tier it cannot read is a
+# not-compared mismatch row. A shipped diagram plus an unread
 # mechanism would be a partial read.
 #
 # Output: data-model.json, schema_version 1, one object per line.
@@ -43,13 +45,21 @@
 #
 # Relationship "from" is the foreign-key entity. "to" is the referenced entity.
 # cardinality is the mermaid token with the referenced entity on the left
-# (||--o{ is one referenced row to zero-or-more foreign-key rows).
+# (||--o{ is one referenced row to zero-or-more foreign-key rows). A foreign key
+# covered by a unique or primary-key column set is one-to-one: ||--o| when
+# required, |o--o| when optional. "references" is the referenced column list,
+# empty when the declaration does not name it. A composite foreign key with no
+# unique column set inside it has no readable cardinality, so the record refuses
+# with unknown-cardinality instead of drawing one-to-many.
 #
 # Portability: bash plus POSIX awk. No jq, no python, no database client.
 #
 # Exit: 0 = a record was written (including a refusal); 1 = the path is not a
 # readable directory; 2 = usage.
 set -uo pipefail
+
+# shellcheck source=../../../lib/github-remote.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../../lib/github-remote.sh"
 
 usage() {
   sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -68,35 +78,6 @@ json_escape() {
   s="${s//$'\r'/\\r}"
   s="${s//$'\n'/\\n}"
   printf '%s' "$s"
-}
-
-github_repo_name() {
-  local url="$1" scheme=0 host rest host_l repo
-  [[ -n "$url" && "$url" != "unknown" ]] || return 1
-  url="${url%/}"
-  url="${url%.git}"
-  [[ "$url" == *://* ]] && scheme=1 && url="${url#*://}"
-  [[ "${url%%/*}" == *@* ]] && url="${url#*@}"
-  host="${url%%[:/]*}"
-  rest="${url#"$host"}"
-  if [[ $scheme -eq 1 ]]; then
-    [[ "$rest" =~ ^:[0-9]*/ ]] && rest="${rest#:*/}"
-    if [[ "$rest" == :* ]]; then
-      return 1
-    fi
-    rest="${rest#/}"
-  else
-    [[ "$rest" == :* ]] || return 1
-    rest="${rest#:}"
-    rest="${rest#/}"
-  fi
-  [[ -n "$rest" ]] || return 1
-  host_l="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
-  [[ "$host_l" == "github.com" || "$host_l" == "www.github.com" ]] || return 1
-  repo="${rest#*/}"
-  repo="${repo%%/*}"
-  [[ -n "$repo" && "$repo" != "$rest" ]] || return 1
-  printf '%s' "$repo"
 }
 
 repo=""
@@ -253,15 +234,6 @@ add_mech() {
   fi
 }
 
-add_module() {
-  local id="$1"
-  local esc
-  esc="$(json_escape "$id")"
-  if ! grep -F -q "\"id\":\"$esc\"" "$MODS" 2>/dev/null; then
-    printf '{"id":"%s"}\n' "$esc" >>"$MODS"
-  fi
-}
-
 module_of() {
   local rel="$1" first
   first="${rel%%/*}"
@@ -300,13 +272,11 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   case "$rel" in
   *.prisma)
     printf '%s\n' "$rel" >>"$TMP/prisma.txt"
-    add_module "$(module_of "$rel")"
     ;;
   *.sql)
     case "$rel" in
-    */migrations/* | */Migrations/*)
+    migrations/* | Migrations/* | */migrations/* | */Migrations/*)
       printf '%s\n' "$rel" >>"$TMP/sql.txt"
-      add_module "$(module_of "$rel")"
       ;;
     *) ;;
     esac
@@ -445,6 +415,11 @@ parse_prisma() {
         }
         if (inmodel && line ~ /^[ \t]*\}/) { inmodel = 0; model = ""; continue }
         if (!inmodel) continue
+        if (line ~ /^[ \t]*@@(unique|id)/) {
+          set = bracket_list(line, (line ~ /^[ \t]*@@unique/ ? "@@unique" : "@@id"))
+          gsub(/\([^)]*\)/, "", set)
+          if (set != "") { nset[model]++; mset[model, nset[model]] = set }
+        }
         if (line ~ /^[ \t]*@@/) continue
         stripped = trim(line)
         if (stripped == "" || substr(stripped, 1, 1) == "@") continue
@@ -518,13 +493,13 @@ parse_prisma() {
           printf "unreadable-relation\n" > out_flag
           exit 0
         }
+        refs = bracket_list(field_attrs[i], "references:")
         nsplit = split(cols, col, ",")
-        all_unique = 1
         any_opt = field_opt[i]
         disagree = 0
         for (c = 1; c <= nsplit; c++) {
           key = field_model[i] SUBSEP col[c]
-          if (!(key in scalar_unique) || scalar_unique[key] != 1) all_unique = 0
+          fkset[col[c]] = 1
           if (key in scalar_opt) {
             if (scalar_opt[key] != field_opt[i]) disagree = 1
             if (scalar_opt[key]) any_opt = 1
@@ -534,17 +509,31 @@ parse_prisma() {
           printf "optionality-disagrees\n" > out_flag
           exit 0
         }
-        kind = (all_unique ? "one-to-one" : "one-to-many")
-        if (kind == "one-to-one") {
-          token = (any_opt ? "||--o|" : "||--||")
-        } else {
-          token = (any_opt ? "|o--o{" : "||--o{")
+        # unique when an @id, an @unique, or a @@unique/@@id column set lies inside the foreign-key columns
+        uniq = 0
+        for (c = 1; c <= nsplit; c++) {
+          key = field_model[i] SUBSEP col[c]
+          if (scalar_unique[key] == 1 || scalar_pk[key] == 1) uniq = 1
         }
+        for (m = 1; m <= nset[field_model[i]] && !uniq; m++) {
+          nmc = split(mset[field_model[i], m], mc, ",")
+          inside = 1
+          for (c = 1; c <= nmc; c++) if (!(mc[c] in fkset)) inside = 0
+          if (inside) uniq = 1
+        }
+        for (c = 1; c <= nsplit; c++) delete fkset[col[c]]
+        if (!uniq && nsplit > 1) {
+          printf "unknown-cardinality\n" > out_flag
+          exit 0
+        }
+        kind = (uniq ? "one-to-one" : "one-to-many")
+        if (uniq) token = (any_opt ? "|o--o|" : "||--o|")
+        else token = (any_opt ? "|o--o{" : "||--o{")
         opt = (any_opt ? "yes" : "no")
         from = entity_id(module, field_model[i])
         to = entity_id(module, field_base[i])
-        printf "{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"prisma\"}\n", \
-          jesc(from), jesc(to), token, jesc(cols), opt, kind, jesc(path ":" field_line[i]) >> out_rels
+        printf "{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"references\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"prisma\"}\n", \
+          jesc(from), jesc(to), token, jesc(cols), jesc(refs), opt, kind, jesc(path ":" field_line[i]) >> out_rels
         for (c = 1; c <= nsplit; c++) fk_col[from SUBSEP col[c]] = 1
       }
     }
@@ -565,8 +554,16 @@ if [[ -s "$TMP/prisma.txt" ]]; then
 fi
 
 
+SQL_ENTS="$TMP/sql-entities.tsv"
+SQL_ATTRS="$TMP/sql-attributes.tsv"
+SQL_RELS="$TMP/sql-relationships.tsv"
+sql_bad=0
 if [[ -s "$TMP/sql.txt" ]]; then
   : >"$TMP/sql-replay.sql"
+  : >"$SQL_ENTS"
+  : >"$SQL_ATTRS"
+  : >"$SQL_RELS"
+  : >"$TMP/sql-flag"
   while IFS= read -r rel || [[ -n "$rel" ]]; do
     [[ -n "$rel" ]] || continue
     {
@@ -576,13 +573,18 @@ if [[ -s "$TMP/sql.txt" ]]; then
     } >>"$TMP/sql-replay.sql"
   done < <(sort "$TMP/sql.txt")
   # One replay across every migration file. The sentinel carries the path so
-  # evidence and module follow the file that declared the row. A later
-  # DROP TABLE removes the entity from the final shape.
-  awk -v ents="$ENTS" -v attrs="$ATTRS" -v rels="$RELS" '
+  # evidence and module follow the file that declared the row. Readable
+  # statements: CREATE TABLE (inline and table-level FOREIGN KEY, UNIQUE and
+  # PRIMARY KEY), CREATE UNIQUE INDEX, DROP INDEX, DROP TABLE, and ALTER TABLE
+  # ADD COLUMN, DROP COLUMN, DROP CONSTRAINT of a constraint this replay
+  # recorded, ADD [CONSTRAINT n] FOREIGN KEY, UNIQUE and PRIMARY KEY. Any other
+  # ALTER TABLE action sets the flag and the tier is not used.
+  awk -v ents="$SQL_ENTS" -v attrs="$SQL_ATTRS" -v rels="$SQL_RELS" -v flag="$TMP/sql-flag" '
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function stripq(s) {
       gsub(/^[ \t]+|[ \t]+$/, "", s)
       if (substr(s, 1, 1) == "\"") { sub(/^"/, "", s); sub(/"$/, "", s) }
+      if (substr(s, 1, 1) == "`") { sub(/^`/, "", s); sub(/`$/, "", s) }
       if (substr(s, 1, 1) == "[") { sub(/^\[/, "", s); sub(/\]$/, "", s) }
       return s
     }
@@ -597,17 +599,207 @@ if [[ -s "$TMP/sql.txt" ]]; then
       if (first == rel) return "."
       return first
     }
+    function joined_cols(s,    n, k, parts, out) {
+      gsub(/[[:space:]]/, "", s)
+      n = split(s, parts, ",")
+      out = ""
+      for (k = 1; k <= n; k++) out = out (k > 1 ? "," : "") stripq(parts[k])
+      return out
+    }
+    function has_col(list, col) { return index("," list ",", "," col ",") > 0 }
+    function con_name(s,    t) {
+      if (!match(s, /^([Aa][Dd][Dd][ \t]+)?[Cc][Oo][Nn][Ss][Tt][Rr][Aa][Ii][Nn][Tt][ \t]+[^ \t]+/)) return ""
+      t = substr(s, RSTART, RLENGTH)
+      sub(/^.*[ \t]/, "", t)
+      return stripq(t)
+    }
+    function add_uniq(tab, cols, name) {
+      if (cols == "" || cols ~ /[()]/) return
+      nuq[tab]++
+      uq[tab, nuq[tab]] = cols
+      uqname[tab, nuq[tab]] = name
+    }
     function forget(name,    eid, i) {
       eid = entity_id(module, name)
       for (i = 1; i <= nent; i++) if (ent_id[i] == eid) ent_dead[i] = 1
       for (i = 1; i <= nattr; i++) if (attr_entity[i] == eid) attr_dead[i] = 1
       for (i = 1; i <= nrel; i++) if (rel_from[i] == eid || rel_to[i] == eid) rel_dead[i] = 1
     }
-    BEGIN { path = ""; module = "."; inn = 0; fline = 0 }
+    function add_rel(tab, cols, rest, cname,    nm, refcols, n, c, parts, any_opt) {
+      rest = trim(rest)
+      nm = rest
+      sub(/[ \t]*\(.*/, "", nm)
+      sub(/[ \t,;].*/, "", nm)
+      refcols = ""
+      if (rest ~ /^[^ \t(,;]+[ \t]*\(/) {
+        refcols = rest
+        sub(/^[^(]*\(/, "", refcols)
+        sub(/\).*/, "", refcols)
+        refcols = joined_cols(refcols)
+      }
+      n = split(cols, parts, ",")
+      any_opt = 0
+      for (c = 1; c <= n; c++) if ((tab SUBSEP parts[c]) in nulls && nulls[tab SUBSEP parts[c]] == 1) any_opt = 1
+      nrel++
+      rel_from[nrel] = entity_id(module, tab)
+      rel_to[nrel] = entity_id(module, stripq(nm))
+      rel_dead[nrel] = 0
+      rel_tab[nrel] = tab
+      rel_cols[nrel] = cols
+      rel_refs[nrel] = refcols
+      rel_opt[nrel] = any_opt
+      rel_ev[nrel] = path ":" sline
+      rel_name[nrel] = cname
+    }
+    function add_fk(tab, text, cname,    tmp, cols, rest) {
+      tmp = text
+      sub(/.*[Ff][Oo][Rr][Ee][Ii][Gg][Nn][ \t]+[Kk][Ee][Yy][ \t]*/, "", tmp)
+      sub(/^[ \t]*\(/, "", tmp)
+      cols = tmp
+      sub(/\).*/, "", cols)
+      rest = tmp
+      sub(/^[^)]*\)/, "", rest)
+      if (!match(rest, /[Rr][Ee][Ff][Ee][Rr][Ee][Nn][Cc][Ee][Ss][ \t]+/)) { bad = 1; return }
+      add_rel(tab, joined_cols(cols), substr(rest, RSTART + RLENGTH), cname)
+    }
+    function column_def(tab, def,    stripped, tok, ntok, cname, ctype, spec, k, nullable, pk, up) {
+      stripped = trim(def)
+      sub(/,$/, "", stripped)
+      if (stripped == "" || stripped ~ /^\(/) return
+      ntok = split(stripped, tok, /[ \t]+/)
+      if (ntok < 2) return
+      cname = stripq(tok[1])
+      if (toupper(cname) == "CONSTRAINT") return
+      ctype = tok[2]
+      sub(/,$/, "", ctype)
+      spec = ""
+      for (k = 3; k <= ntok; k++) spec = spec (k > 3 ? " " : "") tok[k]
+      up = toupper(spec)
+      nullable = (up ~ /NOT[ \t]+NULL/ ? "no" : "yes")
+      pk = "no"
+      if (up ~ /PRIMARY[ \t]+KEY/) { pk = "yes"; nullable = "no"; add_uniq(tab, cname, "") }
+      if (up ~ /(^|[^A-Z0-9_])UNIQUE([^A-Z0-9_]|$)/) add_uniq(tab, cname, "")
+      nulls[tab SUBSEP cname] = (nullable == "yes" ? 1 : 0)
+      nattr++
+      attr_entity[nattr] = entity_id(module, tab)
+      attr_name[nattr] = cname
+      attr_dead[nattr] = 0
+      attr_line[nattr] = sprintf("{\"entity\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"nullable\":\"%s\",\"pk\":\"%s\",\"fk\":\"no\",\"evidence\":\"%s\"}", jesc(entity_id(module, tab)), jesc(cname), jesc(ctype), nullable, pk, jesc(path ":" sline))
+      if (match(spec, /(^|[ \t])[Rr][Ee][Ff][Ee][Rr][Ee][Nn][Cc][Ee][Ss][ \t]+/)) add_rel(tab, cname, substr(spec, RSTART + RLENGTH), "")
+    }
+    function table_item(tab, item,    iu, tmp) {
+      iu = toupper(item)
+      if (iu ~ /FOREIGN[ \t]+KEY/) { add_fk(tab, item, con_name(trim(item))); return }
+      if (iu ~ /^[ \t]*(CONSTRAINT[ \t]+[^ \t]+[ \t]+)?(UNIQUE|PRIMARY[ \t]+KEY)[ \t]*\(/ || iu ~ /^[ \t]*UNIQUE[ \t]+(INDEX|KEY)[ \t]/) {
+        tmp = item
+        sub(/^[^(]*\(/, "", tmp)
+        sub(/\).*/, "", tmp)
+        add_uniq(tab, joined_cols(tmp), con_name(trim(item)))
+        return
+      }
+      if (iu ~ /^[ \t]*(CONSTRAINT|PRIMARY|CHECK|INDEX|KEY|FULLTEXT|SPATIAL)[ \t]/) return
+      column_def(tab, item)
+    }
+    function drop_column(tab, col,    eid, i, m) {
+      eid = entity_id(module, tab)
+      for (i = 1; i <= nattr; i++) if (attr_entity[i] == eid && attr_name[i] == col) attr_dead[i] = 1
+      for (i = 1; i <= nrel; i++) {
+        if (rel_tab[i] == tab && has_col(rel_cols[i], col)) rel_dead[i] = 1
+        if (rel_to[i] == eid && has_col(rel_refs[i], col)) rel_dead[i] = 1
+      }
+      for (m = 1; m <= nuq[tab]; m++) if (has_col(uq[tab, m], col)) uq[tab, m] = ""
+      delete nulls[tab SUBSEP col]
+    }
+    function drop_constraint(tab, name,    i, m, hit) {
+      hit = 0
+      if (name == "") { bad = 1; return }
+      for (i = 1; i <= nrel; i++) if (!rel_dead[i] && rel_tab[i] == tab && rel_name[i] == name) { rel_dead[i] = 1; hit = 1 }
+      for (m = 1; m <= nuq[tab]; m++) if (uq[tab, m] != "" && uqname[tab, m] == name) { uq[tab, m] = ""; hit = 1 }
+      if (!hit) bad = 1
+    }
+    function drop_index(name,    t, m) {
+      if (name == "") return
+      for (t in nuq) for (m = 1; m <= nuq[t]; m++) if (uq[t, m] != "" && uqname[t, m] == name) uq[t, m] = ""
+    }
+    function close_pos(s,    i, c, depth, instr) {
+      depth = 1; instr = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (instr != "") { if (c == instr) instr = "" }
+        else if (c == "'\''" || c == "\"" || c == "`") instr = c
+        else if (c == "(") depth++
+        else if (c == ")") { depth--; if (depth == 0) return i }
+      }
+      return 0
+    }
+    function split_actions(s,    n, i, c, depth, instr, cur_a) {
+      n = 0; depth = 0; instr = ""; cur_a = ""
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (instr != "") { if (c == instr) instr = "" }
+        else if (c == "'\''" || c == "\"" || c == "`") instr = c
+        else if (c == "(") depth++
+        else if (c == ")") depth--
+        else if (c == "," && depth == 0) { acts[++n] = cur_a; cur_a = ""; continue }
+        cur_a = cur_a c
+      }
+      acts[++n] = cur_a
+      return n
+    }
+    function alter_stmt(s,    tmp, tab, rest, n, i, a, au, name) {
+      tmp = s
+      sub(/^[ \t]*[Aa][Ll][Tt][Ee][Rr][ \t]+[Tt][Aa][Bb][Ll][Ee][ \t]+/, "", tmp)
+      sub(/^[Ii][Ff][ \t]+[Ee][Xx][Ii][Ss][Tt][Ss][ \t]+/, "", tmp)
+      sub(/^[Oo][Nn][Ll][Yy][ \t]+/, "", tmp)
+      tab = tmp
+      sub(/[ \t].*/, "", tab)
+      rest = substr(tmp, length(tab) + 1)
+      sub(/[ \t]*;.*/, "", rest)
+      tab = stripq(tab)
+      n = split_actions(rest)
+      for (i = 1; i <= n; i++) {
+        a = trim(acts[i])
+        au = toupper(a)
+        if (au ~ /^ADD[ \t]+(CONSTRAINT[ \t]+[^ \t]+[ \t]+)?(UNIQUE|PRIMARY[ \t]+KEY)[ \t]*\(/) {
+          tmp = a
+          sub(/^[^(]*\(/, "", tmp)
+          sub(/\).*/, "", tmp)
+          add_uniq(tab, joined_cols(tmp), con_name(a))
+        } else if (au ~ /^ADD[ \t]+(CONSTRAINT[ \t]+[^ \t]+[ \t]+)?FOREIGN[ \t]+KEY[ \t]*\(/) {
+          add_fk(tab, a, con_name(a))
+        } else if (au ~ /^ADD[ \t]+COLUMN[ \t]/) {
+          tmp = a
+          sub(/^[Aa][Dd][Dd][ \t]+[Cc][Oo][Ll][Uu][Mm][Nn][ \t]+/, "", tmp)
+          sub(/^[Ii][Ff][ \t]+[Nn][Oo][Tt][ \t]+[Ee][Xx][Ii][Ss][Tt][Ss][ \t]+/, "", tmp)
+          column_def(tab, tmp)
+        } else if (au ~ /^DROP[ \t]+COLUMN[ \t]/) {
+          tmp = a
+          sub(/^[Dd][Rr][Oo][Pp][ \t]+[Cc][Oo][Ll][Uu][Mm][Nn][ \t]+/, "", tmp)
+          sub(/^[Ii][Ff][ \t]+[Ee][Xx][Ii][Ss][Tt][Ss][ \t]+/, "", tmp)
+          sub(/[ \t].*/, "", tmp)
+          drop_column(tab, stripq(tmp))
+        } else if (au ~ /^DROP[ \t]+CONSTRAINT[ \t]/) {
+          tmp = a
+          sub(/^[Dd][Rr][Oo][Pp][ \t]+[Cc][Oo][Nn][Ss][Tt][Rr][Aa][Ii][Nn][Tt][ \t]+/, "", tmp)
+          sub(/^[Ii][Ff][ \t]+[Ee][Xx][Ii][Ss][Tt][Ss][ \t]+/, "", tmp)
+          sub(/[ \t].*/, "", tmp)
+          drop_constraint(tab, stripq(tmp))
+        } else bad = 1
+      }
+    }
+    function flush_alt() {
+      if (!alt) return
+      sline = alt_line
+      alter_stmt(stmt)
+      alt = 0
+      stmt = ""
+    }
+    BEGIN { path = ""; module = "."; inn = 0; fline = 0; alt = 0; bad = 0 }
     {
       raw = $0
       sub(/\r$/, "", raw)
       if (raw ~ /^-- MAPDATA FILE /) {
+        flush_alt()
         path = substr(raw, 17)
         module = module_of(path)
         inn = 0
@@ -615,6 +807,7 @@ if [[ -s "$TMP/sql.txt" ]]; then
         next
       }
       fline++
+      sline = fline
       line = raw
       if (line ~ /--/) {
         out = ""; instr = 0
@@ -625,6 +818,11 @@ if [[ -s "$TMP/sql.txt" ]]; then
           out = out c
         }
         line = out
+      }
+      if (alt) {
+        stmt = stmt " " line
+        if (line ~ /;/) flush_alt()
+        next
       }
       up = toupper(line)
       if (!inn && up ~ /^[ \t]*DROP[ \t]+TABLE[ \t]/) {
@@ -646,6 +844,7 @@ if [[ -s "$TMP/sql.txt" ]]; then
         tname = stripq(tmp)
         sub(/[ \t].*/, "", tname)
         forget(tname)
+        nuq[tname] = 0
         inn = 1
         cur = tname
         eid = entity_id(module, cur)
@@ -653,91 +852,98 @@ if [[ -s "$TMP/sql.txt" ]]; then
         ent_id[nent] = eid
         ent_dead[nent] = 0
         ent_line[nent] = sprintf("{\"id\":\"%s\",\"name\":\"%s\",\"module\":\"%s\",\"evidence\":\"%s\"}", jesc(eid), jesc(cur), jesc(module), jesc(path ":" fline))
+        # items on the CREATE TABLE line itself, up to the closing parenthesis when it is there
+        body = line
+        if (sub(/^[^(]*\(/, "", body)) {
+          closed = close_pos(body)
+          if (closed > 0) body = substr(body, 1, closed - 1)
+          if (trim(body) != "") {
+            nn = split_actions(body)
+            for (k = 1; k <= nn; k++) table_item(cur, acts[k])
+          }
+          if (closed > 0) { inn = 0; cur = "" }
+        }
         next
       }
-      if (inn && up ~ /^[ \t]*\)[ \t]*;/) { inn = 0; cur = ""; next }
-      if (!inn) next
-      if (up ~ /FOREIGN[ \t]+KEY/) {
-        tmp = line
-        sub(/.*[Ff][Oo][Rr][Ee][Ii][Gg][Nn][ \t]+[Kk][Ee][Yy][ \t]*/, "", tmp)
-        sub(/^[ \t]*\(/, "", tmp)
-        cols = tmp
-        sub(/\).*/, "", cols)
-        gsub(/[[:space:]]/, "", cols)
-        nsplit = split(cols, col, ",")
-        cjoined = ""
-        for (c = 1; c <= nsplit; c++) {
-          col[c] = stripq(col[c])
-          if (c > 1) cjoined = cjoined ","
-          cjoined = cjoined col[c]
-        }
-        rest = line
-        sub(/.*[Rr][Ee][Ff][Ee][Rr][Ee][Nn][Cc][Ee][Ss][ \t]*/, "", rest)
-        refname = rest
-        sub(/[ \t]*\(.*/, "", refname)
-        refname = stripq(trim(refname))
-        all_unique = 1
-        any_opt = 0
-        for (c = 1; c <= nsplit; c++) {
-          ukey = cur SUBSEP col[c]
-          if (!(ukey in uniq) || uniq[ukey] != 1) all_unique = 0
-          if (ukey in nulls && nulls[ukey] == 1) any_opt = 1
-        }
-        kind = (all_unique ? "one-to-one" : "one-to-many")
-        if (kind == "one-to-one") token = (any_opt ? "||--o|" : "||--||")
-        else token = (any_opt ? "|o--o{" : "||--o{")
-        opt = (any_opt ? "yes" : "no")
-        from = entity_id(module, cur)
-        to = entity_id(module, refname)
-        nrel++
-        rel_from[nrel] = from
-        rel_to[nrel] = to
-        rel_dead[nrel] = 0
-        rel_line[nrel] = sprintf("{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"sql-migration\"}", jesc(from), jesc(to), token, jesc(cjoined), opt, kind, jesc(path ":" fline))
-        next
-      }
-      if (up ~ /UNIQUE/ && up ~ /\(/) {
-        tmp = line
-        sub(/.*\(/, "", tmp)
+      if (!inn && up ~ /^[ \t]*CREATE[ \t]+UNIQUE[ \t]+INDEX[ \t]/ && up !~ /[ \t]WHERE[ \t]/ && (p = index(up, " ON ")) > 0) {
+        iname = line
+        sub(/^[ \t]*[Cc][Rr][Ee][Aa][Tt][Ee][ \t]+[Uu][Nn][Ii][Qq][Uu][Ee][ \t]+[Ii][Nn][Dd][Ee][Xx][ \t]+/, "", iname)
+        sub(/^[Cc][Oo][Nn][Cc][Uu][Rr][Rr][Ee][Nn][Tt][Ll][Yy][ \t]+/, "", iname)
+        sub(/^[Ii][Ff][ \t]+[Nn][Oo][Tt][ \t]+[Ee][Xx][Ii][Ss][Tt][Ss][ \t]+/, "", iname)
+        sub(/[ \t(].*/, "", iname)
+        tmp = substr(line, p + 4)
+        sub(/^[ \t]*[Oo][Nn][Ll][Yy][ \t]+/, "", tmp)
+        itab = tmp
+        sub(/[ \t]*(\(|[Uu][Ss][Ii][Nn][Gg][ \t]).*/, "", itab)
+        sub(/^[^(]*\(/, "", tmp)
         sub(/\).*/, "", tmp)
-        gsub(/[[:space:]]/, "", tmp)
-        nsplit = split(tmp, col, ",")
-        for (c = 1; c <= nsplit; c++) uniq[cur SUBSEP stripq(col[c])] = 1
+        add_uniq(stripq(itab), joined_cols(tmp), stripq(iname))
         next
       }
-      if (up ~ /^[ \t]*(CONSTRAINT|PRIMARY|CHECK|INDEX)[ \t]/) next
-      stripped = trim(line)
-      sub(/,$/, "", stripped)
-      if (stripped == "" || stripped ~ /^\(/) next
-      ntok = split(stripped, tok, /[ \t]+/)
-      if (ntok < 2) next
-      cname = stripq(tok[1])
-      if (toupper(cname) == "CONSTRAINT") next
-      ctype = tok[2]
-      sub(/,$/, "", ctype)
-      nullable = "yes"
-      if (up ~ /NOT[ \t]+NULL/) nullable = "no"
-      pk = "no"
-      if (up ~ /PRIMARY[ \t]+KEY/) { pk = "yes"; uniq[cur SUBSEP cname] = 1 }
-      if (up ~ /UNIQUE/ && up !~ /UNIQUE[ \t]*\(/) uniq[cur SUBSEP cname] = 1
-      nulls[cur SUBSEP cname] = (nullable == "yes" ? 1 : 0)
-      nattr++
-      attr_entity[nattr] = entity_id(module, cur)
-      attr_dead[nattr] = 0
-      attr_line[nattr] = sprintf("{\"entity\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"nullable\":\"%s\",\"pk\":\"%s\",\"fk\":\"no\",\"evidence\":\"%s\"}", jesc(entity_id(module, cur)), jesc(cname), jesc(ctype), nullable, pk, jesc(path ":" fline))
+      if (!inn && up ~ /^[ \t]*DROP[ \t]+INDEX[ \t]/) {
+        tmp = line
+        sub(/^[ \t]*[Dd][Rr][Oo][Pp][ \t]+[Ii][Nn][Dd][Ee][Xx][ \t]+/, "", tmp)
+        sub(/^[Cc][Oo][Nn][Cc][Uu][Rr][Rr][Ee][Nn][Tt][Ll][Yy][ \t]+/, "", tmp)
+        sub(/^[Ii][Ff][ \t]+[Ee][Xx][Ii][Ss][Tt][Ss][ \t]+/, "", tmp)
+        sub(/[ \t]*;.*/, "", tmp)
+        sub(/[ \t]+[Oo][Nn][ \t].*/, "", tmp)
+        nn = split(tmp, parts, ",")
+        for (k = 1; k <= nn; k++) drop_index(stripq(parts[k]))
+        next
+      }
+      if (!inn && up ~ /^[ \t]*ALTER[ \t]+TABLE[ \t]/) {
+        alt = 1
+        stmt = line
+        alt_line = fline
+        if (line ~ /;/) flush_alt()
+        next
+      }
+      if (inn && up ~ /^[ \t]*\)/) { inn = 0; cur = ""; next }
+      if (!inn) next
+      table_item(cur, line)
     }
     END {
+      flush_alt()
+      if (bad) print "sql-alter-unreadable" > flag
       for (i = 1; i <= nent; i++) if (!ent_dead[i]) print ent_line[i] >> ents
       for (i = 1; i <= nattr; i++) if (!attr_dead[i]) print attr_line[i] >> attrs
-      for (i = 1; i <= nrel; i++) if (!rel_dead[i]) print rel_line[i] >> rels
+      for (i = 1; i <= nrel; i++) {
+        if (rel_dead[i]) continue
+        # unique when a declared unique or primary-key column set lies inside the foreign-key columns
+        nsplit = split(rel_cols[i], col, ",")
+        for (c = 1; c <= nsplit; c++) fkset[col[c]] = 1
+        uniq = 0
+        for (m = 1; m <= nuq[rel_tab[i]] && !uniq; m++) {
+          if (uq[rel_tab[i], m] == "") continue
+          nmc = split(uq[rel_tab[i], m], mc, ",")
+          inside = 1
+          for (c = 1; c <= nmc; c++) if (!(mc[c] in fkset)) inside = 0
+          if (inside) uniq = 1
+        }
+        for (c = 1; c <= nsplit; c++) delete fkset[col[c]]
+        if (uniq) { kind = "one-to-one"; token = (rel_opt[i] ? "|o--o|" : "||--o|") }
+        else if (nsplit > 1) { kind = "unknown"; token = "unknown" }
+        else { kind = "one-to-many"; token = (rel_opt[i] ? "|o--o{" : "||--o{") }
+        printf "{\"from\":\"%s\",\"to\":\"%s\",\"cardinality\":\"%s\",\"columns\":\"%s\",\"references\":\"%s\",\"optional\":\"%s\",\"kind\":\"%s\",\"evidence\":\"%s\",\"tool\":\"sql-migration\"}\n", \
+          jesc(rel_from[i]), jesc(rel_to[i]), token, jesc(rel_cols[i]), jesc(rel_refs[i]), (rel_opt[i] ? "yes" : "no"), kind, jesc(rel_ev[i]) >> rels
+      }
     }
   ' "$TMP/sql-replay.sql"
+  if [[ -s "$TMP/sql-flag" ]]; then
+    sql_bad=1
+  fi
 fi
 
 # --- EF fluent --------------------------------------------------------------
 ef_seen=0
 ef_bad=0
 ef_evidence=""
+EF_ENTS="$TMP/ef-entities.tsv"
+EF_ATTRS="$TMP/ef-attributes.tsv"
+EF_RELS="$TMP/ef-relationships.tsv"
+: >"$EF_ENTS"
+: >"$EF_ATTRS"
+: >"$EF_RELS"
 set -f
 while IFS= read -r rel || [[ -n "$rel" ]]; do
   [[ -n "$rel" ]] || continue
@@ -748,12 +954,12 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
   ef_seen=1
   ef_evidence="$rel"
   module="$(module_of "$rel")"
-  add_module "$module"
   flattened="$(sed -E 's://.*$::' "$repo/$rel" | tr '\n' ' ')"
   IFS=';' read -r -a statements <<<"$flattened"
   for part in "${statements[@]}"; do
     [[ "$part" == *HasOne* || "$part" == *HasMany* || "$part" == *HasForeignKey* ]] || continue
-    configured="" one="" many="" fk=""
+    configured="" one="" many="" fk="" principal=""
+    [[ "$part" =~ HasPrincipalKey\(\"([A-Za-z_][A-Za-z0-9_]*)\"\) ]] && principal="${BASH_REMATCH[1]}"
     [[ "$part" =~ Entity\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && configured="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
     [[ "$part" =~ HasOne\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && one="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
     [[ "$part" =~ HasMany\<([A-Za-z_][A-Za-z0-9_]*)\> ]] && many="${BASH_REMATCH[1]}" # portability-ok: C# generic type argument, not a GNU \< \> word boundary
@@ -793,7 +999,7 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       break
     fi
     if [[ "$kind" == "one-to-one" ]]; then
-      token="$([[ "$optional" == "yes" ]] && printf '||--o|' || printf '||--||')"
+      token="$([[ "$optional" == "yes" ]] && printf '|o--o|' || printf '||--o|')"
     else
       token="$([[ "$optional" == "yes" ]] && printf '|o--o{' || printf '||--o{')"
     fi
@@ -803,15 +1009,15 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     for pair in "$fk_entity" "$pk_entity"; do
       eid="$(entity_id "$module" "$pair")"
       esc_id="$(json_escape "$eid")"
-      if ! grep -F -q "\"id\":\"$esc_id\"" "$ENTS"; then
+      if ! grep -F -q "\"id\":\"$esc_id\"" "$EF_ENTS"; then
         printf '{"id":"%s","name":"%s","module":"%s","evidence":"%s"}\n' \
-          "$esc_id" "$(json_escape "$pair")" "$(json_escape "$module")" "$(json_escape "$rel")" >>"$ENTS"
+          "$esc_id" "$(json_escape "$pair")" "$(json_escape "$module")" "$(json_escape "$rel")" >>"$EF_ENTS"
       fi
     done
-    printf '{"from":"%s","to":"%s","cardinality":"%s","columns":"%s","optional":"%s","kind":"%s","evidence":"%s","tool":"ef-fluent"}\n' \
-      "$(json_escape "$from")" "$(json_escape "$to")" "$token" "$(json_escape "$fk")" "$optional" "$kind" "$(json_escape "$rel")" >>"$RELS"
+    printf '{"from":"%s","to":"%s","cardinality":"%s","columns":"%s","references":"%s","optional":"%s","kind":"%s","evidence":"%s","tool":"ef-fluent"}\n' \
+      "$(json_escape "$from")" "$(json_escape "$to")" "$token" "$(json_escape "$fk")" "$(json_escape "$principal")" "$optional" "$kind" "$(json_escape "$rel")" >>"$EF_RELS"
     printf '{"entity":"%s","name":"%s","type":"declared","nullable":"%s","pk":"no","fk":"yes","evidence":"%s"}\n' \
-      "$(json_escape "$from")" "$(json_escape "$fk")" "$optional" "$(json_escape "$rel")" >>"$ATTRS"
+      "$(json_escape "$from")" "$(json_escape "$fk")" "$optional" "$(json_escape "$rel")" >>"$EF_ATTRS"
   done
   [[ "$ef_bad" -eq 0 ]] || break
 done <"$TMP/cs.txt"
@@ -834,11 +1040,47 @@ if [[ -n "$prisma_flag" ]]; then
   add_mech prisma model yes "$first_prisma"
   refuse "$prisma_flag"
 fi
+
+# Winner. An unreadable tier refuses the record only when it is the winner. A
+# tier that loses and cannot be read is left out of the mismatch comparison and
+# reported as not compared.
+winner_tool="none"
+winner_tier="none"
+if [[ -s "$TMP/prisma.txt" ]]; then
+  winner_tool="prisma"
+  winner_tier="model"
+elif [[ "$ef_seen" -eq 1 ]]; then
+  winner_tool="ef-fluent"
+  winner_tier="orm"
+elif [[ -s "$TMP/sql.txt" ]]; then
+  winner_tool="sql-migration"
+  winner_tier="migration"
+else
+  refuse "no-declared-schema"
+fi
+
+not_compared=0
+note_not_compared() {
+  printf '{"kind":"not-compared","detail":"%s","evidence":"%s"}\n' \
+    "$(json_escape "$1 was not compared with $winner_tool: $2")" "$(json_escape "$3")" >>"$MISMATCHES"
+  not_compared=$((not_compared + 1))
+}
+
 if [[ "$ef_bad" -eq 1 ]]; then
-  : >"$ENTS"
-  : >"$ATTRS"
-  : >"$RELS"
-  refuse "ef-fluent-unreadable"
+  [[ "$winner_tool" != "ef-fluent" ]] || refuse "ef-fluent-unreadable"
+  note_not_compared ef-fluent "an Entity Framework chain is not in the shipped shape" "$ef_evidence"
+else
+  cat "$EF_ENTS" >>"$ENTS"
+  cat "$EF_ATTRS" >>"$ATTRS"
+  cat "$EF_RELS" >>"$RELS"
+fi
+if [[ "$sql_bad" -eq 1 ]]; then
+  [[ "$winner_tool" != "sql-migration" ]] || refuse "sql-alter-unreadable"
+  note_not_compared sql-migration "an ALTER TABLE form or foreign-key clause is not in the readable subset" "$first_sql"
+elif [[ -s "$TMP/sql.txt" ]]; then
+  cat "$SQL_ENTS" >>"$ENTS"
+  cat "$SQL_ATTRS" >>"$ATTRS"
+  cat "$SQL_RELS" >>"$RELS"
 fi
 
 # Mark fk flags on attributes whose name is a relationship column. Done in the
@@ -878,22 +1120,6 @@ if [[ -s "$RELS" && -s "$ATTRS" ]]; then
   mark_fk
 fi
 
-# Winner
-winner_tool="none"
-winner_tier="none"
-if [[ -s "$TMP/prisma.txt" ]]; then
-  winner_tool="prisma"
-  winner_tier="model"
-elif [[ "$ef_seen" -eq 1 ]]; then
-  winner_tool="ef-fluent"
-  winner_tier="orm"
-elif [[ -s "$TMP/sql.txt" ]]; then
-  winner_tool="sql-migration"
-  winner_tier="migration"
-else
-  refuse "no-declared-schema"
-fi
-
 # Keep only winner entities? No: entities from other shipped tools stay in the
 # record so mismatches can name them. The renderer draws the winner tool only.
 # Tag is the tool on relationships. Entities do not carry a tool. Mismatch
@@ -910,7 +1136,7 @@ fi
 # Mismatch rows are computed first.
 
 shipped_tools="$(grep -c '"shipped":"yes"' "$MECH" || true)"
-if [[ "${shipped_tools:-0}" -ge 2 ]]; then
+if [[ $((${shipped_tools:-0} - not_compared)) -ge 2 ]]; then
 awk -v winner="$winner_tool" -v rels="$RELS" -v mismatches="$MISMATCHES" '
   function field(line, key,    re, s, i) {
     re = "\"" key "\":\""
@@ -984,6 +1210,14 @@ awk -v winner="$winner_tool" '
 ' "$RELS" >"$TMP/rels-win.json"
 mv "$TMP/rels-win.json" "$RELS"
 
+if grep -F -q '"cardinality":"unknown"' "$RELS"; then
+  : >"$ENTS"
+  : >"$ATTRS"
+  : >"$RELS"
+  : >"$MISMATCHES"
+  refuse "unknown-cardinality"
+fi
+
 # Entities: keep those whose evidence extension matches the winner tool.
 # prisma -> .prisma, sql-migration -> .sql, ef-fluent -> .cs
 case "$winner_tool" in
@@ -1024,6 +1258,9 @@ awk -v ext="$ext" '
   }
 ' "$ATTRS" >"$TMP/attrs-win.json"
 mv "$TMP/attrs-win.json" "$ATTRS"
+
+# A module is listed only when the winning tier declared an entity in it.
+sed -n 's/.*"module":"\([^"]*\)".*/{"id":"\1"}/p' "$ENTS" | sort -u >"$MODS"
 
 # Stable order
 sort -o "$MECH" "$MECH"
