@@ -90,6 +90,12 @@ opens with no listed word is read as `full`, and the worker names that reading i
 `open_questions`. Explore and trace-intent have no Effort table, so for them the word asks for a
 narrower pass and the agent names the level it ran at.
 
+**A research `Budget: low` writes `Turn budget: 15`.** Fifteen leaves 25 of the worker's 40
+`maxTurns` for the index and sidecar writes and the return, and
+it sits below the default stop turn (30), so the worker honors it. The number is a judgment, sized
+so the gathering a `low` row allows fits well inside it. Other `Budget:` words leave the value to
+the parent, up to that default.
+
 **Research adds two more labeled lines.** `Source breadth:` because source breadth is the
 caller's level and the researcher lane is pinned `high` for reasoning; `Evidence use:` because
 only the caller knows whether the answer will be quoted outside the session:
@@ -750,7 +756,10 @@ acceptance gate prints this value as `verification=<value>`. `pending` left in p
 boundary closed is the one wrong value: a later reader cannot tell it from a run still waiting. A
 `fail` sends the run back to the phase or dimension the failed criterion names, the family's own
 routing, and the value is rewritten when the re-run is verified. It is not a place to annotate an
-artifact with its own failure and ship it.
+artifact with its own failure and ship it. The one exception is research at `Budget: low`, which
+does not resume the researcher on a verifier-owned FAIL row: the artifact keeps the `fail` value
+with the failed rows named, and the result is presented with that caveat (`skills/research/SKILL.md`,
+"Effort, source breadth").
 
 **When no verifier can be dispatched.** The `Agent` tool is denied, the session is at the nesting
 limit, or the invoking context is itself a subagent with no spawn: write
