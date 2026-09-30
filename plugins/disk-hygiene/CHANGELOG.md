@@ -3,11 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.29.1] - 2026-09-29
+## [0.29.2] - 2026-09-30
 
 ### Fixed
 
 - **The engine gate probes far fewer files on commands that do not name the engine.** Without the `hygiene.py` marker, `_engine_gate_relevant` now reads each distinct word two ways with separate filters. The as-written identity probe runs only on words that carry a path separator, so ordinary arguments such as `status` or `--oneline` are no longer checked against the guard's working directory. The engine-directory reading still covers bare-word aliases inside the engine's directory, the shape that matters on shells that search the current directory before `PATH` (Windows `cmd`). Words qualified with a drive other than the engine's, such as `D:foo`, are excluded from that reading, because Windows joins them onto that drive and drops the engine directory, so they could probe a dead drive; a word on the engine's own drive (`C:alias` beside an engine on `C:`) still reads against the engine's directory. Candidates are deduplicated; the check is a pure predicate under `any()`, so this cannot change the result. The accepted residuals are unchanged apart from two that follow from the separator filter and the drive rule: an alias outside the engine's directory invoked by a bare name (for example a hard link in the working directory run as `python3 alias`) no longer gates, and neither does a drive-relative alias on a drive other than the engine's (`D:alias`).
+
+## [0.29.1] - 2026-09-29
+
+### Fixed
+
+- **The PowerShell mutation-word check relieves quoted words only for allow-listed commands.** A deletion word inside a quoted literal (a commit message, a search term, an issue body) no longer prompts when every command head is on the allow-list of commands that never run their string arguments and the line has no comment, subexpression, here-string, backtick, call operator, or member call. Any other line still gets the plain word match. The operator handoff tells operators to pass `gh` bodies with `--body-file` and to prefer single-quoted literals.
 
 ## [0.29.0] - 2026-09-29
 
