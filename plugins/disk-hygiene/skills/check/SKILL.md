@@ -6,10 +6,6 @@ allowed-tools:
   - "Bash(command -v *)"
   - "Bash(git --version*)"
   - "Bash(grep -m1 *)"
-  - "Bash(py -3 *python3_alias_probe.py*)"
-  - "Bash(python *python3_alias_probe.py*)"
-  - "Bash(python3 *kill_switch_probe.py*)"
-  - "Bash(python3 *python3_alias_probe.py*)"
 metadata:
   workflow-stage: anytime
   summary: Report whether node, bash and a supported Python resolve for the disk-hygiene guard. Never installs.
@@ -24,6 +20,8 @@ Run the read-only check. Do not run `apply`. Do not install or download.
 ## Check
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section, running each probe it names with the Bash tool. Report the PASS/FAIL/INFO table. Stop.
+
+The interpreter probes (alias classification, version floor, kill switch) are not pre-granted: a wildcarded interpreter rule grants nothing in auto mode, so they run under the session's normal permissions.
 
 ## Next
 

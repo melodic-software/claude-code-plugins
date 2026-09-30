@@ -10,13 +10,24 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 - **`/disk-hygiene:check`, a model-invocable probe**
   ([#5436](https://github.com/melodic-software/claude-code-plugins/issues/5436)). It reads the
   `check` section of `setup` and installs nothing, so a hook notice can name a command Claude is
-  able to run.
+  able to run. Its interpreter probes are not pre-granted in `allowed-tools`: a wildcarded
+  interpreter rule grants nothing under auto mode.
 
 ### Changed
 
 - **Missing-Python hook notice:** `run-python-hook.sh` now ends its remedy with
   `/disk-hygiene:check` instead of `/disk-hygiene:setup check`, which carries
   `disable-model-invocation: true`.
+
+## [0.35.1] - 2026-09-30
+
+### Changed
+
+- **`safety-model.md` records how the `apply --execute` ask behaves under `bypassPermissions`**
+  ([#5609](https://github.com/melodic-software/claude-code-plugins/issues/5609)). A four-part
+  verification record states which modes were probed (headless default, `--bg` default, headless
+  `bypassPermissions`), which were not (interactive `bypassPermissions`, auto mode, the Windows
+  PowerShell tool), and what the official docs and upstream issues say.
 
 ## [0.35.0] - 2026-09-30
 
