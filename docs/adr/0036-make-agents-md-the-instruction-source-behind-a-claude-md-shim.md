@@ -40,8 +40,7 @@ the loading rule itself is the record under "Why the shim stays" in that skill's
 Update, 2026-09-29: the remote flag is no longer the blocker. On Claude Code 2.1.282 the bundle
 code default for `tengu_agents_md_mod` reads true, the env-vars feature-flag list no longer names
 `AGENTS.md`, and from v2.1.280 `/memory` lists a directly read `AGENTS.md`. `sources.md` holds each
-condition's current grade under "Current fleet grade": all four read `[MET]`, condition 2
-provisionally, because its CI-canary component waits on an open owner decision (#4282).
+condition's current grade under "Current fleet grade": all four read `[MET]`.
 
 The shim costs about 55 tokens per session, never makes Claude read the file twice, and loads in
 the conditions that record lists as unavailable for direct reading (stated under "Why the shim
