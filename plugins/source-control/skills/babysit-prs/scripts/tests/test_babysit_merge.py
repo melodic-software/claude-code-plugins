@@ -1648,6 +1648,27 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         self.assertIn("squash", result["error"])
         method.assert_not_called()
 
+    def test_auto_with_a_non_squash_flag_is_judged_on_the_effective_method(
+        self,
+    ) -> None:
+        RepoConfigFake({"owner/repo": "## babysit_merge_method\nsquash\n"}).install(
+            self
+        )
+        code, result, method = self._run_stubbed_gate(
+            "--merge", "--expected-head", HEAD, "--auto", "--method", "merge"
+        )
+        self.assertEqual(code, 0, result)
+        method.assert_called_once_with("owner/repo", "squash")
+
+    def test_auto_refuses_a_non_squash_flag_the_repo_does_not_override(self) -> None:
+        RepoConfigFake({}).install(self)
+        code, result, method = self._run_stubbed_gate(
+            "--merge", "--expected-head", HEAD, "--auto", "--method", "merge"
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("squash", result["error"])
+        method.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

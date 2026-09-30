@@ -1583,8 +1583,6 @@ def main() -> int:
 
     if args.auto and not (args.merge and args.expected_head):
         return _refuse("--auto requires --merge and --expected-head", 2)
-    if args.auto and args.method not in (None, "squash"):
-        return _refuse("--auto arms a squash merge; --method must be squash", 2)
 
     # The target repository's policy, read from its default branch with the flags
     # as the deprecated `userConfig` fallback. Unreadable policy refuses the
@@ -1616,7 +1614,7 @@ def main() -> int:
             )
     if tier is not None:
         # Add-only: the effective labels are the flag set plus the repository's, and
-        # an empty union is the same under-specified refusal the flags used to raise.
+        # an empty union is an under-specified tier.
         if not policy.merge_block_labels:
             return _refuse(
                 "--autopilot-merge-tier requires non-empty block labels, from "

@@ -321,12 +321,14 @@ repository layer, and the plugin's `userConfig` value (the matching `babysit-prs
 deprecated fallback merged per key as below. One `## <key>` H2 per key, the value as the section
 body; list values are `- <item>` bullets (a comma-separated line is also accepted).
 
-A file that is absent (HTTP 404) contributes nothing, and the fallback stands alone. Any other
-failure to fetch or parse the file (another HTTP status, a timeout, a malformed section, an invalid
-value) is a repository config error: the merge gate and `request_review` refuse for that
-repository, and the snapshot marks its PRs unclassified with an `errors` entry, never merge-ready.
-Identity and trust keys stay in `userConfig` permanently; `branch_issue_pattern` moved to this
-surface earlier. The split and its rationale are in
+A file that is absent (HTTP 404 while the repository root listing, `contents/`, is readable)
+contributes nothing, and the fallback stands alone. A 404 with an unreadable root may be a hidden
+file, so it is an error like any other failure. Any other failure to fetch or parse the file
+(another HTTP status, a timeout, a malformed section, an invalid value) is a repository config
+error: the merge gate and `request_review` refuse for that repository, and the snapshot marks its
+PRs unclassified with an `errors` entry, never merge-ready. Identity and trust keys stay in
+`userConfig` permanently, and `branch_issue_pattern` resolves through the three layers below. The
+split and its rationale are in
 [0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md).
 
 | Key | Value | Merge mode against the `userConfig` fallback |

@@ -259,12 +259,21 @@ def fallback_from_args(args: object) -> dict[str, str | None]:
     return {key: getattr(args, dest, None) for key, dest in FLAG_DESTS.items()}
 
 
+def _contents_readable(gh_runner: GhRunner, owner: str, name: str) -> bool:
+    try:
+        return gh_runner(["api", f"repos/{owner}/{name}/contents"]).returncode == 0
+    except (RuntimeError, ValueError, OSError):
+        return False
+
+
 def fetch_repo_config(owner_repo: str, gh_runner: GhRunner | None = None) -> RepoLayer:
     """The repository layer from the default branch; empty when the file is absent.
 
-    Only a 404 that `gh` itself reported means "no file". Every other failure
-    (another status, no status, a timeout, a missing gh, an unexpected payload,
-    a parse error) raises `RepoConfigError`.
+    A 404 that `gh` itself reported means "no file" only when the repository's
+    root listing is readable: GitHub answers 404 for an existing private
+    resource the token cannot read, so an unreadable root is a hidden file and
+    raises. Every other failure (another status, no status, a timeout, a
+    missing gh, an unexpected payload, a parse error) raises `RepoConfigError`.
     """
     gh_runner = gh_runner or gh_capture
     owner, _, name = owner_repo.partition("/")
@@ -278,7 +287,13 @@ def fetch_repo_config(owner_repo: str, gh_runner: GhRunner | None = None) -> Rep
         ) from exc
     if proc.returncode != 0:
         if gh_http_status(proc.stderr or "") == 404:
-            return {}
+            if _contents_readable(gh_runner, owner, name):
+                return {}
+            raise RepoConfigError(
+                f"{owner_repo}: {CONFIG_PATH} answered 404 and the repository "
+                "contents are not readable, so the file may exist but be hidden "
+                "from this token"
+            )
         detail = (proc.stderr or "").strip() or f"exit {proc.returncode}"
         raise RepoConfigError(f"{owner_repo}: {CONFIG_PATH} fetch failed: {detail}")
     try:

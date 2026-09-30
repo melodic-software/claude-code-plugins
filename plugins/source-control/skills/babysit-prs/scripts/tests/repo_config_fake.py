@@ -39,8 +39,10 @@ def http_error(status: int) -> subprocess.CompletedProcess[str]:
 class RepoConfigFake:
     """Maps `owner/repo` to file text, or to an HTTP status int for a failure.
 
-    A repository absent from the map has no config file (404), so a test that
-    does not care about repository config sees only its `userConfig` flags.
+    A repository absent from the map has no config file (404 on the file, a
+    readable root), so a test that does not care about repository config sees
+    only its `userConfig` flags. A repository mapped to 404 is hidden from the
+    token: the root listing answers 404 as well.
     """
 
     def __init__(self, files: dict[str, str | int] | None = None) -> None:
@@ -50,6 +52,10 @@ class RepoConfigFake:
     def __call__(self, args: list[str]) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
         repo = "/".join(args[1].split("/")[1:3]).casefold()
+        if args[1].endswith("/contents"):
+            if self.files.get(repo) == NOT_FOUND:
+                return http_error(NOT_FOUND)
+            return subprocess.CompletedProcess([], 0, "[]", "")
         value = self.files.get(repo, NOT_FOUND)
         if isinstance(value, int):
             return http_error(value)

@@ -37,13 +37,20 @@ def _fail(stderr: str, stdout: str = "") -> subprocess.CompletedProcess[str]:
 
 
 class FakeGh:
-    def __init__(self, responses: dict[str, subprocess.CompletedProcess[str]]) -> None:
+    def __init__(
+        self,
+        responses: dict[str, subprocess.CompletedProcess[str]],
+        roots: dict[str, subprocess.CompletedProcess[str]] | None = None,
+    ) -> None:
         self.responses = responses
+        self.roots = roots or {}
         self.calls: list[list[str]] = []
 
     def __call__(self, args: list[str]) -> subprocess.CompletedProcess[str]:
         self.calls.append(args)
         repo = "/".join(args[1].split("/")[1:3])
+        if args[1].endswith("/contents"):
+            return self.roots.get(repo, subprocess.CompletedProcess([], 0, "[]", ""))
         return self.responses[repo]
 
 
@@ -245,6 +252,28 @@ class ResolveTests(unittest.TestCase):
         )
         eff, _ = _resolve("o/r", {"babysit_merge_method": "merge"}, gh)
         self.assertEqual(eff.merge_method, "merge")
+
+    def test_404_with_unreadable_root_is_an_error(self) -> None:
+        cases = {
+            "404": _fail("gh: Not Found (HTTP 404)"),
+            "403": _fail("gh: Forbidden (HTTP 403)"),
+            "no status": _fail("connection reset"),
+        }
+        for name, root in cases.items():
+            rc.reset_cache()
+            gh = FakeGh({"o/r": _fail("gh: Not Found (HTTP 404)")}, {"o/r": root})
+            with self.subTest(name=name), self.assertRaises(rc.RepoConfigError):
+                _resolve("o/r", {"babysit_merge_block_labels": "hold"}, gh)
+            self.assertEqual(gh.calls[-1], ["api", "repos/o/r/contents"])
+
+    def test_root_probe_runner_exception_is_an_error(self) -> None:
+        def flaky(args: list[str]) -> subprocess.CompletedProcess[str]:
+            if args[1].endswith("/contents"):
+                raise RuntimeError("gh timed out")
+            return _fail("gh: Not Found (HTTP 404)")
+
+        with self.assertRaises(rc.RepoConfigError):
+            rc.resolve("o/r", {}, flaky)
 
     def test_other_failures_are_errors(self) -> None:
         cases = {
