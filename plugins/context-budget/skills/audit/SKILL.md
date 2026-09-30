@@ -69,6 +69,30 @@ costs before any work starts, per-tool attribution, and whether a settings chang
 and host; this section states what to do when it resolves, never that it is present. The four-part
 records live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
 
+## Boundary, the built-in `/context` command
+
+Both show what fills a context window, so "what is eating my context" can land on either:
+
+- **`/context` (built-in command)**: visualizes the current session's context usage as a colored
+  grid, with optimization suggestions and capacity warnings; `all` expands the per-item breakdown.
+  It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** Measures a fresh headless session's startup payload per
+  item, splits the built-in tool pools `/context` reports as lump sums, and ledgers before/after
+  deltas.
+
+**Routing.** When the person wants a live look at the current session's window, offer it to the
+person: If /context is available in your session (gate basis: the verification record below), you
+can run `/context` to see what fills the current window. Prefer this skill for startup cost,
+per-tool attribution, and whether a settings change saved anything. An unattended run records the
+offer in its output instead of asking.
+
+**Mutation gate.** Neither writes files by default. This skill never runs `/context` on the
+person's behalf.
+
+**Availability is never assumed.** The command is gated; this section states what to do when the
+person can run it, never that it is present. The four-part records live in
+[reference/native-context.md](reference/native-context.md).
+
 ## Declared scope
 
 This skill measures **the local Claude Code CLI, in a headless session**. On cloud or web surfaces

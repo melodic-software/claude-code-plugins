@@ -1377,6 +1377,49 @@
     },
     {
       "native": {
+        "name": "context",
+        "class": "builtin-command",
+        "markers": [
+          "gated",
+          "model-invocation-disabled"
+        ]
+      },
+      "component": {
+        "plugin": "context-budget",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "suggest",
+      "reason": "The built-in command visualizes the current session's context usage as a colored grid with optimization suggestions; ours measures a fresh headless session's startup payload per item, splitting the built-in tool pools /context reports as lump sums, and ledgers before/after deltas. User-only, so ours offers it to the person for a live look at the current window. Ruled 2026-09-30 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`context` present in the 2.1.285 extraction as builtin-command",
+        "markers: gated",
+        "native description: Visualize current context usage as a colored grid; argument hint `[all]`",
+        "invocation mode (2026-09-30, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)",
+        "detect: origin discovered, score 0.3859 from shared tokens context, usage",
+        "docs cross-check (commands reference, 2026-09-30): the `/context [all]` row documents the grid, optimization suggestions for context-heavy tools, memory bloat and capacity warnings, and `all` to expand the per-item breakdown",
+        "our Boundary: 'If /context is available in your session (gate basis: the verification record below), you can run `/context` to see what fills the current window'; the description carries no /context clause"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_commands lane integrity ok)",
+        "date": "2026-09-29"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes `/context`, makes it model-invocable, or widens it to a fresh session's startup payload or a before/after comparison",
+        "verified": "2026-09-30"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": true
+      },
+      "budget_caveat": false
+    },
+    {
+      "native": {
         "name": "recap",
         "class": "builtin-command",
         "markers": [
@@ -2603,6 +2646,24 @@
       },
       "component": {
         "plugin": "bash-format",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-09-30",
+      "fingerprint": {
+        "native": "d7e2debdf01879cf8606b9ebfd12eb3e",
+        "component": "3f55bc9bc552095ce98645fab43fdec4"
+      }
+    },
+    {
+      "native": {
+        "name": "Bash",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "bash-format",
         "skill": "setup",
         "kind": "skill"
       },
@@ -2666,6 +2727,24 @@
       "fingerprint": {
         "native": "6bbfd7f717bc99f360fd31b2d78ad20d",
         "component": "0d0c9124d766430cdac185203828a762"
+      }
+    },
+    {
+      "native": {
+        "name": "PowerShell",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "powershell-format",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing.",
+      "as_of": "2.1.285",
+      "date": "2026-09-30",
+      "fingerprint": {
+        "native": "b8d973375b3761790cd1d387dd34aed7",
+        "component": "f108c4244ee4f411177cd9f8cc0b9b9e"
       }
     },
     {

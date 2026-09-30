@@ -16,6 +16,8 @@ Patch: clarification.
 - **The Adopters table records `/prototype:explore-directions`'s and `/visualization:visualize`'s
   switch from a description phrase to a suggest sentence** for the bundled `design` skill, which a
   2.1.285 extraction reads as model-invocation-disabled.
+- **The Adopters table records `/context-budget:audit`'s `## Boundary` section for `/context`**
+  (integration `suggest`), beside its `explain-usage` section.
 
 ## [3.3.4] - 2026-09-29
 

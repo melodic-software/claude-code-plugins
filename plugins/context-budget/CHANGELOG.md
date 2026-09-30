@@ -19,6 +19,13 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
   It keeps the provenance class, what the skill does and how it is invoked, in the
   native-references template form.
 
+### Added
+
+- **`audit` carries a Boundary section for the built-in `/context` command.** `/context` is
+  user-only, so the section offers it to the person for a live look at the current window and keeps
+  startup cost, per-tool attribution, and before/after deltas here. Its four-part records live in
+  `reference/native-context.md`.
+
 ## [0.6.46] - 2026-09-29
 
 ### Added

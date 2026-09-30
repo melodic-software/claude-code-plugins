@@ -17,7 +17,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
-| Built-in CLI commands | 23 | 22 | route 4, suggest 19 | complementary 22, defer 1 |
+| Built-in CLI commands | 24 | 23 | route 4, suggest 20 | complementary 23, defer 1 |
 | Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 2 | 1 | route 2 | complementary 2 |
@@ -156,6 +156,24 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Recheck trigger:** a Claude Code release renames or removes `/commit-push-pr`, changes its command type or invocability, or the commands reference starts documenting it (verified 2026-09-29)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `context` → `context-budget:audit`
+
+- **Verdict:** `complementary`: The built-in command visualizes the current session's context usage as a colored grid with optimization suggestions; ours measures a fresh headless session's startup payload per item, splitting the built-in tool pools /context reports as lump sums, and ledgers before/after deltas. User-only, so ours offers it to the person for a live look at the current window. Ruled 2026-09-30 by operator direction on the orchestrator's recommendation.
+- **Integration:** `suggest`
+- **Native surface:** `context` (built-in command; markers: gated, model-invocation-disabled)
+- **Our component:** `context-budget:audit` (skill)
+- **Evidence:**
+  - `context` present in the 2.1.285 extraction as builtin-command
+  - markers: gated
+  - native description: Visualize current context usage as a colored grid; argument hint `[all]`
+  - invocation mode (2026-09-30, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)
+  - detect: origin discovered, score 0.3859 from shared tokens context, usage
+  - docs cross-check (commands reference, 2026-09-30): the `/context [all]` row documents the grid, optimization suggestions for context-heavy tools, memory bloat and capacity warnings, and `all` to expand the per-item breakdown
+  - our Boundary: 'If /context is available in your session (gate basis: the verification record below), you can run `/context` to see what fills the current window'; the description carries no /context clause
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_commands lane integrity ok) (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes `/context`, makes it model-invocable, or widens it to a fresh session's startup payload or a before/after comparison (verified 2026-09-30)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 
 ### `export` → `session-flow:clean-stop`
 
@@ -1165,10 +1183,12 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | Native surface | Class | Component | Reason | As of | Date |
 |---|---|---|---|---|---|
 | `Agent` | builtin-tool | `docs-hygiene:write-for-agents` | The Agent tool launches a subagent; ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Bash` | builtin-tool | `bash-format:check` | Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing. | 2.1.285 | 2026-09-30 |
 | `Bash` | builtin-tool | `bash-format:setup` | The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Explore` | builtin-agent | `prototype:explore-directions` | The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Plan` | builtin-agent | `planning:plan-reviewer (agent)` | The Plan agent drafts an implementation approach; this agent stress-tests a written plan for /planning:plan. The Plan pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Plan` | builtin-agent | `testing:plan` | The Plan agent drafts an implementation approach; ours plans tests for a change by regression risk. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `PowerShell` | builtin-tool | `powershell-format:check` | Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing. | 2.1.285 | 2026-09-30 |
 | `PowerShell` | builtin-tool | `powershell-format:setup` | The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Read` | builtin-tool | `x:read` | The Read tool reads a local file; ours reads an X post through third-party converters. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `SendUserMessage` | builtin-tool | `claude-ops:morning-brief` | SendUserMessage (alias Brief) sends the user a message; ours prints a repo's morning ops view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
