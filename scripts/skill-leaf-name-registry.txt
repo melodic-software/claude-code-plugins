@@ -107,7 +107,7 @@ setup *
 # `extract-ssot`'s concern and not this plugin's. provenance is the plugin's
 # former name and keeps the leaf only as a deprecated shim whose `audit` stub
 # points to `attribution:audit`.
-# disk-hygiene joins on the same grounds. Its object, the leftovers in one
+# disk-hygiene joins on its own grounds. Its object, the leftovers in one
 # directory tree, is supplied by the namespace, and the contract is exactly the
 # verb's: bare invocation runs the engine's one read-only `scan` and reports the
 # snapshot, which is written under the plugin data directory and never into the

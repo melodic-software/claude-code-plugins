@@ -61,8 +61,8 @@ directory, a symlink, or a Windows reparse point.
 ```
 
 `--project-dir` is optional; pass it, as a literal absolute path, when the consumer project has
-standing policy files. Never pass `${CLAUDE_PROJECT_DIR}` or any other `${...}` token: the guard
-rejects shell expansion. What each flag does, including the large-target and volume-root rules, is in
+standing policy files. Never pass `${CLAUDE_PROJECT_DIR}` or `${CLAUDE_PLUGIN_DATA}`: the guard
+rejects shell expansion, so pass the literal values. What each flag does, including the large-target and volume-root rules, is in
 [scan-flags.md](../clean/reference/scan-flags.md). For a home directory or another large target,
 start with `--max-depth 1`, then scan the subtrees the evidence justifies. Never pass
 `--confirmed-large-scan` on your own: an unbounded walk needs a person's answer.
