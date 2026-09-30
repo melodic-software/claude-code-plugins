@@ -40,9 +40,10 @@ STATUSES = (
 )
 
 _SECTION = "## All commands"
-_ROW_RE = re.compile(
-    r"^\|\s*`/(?P<name>[a-z0-9][a-z0-9:_-]*)(?P<args>[^`]*)`\s*\|\s*(?P<text>.*?)\s*\|\s*$"
-)
+# Only a table row's first cell is a regex (here and in _TOOL_ROW_RE); the rest
+# is split with string methods, because a lazy `.*?` cell between `\s*` runs
+# backtracks super-linearly on a long whitespace run.
+_ROW_RE = re.compile(r"\|\s*`/(?P<name>[a-z0-9][a-z0-9:_-]*)(?P<args>[^`]*)`\s*\|")
 _KIND_RE = re.compile(r"^\*\*\[?(Skill|Workflow)\]?(?:\([^)]*\))?\.?\*\*\.?\s*")
 _ALIAS_OF_RE = re.compile(r"^Alias (?:for|of) \[?`/([a-z0-9:_-]+)")
 _TOKENS = r"((?:`/[a-z0-9:_-]+`(?:,\s*|\s+and\s+|,\s*and\s+)?)+)"
@@ -51,6 +52,11 @@ _ARE_ALIASES_RE = re.compile(_TOKENS + r"\s+are aliases\b")
 _IS_ALIAS_RE = re.compile(r"`/([a-z0-9:_-]+)` is an alias\b")
 _REMOVED_RE = re.compile(r"^Removed(?: in v?(\d+\.\d+\.\d+))?\b")
 _LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+
+TOOLS_URL = "https://code.claude.com/docs/en/tools-reference.md"
+TOOL_STATUSES = ("documented", "alias", "undocumented", "docs_only")
+_TOOL_HEADER_RE = re.compile(r"^\|\s*Tool\s*\|\s*Description\s*\|")
+_TOOL_ROW_RE = re.compile(r"\|\s*`(?P<name>[A-Za-z][A-Za-z0-9_]*)`\s*\|")
 
 _VERSION_RE = re.compile(r"^##\s+\[?v?(\d+\.\d+\.\d+)")
 _EVENT_WORDS = (
@@ -61,8 +67,10 @@ _EVENT_WORDS = (
     ("alias", re.compile(r"\balias(?:es|ed)?\b", re.I)),
 )
 _EVENT_TEXT_MAX = 240
-# Bounds on untrusted fetched text: the row regexes backtrack polynomially on a
-# pathological line, and the fetch has no other size limit.
+# Bounds on untrusted fetched text. _ROW_MAX is the longest table line parsed; a
+# longer one is skipped. It caps how much text each row's parsing scans; it does
+# not bound backtracking within that text, which is why the row parsers use no
+# backtracking cell pattern. The fetch has no other size limit.
 _ROW_MAX = 8_000
 _FETCH_MAX = 16_000_000
 
@@ -86,6 +94,115 @@ def fetch_text(url: str, timeout: float = 20.0) -> tuple[str | None, str | None]
         return None, f"{type(exc).__name__}: {exc}"
 
 
+def _read_source(
+    file: str | None, url: str
+) -> tuple[str | None, str | None, dict[str, Any]]:
+    """Text from `file` when given, else fetched from `url`: (text, error, source)."""
+    if file:
+        try:
+            return Path(file).read_text(encoding="utf-8"), None, {"file": file}
+        except OSError as exc:
+            return None, f"{type(exc).__name__}: {exc}", {"file": file}
+    text, err = fetch_text(url)
+    return text, err, {"url": url}
+
+
+def _row_rest(pattern: re.Pattern[str], line: str) -> tuple[re.Match[str], str] | None:
+    """The first-cell match and the text between it and the row's closing pipe,
+    or None when `line` is not such a row."""
+    m = pattern.match(line)
+    rest = line[m.end() :].rstrip() if m else ""
+    return (m, rest[:-1]) if m and rest.endswith("|") else None
+
+
+def parse_tools_table(text: str) -> dict[str, dict[str, Any]]:
+    """Rows of the tools reference's table (`| Tool | Description | Permission
+    required |`), keyed by tool name. Stops where the table ends."""
+    rows: dict[str, dict[str, Any]] = {}
+    in_table = False
+    for line in text.splitlines():
+        if len(line) > _ROW_MAX:
+            continue
+        if not in_table:
+            in_table = bool(_TOOL_HEADER_RE.match(line))
+            continue
+        if not line.startswith("|"):
+            if rows:
+                break
+            continue
+        row = _row_rest(_TOOL_ROW_RE, line)
+        if row and "|" in row[1]:
+            m, rest = row
+            text, _, perm = rest.rpartition("|")
+            rows[m.group("name")] = {
+                "summary": _LINK_RE.sub(r"\1", text.strip())[:_EVENT_TEXT_MAX],
+                "permission_required": perm.strip(),
+            }
+    return rows
+
+
+def build_tools_crosscheck(
+    report: dict[str, Any], tools_file: str | None = None
+) -> dict[str, Any]:
+    """The `docs_crosscheck.tools` block: the `builtin_tools` lane against the
+    tools reference table. Its own status; it never changes the parent's."""
+    block: dict[str, Any] = {
+        "status": "ok",
+        "problems": [],
+        "advisories": [],
+        "statuses": list(TOOL_STATUSES),
+    }
+    tools = report.get("builtin_tools")
+    if not isinstance(tools, dict):
+        block["status"] = "unavailable"
+        block["problems"].append("no builtin_tools lane was extracted")
+        return block
+    text, err, block["source"] = _read_source(tools_file, TOOLS_URL)
+    if text is None:
+        block["status"] = "unavailable"
+        block["problems"].append(f"tools reference unavailable: {err}")
+        return block
+    rows = parse_tools_table(text)
+    block["source"]["rows"] = len(rows)
+    if not rows:
+        block["status"] = "broken"
+        block["problems"].append(
+            "no rows parsed from the tools table - the tools reference layout changed"
+        )
+        return block
+    alias_of = {
+        alias: name
+        for name, rec in tools.items()
+        for alias in (rec.get("aliases") or [])
+    }
+    names: dict[str, dict[str, Any]] = {}
+    for name in tools:
+        names[name] = {
+            "status": "documented" if name in rows else "undocumented",
+            "docs_summary": rows.get(name, {}).get("summary"),
+        }
+    for name, row in rows.items():
+        if name in names:
+            continue
+        names[name] = {
+            "status": "alias" if name in alias_of else "docs_only",
+            "binary_alias_of": alias_of.get(name),
+            "docs_summary": row["summary"],
+        }
+    block["counts"] = {
+        s: sum(1 for e in names.values() if e["status"] == s) for s in TOOL_STATUSES
+    }
+    block["names"] = names
+    lane = ((report.get("integrity") or {}).get("lanes") or {}).get("builtin_tools")
+    if lane and lane.get("status") != "ok":
+        block["advisories"].append(
+            "the builtin_tools lane is not ok - an undocumented or docs_only status "
+            "may reflect extraction, not the product"
+        )
+        block["status"] = "degraded"
+    return block
+
+
 def _slashes(tokens: str) -> list[str]:
     return re.findall(r"`/([a-z0-9:_-]+)`", tokens)
 
@@ -106,11 +223,12 @@ def parse_commands_table(text: str) -> dict[str, dict[str, Any]]:
     for line in text[start : end if end > 0 else len(text)].splitlines():
         if len(line) > _ROW_MAX:
             continue
-        m = _ROW_RE.match(line)
-        if not m:
+        parsed = _row_rest(_ROW_RE, line)
+        if not parsed:
             continue
+        m, rest = parsed
         name = m.group("name")
-        body = m.group("text").replace("\\|", "|")
+        body = rest.strip().replace("\\|", "|")
         kind_m = _KIND_RE.match(body)
         kind = kind_m.group(1).lower() if kind_m else "command"
         body = body[kind_m.end() :] if kind_m else body
@@ -326,8 +444,13 @@ def build_crosscheck(
     report: dict[str, Any],
     docs_file: str | None = None,
     changelog_file: str | None = None,
+    tools_file: str | None = None,
 ) -> dict[str, Any]:
-    """The `docs_crosscheck` block: statuses per name plus its own health."""
+    """The `docs_crosscheck` block: statuses per name plus its own health.
+
+    `tools` is a nested block for the built-in tools lane with a status of its
+    own, so a tools-page failure never changes the commands verdict.
+    """
     block: dict[str, Any] = {
         "status": "ok",
         "problems": [],
@@ -341,6 +464,7 @@ def build_crosscheck(
         },
         "sources": {},
     }
+    block["tools"] = build_tools_crosscheck(report, tools_file)
     if not report.get("sources", {}).get("binary", {}).get("available"):
         block["status"] = "unavailable"
         block["problems"].append(
