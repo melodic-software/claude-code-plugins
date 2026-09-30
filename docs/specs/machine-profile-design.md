@@ -125,6 +125,7 @@ Record:
   key, value, verdict,
   observed_by:  <the command or path that produced it; absent only for default-unexamined>,
   skipped_because: <default-unexamined only: why nothing was looked at>,
+  guard:        <blocked only: the guard and the operator command>,
   mode:         observed | reproduced,
   supplied_by:  <layer or channel that supplied the value>
 ```
