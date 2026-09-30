@@ -1976,6 +1976,78 @@ run_cwd "plugin data: a report beside the symlinked project is still allowed" \
 rm -f "$PD_LINK"
 rm -rf "$PD_PROJ" "$PD_REAL_CFG"
 
+# --- PowerShell: one write to one literal destination under an exempt root ---
+# The PowerShell lane blocks on cmdlet/redirect co-occurrence, but a command
+# that is exactly one write whose single literal, absolute destination lies
+# under an exempt root is judged by the same axis as a Bash redirect. Anything
+# else in the command that could write, evaluate or rebind the destination keeps
+# the block.
+run_pwsh_cwd() {
+  local label="$1" command="$2" expected="$3"
+  shift 3
+  expect "$label" "$expected" --tool PowerShell --command "$command" --cwd "$PROJ" -- \
+    CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR=" "$@"
+}
+PSD="$PD_HOME/.claude/plugins/data/x"
+run_pwsh_cwd "PS exempt: Export-Csv -Path into plugin data (allowed)" \
+  "Get-ChildItem | Export-Csv -Path $PSD/out.csv" 0
+run_pwsh_cwd "PS exempt: Out-File -FilePath into plugin data (allowed)" \
+  "Get-ChildItem | Out-File -FilePath $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: positional Out-File into plugin data (allowed)" \
+  "Get-ChildItem | Out-File $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: producer > into plugin data (allowed)" \
+  "Write-Output hi > $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: >> append into plugin data (allowed)" \
+  "echo hi >> $PSD/out.txt" 0
+run_pwsh_cwd "PS exempt: single-quoted destination plus a switch (allowed)" \
+  "Get-ChildItem | Export-Csv -Path '$PSD/my out.csv' -NoTypeInformation" 0
+run_pwsh_cwd "PS exempt: Tee-Object -FilePath into plugin data (allowed)" \
+  "Get-ChildItem | Tee-Object -FilePath $PSD/t.txt" 0
+run_pwsh_cwd "PS exempt: Windows drive spelling of plugin data (allowed)" \
+  'Get-ChildItem | Export-Csv -Path C:\Users\me\.claude\plugins\data\x\out.csv' 0 "HOME=/c/users/me"
+run_pwsh_cwd "PS exempt: temp tree (allowed)" \
+  "Write-Output hi > /tmp/bhb-ps-probe/out.txt" 0
+run_pwsh_cwd "PS exempt: configured scratch root (allowed)" \
+  "Get-ChildItem | Out-File /var/jobtmp/f.txt" 0 "$SCRATCH_ENV=/var/jobtmp"
+expect_both "dispatched parity: PowerShell Export-Csv into plugin data allowed" 0 \
+  --tool PowerShell --lib lib/powershell/ps-command.sh --cwd "$PROJ" \
+  --command "Get-ChildItem | Export-Csv -Path $PSD/out.csv" -- \
+  CLAUDE_PROJECT_DIR= "$PROJ_ENV=$PROJ" "HOME=$PD_HOME" "CLAUDE_CONFIG_DIR="
+# Destinations outside every exempt root, or not literal, keep the block.
+run_pwsh_cwd "PS exempt: C:\\Windows\\System32 destination blocks" \
+  'Get-ChildItem | Export-Csv -Path C:\Windows\System32\x.csv' 2
+run_pwsh_cwd "PS exempt: project-root destination blocks" \
+  "Get-ChildItem | Out-File -FilePath $PROJ/out.txt" 2
+run_pwsh_cwd "PS exempt: relative destination blocks" \
+  "Get-ChildItem | Out-File out.txt" 2
+run_pwsh_cwd "PS exempt: \$var destination blocks" \
+  "Get-ChildItem | Out-File -FilePath \$d/out.txt" 2
+run_pwsh_cwd "PS exempt: double-quoted destination blocks" \
+  "Get-ChildItem | Out-File -FilePath \"$PSD/out.txt\"" 2
+run_pwsh_cwd "PS exempt: dot-dot escape out of plugin data blocks" \
+  "Get-ChildItem | Out-File $PSD/../../settings.json" 2
+run_pwsh_cwd "PS exempt: comma list naming a second destination blocks" \
+  "'x' | Set-Content -Path $PSD/a.txt,$PROJ/b.txt" 2
+run_pwsh_cwd "PS exempt: colon-attached -FilePath blocks" \
+  "Get-ChildItem | Out-File -FilePath:$PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: unmodeled flag keeps the block" \
+  "Get-ChildItem | Out-File -Encoding utf8 $PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: no project root blocks" \
+  "Get-ChildItem | Out-File $PSD/out.txt" 2 "$PROJ_ENV="
+# The one write must be the only thing that trips the PowerShell write check.
+run_pwsh_cwd "PS exempt: two writes, one outside, blocks" \
+  "Get-ChildItem | Tee-Object -FilePath $PSD/a.txt | Out-File $PROJ/b.txt" 2
+run_pwsh_cwd "PS exempt: write plus & \"x\" blocks" \
+  "& \"x\" | Out-File $PSD/out.txt" 2
+run_pwsh_cwd "PS exempt: pipeline-fed Set-Content -Value blocks" \
+  "Get-ChildItem $PROJ | Set-Content -Value $PSD/x.txt" 2
+run_pwsh_cwd "PS exempt: StreamWriter beside the write blocks" \
+  "New-Object IO.StreamWriter $PROJ/x.txt | Out-File $PSD/y.txt" 2
+run_pwsh_cwd "PS exempt: sc Set-Content form beside the write blocks" \
+  "Get-ChildItem | sc -Path $PROJ/y.txt | Out-File $PSD/z.txt" 2
+run_pwsh_cwd "PS exempt: second redirect beside the write blocks" \
+  "Write-Output hi > $PSD/a.txt; Write-Output x > $PROJ/b.txt" 2
+
 # --- symlink escape out of a SHIPPED default (P1 on #3727) -------------------
 # The lexical compare alone exempted a redirect on its spelling, so a symlink
 # under a temp root pointing INTO a repository made
