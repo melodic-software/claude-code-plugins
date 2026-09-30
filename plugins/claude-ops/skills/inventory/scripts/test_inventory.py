@@ -1498,6 +1498,18 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Use …")
 
+    def test_aliases_follow_visible_bindings_and_keep_deferral(self) -> None:
+        src = _modules(
+            'var Qz="Probe",Rz="Alias";'
+            'function ff(x){let t={p:x};function other(){let t={p:"BAD"}}let obj=t;return obj.p}'
+            "function outer(){let yy=xx;return yy}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+            "$t({name:Rz,maxResultSizeChars:1,description:outer});"
+            'var xx="LATER";'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+        self.assertEqual(_tool(src, "Alias")["description"], "LATER")
+
     def test_a_later_declaration_must_be_visible(self) -> None:
         src = _modules(
             'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:ff()});'

@@ -1681,6 +1681,7 @@ def _resolve_chain(
             hops=hops - 1,
             anchor=None,
             shadow=shadow if local else NO_SCOPE,
+            deferred=deferred and local,
         )
         acc.via.add("constant")
     elif (len(chain) == 2 and chain[1][0] == "call") or fn is not None:
@@ -1728,20 +1729,22 @@ def _resolve_chain(
     elif len(chain) == 2 and chain[1][0] == "prop":
         if len(ident) == 1:
             return None
-        # The object the reader sees: a visible binding holding a literal,
-        # else the alias-following lookup.
-        v = _binding_value(src, braces, ident, at, deferred=deferred)
-        close_v = braces.pairs.get(v) if v is not None else None
-        alias = re.match(_IDENT + r"(?=[;,)\s])", src[v : v + 64]) if v else None
-        obj = (
-            (v, src[v : close_v + 1])
-            if close_v is not None
-            # An alias (`let t=c`) is followed from its own binding; no
-            # visible binding at all is unresolved.
-            else _resolve_object(src, braces, alias.group(0), v)
-            if alias and v is not None
-            else None
-        )
+        # The object the reader sees: the visible binding holding a literal,
+        # following aliases (`let t=c`) through each one's own visible
+        # binding; no visible binding at all is unresolved.
+        obj, target, where = None, ident, at
+        for _ in range(_MAX_HOPS):
+            v = _binding_value(src, braces, target, where, deferred=deferred)
+            if v is None:
+                break
+            close_v = braces.pairs.get(v)
+            if close_v is not None:
+                obj = (v, src[v : close_v + 1])
+                break
+            alias = re.match(_IDENT + r"(?=[;,)\s])", src[v : v + 64])
+            if not alias:
+                break
+            target, where = alias.group(0), v
         if obj is None:
             return None
         found = _eval_field(
