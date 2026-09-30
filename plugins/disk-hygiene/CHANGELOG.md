@@ -7,8 +7,8 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Added
 
-- **Partial totals are labelled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
-  A scan that left any subtree unwalked sets `totals_are_lower_bounds`, and `truncation_reasons`
+- **Partial totals are labeled** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).
+  A scan that left any subtree unwalked, and every `--root-children` scan, sets `totals_are_lower_bounds`, and `truncation_reasons`
   maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut` or `scan-error`. A directory
   whose scan failed is in `truncation_reasons` and `errors`, not in `truncated_paths`.
 - **Bounded empty directories are listed** ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)).

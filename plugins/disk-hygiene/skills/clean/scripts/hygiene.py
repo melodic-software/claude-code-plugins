@@ -2183,7 +2183,11 @@ def scan_tree(
             **dict.fromkeys(sorted(truncated), "scan-error"),
             **dict(sorted(unwalked_reasons.items())),
         },
-        "totals_are_lower_bounds": bool(truncated or unwalked_reasons),
+        # Root-children mode never walks the unselected siblings, and those
+        # are recorded in neither `truncated` nor `unwalked_reasons`.
+        "totals_are_lower_bounds": bool(
+            truncated or unwalked_reasons or root_children is not None
+        ),
         "stdlib_shadowing": stdlib_shadowing,
         "children_rollup": children_rollup(
             entries,

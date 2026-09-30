@@ -206,8 +206,8 @@ root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdo
 the snapshot the list). `truncation_reasons` maps every unwalked path to `vcs-boundary`, `protected`, `depth-cut` or
 `scan-error`, as a tally under `--quiet`; a directory whose scan failed is in it as `scan-error` and in `errors`, not
 in `truncated_paths`, so its keys can outnumber that list. `target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees
-only, and `totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked, so read those totals as
-lower bounds then; report the unwalked paths as coverage gaps, never as clean,
+only, and `totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked and on every
+`--root-children` scan (which never walks the unselected siblings), so read those totals as lower bounds then; report the unwalked paths as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only (see

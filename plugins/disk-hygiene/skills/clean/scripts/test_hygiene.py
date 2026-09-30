@@ -2164,6 +2164,11 @@ class HygieneTests(unittest.TestCase):
             self.assertNotIn("root-only.tmp", paths)
             self.assertTrue(snapshot["root_children_mode"])
             self.assertEqual(["builds", "tmp"], snapshot["root_children_selected"])
+            # The unselected siblings are recorded in no truncation list, yet
+            # the byte totals leave them out, so the flag must still be set.
+            self.assertEqual([], snapshot["truncated_paths"])
+            self.assertIs(True, payload["totals_are_lower_bounds"])
+            self.assertIs(True, snapshot["totals_are_lower_bounds"])
 
     def test_root_children_scan_honours_quiet_without_losing_the_snapshot(  # identifier, not prose # spellchecker:disable-line
         self,
