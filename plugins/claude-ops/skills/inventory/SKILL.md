@@ -1,6 +1,6 @@
 ---
 description: "List every Claude Code surface this machine can invoke: built-in commands, subagents, and tools, bundled skills and workflows, and installed plugin components. Use when: 'what slash commands do I have', 'list all my skills', 'what agents are available', 'show me every plugin component', 'what does Claude Code ship built-in', 'is /foo a real command', 'is /foo documented', 'what changed after the update', 'show me only the plugin ones', 'what does marketplace X give me'. On-disk audit: /claude-ops:audit-install-state."
-argument-hint: "[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <name>] [--diff <file>]"
+argument-hint: "[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <m>] [--diff <f>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -9,7 +9,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <name>] [--diff <file>]`. Full form: [--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <name>] [--diff <file>], or just ask in words
+**Arguments.** `[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <m>] [--diff <f>]`. Full form: [--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <name>] [--diff <file>], or just ask in words
 
 ## Purpose
 
