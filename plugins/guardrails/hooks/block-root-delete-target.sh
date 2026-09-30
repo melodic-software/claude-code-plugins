@@ -139,6 +139,12 @@
 #     bare `/` spelling, and not `/*` or `--no-preserve-root`. Not a
 #     harmless line, so kept on the refusal side.
 #
+# SCOPE: this guard is friction against accidental or casual root deletes, not
+# a sandbox (see the README Scope notes). The launcher grammar and the
+# PowerShell walker are not widened further without a filed, demonstrated
+# bypass. Converging the PowerShell walker with lib/powershell/ps-command.sh is
+# deferred until the delete lane is under the differential.
+#
 # DECLARED GAPS, stated rather than hidden, matching this family's convention:
 #   * PowerShell is covered for the same target classes as Bash, with its own
 #     tokenizer (not lib/powershell/ps-command.sh, so this guard stays off the
