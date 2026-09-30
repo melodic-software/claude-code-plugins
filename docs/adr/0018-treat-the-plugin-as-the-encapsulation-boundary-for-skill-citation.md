@@ -227,7 +227,7 @@ in full.
   It does not re-open on a request to relax cross-plugin citation: that is the case the contract is
   about and the evidence here does not touch it.
 
-## Amendment (2026-08-28) — the test clause 2 was applied under, and two surfaces it never named
+## Amendment (2026-08-28): the test clause 2 was applied under, and two surfaces it never named
 
 A remediation sweep applied clause 2 across `docs/**`, fixed 16 citations, kept 23, and stated its
 dividing test only in the pull request that carried it. **The test is nowhere in this record.** It
