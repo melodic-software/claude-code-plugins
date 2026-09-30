@@ -33,6 +33,18 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
   for `apply`, or that the engine removes only snapshot entries.
 
+## [0.29.2] - 2026-09-30
+
+### Fixed
+
+- **Belt lifetime and subagent reach state what a probe showed**
+  ([#3856](https://github.com/melodic-software/claude-code-plugins/issues/3856)). The README said docs
+  scope a skill hook to the component's lifetime. The hooks page says Claude Code keeps a skill's
+  frontmatter hooks for the rest of the session, and a probe on Claude Code 2.1.285 (Linux) confirmed
+  the belt denies on turns after the skill's own turn. The same probe ran a subagent's Bash call
+  without the belt, so the README and `skills/clean/SKILL.md` now record non-inheritance with that
+  basis instead of "inconsistent reach". No behavior changed.
+
 ## [0.29.1] - 2026-09-29
 
 ### Fixed

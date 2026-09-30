@@ -116,13 +116,14 @@ user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROO
 from user/managed/`--settings` scope since Claude Code 2.1.207, so a repo cannot forge it), register
 unconditionally, and fail closed to enabled.
 
-Hook-lifetime caveat: docs scope a skill hook to the component's lifetime, but session-long firing
-of the belt has been observed on at least one Claude Code build (producer-reported; see
-issue #1105). If unrelated commands are denied after a clean run ends, start a new session and see
-that issue. The plugin-level engine gate fires inside subagents. The skill-frontmatter belt was
-observed not to reach a subagent, and #4228 records that its reach was inconsistent within one
-session, so a fanned-out worker's Bash lane is not reliably belt-guarded and "evidence only" is an
-instruction to the worker, not an enforced denial. `skills/clean/SKILL.md` holds the detail.
+Hook lifetime: the hooks page says Claude Code registers a skill's frontmatter hooks when the skill is
+invoked and keeps running them for the rest of the session, on turns after the skill's own turn as
+well. The belt therefore keeps denying after a clean run ends. Start a new session to clear it. The
+plugin-level engine gate fires inside subagents. The skill-frontmatter belt does not: the subagents
+page lists settings, managed-policy and plugin hooks as the ones that apply inside subagents, and a
+Bash call from a subagent ran unguarded on Claude Code 2.1.285. A fanned-out worker's Bash lane is
+not belt-guarded, so "evidence only" is an instruction to the worker, not an enforced denial.
+`skills/clean/SKILL.md` holds the detail.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
