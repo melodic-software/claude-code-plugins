@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.70.0] - 2026-09-29
+## [0.71.0] - 2026-09-29
 
 ### Fixed
 
@@ -13,6 +13,16 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   that. Rotation runs whether or not the per-session event log is enabled, which the SessionEnd
   retention sweep never covered for this file. `observability` clean and its state probe treat the
   rotated file like the live one, and the README and observability references describe the cap.
+
+## [0.70.0] - 2026-09-29
+
+### Changed
+
+- **`audit-native-overlap` fingerprints the native side on the text detection scores**: each
+  registration's `description`, `argument_hint`, and `search_hint`, whitespace-collapsed. It hashed
+  the description alone, so a built-in tool with no description fingerprinted as an empty string
+  and a hint change never resurfaced its dismissal. Surfaces with no hints keep their fingerprint;
+  the stored dismissals were recomputed.
 
 ## [0.69.0] - 2026-09-29
 
