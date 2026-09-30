@@ -33,6 +33,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and the README no longer imply the acknowledgement has no Linux route, that the guard asks only
   for `apply`, or that the engine removes only snapshot entries.
 
+## [0.32.1] - 2026-09-30
+
+### Changed
+
+- **`clean` names the hook note as the one primary source for `hook_python` and `data_root`.** The fallback is the probe: when the note is absent, one bare-python probe is denied, names the interpreter, and the rerun probe supplies `data_root`. `safety-model.md` records that the hook is the chosen delivery path and that the denied probe in the no-hook path is an accepted residual.
+
 ## [0.32.0] - 2026-09-30
 
 ### Added
