@@ -14,6 +14,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 - **`clean` gotcha: an allow rule cannot remove the deletion prompts.** The deletions are hook `ask` verdicts, which force a prompt, and the engine's read-only calls already get hook `allow`. The unsupported-platform handoff text names the repeatable `--path`.
 
+## [0.32.1] - 2026-09-30
+
+### Changed
+
+- **`clean` names the hook note as the one primary source for `hook_python` and `data_root`.** The fallback is the probe: when the note is absent, one bare-python probe is denied, names the interpreter, and the rerun probe supplies `data_root`. `safety-model.md` records that the hook is the chosen delivery path and that the denied probe in the no-hook path is an accepted residual.
+
 ## [0.32.0] - 2026-09-30
 
 ### Added

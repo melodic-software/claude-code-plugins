@@ -310,6 +310,9 @@ typing `/skillname` fires it, it matches on `command_name`, and `additionalConte
 alongside the expanded prompt); recheck when that section changes, or if a release note names the
 event. Whether `command_name` carries the leading `/` was not observed, so the matcher admits both.
 
+The hook is the chosen primary delivery path for both values. The one denied bare-python probe in
+the no-hook path is an accepted residual: the probe cannot supply `hook_python` to itself.
+
 `--max-depth` accepts only a bare positive-integer literal. `--confirmed-large-scan`, `--quiet`
 and `--root-children` are the valueless scan flags; the guard permits at most one of each and
 rejects any trailing value, so the scan grammar stays exact.

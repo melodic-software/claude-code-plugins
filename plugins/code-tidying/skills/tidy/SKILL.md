@@ -286,10 +286,9 @@ Full template: [reference/scope-budget.md](reference/scope-budget.md). Summary:
 One native Claude Code surface cleans code without changing behavior, as this skill does, and the
 two get conflated whenever the request is "clean this up":
 
-- **`simplify` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. It
-  reviews the changed code, or a path or PR reference the user passes, for reuse,
-  simplification, efficiency, and altitude cleanups, and it applies the fixes. Quality only; it
-  does not hunt for bugs.
+- **`simplify` (bundled skill)**: reviews the changed code, or a path or PR reference the user
+  passes, for reuse, simplification, efficiency, and altitude cleanups, and it applies the fixes.
+  Quality only; it does not hunt for bugs.
 - **This skill (marketplace plugin).** Hunts unfiled structural drift across a rotated,
   glob-scoped lane regardless of recent activity, under a scope budget, and ships one
   structure-only PR.
