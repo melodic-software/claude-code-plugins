@@ -27,8 +27,10 @@
 #                  [--repo DIR...]... [--repos-from FILE|-]... [--fleet]
 #                  [--skip ENTRY]... [--skip-from FILE]...
 #                  [--batch-plan FILE] [--help]
-# Default: --dry-run. `--tier scan` is read-only (scan.sh per repo): it writes no
-# plan, and --apply / --batch-plan with it are usage errors.
+# --batch-plan FILE also works with --dry-run: it fixes the plan path (default: a
+# dir under the per-user state dir). Default: --dry-run. `--tier scan` is read-only
+# (scan.sh per repo): it writes no plan, and --apply / --batch-plan with it are
+# usage errors.
 #
 # Exit: 0 ran to completion (skips/blocks are normal outcomes);
 #       1 one or more repos failed mid-apply (a child rm failure, or a structurally
@@ -65,9 +67,10 @@ git-tree-reset-batch.sh):
   git     prune/gc each unique shared object store once (git-prune.sh)
   all     build + git per the single-repo `all` tier (no branch audit, no tree)
 
-Repo sources (combine freely; deduped by canonical toplevel, then by origin URL:
-the first clone that is not skip-listed is kept, each other is `skipped duplicate
-of <path>`):
+Repo sources (combine freely; deduped by canonical toplevel. With --fleet, also
+by origin URL: the first clone that is not skip-listed is kept, each other is
+`skipped duplicate of <path>`. Without --fleet, two clones of one origin are both
+kept):
   --repo DIR...      one or more repositories (repeatable). Consumes every
                      consecutive non-flag path, so a shell glob (--repo
                      ~/repos/*) is ingested whole.
@@ -75,18 +78,24 @@ of <path>`):
                      `ghq list -p` output is ingested). Backslash paths are
                      normalized. Repeatable.
   --fleet            every `ghq list -p` repo (when ghq resolves) plus the chezmoi
-                     source repo (when chezmoi resolves and its source is a git repo).
+                     source repo (when chezmoi resolves and its source is a git repo),
+                     and it dedupes clones of one origin URL across the whole set.
 
 Skip list (separator-agnostic; entry = absolute path, owner/repo, or repo):
   --skip ENTRY       skip a repo (repeatable).
   --skip-from FILE   newline-delimited skip entries.
 
 Gate:
-  --dry-run          write a batch plan; print per-repo Outcome/Reason, a
-                     `BatchPlan: <path>` line, and `Summary: repos=N planned=P
-                     bytes=K` (git/all append gitdirs=G git_bytes=B; all also
-                     appends caches_bytes=C build_bytes=D). The git tier counts
-                     loose objects, garbage and prunable worktrees. NEVER mutates.
+  --dry-run          write a batch plan; print per-repo Outcome/Reason (a repo
+                     with nothing to remove reports `nothing-to-do`), a
+                     `Repo | Outcome | Paths | Bytes` table, a `BatchPlan: <path>`
+                     line, and `Summary: repos=N planned=P bytes=K` (git/all
+                     append gitdirs=G git_bytes=B; all also appends
+                     caches_bytes=C build_bytes=D). The git tier counts loose
+                     objects, garbage and prunable worktrees. NEVER mutates.
+  --batch-plan FILE  with --dry-run, write the plan to FILE (a stable path)
+                     instead of a directory under ${XDG_STATE_HOME:-$HOME/.local/state}/
+                     repo-hygiene/ (never /tmp).
   --apply --batch-plan P
                      apply the gated plan P from a prior dry-run. Required: apply
                      without --batch-plan is a usage error (the gate is mandatory).
@@ -111,6 +120,15 @@ DRY_RUN=1
 APPLY_GIVEN=0
 BATCH_PLAN_ARG=""
 REPO_INPUTS=()
+# Default plan location: a per-user state dir, never /tmp (the guardrails
+# block-windows-drive-tmp hook blocks it on Windows) and never inside a repo
+# (.work/ is ignored only by some repos' own convention, so a plan there dirties
+# the working tree).
+PLAN_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene"
+# Clone dedupe by origin URL is part of --fleet only: --repo and --repos-from are an
+# explicit selection, and two clones of one origin each hold their own working-tree
+# caches, build output and object store.
+FLEET=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -145,7 +163,10 @@ while [[ $# -gt 0 ]]; do
     batch_read_lines_into REPO_INPUTS "$2" || fail_usage "file not found: $2"
     shift
     ;;
-  --fleet) batch_discover_fleet REPO_INPUTS ;;
+  --fleet)
+    FLEET=1
+    batch_discover_fleet REPO_INPUTS
+    ;;
   --skip)
     [[ $# -ge 2 ]] || fail_usage "--skip requires an entry"
     BATCH_SKIP_INPUTS+=("$2")
@@ -245,7 +266,7 @@ summary_field() { sed -n "s/.*$1=\([0-9]*\).*/\1/p" <<<"$2"; }
 if [[ "$TIER" == scan ]]; then
   [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
   batch_resolve_repos "${REPO_INPUTS[@]}"
-  batch_dedupe_clones
+  if [[ "$FLEET" -eq 1 ]]; then batch_dedupe_clones; fi
   batch_reset_skip_hits
 
   SKIPPED=${#BATCH_DUPS[@]}
@@ -445,6 +466,14 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
     printf 'Summary: removed=%s failed=%s bytes=%s\n' "$REMOVED" "$FAILED" "$BYTES"
   fi
   [[ "$FAILED" -eq 0 ]] || exit 1
+  # The plan and its manifests are spent once every record applied. Only a plan the
+  # dry-run put in the default location is removed: an explicit --batch-plan path is
+  # the caller's. rmdir removes the directory only when nothing else is in it.
+  plan_dir="$(cd "$(dirname "$BATCH_PLAN_ARG")" && pwd -P)"
+  if [[ "$(dirname "$plan_dir")" == "$(cd "$PLAN_ROOT" 2>/dev/null && pwd -P)" && "$(basename "$plan_dir")" == clean-batch.?????? ]]; then
+    rm -f "$BATCH_PLAN_ARG" "$plan_dir"/*.manifest
+    rmdir "$plan_dir" 2>/dev/null
+  fi
   exit 0
 fi
 
@@ -454,7 +483,7 @@ fi
 [[ ${#REPO_INPUTS[@]} -gt 0 ]] || fail_usage "no repos given (use --repo, --repos-from and/or --fleet)"
 
 batch_resolve_repos "${REPO_INPUTS[@]}"
-batch_dedupe_clones
+if [[ "$FLEET" -eq 1 ]]; then batch_dedupe_clones; fi
 batch_reset_gitdirs
 
 # Batch plan + per-repo manifests live in one dir so they bundle and clean up
@@ -463,10 +492,6 @@ if [[ -n "$BATCH_PLAN_ARG" ]]; then
   PLAN="$BATCH_PLAN_ARG"
   PLAN_DIR="$(dirname "$PLAN")"
 else
-  # A per-user state dir, never /tmp (the guardrails block-windows-drive-tmp hook
-  # blocks it on Windows) and never inside a repo (.work/ is ignored only by some
-  # repos' own convention, so a plan there dirties the working tree).
-  PLAN_ROOT="${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene"
   mkdir -p "$PLAN_ROOT" 2>/dev/null || fail_usage "cannot create batch-plan directory: $PLAN_ROOT"
   PLAN_DIR="$(mktemp -d "$PLAN_ROOT/clean-batch.XXXXXX" 2>/dev/null)" || fail_usage "cannot create batch-plan directory under: $PLAN_ROOT"
   PLAN="$PLAN_DIR/plan"
@@ -498,6 +523,17 @@ BUILD_BYTES=0
 GIT_BYTES=0
 SKIPPED=${#BATCH_DUPS[@]}
 BLOCKED=0
+ROW_TOPS=()
+ROW_OUTCOMES=()
+ROW_PATHS=()
+ROW_BYTES=()
+# add_row <top> <outcome> <paths> <bytes>: one summary-table row per repo.
+add_row() {
+  ROW_TOPS+=("$1")
+  ROW_OUTCOMES+=("$2")
+  ROW_PATHS+=("$3")
+  ROW_BYTES+=("$4")
+}
 
 printf 'Fleet Clean (dry-run)\n'
 printf 'Tier: %s\n' "$TIER"
@@ -552,11 +588,15 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   # 1. Skip list (separator-agnostic).
   if batch_skip_match "$key"; then
     batch_emit "$top" skipped "skip-list ($BATCH_SKIP_MATCHED)"
+    add_row "$top" skipped 0 0
     SKIPPED=$((SKIPPED + 1))
     continue
   fi
 
   reason_parts=()
+  planned=0
+  bytes=0
+  new_gitdir=0
 
   # 2. Manifest tier (caches/build/all): run the child dry-run, capture its
   #    manifest + planned bytes, record a REPO plan line.
@@ -574,6 +614,7 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     if [[ "$rc" -ne 0 ]]; then
       batch_emit "$top" blocked "$tok dry-run failed (child exit $rc — not planned)"
       printf '%s\n' "$out" >&2
+      add_row "$top" blocked 0 0
       BLOCKED=$((BLOCKED + 1))
       continue
     fi
@@ -599,9 +640,12 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   #    re-run over the live siblings picks a new representative). See clean-batch.md.
   if tier_has_git; then
     if batch_add_gitdir "$top"; then
+      new_gitdir=1
       k="${BATCH_GITDIR_KEYS[${#BATCH_GITDIR_KEYS[@]} - 1]}"
       printf 'GITDIR\t%s\t%s\n' "$top" "$k" >>"$PLAN"
       read -r gpaths gbytes < <(git_plan_measure "$top")
+      planned=$((planned + gpaths))
+      bytes=$((bytes + gbytes))
       PLANNED=$((PLANNED + gpaths))
       PLAN_BYTES=$((PLAN_BYTES + gbytes))
       GIT_BYTES=$((GIT_BYTES + gbytes))
@@ -616,20 +660,34 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
     [[ -n "$reason" ]] && reason+="; "
     reason+="$rp"
   done
-  batch_emit "$top" would-clean "$reason"
+  # A manifest-tier repo with nothing planned that adds no new object store has
+  # nothing for apply to remove. A new store is a real prune/gc plan.
+  outcome=would-clean
+  if [[ "$planned" -eq 0 && "$bytes" -eq 0 && "$new_gitdir" -eq 0 ]]; then outcome=nothing-to-do; fi
+  batch_emit "$top" "$outcome" "$reason"
+  add_row "$top" "$outcome" "$planned" "$bytes"
 done
 
 batch_emit_dups
+for ((i = 0; i < ${#BATCH_DUPS[@]}; i++)); do
+  add_row "${BATCH_DUPS[$i]}" skipped 0 0
+done
 
 # Invalid inputs reported as blocked outcomes.
 for ((i = 0; i < ${#BATCH_INVALID[@]}; i++)); do
   batch_emit "${BATCH_INVALID[$i]}" blocked "${BATCH_INVALID_REASONS[$i]}"
+  add_row "${BATCH_INVALID[$i]}" blocked 0 0
   BLOCKED=$((BLOCKED + 1))
 done
 
 # Surface skip entries that matched nothing — a typo can never silently fail to
 # protect a repo.
 batch_report_unmatched_skips
+
+printf 'Repo | Outcome | Paths | Bytes\n'
+for ((i = 0; i < ${#ROW_TOPS[@]}; i++)); do
+  printf '%s | %s | %s | %s\n' "${ROW_TOPS[$i]}" "${ROW_OUTCOMES[$i]}" "${ROW_PATHS[$i]}" "$(clean_human_size "${ROW_BYTES[$i]}")"
+done
 
 printf 'BatchPlan: %s\n' "$PLAN"
 if tier_has_git; then

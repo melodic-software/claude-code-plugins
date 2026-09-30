@@ -7,6 +7,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.6.46] - 2026-09-29
+
+### Added
+
+- **`audit` carries a Boundary section for the bundled skill `explain-usage`.** When it resolves,
+  it explains where this session's tokens went after the fact; this skill keeps per-item startup
+  measurement and the before/after ledger.
+
 ## [0.6.45] - 2026-09-29
 
 ### Fixed

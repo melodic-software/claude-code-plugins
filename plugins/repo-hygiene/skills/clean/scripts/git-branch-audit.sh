@@ -4,7 +4,7 @@
 #
 # Output: PR-map status (PRCount, or PRDataUnavailable; PRDataTruncated when the
 # lookup hit its cap); then per branch Branch, Tip, Tier, Age days, PR, Unpushed,
-# Loss, Reason (plus Worktree, the checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
+# Loss, Reason, Family (plus Worktree, the checkout path, on a WORKTREE branch); then the LossBlock (LossBlock / LossBranch / LossCommit /
 # LossBlockEnd); then TipCapture (or TipCaptureError); Summary line. A missing
 # map is NOT the same as a repo with no PRs, and the two are distinguishable
 # here on purpose: PR state is what detects a squash merge, so without it a
@@ -38,7 +38,8 @@
 # BULK READS. Git is asked about the branches together, not one at a time: one
 # for-each-ref carries every branch's tip, upstream and ahead/behind summary, and
 # one ancestry pass each gives the commits absent from origin/<default> and the
-# LOSSY count above, the numbers `git rev-list --count` prints per branch. The
+# LOSSY count above, the numbers `git rev-list --count` prints per branch; one
+# more pass settles which merged-PR heads contain their branch's tip. The
 # git calls outside the LossCommit listings therefore do not grow with the branch
 # count. What stays per branch: the LossCommit listing (one `git log` per LOSSY
 # branch, since a shared walk can order commits differently when dates tie or
@@ -131,8 +132,10 @@ every clone. Deletion is never batched: run git-branch-delete.sh
 from inside the audited repo with that repo's capture.
 
 Leading: PRCount or PRDataUnavailable, optional PRDataTruncated.
-Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason; a WORKTREE
+Per branch: Branch, Tip, Tier, Age days, PR, Unpushed, Loss, Reason, Family; a WORKTREE
 branch adds `Worktree: <path>`, the worktree that has it checked out.
+Family: agent (agent-<hex>), claude (claude/*), plan (plan/*), stranded
+(stranded/*), pre-wipe (pre-wipe/*), or none. Information only; never a tier input.
 Tiers: PROTECTED, WORKTREE, SAFE, LIKELY-SAFE, LOSSY, REVIEW. LOSSY is a branch
 that is deletable but whose deletion loses commits present on no remote ref and
 no tag; its `Loss:` line carries the count. A loss that cannot be determined is
@@ -426,13 +429,63 @@ load_counts() {
     [[ -n "$oid" ]] && COUNT["$key:$oid"]="$n"
   done <<<"$out"
 }
-BULK_TIPS="" GONE_UPSTREAMS=""
+BULK_TIPS="" GONE_UPSTREAMS="" DRIFT_PAIRS=""
 for line in ${REF_RECORDS[@]+"${REF_RECORDS[@]}"}; do
   IFS=$REC_SEP read -r refname branch tip otype _ upfull _ track <<<"$line"
   bulk_record_ok "$refname" "$branch" "$otype" || continue
   BULK_TIPS+="$tip"$'\n'
   [[ -n "$upfull" && "$track" == "[gone]" ]] && GONE_UPSTREAMS+="$upfull"$'\n'
+  [[ "${PR_STATE[$branch]:-}" == MERGED && -n "${PR_REFOID[$branch]:-}" && "$tip" != "${PR_REFOID[$branch]}" ]] &&
+    DRIFT_PAIRS+="$tip ${PR_REFOID[$branch]}"$'\n'
 done
+
+# ANCESTOR[<tip>:<head>]=1|0 for every MERGED-PR branch whose tip differs from the
+# PR's headRefOid: is the tip an ancestor of the merged head (0 when the head
+# object is missing here). One cat-file finds the heads that are present and one
+# `rev-list --parents` lists the commits the tips and present heads reach; the
+# walk from each head answers `git merge-base --is-ancestor <tip> <head>`. A pass
+# that fails leaves the pair out, and the branch takes the per-branch commands.
+# ponytail: walks full history once and DFS per pair; bound it with --not if a
+# repository's history makes that slow.
+declare -A ANCESTOR=()
+load_ancestors() {
+  local pairs t h i graph out heads=() present=()
+  mapfile -t pairs <<<"${DRIFT_PAIRS%$'\n'}"
+  for i in "${!pairs[@]}"; do heads+=("${pairs[$i]#* }"); done
+  mapfile -t present < <(printf '%s\n' "${heads[@]}" | git -C "$REPO_ROOT" cat-file --batch-check 2>/dev/null | tr -d '\r')
+  [[ ${#present[@]} -eq ${#heads[@]} ]] || return 0
+  local ids="" ok=""
+  for i in "${!pairs[@]}"; do
+    if [[ "${present[$i]}" != *" commit "* ]]; then
+      ANCESTOR["${pairs[$i]% *}:${heads[$i]}"]=0
+      continue
+    fi
+    ok+="${pairs[$i]}"$'\n'
+    ids+="${pairs[$i]% *}"$'\n'"${heads[$i]}"$'\n'
+  done
+  [[ -n "$ok" ]] || return 0
+  graph="$(printf '%s' "$ids" | git -C "$REPO_ROOT" rev-list --parents --stdin 2>/dev/null)" || return 0
+  out="$(printf '%s--\n%s\n' "$ok" "$graph" | awk '
+    !mark && $0 == "--" { mark = 1; next }
+    !mark { n++; tip[n] = $1; head[n] = $2; next }
+    NF { parents[$1] = substr($0, length($1) + 2) }
+    END {
+      for (q = 1; q <= n; q++) {
+        found = 0; sp = 0; stack[sp++] = head[q]; seen[head[q]] = q
+        while (sp > 0 && !found) {
+          c = stack[--sp]
+          if (c == tip[q]) { found = 1; break }
+          k = split(parents[c], ps, " ")
+          for (i = 1; i <= k; i++) if (seen[ps[i]] != q) { seen[ps[i]] = q; stack[sp++] = ps[i] }
+        }
+        print tip[q], head[q], found
+      }
+    }')" || return 0
+  while read -r t h i; do
+    [[ -n "$i" ]] && ANCESTOR["$t:$h"]="$i"
+  done <<<"$out"
+}
+[[ -n "$DRIFT_PAIRS" ]] && load_ancestors
 if [[ $ORIGIN_DEFAULT -eq 1 ]]; then
   load_counts ahead "origin/${DEFAULT_BRANCH}"
   load_counts loss --remotes --tags
@@ -506,11 +559,25 @@ branch_loss_count() {
   fi
 }
 
+# branch_family <branch>: where the branch name says it came from. Information
+# only; no tier reads it.
+branch_family() {
+  case "$1" in
+  claude/*) printf claude ;;
+  plan/*) printf plan ;;
+  stranded/*) printf stranded ;;
+  pre-wipe/*) printf pre-wipe ;;
+  *)
+    if [[ "$1" =~ ^agent-[0-9a-f]+$ ]]; then printf agent; else printf none; fi
+    ;;
+  esac
+}
+
 classify_branch() {
   local branch="$1" age_days="$2" refname="$3" tip="$4" otype="$5" upfull="$6" upshort="$7" track="$8"
   local tier reason pr_line="none" local_tip bulk=0
   local upstream no_upstream=0 ahead_default="" unpushed_line ahead_up="" behind_up=""
-  local loss_line lost="" row
+  local loss_line lost="" row ancestor
 
   # The tip is the one fact that makes a deleted branch restorable, so it is
   # resolved first and reported for every branch regardless of verdict: a
@@ -564,9 +631,24 @@ classify_branch() {
     reason="checked out in worktree — clean up the worktree first"
   elif [[ "${PR_STATE[$branch]:-}" == "MERGED" ]]; then
     if [[ -n "${PR_REFOID[$branch]:-}" && -n "$local_tip" && "$local_tip" != "${PR_REFOID[$branch]}" ]]; then
-      tier="REVIEW"
-      reason="PR merged but branch has commits since merge"
       pr_line="#${PR_NUM[$branch]} MERGED (tip drift)"
+      # The tip differs from the merged head. When the head object is here and
+      # the tip is an ancestor of it, every local commit was in the merged PR.
+      if [[ $bulk -eq 1 && -n "${ANCESTOR["$local_tip:${PR_REFOID[$branch]}"]+x}" ]]; then
+        ancestor="${ANCESTOR["$local_tip:${PR_REFOID[$branch]}"]}"
+      elif git -C "$REPO_ROOT" rev-parse --verify --quiet "${PR_REFOID[$branch]}^{commit}" >/dev/null 2>&1 &&
+        git -C "$REPO_ROOT" merge-base --is-ancestor "$local_tip" "${PR_REFOID[$branch]}" 2>/dev/null; then
+        ancestor=1
+      else
+        ancestor=0
+      fi
+      if [[ $ancestor -eq 1 ]]; then
+        tier="SAFE"
+        reason="PR merged (tip is an ancestor of the merged head)"
+      else
+        tier="REVIEW"
+        reason="PR merged but branch has commits since merge"
+      fi
     else
       tier="SAFE"
       reason="PR merged"
@@ -685,6 +767,7 @@ classify_branch() {
   printf 'Unpushed: %s\n' "$unpushed_line"
   printf 'Loss: %s\n' "$loss_line"
   printf 'Reason: %s\n' "$reason"
+  printf 'Family: %s\n' "$(branch_family "$branch")"
   [[ "$tier" == WORKTREE ]] && printf 'Worktree: %s\n' "${WORKTREE_PATH[$branch]}"
 
   if [[ -n "$local_tip" ]]; then

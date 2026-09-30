@@ -52,13 +52,13 @@ block per repository. Linked worktrees of one repository are audited once, a
 failing repo is reported without stopping the rest, and each repo writes its own
 branch-tip capture (`--capture-file` is refused with more than one repo).
 Deletion is not batched: run the delete from inside the audited repo, with that
-repo's `TipCapture:` path. Add `--read-only` to write no capture, or `--remote`
-to audit each repo's live `origin` branches against merged PRs (a tip that
-differs from its merged PR's head is `MERGED-DRIFT`).
+repo's `TipCapture:` path. A branch audit across a fleet of repositories is
+`/repo-fleet-hygiene:audit`. Per repository, add `--read-only` to write no
+capture, or `--remote` to audit the live `origin` branches against merged PRs (a
+tip that differs from its merged PR's head is `MERGED-DRIFT`).
 
 ```shell
 ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh --repos-from -
-ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh --repos-from - --remote
 ```
 
 ## Safety model

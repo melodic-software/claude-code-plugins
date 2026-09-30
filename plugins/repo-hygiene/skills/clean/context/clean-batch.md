@@ -29,6 +29,9 @@ per-repo outcome summary. The read-only `scan` tier runs across the same set wit
   audits do take this repo selection: `git-branch-audit.sh` and
   `git-stash-audit.sh` accept `--repo`, `--repos-from`, `--skip`, `--skip-from`
   and print a `Repo: <path>` block per repo; delete from inside the audited repo.
+  A branch or worktree audit across many repositories, including one outside the ghq
+  root, is `/repo-fleet-hygiene:audit` (`--root`, `--repo`), which hands per-repo
+  cleanup back here.
 - The actual removal / prune: delegated to the unchanged single-repo child. The
   batch layer runs no destructive command itself.
 
@@ -43,7 +46,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh \
   [--batch-plan FILE]
 ```
 
-Default: `--dry-run`. Output labels and full flag help: script `--help`.
+Default: `--dry-run`. `--batch-plan FILE` is also accepted with `--dry-run`, to write the
+plan to a stable path instead of the default state directory (below). Output labels and full flag help: script `--help`.
 
 ### Tiers
 
@@ -64,7 +68,7 @@ A `ghq list`, a shell glob, and an explicit list all reduce to a path list:
 | explicit list | `--repo DIR` (repeatable) |
 | shell glob | the shell expands it into repeated `--repo DIR` |
 | `ghq list` | `ghq list -p \| … --repos-from -` (or `--repos-from FILE`) |
-| fleet discovery | `--fleet`: every `ghq list -p` repo when `ghq` resolves, plus `chezmoi source-path` when `chezmoi` resolves and that path is in a git repo. A missing tool adds nothing; no repos at all is a usage error. |
+| fleet discovery | `--fleet`: every `ghq list -p` repo when `ghq` resolves, plus `chezmoi source-path` when `chezmoi` resolves and that path is in a git repo. A missing tool adds nothing; no repos at all is a usage error. `--fleet` also dedupes clones (below). |
 
 Backslash paths from `ghq list -p` (`<drive>:\repos\...`) are normalized once to the
 git-friendly `<drive>:/repos/...` form; inputs are resolved to their canonical toplevel
@@ -72,14 +76,16 @@ git-friendly `<drive>:/repos/...` form; inputs are resolved to their canonical t
 processed once. A non-directory or non-git input is reported as a `blocked`
 outcome, never silently dropped.
 
-Clones are deduped by origin remote, from every source including `--repo` and
-`--repos-from`. The URL is compared with the scheme, `user@` and a trailing `.git` or `/`
-removed, the host lowercased (on `github.com` the owner and repo too), and scp form
-(`git@host:o/r`) read as `host/o/r`. The first
-clone that is not skip-listed stays; each other is one `skipped duplicate of <path>` record,
-counted in `skipped=` and not in `repos=`. A skip-listed clone is neither kept nor a
-duplicate, so skipping one clone never drops its sibling. Linked worktrees of one repository are not clones and are left to the
-git tier's shared-object-store dedup. A repo with no `origin` is never deduped.
+`--fleet` dedupes clones by origin remote across the whole set; `--repo` and
+`--repos-from` alone never do. Two clones of one remote each hold their own working-tree
+caches, build output and object store, so a repo you name is always planned. To clean every
+clone, leave `--fleet` off. With `--fleet`, the URL is compared with the scheme, `user@` and a
+trailing `.git` or `/` removed, the host lowercased (on `github.com` the owner and repo too),
+and scp form (`git@host:o/r`) read as `host/o/r`. The first clone that is not skip-listed
+stays; each other is one `skipped duplicate of <path>` record, counted in `skipped=` and not
+in `repos=`. A skip-listed clone is neither kept nor a duplicate, so skipping one clone never
+drops its sibling. Linked worktrees of one repository are not clones and are left to the git
+tier's shared-object-store dedup. A repo with no `origin` is never deduped.
 
 ### Skip list (separator-agnostic)
 
@@ -124,9 +130,11 @@ Default location: a fresh `clean-batch.XXXXXX` directory under
 `${XDG_STATE_HOME:-$HOME/.local/state}/repo-hygiene/`, wherever the command runs. It is
 never under `/tmp`, so it also works where the guardrails `block-windows-drive-tmp` hook
 rejects a temp-dir path (Windows), and never inside a repo: `.work/` is ignored only by
-some repos' own convention, so a plan there would leave the working tree dirty. The
-directory is not removed after apply; delete it once the apply has finished.
-`--batch-plan FILE` overrides it: pass a path outside `/tmp` there too.
+some repos' own convention, so a plan there would leave the working tree dirty. An apply
+that finishes with `failed=0` removes the plan, its manifests and that directory. A
+dry-run that is never applied, and an apply that fails, leave the directory; `BatchPlan:`
+names it. `--batch-plan FILE` overrides the location and is never removed: pass a path
+outside `/tmp` there too.
 
 Apply does not re-run preflight, so the preflight facts (`RUNTIME_PROCS`,
 `IDE_OPEN`, `RECENT_BUILD`) are as of the dry-run; after a long gap run
@@ -159,9 +167,11 @@ reported as a store that vanished after the dry-run.
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`
-(dry-run) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
+(dry-run) / `nothing-to-do` (dry-run: a repo with no paths to
+remove and no new shared object store; its plan record still applies as a no-op) / `scanned` (scan tier) / `cleaned` (apply, selective tiers) / `pruned` (apply, git tier) /
 `skipped` (skip-list, or vanished after the dry-run) / `blocked` (non-git input) /
-`failed` (a child `rm` failed). A closing `Summary:` totals the batch and exits
+`failed` (a child `rm` failed). A dry-run also prints a `Repo | Outcome | Paths | Bytes` table, one row per repo
+(skipped and blocked repos show 0 and 0), before `BatchPlan:`. A closing `Summary:` totals the batch and exits
 non-zero when any repo failed. After apply, report the `failed`, `blocked`, and
 `skipped` repos with their reasons before the totals: those need the user.
 

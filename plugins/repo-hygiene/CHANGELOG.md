@@ -3,21 +3,52 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.0] - 2026-09-29
+## [0.14.0] - 2026-09-29
 
 ### Added
 
-- **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL (the first that is not skip-listed) so duplicate clones are reported once.
-- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. `--read-only` writes no tip capture. In a fleet run, a second clone of one `origin` is reported as a duplicate.
+- **`clean-batch.sh --fleet` discovers the repositories to clean (#5234).** It reads `ghq list -p`, adds the chezmoi source, and keeps one clone per `origin` URL (the first that is not skip-listed), so a duplicate clone is reported once as `skipped duplicate of <path>`. Only `--fleet` dedupes clones: `--repo` and `--repos-from` never drop a repo, so two clones named there are both cleaned.
+- **`git-branch-audit.sh --remote` audits live `origin` branches against merged PRs (#5234).** A branch whose tip differs from its merged PR's head is `MERGED-DRIFT`. It writes no tip capture. In a multi-repo run, a second clone of one `origin` is reported as a duplicate.
+- **`git-branch-audit.sh --read-only` writes no tip capture (#5234).** It prints `TipCaptureSkipped:` where it would print `TipCapture:`, and `git-branch-delete.sh` refuses without a capture.
 
 ### Changed
 
-- **`clean-batch.sh` plans default under a per-user state directory, not `/tmp` (#5234),** so Windows guardrail hooks no longer block the write and no repo gains an untracked directory.
-- **The git-tier dry-run reports real planned counts and per-tier bytes (#5234).**
+- **`clean-batch.sh` plans default under a per-user state directory, not a temporary directory (#5234),** so Windows guardrail hooks no longer block the write and no repo gains an untracked directory. This replaces the 0.12.0 default. A successful `--apply` removes the default-location plan it read.
+- **The git-tier dry-run reports real planned counts and per-tier bytes (#5234).** `Summary:` gains `git_bytes=`, and the `all` tier also gains `caches_bytes=` and `build_bytes=`.
 
 ### Fixed
 
 - **The `clean` repository-context block reports "not a repository" from a non-repo cwd instead of skipping the block (#5234).**
+
+## [0.13.0] - 2026-09-29
+
+### Added
+
+- **`git-branch-audit.sh` reports a merged-PR tip that is an ancestor of the merged head as `SAFE` (5a)**
+  ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)). When a branch's PR merged
+  but the local tip differs from `headRefOid`, and the head commit exists locally and contains the tip,
+  every local commit was in the merged PR. One batched ancestry pass answers it for all such branches; a
+  head commit absent from the clone stays `REVIEW`.
+- **Each branch record carries a `Family:` line** (`agent`, `claude`, `plan`, `stranded`, `pre-wipe`, or
+  `none`), read from the branch name. It is information only and changes no tier.
+
+## [0.12.0] - 2026-09-29
+
+### Added
+
+- **`clean-batch.sh` dry-run reports `Outcome: nothing-to-do` for a repo with nothing to reclaim.**
+  A repo that plans no paths and adds no new git object store no longer
+  reads as `would-clean`. `Summary:` counts are unchanged.
+- **`clean-batch.sh` dry-run prints a `Repo | Outcome | Paths | Bytes` table** before `BatchPlan:`
+  and `Summary:`, one row per repo including skipped and blocked ones.
+
+### Changed
+
+- **`--batch-plan FILE` is documented for `--dry-run` as well as `--apply`.** It picks a stable
+  plan path; the default is a temporary directory.
+- **Fleet branch audits route to `/repo-fleet-hygiene:audit`.** `clean-batch.md` and `SKILL.md`
+  say so, and the `allowed-tools` comment notes the `TipCapture` file `git-branch-audit.sh`
+  writes under the git common dir.
 
 ## [0.11.2] - 2026-09-29
 

@@ -112,6 +112,33 @@ assert_eq "an artifact from another branch is refused" "2" "$(
   printf '%s' "$?"
 )"
 
+# --- an empty root cannot wipe a plan that holds findings ---------------------
+
+root="$(new_fixture)"
+work="$TEST_TMPDIR/w-empty"
+audit "$root" "$work" >/dev/null
+printf 'SCANNED\t0\tdocs\n' >"$work/empty-inv.tsv"
+: >"$work/empty-sweep.tsv"
+before="$(cksum <"$work/plan.md")"
+err="$(bash "$SUT" --root "$root" --inventory "$work/empty-inv.tsv" --sweep "$work/empty-sweep.tsv" --out "$work/plan.md" 2>&1 >/dev/null)"
+assert_eq "scanned 0 over a plan with findings exits 3" "3" "$(
+  bash "$SUT" --root "$root" --inventory "$work/empty-inv.tsv" --sweep "$work/empty-sweep.tsv" --out "$work/plan.md" >/dev/null 2>&1
+  printf '%s' "$?"
+)"
+assert_contains "the refusal names the findings it would drop" "$err" "holds 3 finding(s)"
+assert_contains "and the way out" "$err" "--replace"
+assert_eq "the existing plan is untouched" "$before" "$(cksum <"$work/plan.md")"
+bash "$SUT" --root "$root" --inventory "$work/empty-inv.tsv" --sweep "$work/empty-sweep.tsv" \
+  --out "$work/plan.md" --replace >/dev/null
+assert_contains "--replace writes the empty plan" "$(cat "$work/plan.md")" "findings: 0"
+bash "$SUT" --root "$root" --inventory "$work/empty-inv.tsv" --sweep "$work/empty-sweep.tsv" \
+  --out "$work/plan.md" >/dev/null
+assert_eq "scanned 0 over a plan with findings: 0 still writes (exit 0)" "0" "$?"
+bash "$SUT" --root "$root" --inventory "$work/empty-inv.tsv" --sweep "$work/empty-sweep.tsv" \
+  --out "$work/fresh.md" >/dev/null
+assert_contains "scanned 0 with no existing plan writes findings: 0" "$(cat "$work/fresh.md")" "findings: 0"
+assert_contains "and records files_scanned: 0" "$(cat "$work/fresh.md")" "files_scanned: 0"
+
 # --- a collision refuses the whole plan ---------------------------------------
 
 root="$(new_fixture collision)"

@@ -153,6 +153,9 @@ that line before editing, since it may be an illustrative example path rather th
    If `jq` is absent the script exits 2. Report that the quality lint was skipped for that
    reason; the schema verdict from steps 3-4 still stands.
 
+`validate-evals` checks structure and lint only. It cannot tell whether a claim needs a no-skill
+baseline arm: `/evals:design` says when one is required, and `/evals:plugin-eval` runs it.
+
 ## Action: listing-budget
 
 1. Resolve the root(s): explicit `<root> ...` arguments if given; otherwise the same

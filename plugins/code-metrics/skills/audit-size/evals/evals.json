@@ -30,7 +30,7 @@
       "id": 3,
       "name": "json-feeds-a-comparison-through-the-gated-pointer",
       "prompt": "/code-metrics:audit-size --json --all src/ so I can compare it after the refactor",
-      "expected_output": "Produces the code-metrics/v1 JSON document, keeps it for the comparison, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explains the manual comparison and that an empty status is inconclusive.",
+      "expected_output": "Produces the code-metrics/v2 JSON document, keeps it for the comparison, and points at /verification:measure metrics only if the verification plugin is installed, otherwise explains the manual comparison and that an empty status is inconclusive.",
       "files": [],
       "expectations": [
         "Runs audit-size.sh with --json and keeps the document for the later comparison",

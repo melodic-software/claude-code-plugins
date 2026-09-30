@@ -517,21 +517,43 @@ assert_contains "duplicate counted in skipped" "$out" "skipped=1 blocked=0"
 dup_hits="$(grep -c 'skipped duplicate of' <<<"$out" || true)"
 assert_exit "duplicate reported exactly once" 1 "$dup_hits"
 
-# Dedupe also covers --repo, and the scan tier.
-rc=0
-out="$(bash "$BATCH" --tier scan --repo "$FL_CLONE" "$FL_A" 2>/dev/null)" || rc=$?
-assert_exit "scan with two clones exits 0" 0 "$rc"
-assert_contains "scan keeps the first named clone" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
-assert_contains "scan reports the second as a duplicate" "$out" "skipped duplicate of $FL_CLONE"
+assert_contains "the duplicate clone gets a table row" "$out" "$FL_CLONE | skipped | 0 | "
 
-# A skip-listed clone never shadows its sibling: the skipped one is reported
-# skipped, the other still runs and is not a duplicate of it.
-out="$(bash "$BATCH" --tier caches --repo "$FL_A" "$FL_CLONE" --skip "$FL_A" 2>/dev/null)"
+# --fleet dedupes the scan tier too.
+rc=0
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --fleet 2>/dev/null)" || rc=$?
+assert_exit "scan --fleet exits 0" 0 "$rc"
+assert_contains "scan --fleet reports the second clone as a duplicate" "$out" "skipped duplicate of $FL_A"
+
+# --repo and --repos-from are an explicit selection: two clones of one origin are
+# both planned, in the caches tier and in the scan tier, with no duplicate record.
+rc=0
+out="$(bash "$BATCH" --tier caches --repo "$FL_A" "$FL_CLONE" 2>/dev/null)" || rc=$?
+assert_exit "--repo with two clones exits 0" 0 "$rc"
+assert_contains "--repo plans the first clone" "$out" "Repo: $FL_A"$'\n'"Outcome: would-clean"
+assert_contains "--repo plans the second clone" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: would-clean"
+assert_contains "--repo counts both clones" "$out" "Summary: repos=2 planned=2 "
+assert_contains "--repo skips nothing" "$out" "skipped=0 blocked=0"
+assert_not_contains "--repo reports no duplicate" "$out" "skipped duplicate of"
+out="$(printf '%s\n' "$FL_A" "$FL_CLONE" | bash "$BATCH" --tier caches --repos-from - 2>/dev/null)"
+assert_contains "--repos-from plans both clones" "$out" "Summary: repos=2 planned=2 "
+assert_not_contains "--repos-from reports no duplicate" "$out" "skipped duplicate of"
+out="$(bash "$BATCH" --tier scan --repo "$FL_CLONE" "$FL_A" 2>/dev/null)"
+assert_contains "scan --repo scans the first clone" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
+assert_contains "scan --repo scans the second clone" "$out" "Repo: $FL_A"$'\n'"Outcome: scanned"
+assert_not_contains "scan --repo reports no duplicate" "$out" "skipped duplicate of"
+out="$(bash "$BATCH" --tier git --repo "$FL_A" "$FL_CLONE" 2>/dev/null)"
+assert_contains "git --repo plans both clones' object stores" "$out" "gitdirs=2 "
+assert_not_contains "git --repo reports no duplicate" "$out" "skipped duplicate of"
+
+# A skip-listed clone never shadows its sibling under --fleet: the skipped one is
+# reported skipped, the other still runs and is not a duplicate of it.
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet --skip "$FL_A" 2>/dev/null)"
 assert_contains "skipped clone is reported skipped" "$out" "Repo: $FL_A"$'\n'"Outcome: skipped"$'\n'"Reason: skip-list"
 assert_contains "the sibling of a skipped clone is still planned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: would-clean"
 assert_not_contains "the sibling of a skipped clone is not a duplicate" "$out" "skipped duplicate of"
-assert_contains "one repo planned, one skipped" "$out" "Summary: repos=2 planned=1 "
-out="$(bash "$BATCH" --tier scan --repo "$FL_A" "$FL_CLONE" --skip "$FL_A" 2>/dev/null)"
+assert_contains "three repos planned, one skipped" "$out" "Summary: repos=4 planned=3 "
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier scan --fleet --skip "$FL_A" 2>/dev/null)"
 assert_contains "scan: the sibling of a skipped clone is still scanned" "$out" "Repo: $FL_CLONE"$'\n'"Outcome: scanned"
 assert_not_contains "scan: the sibling of a skipped clone is not a duplicate" "$out" "skipped duplicate of"
 # Skipping the ghq clone by path leaves the chezmoi source of the same origin to run.
@@ -556,6 +578,60 @@ mkdir -p "$NOGIT"
 printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$NOGIT" >"$SHIM/chezmoi"
 out="$(PATH="$SHIM:$PATH" bash "$BATCH" --tier caches --fleet 2>/dev/null)"
 assert_not_contains "non-git chezmoi source is not a fleet entry" "$out" "$NOGIT"
+
+# --- nothing-to-do outcome, summary table, --batch-plan on dry-run ---
+mkclean() {
+  git init "$1" >/dev/null 2>&1
+  git -C "$1" config user.email t@example.com
+  git -C "$1" config user.name Test
+  git -C "$1" commit --allow-empty -m init >/dev/null 2>&1
+}
+CLEAN="$TEST_TMPDIR/cleanrepo"
+mkclean "$CLEAN"
+out="$(bash "$BATCH" --tier caches --repo "$CLEAN" 2>/dev/null)"
+assert_contains "clean repo reports nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_not_contains "clean repo is not would-clean" "$out" "Outcome: would-clean"
+assert_contains "clean repo summary keeps counting" "$out" "Summary: repos=1 planned=0"
+
+DIRTY="$(mkrepo mixdirty)"
+CLEAN2="$TEST_TMPDIR/cleanrepo2"
+mkclean "$CLEAN2"
+out="$(bash "$BATCH" --tier caches --repo "$DIRTY" "$CLEAN2" 2>/dev/null)"
+assert_contains "mixed fleet has would-clean" "$out" "Outcome: would-clean"
+assert_contains "mixed fleet has nothing-to-do" "$out" "Outcome: nothing-to-do"
+assert_contains "summary table header" "$out" "Repo | Outcome | Paths | Bytes"
+assert_contains "table row for the dirty repo" "$out" "$DIRTY | would-clean | "
+assert_contains "table row for the clean repo" "$out" "$CLEAN2 | nothing-to-do | 0 | "
+
+GT="$(mkrepo gitnew)"
+git -C "$GT" worktree add "$TEST_TMPDIR/gitnew-wt" -b wt2 >/dev/null 2>&1
+out="$(bash "$BATCH" --tier git --repo "$GT" "$TEST_TMPDIR/gitnew-wt" 2>/dev/null)"
+assert_contains "git tier new store is would-clean" "$out" "$GT | would-clean | "
+assert_contains "git tier sibling worktree is deduped" "$out" "deduped with a sibling worktree"
+assert_not_contains "git tier never nothing-to-do for a new store" "$out" "$GT | nothing-to-do"
+assert_contains "git tier deduped worktree is nothing-to-do" "$out" "$TEST_TMPDIR/gitnew-wt | nothing-to-do | "
+assert_not_contains "git tier row carries the measured count, not 0" "$out" "$GT | would-clean | 0 | "
+
+# A clean apply removes a default-location plan and its directory; an explicit
+# --batch-plan is the caller's and stays.
+out="$(bash "$BATCH" --tier caches --repo "$(mkrepo applyclean)" 2>/dev/null)"
+DP="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+assert_file_exists "default plan is written by the dry-run" "$DP"
+out="$(bash "$BATCH" --tier caches --apply --batch-plan "$DP" 2>&1)"
+assert_contains "the apply the default plan feeds succeeds" "$out" "Summary: removed=1 failed=0"
+assert_file_absent "a clean apply removes the default plan" "$DP"
+if [[ ! -d "$(dirname "$DP")" ]]; then
+  pass "a clean apply removes the default plan directory"
+else
+  fail "a clean apply removes the default plan directory" "absent" "$(ls -A "$(dirname "$DP")")"
+fi
+KEEP="$TEST_TMPDIR/keep/plan"
+bash "$BATCH" --tier caches --repo "$(mkrepo applykeep)" --batch-plan "$KEEP" >/dev/null 2>&1
+bash "$BATCH" --tier caches --apply --batch-plan "$KEEP" >/dev/null 2>&1
+assert_file_exists "an explicit --batch-plan survives a clean apply" "$KEEP"
+
+help_out="$(bash "$BATCH" --help)"
+assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "clean-batch.test.sh: all passed"
