@@ -93,14 +93,17 @@ LINK_PRODUCERS = (
 VERSION_RE = re.compile(r"^v?(\d+(?:\.\d+)*)(?:([-+])[\w.+-]+)?$")
 # Days after an update or uninstall that Claude Code removes an orphaned plugin
 # version, counted from its `.orphaned_at` marker. Basis:
-# https://code.claude.com/docs/en/plugins/loading.md ("Cleanup of previous versions").
+# https://code.claude.com/docs/en/plugins/loading.md ("Cleanup of previous versions"),
+# verified 2026-09-30; recheck when that section or a Claude Code changelog entry
+# changes the window.
 ORPHAN_SWEEP_DAYS = 14
 _TOKEN = r"[\w.@/+-]+"
-_CATEGORY_PHRASE = re.compile(
-    rf"(?:(?:tool|os|system|app|vendor)[- ]?(?:managed|owned)"
-    rf"|(?:managed|owned) by (?:the )?{_TOKEN}(?: {_TOKEN}){{0,2}})"
+_NAMED_TOOL = re.compile(
+    rf"(?:managed|owned) by (?:the )?({_TOKEN}(?: {_TOKEN}){{0,2}})"
 )
-_MANAGED_BY = re.compile(r"managed by ")
+_CATEGORY_PHRASE = re.compile(
+    rf"(?:(?:tool|os|system|app|vendor)[- ]?(?:managed|owned)|{_NAMED_TOOL.pattern})"
+)
 
 
 def _iso(epoch: float) -> str:
@@ -554,8 +557,12 @@ def decode_project(encoded: str, fs_root: Path = Path("/")) -> str | None:
     return None if found is None else "/" + found.relative_to(fs_root).as_posix()
 
 
-# Claude Code caps an encoded directory name near this length and appends a hash,
-# after which the source path cannot be recovered from the name.
+# Claude Code keeps the first 200 characters of an encoded project directory name
+# and appends `-<hash>`, after which the source path cannot be recovered from the
+# name. Basis: the path-sanitizing function in the Claude Code 2.1.285 binary
+# (non-alphanumerics become `-`, names over 200 characters are cut and hashed),
+# verified 2026-09-30; recheck when a Claude Code changelog entry mentions
+# project directory naming or a release changes the encoding.
 PROJECT_NAME_CAP = 200
 
 
@@ -780,14 +787,16 @@ def _category_only(reason: str) -> bool:
 
 
 def _shows_reference(reason: str, evidence: object) -> bool:
-    if not (
-        isinstance(evidence, dict)
-        and str(evidence.get("tool") or "").strip()
-        and str(evidence.get("references") or "").strip()
-    ):
+    """True when the reason names a tool ("managed by <tool>") that evidence shows references the entry."""
+    if not isinstance(evidence, dict):
         return False
-    return not _MANAGED_BY.search(reason.lower()) or (
-        str(evidence["tool"]).strip().lower() in reason.lower()
+    tool = str(evidence.get("tool") or "").strip().lower()
+    return bool(
+        tool
+        and str(evidence.get("references") or "").strip()
+        and any(
+            tool in m.group(1).split() for m in _NAMED_TOOL.finditer(reason.lower())
+        )
     )
 
 
@@ -795,9 +804,11 @@ def validate_report(rows: Iterable[dict[str, Any]]) -> list[str]:
     """Failures of a report; an empty list means it passes.
 
     Every row needs the schema columns except the optional ``evidence`` and a
-    valid disposition. A KEEP row fails when its reason is empty or only a
-    category phrase ("tool-managed", "OS-owned", "managed by <tool>") unless its
-    evidence shows the named tool still references the entry.
+    valid disposition. A KEEP row fails when its reason is empty, which names no
+    tool, so no evidence can stand in for it. It also fails when its reason is
+    only a category phrase ("tool-managed", "OS-owned", "managed by <tool>"),
+    unless the phrase names a tool ("managed by <tool>") and the row's evidence
+    shows that tool still references the entry.
     """
     failures = []
     for index, row in enumerate(rows):
@@ -814,10 +825,13 @@ def validate_report(rows: Iterable[dict[str, Any]]) -> list[str]:
         if row["disposition"] != "KEEP":
             continue
         reason = str(row["reason"] or "")
-        if _category_only(reason) and not _shows_reference(reason, row.get("evidence")):
+        if not reason.strip():
+            failures.append(f"{label}: KEEP reason is empty")
+        elif _category_only(reason) and not _shows_reference(
+            reason, row.get("evidence")
+        ):
             failures.append(
-                f"{label}: KEEP reason {reason!r} is "
-                f"{'empty' if not reason.strip() else 'only a category phrase'} "
+                f"{label}: KEEP reason {reason!r} is only a category phrase "
                 "and no evidence shows the named tool still references the entry"
             )
     return failures

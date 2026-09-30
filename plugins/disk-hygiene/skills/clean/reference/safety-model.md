@@ -61,8 +61,8 @@ snapshot or a plan, so `preview` refuses them and no approval token can derive f
 because it cannot mutate, not because its output authorizes anything.
 
 Every `KEEP` row must carry a specific reason (who produced the entry and what still uses it). The
-validator rejects an empty reason and a bare category phrase unless `evidence` shows the named tool
-still references the entry, and a rejected row fails the report with exit 5.
+validator rejects an empty reason, and a bare category phrase unless it names a tool and `evidence`
+shows that tool still references the entry. A rejected row fails the report with exit 5.
 
 `--execute`, the low-signal rule (Low is kept unless the human separately reviews exact paths), and
 every confirmation gate apply exactly as before. Removing anything the inventory lists goes through

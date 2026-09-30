@@ -45,8 +45,9 @@ JSONL report that `preview` and `apply` refuse. The gates are unchanged:
 [safety-model.md](safety-model.md#deep-inventory-is-report-only).
 
 Every `KEEP` row needs a specific reason: who produced the entry and what still uses it. The
-validator fails an empty reason or one that is only a category phrase ("tool-managed", "OS-owned",
-"managed by <tool>") unless `evidence` shows the named tool still references the entry.
+validator always fails an empty reason. It fails a reason that is only a category phrase
+("tool-managed", "OS-owned", "managed by <tool>") unless the phrase names the tool ("managed by
+<tool>") and `evidence` shows that tool still references the entry.
 
 Rows stream to `<data-root>/inventory/inventory-<stamp>.jsonl` with no entry cap, beside a `.json`
 summary (`deep-inventory-report`; status `inventory-failed` and exit 5 when the validator rejects a

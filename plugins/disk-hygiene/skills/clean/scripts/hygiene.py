@@ -35,10 +35,6 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
-
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 import deep_inventory  # noqa: E402  (path set above; sibling module)
 
 MIN_PYTHON = (3, 11)

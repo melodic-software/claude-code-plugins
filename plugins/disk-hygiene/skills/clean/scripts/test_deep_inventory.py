@@ -124,16 +124,33 @@ class ValidatorTest(unittest.TestCase):
             with self.subTest(reason=reason):
                 self.assertEqual(self.failures(reason), [])
 
-    def test_evidence_that_the_tool_references_the_entry_rescues_a_category_reason(
+    def test_evidence_that_the_named_tool_references_the_entry_rescues_the_reason(
         self,
     ) -> None:
         evidence = {"tool": "mise", "references": "trusted-configs/abc"}
         self.assertEqual(self.failures("managed by mise", evidence), [])
-        self.assertEqual(self.failures("tool-managed", evidence), [])
+        self.assertEqual(self.failures("tool-managed; managed by mise", evidence), [])
+
+    def test_a_reason_that_names_no_tool_is_not_rescued_by_evidence(self) -> None:
+        evidence = {"tool": "mise", "references": "trusted-configs/abc"}
+        for reason in ("tool-managed", "OS-owned", "app owned and vendor-managed"):
+            with self.subTest(reason=reason):
+                self.assertEqual(len(self.failures(reason, evidence)), 1)
+
+    def test_an_empty_reason_is_not_rescued_by_evidence(self) -> None:
+        evidence = {"tool": "npm", "references": "/y"}
+        for reason in ("", "   ", None):
+            with self.subTest(reason=reason):
+                failures = self.failures(reason, evidence)
+                self.assertEqual(len(failures), 1)
+                self.assertIn("empty", failures[0])
 
     def test_evidence_for_a_different_tool_does_not_rescue(self) -> None:
         evidence = {"tool": "npm", "references": "package.json"}
         self.assertEqual(len(self.failures("managed by mise", evidence)), 1)
+        self.assertEqual(
+            len(self.failures("managed by promise", {**evidence, "tool": "mise"})), 1
+        )
 
     def test_incomplete_evidence_does_not_rescue(self) -> None:
         for evidence in (
@@ -143,7 +160,7 @@ class ValidatorTest(unittest.TestCase):
             "mise",
         ):
             with self.subTest(evidence=evidence):
-                self.assertEqual(len(self.failures("tool-managed", evidence)), 1)
+                self.assertEqual(len(self.failures("managed by mise", evidence)), 1)
 
     def test_only_keep_rows_need_a_reason(self) -> None:
         for disposition in ("CANDIDATE", "UNKNOWN"):
@@ -168,7 +185,7 @@ class RunningPathsTest(TempTree):
     def test_reads_exe_and_cwd_and_drops_the_deleted_suffix(self) -> None:
         proc = self.mkdir("proc")
         for pid, exe, cwd in (
-            ("10", "/opt/tool/1.0/bin (deleted)", "/home/u"),
+            ("10", "/opt/tool/1.0/bin (deleted)", "/var/app"),
             ("11", "/opt/tool/2.0/bin", "/srv"),
         ):
             (proc / pid).mkdir()
@@ -177,7 +194,7 @@ class RunningPathsTest(TempTree):
         (proc / "self-note").mkdir()
         self.assertEqual(
             di.running_paths(proc),
-            {"/opt/tool/1.0/bin", "/home/u", "/opt/tool/2.0/bin", "/srv"},
+            {"/opt/tool/1.0/bin", "/var/app", "/opt/tool/2.0/bin", "/srv"},
         )
 
     def test_unreadable_proc_root_is_none_not_empty(self) -> None:
@@ -469,8 +486,8 @@ class ProjectTranscriptsTest(TempTree):
     def setUp(self) -> None:
         super().setUp()
         self.fs = self.root / "fs"
-        self.mkdir("fs/home/kyle/my.repo/sub")
-        self.mkdir("fs/home/kyle/.config")
+        self.mkdir("fs/srv/work/my.repo/sub")
+        self.mkdir("fs/srv/work/.config")
         self.projects = self.mkdir("claude/projects")
 
     def rows(self, *names: str) -> dict[str, dict]:
@@ -480,28 +497,26 @@ class ProjectTranscriptsTest(TempTree):
 
     def test_decodes_by_the_directory_tree_not_by_guessing_separators(self) -> None:
         rows = self.rows(
-            "-home-kyle-my-repo-sub", "-home-kyle--config", "-home-kyle-my-repo"
+            "-srv-work-my-repo-sub", "-srv-work--config", "-srv-work-my-repo"
         )
         for name, source in (
-            ("-home-kyle-my-repo-sub", "/home/kyle/my.repo/sub"),
-            ("-home-kyle--config", "/home/kyle/.config"),
-            ("-home-kyle-my-repo", "/home/kyle/my.repo"),
+            ("-srv-work-my-repo-sub", "/srv/work/my.repo/sub"),
+            ("-srv-work--config", "/srv/work/.config"),
+            ("-srv-work-my-repo", "/srv/work/my.repo"),
         ):
             self.assertEqual(rows[name]["disposition"], "KEEP", name)
             self.assertEqual(rows[name]["evidence"]["references"], source)
         self.assertEqual(di.validate_report(rows.values()), [])
 
     def test_a_gone_source_path_is_a_candidate(self) -> None:
-        rows = self.rows("-tmp-harness-run-7", "-home-kyle-deleted-repo")
-        for name in ("-tmp-harness-run-7", "-home-kyle-deleted-repo"):
+        rows = self.rows("-tmp-harness-run-7", "-srv-work-deleted-repo")
+        for name in ("-tmp-harness-run-7", "-srv-work-deleted-repo"):
             self.assertEqual(rows[name]["disposition"], "CANDIDATE", name)
             self.assertEqual(rows[name]["producer"], "claude-code")
 
     def test_a_prefix_only_match_is_not_a_source(self) -> None:
-        rows = self.rows("-home-kyle-my-repo-sub-gone")
-        self.assertEqual(
-            rows["-home-kyle-my-repo-sub-gone"]["disposition"], "CANDIDATE"
-        )
+        rows = self.rows("-srv-work-my-repo-sub-gone")
+        self.assertEqual(rows["-srv-work-my-repo-sub-gone"]["disposition"], "CANDIDATE")
 
     def test_undecodable_names_are_unknown(self) -> None:
         rows = self.rows("C--Users-kyle", "-" + "a" * di.PROJECT_NAME_CAP)
@@ -510,7 +525,7 @@ class ProjectTranscriptsTest(TempTree):
     def test_decode_project_returns_none_for_missing(self) -> None:
         self.assertIsNone(di.decode_project("-nope", self.fs))
         self.assertEqual(
-            di.decode_project("-home-kyle-my-repo", self.fs), "/home/kyle/my.repo"
+            di.decode_project("-srv-work-my-repo", self.fs), "/srv/work/my.repo"
         )
 
 
