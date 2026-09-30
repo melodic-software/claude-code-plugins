@@ -6610,6 +6610,72 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard(command)
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
+    def _apply_command(self, snapshot: Path, plan: Path) -> str:
+        script = SCRIPT_DIR / "hygiene.py"
+        return (
+            f'"{self.python_command()}" "{script}" apply --execute '
+            f'--snapshot "{snapshot.as_posix()}" --plan "{plan.as_posix()}" '
+            f'--confirm-tier high --approval-token {"a" * 24} --report r'
+            + self.authorize_data_root()
+        )
+
+    def _apply_reason(self, snapshot: Path, plan: Path) -> str:
+        result = self.run_guard(self._apply_command(snapshot, plan))
+        self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+        return result["hookSpecificOutput"]["permissionDecisionReason"]
+
+    def test_apply_ask_reason_lists_tier_count_and_every_plan_path(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        paths = ["cache/one.tmp", "build/two", "logs/three.log"]
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps(
+                {"tier": "high", "candidates": [{"path": path} for path in paths]}
+            ),
+            encoding="utf-8",
+        )
+        snapshot = base / "snapshot.json"
+        snapshot.write_text(json.dumps({"target": "/work/target"}), encoding="utf-8")
+        reason = self._apply_reason(snapshot, plan)
+        self.assertIn("high", reason)
+        self.assertIn("3 path(s)", reason)
+        self.assertIn("/work/target", reason)
+        for path in paths:
+            self.assertIn(path, reason)
+
+    def test_apply_ask_reason_falls_back_when_the_plan_is_unusable(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        snapshot = base / "snapshot.json"
+        snapshot.write_text("{}", encoding="utf-8")
+        malformed = base / "malformed.json"
+        malformed.write_text("not json", encoding="utf-8")
+        wrong_shape = base / "wrong-shape.json"
+        wrong_shape.write_text(
+            json.dumps({"tier": "high", "candidates": [{"path": 3}]}), encoding="utf-8"
+        )
+        oversized = base / "oversized.json"
+        oversized.write_bytes(b" " * (guard._APPLY_PLAN_READ_LIMIT + 1))
+        for plan in (base / "missing.json", malformed, wrong_shape, oversized, base):
+            with self.subTest(plan=plan.name):
+                self.assertEqual(
+                    guard._APPLY_ASK_GENERIC_REASON,
+                    self._apply_reason(snapshot, plan),
+                )
+
+    def test_apply_ask_reason_without_a_snapshot_still_lists_the_plan_paths(
+        self,
+    ) -> None:
+        base = Path(self._cfg.name).resolve()
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps({"tier": "low", "candidates": [{"path": "only/one"}]}),
+            encoding="utf-8",
+        )
+        reason = self._apply_reason(base / "missing-snapshot.json", plan)
+        self.assertIn("low", reason)
+        self.assertIn("1 path(s)", reason)
+        self.assertIn("only/one", reason)
+
     def test_disabled_guard_denies_exact_apply(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         command = f'"{self.python_command()}" "{script}" apply --execute --snapshot s --plan p --confirm-tier high --approval-token {"a" * 24} --report r'
@@ -9649,6 +9715,48 @@ class GuardTests(unittest.TestCase):
                 r"(FileSystem|Recycle Bin|NameSpace\(10\))",
                 command,
             )
+
+    def test_powershell_ask_reason_lists_the_literal_paths_it_names(self) -> None:
+        cases = (
+            (
+                "Add-Type -AssemblyName Microsoft.VisualBasic; "
+                "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("
+                "'C:\\work\\victim.tmp','OnlyErrorDialogs','SendToRecycleBin')",
+                ["C:\\work\\victim.tmp"],
+            ),
+            (
+                'Remove-Item -LiteralPath "D:\\a\\one" ; Remove-Item C:\\b\\two',
+                ["D:\\a\\one", "C:\\b\\two"],
+            ),
+        )
+        for command, paths in cases:
+            with self.subTest(command=command):
+                result = self.run_guard_powershell(command)
+                assert result is not None
+                self.assertEqual(
+                    "ask", result["hookSpecificOutput"]["permissionDecision"]
+                )
+                reason = result["hookSpecificOutput"]["permissionDecisionReason"]
+                self.assertIn(f"{len(paths)} literal path(s)", reason)
+                for path in paths:
+                    self.assertIn(path, reason)
+
+    def test_powershell_ask_reason_skips_paths_it_cannot_read_literally(self) -> None:
+        for command in (
+            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile("
+            "$path,'OnlyErrorDialogs','SendToRecycleBin')",
+            'Remove-Item "C:\\work\\$name"',
+        ):
+            with self.subTest(command=command):
+                result = self.run_guard_powershell(command)
+                assert result is not None
+                self.assertEqual(
+                    "ask", result["hookSpecificOutput"]["permissionDecision"]
+                )
+                self.assertNotIn(
+                    "literal path(s)",
+                    result["hookSpecificOutput"]["permissionDecisionReason"],
+                )
 
     def test_powershell_shell_app_send_to_bin_via_parent_folder_prompts(self) -> None:
         """#2850: the send-to-the-bin spelling names the PARENT folder, not the bin.
