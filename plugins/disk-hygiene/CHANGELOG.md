@@ -38,6 +38,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   ([#5233](https://github.com/melodic-software/claude-code-plugins/issues/5233)), so a directory
   such as `~/.codex/.tmp` is not hinted. They match files and links.
 
+## [0.29.1] - 2026-09-29
+
+### Fixed
+
+- **The PowerShell mutation-word check relieves quoted words only for allow-listed commands.** A deletion word inside a quoted literal (a commit message, a search term, an issue body) no longer prompts when every command head is on the allow-list of commands that never run their string arguments and the line has no comment, subexpression, here-string, backtick, call operator, or member call. Any other line still gets the plain word match. The operator handoff tells operators to pass `gh` bodies with `--body-file` and to prefer single-quoted literals.
+
 ## [0.29.0] - 2026-09-29
 
 ### Added

@@ -425,9 +425,10 @@ assert_contains "phantom: the target is not drawn as a component" "$phantom_summ
 assert_contains "phantom: the edge is unresolved, not drawn" "$phantom_summary" 'unresolved=1'
 assert_contains "phantom: X is a single module" "$phantom_summary" 'thin=yes'
 
-# No .NET project: the writer's message is the reason and nothing is drawn.
+# No manifest a shipped reader handles: the writer's message is the reason and
+# nothing is drawn.
 mkdir -p "$TEST_TMPDIR/node-only"
-printf '{ "name": "web" }\n' >"$TEST_TMPDIR/node-only/package.json"
+printf 'source "https://rubygems.org"\n' >"$TEST_TMPDIR/node-only/Gemfile"
 collect "$TEST_TMPDIR/node-only" "$TEST_TMPDIR/node-only.json"
 render node-only --graph "$TEST_TMPDIR/node-only.json"
 assert_equals "unknown: exits 0" "$?" "0"
@@ -435,9 +436,139 @@ unk="$(cat "$TEST_TMPDIR/node-only/components.md")"
 # The artifact quotes the word unknown in markdown backticks.
 # shellcheck disable=SC2016
 assert_contains "unknown: says unknown" "$unk" 'ecosystem `unknown`'
-assert_contains "unknown: the writer's message names the manifest" "$unk" 'package.json'
+assert_contains "unknown: the writer's message names the manifest" "$unk" 'Gemfile'
 assert_not_contains "unknown: no diagram" "$unk" '@startuml'
 assert_contains "unknown: summary is thin" "$(cat "$TEST_TMPDIR/node-only.out")" 'thin=yes'
+
+# Any ecosystem name other than unknown renders, including mixed; each node
+# names its own ecosystem as the component technology.
+cat >"$TEST_TMPDIR/mixed.json" <<'JSON'
+{
+  "schema_version": 1,
+  "generated_on": "2026-09-28",
+  "result": "ok",
+  "message": "",
+  "ecosystem": "mixed",
+  "node_threshold": 40,
+  "cycles_truncated": false,
+  "nodes": [
+    {"id":"svc/Api.csproj","name":"Api","path":"svc/Api.csproj","ecosystem":"dotnet","kind":"project"},
+    {"id":"svc/Core.csproj","name":"Core","path":"svc/Core.csproj","ecosystem":"node","kind":"project"}
+  ],
+  "edges": [
+    {"from":"svc/Api.csproj","to":"svc/Core.csproj","kind":"project","status":"resolved","evidence":"svc/Api.csproj: <ProjectReference Include=\"Core.csproj\" />"}
+  ],
+  "cycles": [],
+  "findings": [
+    {"kind":"unread-manifest","path":"App.sln","evidence":"App.sln: Project(\"{F184B08F}\") = \"Db\", \"db\\Db.vbproj\", \"{1}\""}
+  ]
+}
+JSON
+render mixed --graph "$TEST_TMPDIR/mixed.json"
+assert_equals "mixed: exits 0" "$?" "0"
+assert_contains "mixed: charts the components" "$(cat "$TEST_TMPDIR/mixed.out")" 'components=2'
+assert_contains "mixed: a dotnet node is labeled dotnet" "$(cat "$TEST_TMPDIR/mixed/components.md")" '"Api", "dotnet", "svc/Api.csproj")'
+assert_contains "mixed: a node-ecosystem component is labeled node" "$(cat "$TEST_TMPDIR/mixed/components.md")" '"Core", "node", "svc/Core.csproj")'
+# shellcheck disable=SC2016
+assert_not_contains "mixed: is not the unknown result" "$(cat "$TEST_TMPDIR/mixed/components.md")" 'ecosystem `unknown`'
+
+# Stray manifests. A project no edge touches, in an ecosystem no linked or .NET
+# project shares, is set aside: a tooling package.json or a requirements file
+# beside a chartable tree must not turn it into several deployables. Every
+# record here comes from the collector, not from a hand-built graph.
+dotnet_pair() {
+  write_proj "$1/src/Api/Api.csproj" '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="../Core/Core.csproj" /></ItemGroup></Project>'
+  write_proj "$1/src/Core/Core.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+}
+tooling_json='{ "name": "tooling", "devDependencies": { "prettier": "3.0.0" } }'
+
+stray_a="$TEST_TMPDIR/stray-a-repo"
+dotnet_pair "$stray_a"
+write_proj "$stray_a/package.json" "$tooling_json"
+write_proj "$stray_a/.github/requirements-ci.txt" 'pyyaml'
+collect "$stray_a" "$TEST_TMPDIR/stray-a.json"
+assert_contains "stray: the collector reads the tooling package.json as a node" "$(cat "$TEST_TMPDIR/stray-a.json")" '"id":"package.json","name":"tooling"'
+assert_contains "stray: the collector reads the requirements file as a node" "$(cat "$TEST_TMPDIR/stray-a.json")" '"id":".github/requirements-ci.txt"'
+render stray-a --graph "$TEST_TMPDIR/stray-a.json"
+assert_equals "stray: a tooling package.json and a requirements file do not stop the render" "$?" "0"
+assert_contains "stray: the .NET host is the container" "$(cat "$TEST_TMPDIR/stray-a.out")" 'container="Api" components=2'
+assert_contains "stray: the report says two manifests were set aside" "$(cat "$TEST_TMPDIR/stray-a/components.md")" 'Set aside as not deployables: 2.'
+assert_not_contains "stray: they are not called modules of another deployable" "$(cat "$TEST_TMPDIR/stray-a/components.md")" 'Modules outside this container'
+render stray-a-explicit --graph "$TEST_TMPDIR/stray-a.json" --container tooling
+assert_equals "stray: --container still charts a set-aside manifest" "$?" "0"
+assert_contains "stray: the chosen manifest is the container" "$(cat "$TEST_TMPDIR/stray-a-explicit.out")" 'container="tooling"'
+assert_contains "stray: the chosen manifest is not counted as set aside" "$(cat "$TEST_TMPDIR/stray-a-explicit/components.md")" 'Set aside as not deployables: 1.'
+
+stray_b="$TEST_TMPDIR/stray-b-repo"
+write_proj "$stray_b/Api/Api.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+write_proj "$stray_b/package.json" "$tooling_json"
+collect "$stray_b" "$TEST_TMPDIR/stray-b.json"
+render stray-b --graph "$TEST_TMPDIR/stray-b.json"
+assert_equals "stray: a lone .NET project beside a tooling package.json renders" "$?" "0"
+assert_contains "stray: the lone .NET project is the container" "$(cat "$TEST_TMPDIR/stray-b.out")" 'container="Api"'
+
+# Two .NET deployables stay a choice, and the stray manifest is not on the list.
+stray_c="$TEST_TMPDIR/stray-c-repo"
+dotnet_pair "$stray_c"
+write_proj "$stray_c/src/Tool/Tool.csproj" '<Project Sdk="Microsoft.NET.Sdk"></Project>'
+write_proj "$stray_c/package.json" "$tooling_json"
+collect "$stray_c" "$TEST_TMPDIR/stray-c.json"
+mkdir -p "$TEST_TMPDIR/stray-c"
+choice="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/stray-c.json" --out "$TEST_TMPDIR/stray-c" 2>&1)"
+assert_equals "stray: two .NET deployables still exit 3" "$?" "3"
+assert_contains "stray: the list names Api" "$choice" 'Api'
+assert_contains "stray: the list names Tool" "$choice" 'Tool'
+assert_not_contains "stray: the list omits the stray manifest" "$choice" 'package.json'
+
+# A tree with no .NET project keeps its one linked ecosystem's deployable.
+stray_d="$TEST_TMPDIR/stray-d-repo"
+write_proj "$stray_d/go.work" 'go 1.22
+use ./app
+use ./lib'
+write_proj "$stray_d/app/go.mod" 'module example.com/acme/app
+
+replace example.com/acme/lib => ../lib'
+write_proj "$stray_d/lib/go.mod" 'module example.com/acme/lib'
+write_proj "$stray_d/package.json" "$tooling_json"
+collect "$stray_d" "$TEST_TMPDIR/stray-d.json"
+render stray-d --graph "$TEST_TMPDIR/stray-d.json"
+assert_equals "stray: a Go tree beside a tooling package.json renders" "$?" "0"
+assert_contains "stray: the Go module is the container" "$(cat "$TEST_TMPDIR/stray-d.out")" 'container="example.com/acme/app"'
+
+# Alone, a manifest is the deployable.
+stray_e="$TEST_TMPDIR/stray-e-repo"
+write_proj "$stray_e/package.json" "$tooling_json"
+collect "$stray_e" "$TEST_TMPDIR/stray-e.json"
+render stray-e --graph "$TEST_TMPDIR/stray-e.json"
+assert_equals "stray: a Node-only tree still renders" "$?" "0"
+assert_contains "stray: the lone package.json is the container" "$(cat "$TEST_TMPDIR/stray-e.out")" 'container="tooling"'
+assert_not_contains "stray: nothing is set aside" "$(cat "$TEST_TMPDIR/stray-e/components.md")" 'Set aside'
+
+# A Node package that references another is a linked deployable beside the .NET host.
+stray_f="$TEST_TMPDIR/stray-f-repo"
+dotnet_pair "$stray_f"
+write_proj "$stray_f/web/app/package.json" '{ "name": "app", "dependencies": { "@acme/ui": "file:../ui" } }'
+write_proj "$stray_f/web/ui/package.json" '{ "name": "@acme/ui" }'
+collect "$stray_f" "$TEST_TMPDIR/stray-f.json"
+mkdir -p "$TEST_TMPDIR/stray-f"
+choice="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/stray-f.json" --out "$TEST_TMPDIR/stray-f" 2>&1)"
+assert_equals "stray: a linked Node package beside a .NET host exits 3" "$?" "3"
+assert_contains "stray: the list names the .NET host" "$choice" 'Api'
+assert_contains "stray: the list names the Node package" "$choice" 'web/app/package.json'
+
+# A Node workspace root draws no edge to its members and shares their ecosystem,
+# so it is listed beside the top member.
+ws_root="$TEST_TMPDIR/ws-root-repo"
+write_proj "$ws_root/package.json" '{ "name": "root", "private": true, "workspaces": ["a", "b"], "devDependencies": { "typescript": "5.0.0" } }'
+write_proj "$ws_root/a/package.json" '{ "name": "@w/a", "dependencies": { "@w/b": "*" } }'
+write_proj "$ws_root/b/package.json" '{ "name": "@w/b" }'
+collect "$ws_root" "$TEST_TMPDIR/ws-root.json"
+mkdir -p "$TEST_TMPDIR/ws-root"
+choice="$(bash "$SCRIPT" --graph "$TEST_TMPDIR/ws-root.json" --out "$TEST_TMPDIR/ws-root" 2>&1)"
+assert_equals "workspace root: a plain Node workspace exits 3" "$?" "3"
+assert_contains "workspace root: the list names the top member" "$choice" $'@w/a\ta/package.json'
+assert_contains "workspace root: the list names the root" "$choice" $'root\tpackage.json'
+assert_not_contains "workspace root: the list omits the member nothing tops" "$choice" '@w/b'
 
 # Test projects are not deployables. The layered fixture is the one the
 # grouping cases below use: Api <- Application <- Domain, Domain.Events beside
