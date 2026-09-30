@@ -65,7 +65,7 @@ When the first wake prompts for permission, offer the user one allow rule, `Bash
 | `reply` | `id`, `text`, `seq`, `kind` (`reply`, `rephrase`, `note`), `rec` + `why` + `affects`, `handled`, `force` | Answer an ask or rephrase; `rec` revises the recommendation |
 | `revise` | `id`, `title`, `short`, `facts`, `basis`, `rec`, `why`, `text`, `alternatives`, `seq`, `affects`, `force` | Reword a question |
 | `note-reply` | `text`, `seq` | Answer a note in Notes to Claude; with no `seq`, post a closing probe there |
-| `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups |
+| `add`, `add-round`, `group` | `question`; `round`, `meta`, `groups`, `questions`, `visuals`; `id`, `title`, `summary`, `dependsOn` | New questions and groups; writing a `summary` records the group's current question ids as `summaryOf`, and the page marks the summary Stale once the members differ, so rewrite the summary after adding questions |
 | `meta` | `set` (`title`, `eyebrow`, `stages`, `next`) | Merge into `meta`; other meta keys stay |
 | `archive` | `ids`, `why` | Take off-path questions out of the open count |
 | `replace-visual` | `visual` | Swap in a full visual object for the top-level visual with the same id; an unknown id is refused |
