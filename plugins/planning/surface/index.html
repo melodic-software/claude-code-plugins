@@ -548,10 +548,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function pending(){ return events().filter(e => !isHandled(e.seq) && !e.withdrawn); }
   function lastEventSeq(id){ let s = 0; for (const e of events()) if (e.id === id && e.seq > s) s = e.seq; return s; }
   const answered = (q, seq) => isHandled(seq) || (q.history || []).some(h => h.by === "claude" && h.replyTo >= seq); // a later reply or revise to this event (or a newer one) answers it
-  function upstreamChanged(q){ // the prerequisites behind a delivered, unhandled decision; the server marks their direct dependents `revising`
-    return (q.dependsOn || []).filter(p => Q[p] && events().some(e => e.id === p && DEC.has(e.kind) && e.deliveredAt && !e.withdrawn && !isHandled(e.seq)));
-  }
-  const upstreamText = q => { const u = upstreamChanged(q); return u.length ? "Upstream " + u.join(", ") + " changed" : "Upstream changed"; };
   function lastDecisionSeq(id){ let s = 0; for (const e of events()) if (e.id === id && DEC.has(e.kind) && !e.withdrawn && e.seq > s) s = e.seq; return s; }
   function staleBy(q){ // the prerequisites decided after this question was
     const ps = (q.dependsOn || []).filter(p => Q[p]), mine = lastDecisionSeq(q.id), c = ps.filter(p => lastDecisionSeq(p) > mine);
@@ -677,7 +673,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">Stale</span>');
     if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
-    if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled that answer yet, so this question may be revised.">' + esc(upstreamText(q)) + "</span>");
+    if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
     if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     const aa = live(q) && afterAnswer(q);
@@ -959,7 +955,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + upOf(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. You can still answer.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
-    if (q.revising && st !== "arch") h += '<div class="banner"><b>' + esc(upstreamText(q)) + ".</b> Claude has not handled that answer yet, so this question may be revised. You can still answer.</div>";
+    if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
     if (q.revised) h += '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true ? "" : q.revised) +

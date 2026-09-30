@@ -1303,7 +1303,7 @@ class TestQuestionState(WaitCase):
         doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
         self.assertFalse(any("state" in q for q in doc["questions"]))
 
-    def test_7_revising_marks_direct_dependents_of_a_delivered_unhandled_decision(
+    def test_7_revising_marks_the_question_with_its_own_delivered_unhandled_decision(
         self,
     ):
         self.handle_all()
@@ -1311,18 +1311,18 @@ class TestQuestionState(WaitCase):
         before = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertFalse(before["B"], "revising before delivery")
+        self.assertFalse(before["A"], "revising before delivery")
         code, body, _ = self.wait("after=handled&replayed=0&timeout=5")
         self.assertFalse(body["timedOut"])
         rev = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertEqual(rev, {"A": False, "B": True, "C": False, "D": False})
+        self.assertEqual(rev, {"A": True, "B": False, "C": False, "D": False})
         self.handle_all()
         rev = {
             q["id"]: q.get("revising") for q in self.state()["questions"]["questions"]
         }
-        self.assertFalse(rev["B"])
+        self.assertFalse(rev["A"])
 
     def test_8_archived(self):
         rc, out = self.rp("archive", "D", "--why", "Off the chosen path.")

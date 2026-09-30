@@ -273,8 +273,8 @@ def question_states(doc, r):
     its direct dependents that hold a live decision stale; a decision on a stale question clears
     it without re-staling its own dependents (that cascade is deferred). A withdrawn event never
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
-    upstream-pending; `archived` wins over both. `revising` marks the direct dependents of a
-    question with a delivered, unhandled decision event.
+    upstream-pending; `archived` wins over both. `revising` marks a question with its own
+    delivered, unhandled decision event; upstream effects stay in stale and upstream-pending.
     """
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict) and q.get("id")]
     deps = {q["id"]: list(q.get("dependsOn") or []) for q in qs}
@@ -331,12 +331,11 @@ def question_states(doc, r):
             todo += deps.get(p, [])
         return False
 
-    sources = {
+    revising = {
         e["id"]
         for e in events
         if e.get("deliveredAt") and not is_handled(doc, e.get("seq", 0))
     }
-    revising = {c for s in sources for c in children.get(s, [])}
     out = {}
     for qid in deps:
         if qid in archived:
