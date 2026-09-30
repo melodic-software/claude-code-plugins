@@ -5,6 +5,20 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.53.3] - 2026-09-29
+
+### Changed
+
+- **`audit-permission-state`, `audit` and `audit-instructions` descriptions open with a
+  presence-gated routing clause for the native skill their Boundary section routes to.**
+  `audit-permission-state` routes reducing permission prompts by writing an allowlist to the bundled
+  `fewer-permission-prompts` skill and keeps showing what is in effect. `audit` routes a settings
+  change the person requested to the bundled `update-config` skill and keeps auditing what is
+  configured. `audit-instructions` routes a model migration, a target-model change, or any pass over
+  application-code prompts to the bundled `claude-api` skill's `prompt-audit`, keeps the standing
+  audit of Claude Code instruction surfaces, and runs both when a sweep wants both. The `suggest`
+  surfaces (`/permissions`, `/auto-mode-setup`, `doctor`) get no phrase.
+
 ## [0.53.2] - 2026-09-29
 
 ### Added
