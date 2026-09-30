@@ -3540,6 +3540,8 @@ class ScanOutputVerbosityTests(unittest.TestCase):
                 "target_logical_bytes",
                 "target_reclaimable_local_bytes",
                 "truncated_paths",
+                "truncation_reasons",
+                "totals_are_lower_bounds",
                 "stdlib_shadowing",
                 "children_rollup",
                 "errors",
@@ -3560,7 +3562,8 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertEqual(set(default) - {"children_rollup"}, set(quiet))
         # Every field the caller decides on survives, with the same value the
         # default run reported: quiet is a projection, never a recomputation.
-        for field in set(quiet) - {"note", "target", "snapshot", "truncated_paths"}:
+        shaped = {"note", "target", "snapshot", "truncated_paths", "truncation_reasons"}
+        for field in set(quiet) - shaped:
             self.assertEqual(default[field], quiet[field], field)
         self.assertEqual(
             len(cast("list[object]", default["truncated_paths"])),
@@ -3640,6 +3643,49 @@ class ScanOutputVerbosityTests(unittest.TestCase):
         self.assertGreater(default_growth, 5000)
         self.assertLess(quiet_growth * 10, default_growth)
         self.assertLess(len(large_quiet_raw) * 4, len(large_raw))
+
+    def test_depth_cut_scan_reports_lower_bound_and_reason(self) -> None:
+        (default, _, snapshot), _ = self._both_modes(2)
+        self.assertIs(True, default["totals_are_lower_bounds"])
+        self.assertIs(True, snapshot["totals_are_lower_bounds"])
+        expected = {"child_000": "depth-cut", "child_001": "depth-cut"}
+        self.assertEqual(expected, default["truncation_reasons"])
+        self.assertEqual(expected, snapshot["truncation_reasons"])
+
+    def test_full_scan_reports_exact_totals(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            self._fixture(root, 2)
+            data_root = Path(temporary) / "data"
+            data_root.mkdir()
+            output = data_root / "runs" / "snapshot.json"
+            stdout_io = io.StringIO()
+            with redirect_stdout(stdout_io):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                        "--confirmed-large-scan",
+                    ]
+                )
+            payload = json.loads(stdout_io.getvalue())
+        self.assertEqual(0, code)
+        self.assertIs(False, payload["totals_are_lower_bounds"])
+        self.assertEqual({}, payload["truncation_reasons"])
+        self.assertEqual([], payload["truncated_paths"])
+
+    def test_quiet_reasons_are_a_tally_with_no_per_path_list(self) -> None:
+        _, (quiet, raw, snapshot) = self._both_modes(3)
+        self.assertEqual({"depth-cut": 3}, quiet["truncation_reasons"])
+        self.assertIs(True, quiet["totals_are_lower_bounds"])
+        for name in snapshot["truncated_paths"]:
+            self.assertNotIn(name, raw)
+        self.assertEqual(3, len(snapshot["truncation_reasons"]))
 
     def test_shaping_without_quiet_returns_the_payload_untouched(self) -> None:
         payload = {

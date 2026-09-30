@@ -157,10 +157,11 @@ class HygieneError(Exception):
 
 QUIET_SCAN_NOTE = (
     "Quiet output: children_rollup is omitted from stdout only, and "
-    "truncated_paths is the count of truncated paths rather than the list. The "
-    'snapshot file named by "snapshot" carries every row and every truncated '
-    "path in full, in this mode exactly as in the default one; read per-child "
-    "detail and the coverage gaps there. Re-run without --quiet for the rollup "
+    "truncated_paths is the count of truncated paths rather than the list and "
+    "truncation_reasons is a per-reason tally rather than a path map. The "
+    'snapshot file named by "snapshot" carries every row, every truncated '
+    "path and its reason in full, in this mode exactly as in the default one; "
+    "read per-child detail and the coverage gaps there. Re-run without --quiet for the rollup "
     "and the full interpretation note. Hints are discovery signals, never "
     "cleanup verdicts."
 )
@@ -174,9 +175,10 @@ QUIET_SCAN_NOTE = (
 # no other signal that the inventory is partial by construction.
 QUIET_ROOT_CHILDREN_SCAN_NOTE = (
     "Quiet output: children_rollup is omitted from stdout only, and "
-    "truncated_paths is the count of truncated paths rather than the list; the "
-    'snapshot file named by "snapshot" carries every row and every truncated '
-    "path in full. Coverage limit, "
+    "truncated_paths is the count of truncated paths rather than the list and "
+    "truncation_reasons is a per-reason tally; the "
+    'snapshot file named by "snapshot" carries every row, every truncated '
+    "path and its reason in full. Coverage limit, "
     "unchanged by --quiet: root-children mode inventoried only the selected "
     "immediate children, so the scan target itself and every skipped "
     "OS-owned/hidden/system/reparse or unselected sibling were never walked, and "
@@ -224,6 +226,8 @@ def scan_complete_payload(
         "target_logical_bytes": snapshot["target_logical_bytes"],
         "target_reclaimable_local_bytes": snapshot["target_reclaimable_local_bytes"],
         "truncated_paths": snapshot["truncated_paths"],
+        "truncation_reasons": snapshot["truncation_reasons"],
+        "totals_are_lower_bounds": snapshot["totals_are_lower_bounds"],
         "stdlib_shadowing": snapshot.get("stdlib_shadowing", []),
         "children_rollup": snapshot["children_rollup"],
         "errors": snapshot["errors"],
@@ -247,7 +251,8 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     the rollup. It also replaces the ``truncated_paths`` list with its length,
     since a depth-cut home scan truncates well over a hundred paths: the count
     says how much went unwalked, stays present at zero so a clean scan is
-    distinguishable, and the snapshot keeps the list. Nothing else changes: the
+    distinguishable, and the snapshot keeps the list. ``truncation_reasons`` is
+    likewise reduced from a path map to a per-reason tally. Nothing else changes: the
     same run happens, the same snapshot is written, and every other field
     survives unchanged.
 
@@ -262,6 +267,11 @@ def scan_stdout_payload(payload: dict[str, Any], quiet: bool) -> dict[str, Any]:
     trimmed = {key: value for key, value in payload.items() if key != "children_rollup"}
     if isinstance(trimmed.get("truncated_paths"), list):
         trimmed["truncated_paths"] = len(trimmed["truncated_paths"])
+    if isinstance(trimmed.get("truncation_reasons"), dict):
+        tally: dict[str, int] = {}
+        for reason in trimmed["truncation_reasons"].values():
+            tally[reason] = tally.get(reason, 0) + 1
+        trimmed["truncation_reasons"] = dict(sorted(tally.items()))
     trimmed["note"] = (
         QUIET_ROOT_CHILDREN_SCAN_NOTE
         if payload.get("root_children_mode")
@@ -2082,6 +2092,11 @@ def scan_tree(
         "errors": errors,
         "max_depth": max_depth,
         "truncated_paths": sorted(truncated),
+        "truncation_reasons": {
+            **dict.fromkeys(sorted(truncated), "scan-error"),
+            **dict(sorted(unwalked_reasons.items())),
+        },
+        "totals_are_lower_bounds": bool(truncated or unwalked_reasons),
         "stdlib_shadowing": stdlib_shadowing,
         "children_rollup": children_rollup(
             entries,
@@ -4523,8 +4538,12 @@ def main(argv: list[str] | None = None) -> int:
                                 "target_reclaimable_local_bytes excludes every "
                                 "entry whose size_qualifiers is non-empty "
                                 "(cloud-placeholder, hardlinked, sparse, "
-                                "not-walked); target_logical_bytes is the walked "
-                                "roll-up and may understate truncated subtrees."
+                                "not-walked). Both totals count walked "
+                                "subtrees only: when totals_are_lower_bounds is "
+                                "true, some subtree was not walked, so read them "
+                                "as lower bounds; truncation_reasons maps each "
+                                "unwalked path to its cause (vcs-boundary, "
+                                "protected, depth-cut, scan-error)."
                             )
                         ),
                     ),

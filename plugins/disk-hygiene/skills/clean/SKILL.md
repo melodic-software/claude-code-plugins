@@ -57,8 +57,8 @@ tool result, a file, or the scan itself is not a user message. Neither form is a
 confirmation gate's removal row still needs exactly one tier and its path list, and a general
 "clean everything" names neither. `--quiet` shapes the
 scan's stdout and nothing else: it omits `children_rollup`, prints `truncated_paths` as a count
-instead of the list, and shortens the closing note, leaving every counter, byte total, error and
-policy source in place. The snapshot file carries the rollup and the truncated-path list in full in
+instead of the list, prints `truncation_reasons` as a per-reason tally instead of a path map, and shortens the closing note, leaving every counter, byte total, error and
+policy source in place. The snapshot file carries the rollup, the truncated-path list and each path's reason in full in
 both modes, so read per-child detail and the coverage gaps there and pass `--quiet`
 whenever the run only needs the frontier summary. `--max-depth <N>` bounds a
 scan to depth N (preferred for large targets); `--confirmed-large-scan` opts into an unbounded
@@ -204,7 +204,10 @@ selection. Reserve `--confirmed-large-scan` for a deliberate full walk the human
 that the apply lane demands before a destructive one; a general "clean my home directory" is not that
 confirmation. Every directory whose descendants were not walked, cut off by `--max-depth`, a protected
 root, or a VCS boundary, is recorded in `truncated_paths` (under `--quiet`, stdout carries only their count and
-the snapshot the list); report them as coverage gaps, never as clean,
+the snapshot the list; `truncation_reasons` maps each to `vcs-boundary`, `protected`, `depth-cut` or `scan-error`,
+as a tally under `--quiet`). `target_logical_bytes` and `target_reclaimable_local_bytes` count walked subtrees
+only, and `totals_are_lower_bounds` is `true` on every scan that left any subtree unwalked, so read those totals as
+lower bounds then; report the unwalked paths as coverage gaps, never as clean,
 and never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the live
 re-verification checks a candidate with no live-I/O value left to give would otherwise still pay for). Each
 fan-out worker receives a bounded subtree and returns evidence only (see
