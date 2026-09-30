@@ -43,7 +43,7 @@ reported. The skill-listing budget is read from an existing debug log before any
 relaunch. `settings.local.json` is inspected structurally (key counts and the four model and
 effort keys) only, never read or echoed. `scripts/check-doc-citations.sh` greps every docs page the
 checklist cites for the keys and sentences it relies on. The engine and the citation check both read
-docs pages through `scripts/fetch-docs.sh`, which writes each page verbatim plus a per-run manifest
+docs pages through `scripts/fetch-docs.sh` (a synced copy of the shared `lib/fetch-docs.sh`), which writes each page verbatim plus a per-run manifest
 (`url`, `retrieved`, `sha256`, `status`, `content_type`, `bytes`, `lines`, `state`, `reason`, and
 `claude_version`).
 
