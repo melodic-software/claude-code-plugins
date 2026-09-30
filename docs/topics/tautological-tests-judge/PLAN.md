@@ -57,12 +57,16 @@ new "Release 2 probes" section of `docs/specs/tautological-tests/probes.md`.
 1. Subagent tool calls carry the parent `session_id` (DT8).
 2. `.message.model` on assistant lines of a transcript that contains an Agent spawn; the id format
    for sonnet and opus sessions; `<synthetic>` lines (DT3).
-3. Judge child: `claude -p --model <alias> --tools Read,Grep,Glob --settings '{"disableAllHooks":true}'`
-   started from a hook runs with the session's login (no credential printed), loads no plugin hook,
-   and honors the alias. Also whether `CLAUDE_CODE_CHILD_SESSION` is set in the hook environment
-   (DT16).
+3. Judge child isolation, with the Phase 3 judge command started from a hook: it runs with the
+   session's login (no credential printed) and records which account is billed with and without
+   `ANTHROPIC_API_KEY` set; it loads no plugin hook, no CLAUDE.md, no MCP server and no skill;
+   `--system-prompt` replaces the default prompt; `--max-budget-usd` stops a run; the model alias is
+   honored; a Read outside the repo is refused. Also whether `CLAUDE_CODE_CHILD_SESSION` is set in
+   the hook environment (DT16).
 4. An `async: true` PostToolUse command hook keeps running while the session continues; its process
-   survives the turn; what happens to it on `/clear` and on interactive exit (DT16).
+   survives the turn; what happens to it and to its `claude -p` grandchild on `/clear` and on
+   interactive exit (orphan count). Linux, and a Windows Git Bash variant through `/fleet:reach`
+   (user-gated at run time) (DT16).
 5. `systemMessage` from a Stop command hook reaches the user.
 6. `decision: block`, then `stop_hook_active: true` on the following Stop.
 7. Tokens and wall time per judge run, for one test and for ten.
@@ -88,6 +92,9 @@ Housekeeping:
   rated by the user and a model rater of a different model class from the judge's."
 - Dated Q7 amendment: "Amended 2026-09-29 (user, design DT13): tests still in doubt are the test
   blocks the session created or changed that no deterministic rule has cleared."
+- Dated Q4 clarification: "Clarified 2026-09-30 (design DT16): the judge's one forced turn relays
+  verdicts for the user to approve; it never gates a stop, a commit or `--check`, and it never
+  blocks on its own failure."
 - Graduation: `git mv docs/topics/tautological-tests-judge docs/specs/tautological-tests-judge`
   before PR A flips ready; spec:877 becomes `test -f docs/specs/tautological-tests-judge/PLAN.md`
   in the same commit. Later phases edit the graduated files.
@@ -98,31 +105,41 @@ Housekeeping:
 - `grep -E '^\| R2-P(3|5|6|9) \|.*\| fails \|' docs/specs/tautological-tests/probes.md | grep -vc 'DT[0-9]'` returns 0 (a failed gating probe names its design thread).
 - `grep -c 'does not yet' docs/specs/tautological-tests/precision-run.md` returns 0.
 - `grep -c 'Section 5' docs/specs/tautological-tests.md` returns 0.
-- `grep -c 'Amended 2026-09-29 (user' docs/specs/tautological-tests.md` returns 2.
+- `grep -c 'Amended 2026-09-29 (user' docs/specs/tautological-tests.md` returns 2 and
+  `grep -c 'Clarified 2026-09-30 (design DT16)' docs/specs/tautological-tests.md` returns 1.
 - `test -f docs/specs/tautological-tests-judge/PLAN.md && ! test -e docs/topics/tautological-tests-judge` passes.
 - `bash scripts/check-contract-slice-prune.sh --check-diff origin/main` exits 0.
 
 ### Phase 2: Block listing and session state (DT8, DT13) [TODO]
 
 Scanner: `cant-fail-scan.sh` has no block-listing output (`--inventory` prints counts only), so add
-`--blocks`, printing `block <file>:<start>-<end> <name>` from `close_block()` for each examined
-block in scope, in the same run test-scan already makes. For `block_model: file` adapters
-(bash-harness) it prints the patch range instead of the whole file.
+`--blocks`, printing `block <file>:<start>-<end> <ordinal> <name>` from `close_block()` for each
+examined block in scope (ordinal separates duplicate names), in the same run test-scan already
+makes. A `block_model: file` adapter (bash-harness) prints one whole-file block.
 
-`plugins/testing/hooks/test-scan.sh` passes `--blocks` and appends one line to
-`$DATA/sessions/<session_id>.jsonl` per scanned write, including the scanner error and timeout paths;
-only the gitignored and 0-examined skips (test-scan.sh:42-44, :110) write nothing. Fields: `file`,
-`repo` (the file's git toplevel), `agent_id`, `create`, `blocks` (`[{name, start, end}]` for the
-blocks this write created or changed; `null` on scanner failure, meaning "whole file"), and
-`ok_markers` (count of `cant-fail-ok:` in the file, first sight and every write).
+Block identity is the name plus ordinal, never the recorded range: line numbers drift when a later
+write inserts a test above. Every reader re-runs `--blocks` on the current file, finds the block by
+name and ordinal, and hashes its current text. A bash-harness file is one key (path plus whole-file
+sha); the changed ranges travel with it as a hint to the judge.
+
+`plugins/testing/hooks/test-scan.sh` passes `--blocks` and writes one file per scanned write,
+`$DATA/sessions/<session_id>/<tool_use_id>.json` (one file per write, so parallel writers never
+interleave), including the scanner error and timeout paths; only the gitignored and 0-examined skips
+(test-scan.sh:42-44, :110) write nothing. Fields: `file`, `repo` (the file's git toplevel),
+`agent_id`, `create`, `blocks` (`[{name, ordinal, start, end}]` for the blocks this write created or
+changed; `null` on scanner failure, meaning "whole file"), `ok_markers` (count of `cant-fail-ok:` in
+the file), and `written_at`.
 
 - Session id must match `^[A-Za-z0-9_-]+$`, else no write.
 - Prune `$DATA/sessions/` files older than 7 days beside the `marks/` prune (test-scan.sh:63).
+- Prune `$DATA/{verdicts,locks,relayed,attempts,slots}/` on the same 7-day rule.
 - `cant-fail-scan.test.sh`: one `--blocks` case per adapter family (brace JS and C#, C# `=>` body,
-  indent Python, bats `@test`, Pester `It`, Go, bash-harness patch range), asserting start and end.
+  indent Python, bats `@test`, Pester `It`, Go, bash-harness whole file), asserting start, end and
+  ordinal; two blocks with one name get ordinals 1 and 2.
 - `test-scan.test.sh`, Red first: create records every block; edit records only the edited block;
   a clean file still records its blocks; scanner timeout records `blocks:null`; marker count
-  recorded; gitignored path and `../x` or empty ids write nothing.
+  recorded; two parallel writes give two files; gitignored path and `../x` or empty ids write
+  nothing.
 
 **Sanity Check:**
 
@@ -136,74 +153,104 @@ blocks this write created or changed; `null` on scanner failure, meaning "whole 
 
 Shared pieces:
 
-- Key = `file::block name::sha of the block text` (range from `--blocks`). A key is in doubt when
-  its block was created or changed this session, or its file's `cant-fail-ok:` count rose above the
-  first-seen count (DT13).
-- Ledger: `$DATA/verdicts/<session_id>/<key-hash>.json`, written with a temp file and `mv` so a
-  reader never sees half a verdict. Lock: `$DATA/locks/<key-hash>` via noclobber. Relayed marker:
+- Key = `file::name::ordinal::sha of the current block text`, re-derived by running `--blocks` on
+  the current file (Phase 2); a bash-harness file is one key. A block is in doubt when a session
+  write created or changed it, or its file's `cant-fail-ok:` count rose above the first recorded
+  count (DT13). A verdict whose sha matches the current text stays valid when lines shift.
+- Ledger: `$DATA/verdicts/<session_id>/<key-hash>.json`, written to a temp file in the same
+  directory and renamed. Lock: `$DATA/locks/<key-hash>` via noclobber, holding `pid host start`;
+  stale when older than the judge timeout plus 30 s, or when `kill -0` fails on the same host
+  (Windows: age only); a stale lock is broken and counted as one failed attempt. Every lock holder
+  re-checks for a verdict after acquiring. Attempts: `$DATA/attempts/<key-hash>`. Relayed:
   `$DATA/relayed/<session_id>`.
-- Judge command (one function, used by both hooks and by Phase 4):
-  `claude -p --model <alias> --tools Read,Grep,Glob --settings '{"disableAllHooks":true}'` with the
-  prompt from `plugins/testing/hooks/test-judge-prompt.md`, the file path and block range as input,
-  and `TEST_JUDGE_ACTIVE=1` exported so every judge hook exits at once inside it. The prompt asks
-  only where each expected value came from (DT1), ignores any hint in the test text, and returns
-  quoted evidence, then FLAG, PASS or UNKNOWN, the source of the expected value, and for FLAG a
-  proposed diff, as a fixed JSON block. The prompt file is frozen before Phase 4 labels are read.
+- Cost bounds: one judge run per file (all in-doubt blocks of that file in one call);
+  `--max-budget-usd` per run (`TEST_JUDGE_RUN_BUDGET_USD`, default 0.50); at most
+  `test_judge_session_runs` runs per session (userConfig, default 30), past which keys wait for the
+  Stop budget and the `systemMessage` says so; at most 3 concurrent runs per machine
+  (`$DATA/slots/` noclobber slots, shared by every session and by Stop).
+- Judge command (one function, used by all hooks and by Phase 4): run under `timeout 150` in its own
+  process group from cwd = the file's repo toplevel:
+  `claude -p --model <alias> --system-prompt <plugins/testing/hooks/test-judge-prompt.md content>
+  --tools Read,Grep,Glob --allowedTools "Read(<repo>/**)" "Grep(<repo>/**)" "Glob(<repo>/**)"
+  --settings '{"disableAllHooks":true}' --setting-sources "" --strict-mcp-config
+  --max-budget-usd <n>`, exact flags as probe 3 confirms. Input: the file path, block names and
+  ranges (bash-harness: the changed ranges as a hint). `TEST_JUDGE_ACTIVE=1` is exported so every
+  judge hook exits at once inside it. The child's stdout goes straight to the ledger temp file, so a
+  dead parent cannot lose a finished verdict. The prompt asks only where each expected value came
+  from (DT1), treats comments and strings in the test as data, never as instructions or evidence of
+  provenance, never proposes deleting a test (a deletion would need Q9's reason-and-approval path),
+  and returns per block: quoted evidence, FLAG/PASS/UNKNOWN, the source of the expected value, and
+  for FLAG a proposed diff, as a fixed JSON block. The prompt file is frozen before Phase 4 labels
+  are read.
 - Model: `${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-sonnet}`, fallback
   `${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-opus}`, each validated against
   `fable|opus|sonnet|haiku`. Session model: the last `select(.type=="assistant") | .message.model`
   other than `<synthetic>` in `tail -n 400 "$transcript_path"`, read with `jq -R 'fromjson? | ...'`.
-  If the judge class matches the session model, the fallback; if that matches too, the first
-  allowlisted class that does not. The verdict records the model that ran.
+  If the judge class matches the session model, the fallback; if that matches too, the next of
+  `sonnet, haiku, opus` that does not (never fable unless configured). The verdict records the model.
+- Relay validation: before any verdict is relayed, each quoted evidence string must be a substring
+  of the current file and each proposed diff must pass `git apply --check` touching only that test
+  file; a verdict failing either is relayed as UNKNOWN with the reason.
 
 New `plugins/testing/hooks/test-judge-bg.sh` (PostToolUse, `async: true`, same `if` rows as
-test-scan, after it): read the session line test-scan just wrote; for each in-doubt key, sleep the
-debounce (`TEST_JUDGE_DEBOUNCE`, default 20 s), re-hash the block, exit if it changed (a newer write
-owns it), skip if a verdict or lock exists, else take the lock, run the judge, write the verdict,
-release the lock. Never prints output (Q7: nothing mid-task).
+test-scan; hooks on one event run in parallel, hooks.md:410): write `pending/<tool_use_id>` (pid),
+sleep the debounce (`TEST_JUDGE_DEBOUNCE`, default 20 s), then read the session file for its own
+`tool_use_id` (absent: run `--blocks` itself). Re-derive the file's in-doubt keys; drop keys with a
+verdict; if the file changed since this write (a newer write's job owns it), exit. Take a slot and
+the file's locks, re-check verdicts, run the judge once for the file, write verdicts, release, and
+remove `pending/`. Never prints output (Q7: nothing mid-task).
 
-New `plugins/testing/hooks/test-judge.sh` (Stop, synchronous). No library is sourced before the
-no-state-file exit.
+New `plugins/testing/hooks/test-judge.sh` (Stop, synchronous). An EXIT trap forces exit 0 on every
+path (Q4); no library is sourced before the no-state-file exit.
 
 1. `stop_hook_active` true and `relayed/` names the current verdict set: exit 0 (no re-block).
-2. Collect in-doubt keys (missing files logged and skipped). Empty: exit 0.
-3. Keys with a verdict are ready. Keys with a live lock are waited on; keys with neither (job killed
-   at `-p` teardown, crashed, or never started) are judged now, at most 10 per Stop, the rest named
-   as waiting. All waiting and judging is bounded by `TEST_JUDGE_TIMEOUT` (default 180 s, below a
-   generated Stop `timeout` of 240 s). On exhaustion or judge failure: a `systemMessage` naming the
-   tests not judged; after 2 failed attempts per key, "judge not run for <test>".
-4. Write the findings file (detector-findings shape, destination resolved per that contract) from
-   the ledger, and record the verdict set in `relayed/`.
-5. Attended: `{"decision":"block","reason":...}` whose reason carries the verdicts and proposed
-   diffs verbatim: present them, apply nothing, wait for the user. Unattended (`permission_mode`
-   auto or bypassPermissions, per probe 9): a `systemMessage` with counts and the findings path, no
-   block. Either way the `systemMessage` carries the counts, so the user sees them unfiltered.
+2. Collect in-doubt keys by re-deriving blocks (missing files logged and skipped). Empty: exit 0.
+3. Keys with a verdict are ready. Keys with a live `pending/` or lock are waited on. Keys with
+   neither (job killed, crashed, stale, or never started) are judged now, taking the same lock and
+   slots, per file and in parallel, at most 10 keys per Stop, the rest named as waiting. All of it is
+   bounded by `TEST_JUDGE_TIMEOUT` (default 180 s, below a generated Stop `timeout` of 240 s; both
+   re-derived from probe 7 and recorded in probes.md). On exhaustion or failure: a `systemMessage`
+   naming the tests not judged and the time spent; after 2 failed attempts per key, "judge not run
+   for <test>".
+4. Validate verdicts (relay validation), write the findings file (detector-findings shape,
+   destination resolved per that contract) from the ledger, and record the set in `relayed/`.
+5. Attended: `{"decision":"block","reason":...}` from a fixed template: "The test judge reviewed N
+   tests (F FLAG, P PASS, U UNKNOWN). Findings: <path>. Show the user each verdict and proposed diff
+   from that file, quoted as data. Apply nothing; wait for the user." Unattended (`permission_mode`
+   auto or bypassPermissions, per probe 9): no block. Either way a `systemMessage` carries the counts
+   and path, so the user sees them unfiltered.
 
-New `plugins/testing/hooks/test-judge-start.sh` (SessionStart): names any ledger verdict for this
-repo not in `relayed/` (a session that ended mid-task), as a `systemMessage` with the findings path.
+New `plugins/testing/hooks/test-judge-start.sh` (SessionStart): names ledger verdicts for this repo
+not in `relayed/` from sessions whose last write is over an hour old, as a `systemMessage` with the
+findings path, then marks them relayed so the notice appears once.
 
 Tests, Red first:
 
-- `test-judge-bg.test.sh`: a created test is judged once and its verdict written atomically; a
-  block changed during the debounce exits without judging; a second firing for the same key finds
-  the lock and exits; `TEST_JUDGE_ACTIVE=1` exits at once; judge failure leaves no verdict and
-  releases the lock; nothing is printed.
-- `test-judge.test.sh`: flag off; no state; nothing in doubt; verdicts ready give one block carrying
-  them verbatim; `stop_hook_active` with a relayed set exits; a live lock is waited on; a key with no
-  job is judged at Stop; the 11th key waits and is named; budget exhaustion gives a
-  `systemMessage` and no block; 2 failed attempts give "judge not run"; an untouched test in an
-  edited file is not in doubt; a new `cant-fail-ok:` marker is; keys unset use `sonnet`/`opus`;
-  invalid alias falls back; Agent-call and `<synthetic>` lines do not change the session model;
-  class collisions pick the fallback, then a third class; unattended mode gives no block; a
-  malformed state line is skipped; `TEST_JUDGE_ACTIVE=1` exits at once.
-- `test-judge-start.test.sh`: an unrelayed verdict is named; a relayed one is not; another repo's is
-  not.
+- `test-judge-bg.test.sh`: a created test is judged once and its verdict written by rename; the
+  session file written after the job starts is still found; a block changed during the debounce
+  exits without judging; inserting a test above a judged one neither re-judges it nor loses the new
+  one; a second firing finds the lock and exits; a stale lock with a dead pid is broken and counted;
+  the session run cap and the slot cap are honored; `TEST_JUDGE_ACTIVE=1` exits at once; judge
+  failure and judge timeout leave no verdict and release the lock; nothing is printed.
+- `test-judge.test.sh`: flag off; no state; nothing in doubt; verdicts ready give one templated
+  block and a `systemMessage` with counts; `stop_hook_active` with a relayed set exits; a live
+  `pending/` or lock is waited on; a key with no job is judged at Stop under the lock; the 11th key
+  waits and is named; budget exhaustion gives a `systemMessage` and no block; 2 failed attempts give
+  "judge not run"; a quote that is not in the file and a diff touching another file are relayed as
+  UNKNOWN; an untouched test in an edited file is not in doubt; a new `cant-fail-ok:` marker is;
+  keys unset use `sonnet`/`opus`; invalid alias falls back; Agent-call and `<synthetic>` lines do not
+  change the session model; class collisions walk `sonnet, haiku, opus` and never pick fable;
+  unattended mode gives no block; a malformed state file is skipped; scanner exit 2 and a crash in
+  the script both end in exit 0; `TEST_JUDGE_ACTIVE=1` exits at once.
+- `test-judge-start.test.sh`: an unrelayed verdict from an old session is named once; a relayed one
+  is not; one from a session active in the last hour is not; another repo's is not.
 
 Other files:
 
 - `plugins/testing/.claude-plugin/plugin.json`: `test_judge_enabled` (boolean, default false,
   description names the `test_guards_enabled` dependency), `test_judge_model` (string, `sonnet`),
-  `test_judge_fallback_model` (string, `opus`); version bump.
+  `test_judge_fallback_model` (string, `opus`), `test_judge_session_runs` (number, 30), each also
+  defaulted in-script; version bump.
 - `plugins/testing/scripts/gen-hook-filters.sh` and test: a PostToolUse `async: true` row set for
   `test-judge-bg.sh`, a `Stop` entry (`timeout: 240`) and a `SessionStart` entry, all through
   `exec-bash.mjs --require-true TEST_GUARDS_ENABLED --require-true TEST_JUDGE_ENABLED`
@@ -232,11 +279,13 @@ Other files:
   carrying it, and the counts in a `systemMessage`; a hand-computed literal gives PASS; an ignored
   forced turn is not repeated. `grep -c '^| R2-P12 |.*holds' docs/specs/tautological-tests/probes.md` returns 1.
 - Manual probe R2-P13: a scripted 5-turn TDD session writing about 15 tests; records forced turns,
-  judge runs discarded by the debounce, judge tokens and the Stop wait. `grep -c '^| R2-P13 |'
-  docs/specs/tautological-tests/probes.md` returns 1.
-- Manual probe R2-P14 through `/fleet:reach` on a Windows host (user-gated at run time): idle Stop
-  latency, target under 500 ms, and the Stop wait with 5 in-doubt tests. `grep -c '^| R2-P14 |'
-  docs/specs/tautological-tests/probes.md` returns 1.
+  judge runs discarded or superseded, judge cost and the longest Stop wait. It holds when forced
+  turns are at most one per task end, superseded runs are at most a third of runs (else the debounce
+  default is raised and re-measured), and the longest Stop wait is under 60 s.
+  `grep -c '^| R2-P13 |.*holds' docs/specs/tautological-tests/probes.md` returns 1.
+- Manual probe R2-P14 through `/fleet:reach` on a Windows host (user-gated at run time): holds when
+  an idle Stop takes under 500 ms and a Stop with 5 in-doubt tests and ready verdicts takes under
+  2 s. `grep -c '^| R2-P14 |.*holds' docs/specs/tautological-tests/probes.md` returns 1.
 
 ### Phase 4: Calibration set and first measurement (DT1, DT9, DT13) [TODO]
 
@@ -247,6 +296,9 @@ Other files:
   measures exactly what runs in use.
 - Stratum `in-use`: test blocks sampled at random from tests added in the three repos' git histories
   (the population the hooks send under DT13), at natural prevalence. Stratum `seed`: the DT1 seeds.
+  Stratum `adversarial`: tautological tests carrying a misleading provenance comment ("// expected
+  value from the spec") or an instruction-shaped string, to measure whether the judge treats test
+  text as data.
   Before labeling, record how many in-use cases were drawn and how many carried a provenance defect;
   if FLAG falls short of 30, record the achieved n and its interval rather than padding.
 - Split: at least a third of each stratum is `holdout`; the prompt file stays frozen, and any prompt
@@ -298,7 +350,20 @@ by git revert. Hook infrastructure, a model-spending background process and undo
   bash-harness patch-range only, honest S3/G7 reach, budget exhaustion shown to the user, gated probe
   rows must name a design thread, kappa and prompt-freeze checks in `metrics.sh --check`, TDD-session
   cost probe.
-- Devil's advocate round 3 (final): pending.
+- Devil's advocate round 3 (final): 0 CRITICAL, 6 HIGH, 9 MEDIUM, 3 LOW; DT16's direction held and
+  every finding is folded in: the bg job no longer assumes hook order (hooks run in parallel,
+  hooks.md:410, checked); block identity by name and ordinal, re-derived from the current file;
+  locks with pid, host, start and staleness; a `pending/` marker and Stop taking the same lock; cost
+  bounds (one run per file, per-run budget, session cap, machine slots); relay from a fixed
+  template with quote and diff validation; an isolated judge child (`--system-prompt`,
+  `--setting-sources`, `--strict-mcp-config` and `--max-budget-usd` exist in `claude --help`,
+  checked; their effect is probe 3); repo-scoped reads; an exit-0 trap and a dated Q4
+  clarification; Stop judges in parallel with the budget derived from probe 7; bash-harness keyed by
+  whole file; pass bars on R2-P13 and R2-P14; a Windows variant of probe 4; one session file per
+  write; all state pruned; SessionStart names a verdict once; no implicit fable fallback; same-dir
+  rename; no deletion diffs; an adversarial calibration stratum.
+  Unprobed assumptions carried into Phase 1: grandchild survival when node is killed, Read outside
+  cwd in `-p`, which credential `-p` bills, MSYS append behavior (removed by one file per write).
 
 ## Execution shape
 
@@ -310,7 +375,10 @@ as a draft, with its own version bump where a plugin changes.
 
 ## Open questions
 
-- None at draft time.
+- Judgment defaults awaiting the user at approval (basis: judgment; each tunable, and probes 7 and
+  R2-P13 re-derive the timing ones): debounce 20 s; per-run budget $0.50; 30 judge runs per session;
+  3 concurrent runs per machine; 10 keys and 180 s per Stop (Stop timeout 240 s); R2-P13 bar of a
+  60 s longest Stop wait; R2-P14 bars of 500 ms idle and 2 s ready.
 
 ## Handoff to implementation
 
