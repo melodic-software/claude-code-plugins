@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.5] - 2026-09-29
+
+### Fixed
+
+- **The interview surface docs say how to read the watcher's JSON after a wake.** The wake notification carries only the output-file path and exit status. On exit 0 the session Reads the file and takes its last line, falling back to `tail -n 1` when Read reports a partial view; on a nonzero exit it reads the diagnostic and follows the exit-specific recovery. A verification record with an upstream pointer backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+
 ## [0.47.4] - 2026-09-29
 
 ### Fixed
 
-- **The interview surface docs say how to read the watcher's JSON after a wake.** The wake notification carries only the output-file path and exit status. On exit 0 the session takes the last line of that file with `tail -n 1` (Read cuts long lines); on a nonzero exit it reads the diagnostic and follows the exit-specific recovery. A verification record with an upstream pointer backs the claim ([#5456](https://github.com/melodic-software/claude-code-plugins/issues/5456)).
+- **Interview surface question cards keep their badge row in column 2** when a question has several `dependsOn` entries. `.qid` spanned a fixed three rows while the card emitted a variable number of needs lines, so the badges landed in the emptied left column and squeezed the title ([#5191](https://github.com/melodic-software/claude-code-plugins/issues/5191)).
 
 ## [0.47.3] - 2026-09-29
 
