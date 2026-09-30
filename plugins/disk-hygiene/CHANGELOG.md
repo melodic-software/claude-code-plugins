@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.1] - 2026-09-30
+## [0.34.3] - 2026-09-30
 
 ### Fixed
 
@@ -18,6 +18,22 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `rollup_precision` markers are unchanged. The skill, `scan-flags.md`, `safety-model.md`, the README
   and the fan-out worker brief state the gated behavior, superseding the earlier lines below that say
   `--sizes-only` skips the question.
+
+## [0.34.2] - 2026-09-30
+
+### Fixed
+
+- **`clean` hints Windows device-name files on Linux.** The baseline policy flags an entry named like a Windows reserved device (`nul`, `con`, `prn`, `aux`, `com1`-`com9`, `lpt1`-`lpt9`, any case, with or without an extension) at confidence ceiling low; the reason says an entry of that name is most likely a redirection artifact. The hints match regular files only and apply on Linux only.
+- **`clean` explains a `null` `os_autoclean` recommendation on Linux.** SKILL.md now says it means a tmpfiles.d directory exists, not that a rule covers the temp zone.
+
+## [0.34.1] - 2026-09-30
+
+### Fixed
+
+- **The manual-lane handoff says not to empty the bin after a recycle**
+  ([#4228](https://github.com/melodic-software/claude-code-plugins/issues/4228)). Step 2 of the
+  gated manual lane now says not to empty the Recycle Bin or Trash after a recycle: emptying it
+  would make any recycled removal permanent and is the container-wide operation step 3 forbids.
 
 ## [0.34.0] - 2026-09-30
 
