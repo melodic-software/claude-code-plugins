@@ -255,10 +255,8 @@ cmd_score() {
   fi
   local root
   root="$(repo_root)"
-  local tmp
   tmp="$(mktemp -d)"
-  # shellcheck disable=SC2064  # expand now: tmp is function-local, unset when the EXIT trap fires
-  trap "rm -rf -- '$tmp'" EXIT
+  trap 'rm -rf -- "$tmp"' EXIT
   local f
   local -a files
   mapfile -t files < <(probe_files "$dir")

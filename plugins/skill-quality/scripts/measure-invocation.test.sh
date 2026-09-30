@@ -298,6 +298,14 @@ else
   fail "score left a temp dir behind: $(ls "$TMP/tmpfix")"
 fi
 
+mkdir -p "$TMP/it's"
+out="$(TMPDIR="$TMP/it's" run score "$TMP/empty-probes" 2>&1)"
+if [[ -z "$(ls -A "$TMP/it's")" ]] && ! grep -q 'unexpected EOF' <<<"$out"; then
+  pass "score cleans up when TMPDIR contains a quote"
+else
+  fail "score mishandled a quote in TMPDIR: $out"
+fi
+
 if [[ $fails -gt 0 ]]; then
   printf 'measure-invocation.test.sh: %s failed\n' "$fails" >&2
   exit 1
