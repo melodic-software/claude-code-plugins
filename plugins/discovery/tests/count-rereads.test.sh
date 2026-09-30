@@ -112,6 +112,11 @@ turn "$L" 2 "$(read_of /repo/l.md)" "$(read_of /repo/m.md)"
 expect "grep --regexp= and -eNEEDLE keep their file operand" "$L" \
   '^SCAN->READ: /repo/l\.md$' '^SCAN->READ: /repo/m\.md$' '^SCAN->READ count: 2$'
 
+W="$WORK/grep-files-with-matches.jsonl"
+turn "$W" 1 "$(bash_of 'grep --files-with-matches TODO /repo/w.md')"
+turn "$W" 2 "$(read_of TODO)"
+expect "grep --files-with-matches still drops its pattern operand" "$W" '^SCAN->READ count: 0$'
+
 R="$WORK/partial-shell.jsonl"
 turn "$R" 1 "$(bash_of 'head -n 20 /repo/a.md')" "$(bash_of "sed -n '1,20p' /repo/b.md")"
 turn "$R" 2 "$(read_of /repo/a.md)" "$(read_of /repo/b.md)"

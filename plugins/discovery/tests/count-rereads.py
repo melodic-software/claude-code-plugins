@@ -66,7 +66,8 @@ def bash_effect(command: str) -> tuple[str, str, list[str]] | None:
         files = operands(args, ("-e", "-f", "-m", "-A", "-B", "-C"))
         # the first operand is the pattern unless -e, -f or their long or attached forms supplied it
         has_pattern_opt = any(
-            a in ("-e", "-f") or a.startswith(("--regexp", "--file", "-e", "-f"))
+            a.startswith(("--regexp=", "--file="))
+            or (a[:2] in ("-e", "-f") and not a.startswith("--"))
             for a in args
         )
         return "scan", prog, files if has_pattern_opt else files[1:]
