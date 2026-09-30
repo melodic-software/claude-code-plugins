@@ -797,6 +797,10 @@ assert_eq "case 27: a key named only in the permissions Type bullet is documente
 assert_eq "case 27: a key with its own heading is documented" "ok" "$(jq -r '.rows[] | select(.claim=="documented-key:permissions.deny") | .status' <<<"$out")"
 assert_eq "case 27: the local scope is checked too" ".claude/settings.local.json" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:zzLocalKey") | .identity.sites[0].surface' <<<"$out")"
 assert_eq "case 27: \$schema is never a key row" "0" "$(jq '[.rows[] | select(.claim | test("key:\\$schema$"))] | length' <<<"$out")"
+printf '%s\n' '{"describedKey":1}' >"$m/project/.claude/settings.local.json"
+make_cli "$m/claude-desc" "2.1.281 (Claude Code)" enabledPlugins permissions 'describedKey:z.boolean().optional().describe("@internal Whether the user has accepted it")'
+out=$(CLI_BIN="$m/claude-desc" run "$m" --json 2>&1) || true
+assert_contains "case 27: the binary's describe string is quoted" "$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:describedKey") | .detail' <<<"$out")" '"@internal Whether the user has accepted it"'
 make_cli "$m/claude-shim" "2.1.281 (Claude Code)" internalOnlyKey
 out=$(CLI_BIN="$m/claude-shim" run "$m" --json 2>&1) || true
 assert_eq "case 27: a file without the control literals was not searched" "not-searched" "$(jq -r '.claude_version.binary.key_search' <<<"$out")"

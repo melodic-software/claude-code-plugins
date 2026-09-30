@@ -989,6 +989,12 @@ cr_match() {
 BIN_SEARCH=not-needed
 BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
 declare -A BIN_HAS=()
+# bin_describe <name>: the first describe("...") string within 300 characters
+# after the name, control characters stripped, capped at 160 characters.
+bin_describe() {
+  LC_ALL=C grep -aoE -m1 -- "(^|[^A-Za-z0-9_\$])$1[^A-Za-z0-9_\$].{0,300}describe\(\"[^\"]{1,400}\"" "$CLAUDE_BIN" 2>/dev/null |
+    head -n1 | sed -E 's/.*describe\("//; s/"$//' | LC_ALL=C tr -d '[:cntrl:]' | cut -c1-160
+}
 if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   BIN_SEARCH=not-searched
   if [[ -n "$CLAUDE_BIN" && -f "$CLAUDE_BIN" && -r "$CLAUDE_BIN" ]] &&
@@ -1015,7 +1021,8 @@ if [[ ${#KP_KEY[@]} -gt 0 ]]; then
     elif [[ "${BIN_HAS[$leaf]}" == "unsearchable" ]]; then
       row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; its name is too short or not identifier-shaped for a binary search to settle, so whether the CLI reads it is not known$cr_note" "$ptr"
     elif [[ "${BIN_HAS[$leaf]}" == "yes" ]]; then
-      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)$cr_note" "$ptr"
+      desc="$(bin_describe "$leaf")"
+      row A key-documented finding info "$surface" "undocumented-key:$k" "$k is not documented on settings-reference; the installed claude binary carries $leaf as a standalone name, so it may be an internal key the CLI manages (this shows the name is in the CLI, not that the CLI reads it)${desc:+; the binary describes it: \"$desc\"}$cr_note" "$ptr"
     else
       row A key-documented finding warning "$surface" "undocumented-key:$k" "$k is in neither settings-reference nor the installed claude binary; Claude Code may ignore it$cr_note" "$ptr"
     fi
