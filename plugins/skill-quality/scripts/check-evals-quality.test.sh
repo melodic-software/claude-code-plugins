@@ -84,6 +84,15 @@ else
   fail "no arguments should exit 2 (rc=$rc): $out"
 fi
 
+# 2b. An option-shaped argument is reported as an unknown option, not a missing file.
+out="$(run --bogus 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'unknown option: --bogus' <<<"$out"; then
+  pass "an unknown option exits 2 naming it"
+else
+  fail "an unknown option should exit 2 naming it (rc=$rc): $out"
+fi
+
 # 3. A missing input file is an environment error (exit 2), not a skip.
 out="$(run "$TMP/absent/evals/evals.json" 2>&1)"
 rc=$?
