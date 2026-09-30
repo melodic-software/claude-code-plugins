@@ -645,7 +645,8 @@ segment_writes_drive_root_tmp() {
     return 1
   fi
   # Inline python write opening a drive-root tmp path
-  if [[ "$subject" =~ (open|write_text|write_bytes|makedirs)\( ]]; then
+  local py_open="(open|write_text|write_bytes|makedirs)[[:space:]]*\\(|['\"]open['\"]\\)[[:space:]]*\\("
+  if [[ "$subject" =~ $py_open ]]; then
     has_drive_root_tmp "$subject" && return 0
     return 1
   fi

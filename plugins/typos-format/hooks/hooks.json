@@ -1,5 +1,5 @@
 {
-  "description": "Corrects spelling in prose and code after a write or edit.",
+  "description": "Corrects spelling in prose and code after a write or edit, and reports a missing typos at session start.",
   "hooks": {
     "PostToolUse": [
       {
@@ -16,6 +16,24 @@
             ],
             "timeout": 15,
             "statusMessage": "Checking spelling..."
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-unset-or-true",
+              "TYPOS_FORMAT_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+            ],
+            "timeout": 10,
+            "statusMessage": "Checking typos..."
           }
         ]
       }

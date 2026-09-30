@@ -2020,7 +2020,11 @@ def main(argv: list[str] | None = None) -> int:
 
     rows: list[FileRow] = report.pop("_rows")
     if args.csv:
-        count = write_csv(rows, Path(args.csv))
+        try:
+            count = write_csv(rows, Path(args.csv))
+        except OSError as exc:
+            print(f"error: cannot write --csv {args.csv}: {exc}", file=sys.stderr)
+            return 2
         report["csv"] = {
             "path": args.csv,
             "rows": count,
