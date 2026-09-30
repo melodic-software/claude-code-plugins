@@ -1,0 +1,33 @@
+specification {
+  element softwareSystem
+  element container
+  element store {
+    style {
+      shape storage
+    }
+  }
+  element queue {
+    style {
+      shape queue
+    }
+  }
+}
+model {
+  e_sys = softwareSystem "endpoint-repo" {
+    e_OrdersApi = container "OrdersApi" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+    e_Web = container "Web" {
+      technology "ASP.NET Core"
+      description "web"
+    }
+  }
+  e_sys.e_Web -> e_sys.e_OrdersApi "Uses"
+}
+views {
+  view containers of e_sys {
+    title "Container diagram for endpoint-repo"
+    include *
+  }
+}

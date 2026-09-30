@@ -3,11 +3,17 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.11] - 2026-09-30
+## [0.4.12] - 2026-09-30
 
 ### Changed
 
 - README and `/go-format:setup check` state that the SessionStart probe reports a missing `goimports` wherever the plugin is enabled and `go_format_enabled` is not `false`, including a repository with no `.go` files.
+
+## [0.4.11] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
 
 ## [0.4.10] - 2026-09-29
 
