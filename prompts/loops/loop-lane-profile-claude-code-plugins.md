@@ -773,15 +773,20 @@ to the template re-renders here too.
 >   `.oauthAccount.emailAddress` directly from
 >   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a
 >   machine running only headless sessions never refreshes the tee, so a
->   switch would go unseen. Read it at pause entry, recording it as the
->   **latched account**, and on every re-evaluation (each Monitor tick
->   and each wake). When it differs from the latched account,
->   re-evaluate against the new account's windows, taken from a fresh
->   tee snapshot whose `account.email` equals the new account: below 90,
->   drop the latched pause and resume; at or above 90, keep pausing and
->   re-latch the pause end and the latched account against the new
->   account's `resets_at`; with no fresh or attributable snapshot, treat
->   the windows as **unknown**, drop the latch, and fall back to
+>   switch would go unseen. At pause entry, record the **latched
+>   account** as the `account.email` of the snapshot that tripped, not
+>   the account `.claude.json` names now: that snapshot can be up to 10
+>   minutes old and may describe an account the operator has since left.
+>   A snapshot with no `account.email` leaves the entry
+>   **unattributed**, with no latched account. Read `.claude.json` at
+>   pause entry and on every re-evaluation (each Monitor tick and each
+>   wake). When it differs from the latched account, re-evaluate at once
+>   against the new account's windows, taken from a fresh tee snapshot
+>   whose `account.email` equals the new account: below 90, drop the
+>   latched pause and resume; at or above 90, keep pausing and re-latch
+>   the pause end and the latched account against the new account's
+>   `resets_at`; with no fresh or attributable snapshot, treat the
+>   windows as **unknown**, drop the latch, and fall back to
 >   reactive-only. An unreadable, absent, or malformed state file, or a
 >   missing key, means **cannot attribute**: keep the existing latch,
 >   never a spurious drop. Never print, log, or interpolate the email or

@@ -184,6 +184,21 @@
         "Does not carry the old account's resets_at over as the new account's pause end",
         "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint"
       ]
+    },
+    {
+      "id": 12,
+      "name": "babysit-loop-pause-entry-latches-the-tripping-snapshot-account",
+      "prompt": "/source-control:babysit-loop acme/widgets\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose account.email names account A and whose seven-day window reads 92%. After that snapshot the operator switched to account B: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names account B, and no other tee snapshot exists. Durable state carries no latched_account.",
+      "expected_output": "The 92% reading trips the pause threshold. At pause entry the lane records latched_account as the fingerprint of the tripping snapshot's account.email (account A), never the fingerprint of the account .claude.json names now (account B), and writes it in the same write as paused_until. It then reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, finds that account B differs from the latched account A, and re-evaluates at once instead of waiting for a later wake. No fresh tee snapshot attributes account B, so B's windows are unknown: it clears rate_limit_latch, paused_until, and latched_account together, resumes on the normal schedule in reactive-only mode, and adds an account-switch: unknown line to the cycle report without the address or the fingerprint. It does not sleep until account A's resets_at.",
+      "files": [],
+      "expectations": [
+        "Records latched_account at pause entry as the fingerprint of the tripping snapshot's account.email, not of the account .claude.json names now",
+        "Compares the .claude.json account against the latched account at pause entry and re-evaluates at once when they differ, without waiting for a wake",
+        "Takes account B's windows only from a fresh tee snapshot attributed to B and, finding none, treats them as unknown and falls back to reactive-only",
+        "Does not pause until account A's resets_at and leaves no future paused_until, rate_limit_latch, or latched_account behind",
+        "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
     }
   ]
 }

@@ -13,10 +13,16 @@ changed: the account-switch rule lives in the §6 rate-limit guard floor.
 
 - **Reader-side invalidation is built (§6).** Lanes read `.oauthAccount.emailAddress` directly from
   `.claude.json` while paused and drop a latched pause on an account change when the new account is
-  below the pause threshold. The obligation is a MUST in the guard's reader contract.
+  below the pause threshold. The latched account is the account of the snapshot that tripped the
+  pause. The obligation is a MUST in the guard's reader contract.
+- **Unknown windows drop the latch too.** When no fresh tee snapshot attributes the new account, its
+  windows are unknown, so the lane drops the latch and runs reactive-only, the outcome the staleness
+  rule already gives unknown windows. This goes past dropping only when the new account is below
+  the threshold.
 - **Lane-floor re-audit is satisfied.** The floor block moved to every carrier together and the
   drift gate enforces it.
-- **Known gap narrowed.** Unattributable switches (absent tee field, unreadable state file) remain.
+- **Known gap narrowed.** Unattributable switches (absent tee field, unreadable state file, a
+  tripping snapshot with no `account.email`) remain.
 
 ## [9.3.1] - 2026-09-29
 

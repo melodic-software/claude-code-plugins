@@ -130,6 +130,10 @@ re-reading the block:
 work*; `paused_until` says *do not read my silence as death*. Write it before entering a rate-limit
 pause so a paused lane is never adopted as a dead one.
 
+Report the instance on its own `instance:` line in the cycle report, never appended to `lane:`,
+the telemetry reader's lane capture is `[a-z0-9_-]+` and would truncate the suffix at the `@`,
+reporting the lane as if nothing were partitioned.
+
 ## Known limits
 
 A PATCH that succeeds while storing the previous body still verifies: the read-back asserts that

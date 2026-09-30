@@ -847,17 +847,24 @@ gap removes the false assurance that nothing is missing.
 writer could attribute the observation and absent rather than wrong when it could not
 (`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). Reader-side
 invalidation of latched state is a **MUST** in the inlined floor's "Account switch" bullet: a paused
-lane records the account it latched under, reads `.oauthAccount.emailAddress` directly from
-`${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` on every wake and Monitor tick (the tee is not the
-signal source, because a headless-only machine never refreshes it), and on a change drops the
-latch and resumes when the new account is below the pause threshold, or re-latches against the new
-account's `resets_at`. The lane-floor re-audit is satisfied by the drift gate: the floor block moved
-to every carrier together and `scripts/check-loop-lane-floor-drift.sh` fails when any copy differs.
+lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
+names at pause entry, because the snapshot can be up to 10 minutes old), reads
+`.oauthAccount.emailAddress` directly from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` at pause entry
+and on every wake and Monitor tick (the tee is not the signal source, because a headless-only
+machine never refreshes it), and on a change drops the latch and resumes when the new account is
+below the pause threshold, or re-latches against the new account's `resets_at`. One branch goes
+past "drop when the new account is below the threshold": when no fresh tee snapshot attributes the
+new account, its windows are unknown, so the lane drops the latch and runs reactive-only, the
+outcome the staleness rule already gives unknown windows. The lane-floor re-audit is satisfied by
+the drift gate: the floor block moved to every carrier together and
+`scripts/check-loop-lane-floor-drift.sh` fails when any copy differs.
 
 **Known gap: unattributable cases.** The gap narrows rather than closes. A switch the lane cannot
-attribute goes unseen: the tee field is absent whenever the writer could not attribute, and a
-reader that cannot read `.oauthAccount.emailAddress` keeps its latch (fail-closed, never a spurious
-drop) until the latched pause ends. Both depend on an internal `.claude.json` key.
+attribute goes unseen: the tee field is absent whenever the writer could not attribute, a reader
+that cannot read `.oauthAccount.emailAddress` keeps its latch (fail-closed, never a spurious drop)
+until the latched pause ends, and a pause whose tripping snapshot has no `account.email` starts with
+no latched account and adopts the first account it reads, so a switch before that read goes unseen.
+All three depend on an internal `.claude.json` key or on the writer's attribution.
 
 **Guard-mode telemetry.** Each lane records the guard's mode, proactive, reactive, or unknown, in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the
