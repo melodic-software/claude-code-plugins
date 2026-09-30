@@ -520,7 +520,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - verdict recorded from the owner's interview answers in docs/upstream/claudedevs-cost-performance.md Lane M and Lane T2, 2026-09-10
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
 - **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the anthropics/skills repo or the platform claude-api-skill docs page gains hillclimb/build-eval (which also fires the docs/upstream/claudedevs-cost-performance.md hillclimb row) (verified 2026-09-10)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `claude-api` → `evals:methodology`
@@ -784,7 +784,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `explain-usage` skill, widens it beyond the current session, or changes its gating (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `explain-usage` → `context-budget:audit`
@@ -819,7 +819,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `fewer-permission-prompts` skill, changes what it writes, or changes its invocability (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `pr` → `source-control:pull-request`
@@ -939,7 +939,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `update-config` skill, changes what it writes, or changes its invocability (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `verify` → `verification:confirm`

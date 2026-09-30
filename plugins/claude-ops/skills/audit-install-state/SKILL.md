@@ -45,8 +45,8 @@ Rationale and handoffs: [reference/scope-and-handoffs.md](reference/scope-and-ha
 One native Claude Code surface asks a question that sounds like this skill's, and the two are
 routinely conflated:
 
-- **`doctor` (bundled skill, alias `checkup`)**. Ships with Claude Code rather than as a
-  marketplace plugin. It health-checks an installation and **offers to fix** what it finds:
+- **`doctor` (bundled skill, alias `checkup`)**: health-checks an installation and **offers to
+  fix** what it finds:
   installation problems, unused extensions, duplicated or bloated memory files, slow hooks,
   updates, permissions. It also estimates what the skill listing costs in context. It is the one
   bundled skill `disableBundledSkills` does not remove; `DISABLE_DOCTOR_COMMAND=1` or a
