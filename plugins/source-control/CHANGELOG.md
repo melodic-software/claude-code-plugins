@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.64.1] - 2026-09-29
+## [0.64.2] - 2026-09-29
 
 ### Changed
 
@@ -12,6 +12,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `/autofix-pr` bullets in `pull-request`, and the `/autofix-pr` bullet in `babysit-prs` keep the
   provenance class, what the surface does and how it is invoked, in the native-references template
   form.
+
+## [0.64.1] - 2026-09-29
+
+### Changed
+
+- **`babysit-loop` states the isolated-worktree launch recommendation for background lanes** instead of saying a background launch loses the escalation record
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
 
 ## [0.64.0] - 2026-09-29
 
