@@ -1533,7 +1533,7 @@ ki_real="$SCRIPT_DIR/../reference/known-issues.md"
 ki="$TEST_TMPDIR/known-issues.md"
 sed -e '/#8961\]/s/| Place all/| Fixed in v2.1.270. Place all/' \
   -e '/#36808\]/s/| Wrap npx/| Fixed in 2.1.290. Wrap npx/' "$ki_real" >"$ki"
-assert_eq "case 54: the fixture edits landed on two table rows" "2" "$(grep -cE '^\| \[#[0-9]+\].*Fixed in v?[0-9]' "$ki")"
+assert_eq "case 54: the fixture edits landed on the two table rows" "2" "$(grep -cE '^\| \[#(8961|36808)\].*Fixed in v?[0-9]' "$ki")"
 m="$(make_machine known-issues)"
 printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
 out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$ki" run "$m" --json 2>&1) || true

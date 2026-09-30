@@ -29,6 +29,7 @@ permissions	are fragile
 permissions	The space before a trailing `*` is part of the rule
 permissions	such as `cat`
 permissions	arbitrary subprocesses
+permissions	Use PreToolUse hooks
 hooks	Seconds before canceling
 hooks	exec form requires
 env-vars	`SLASH_COMMAND_TOOL_CHAR_BUDGET`

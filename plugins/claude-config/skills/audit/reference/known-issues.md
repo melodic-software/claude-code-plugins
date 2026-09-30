@@ -41,8 +41,8 @@ No row carries one today, because no tracked issue has a fix release to name: th
 unfixed, and the closed ones ended as not planned, as a duplicate, or with an answer and no code
 change. **Claim:** no tracked issue names a fix release. **Basis:**
 `gh api repos/anthropics/claude-code/issues/<N>` state and `state_reason` for each row, the
-timelines of #6699 and #37634, and the `anthropics/claude-code` `CHANGELOG.md` searched for each
-issue number and each row's symptom. **As of:** 2026-09-30. **Recheck:** a tracked issue closes as
+timeline of #6699, the duplicate chain of #37634 (#23556, then #16377, closed as not planned), and
+the `anthropics/claude-code` `CHANGELOG.md` searched for each issue number and each row's symptom. **As of:** 2026-09-30. **Recheck:** a tracked issue closes as
 completed, or a changelog entry names one.
 
 ## When this file changes

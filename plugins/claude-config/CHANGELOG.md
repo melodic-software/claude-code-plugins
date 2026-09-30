@@ -20,9 +20,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Changed
 
-- **Category D's prose matches the engine.** Hook event names are engine-decided in `SKILL.md` and
-  `context/validation-categories.md`; the model reads the hooks page only for a row the engine left
-  `not-inspectable`.
+- **The audit's Phase 2 prose matches the engine.** Hook event names are engine-decided in `SKILL.md`
+  and `context/validation-categories.md`, and the checklist template sends Phase 2 to the judgment
+  column; the model reads the hooks page only for a row the engine left `not-inspectable`.
 
 ### Fixed
 

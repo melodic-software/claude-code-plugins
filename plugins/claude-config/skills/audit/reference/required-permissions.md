@@ -193,7 +193,7 @@ below the sandbox": the sandbox constrains filesystem paths and network hosts an
 for a command's arguments, so it does not bound `git push --force` at all. Against destructive git
 the available controls are the deny globs above and a `PreToolUse` hook, and the honest ordering is
 that a hook can parse the command rather than prefix-match it, while inheriting the same
-command-string evasion surface. Upstream supports the fragility claim generally; its *"use PreToolUse
+command-string evasion surface. Upstream supports the fragility claim generally; its *"Use PreToolUse
 hooks"* recommendation on that page is scoped to URL filtering, so do not cite upstream as ranking
 the hook above the glob for destructive commands. That reach is ours to argue, not theirs to have
 said.
