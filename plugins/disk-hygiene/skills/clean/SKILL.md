@@ -165,8 +165,9 @@ directories, read-only, keeps no per-path entries, and has no entry cap. Detail:
 
 ## 1. Create a read-only snapshot
 
-Create a unique run directory under `${CLAUDE_PLUGIN_DATA}/runs/`; snapshots, plans, and reports must
-stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
+Choose a unique run-directory path under `${CLAUDE_PLUGIN_DATA}/runs/`; the engine creates it (it
+creates the parent of `--output`). Snapshots, plans, and reports must stay there, never in the target
+or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \

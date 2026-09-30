@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.3] - 2026-09-30
+## [0.34.4] - 2026-09-30
 
 ### Fixed
 
@@ -18,6 +18,17 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   `rollup_precision` markers are unchanged. The skill, `scan-flags.md`, `safety-model.md`, the README
   and the fan-out worker brief state the gated behavior, superseding the earlier lines below that say
   `--sizes-only` skips the question.
+
+## [0.34.3] - 2026-09-30
+
+### Fixed
+
+- **`/disk-hygiene:clean` docs match the engine**
+  ([#5520](https://github.com/melodic-software/claude-code-plugins/issues/5520)). Section 1 says the
+  engine creates the run directory instead of telling the agent to create it. The fan-out worker
+  brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
+  optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
+  tokens, and states that `--project-dir` is optional.
 
 ## [0.34.2] - 2026-09-30
 
