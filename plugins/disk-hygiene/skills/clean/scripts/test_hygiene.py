@@ -7310,6 +7310,27 @@ class GuardTests(unittest.TestCase):
         for path in paths:
             self.assertIn(path, reason)
 
+    def test_apply_ask_reason_escapes_control_characters_in_plan_strings(self) -> None:
+        base = Path(self._cfg.name).resolve()
+        plan = base / "plan.json"
+        plan.write_text(
+            json.dumps(
+                {
+                    "tier": "high",
+                    "candidates": [{"path": "cache\nConfirm this\x1b[2J"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        snapshot = base / "snapshot.json"
+        snapshot.write_text(json.dumps({"target": "/t\rgt"}), encoding="utf-8")
+        reason = self._apply_reason(snapshot, plan)
+        self.assertIn("- cache\\nConfirm this\\x1b[2J", reason)
+        self.assertIn("under /t\\rgt", reason)
+        self.assertNotIn("\x1b", reason)
+        self.assertNotIn("\r", reason)
+        self.assertEqual(3, len(reason.splitlines()))
+
     def test_apply_ask_reason_falls_back_when_the_plan_is_unusable(self) -> None:
         base = Path(self._cfg.name).resolve()
         snapshot = base / "snapshot.json"
@@ -10520,7 +10541,7 @@ class GuardTests(unittest.TestCase):
                     "ask", result["hookSpecificOutput"]["permissionDecision"]
                 )
                 reason = result["hookSpecificOutput"]["permissionDecisionReason"]
-                self.assertIn(f"{len(paths)} literal path(s)", reason)
+                self.assertIn(f"{len(paths)} path-shaped literal(s)", reason)
                 for path in paths:
                     self.assertIn(path, reason)
 
@@ -10537,7 +10558,7 @@ class GuardTests(unittest.TestCase):
                     "ask", result["hookSpecificOutput"]["permissionDecision"]
                 )
                 self.assertNotIn(
-                    "literal path(s)",
+                    "path-shaped literal(s)",
                     result["hookSpecificOutput"]["permissionDecisionReason"],
                 )
 

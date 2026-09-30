@@ -8,7 +8,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 ### Added
 
 - **`handoff-verify --path` is repeatable.** Pass `--path` once per approved path to report several paths in one call without writing a paths file. Each path gets the same validation as a `--paths` entry, and `--path` stays mutually exclusive with `--paths` in the parser and the guard.
-- **The apply and PowerShell deletion prompts list what they will delete.** The exact-engine apply prompt renders the plan's tier, path count, and every path; the PowerShell mutation prompt lists the literal paths its command names. Text only: every allow and ask verdict is unchanged, and an unreadable plan keeps the generic reason.
+- **The apply and PowerShell deletion prompts list what they will delete.** The exact-engine apply prompt renders the plan's tier, path count, and every path; the PowerShell mutation prompt lists the path-shaped literals its command contains, noting the list may not be every path it acts on. Both prompts escape control characters in the listed text. Text only: every allow and ask verdict is unchanged, and an unreadable plan keeps the generic reason.
 
 ### Changed
 

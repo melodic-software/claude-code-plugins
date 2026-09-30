@@ -1867,6 +1867,18 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     return None
 
 
+def _display_text(value: str) -> str:
+    """``value`` with control characters escaped, for the ``ask`` reason text.
+
+    A newline or escape byte inside a path taken from a command or a plan file
+    would otherwise restructure the prompt the person reads before approving.
+    """
+    return "".join(
+        char if char.isprintable() else char.encode("unicode_escape").decode()
+        for char in value
+    )
+
+
 # Quoted literals and unquoted drive-letter paths. Double-quoted text that
 # interpolates (`$` or a backtick) is not a literal and is filtered afterward.
 _POWERSHELL_LITERAL_PATH = re.compile(
@@ -1912,7 +1924,10 @@ def _powershell_mutation_verdict(
     except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
         paths = []
     named = (
-        f" The command names {len(paths)} literal path(s): " + "; ".join(paths) + "."
+        f" The command contains {len(paths)} path-shaped literal(s), which may not "
+        "be every path it acts on: "
+        + "; ".join(_display_text(path) for path in paths)
+        + "."
         if paths
         else ""
     )
@@ -2531,14 +2546,14 @@ def _apply_ask_reason(command: str) -> str:
         snapshot = _read_json_file(flags["--snapshot"], _APPLY_SNAPSHOT_READ_LIMIT)
         target = snapshot.get("target") if isinstance(snapshot, dict) else None
         where = (
-            f"under {target}"
+            f"under {_display_text(target)}"
             if isinstance(target, str)
             else "(snapshot-relative; the snapshot target could not be read)"
         )
         return (
-            f"disk-hygiene is ready to apply one exact, previewed tier: {tier}, "
+            f"disk-hygiene is ready to apply one exact, previewed tier: {_display_text(tier)}, "
             f"{len(paths)} path(s) {where}:\n"
-            + "\n".join(f"- {path}" for path in paths)
+            + "\n".join(f"- {_display_text(path)}" for path in paths)
             + "\nConfirm this final mutation prompt only if it matches the tier "
             "and paths you just approved."
         )
