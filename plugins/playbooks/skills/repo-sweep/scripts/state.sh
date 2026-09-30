@@ -12,6 +12,7 @@
 #   pr <number>
 #   branch <head-branch>
 #   pr-state OPEN|MERGED|CLOSED
+#   mergeable CONFLICTING  a warning: printed only when the open PR conflicts with its base
 #   playbook <name>
 #   dirty yes|no           any change, tracked or untracked, outside .work/
 #   untick-committed <id> <sha> <skill@version>...
@@ -35,7 +36,7 @@
 set -euo pipefail
 
 prefix=chore/repo-sweep-
-fields=number,state,headRefName,baseRefName,body,isCrossRepository
+fields=number,state,mergeable,headRefName,baseRefName,body,isCrossRepository
 # Branch names, playbook names, and step ids reach commands the agent builds, so all three are
 # restricted to safe characters, and fork PRs never count as a sweep.
 safe_branch='^chore/repo-sweep-[A-Za-z0-9._-]+$'
@@ -71,6 +72,7 @@ fi
 
 jq -r '"pr \(.number)\nbranch \(.headRefName)\npr-state \(.state)"' "$tmp/pr"
 [[ $(jq -r .state "$tmp/pr") == OPEN ]] || exit 11
+jq -r 'select(.mergeable == "CONFLICTING") | "mergeable CONFLICTING"' "$tmp/pr"
 jq -r .body "$tmp/pr" | tr -d '\r' | awk '
   /^<!-- repo-sweep:end -->/ { if (inb) exit; next }
   inb { print; next }
@@ -107,7 +109,7 @@ awk -v logf="$tmp/log" '
     if (!i) next
     id = substr(rest, 1, i - 1); tail = substr(rest, i + 2)
     if (id !~ /^[a-z0-9-]+$/) { print "state.sh: unsafe step id: " id > "/dev/stderr"; bad = 1; exit }
-    if (mark ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\))(, partial coverage: .+)?$|, not applicable: .+$/) next
+    if (mark ~ /[xX]/ && tail ~ /(, committed [0-9a-f]+|, no findings|, no fix-eligible findings \([0-9]+ report-only\)|, findings declined \([0-9]+\)|, filed [^ ,]+)(, partial coverage: .+)?$|(^|, )not applicable: .+$/) next
     n = split(tail, s, /, */)
     for (c = 1; c <= nc; c++) {
       if (cnt[c] != n) continue

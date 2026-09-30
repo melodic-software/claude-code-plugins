@@ -67,6 +67,32 @@
         "title appears in data-model.dbml",
         "The foreign key is a DBML Ref"
       ]
+    },
+    {
+      "id": 6,
+      "name": "sql-alter-outside-subset-refuses",
+      "prompt": "/architecture:map-data\n\nThe only schema is db/migrations/001/migration.sql (CREATE TABLE User and Post) and db/migrations/002/migration.sql, which contains ALTER TABLE \"Post\" RENAME TO \"Article\". Both are tracked. The run is non-interactive.",
+      "expected_output": "collect-data.sh writes a refusal with reason sql-alter-unreadable and no relationships. The artifact says the migration uses an ALTER TABLE action outside the readable subset and draws no diagram.",
+      "narration": true,
+      "expectations": [
+        "The record reason is sql-alter-unreadable",
+        "No erDiagram is drawn",
+        "Does not draw Post from the first migration as if the rename had not happened",
+        "The report names the refusal instead of reporting a drawn diagram"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "losing-tier-does-not-block-the-winner",
+      "prompt": "/architecture:map-data\n\norders/schema.prisma declares User and Post with a required foreign key. orders/migrations/001/migration.sql agrees. tests/Sample.cs has a lambda chain, modelBuilder.Entity<Post>().HasOne(p => p.Author).WithMany().HasForeignKey(p => p.AuthorId). No --scope argument. The run is non-interactive.",
+      "expected_output": "The Prisma schema wins and only orders is a module, so render-data.sh draws User ||--o{ Post with exit 0. The unreadable EF chain is a not-compared row, not a refusal.",
+      "narration": true,
+      "expectations": [
+        "source_tool is prisma and the record is drawn, not refused",
+        "The scope is orders and render-data.sh exits 0",
+        "The EF file is reported as not-compared, not as ef-fluent-unreadable",
+        "The mismatch list makes no missing-in-other claim about the EF file"
+      ]
     }
   ]
 }

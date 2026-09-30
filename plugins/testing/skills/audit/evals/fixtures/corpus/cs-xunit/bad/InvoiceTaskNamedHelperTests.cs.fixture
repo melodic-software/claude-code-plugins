@@ -1,0 +1,20 @@
+// expect: rule-zero-assertion
+// The helper is named Task and returns Task. The parameterless overload only
+// sends the invoice; the name in its return type is not a call to the other
+// overload, so the test that calls it still asserts nothing.
+using System.Threading.Tasks;
+using Xunit;
+
+public sealed class InvoiceTaskNamedHelperTests
+{
+    [Fact]
+    public async Task Invoice_IsSent() => await Task();
+
+    private static Task Task() => Mailer.SendAsync(new Invoice(10m, 2));
+
+    private static Task Task(decimal expected)
+    {
+        Assert.Equal(expected, new Invoice(10m, 2).Total);
+        return System.Threading.Tasks.Task.CompletedTask;
+    }
+}

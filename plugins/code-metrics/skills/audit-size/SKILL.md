@@ -43,7 +43,7 @@ other does; `lanes.other.enabled: false` opts it out.
 "${CLAUDE_SKILL_DIR}/scripts/audit-size.sh"                      # the change: diff from the merge-base plus uncommitted files
 "${CLAUDE_SKILL_DIR}/scripts/audit-size.sh" src/ lib/util.py     # explicit paths (a missing one is a usage error)
 "${CLAUDE_SKILL_DIR}/scripts/audit-size.sh" --all                # every tracked or untracked-but-not-ignored file
-"${CLAUDE_SKILL_DIR}/scripts/audit-size.sh" --json --all src/    # the code-metrics/v1 document instead of markdown
+"${CLAUDE_SKILL_DIR}/scripts/audit-size.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
 ```
 
 Present the markdown report to the user as printed. It opens with the scope and a "Coverage of

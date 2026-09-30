@@ -84,7 +84,7 @@ names any declaration it ignored.
 
 | Key | Type | Default | What it decides |
 |---|---|---|---|
-| `roots` | array of strings | `["docs"]` | the trees the audit inventories; git pathspecs, relative to the repository root |
+| `roots` | array of strings | `["docs"]` | the trees the audit inventories; git pathspecs, relative to the repository root. A root with no tracked files inventories as `SCANNED 0` and is reported as empty, not clean. The key is additive, so the default `docs` root cannot be removed |
 | `rule` | string | `"lower-kebab"` | the transform that proposes a new name. `lower-kebab` lowercases the basename, turns underscores and spaces into single hyphens, and collapses runs |
 | `regex` | string | `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$` | the extended regular expression a basename must match to be legal. It is also inlined into an emitted gate, so it may not carry a single quote |
 | `exempt_basenames` | array of strings | `["README.md", "CHANGELOG.md", "INDEX.md"]` | basenames that are never renamed, anywhere under a root |
@@ -169,4 +169,6 @@ plugins/docs-hygiene/scripts/resolve-config.sh layers --root <repo>
 per key plus an `!inert:<key>` line for every ignored declaration. Both take
 `--root`, which is the repository the team and overlay layers are read from, so
 a second worktree or a fixture is addressed explicitly rather than inherited
-from the environment.
+from the environment. A `--root` that is the home directory (or an ancestor of
+it) or is not a git working tree has no team or overlay layer: `paths` reports
+both as not-applicable and only the user-global file is read.
