@@ -202,17 +202,6 @@
 
 set -uo pipefail
 
-# Resolve nothing through PATH-dependent helpers before the tool check; see
-# fleet-state.sh's header for the environment-trust boundary this shares.
-if ! command -v jq >/dev/null 2>&1; then
-  echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
-  exit 2
-fi
-if ! command -v git >/dev/null 2>&1; then
-  echo "ERROR: git required" >&2
-  exit 2
-fi
-
 # jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
 # and the `json_string_to` encoder that fleet-state.sh and sync-run.sh share.
 # Resolved from this script's own location with parameter expansion and no
@@ -268,6 +257,33 @@ SENTINEL_UNKNOWN=$'\x01unknown'
 # --- Arg parsing ---------------------------------------------------------------
 # Parsed before any file is read, so a usage error costs no process.
 
+# Built-ins only, so --help runs on a machine that lacks jq or git.
+usage() {
+  local text
+  IFS= read -r -d '' text <<'EOF' || true
+cache-content-check.sh: read-only audit of whether each plugin cache directory
+holds the files of the commit its install record names.
+
+Usage:
+  cache-content-check.sh --marketplace <name> [--scope user|project|all] [--json]
+  cache-content-check.sh --all [--scope user|project|all] [--json]
+  cache-content-check.sh --marketplace <name> [--scope user|project|all] --ids
+
+Default output is one JSON object (--json is accepted and changes nothing);
+--all wraps one object per marketplace. --ids prints the <name>@<marketplace>
+id of every stale-content install, one per line, and cannot be combined with
+--all. --scope defaults to user. Nothing is written and nothing is fetched.
+
+Exit: 0 ran to completion (a per-install verdict is not an error); 2 usage
+error, jq or git missing, an unknown marketplace, or a state file that does not
+match its expected shape.
+
+The verdicts and the test-only environment overrides are in the header comment
+of this script.
+EOF
+  printf '%s\n' "$text"
+}
+
 MODE="default"
 TARGET=""
 SCOPE="user"
@@ -305,8 +321,12 @@ while [[ $# -gt 0 ]]; do
   --json)
     shift
     ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
   *)
-    echo "ERROR: unknown argument: $1" >&2
+    echo "ERROR: unknown argument: $1 (see --help)" >&2
     exit 2
     ;;
   esac
@@ -330,6 +350,16 @@ fi
 if [[ -n "$IDS_MODE" && "$MODE" == "all" ]]; then
   echo "ERROR: --ids cannot be combined with --all" >&2
   echo "  Run --ids once per marketplace with --marketplace <name>." >&2
+  exit 2
+fi
+
+# Checked after argument parsing so --help and usage errors work without jq or git.
+if ! command -v jq >/dev/null 2>&1; then
+  echo "ERROR: jq required (install with: winget install jqlang.jq | apt install jq | brew install jq)" >&2
+  exit 2
+fi
+if ! command -v git >/dev/null 2>&1; then
+  echo "ERROR: git required" >&2
   exit 2
 fi
 

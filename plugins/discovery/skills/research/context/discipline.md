@@ -1,6 +1,7 @@
 # Research discipline: sources, recency, falsification, broad topics
 
 Recipes and rationale behind the bars stated in the research skill's SKILL.md body, plus failure patterns observed in real sessions.
+`<plugin-root>` below is the plugin directory that prefixes the `scripts/` paths in the research skill's SKILL.md body; write it out as that absolute path before running a command or writing a brief.
 
 ## Contents
 
@@ -138,8 +139,8 @@ numbered gaps. Otherwise run the gaps one after another: slower, same coverage.
    protocol", with `<scratch>` set to a directory inside this run's memory slice. It returns, per
    gap, each source's URL, its on-disk artifact path, the quoted span, and what the source measures.
    It returns no verdict. The brief also carries one line: `Credentials: verify presence only, never
-   read or print a value; rule and forbidden commands: ${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md,
-   Credentials stay unread`. Done when every worker is dispatched in one turn.
+   read or print a value; rule and forbidden commands: <plugin-root>/reference/parent-contract.md,
+   Credentials stay unread`, with `<plugin-root>` written out as an absolute path. Done when every worker is dispatched in one turn.
 3. **Keep the falsification query yourself.** It tests the leading hypothesis the whole run rests
    on, so it never goes to a gap worker.
 4. **Merge, then confirm.** Append each worker's fetches to the fetch log. A worker's return is
@@ -180,7 +181,7 @@ A ledger built from search results inherits exactly the blind spot the ledger ex
 
 **The depth criterion is per-item and fixed at enumeration time.** Per-item, because "covered" differs across a corpus: a config reference needs its defaults table read; a 900-line spec needs one section. Fixed up front, because a criterion written after the results are in drifts down to whatever the run managed, which is self-certification with extra steps. Write criteria you can grade from the artifact: "its `frontmatter` section read end to end", never "researched" or "understood".
 
-**Step 4: mark rows as their own criterion is met**, and let the script grade the ledger: `${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh <ledger>` (or the `.py` twin) exits 0 only when every row is marked, non-zero otherwise, and 2 when the ledger cannot be parsed at all. Outcome-gate criterion 11 cites that exit status rather than a reading of the table, because the context most motivated to call the table finished is the one that would be reading it. A checker that could not run is a FAIL, never a hand-grade.
+**Step 4: mark rows as their own criterion is met**, and let the script grade the ledger: `<plugin-root>/scripts/check-coverage-complete.sh <ledger>` (or the `.py` twin) exits 0 only when every row is marked, non-zero otherwise, and 2 when the ledger cannot be parsed at all. Outcome-gate criterion 11 cites that exit status rather than a reading of the table, because the context most motivated to call the table finished is the one that would be reading it. A checker that could not run is a FAIL, never a hand-grade.
 
 **Narrowing is legitimate; quiet narrowing is not.** If enumeration turns up more than the budget covers, cut the corpus explicitly and record what was cut and why. A 12-row ledger over a 40-item corpus is a scoped answer a reader can act on, while 40 rows with 28 unmarked is an unfinished one. Enumerating only what you already intended to reach produces a ledger that passes the gate and means nothing.
 
