@@ -106,39 +106,48 @@ Each row was re-derived on 2026-09-28 by resolving the tag to its commit and rea
 ## The CI canary
 
 - **Claim**: on a GitHub-hosted `ubuntu-24.04` runner with a genuinely fresh install (no
-  `~/.claude` before the first step), at action `v1.0.231` installing CLI 2.1.278, a workspace
+  `~/.claude` before the first step), at action `v1.0.235` installing CLI 2.1.283, a workspace
   holding a lone non-empty `AGENTS.md` and no `CLAUDE.md` at any level returned the `AGENTS.md`
-  canary token with zero tool calls, on the first session after the install and again on a second
-  session in the same job. A `CLAUDE.md` carrying its own token suppressed the `AGENTS.md` one, the
+  canary token `CI-AGENTS-51C2` with zero tool calls, on the first session after the install and
+  again on a second session in the same job. The arrange step deleted the repository's own
+  `CLAUDE.md` shim from the ephemeral workspace, and the job's instruction-file listing showed only
+  `AGENTS.md`. The 2026-09-19 run at `v1.0.231` / CLI 2.1.278 returned the same for a lone
+  `AGENTS.md`, and there a `CLAUDE.md` carrying its own token suppressed the `AGENTS.md` one, the
   documented precedence. Separately, `claude-code-action` **rejects the `push` event**
-  (`Unsupported event type: push`); the run was started by REST dispatch
+  (`Unsupported event type: push`); runs are started by REST dispatch
   (`gh api -X POST repos/<owner>/<repo>/actions/workflows/<file>/dispatches -f ref=<branch>`).
-- **Basis**: `melodic-software/knowledge-corpus` run `35475056935`, event `workflow_dispatch`, head
-  SHA `91f0285b1ba2cc7329dff0f89dbbae020171a61b`; log lines quoted in the migration slice's
+- **Basis**: `melodic-software/knowledge-corpus` run `36666844023`, event `workflow_dispatch`, head
+  SHA `24041cf1613312c6aff31ff637d9ea4beb753302` on the throwaway branch
+  `test/agents-md-ci-canary`, deleted after the run. The workflow is the 2026-09-19 canary workflow
+  (knowledge-corpus `91f0285b1ba2cc7329dff0f89dbbae020171a61b`) cut to case A,
+  `workflow_dispatch` only, with both action uses pinned to
+  `756cc22e19660d20e8cc9496b4f242475a7f7790 # v1.0.235`. Log lines: `2.1.283 (Claude Code)`,
+  reply `CI-AGENTS-51C2`, tools used `[]`, in both report steps. The earlier run `35475056935`
+  (head SHA `91f0285b1ba2cc7329dff0f89dbbae020171a61b`) is quoted in the migration slice's
   `PROOF-ci-canary-knowledge-corpus-2026-09-19.md`. The event list is the action's own
   `src/github/context.ts` `parseGitHubContext` switch at the pinned commit.
-- **As of**: 2026-09-19.
-- **Recheck trigger**: a new action release, a new CLI floor, or a runner image change. The canary
-  does not show **why** the flag-gated feature was available in that job, so a later regression
-  would not contradict this record; it would replace it. The check never assumes this result: it
-  parses the run id out of this record, prints it as the evidence behind condition 2, and exits 2
-  if the record is not there to read.
+- **As of**: 2026-09-30.
+- **Recheck trigger**: a new action release, a new CLI floor, or a runner image change. A
+  repository `CLAUDE.md` shim left in the workspace turns the run into a test of the shim, so the
+  arrange step must remove it. The canary does not show **why** the flag-gated feature was
+  available in that job, so a later regression would not contradict this record; it would replace
+  it. The check never assumes this result: it parses the first run id in this section, prints it as
+  the evidence behind condition 2, and exits 2 if the record is not there to read.
 
 ## Canary host (#4282)
 
 - **Claim**: the CI-canary component of cutover condition 2 rests on the knowledge-corpus run
-  recorded in [The CI canary](#the-ci-canary). No canary run exists at `v1.0.235`. Which host runs a
-  new canary, and whether one is required, is pending an owner decision on #4282.
-- **Basis**: the maintainer comment on #4282 of 2026-09-19 (canary half passed, run
-  `35475056935`) and the `v1.0.235` row in the release map above.
-  `melodic-software/ci-workflows#599`, the pin half, closed COMPLETED 2026-09-20. On 2026-09-29,
+  recorded in [The CI canary](#the-ci-canary), at `v1.0.235`. The owner chose one case-A run at
+  that pin on knowledge-corpus over accepting the 2026-09-19 run, and the run passed.
+- **Basis**: the owner decision comments on #4282 of 2026-09-29 ("Option B, run by the agent").
+  `melodic-software/ci-workflows#599`, the pin half, closed COMPLETED 2026-09-20.
   `gh repo view melodic-software/claude-lane-sandbox --json isArchived` returned
-  `{"isArchived":true,"name":"claude-lane-sandbox"}`, and `git ls-remote --heads origin` in the
-  knowledge-corpus tree returned only `refs/heads/main`, so the `test/agents-md-ci-canary` branch
-  the 2026-09-19 comment described as left in place no longer exists.
-- **As of**: 2026-09-29.
-- **Recheck trigger**: the owner's decision on #4282, a new run id recorded in
-  [The CI canary](#the-ci-canary), or a `claude-code-action` release newer than the pinned one.
+  `{"isArchived":true,"name":"claude-lane-sandbox"}` on 2026-09-29, and
+  `git ls-remote --heads origin` in the knowledge-corpus tree returned only `refs/heads/main` on
+  2026-09-30, after the run's branch was deleted.
+- **As of**: 2026-09-30.
+- **Recheck trigger**: a run id newer than the one in [The CI canary](#the-ci-canary), or a
+  `claude-code-action` release newer than the pinned one.
 
 ## Current fleet grade
 
@@ -146,12 +155,13 @@ Each row was re-derived on 2026-09-28 by resolving the tag to its commit and rea
   `remove-shims may run`, over ten repositories with none unreadable: claude-code-plugins, medley,
   songwriting, claude-code-proxy, knowledge-corpus, codex-plugins, ci-runner, agent-plugins,
   cursor-plugins, and provisioning. Condition 1 is `[MET]` because the bundle code default for
-  `tengu_agents_md_mod` is true. Condition 2 is `[MET]` on pin arithmetic, and provisional: the
+  `tengu_agents_md_mod` is true. Condition 2 is `[MET]` on pin arithmetic: the
   only pin in the ten is medley's `v1.0.231` (CLI 2.1.278), and the two ci-workflows pins, outside
-  the ten, are `v1.0.235` (CLI 2.1.283), all at or above 2.1.277. Its CI-canary component rests on
-  run `35475056935` at `v1.0.231` / CLI 2.1.278. [The CI canary](#the-ci-canary) recheck trigger,
-  a new action release, has fired and the run was not replaced. Whether a re-run is required is an
-  open owner decision on #4282 (see [Canary host](#canary-host-4282)). Condition 3 is `[MET]`:
+  the ten, are `v1.0.235` (CLI 2.1.283), all at or above 2.1.277. This grade printed the
+  2026-09-19 canary run at `v1.0.231` as its CI-canary evidence. The record now names run
+  `36666844023` at `v1.0.235` / CLI 2.1.283, the ci-workflows pin (see
+  [The CI canary](#the-ci-canary) and [Canary host](#canary-host-4282)); the grade was not re-run.
+  Condition 3 is `[MET]`:
   both `claude -p` legs returned the canary line from a lone non-empty `AGENTS.md`, and it grades
   only on a logged-in host. Condition 4 is `[MET]`: 70 path-detection rows, every one
   acknowledged with a reviewed reason.

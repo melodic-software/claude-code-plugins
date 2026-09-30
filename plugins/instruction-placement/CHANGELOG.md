@@ -16,7 +16,8 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 ### Changed
 
-- `migrate/reference/sources.md` keeps one Current fleet grade record. The CI-canary record for [#4282](https://github.com/melodic-software/claude-code-plugins/issues/4282) and the install-dependent loader test record for [#4283](https://github.com/melodic-software/claude-code-plugins/issues/4283) state the pending owner decisions instead of an encoded choice, and cutover condition 2 is marked provisional.
+- `migrate/reference/sources.md` keeps one Current fleet grade record. The install-dependent loader test record for [#4283](https://github.com/melodic-software/claude-code-plugins/issues/4283) states the pending owner decision instead of an encoded choice.
+- The CI-canary record for [#4282](https://github.com/melodic-software/claude-code-plugins/issues/4282) names knowledge-corpus run `36666844023` (2026-09-30, `claude-code-action` v1.0.235, CLI 2.1.283), where a lone `AGENTS.md` loaded in both sessions. The owner chose that re-run on #4282, so cutover condition 2 is no longer marked provisional. `cutover-check.test.sh` expects the new run id.
 
 ## [0.15.21] - 2026-09-28
 
