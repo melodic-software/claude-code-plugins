@@ -168,6 +168,11 @@ if out="$(run_mode "$f" --check-bump "$base" 2>&1)"; then
   fail "--check-bump should fail when a carrying plugin kept its version, got success: $out"
 elif [[ "$out" == *"STALE VERSION"* ]]; then
   ok "--check-bump fails an unbumped carrying plugin with STALE VERSION"
+  if [[ "$out" == *"no change to this plugin's reference."* ]]; then
+    ok "--check-bump prescribes the sync-only CHANGELOG line"
+  else
+    fail "expected the sync-only CHANGELOG line, got: $out"
+  fi
 else
   fail "expected STALE VERSION in output, got: $out"
 fi

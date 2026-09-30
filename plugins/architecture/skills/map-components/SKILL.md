@@ -94,8 +94,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/map-dependencies/scripts/dependency-graph.sh"
   --out "<architecture_dir>/dependency-graph.json" "<root>"
 ```
 
-A tree with no .NET project is `result` `unknown` with empty node and edge
-arrays, not an empty architecture. The render says so and draws nothing.
+A tree holding no manifest that a reader handles is `result` `unknown` with empty
+node and edge arrays, not an empty architecture. The render says so and draws
+nothing. The ecosystems the extractor reads, and the ones it declines, are listed
+in `/architecture:map-dependencies`.
 
 ## Choose one container
 
@@ -103,7 +105,14 @@ A container is one deployable: an indegree-zero project, plus the projects
 reached by following internal edges. A test project (the node's `test` field) is
 not a deployable: its references are not counted toward a project's indegree, so
 `Api.Tests` referencing `Api` leaves `Api` a root, and it is never listed as a
-choice. When exactly one deployable covers every project, that is the subject.
+choice. A stray manifest is not a deployable either: a project no internal edge
+touches, in an ecosystem that no linked project and no .NET project shares (a
+tooling `package.json`, a requirements file beside a .NET tree). It is not a
+choice, it is not counted as outside the container, and the report says how many
+were set aside. `--container` charts one anyway. A Node workspace root draws no
+edge to its members and shares their ecosystem, so it is not set aside: a plain Node
+workspace lists the root beside its top member, and `--container` picks the member. When exactly one deployable
+covers every project, that is the subject.
 When the renderer exits 3, it lists the choices and writes nothing. It also
 exits 3 when every project is a test project, and says so; `--container` still
 charts one on request. In an interactive run, ask which one and re-run with
