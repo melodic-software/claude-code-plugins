@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.29.1] - 2026-09-30
+## [0.29.2] - 2026-09-30
 
 ### Fixed
 
@@ -13,6 +13,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   brief tells the parent to fill `<hook-python>`, `<engine>`, `<data-root>`, `<run-dir>` and the
   optional `<project-dir>` with literal absolute values, since a worker cannot expand `${...}`
   tokens, and states that `--project-dir` is optional.
+
+## [0.29.1] - 2026-09-29
+
+### Fixed
+
+- **The PowerShell mutation-word check relieves quoted words only for allow-listed commands.** A deletion word inside a quoted literal (a commit message, a search term, an issue body) no longer prompts when every command head is on the allow-list of commands that never run their string arguments and the line has no comment, subexpression, here-string, backtick, call operator, or member call. Any other line still gets the plain word match. The operator handoff tells operators to pass `gh` bodies with `--body-file` and to prefer single-quoted literals.
 
 ## [0.29.0] - 2026-09-29
 

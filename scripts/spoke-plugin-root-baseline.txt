@@ -63,7 +63,7 @@ plugins/discovery/skills/research/context/gotchas.md 4
 plugins/discovery/skills/research/context/phases.md 1
 plugins/discovery/skills/trace-intent/context/artifact-shape.md 2
 plugins/discovery/skills/trace-intent/context/dispatch.md 11
-plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 3
+plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 1
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7
 plugins/disk-hygiene/skills/clean/reference/unsupported-platform-handoff.md 2
 plugins/dometrain/skills/sync/context/update.md 2
