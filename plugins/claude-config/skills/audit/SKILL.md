@@ -1,5 +1,5 @@
 ---
-description: "Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
+description: "When the bundled update-config skill resolves in this session, prefer it for making a settings change the person requested; this skill for auditing what is configured. Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
 argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|all]"
 user-invocable: true
 disable-model-invocation: false
@@ -329,9 +329,8 @@ For each user-approved fix:
 1. Make the edit. Route each approved edit to `settings.json`, `settings.local.json`, or `.mcp.json`
    through the built-in `update-config` skill, not a direct write; the one exception is orphan-`false`
    plugin removal, which goes through `scripts/fix-plugin-drift.sh --yes` so its lower-precedence-scope
-   check still runs. In auto mode a settings edit needs
-   the `[Self-Modification]` handshake: the classifier asks, and the user's explicit approval of that
-   fix is the consent. Done when the target file carries the change and nothing else in it moved.
+   check still runs. In auto mode a settings edit needs the `[Self-Modification]` handshake: the
+   classifier asks, and the user's explicit approval of that fix is the consent. Done when the target file carries the change and nothing else in it moved.
 2. Validate with `jq . <file> >/dev/null` after each edit. Done when jq exits 0; on a parse error,
    revert that edit before touching the next one.
 3. Report what changed, as the file, the key, and the before and after values. Done when every
@@ -353,8 +352,9 @@ re-run and paste its output back. Report the before/after comparison from what t
 
 Claim: auto mode refuses those two operations under those two category names. Basis: an empirical
 `claude-config:audit@0.48.2` `--fix` run in auto mode on Claude Code 2.1.283, recorded in
-[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153). As of 2026-09-27. Recheck when a Claude Code release changes auto-mode classifier
-categories, or a run where either refusal no longer fires.
+[melodic-software/.github PR #153](https://github.com/melodic-software/.github/pull/153). As of
+2026-09-27. Recheck when a Claude Code release changes auto-mode classifier categories, or a run
+where either refusal no longer fires.
 
 ### Fixes the skill can apply
 
@@ -392,6 +392,31 @@ implying the file is unreachable.
 CC settings schema, MCP server shape, hook event names, and permission glob syntax are upstream
 invariants resolved against their own official pages when a check needs them, rather than asserted
 as fixed patterns here.
+
+## Boundary, the bundled `update-config` skill
+
+Both surfaces handle `settings.json` files, so a request about settings can mean either.
+
+- **`update-config` (bundled skill)**: edits the matching `settings.json` or `settings.local.json` for a described change: hooks for
+  automated behaviors, permissions, environment variables, and hook troubleshooting. The model and
+  the person can both invoke it.
+- **This skill (marketplace plugin).** Audits the configuration that exists for correctness,
+  security, and drift against current official docs, across settings, MCP, hooks, plugins, and
+  permissions. It reports only, unless `--fix` is passed.
+
+**Routing.** When the bundled `update-config` skill resolves in this session, prefer it for making
+a settings change the person requested; prefer this skill for auditing what is configured. A
+request such as "allow npm commands" or "add a hook that runs when Claude stops" is a change, not
+an audit.
+
+**Mutation gate.** `update-config` writes settings files as its job. This skill writes only in
+Phase 5, under `--fix`, one confirmed fix at a time, and never chains into `update-config` on its
+own behalf.
+
+**Availability is never assumed.** Bundled skills are gated by settings such as
+`disableBundledSkills` and vary by version and host; this section states what to do when the
+surface resolves, never that it is present. The four-part records live in
+[reference/native-update-config.md](reference/native-update-config.md).
 
 ## Next
 

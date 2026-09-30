@@ -73,6 +73,7 @@ range adds explorers in steps of about fifty items and adds researchers only for
 - `items/<version>.md`: the item files
 - `rows.md`: the repository revision (`git rev-parse HEAD`) the rows were derived at, then the decision rows and the docs-lag section, each row with its recheck trigger (the page it rests on and the condition that would change it)
 - `pages/`: the docs pages the researchers fetched, each with its URL and fetch time on its first line
+- `native-drift/`: `apply` Phase 7's extraction, overlap candidates, summary and drift report ([native-drift.md](native-drift.md)). The summary is then copied to `<memory_dir>/claude-code-changelog/native-surface-summary.json`, the one file outside any range: the next run diffs against it
 
 `apply` consumes that directory instead of re-running `diff`. It re-fetches only what a recheck
 trigger names: a release newer than `<B>` exists, or a row's own trigger is met. A row whose

@@ -59,12 +59,12 @@ cat .claude/settings.local.json | tr -d '\r' | jq '.permissions.deny // empty'
 
 Each approved edit to `settings.json`, `settings.local.json`, or `.mcp.json` goes through the
 built-in `update-config` skill, except orphan-`false` plugin removal, which stays on
-`scripts/fix-plugin-drift.sh --yes` for its lower-precedence-scope check. In auto mode it needs the `[Self-Modification]` handshake: the
-classifier asks, and the user's explicit approval of that fix is the consent. Two operations are
-refused in auto mode: writing `.claude/audit-pass.md` (`[Instruction Poisoning]`) and re-running
-`scripts/audit-engine.sh` for the after-fix summary (`[Self-Modification]`). The fallback for each is
-the operator applying the edit or running the re-run and pasting the output back; never retry around
-the refusal. The verification record for the category names is in
+`scripts/fix-plugin-drift.sh --yes` for its lower-precedence-scope check. In auto mode it needs the
+`[Self-Modification]` handshake: the classifier asks, and the user's explicit approval of that fix
+is the consent. Two operations are refused in auto mode: writing `.claude/audit-pass.md`
+(`[Instruction Poisoning]`) and re-running `scripts/audit-engine.sh` for the after-fix summary
+(`[Self-Modification]`). The fallback for each is the operator applying the edit or running the
+re-run and pasting the output back; never retry around the refusal. The verification record for the category names is in
 [SKILL.md](../SKILL.md) "Refusals in auto mode".
 
 **The judgment on a baseline deny addition, stated.** Two things have to be checked before the rule is

@@ -137,6 +137,32 @@ If /export is available in your session (gate basis: **Verification record: `/ex
 - **As of.** 2026-09-29.
 - **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
 
+## Boundary, the built-in `/insights` command
+
+Both look back at how sessions went, so "how did I do" can land on either.
+
+- **`/insights` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
+  It generates an HTML report across your recent sessions on this machine: projects, usage
+  patterns, where things go wrong, features to try, and an auto mode recommendation. It writes
+  that report and nothing else. It is reserved for the person to run; the model does not invoke
+  it.
+- **This skill (marketplace plugin).** A structured retrospective of one session or handoff chain:
+  transcript metrics, five quality dimensions, feedback-memory regressions, and codification into
+  rules or memory behind approval.
+
+**Routing.** When the person asks about patterns across many sessions, or `trends` mode runs,
+offer it to the person: you can run `/insights` instead of or alongside this skill for a
+cross-session usage report. Make the offer at the end of the run. Prefer this skill for what one
+session taught and for codifying it. An unattended run records the offer in its output instead of
+asking.
+
+**Mutation gate.** This skill writes only approved codifications. It never runs `/insights` on the
+person's behalf.
+
+**Availability is never assumed.** `/insights` is not available in cloud sessions; this section
+states what to do when the person can run it, never that it is present. The four-part records
+live in [reference/native-insights.md](reference/native-insights.md).
+
 ## What this skill does NOT do
 
 - **Does not run builds or tests**. That's the consuming repo's verify stage
