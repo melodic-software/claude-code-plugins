@@ -823,7 +823,7 @@ def _scan(
             active
             and at_value
             and depth == 0
-            and (c in _QUOTES or c in _ID_START or c in "([")
+            and (c in _QUOTES or c in _ID_START or c in "([!" or c.isdigit())
         ):
             i = _operand(
                 src,
@@ -1200,7 +1200,11 @@ def _read_string(
                 parts.append([_ELLIPSIS])
                 via.add("template")
             else:
-                parts.append(list(value))
+                # A branch that may yield something unrecorded stays a runtime
+                # alternative ahead of the resolved ones.
+                parts.append(([_ELLIPSIS] if value.partial else []) + list(value))
+                if value.partial:
+                    via.add("template")
                 via |= acc.via
             j = seg = end
             continue
@@ -1551,7 +1555,19 @@ def _resolve_chain(
     if len(chain) == 1 and fn is None:
         if v is None:
             return None
-        _scan(src, braces, v, len(src), sub, block=False, hops=hops - 1, anchor=None)
+        # A local binding (inside a function) reads that function's scope.
+        local = braces.enclosing(v) is not None
+        _scan(
+            src,
+            braces,
+            v,
+            len(src),
+            sub,
+            block=False,
+            hops=hops - 1,
+            anchor=None,
+            shadow=shadow if local else NO_SCOPE,
+        )
         acc.via.add("constant")
     elif (len(chain) == 2 and chain[1][0] == "call") or fn is not None:
         fn = fn or _function_body(src, braces, ident, at)

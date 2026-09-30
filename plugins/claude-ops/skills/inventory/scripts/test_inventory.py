@@ -1294,6 +1294,24 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(desc('false??"FALLBACK"'), "")
         self.assertEqual(desc('false||"FALLBACK"'), "FALLBACK")
         self.assertEqual(desc('null??"FALLBACK"'), "FALLBACK")
+        self.assertEqual(desc('1||"FALLBACK"'), "")
+        self.assertEqual(desc('!0||"FALLBACK"'), "")
+        self.assertEqual(desc('0??"FALLBACK"'), "")
+        self.assertEqual(desc('!1??"FALLBACK"'), "")
+        self.assertEqual(desc('0||"FALLBACK"'), "FALLBACK")
+
+    def test_a_local_alias_of_a_parameter_keeps_its_bound_value(self) -> None:
+        src = (
+            'var x="WRONG",Qz="Probe";function ff(x){let yy=x;return yy}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_partial_substitution_keeps_a_runtime_alternative(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Use ${f?"X":void 0}`});'
+        rec = _tool(src, "Probe")
+        self.assertEqual(rec["description_variants"], ["Use …", "Use X"])
+        self.assertEqual(rec["description_source"], "template")
 
     def test_a_nested_helper_sees_its_callers_bound_parameter(self) -> None:
         src = (
