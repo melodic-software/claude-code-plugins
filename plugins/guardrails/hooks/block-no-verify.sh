@@ -322,7 +322,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   while ((_ps_rc == 2)); do
     # Same placement as block-dangerous-git: the flag, inside the loop, because
     # a later blanking round can acquire a commented opener. No token for it.
-    if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+    if ((PS_REDUCTION_UNTRUSTED)); then
       PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
       ps::print_unparsable_block_message
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"

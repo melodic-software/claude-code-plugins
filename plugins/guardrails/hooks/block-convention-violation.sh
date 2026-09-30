@@ -621,7 +621,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # FLAG, not on the trigger name: the classifier reports herestring-comment-char
   # only when no other trigger fired, so a flagged command whose first trigger was
   # another construct (a `{`, say) reported that trigger and was deferred.
-  if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+  if ((PS_REDUCTION_UNTRUSTED)); then
     PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
     ps::print_unparsable_block_message
     emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"

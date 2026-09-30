@@ -28,12 +28,16 @@ escalated to a human first, then items closed and PR'd), apply the post-snapshot
 
 When the drain stays open because a retained id is covered only by a draft closing PR or by the
 in-flight exclusion, the cycle report names those ids with the same PR number, draft state, and age
-as `SKILL.md`'s in-flight line, from the adapter's reporting reduction.
+as `SKILL.md`'s in-flight line, from the adapter's reporting reduction. An id whose PR is past the
+`work_loop_in_flight_stale_days` bound was escalated to a human (`SKILL.md` "In-flight
+precondition"); the final report lists each such id among the items escalated to a human, with its
+PR number, draft state, and age, and it counts as human-gated for the drain-terminal test below
+even though its PR is still open, draft or ready. Its PR is not "in flight" for that test.
 
 ## Drain-terminal state
 
-When every remaining open item in the snapshot is human-gated or escalated and no PR is in flight,
-report and stop cleanly rather than idling forever, leading the report with those human-gated and
+When every remaining open item in the snapshot is human-gated or escalated and no PR is in flight
+(a stale PR whose item was escalated does not count), report and stop cleanly rather than idling forever, leading the report with those human-gated and
 escalated items. Apply the post-snapshot intake report below
 before stopping.
 

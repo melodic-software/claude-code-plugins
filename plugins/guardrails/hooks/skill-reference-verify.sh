@@ -256,7 +256,7 @@ PLUGIN_INDEX_BUILT=0
 build_plugin_index() {
   ((PLUGIN_INDEX_BUILT)) && return 0
   PLUGIN_INDEX_BUILT=1
-  local m pdir pname paths line git_dir="" cache_file="" use_cache=0 i start
+  local m pdir pname paths line body git_dir="" cache_file="" use_cache=0 i start last
   local -a rows=() hdr=()
   local -A seen=()
   # A repeat reference at an unchanged manifest set skips jq. The cache is
@@ -266,6 +266,8 @@ build_plugin_index() {
   fi
   if [[ -n "$cache_file" && -f "$cache_file" ]]; then
     mapfile -t hdr <"$cache_file"
+    start=$((${#manifests[@]} + 2))
+    last=$((${#hdr[@]} - 1))
     if [[ "${hdr[0]-}" == "${#manifests[@]}" ]]; then
       use_cache=1
       for ((i = 0; i < ${#manifests[@]}; i++)); do
@@ -273,14 +275,21 @@ build_plugin_index() {
         [[ "$cache_file" -nt "${manifests[i]}" ]] || use_cache=0
       done
       [[ "${hdr[${#manifests[@]} + 1]-}" == '---' ]] || use_cache=0
+      # The rows end with `end <count>`. A parallel fire can be rewriting this
+      # file, and two writers that both truncate leave a mix of their bytes, so
+      # the count must equal the rows read and no row may look like a sentinel.
+      # Anything else is a miss and jq rebuilds it.
+      ((last >= start)) && [[ "${hdr[last]}" == "end $((last - start))" ]] || use_cache=0
+      if ((use_cache && last > start)); then
+        rows=("${hdr[@]:start:last-start}")
+        for line in "${rows[@]}"; do
+          [[ "$line" == "end "[0-9]* ]] && use_cache=0
+        done
+      fi
     fi
   fi
-  if ((use_cache)); then
-    start=$((${#manifests[@]} + 2))
-    if ((${#hdr[@]} > start)); then
-      rows=("${hdr[@]:start}")
-    fi
-  else
+  if ((!use_cache)); then
+    rows=()
     while IFS= read -r line || [[ -n "$line" ]]; do
       rows+=("$line")
     done < <(
@@ -290,14 +299,10 @@ build_plugin_index() {
                 else tostring end)] | join("\u001e")' "${manifests[@]}" 2>/dev/null
     )
     if [[ -n "$cache_file" ]]; then
-      {
-        printf '%s\n' "${#manifests[@]}"
-        printf '%s\n' "${manifests[@]}"
-        printf '%s\n' '---'
-        if ((${#rows[@]} > 0)); then
-          printf '%s\n' "${rows[@]}"
-        fi
-      } >"$cache_file" 2>/dev/null || :
+      # Built in memory and written by one printf, sentinel last: a temp file
+      # plus mv would add a process to every cold write.
+      printf -v body '%s\n' "${#manifests[@]}" "${manifests[@]}" '---' ${rows[@]+"${rows[@]}"}
+      printf '%send %d\n' "$body" "${#rows[@]}" 2>/dev/null >"$cache_file" || :
     fi
   fi
   for line in ${rows[@]+"${rows[@]}"}; do
