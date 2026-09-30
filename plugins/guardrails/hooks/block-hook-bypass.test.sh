@@ -2238,7 +2238,10 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
   rmdir "$WIN_JDIR" "$WIN_JPROJ/src" "$WIN_JPROJ" 2>/dev/null || :
   if [[ "$WIN_SHORT" != "$WIN_LONG" ]]; then
     # The harness hands out its scratchpad in TEMP's own spelling, which on a
-    # volume that generates short names is the 8.3 one (#4678).
+    # volume that generates short names is the 8.3 one (#4678). Under Cygwin
+    # bash, where TEMP reads `/tmp`, this case depends on the cygpath drive
+    # spellings in the temp candidates and is unverified there; a failure here
+    # belongs to #4678.
     run_cwd "windows temp: an 8.3 short-name target allowed with a non-temp project root" \
       "echo hello > $WIN_SHORT/claude/bhb-probe/probe.txt" "$WIN_PROJ" 0 "$PROJ_ENV=$WIN_PROJ"
     run_cwd "windows temp: a nonexistent name~9 component under temp blocks" \
