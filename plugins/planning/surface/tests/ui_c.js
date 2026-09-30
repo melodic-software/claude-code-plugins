@@ -158,6 +158,9 @@ async page => {
     await pick("R1");
     ok("an accepted question has input:checked on the recommended row, labeled Your answer", await page.$eval("#choices .choice.rec", el => el.querySelector("input:checked") !== null && /Your answer/.test(el.textContent)), await page.textContent("#choices"));
     ok("only the accepted row is checked", (await page.$$("#choices input:checked")).length === 1);
+    ok("Save starts disabled on an answered question", await page.$eval("[data-save]", el => el.disabled));
+    await page.click("#choices .choice.rec input");
+    ok("clicking the pre-selected Your answer row arms it and enables Save", /Accept/.test(await armed()) && await page.$eval("[data-save]", el => !el.disabled), await armed());
     ok("the detail says when you answered", /You answered Accepted at /.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
     ok("the detail shows the after-answer chip", /Replied after your answer/.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);

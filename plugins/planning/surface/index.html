@@ -1692,6 +1692,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // ---------- events ----------
   document.addEventListener("click", e => {
     const t = e.target;
+    if (t.name === "choice") { arm(+t.value); return; } // click, not change: the pre-checked Your answer row fires no change
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
@@ -1745,7 +1746,6 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
   document.addEventListener("change", e => {
     const t = e.target;
-    if (t.name === "choice") { arm(+t.value); return; }
     if (t.dataset && t.dataset.gcmp) { S.gal.b = t.value; galRefresh(); return; }
     if (t.id === "filter") { S.filter = t.value; lsSet("filter", S.filter); renderRail(); return; }
     if (t.dataset && t.dataset.set) {
