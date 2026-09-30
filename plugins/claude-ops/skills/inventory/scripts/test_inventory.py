@@ -1498,6 +1498,15 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description_source"], "unresolved")
 
+    def test_import_text_in_a_string_links_nothing(self) -> None:
+        src = _modules(
+            'var jd="Foreign";export{jd};',
+            'var jd="Local",Qz="Probe",s="import{jd}from\\"x\\"";'
+            "$t({name:Qz,maxResultSizeChars:1,description:`Write a ${jd} script`});"
+            'var t="export{Qz}";',
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "Write a Local script")
+
     def test_a_name_two_modules_export_is_ambiguous(self) -> None:
         src = _modules(
             'var jd="One";export{jd};',

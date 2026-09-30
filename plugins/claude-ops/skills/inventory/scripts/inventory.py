@@ -1387,19 +1387,27 @@ def _chunk_span(src: str, at: int) -> tuple[int, int]:
     return starts[k], starts[k + 1] if k + 1 < len(starts) else len(src)
 
 
-_LINK_RE = re.compile(r"(import|export)\{([^{}]*)\}")
+# A module's statements that link it to others: its header comment lines, its
+# leading imports, and its closing export list. Only these positions count,
+# so `import{x}` quoted in a string or comment elsewhere links nothing.
+_HEADER_LINE_RE = re.compile(r"[ \t]*(?://[^\n]*)?\n")
+_IMPORT_STMT_RE = re.compile(r'\s*import\s*(?:\{([^{}]*)\}\s*from\s*)?"[^"\n]*"\s*;?')
+_EXPORT_TAIL_RE = re.compile(r"export\s*\{([^{}]*)\}\s*;?\s*\Z")
 
 
 @functools.lru_cache(maxsize=4096)
 def _chunk_imports(src: str, lo: int, hi: int) -> dict[str, str]:
     """A module's imported names: local name to the name its exporter uses."""
+    i = lo
+    while (m := _HEADER_LINE_RE.match(src, i, hi)) and m.end() > i:
+        i = m.end()
     out: dict[str, str] = {}
-    for m in _LINK_RE.finditer(src, lo, hi):
-        if m.group(1) != "import":
-            continue
-        for part in m.group(2).split(","):
+    while (m := _IMPORT_STMT_RE.match(src, i, hi)) and m.end() > i:
+        i = m.end()
+        for part in (m.group(1) or "").split(","):
             exported, _, local = part.strip().partition(" as ")
-            out[(local or exported).strip()] = exported.strip()
+            if exported.strip():
+                out[(local or exported).strip()] = exported.strip()
     return out
 
 
@@ -1408,13 +1416,19 @@ def _export_index(src: str) -> dict[str, list[tuple[int, str]]]:
     """Every exported name: the start of each module exporting it, and the
     local name it has there."""
     out: dict[str, list[tuple[int, str]]] = {}
-    for m in _LINK_RE.finditer(src):
-        if m.group(1) != "export":
+    starts = _chunk_starts(src)
+    for k, lo in enumerate(starts):
+        hi = starts[k + 1] if k + 1 < len(starts) else len(src)
+        tail = max(lo, hi - 65_536)
+        m = _EXPORT_TAIL_RE.search(src[tail:hi])
+        if not m:
             continue
-        lo = _chunk_span(src, m.start())[0]
-        for part in m.group(2).split(","):
+        for part in m.group(1).split(","):
             local, _, exported = part.strip().partition(" as ")
-            out.setdefault((exported or local).strip(), []).append((lo, local.strip()))
+            if local.strip():
+                out.setdefault((exported or local).strip(), []).append(
+                    (lo, local.strip())
+                )
     return out
 
 
