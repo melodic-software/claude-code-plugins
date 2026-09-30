@@ -78,10 +78,11 @@ no consumer-config gate by design; report that plainly as INFO, not as a gap.
 ## `apply` (idempotent)
 
 Run `check`, then for each FAIL print remediation guidance. Never install anything. There is
-no `apply install-goimports`-style write path: `go install golang.org/x/tools/cmd/goimports@latest`
-writes to the machine-global `$GOPATH/bin` (not project-scoped) and `@latest` is not
-idempotent-pinned, so the only responsible action is pointing at the command and letting the
-consumer run it themselves.
+no `apply install-goimports` write path. This skill follows the refusal template in
+[docs/plugin-philosophy.md](../../../../docs/plugin-philosophy.md) `### Install subactions and refusal`
+and prints the consumer-run command instead. Reason 1 applies: the only install command,
+`go install golang.org/x/tools/cmd/goimports@latest`, writes to the machine-global `$GOPATH/bin`
+and is not a dependency recorded through the repo's package manager.
 
 After the consumer installs `goimports` themselves, re-run `check` with live Bash probes (the
 pre-computed rows predate the install) and report its actual result. Never claim resolved without
