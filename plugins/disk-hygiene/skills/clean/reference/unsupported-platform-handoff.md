@@ -108,7 +108,9 @@ engine plan:
    `"accept_unpublished": true` and the operator's `"reason"` to the entry whose `path` is the
    exact approved path, and tell the operator that unpushed commits and untracked or ignored files
    in it will be lost. The acknowledgement relaxes only those two gates; see
-   [the safety model](safety-model.md#standalone-git-checkout-evidence). Then run:
+   [the safety model](safety-model.md#standalone-git-checkout-evidence). This lane is for Windows
+   and macOS; on Linux the engine's `handoff-apply` (SKILL.md section 6) reads the same evidence
+   file and does the verify and the deletion in one process. Then run:
 
    ```text
    "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \

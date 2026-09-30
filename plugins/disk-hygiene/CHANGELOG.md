@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.0] - 2026-09-29
+
+### Added
+
+- **`handoff-apply`, a Linux route for an acknowledged throwaway checkout.** For one exact approved path with `accept_unpublished` and the operator's reason in `vcs-evidence.json`, `handoff-apply --execute` re-runs `handoff-verify` in the same process and deletes only on a `clear` verdict, so a contested checkout no longer has to be removed outside the engine. Preview and token apply keep VCS protection categorical; the acknowledgement is evaluated only in the handoff verification path. The Bash guard asks for the exact `handoff-apply` shape. Windows and macOS keep `handoff-verify` and the manual handoff lane.
+
+### Changed
+
+- **clean docs:** `SKILL.md` section 6 carries the `handoff-apply` command block and names the Linux route in the throwaway-checkout bullet, still telling the operator plainly that unpushed commits and untracked or ignored files will be lost. `safety-model.md` and `unsupported-platform-handoff.md` no longer imply the acknowledgement has no Linux route.
+
 ## [0.28.19] - 2026-09-29
 
 ### Changed

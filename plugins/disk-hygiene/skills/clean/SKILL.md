@@ -96,11 +96,12 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
   remote, untracked files, no commits), never delete it outside the engine. Record
   `accept_unpublished` with the operator's reason for that exact approved path in
-  `vcs-evidence.json`, run `handoff-verify`, and delete only on a `clear` verdict through the §6
-  manual handoff lane: every other contest reason must be gone. Preview and apply keep VCS
-  protection categorical; the acknowledgement exists only in `handoff-verify`. Before deleting,
-  tell the operator plainly that unpushed commits and untracked or ignored files in that checkout
-  will be lost.
+  `vcs-evidence.json`; every other contest reason must be gone. On Linux, run the engine route in
+  §6 (`handoff-apply`): it re-runs `handoff-verify` and deletes only on a `clear` verdict. On
+  Windows and macOS, run `handoff-verify`, and delete only on a `clear` verdict through the §6
+  manual handoff lane. Preview and token apply keep VCS protection categorical; the
+  acknowledgement exists only in `handoff-verify`. Before deleting, tell the operator plainly that
+  unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.
@@ -424,24 +425,32 @@ Report `reclaimable_local_bytes_removed` and the observed free-space delta **aft
 figures, never as the headline. Do not claim the observed free-space delta is exact: concurrent disk
 activity, sparse files, hard links, compression, and delayed allocation affect it.
 
+### Acknowledged throwaway checkout (Linux)
+
+For one approved checkout with an [`accept_unpublished` entry](reference/safety-model.md#standalone-git-checkout-evidence), run only:
+
+```text
+"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-apply --execute \
+  --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
+  --vcs-evidence "<run-dir>/vcs-evidence.json" --report "<run-dir>/report-handoff.json" \
+  --data-root "${CLAUDE_PLUGIN_DATA}"
+```
+
+One path per call; any verdict but `clear` removes nothing; confirm the guard's `ask` only for that path.
+
 ### Unsupported-platform handoff (Windows, macOS)
 
-Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
-so the engine never deletes there and the default outcome is the report. When, and only when,
-an execution request was made on one of those platforms and the human approved an exact single-tier
-path list in this session, read
-[reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
-it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
-revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
-lane from the engine steps above.
+Preview reports `execution-platform-unsupported` on Windows and macOS, so the engine never deletes
+there and the default outcome is the report. After an execution request and human approval of an
+exact single-tier path list, follow [the handoff reference](reference/unsupported-platform-handoff.md); never improvise.
 
 ## Gotchas
 
 Harness mechanics live in one copy, in the safety model, so a fix there cannot leave a stale
-restatement behind here. Load [the safety model](reference/safety-model.md) when you need
-them: how the guard registers on two surfaces, how the kill switch is delivered and scoped, and
-what the PowerShell lane flags → "Kill-switch enforcement"; how the hooks launch, what that bounds,
-and what the guard does when no Python resolves → "Hook launch form".
+restatement behind here. Load [the safety model](reference/safety-model.md) for how the guard
+registers on two surfaces, how the kill switch is delivered and scoped, and what the PowerShell lane
+flags → "Kill-switch enforcement"; how the hooks launch and what the guard does when no Python
+resolves → "Hook launch form".
 
 - POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
@@ -459,9 +468,9 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify, and
-  apply shapes (plus the argument-free kill-switch probe) pass, using the hook runtime's own absolute
-  interpreter. The same denial text also admits literal-form read-only supporting commands whose
+- The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
+  apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
+  runtime's own absolute interpreter. The same denial text also admits literal-form read-only supporting commands whose
   heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
   `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
   expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because

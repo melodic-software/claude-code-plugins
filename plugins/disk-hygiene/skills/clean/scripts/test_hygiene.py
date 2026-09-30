@@ -5362,6 +5362,9 @@ class HandoffVerifyTests(unittest.TestCase):
         for phrase in (
             "never delete it outside the engine",
             "run `handoff-verify`, and delete only on a `clear` verdict",
+            "On Linux, run the engine route in §6 (`handoff-apply`): it re-runs "
+            "`handoff-verify` and deletes only on a `clear` verdict",
+            "handoff-apply --execute",
             "tell the operator plainly that unpushed commits and untracked or "
             "ignored files in that checkout will be lost",
         ):

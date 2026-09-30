@@ -64,8 +64,8 @@ bounded conditions.
   confirm), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
   registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
-  verifier may classify a whole standalone Git checkout `clear` under the complete evidence bundle
-  below;
+  verifier, and the Linux `handoff-apply` that runs it, may classify a whole standalone Git
+  checkout `clear` under the complete evidence bundle below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
   above, not this structural mount veto);
@@ -216,9 +216,12 @@ engine with every check skipped. Before deleting under it, tell the operator tha
 and untracked or ignored files in the checkout will be lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
-link/reparse, consumer protection, identity/descendant, or live-handle check. The mode is read-only;
-deletion remains a per-path manual handoff under the existing hook-issued `ask`, and the
-verdict still expires immediately.
+link/reparse, consumer protection, identity/descendant, or live-handle check. `handoff-verify` with
+evidence is read-only. On Windows and macOS, deletion remains a per-path manual handoff under the
+existing hook-issued `ask`. On Linux, `handoff-apply` consumes the same evidence file for one
+approved path, runs the `handoff-verify` checks in the same process, and deletes only on `clear`,
+under the same `ask`; preview and token apply never evaluate the acknowledgement. The verdict still
+expires immediately.
 
 | Verdict | Meaning | Manual-lane action |
 |---|---|---|
