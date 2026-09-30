@@ -255,6 +255,10 @@
         "state": {
           "enum": ["open", "stale", "upstream-pending", "archived"],
           "description": "Derived by the server from dependsOn, decision events and archived; never written by Claude"
+        },
+        "answered": {
+          "type": "boolean",
+          "description": "Derived by the server: true when a page or terminal decision counts; never written"
         }
       }
     }
