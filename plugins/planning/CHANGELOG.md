@@ -3,11 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.51.1] - 2026-09-30
+## [0.52.1] - 2026-09-30
 
 ### Fixed
 
 - **The interview page drives its Open filter, counters and first pick from one "needs you" state.** The revising chip names the upstream question it waits on, "Sent to Claude" clears once the question is answered, and the composer has a Clear button. An answered question shows the chosen option and an answered-after marker. The `reply` op stamps `kind: "reply"` on its history line by default, and only Claude's reply, rephrase, note and revise lines count as replies, so a hold or a confirm-commitments line does not put a settled question back in Show: Open. Muted text and the Archived chip meet WCAG AA contrast, question titles render through `inline()`, and `surface.md` documents the `meta.stages` shape. The 510px sidebar check now covers cards with 0, 1, 2 and 4 dependencies ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+## [0.52.0] - 2026-09-30
+
+### Changed
+
+- **Every interview ledger row exports in one escaped named-field grammar.** Hold, proposal, was, answer, note, aside and commitments each get a named field, so export followed by import restores the question state, except two held-row cases the fields cannot name (a seeded blocked row comes back deferred, and the seed text of a row whose held accept or alternative is set aside is lost). The importer still reads every earlier row form ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+- **The Brief words two imported rows differently.** A plain answer that a ledger seeded now reads `free-text: ...`, and a seeded withdrawal reads `archived: superseded by X` ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
 
 ## [0.51.0] - 2026-09-30
 
