@@ -3,6 +3,13 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.17] - 2026-09-30
+
+### Changed
+
+- **chore(deps-dev): Bump @types/node from 26.6.1 to 26.6.2 in /plugins/miro/server in the npm-minor-patch group** (#5589).
+  - `@types/node` 26.6.1→26.6.2
+
 ## [0.4.16] - 2026-09-29
 
 ### Changed
