@@ -89,10 +89,18 @@ offer in its output instead of asking.
 
 **Mutation gate.** Neither writes files by default. This skill never runs `/context` in the
 person's session. The engine's headless capture of `/context` output in a spawned measurement
-session is a separate path, covered under the engine's rungs below.
+session is a separate path: the `cli-parse` rung in [reference/engine.md](reference/engine.md).
 
 **Availability is never assumed.** The command is gated; this section states what to do when the
-person can run it, never that it is present. The four-part records live in
+person can run it, never that it is present.
+
+**Verification record, `/context`.** Claim: `/context` is a gated, user-only built-in command
+("Visualize current context usage as a colored grid", argument hint `[all]`) that the model
+cannot invoke. Basis: the `/claude-ops:inventory` extraction of the installed Claude Code 2.1.285
+binary on 2026-09-29 (`builtin_commands` lane: `gated` true, `user_invocable` true,
+`model_invocable` false); the `/context [all]` row on <https://code.claude.com/docs/en/commands>,
+fetched 2026-09-30. As of 2026-09-30. Recheck when a release renames or removes `/context`,
+changes its gate, or makes it model-invocable. The remaining records live in
 [reference/native-context.md](reference/native-context.md).
 
 ## Declared scope
