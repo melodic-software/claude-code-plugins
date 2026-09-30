@@ -477,6 +477,14 @@ run_win "usertemp: redirect >foo\\tmp\\x path component (allowed)" 'echo x > foo
 run_win "usertemp: redirect >\\tmpdir\\x sibling (allowed)" 'echo x > \tmpdir\x' 0 "${USERTEMP_ENV[@]}"
 run_win "usertemp: redirect >\\TMP\\x upper case (blocked)" 'echo x > "\TMP\x"' 2 "${USERTEMP_ENV[@]}"
 
+# The usertemp probe forks cygpath, and a Windows Bash hook pays a process
+# creation per fork. A command with no `tmp` in it must not reach the probe.
+usertemp_trace() {
+  env OSTYPE=msys "${USERTEMP_ENV[@]}" bash -x "$HOOK" <<<"$(msys_command_json "$1")" 2>&1 >/dev/null
+}
+assert_absent "usertemp: a benign command never probes cygpath" "$(usertemp_trace 'git status --short')" "cygpath"
+assert_contains "usertemp: a /tmp command does probe cygpath" "$(usertemp_trace 'mkdir -p /tmp/x')" "cygpath"
+
 # Mount-table fallback: with no usable cygpath the guard reads `mount`, and the
 # usertemp flag only counts on the /tmp mount's own line. The stub cygpath always
 # fails so the fallback decides on every host, and the rows go through
