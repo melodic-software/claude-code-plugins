@@ -811,6 +811,17 @@ bare_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:ba
 assert_contains "case 27: a key is described by its own entry" "$own_detail" '"Own text"'
 assert_eq "case 27: a key's describe is not a neighbour's or another site's string" "0" "$(grep -c -e 'Neighbour text' -e 'Elsewhere text' <<<"$own_detail")"
 assert_eq "case 27: a key with no describe of its own is quoted nothing" "0" "$(grep -c -e 'the binary describes it' -e 'Neighbour text' -e 'Elsewhere text' <<<"$bare_detail")"
+printf '%s\n' '{"sharedKey":1,"repeatKey":1}' >"$m/project/.claude/settings.local.json"
+make_cli "$m/claude-shared" "2.1.281 (Claude Code)" enabledPlugins permissions \
+  'sharedKey:z.number().describe("A tool input text")' \
+  'sharedKey:z.number().optional().describe("Another schema text")' \
+  'repeatKey:z.boolean().describe("Same text")' \
+  'repeatKey:z.boolean().optional().describe("Same text")'
+out=$(CLI_BIN="$m/claude-shared" run "$m" --json 2>&1) || true
+shared_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:sharedKey") | .detail' <<<"$out")"
+repeat_detail="$(jq -r '.findings[] | select(.identity.claim=="undocumented-key:repeatKey") | .detail' <<<"$out")"
+assert_eq "case 27: a name declared in two schemas with different describes is quoted nothing" "0" "$(grep -c -e 'the binary describes it' -e 'A tool input text' -e 'Another schema text' <<<"$shared_detail")"
+assert_contains "case 27: a name whose declarations all carry one describe is quoted" "$repeat_detail" '"Same text"'
 make_cli "$m/claude-shim" "2.1.281 (Claude Code)" internalOnlyKey
 out=$(CLI_BIN="$m/claude-shim" run "$m" --json 2>&1) || true
 assert_eq "case 27: a file without the control literals was not searched" "not-searched" "$(jq -r '.claude_version.binary.key_search' <<<"$out")"

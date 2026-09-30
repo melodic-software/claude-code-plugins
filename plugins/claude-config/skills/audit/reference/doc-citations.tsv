@@ -52,6 +52,7 @@ settings-reference	taskOutputMaxChars
 settings-reference	This key has no effect when `availableModels` is unset or empty
 model-config	a notice naming both
 model-config	disables that family's wildcard
+model-config	a model family alias, `opus`, `sonnet`, `haiku`, or `fable`
 deep-links	doesn't register the handler
 deep-links	To prevent registration entirely
 server-managed-settings	to see which managed source is active

@@ -1013,8 +1013,10 @@ BIN_WORD='^[A-Za-z_][A-Za-z0-9_]{3,}$'
 declare -A BIN_HAS=()
 # bin_describe <name>: the describe("...") string of the schema entry `name:`, control characters
 # stripped, capped at 160 characters. Only a declaration counts: the name is followed by `:`, no
-# statement or block boundary (`;{}`) and no other `key:` lies between it and the describe. An entry
-# without its own describe yields nothing rather than a neighbour's string.
+# statement or block boundary (`;{}`) and no other `key:` lies between it and the describe. The
+# binary holds many schemas and a name such as `timeout` or `enabled` is declared in several, so the
+# string is returned only when every describe-bearing declaration of the name carries the same one.
+# A name whose declarations differ yields nothing: which of them is the settings key is not known.
 bin_describe() {
   local c body
   while IFS= read -r c; do
@@ -1024,8 +1026,8 @@ bin_describe() {
     c="${c#*describe(\"}"
     [[ ${#body} -le 300 && "$c" == *\"* && ! "$body" =~ ,[A-Za-z_\$][A-Za-z0-9_\$]*: ]] || continue
     printf '%s' "${c%%\"*}" | LC_ALL=C tr -d '[:cntrl:]' | cut -c1-160
-    return 0
-  done < <(LC_ALL=C grep -aoE -- "(^|[^A-Za-z0-9_\$])$1:[^;{}]{0,800}" "$CLAUDE_BIN" 2>/dev/null | LC_ALL=C tr -d '\000')
+  done < <(LC_ALL=C grep -aoE -- "(^|[^A-Za-z0-9_\$])$1:[^;{}]{0,800}" "$CLAUDE_BIN" 2>/dev/null | LC_ALL=C tr -d '\000') |
+    LC_ALL=C sort -u | awk 'NR == 1 { d = $0 } END { if (NR == 1) print d }'
 }
 if [[ ${#KP_KEY[@]} -gt 0 ]]; then
   BIN_SEARCH=not-searched

@@ -13,7 +13,11 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   `settings-reference` to the pages a check reads (today only `hooks`; a page no check reads is not
   requested), takes the `fallbackModel` cap and the enum values
   of string keys from the documented sections, checks nested keys inside objects the reference
-  documents, and quotes the binary's describe string for a key the docs leave undocumented.
+  documents, and quotes the binary's describe string for a key the docs leave undocumented. The
+  string is quoted only when every describe-bearing declaration of the key's name in the binary
+  carries the same one: the binary holds many schemas that reuse names such as `timeout` and
+  `enabled`, so a name declared with different descriptions gets none, and so does a key whose own
+  entry has no describe.
 - **`known-issues` fix versions are compared with the installed Claude Code version** in a new
   Category J check. `reference/known-issues.md` documents the `Fixed in vX.Y.Z` form the check reads
   and records why no tracked issue carries one yet, so the check emits no row until one does.
@@ -27,6 +31,10 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - **The audit checklist's hook Timeouts row states the figures `context/validation-categories.md`
   states** (5-15s for simple formatters, 30s for slow-startup tools) and says they are this skill's
   judgment, not a documented limit. It previously gave 5-30s and up to 60s.
+- **A `fallbackModel` array longer than the documented cap before duplicates are removed is no longer
+  a warning.** The row compared the raw length with the declared schema's `maxItems` of 3, which the
+  engine does not read, so that case is now a `skip` row. Only the distinct count past the cap the
+  `fallbackModel` section states is a finding.
 
 ### Fixed
 
@@ -34,9 +42,6 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   a key containing U+0000 stays in one row.
 - **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and a permissions-page
   quotation the page no longer carries is restated from the page's wildcard table.
-- **The binary's describe string quoted for an undocumented key is that key's own.** It is read from
-  the key's schema entry, so a key with no describe of its own gets none instead of the next
-  entry's string.
 
 ## [0.53.4] - 2026-09-29
 
