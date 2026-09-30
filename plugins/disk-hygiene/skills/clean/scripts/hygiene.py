@@ -4077,8 +4077,9 @@ def opaque_contents_blocker(
 ) -> str | None:
     """The reason a directory's uninventoried contents may not be purged, or None.
 
-    The snapshot names nothing beneath Git metadata, so the protections
-    apply and handoff-verify check per entry are checked here per live path.
+    The snapshot names nothing beneath Git metadata, so this checks the live
+    contents for mount points, consumer protection globs and unreadable
+    directories. Hard-protection names are not checked here.
     """
     if any(is_within(mount, path) for mount in mounts):
         return "nested-mount-point"

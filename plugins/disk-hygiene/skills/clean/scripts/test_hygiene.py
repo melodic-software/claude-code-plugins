@@ -7108,6 +7108,22 @@ class HandoffApplyTests(unittest.TestCase):
         self.assertIn("vcs-evidence-status-not-clean", detail)
         self.assertIn("vcs-evidence-remote-not-declared", detail)
 
+    def test_a_fully_verified_checkout_is_deleted_without_an_acknowledgement(
+        self,
+    ) -> None:
+        checkout = HandoffVerifyTests.create_checkout(self.target)
+
+        def confirm(_repo: Path, remote: str, sha: str):
+            return True, {"sha": sha, "remote": remote, "repository": "example/project"}
+
+        with mock.patch.object(
+            hygiene, "verify_github_remote_head", side_effect=confirm
+        ):
+            report = self.apply(self.snapshot(), HandoffVerifyTests.vcs_configuration())
+        self.assertEqual("completed", report["status"], report["skipped"])
+        self.assertFalse(checkout.exists())
+        self.assertEqual([], report["accept_unpublished"])
+
     def test_an_acknowledgement_for_another_path_authorizes_nothing(self) -> None:
         acked = self.checkout("acked")
         plain = self.checkout("plain")

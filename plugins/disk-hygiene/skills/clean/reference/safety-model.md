@@ -130,8 +130,9 @@ open file while the process retains the underlying object.
 Execution is intentionally not cross-platform. Linux requires readable `/proc/self/mountinfo`,
 `O_NOFOLLOW`, and descriptor-relative stat/unlink/rmdir. Apply anchors the target and every parent to
 directory descriptors, verifies those descriptor identities, repeats live mount/protection/Git/handle
-checks immediately before each operation, and walks only snapshot entries bottom-up. Once captured
-children have been removed, apply opens the directory itself with `O_NOFOLLOW`, verifies its stable
+checks immediately before each operation, and walks only snapshot entries bottom-up (`handoff-apply`
+alone also empties uninventoried Git metadata; see [Standalone Git checkout
+evidence](#standalone-git-checkout-evidence)). Once captured children have been removed, apply opens the directory itself with `O_NOFOLLOW`, verifies its stable
 device/inode/type identity, proves it empty through that descriptor, rechecks the name-to-descriptor
 identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
 `execution-platform-unsupported`; their audit and report behavior is unchanged.
@@ -223,8 +224,9 @@ link/reparse, consumer protection, identity/descendant, or live-handle check. `h
 evidence is read-only. On Windows and macOS, deletion remains a per-path manual handoff under the
 existing hook-issued `ask`. On Linux, `handoff-apply` consumes the same evidence file for one
 approved path, runs the `handoff-verify` checks in the same process, and deletes only on `clear`,
-under the same `ask`; preview and token apply never evaluate the acknowledgement. The verdict still
-expires immediately.
+under the same `ask`. It deletes on any `clear` verdict, with or without `accept_unpublished` on
+the entry; preview and token apply never evaluate the acknowledgement. The verdict still expires
+immediately.
 
 | Verdict | Meaning | Manual-lane action |
 |---|---|---|
@@ -241,7 +243,26 @@ any delay or interruption means re-running handoff-verify. Managed-state exclusi
 always was in the manual lane, with model judgment plus human review of the audit report, because
 snapshot entries carry no owner claim for the engine to check.
 
-The skill-frontmatter Bash belt accepts only complete literal words in the four declared engine command
+`handoff-apply` is the one lane where the engine removes entries outside the snapshot. The snapshot
+records a repository's `.git` directory without its descendants, so after the working tree is
+removed the engine empties the uninventoried Git metadata contents through descriptor-relative calls
+and then removes the directory. These checks bound that purge:
+
+- A mount point at or under the metadata directory refuses it.
+- A consumer protection glob is matched against every path of a live `os.walk` of the metadata
+  directory; any match refuses it.
+- A directory the walk cannot read fails closed as `needs-elevation` or
+  `filesystem-state-unverified`.
+- Each directory is opened with `O_NOFOLLOW` and its `st_dev` must equal the metadata directory's,
+  so the purge never crosses a device.
+- A link inside is unlinked as a link and never followed.
+
+The mount, glob, and readability checks run once before anything is removed, where a refusal removes
+nothing, and again immediately before the metadata directory is emptied, where a refusal leaves that
+directory in place after the working tree is already gone. The hard-protection name check is not
+applied to the contents.
+
+The skill-frontmatter Bash belt accepts only complete literal words in the declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
@@ -468,7 +489,7 @@ the same session (a later `Remove-Item` is still prompted long after cleanup end
 retracted by finishing the cleanup. Only the session's end clears it.
 An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees**, meaning every Bash engine `apply`
-and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables
+and `handoff-apply` and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables
 the guard.
 
 **The gate's "different file" escape stops at this plugin's own cache tree.** A word naming an existing

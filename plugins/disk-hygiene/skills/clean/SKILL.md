@@ -413,9 +413,11 @@ Report `reclaimable_local_bytes_removed` and the observed free-space delta **aft
 figures, never as the headline. Do not claim the observed free-space delta is exact: concurrent disk
 activity, sparse files, hard links, compression, and delayed allocation affect it.
 
-### Acknowledged throwaway checkout (Linux)
+### Standalone checkout deletion (Linux)
 
-For one approved checkout with an [`accept_unpublished` entry](reference/safety-model.md#standalone-git-checkout-evidence), run only:
+For one approved standalone checkout, run only the command below. It deletes on any `clear`
+verdict: one whose [evidence entry](reference/safety-model.md#standalone-git-checkout-evidence)
+carries `accept_unpublished`, or one that passes every evidence gate without it.
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-apply --execute \
@@ -428,17 +430,22 @@ One path per call; any verdict but `clear` removes nothing; confirm the guard's 
 
 ### Unsupported-platform handoff (Windows, macOS)
 
-Preview reports `execution-platform-unsupported` on Windows and macOS, so the engine never deletes
-there and the default outcome is the report. After an execution request and human approval of an
-exact single-tier path list, follow [the handoff reference](reference/unsupported-platform-handoff.md); never improvise.
+Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
+so the engine never deletes there and the default outcome is the report. When, and only when,
+an execution request was made on one of those platforms and the human approved an exact single-tier
+path list in this session, read
+[reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md) and follow
+it. It owns the approved-path forms (inline `--path`, or `handoff-paths.json`), the per-path
+revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion
+lane from the engine steps above.
 
 ## Gotchas
 
 Harness mechanics live in one copy, in the safety model, so a fix there cannot leave a stale
-restatement behind here. Load [the safety model](reference/safety-model.md) for how the guard
-registers on two surfaces, how the kill switch is delivered and scoped, and what the PowerShell lane
-flags → "Kill-switch enforcement"; how the hooks launch and what the guard does when no Python
-resolves → "Hook launch form".
+restatement behind here. Load [the safety model](reference/safety-model.md) when you need
+them: how the guard registers on two surfaces, how the kill switch is delivered and scoped, and
+what the PowerShell lane flags → "Kill-switch enforcement"; how the hooks launch, what that bounds,
+and what the guard does when no Python resolves → "Hook launch form".
 
 - POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
@@ -458,15 +465,15 @@ resolves → "Hook launch form".
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, preview, handoff-verify,
   apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
-  runtime's own absolute interpreter. The same denial text also admits literal-form read-only supporting commands whose
-  heads are absolute paths under a trusted system directory: `[`, `basename`, `dirname`, `du`,
-  `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete `/usr/bin/[ ... ]`
-  expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because
-  exported shell functions shadow them. Engine-gate mode answers those supporting commands with
-  `ask`; belt mode `allow`s them. The denial text is the source if this list and the guard
-  diverge. Do supporting inspection with non-Bash read-only tools when the command is not in that
-  set. Shell expansions, globs, splitting/escape forms, operators, redirections, aliases, and
-  exported functions fail closed.
+  runtime's own absolute interpreter. The same denial text also admits literal-form read-only
+  supporting commands whose heads are absolute paths under a trusted system directory: `[`,
+  `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete
+  `/usr/bin/[ ... ]` expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names
+  are denied because exported shell functions shadow them. Engine-gate mode answers those
+  supporting commands with `ask`; belt mode `allow`s them. The denial text is the source if this
+  list and the guard diverge. Do supporting inspection with non-Bash read-only tools when the
+  command is not in that set. Shell expansions, globs, splitting/escape forms, operators,
+  redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool
