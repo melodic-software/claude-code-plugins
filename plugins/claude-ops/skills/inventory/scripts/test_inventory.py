@@ -1261,6 +1261,30 @@ class TestToolDescriptionShapes(unittest.TestCase):
         self.assertEqual(rec["description"], "AYB")
         self.assertEqual(rec["description_variants"], ["AXB", "AYB"])
 
+    def test_a_fallback_starting_with_an_empty_literal_is_still_read(self) -> None:
+        src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:u.v||""+"Fallback"});'
+        self.assertEqual(_tool(src, "Probe")["description"], "Fallback")
+
+    def test_a_resolved_group_settles_its_fallback(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Maybe";'
+            '$t({name:Qz,maxResultSizeChars:1,description:(f?"A":"C")||"B"});'
+            '$t({name:Rz,maxResultSizeChars:1,description:(f?"A":void 0)||"B"});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description_variants"], ["A", "C"])
+        self.assertEqual(_tool(src, "Maybe")["description_variants"], ["A", "B"])
+
+    def test_substitution_and_join_alternatives_are_kept(self) -> None:
+        src = (
+            'var Qz="Probe",Rz="Joined";'
+            '$t({name:Qz,maxResultSizeChars:1,description:`Use ${f?"X":"Y"}`});'
+            '$t({name:Rz,maxResultSizeChars:1,description:["a",f?"X":"Y"].join(" ")});'
+        )
+        self.assertEqual(
+            _tool(src, "Probe")["description_variants"], ["Use X", "Use Y"]
+        )
+        self.assertEqual(_tool(src, "Joined")["description_variants"], ["a X", "a Y"])
+
     def test_a_nullish_fallback_keeps_an_empty_string(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:""??"FALLBACK"});'
         self.assertEqual(_tool(src, "Probe")["description"], "")

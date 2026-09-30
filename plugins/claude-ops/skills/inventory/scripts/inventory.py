@@ -880,7 +880,10 @@ def _scan(
                 # empty, unless it is an empty string itself (`x??""`), which
                 # says nothing.
                 i = _skip_ws(src, i + 2, n)
-                empty = src[i : i + 2] in ('""', "''", "``")
+                after = _skip_ws(src, i + 2, n)
+                empty = src[i : i + 2] in ('""', "''", "``") and (
+                    after >= n or src[after] in ",;})]:"
+                )
                 at_value, prev = active and not empty, "?"
                 continue
             if src.startswith("?.", i):
@@ -945,18 +948,19 @@ def _operand(
             break
         c = src[i]
         if c in _QUOTES:
-            text, i, via = _read_string(src, braces, i, n, **kw)
-            parts.append(text)
+            texts, i, via = _read_string(src, braces, i, n, **kw)
+            parts.append(texts if len(texts) > 1 else texts[0])
             acc.via |= via
         elif c == "(":
             close = _match_close(src, braces, i, n)
             # `(x()?a:b)` yields both branches.
-            computed = True
-            parts.append(_sub_value(src, braces, i + 1, close - 1, acc, **kw))
+            group = _sub_value(src, braces, i + 1, close - 1, acc, **kw)
+            computed = computed or bool(group and group.partial)
+            parts.append(group)
             i = close
         elif c == "[":
-            text, i = _array_join(src, braces, i, n, acc, **kw)
-            parts.append(text)
+            joined, i = _array_join(src, braces, i, n, acc, **kw)
+            parts.append(joined)
         elif c in _ID_START:
             j = _ident_end(src, i)
             word = src[i:j]
@@ -1008,19 +1012,19 @@ def _operand(
         p = parts[0]
         values = p if isinstance(p, list) else [p] if isinstance(p, str) else None
         if p is _NONSTRING:
+            # A non-string (`void 0`, `null`, a number): nothing to record,
+            # but the expression is not a string for certain.
             values = []
+            acc.unresolved += 1
     elif len(parts) > 1 and any(isinstance(p, (str, list)) and p for p in parts):
-        choices = [
-            [p]
-            if isinstance(p, str)
-            else (p if isinstance(p, list) and p else [_ELLIPSIS])
-            for p in parts
-        ]
-        # Every combination of the parts' values, the fallthrough last; past
-        # the cap, the fallthrough alone.
-        if math.prod(len(c) for c in choices) > _MAX_COMBINATIONS:
-            choices = [[c[-1]] for c in choices]
-        values = ["".join(combo) for combo in itertools.product(*choices)]
+        values = _combine(
+            [
+                [p]
+                if isinstance(p, str)
+                else (p if isinstance(p, list) and p else [_ELLIPSIS])
+                for p in parts
+            ]
+        )
     if fallback:
         # `a||b`: when every value `a` can take is a non-empty string, `b`
         # never shows, so it is skipped; otherwise `b` is read as a value
@@ -1039,6 +1043,22 @@ def _operand(
     for v in values or []:
         _add_static(acc, v)
     return i
+
+
+def _combine(choices: list[list[str]], sep: str = "") -> list[str]:
+    """Every way to pick one value per part, joined by `sep`, with the
+    fallthrough (each part's last value) last; past `_MAX_COMBINATIONS`, the
+    fallthrough alone."""
+    if math.prod(len(c) for c in choices) > _MAX_COMBINATIONS:
+        choices = [[c[-1]] for c in choices]
+    return [sep.join(combo) for combo in itertools.product(*choices)]
+
+
+class _Alternatives(list):
+    """An expression's string values; `partial` when it may also yield a
+    value this reader did not record (a non-string or an unresolved part)."""
+
+    partial = False
 
 
 _STATIC_WORD_RE = re.compile(r"[A-Za-z0-9]")
@@ -1092,7 +1112,7 @@ def _sub_value(
     end: int,
     acc: _Values,
     **kw: Any,
-) -> list[str] | None:
+) -> _Alternatives | None:
     """The values of the one expression spanning `[start, end)`, or None.
 
     None when it yields nothing or does not span the range (a comma
@@ -1104,7 +1124,9 @@ def _sub_value(
     if not sub.variants or _skip_ws(src, stop, end) < end:
         return None
     acc.via |= sub.via
-    return sub.variants
+    out = _Alternatives(sub.variants)
+    out.partial = sub.unresolved > 0
+    return out
 
 
 def _read_string(
@@ -1117,18 +1139,19 @@ def _read_string(
     anchor: int | None,
     shadow: Scope,
     deferred: bool = False,
-) -> tuple[str, int, set[str]]:
-    """A string or template literal: (text, index past it, how it was read).
+) -> tuple[list[str], int, set[str]]:
+    """A string or template literal: (its values, index past it, how it was read).
 
     Each template substitution is resolved like any other expression and
-    takes its fallthrough value; one that does not resolve renders as an
-    ellipsis and marks the text `template`.
+    contributes each of its values, the texts combined (see `_combine`); one
+    that does not resolve renders as an ellipsis and marks the text
+    `template`.
     """
     if src[i] != "`":
         text, end, _ = _read_literal(src, i, n)
-        return text, end, {"literal"}
+        return [text], end, {"literal"}
     via: set[str] = set()
-    parts: list[str] = []
+    parts: list[list[str]] = []
     j = seg = i + 1
     while j < n:
         ch = src[j]
@@ -1136,10 +1159,10 @@ def _read_string(
             j += 2
             continue
         if ch == "`":
-            parts.append(_js_unescape(src[seg:j]))
-            return "".join(parts), j + 1, via or {"literal"}
+            parts.append([_js_unescape(src[seg:j])])
+            return _combine(parts), j + 1, via or {"literal"}
         if ch == "$" and src.startswith("{", j + 1):
-            parts.append(_js_unescape(src[seg:j]))
+            parts.append([_js_unescape(src[seg:j])])
             end = _skip_substitution(src, j + 2, n)
             acc = _Values()
             value = (
@@ -1158,10 +1181,10 @@ def _read_string(
                 else None
             )
             if value is None:
-                parts.append(_ELLIPSIS)
+                parts.append([_ELLIPSIS])
                 via.add("template")
             else:
-                parts.append(value[-1])
+                parts.append(list(value))
                 via |= acc.via
             j = seg = end
             continue
@@ -1171,8 +1194,8 @@ def _read_string(
 
 def _array_join(
     src: str, braces: BraceMap, i: int, n: int, acc: _Values, **kw: Any
-) -> tuple[str | None, int]:
-    """`[a, ...[b, c], d].join(sep)` as one string; None for any other array.
+) -> tuple[list[str] | None, int]:
+    """`[a, ...[b, c], d].join(sep)` as its joined values; None for any other array.
 
     An element that does not resolve renders as an ellipsis.
     """
@@ -1190,8 +1213,8 @@ def _array_join(
     if not src.startswith(")", k):
         return None, close
 
-    def elements(open_i: int, end: int) -> list[str]:
-        out: list[str] = []
+    def elements(open_i: int, end: int) -> list[list[str]]:
+        out: list[list[str]] = []
         starts = _split_args(src, braces, open_i + 1)
         for idx, start in enumerate(starts):
             stop = (starts[idx + 1] if idx + 1 < len(starts) else end) - 1
@@ -1204,13 +1227,13 @@ def _array_join(
                 out.extend(elements(start + 3, inner - 1))
                 continue
             value = _sub_value(src, braces, start, stop + 1, acc, **kw)
-            out.append(value[-1] if value else _ELLIPSIS)
+            out.append(list(value) if value else [_ELLIPSIS])
             if not value:
                 acc.via.add("template")
         return out
 
     acc.via.add("literal")
-    return sep.join(elements(i, close - 1)), k + 1
+    return _combine(elements(i, close - 1), sep), k + 1
 
 
 def _arrow_body(
