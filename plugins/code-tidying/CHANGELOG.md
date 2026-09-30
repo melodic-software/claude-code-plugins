@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1] - 2026-09-30
+
+### Changed
+
+- **The `simplify` Boundary bullets in `tidy` and `batch-simplify` no longer assert that the skill
+  ships with Claude Code.** Each keeps the provenance class, what the skill does and how it is
+  invoked, in the native-references template form.
+
 ## [0.25.0] - 2026-09-29
 
 ### Added
