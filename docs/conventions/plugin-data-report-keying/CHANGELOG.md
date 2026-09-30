@@ -5,6 +5,17 @@ is versioned by the `Version:` stamp in `README.md` (SemVer). A rule whose `[SPE
 tightens is a major bump; a new rule or a new named example is a minor bump; wording and adoption-table
 updates are a patch.
 
+## [1.0.3] - 2026-09-30
+
+Patch under this contract's own rule, adoption table only. No `[SPEC]` obligation tightens, no
+rule is added, and no worked example is added or removed.
+
+- **`code-metrics` joins the adoption table** (#5551): every `audit-*` skill keeps its report at
+  `reports/<state-key>/<skill>-<stamp>.json`, one timestamped file per run with retention per key.
+  It was unkeyed, so two projects shared one directory and one retention count. The row records a
+  fail-closed derivation and that nothing reads the files back, which limits Rule 3 to naming
+  unkeyed leftovers.
+
 ## [1.0.2] - 2026-09-07
 
 Patch under this contract's own rule, adoption table only. No `[SPEC]` obligation tightens, no
