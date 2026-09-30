@@ -124,9 +124,9 @@ changing what it forbids. The register URL is not readable with this skill's gra
 WebFetch) and the file may be absent from the checkout, so read
 `docs/conventions/instruction-exception-register/README.md` when it is present, and when it is not,
 fall back to recognition by consequence and say in the review that the protected-class list was not
-consulted. This lens lives in this skill only: the `security-reviewer` agent behind
-`/review:quality-gate` security mode and `/review:fanout` carries no such lens, so those surfaces
-can judge the same diff differently.
+consulted. The `security-reviewer` agent behind
+`/review:quality-gate` security mode and `/review:fanout` carries the same lens as a pointer, so
+local and CI review judge such a diff by the same register.
 
 ## High-signal bar
 
