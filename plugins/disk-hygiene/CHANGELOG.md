@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-09-30
+
+### Added
+
+- **A read-only managed-state owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
+  them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
+  registry match is reported. A match grants no approval and adds no delete path; the engine is
+  unchanged. Product-native destructive commands are not included.
+
 ## [0.29.0] - 2026-09-29
 
 ### Added
