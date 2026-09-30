@@ -10700,6 +10700,122 @@ class GuardTests(unittest.TestCase):
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
+    def test_powershell_mutation_words_in_string_data_defer(self) -> None:
+        """#4226: a mutation word inside a quoted literal of an allow-listed command."""
+        for command in (
+            'git log --oneline --grep "move"',
+            "git log --grep 'move'",
+            "gh issue list --search 'rename flag'",
+            "Write-Output 'rm is a word'",
+            "Get-ChildItem | Where-Object { $_.Name -eq 'rd' }",
+            "gh issue comment 1 --body 'the move to a batched lane'",
+            'gh issue list --search "rename flag"',
+            'git commit -m "del stale entry"',
+            'Write-Output "rm is a word"',
+            'Get-ChildItem | Where-Object { $_.Name -match "rd" }',
+            'gh issue comment 3347 --body "the move to a batched lane"',
+            "git commit -m 'del stale entry'",
+            "git commit -m 'it''s the rm step'",
+            'git commit -m "a ""del"" b"',
+            'git commit -m "fix #12: move it"',
+            'git log --grep "move" 2>&1 | Select-Object -First 5',
+        ):
+            self.assertIsNone(guard.powershell_decision(command, True), command)
+
+    def test_powershell_mutation_words_that_can_run_still_prompt(self) -> None:
+        """#4226: relief must not hide a word PowerShell can run."""
+        for command in (
+            # Live subexpressions inside expandable strings run.
+            '"$(Remove-Item x)"',
+            'Write-Output "a $(rm x) b"',
+            'Write-Output @"\n$(Remove-Item x)\n"@',
+            'git log --grep "$($item.Name) move"',
+            # Command position, and unquoted arguments.
+            'Write-Output "$(Remove-Item x)"',
+            "iex 'rm x'",
+            "& 'rm' x",
+            "git log; rm x",
+            "git status | Remove-Item x",
+            "Remove-Item x",
+            "Move-Item a b",
+            "Rename-Item a b",
+            "rm x",
+            "git commit -m 'x'; del y",
+            "Get-Item x | Remove-Item",
+            "git rm x",
+            # A quote pair split across comments hides a live command.
+            "# '\nrm x\n# '",
+            "<# ' #>\nrm x\n<# ' #>",
+            # Commands that run a file or string are not on the allow-list.
+            "Invoke-Item 'rm.bat'",
+            "ii 'rm.bat'",
+            "Import-Module 'rm.psm1'",
+            "$rs.CreatePipeline('rm x').Invoke()",
+            "$rs=[runspacefactory]::CreateRunspace(); $rs.Open(); "
+            "$rs.CreatePipeline('rm x').Invoke()",
+            "& 'Remove-Item' x",
+            '$c = "Remove-Item"; & $c x',
+            ". 'rm.ps1'",
+            "iex 'Remove-Item x'",
+            'Invoke-Expression "rm x"',
+            "powershell -c 'rm x'",
+            'pwsh -Command "Remove-Item x"',
+            "cmd /c 'del x'",
+            "ssh host 'rm -rf x'",
+            'Start-Process pwsh -ArgumentList "-c", "rm x"',
+            "Get-ChildItem | ForEach-Object { 'rm' }",
+            "[scriptblock]::Create('rm x').Invoke()",
+            "Set-Alias z 'Remove-Item'; z x",
+            "$f.'DeleteFile'('C:\\x')",
+            "$m = 'DeleteFile'; $f.$m('C:\\x')",
+            "$c = Get-Command 'Remove-Item'; $c.Invoke('x')",
+            "$fso | % 'DeleteFile'",
+            'python -c "import os; os.system(\'del x\')"',
+            "node -e \"require('child_process').execSync('rm x')\"",
+            "([type]'Management.Automation.ScriptBlock')::Create('rm x').Invoke()",
+            '"$(rm x"',
+            # git and gh arguments that run strings.
+            "git -c core.pager='rm x' log",
+            "git grep -O'rm x' foo",
+            "gh alias set --shell z 'rm x'",
+            # The pipeline variable cannot carry a call or an assignment.
+            "Get-ChildItem 'rm.bat' | Where-Object { & $_ }",
+            "Get-ChildItem | Where-Object { $_ = Invoke-Item 'rm.bat' }",
+            # Constructs that change quote pairing keep the raw-text match.
+            "git log ${a'} ; rm x ; ${'}",
+            "git log --% '\nrm x\ngit log --% '",
+            "git log 'a\u2019; rm x; git log '\u2019",
+            "git log 'x' `\n'rm y'",
+            "git log\rInvoke-Item 'rm.bat'",
+            # An unterminated string is not masked.
+            "git log 'unterminated rm",
+            "git log 'a'' rm",
+        ):
+            verdict = guard.powershell_decision(command, True)
+            assert verdict is not None, command
+            self.assertEqual("ask", verdict[0], command)
+
+    def test_powershell_bare_mutation_cmdlets_prompt_or_deny(self) -> None:
+        """#4226: a bare mutation cmdlet or alias keeps its ask, and its audit-only deny."""
+        for command in (
+            "Remove-Item x",
+            "rm x",
+            "del x",
+            "Move-Item a b",
+            "mv a b",
+            "Rename-Item a b",
+            "ren a b",
+            "Set-Content x y",
+            "Out-File x",
+        ):
+            with self.subTest(command=command):
+                verdict = guard.powershell_decision(command, True)
+                assert verdict is not None, command
+                self.assertEqual("ask", verdict[0], command)
+                verdict = guard.powershell_decision(command, False)
+                assert verdict is not None, command
+                self.assertEqual("deny", verdict[0], command)
+
     def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
         """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
         for command in (
