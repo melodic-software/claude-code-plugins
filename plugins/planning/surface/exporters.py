@@ -34,6 +34,8 @@ present only when it has a value, each value escaped on its own (esc_field), joi
                                   import restores it still set aside
   commitments:: M(c1)[; M(c2)...] every commitment in order, M() being `+` (confirmed) or `-`
                                   (unconfirmed) then E(text)
+An accepted or hedged decision with an unconfirmed commitment exports `open`, keeping its answer,
+note and commitments; import restores that decision with those commitments unconfirmed.
 A superseded-by-plan row keeps that status under a defer, whose answer carries it. A deferred row
 seeded from a ledger keeps that ledger's arbiter (ARBITER_USER when its text says USER-RESERVED,
 else ARBITER_PLAN); a deferral made on the page is ARBITER_USER. A held row keeps a seeded
@@ -335,8 +337,8 @@ def readable(status, fields, marked):
     if status == "deferred" and fields.get("note") is None:
         # A page deferral; a seeded one's arbiter is in its own text.
         parts.append("arbiter: USER-RESERVED")
-    # An unconfirmed commitment reaches the Brief only as a named risk, and only where the
-    # decision carries it (register's "carries").
+    # An unconfirmed commitment reaches the Brief as a named risk, and only where the decision
+    # carries it (register's "carries").
     confirmed = [c for ok, c in marked if ok]
     if confirmed:
         parts.append("confirmed: " + "; ".join(confirmed))
@@ -491,6 +493,8 @@ def settle(q, responses, events, seed_rows):
             fields["note"] = seed_text(seed)
             return status, fields, clean(text), False
         status = "deferred" if decision == "defer" else "answered"
+        if decision in ("accept", "hedged") and commitments(q, events)[1]:
+            status = "open"
         return status, fields, clean(text), decision == "defer"
     fields["note"] = seed_text(seed)
     if status == "superseded-by-plan":
@@ -565,6 +569,27 @@ def export_ledger(d):
     return "\n".join(out) + "\n"
 
 
+def held_open(r):
+    """True for a row the unticked-commitment gate holds open: a decision that carries its
+    commitments, no hold, and a commitment still unconfirmed."""
+    return (
+        r["status"] == "open"
+        and r["carries"]
+        and bool(r["unconfirmed"])
+        and not r["q"].get("waiting")
+    )
+
+
+def named_risks(rows):
+    """(row, commitment) for each unconfirmed commitment an answered or gated row carries."""
+    return [
+        (r, c)
+        for r in rows
+        if (r["status"] == "answered" and r["carries"]) or held_open(r)
+        for c in r["unconfirmed"]
+    ]
+
+
 def export_brief(d):
     doc, resp = read(d)
     rows = register(doc, resp)
@@ -575,7 +600,8 @@ def export_brief(d):
     }
     answered = [r for r in rows if r["status"] == "answered"]
     confirmed = [(r, c) for r in rows for c in r["confirmed"]]
-    risks = [(r, c) for r in answered if r["carries"] for c in r["unconfirmed"]]
+    risks = named_risks(rows)
+    gated = [r["n"] for r in rows if held_open(r)]
     superseded = count["superseded-by-plan"]
     out = ["## Brief", "", "### TLDR", ""]
     out.append(
@@ -586,6 +612,10 @@ def export_brief(d):
     out.append(
         f"- {len(confirmed)} commitments confirmed; {len(risks)} unconfirmed, carried as named risks"
     )
+    if gated:
+        out.append(
+            f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
+        )
     out += ["", "### Goal", "", para(title), "", "### Constraints", ""]
     out += [
         f"- {r['n']} {clean(r['q'].get('short'))}: {r['display']}" for r in answered
@@ -828,12 +858,7 @@ def export_report(d):
         "<li>none</li>"
     ]
     out.append("</ul><h2>Named risks</h2><ul>")
-    risks = [
-        (r, c)
-        for r in rows
-        if r["status"] == "answered" and r["carries"]
-        for c in r["unconfirmed"]
-    ]
+    risks = named_risks(rows)
     out += [f"<li>{esc(r['n'])}: {esc(c)} (unconfirmed)</li>" for r, c in risks] or [
         "<li>none</li>"
     ]
@@ -1006,10 +1031,14 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     who, sep, waits = (hold or "").partition(" ")
     if hold is not None and (who not in ("claude", "user") or not sep):
         refuse(f"unreadable field 'hold' {hold!r}", where)
-    if "proposal" in fields and status in ("open", "deferred", "blocked"):
+    if "proposal" in fields and (
+        status in ("deferred", "blocked") or (status == "open" and kind != "decide")
+    ):
         clash("proposal", f"status {status}")
     fits = {
-        "open": kind is None or (hold is not None and kind != "withdraw"),
+        "open": kind is None
+        or (hold is not None and kind != "withdraw")
+        or (kind == "decide" and any(not ok for ok, _ in marked)),
         "superseded-by-plan": kind in (None, "defer")
         or (hold is not None and kind == "decide"),
         "answered": kind == "decide",
