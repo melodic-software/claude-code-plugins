@@ -15,13 +15,11 @@
 # report a pass. --all and --paths never consult a ref.
 #
 # Adoption: classify and finish are used by check-shell-portability,
-# check-skill-portability, and check-skill-precompute-compose. Only require_base
-# is used by check-guardrails-ps-differential. affected-tests,
-# check-changed-skills, check-docs-only, check-changelog-parity,
-# check-contract-slice-prune, check-skill-description-voice,
-# check-stale-base-overlap, and check-vendor-version-bump still dispatch modes
-# and map exits themselves; the
-# #3413 triage brief scoped out adding modes to other gates.
+# check-skill-portability, check-skill-precompute-compose, check-changed-skills,
+# check-stale-base-overlap, and check-vendor-version-bump. Only require_base
+# is used by check-guardrails-ps-differential. affected-tests, check-docs-only,
+# check-changelog-parity, check-contract-slice-prune, and
+# check-skill-description-voice still dispatch modes and map exits themselves.
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/gate-entry.sh is sourced-only\n' >&2
