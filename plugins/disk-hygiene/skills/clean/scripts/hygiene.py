@@ -4638,10 +4638,18 @@ def main(argv: list[str] | None = None) -> int:
             )
         snapshot = load_json(Path(args.snapshot))
         if args.command == "catalog":
-            if not isinstance(snapshot.get("target"), str) or not isinstance(
-                snapshot.get("entries"), list
+            entries = snapshot.get("entries")
+            if (
+                not isinstance(snapshot.get("target"), str)
+                or not isinstance(entries, list)
+                or not all(
+                    isinstance(entry, dict) and isinstance(entry.get("path"), str)
+                    for entry in entries
+                )
             ):
-                raise HygieneError("catalog needs a scan snapshot with an entries list")
+                raise HygieneError(
+                    "catalog needs a scan snapshot whose entries each have a path"
+                )
             json_path, markdown_path = catalog_paths()
             json_path.parent.mkdir(parents=True, exist_ok=True)
             findings = (

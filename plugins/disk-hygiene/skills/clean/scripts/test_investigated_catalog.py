@@ -383,6 +383,18 @@ class CatalogCommandTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertTrue(result["catalog_unreadable"])
 
+    def test_catalog_refuses_a_snapshot_entry_without_a_path(self) -> None:
+        for entries in ([{"kind": "file"}], ["loose.txt"]):
+            with self.subTest(entries=entries):
+                snapshot = self.write(
+                    "bad.json", {"target": str(self.target), "entries": entries}
+                )
+                code, _ = self.run_main(
+                    "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
+                )
+                self.assertNotEqual(0, code)
+                self.assertFalse((self.data / "catalog.json").exists())
+
     def test_catalog_needs_a_data_root_and_leaves_the_target_alone(self) -> None:
         snapshot = self.scan("snapshot.json")
         output = io.StringIO()
