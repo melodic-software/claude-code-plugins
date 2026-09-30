@@ -9,6 +9,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
 
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **The substitution cap no longer counts text inside single-quoted spans ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).** A Bash command whose issue or PR body quotes `$(`, `<(`, `>(` or backticks in single quotes is no longer refused at 256, because bash substitutes nothing there. Unquoted, double-quoted and heredoc-body substitutions still count. A command naming a shell, `eval`, `su`, `env` or `alias`, or with quoting the scan does not model, counts whole. PowerShell is unchanged.
+
 ## [0.42.1] - 2026-09-29
 
 ### Fixed

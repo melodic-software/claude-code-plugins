@@ -36,6 +36,8 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
 usage() {
@@ -43,22 +45,11 @@ usage() {
   exit 2
 }
 
-mode="${1:-}"
-base_ref="${2:-}"
-case "$mode" in
---check)
-  [[ -n "$base_ref" ]] || usage
-  ;;
-*)
-  usage
-  ;;
-esac
-
+GE_FLAGS=("--check:ref")
+GE_BAD_REF_MSG="check-stale-base-overlap: base ref not resolvable: ${2-}"
 # shellcheck disable=SC2310  # the non-zero return IS the handled case
-if ! changed_files::verify_base "$base_ref"; then
-  echo "check-stale-base-overlap: base ref not resolvable: $base_ref" >&2
-  exit 2
-fi
+gate_entry::classify "$@" || usage
+base_ref="$GE_REF"
 if ! changed_files::verify_base HEAD; then
   echo "check-stale-base-overlap: HEAD not resolvable" >&2
   exit 2
@@ -72,7 +63,7 @@ base_tip="$(git rev-parse "${base_ref}^{commit}")" || exit 2
 
 if [[ "$merge_base" == "$base_tip" ]]; then
   echo "check-stale-base-overlap: HEAD is up to date with $base_ref"
-  exit 0
+  gate_entry::finish 0
 fi
 
 # Both path lists are walked through scripts/lib/changed-files.sh, which exists
@@ -126,7 +117,7 @@ behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '
 
 if [[ -z "$overlap" ]]; then
   echo "check-stale-base-overlap: HEAD is $behind_by commit(s) behind $base_ref but touches no overlapping paths"
-  exit 0
+  gate_entry::finish 0
 fi
 
 echo "check-stale-base-overlap: STALE BASE with overlapping paths" >&2
@@ -144,4 +135,4 @@ echo "re-run CI, then merge. A stale-base squash can silently revert recently" >
 echo "landed fixes on the overlapping paths (claude-code-plugins#2691)." >&2
 echo "Scope: stale BASE only. A branch stale in content but current in history" >&2
 echo "passes this check — that class is scripts/check-silent-revert.sh." >&2
-exit 1
+gate_entry::finish 1

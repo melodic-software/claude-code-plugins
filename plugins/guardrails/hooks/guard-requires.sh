@@ -45,9 +45,10 @@ _GUARD_REQUIRES_DIR="${BASH_SOURCE[0]%/*}"
 # separator for a case it does not have.
 #
 # run-guards.sh appears here as a consumer in its own right: it reads
-# `.tool_name` to decide whether the event needs the PowerShell classifier,
-# `.hook_event_name` to name the event in its own abort notice, and
-# `.tool_input.command` to count its substitutions under --max-substitutions.
+# `.tool_name` to decide whether the event needs the PowerShell classifier and
+# whether single quotes discount a substitution, `.hook_event_name` to name the
+# event in its own abort notice, and `.tool_input.command` to count its
+# substitutions under --max-substitutions.
 #
 # shellcheck disable=SC2034  # read by run-guards.test.sh, which checks both projections against it
 declare -A GUARD_FIELDS=(

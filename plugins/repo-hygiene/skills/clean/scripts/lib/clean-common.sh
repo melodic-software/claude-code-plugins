@@ -136,6 +136,59 @@ clean_unreached_counts() {
     }'
 }
 
+# clean_landed_proof <repo_root> <default_branch> <branch>: succeed, printing the
+# proof, when origin/<default_branch> already holds refs/heads/<branch>'s work
+# under other SHAs; exit 1 with nothing printed otherwise (every failed or
+# missing signal is "no proof"). The branch audit records the proof in its
+# capture and the delete path re-runs this live, so a captured proof is never
+# taken on trust. A branch with no net change from its merge-base has no work to
+# prove (empty patches all share one patch-id), so it proves nothing. In order:
+#   1. `git cherry` prints a line per commit the branch has that origin/<default>
+#      lacks, `-` when an equivalent patch is there; all `-` means a rebase or
+#      cherry-pick merge landed every commit. It does not list merge commits, so
+#      a branch with any skips this step: a merge's own conflict resolution can
+#      sit in no commit main holds, and only the whole-tree steps below see it.
+#   2. The branch's tree is origin/<default>'s tree: the work landed as commits
+#      split differently, which neither cherry nor a single patch-id matches.
+#   3. A squash lands the whole diff as one commit, so the branch's tree is
+#      re-committed onto the merge-base and looked up the same way. That
+#      `commit-tree` writes one unreferenced loose object (no ref; `git gc`
+#      prunes it), the only write the proof makes.
+# ponytail: each `git cherry` patch-ids every commit on origin/<default> since
+# the merge-base, up to two runs per branch; one `rev-list | diff-tree -p |
+# patch-id` pass per merge-base would serve every branch if that gets slow.
+clean_landed_proof() {
+  local repo_root="$1" base="origin/$2" ref="refs/heads/$3" out mb merges synth rc=0
+  local -a trees
+  mb="$(git -C "$repo_root" merge-base "$base" "$ref" 2>/dev/null | tr -d '\r')"
+  [[ -n "$mb" ]] || return 1
+  git -C "$repo_root" diff --quiet "$mb" "$ref" 2>/dev/null || rc=$?
+  [[ $rc -eq 1 ]] || return 1
+  merges="$(git -C "$repo_root" rev-list --merges --max-count=1 "$base..$ref" 2>/dev/null)" || return 1
+  if [[ -z "$merges" ]]; then
+    out="$(git -C "$repo_root" cherry "$base" "$ref" 2>/dev/null | tr -d '\r')"
+    if [[ -n "$out" ]] && ! grep -qv '^-' <<<"$out"; then
+      printf 'landed by patch-id (git cherry)'
+      return 0
+    fi
+  fi
+  mapfile -t trees < <(git -C "$repo_root" rev-parse "$ref^{tree}" "$base^{tree}" 2>/dev/null | tr -d '\r')
+  if [[ ${#trees[@]} -eq 2 && "${trees[0]}" == "${trees[1]}" ]]; then
+    printf 'landed as identical content (tree equals %s)' "$base"
+    return 0
+  fi
+  synth="$(GIT_AUTHOR_NAME=landed-proof GIT_AUTHOR_EMAIL=landed-proof@localhost \
+    GIT_COMMITTER_NAME=landed-proof GIT_COMMITTER_EMAIL=landed-proof@localhost \
+    git -C "$repo_root" commit-tree "$ref^{tree}" -p "$mb" -m landed-proof 2>/dev/null | tr -d '\r')"
+  [[ -n "$synth" ]] || return 1
+  out="$(git -C "$repo_root" cherry "$base" "$synth" 2>/dev/null | tr -d '\r')"
+  if [[ "$out" == -* && "$out" != *$'\n'* ]]; then
+    printf 'landed as a squash (tree patch-id)'
+    return 0
+  fi
+  return 1
+}
+
 # clean_pr_map <outfile> <json_fields> — fetch the repository's pull-request map
 # ONCE and write it to <outfile> as TSV, one row per PR, columns in the order
 # <json_fields> names them (a comma-separated `gh pr list --json` field list).
