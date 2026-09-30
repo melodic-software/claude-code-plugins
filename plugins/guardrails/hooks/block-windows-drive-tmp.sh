@@ -240,6 +240,32 @@ norm_lower() {
 norm_lower "$COMMAND"
 NORM="$NORM_OUT"
 
+# The fold above reads a backslash-led drive-root `\tmp` as POSIX /tmp, and on a
+# usertemp host the Bash tool lets that spelling through. A quoted `'\tmp\x'`
+# reaches Windows with its backslashes and is the volume root, so on that host
+# each `\tmp` that starts a path is rewritten to the `/c/tmp` spelling the matcher
+# blocks, before the fold. A `\tmp` behind an alphanumeric, `.`, `_`, `/`, `\` or
+# `:` is part of another path (`foo\tmp`, `.\tmp`, `D:\a\tmp`, a UNC host) and
+# stays, as does one followed by more name (`\tmpdir`). Unquoted, the shell
+# unescapes `\tmp\x` to the relative `tmpx`; the guard cannot see quoting after
+# the fold and blocks that too, as it does on a host without usertemp.
+# <var> <lowercased command>; the result still needs the fold.
+backslash_tmp_to_msys_root_to() {
+  local __dt_dest="$1" __dt_rest="$2" __dt_out="" __dt_l __dt_r
+  while [[ "$__dt_rest" == *'\tmp'* ]]; do
+    __dt_out+="${__dt_rest%%\\tmp*}"
+    __dt_rest="${__dt_rest#*\\tmp}"
+    __dt_l="${__dt_out: -1}"
+    __dt_r="${__dt_rest:0:1}"
+    if [[ "$__dt_l" == [[:alnum:]._/:] || "$__dt_l" == "\\" || "$__dt_r" == [[:alnum:]_.-] ]]; then
+      __dt_out+='\tmp'
+    else
+      __dt_out+='/c/tmp'
+    fi
+  done
+  printf -v "$__dt_dest" '%s' "$__dt_out$__dt_rest"
+}
+
 # Cached: 0 = POSIX /tmp is this process's user temp, 1 = not (or unknown).
 # One probe per hook process; Git for Windows stock /tmp is a `usertemp` mount
 # of %TEMP% (#4251).
@@ -251,7 +277,7 @@ posix_tmp_maps_to_usertemp() {
     return "$_DRIVE_TMP_POSIX_USERTEMP"
   fi
   _DRIVE_TMP_POSIX_USERTEMP=1
-  local tmp_win="" temp_win="" temp_env mount_line tmp_n temp_n
+  local tmp_win="" temp_win="" temp_env mount_out mount_line tmp_n temp_n
   temp_env="${TEMP:-${TMP:-}}"
   if command -v cygpath >/dev/null 2>&1 && [[ -n "$temp_env" ]]; then
     tmp_win=$(cygpath -w /tmp 2>/dev/null) || tmp_win=""
@@ -270,14 +296,18 @@ posix_tmp_maps_to_usertemp() {
     fi
   fi
   # Git for Windows mount table: "... on /tmp type ntfs (...,usertemp)". The
-  # usertemp flag is what distinguishes that mount from a volume-root /tmp.
+  # usertemp flag is what distinguishes that mount from a volume-root /tmp, so it
+  # counts only on the /tmp mount's own line: a usertemp flag on another mount
+  # says nothing about /tmp. Read line by line in this shell, no extra process.
   # Linux CI's /tmp tmpfs line has no such flag, so forcing OSTYPE=msys there
   # does not trip this arm.
-  mount_line=$(mount 2>/dev/null) || mount_line=""
-  if [[ "$mount_line" == *" on /tmp "* && "$mount_line" == *"usertemp"* ]]; then
-    _DRIVE_TMP_POSIX_USERTEMP=0
-    return 0
-  fi
+  mount_out=$(mount 2>/dev/null) || mount_out=""
+  while IFS= read -r mount_line; do
+    if [[ "$mount_line" == *" on /tmp "* && "$mount_line" == *"usertemp"* ]]; then
+      _DRIVE_TMP_POSIX_USERTEMP=0
+      return 0
+    fi
+  done <<<"$mount_out"
   return 1
 }
 
@@ -478,11 +508,16 @@ segment_destination_operand() {
   printf '%s' "$dest"
 }
 
-# curl -o/--output and wget -O/--output-document write targets. Glued
-# (`-o/tmp/x`) and `--flag=path` forms count; a URL that merely contains
-# `/tmp` does not.
+# curl -o/--output/--output-dir and wget -O/--output-document write targets.
+# Glued (`-o/tmp/x`) and `--flag=path` forms count, and so does a cluster of
+# short flags whose first `o`/`O` is the output flag (`-sSLo /tmp/x`,
+# `-sSLo/tmp/x`): that flag takes the rest of the token, or the next one. A bare
+# `-O` is read the same way although curl's takes no operand: a URL is never a
+# drive-root path, so the extra token costs nothing. Every destination counts, so
+# a later `-o ./x` cannot hide an earlier `--output-dir /c/tmp`. A URL that merely
+# contains `/tmp` is not a destination.
 segment_downloader_output_operand() {
-  local subject="$1" tok dest="" expect=0
+  local subject="$1" tok dests="" expect=0 pre rest
   local -a tokens=()
   # Intentional word-split of the static matcher subject into tokens.
   # shellcheck disable=SC2206
@@ -493,28 +528,34 @@ segment_downloader_output_operand() {
     tok="${tok#\"}"
     tok="${tok%\"}"
     if ((expect)); then
-      dest="$tok"
+      # The token is the operand, and an option token is parsed as well: a bare -O
+      # (lowercased it is -o) takes no operand, so `-O -o /c/tmp/x` must not lose
+      # the second flag's destination to it.
+      dests+=" $tok"
       expect=0
-      continue
+      [[ "$tok" == -* ]] || continue
     fi
     case "$tok" in
-    --output=* | --output-document=*)
-      dest="${tok#*=}"
+    --output=* | --output-document=* | --output-dir=*)
+      dests+=" ${tok#*=}"
       ;;
-    --output | --output-document | -O | -o)
+    --output | --output-document | --output-dir)
       expect=1
       ;;
-    -o?*)
-      dest="${tok#-o}"
-      ;;
-    -O?*)
-      dest="${tok#-O}"
-      ;;
     *)
+      pre="${tok%%[oO]*}"
+      if [[ "$pre" != "$tok" && "$pre" =~ ^-[[:alpha:]]*$ ]]; then
+        rest="${tok#"$pre"?}"
+        if [[ -n "$rest" ]]; then
+          dests+=" $rest"
+        else
+          expect=1
+        fi
+      fi
       ;;
     esac
   done
-  printf '%s' "$dest"
+  printf '%s' "$dests"
 }
 
 # Basename of a command-position word that is path-qualified or ends in .exe,
@@ -655,6 +696,12 @@ if [[ -n "$COMMAND" ]]; then
   _DRIVE_TMP_SKIP_POSIX=0
   if [[ "$TOOL_NAME" == "Bash" ]] && posix_tmp_maps_to_usertemp; then
     _DRIVE_TMP_SKIP_POSIX=1
+    _dt_lc="${COMMAND,,}"
+    if [[ "$_dt_lc" == *'\tmp'* ]]; then
+      backslash_tmp_to_msys_root_to _dt_lc "$_dt_lc"
+      norm_lower "$_dt_lc"
+      NORM="$NORM_OUT"
+    fi
   fi
   if has_redirect_to_drive_root_tmp "$NORM"; then
     block "redirect"

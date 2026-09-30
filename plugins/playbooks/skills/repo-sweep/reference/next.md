@@ -112,7 +112,7 @@ never combined with `&&` or other commands in one call. The record for these sha
      commit.
    - 0: continue.
 2. Versions: one `S/skill-version.sh --dir '<base-dir>' <plugin:skill>` call per
-   `plugin:skill` in the entry, where `<base-dir>` is the "Base directory for this skill" line
+   `plugin:skill` in the entry that ran (a skill the catalog note skips takes no call), where `<base-dir>` is the "Base directory for this skill" line
    the Skill tool printed when it loaded that skill, so the record names the version that ran.
    A bare skill name takes no `--dir`. A stderr line saying the plugin `updated mid-session`
    means the next step would load a different version: record stdout, and tell the user to run
@@ -135,7 +135,7 @@ never combined with `&&` or other commands in one call. The record for these sha
    commas), so partial never hides a findings count. No commit.
 4. Otherwise commit through `/source-control:commit` via the Skill tool. Stage the step's
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
-   final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill,
+   final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill that ran,
    and the `Co-Authored-By:` trailer, so git parses them together. Push, then one tick call:
    `S/tick.sh <id> committed <short-sha> <skill@version>...`. When the skill reported uncovered
    scope, make that one call `S/tick.sh <id> --partial "<what was not covered>" committed

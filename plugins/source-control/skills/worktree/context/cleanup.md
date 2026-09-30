@@ -14,7 +14,7 @@ git worktree prune
 
 Cleans up worktree administrative records for directories that no longer exist on disk (e.g., manually deleted via `rm -rf`).
 
-A **locked** worktree's record survives `prune` even when its directory is gone. That is deliberate on git's part, and what makes the lock a durable claim. Surface such records (a row of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` with `locked=yes` whose `path` no longer exists) rather than counting them pruned: confirm with the owner, then `git worktree unlock <path>` (works with the directory missing) and prune again.
+A **locked** worktree's record survives `prune` even when its directory is gone. That is deliberate on git's part, and what makes the lock a durable claim. Surface such records (a row of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` with `locked=yes` whose `path` no longer exists) rather than counting them pruned: apply the **Stale lock** test from Step 2 (the merged or landed check needs the branch name from the `branch` column), or otherwise confirm with the owner, then `git worktree unlock <path>` (works with the directory missing) and prune again.
 
 In `--dry-run` mode this step runs `git worktree prune --dry-run` instead. It reports what would be pruned without touching worktree metadata, keeping the whole dry-run pass mutation-free.
 
@@ -30,7 +30,8 @@ Run `status` logic internally and identify candidates:
 | **Stale** | Last commit > threshold days, no open PR, no locked flag |
 | **Stranded** | `landed-work.sh` reports `risk=STRANDED` or `risk=UNKNOWN`. **Not a cleanup candidate.** Listed here because it is the row most easily mistaken for `Stale`: both are old and quiet, but this one holds unpushed commits whose content is not on the base |
 | **In-progress operation** | `landed-work.sh` reports `risk=in-progress`, or its `inprogress` column is anything but `none`. **Not a cleanup candidate.** A rebase, merge, cherry-pick, revert, or bisect is mid-flight, probed via `git rev-parse --git-path` (`rebase-merge`, `rebase-apply`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`). Clean does not mean idle: an interactive rebase paused at a `break` leaves `git status --porcelain` completely empty, and plain `git worktree remove` then deletes it silently, since git's own refusal covers dirty trees and nothing else. Report the operation; the owner finishes or aborts it first |
-| **Locked** | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason). **Not a cleanup candidate.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
+| **Locked** | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `locked=yes` (with or without a reason) and the **Stale lock** test below does not hold. **Not a cleanup candidate.** `worktree-create.sh` and `worktree-claim.sh` both encode that reason through `worktree_lock_reason`. Present the reason; only on explicit confirmation that the owner is done, disarm with `git worktree unlock <path>` and re-classify. Never bypass with `--force --force` |
+| **Stale lock** | Locked, **and** the branch's PR is merged (`gh pr list --state merged --head <branch>` returns non-empty) or `landed-work.sh` reports `risk=landed`, **and** `bash "<scripts-dir>/worktree-claim.sh" stale <path>` exits 0. That verb is read-only and prints the evidence line (no live session transcript for the lane that armed the lock); exit 1 means liveness is unproven, so the row stays **Locked**. A candidate, but only behind the Step 4 confirmation gate: present the lock reason and the evidence line, and on yes run `git worktree unlock <path>` (the caller is not the owning session, so `worktree-claim.sh release`, which refuses a foreign lock, does not apply), then the plain removal. Never `--force --force` |
 
 Take the branch name from the `branch` column of `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>`, not from the directory name, since they may differ if the branch was renamed.
 
@@ -235,8 +236,10 @@ git worktree remove --force <path>   # dirty-tree override — only after the co
 
 A **locked** worktree never takes the second `--force`. The lock is an owning lane's claim, armed
 at creation by `worktree-create.sh`, not a stronger kind of dirt, and `--force --force` answers
-both questions with one flag. On explicit confirmation that the owner is done:
-`git worktree unlock <path>` first, then remove (plain, or a single `--force` only for a
+both questions with one flag. Only a **Stale lock** (Step 2) is removable at all: a merged or landed branch plus `bash "<scripts-dir>/worktree-claim.sh" stale <path>` exiting 0. Any other locked worktree stays.
+
+On explicit confirmation that the owner is done, first re-run `bash "<scripts-dir>/worktree-claim.sh" stale <path>` (the owning session may have resumed while the confirmation was pending). If it no longer exits 0, stop and leave the tree locked. Only when it still exits 0, run
+`git worktree unlock <path>`, then remove (plain, or a single `--force` only for a
 confirmed-dirty tree). The unlock is a separate deliberate act naming the lock, so no flag ever
 silently answers a question it was not asked.
 
