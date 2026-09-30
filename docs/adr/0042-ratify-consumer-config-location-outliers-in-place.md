@@ -17,7 +17,7 @@ file. Four consumer-facing surfaces put their config elsewhere:
   skills check that path before the bundled template, and `/songwriting:setup` scaffolds and
   inventories it.
 - `work-items` reads the recurring schedule from `.github/recurring-schedule.json`, through
-  `/work-items:setup`, `/work-items:work` and the `due` and `recheck` actions.
+  `/work-items:setup`, `/work-items:work` and the `/work-items:track` actions.
 
 The options were to ratify each in place, relocate each under `.claude/`, or replace them with one
 pointer file that names each surface's root. The overlay `.gitignore` line also drifted into
