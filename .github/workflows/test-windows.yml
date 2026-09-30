@@ -314,9 +314,9 @@ jobs:
   # `jq.exe` on a Windows host writes CRLF after every line, so its family and
   # README lookups miss there and only a Windows run exercises that. Each suite
   # is a step of its own so its log shows its own duration. They are a job of
-  # their own because added to `test-windows`'s steps they run past its
-  # 20-minute timeout. A host-gated case that cannot run must print a counted
-  # SKIP line.
+  # their own because added to `test-windows`'s steps they leave under a minute
+  # of margin below its 20-minute timeout. A host-gated case that cannot run
+  # must print a counted SKIP line.
   test-windows-guardrails:
     needs:
       - changes
