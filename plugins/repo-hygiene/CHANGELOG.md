@@ -3,7 +3,7 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.14.0] - 2026-09-29
+## [0.15.0] - 2026-09-30
 
 ### Added
 
@@ -22,6 +22,23 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   runs from one; an operation in another worktree is not detected. It emits no deletable tier
   (`SAFE`, `LIKELY-SAFE` or `LOSSY`) while an operation is in progress, and
   `git-branch-delete.sh` refuses to delete then.
+
+## [0.14.0] - 2026-09-29
+
+### Changed
+
+- **The clean skill's destructive guard also matches bare branch and remote-branch deletion (#3852).**
+  `git branch -D`/`-d`/`--delete`, `git push --delete`, `git push -d` and `git push origin :ref` (also `+:ref`)
+  are blocked while the skill is active; a push with `--dry-run`/`-n` is allowed. The
+  `CLEAN_GUARD_ACK` prefix lifts the block and is the documented way to run one during a clean
+  session. The guard is a best-effort net over command text: option spellings it does not parse,
+  aliases, and disabling the guard still bypass it. `git-branch-delete.sh` deletes with
+  `git update-ref -d`, so the confirmed path is unaffected. The guard header, `SKILL.md`, and
+  README state the new coverage.
+- **The guard's global-option prefix accepts flag-only options (`-p`, `-P`, `--no-pager`).** The
+  `clean`, `reset --hard`, `checkout --`, `stash drop`/`clear` and `worktree remove` patterns share
+  it, so `git --no-pager clean -fd` and the other destructive forms are now blocked after those
+  options too.
 
 ## [0.13.1] - 2026-09-29
 
