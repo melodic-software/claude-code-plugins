@@ -13,7 +13,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GRAPH="$SCRIPT_DIR/dependency-graph.sh"
 RENDER="$SCRIPT_DIR/render-dependencies.sh"
-LIB="$SCRIPT_DIR/../../../lib/dotnet-references.sh"
 PORTFOLIO="$SCRIPT_DIR/../../map-landscape/scripts/portfolio-facts.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -47,44 +46,6 @@ assert_not_contains() {
 assert_equals() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$3], got [$2]"; fi
 }
-
-# shellcheck source=../../../lib/dotnet-references.sh
-source "$LIB"
-
-# The historical portfolio span, kept here as the oracle the shared reader
-# must not drift from.
-oracle_includes() {
-  grep -oE '<(Package|Project)Reference[^>]*Include="[^"]*"' "$1" 2>/dev/null |
-    sed 's/.*Include="//; s/"$//'
-}
-
-parity_file="$TEST_TMPDIR/parity.csproj"
-cat >"$parity_file" <<'CSPROJ'
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <PackageReference Include="Serilog" Version="4.0.0" />
-    <ProjectReference Condition="'$(Configuration)'=='Debug'" Include="..\Lib\Lib.csproj" />
-    <PackageReference Update="Skipped" Version="1.0.0" />
-    <PackageReference Include='SingleQuoted' />
-    <ProjectReference
-        Include="multiline.csproj" />
-    <PackageReference Include="MediatR" Version="12.0.0" /><ProjectReference Include="Helper.csproj" />
-  </ItemGroup>
-</Project>
-CSPROJ
-oracle="$(oracle_includes "$parity_file")"
-shared="$(dotnet_reference_includes "$parity_file")"
-assert_equals "shared reader matches the historical Include span" "$shared" "$oracle"
-assert_contains "shared reader keeps Serilog" "$shared" "Serilog"
-assert_contains "shared reader keeps the relative ProjectReference" "$shared" '..\Lib\Lib.csproj'
-assert_not_contains "shared reader ignores Update=" "$shared" "Skipped"
-assert_not_contains "shared reader ignores single quotes" "$shared" "SingleQuoted"
-assert_not_contains "shared reader ignores an Include on the next line" "$shared" "multiline.csproj"
-assert_contains "shared reader keeps two tags on one line" "$shared" "Helper.csproj"
-
-ran="$(bash "$LIB" 2>&1)"
-assert_equals "the shared reader is not a command" "$?" "2"
-assert_contains "the shared reader says it is sourced" "$ran" "sourced"
 
 make_tree() {
   local dir="$TEST_TMPDIR/$1"
@@ -404,6 +365,227 @@ else
   pass "a hostile root name runs no command"
 fi
 assert_contains "a hostile root still yields a repo-relative path" "$hostile_out" '"src/App.csproj"'
+
+date_repo="$(make_tree date-checkout)"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$date_repo/App.csproj"
+git -C "$date_repo" init --quiet
+git -C "$date_repo" config user.email "fixture@example.invalid"
+git -C "$date_repo" config user.name "Fixture"
+git -C "$date_repo" config commit.gpgsign false
+empty_out="$(bash "$GRAPH" "$date_repo")"
+assert_contains "generated_on: a repo with no commits is unknown" "$empty_out" '"generated_on": "unknown"'
+git -C "$date_repo" add -A
+GIT_COMMITTER_DATE="2024-03-05T12:00:00Z" git -C "$date_repo" commit --quiet -m "fixture"
+bash "$GRAPH" "$date_repo" >"$TEST_TMPDIR/date-1.json"
+bash "$GRAPH" "$date_repo" >"$TEST_TMPDIR/date-2.json"
+if cmp -s "$TEST_TMPDIR/date-1.json" "$TEST_TMPDIR/date-2.json"; then
+  pass "generated_on: a second run on the same commit is byte-identical"
+else
+  fail "generated_on: a second run on the same commit is byte-identical" "outputs differ"
+fi
+assert_contains "generated_on: defaults to the HEAD commit date" "$(cat "$TEST_TMPDIR/date-1.json")" '"generated_on": "2024-03-05"'
+assert_contains "generated_on: --generated-on overrides the default" "$(bash "$GRAPH" --generated-on 2020-01-02 "$date_repo")" '"generated_on": "2020-01-02"'
+out_stdout="$(bash "$GRAPH" --out "$TEST_TMPDIR/date-out.json" "$date_repo")"
+assert_equals "--out: nothing else reaches stdout" "$out_stdout" ""
+if cmp -s "$TEST_TMPDIR/date-1.json" "$TEST_TMPDIR/date-out.json"; then
+  pass "--out: the file holds the same record as stdout"
+else
+  fail "--out: the file holds the same record as stdout" "outputs differ"
+fi
+bash "$GRAPH" --out "$TEST_TMPDIR/no-such-dir/out.json" "$date_repo" >/dev/null 2>"$TEST_TMPDIR/unwritable.err"
+assert_equals "--out: an unwritable path exits 1" "$?" "1"
+assert_contains "--out: an unwritable path says so" "$(cat "$TEST_TMPDIR/unwritable.err")" "cannot write --out file"
+
+# A csproj at <dir>/<name>.csproj whose ProjectReferences point at the given
+# directories' projects (sibling layout, so the Include is ..\<dir>\<Dir>.csproj).
+sibling_proj() {
+  local root="$1" dir="$2" refs="" ref
+  shift 2
+  mkdir -p "$root/$dir"
+  for ref in "$@"; do
+    refs+="<ProjectReference Include=\"..\\$ref\\${ref^^}.csproj\" />"
+  done
+  printf '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup>%s</ItemGroup></Project>\n' "$refs" >"$root/$dir/${dir^^}.csproj" # portability-ok: Windows path fixture; the backslash is a path separator, not a regex
+}
+edge_lines() {
+  printf '%s\n' "$1" | grep -c '^    {"from":'
+}
+cycle_ids() {
+  printf '%s\n' "$1" | grep '^    {"id":.* -> '
+}
+
+# The reader takes the tag, not the line: a multi-line tag, a single-quoted
+# Include and a commented-out reference (which would close a phantom cycle).
+blind="$(make_tree blind)"
+mkdir -p "$blind/app" "$blind/lib" "$blind/two" "$blind/ghost"
+cat >"$blind/app/App.csproj" <<'CSPROJ'
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference
+        Condition="'$(X)' != ''"
+        Include="..\lib\Lib.csproj" />
+    <ProjectReference Include='..\two\Two.csproj' />
+    <!-- <ProjectReference Include="..\ghost\Ghost.csproj" /> -->
+    <!--
+      <ProjectReference Include="..\ghost\Ghost.csproj" />
+    -->
+  </ItemGroup>
+</Project>
+CSPROJ
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$blind/lib/Lib.csproj"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$blind/two/Two.csproj"
+printf '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="..\\app\\App.csproj" /></ItemGroup></Project>\n' >"$blind/ghost/Ghost.csproj"
+blind_json="$(bash "$GRAPH" "$blind")"
+assert_contains "blind: an Include on a later line is an edge" "$blind_json" '"from":"app/App.csproj","to":"lib/Lib.csproj"'
+assert_contains "blind: the multi-line declaration is cited on one line" "$blind_json" '<ProjectReference Condition=\"'
+assert_contains "blind: a single-quoted Include is an edge" "$blind_json" '"from":"app/App.csproj","to":"two/Two.csproj"'
+assert_not_contains "blind: a commented-out reference is not an edge" "$blind_json" '"to":"ghost/Ghost.csproj"'
+assert_contains "blind: no phantom cycle from a comment" "$blind_json" '"cycles": []'
+assert_not_contains "blind: nothing was left unread" "$blind_json" "unread-reference-tags"
+
+# MSBuild files. Directory.Build.props applies to the projects under it and never
+# makes a project reference itself; a props file with no known importer is
+# counted, not drawn.
+props="$(make_tree props)"
+for d in app tools common; do mkdir -p "$props/src/$d"; done
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/app/App.csproj"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/tools/Tools.csproj"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/common/Common.csproj"
+cat >"$props/src/Directory.Build.props" <<'PROPS'
+<Project>
+  <ItemGroup>
+    <ProjectReference Include="..\common\Common.csproj" />
+    <PackageReference Include="Analyzers.Everywhere" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+PROPS
+mkdir -p "$props/src/tools/nested"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$props/src/tools/nested/Nested.csproj"
+printf '<Project><ItemGroup><PackageReference Include="OnlyForTools" Version="1.0.0" /></ItemGroup></Project>\n' >"$props/src/tools/Directory.Build.targets"
+cat >"$props/Directory.Packages.props" <<'PROPS'
+<Project>
+  <ItemGroup>
+    <PackageVersion Include="Analyzers.Everywhere" Version="1.0.0" />
+    <GlobalPackageReference Include="Global.Analyzer" Version="2.0.0" />
+  </ItemGroup>
+</Project>
+PROPS
+printf '<Project><ItemGroup><ProjectReference Include="x.csproj" /><ProjectReference Include="y.csproj" /></ItemGroup></Project>\n' >"$props/Shared.props"
+props_json="$(bash "$GRAPH" "$props")"
+assert_contains "props: Directory.Build.props gives a project an edge" "$props_json" '"from":"src/app/App.csproj","to":"src/common/Common.csproj","kind":"project","status":"resolved","evidence":"src/Directory.Build.props: <ProjectReference Include=\"..\\common\\Common.csproj\" />"'
+assert_not_contains "props: a project never references itself through props" "$props_json" '"from":"src/common/Common.csproj","to":"src/common/Common.csproj"'
+assert_contains "props: a package in Directory.Build.props is an edge" "$props_json" '"from":"src/tools/Tools.csproj","to":"pkg:Analyzers.Everywhere"'
+assert_contains "props: Directory.Build.targets applies to the projects below it" "$props_json" '"from":"src/tools/nested/Nested.csproj","to":"pkg:OnlyForTools"'
+assert_not_contains "props: Directory.Build.targets does not apply to a sibling" "$props_json" '"from":"src/app/App.csproj","to":"pkg:OnlyForTools"'
+assert_contains "props: a props file with no known importer is a finding" "$props_json" '{"kind":"unread-reference-tags","path":"Shared.props","evidence":"Shared.props: 2 reference tag(s) not read"}'
+assert_contains "props: Directory.Packages.props GlobalPackageReference is a finding" "$props_json" '{"kind":"unread-reference-tags","path":"Directory.Packages.props","evidence":"Directory.Packages.props: 1 reference tag(s) not read"}'
+assert_not_contains "props: a consumed Directory.Build.props is not a finding" "$props_json" '"path":"src/Directory.Build.props"'
+assert_contains "props: no cycle" "$props_json" '"cycles": []'
+
+# A skipped tag in a project file is reported, and the count is exact.
+unread="$(make_tree unread)"
+mkdir -p "$unread/web"
+cat >"$unread/web/Web.csproj" <<'CSPROJ'
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <ItemGroup>
+    <PackageReference Include="Read" Version="1.0.0" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Version="1.0.0" />
+  </ItemGroup>
+</Project>
+CSPROJ
+unread_json="$(bash "$GRAPH" "$unread")"
+assert_contains "unread: the reference that was read is an edge" "$unread_json" '"to":"pkg:Read"'
+assert_contains "unread: skipped tags are reported with a count" "$unread_json" '{"kind":"unread-reference-tags","path":"web/Web.csproj","evidence":"web/Web.csproj: 2 reference tag(s) not read"}'
+mkdir -p "$TEST_TMPDIR/out-unread"
+printf '%s\n' "$unread_json" >"$TEST_TMPDIR/out-unread/dependency-graph.json"
+unread_summary="$(bash "$RENDER" --record "$TEST_TMPDIR/out-unread/dependency-graph.json" --out "$TEST_TMPDIR/out-unread")"
+assert_contains "unread: the summary counts the file, not a membership" "$unread_summary" "membership=0 unread_files=1"
+assert_contains "unread: the markdown lists the finding" "$(cat "$TEST_TMPDIR/out-unread/dependency-graph.md")" "web/Web.csproj: 2 reference tag(s) not read"
+
+# A dense DAG: every project references every earlier one. Enumerating paths
+# would not finish; the search is linear and finds no cycle.
+dense="$(make_tree dense)"
+dense_names=()
+for n in $(seq -w 1 22); do
+  dense_names+=("p$n")
+  sibling_proj "$dense" "p$n" "${dense_names[@]:0:$((10#$n - 1))}"
+done
+dense_start="$SECONDS"
+dense_json="$(bash "$GRAPH" "$dense")"
+dense_secs=$((SECONDS - dense_start))
+assert_equals "dense: every edge is read" "$(edge_lines "$dense_json")" "231"
+assert_contains "dense: no cycle" "$dense_json" '"cycles": []'
+assert_contains "dense: the search did not truncate" "$dense_json" '"cycles_truncated": false'
+if [[ "$dense_secs" -lt 30 ]]; then
+  pass "dense: 22 projects finish in $dense_secs seconds"
+else
+  fail "dense: 22 projects finish quickly" "took $dense_secs seconds"
+fi
+
+# A real 3-cycle inside a dense graph is reported once, and only it.
+sibling_proj "$dense" y x p01
+sibling_proj "$dense" z y p01
+sibling_proj "$dense" x p01 z
+dense_cycle_json="$(bash "$GRAPH" "$dense")"
+assert_equals "dense cycle: one cycle line" "$(cycle_ids "$dense_cycle_json" | wc -l | tr -d ' ')" "1"
+assert_contains "dense cycle: the 3-cycle is the witness" "$dense_cycle_json" '"id":"x/X.csproj -> z/Z.csproj -> y/Y.csproj -> x/X.csproj"'
+assert_contains "dense cycle: the search did not truncate" "$dense_cycle_json" '"cycles_truncated": false'
+
+# A back edge inside a dense graph makes one strongly connected group, and one
+# witness cycle is reported for it.
+sibling_proj "$dense" p01 p03
+back_json="$(bash "$GRAPH" "$dense")"
+assert_equals "dense back edge: one cycle line for the group" "$(cycle_ids "$back_json" | grep -c 'p01/P01.csproj -> p03/P03.csproj -> p01/P01.csproj')" "1"
+
+# A project that references itself is a cycle of one.
+selfref="$(make_tree selfref)"
+sibling_proj "$selfref" a a
+selfref_json="$(bash "$GRAPH" "$selfref")"
+assert_contains "self reference: reported as a cycle" "$selfref_json" '"id":"a/A.csproj -> a/A.csproj"'
+
+# --cycles-only compares whole segments: root A.csproj -> b/B.csproj is not on
+# the cycle a/A.csproj -> b/B.csproj -> a/A.csproj even though its text is a
+# suffix of a member.
+suffix="$(make_tree suffix)"
+sibling_proj "$suffix" a b
+sibling_proj "$suffix" b a
+printf '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><ProjectReference Include="b\\B.csproj" /></ItemGroup></Project>\n' >"$suffix/A.csproj"
+suffix_json="$(bash "$GRAPH" "$suffix")"
+assert_contains "suffix: the collector reports the real cycle" "$suffix_json" '"id":"a/A.csproj -> b/B.csproj -> a/A.csproj"'
+assert_contains "suffix: the root project is a node with an edge" "$suffix_json" '"from":"A.csproj","to":"b/B.csproj"'
+mkdir -p "$TEST_TMPDIR/out-suffix"
+printf '%s\n' "$suffix_json" >"$TEST_TMPDIR/out-suffix/dependency-graph.json"
+bash "$RENDER" --record "$TEST_TMPDIR/out-suffix/dependency-graph.json" --out "$TEST_TMPDIR/out-suffix" --cycles-only >/dev/null
+suffix_md="$(cat "$TEST_TMPDIR/out-suffix/dependency-graph.md")"
+assert_contains "suffix: --cycles-only draws the cycle members" "$suffix_md" '["a/A.csproj"]'
+assert_not_contains "suffix: --cycles-only does not draw a non-cycle edge" "$suffix_md" '["A.csproj"]'
+
+# The schema_version check is anchored: 10, 11 and 1.5 are not version 1.
+for v in 10 11 1.5; do
+  printf '%s\n' "$cycle_json" | sed "s/\"schema_version\": 1,/\"schema_version\": $v,/" >"$TEST_TMPDIR/out-cycle/v-$v.json"
+  bad="$(bash "$RENDER" --record "$TEST_TMPDIR/out-cycle/v-$v.json" --out "$TEST_TMPDIR/out-bad" 2>&1)"
+  assert_equals "schema $v exits 1" "$?" "1"
+  assert_contains "schema $v names the version" "$bad" "not a schema_version 1 record"
+done
+
+fields="$(make_tree node-fields)"
+mkdir -p "$fields/Both" "$fields/Assembly" "$fields/Bare" "$fields/Expr" "$fields/Tests"
+printf '<Project><PropertyGroup><RootNamespace>Acme.Both</RootNamespace><AssemblyName>Other</AssemblyName></PropertyGroup></Project>\n' >"$fields/Both/Both.csproj"
+printf '<Project><PropertyGroup><AssemblyName>Acme.Assembly</AssemblyName></PropertyGroup></Project>\n' >"$fields/Assembly/Assembly.csproj"
+printf '<Project Sdk="Microsoft.NET.Sdk"></Project>\n' >"$fields/Bare/Bare.csproj"
+# shellcheck disable=SC2016 # $(...) is literal fixture text
+printf '<Project><PropertyGroup><RootNamespace>$(MSBuildProjectName)</RootNamespace></PropertyGroup></Project>\n' >"$fields/Expr/Expr.csproj"
+printf '<Project><ItemGroup><PackageReference Include="MSTest.TestFramework" /></ItemGroup></Project>\n' >"$fields/Tests/Tests.csproj"
+fields_json="$(bash "$GRAPH" "$fields")"
+node_of() { printf '%s\n' "$fields_json" | grep "\"id\":\"$1\""; }
+assert_contains "namespace: RootNamespace wins over AssemblyName" "$(node_of Both/Both.csproj)" '"namespace":"Acme.Both"'
+assert_contains "namespace: AssemblyName is the fallback" "$(node_of Assembly/Assembly.csproj)" '"namespace":"Acme.Assembly"'
+assert_not_contains "namespace: omitted when neither is declared" "$(node_of Bare/Bare.csproj)" 'namespace'
+assert_not_contains "namespace: an MSBuild expression is not a namespace" "$(node_of Expr/Expr.csproj)" 'namespace'
+assert_contains "test: a test framework reference marks the node" "$(node_of Tests/Tests.csproj)" '"test":"yes"'
+assert_not_contains "test: an ordinary project has no test field" "$(node_of Bare/Bare.csproj)" '"test"'
+assert_contains "test: schema_version stays 1" "$fields_json" '"schema_version": 1'
 
 printf '\n%d passed, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

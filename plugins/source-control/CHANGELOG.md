@@ -3,6 +3,68 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.0] - 2026-09-29
+
+### Added
+
+- **`worktree-claim.sh release <path>` unlocks a worktree lane lock this session armed.** A lock that names another session, or carries no reason, is refused with the reason printed and stays locked; the main worktree and an unresolvable session id are refused too.
+- **`worktree-claim.sh stale <path>` reports whether a lane lock is provably stale,** read-only: the lock names this host, and no session transcript changed within `--idle-minutes` (default 120). Anything it cannot prove exits 1.
+
+### Changed
+
+- **`worktree` cleanup treats a stale lock on a landed branch as a cleanup candidate** behind the existing confirmation gate, and `status` points at cleanup instead of a bare `git worktree unlock`.
+- **`pull-request` merge releases the lane lock** when the worktree is left rather than reused for the next task.
+
+## [0.62.30] - 2026-09-29
+
+### Changed
+
+- **`commit` and `pull-request` descriptions open with a presence-gated routing clause for the
+  native surfaces their Boundary sections cover.** `commit` routes to the bundled `commit` skill
+  only when none of its contract (convention, trailer, surgical staging, pre-checks) is wanted, and
+  a commit-push-PR request to the built-in `/commit-push-pr` command, when either resolves in the
+  session; it keeps every other commit. `pull-request` routes a one-shot PR with no draft, body
+  contract, or later ready, monitor or merge step to the bundled `pr` skill when the work is
+  committed, to `/commit-push-pr` only when the whole working tree belongs in the commit, and
+  keeps everything else. Its Boundary section says the same, so unrelated uncommitted changes never reach a
+  native commit.
+
+## [0.62.29] - 2026-09-29
+
+### Added
+
+- **`babysit-prs` carries a Boundary section for the built-in command `/autofix-pr`.** The
+  command watches one PR from a cloud session; this skill runs the fleet pass under its gates. The
+  model offers the person-run command for a PR to be watched after the session ends.
+- **`commit`'s Boundary section also covers the built-in command `/commit-push-pr`.** That command
+  also pushes and opens a PR, so a request to commit and nothing more stays with this skill.
+
+## [0.62.28] - 2026-09-29
+
+### Added
+
+- **`commit` carries a Boundary section for the bundled `commit` skill.** Prefer this skill when
+  the repository carries a commit convention or a `source-control.md` layer; the bundled skill fits
+  a plain commit where this skill's contract is not wanted, and one commit never runs both.
+- **`pull-request` carries a Boundary section for the bundled `pr` skill and the built-in
+  `/commit-push-pr` and `/autofix-pr` commands.** The one-shot native PR surfaces fit a PR with no
+  lifecycle or body contract; at monitor entry the model offers the person-run `/autofix-pr` as an
+  alternative or addition rather than invoking it. When both run, the local loop merges the
+  fetched PR head into its branch before each fix commit, so its push is never rejected as
+  non-fast-forward.
+
+## [0.62.27] - 2026-09-29
+
+### Fixed
+
+- **`lib/config-root.sh` runs on Bash 3.2 and dedups symlinked config files.** Case folding no longer uses `${x,,}` (a `bad substitution` on stock macOS), and two paths with one inode, such as a repo config file that is a symlink to the user-global file, now compare equal. The synced copies in `ai-slop`, `attribution` and `docs-hygiene` carry the same change.
+
+## [0.62.26] - 2026-09-29
+
+### Fixed
+
+- **`pull-request` merge from a linked worktree omits `--delete-branch`.** `reference/merge.md` 4.2 keeps `gh pr merge --squash --delete-branch` for a regular checkout. In a linked worktree it runs `gh pr merge --squash` and, once the PR reads `MERGED`, deletes the head branch with `git push <push-remote> --delete <branch>` through `resolve-remote.sh --push`, because older gh fails its local checkout of the default branch while another worktree holds it and exits 1 after the merge has already succeeded. `templates/checklist.md` describes both paths.
+
 ## [0.62.25] - 2026-09-29
 
 ### Fixed

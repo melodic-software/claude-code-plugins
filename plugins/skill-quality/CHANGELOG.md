@@ -3,6 +3,13 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.14] - 2026-09-29
+
+### Changed
+
+- **`check`: `validate-evals` states its scope.** It checks structure and lint only; `/evals:design`
+  says when a no-skill baseline arm is required and `/evals:plugin-eval` runs it.
+
 ## [0.24.13] - 2026-09-29
 
 ### Fixed

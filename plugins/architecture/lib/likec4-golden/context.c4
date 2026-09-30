@@ -1,0 +1,26 @@
+specification {
+  element person {
+    style {
+      shape person
+    }
+  }
+  element softwareSystem
+  element externalSystem {
+    style {
+      color muted
+    }
+  }
+}
+model {
+  e_Clerk = person "Clerk" "Files a claim"
+  e_billing = softwareSystem "billing" "The software system in scope"
+  e_api_partner_example = externalSystem "api.partner.example" "http"
+  e_Clerk -> e_billing "Uses"
+  e_billing -> e_api_partner_example "Calls"
+}
+views {
+  view context {
+    title "System Context for billing"
+    include *
+  }
+}

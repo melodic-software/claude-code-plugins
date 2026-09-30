@@ -4,6 +4,44 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.0] - 2026-09-29
+
+### Added
+
+- **`repo-sweep` records a filed outcome** ([#5174](https://github.com/melodic-software/claude-code-plugins/issues/5174)).
+  `tick.sh <id> filed <issue-url> <skill@version>...` ticks a step whose only findings were fixed in
+  another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
+  `history.sh` adds no rerun exemption for it; only a changed skill version recommends one.
+
+## [0.14.7] - 2026-09-29
+
+### Changed
+
+- **`repo-sweep` next step 3.4 runs `/planning:interview scope` for the scope questions**
+  ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)). The step no
+  longer forbids the interview. The returned decisions go into the step commit's
+  `Scope decisions:` section, and a `Blocked:` line or a USER-RESERVED `Deferred:` line is asked
+  of the user before step 5. Without the planning plugin the numbered-list fallback stays.
+
+## [0.14.6] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep` records a not-applicable step without a skill version** ([#5181](https://github.com/melodic-software/claude-code-plugins/issues/5181)).
+  A step whose `applies-when` no longer holds invokes no skill, yet `tick.sh` required
+  `<skill@version>...` and wrote them into the line. `tick.sh <id> not-applicable <evidence>` now
+  takes the evidence alone and writes `- [x] <id>: not applicable: <evidence>`. `state.sh` and
+  `history.sh` accept that shape, and still accept the earlier form that carries versions.
+
+## [0.14.5] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep next` stops when the sweep PR conflicts with its base** ([#5206](https://github.com/melodic-software/claude-code-plugins/issues/5206)).
+  GitHub runs no `pull_request` workflows on a conflicting PR, so step commits pushed to it got no
+  CI. `state.sh` now prints `mergeable CONFLICTING`, and `next` stops before any step and asks the
+  user to merge the base branch into the sweep branch and push.
+
 ## [0.14.4] - 2026-09-29
 
 ### Fixed
