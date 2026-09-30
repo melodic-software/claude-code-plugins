@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import discover  # noqa: E402  - path shim above must run first
 import overlap  # noqa: E402  - path shim above must run first
 
 FIXTURE_CLI_VERSION = "2.1.232"
@@ -617,6 +618,39 @@ class SelfCheckTests(unittest.TestCase):
         problems = overlap.validate_row(row, 0)
         self.assertTrue(any("never `wrap`" in problem for problem in problems))
 
+    def test_bundled_workflow_rejects_wrap(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {
+            "name": "deep-research",
+            "class": "bundled-workflow",
+            "markers": [],
+        }
+        row["integration"] = "wrap"
+        row["baked"]["boundary_section"] = False
+        problems = overlap.validate_row(row, 0)
+        self.assertTrue(any("never `wrap`" in problem for problem in problems))
+
+    def test_builtin_agent_and_tool_take_route_only(self):
+        for klass, name in (("builtin-agent", "Explore"), ("builtin-tool", "Bash")):
+            for integration in ("wrap", "suggest"):
+                row = deep_copy(BASE_ROW)
+                row["native"] = {"name": name, "class": klass, "markers": []}
+                row["integration"] = integration
+                row["baked"]["boundary_section"] = False
+                row["evidence"] = ["invocation mode: model invocation via tool"]
+                problems = overlap.validate_row(row, 0)
+                self.assertTrue(
+                    any(
+                        f"`{klass}` row takes `integration` `route`" in p
+                        for p in problems
+                    ),
+                    (klass, integration, problems),
+                )
+            row = deep_copy(BASE_ROW)
+            row["native"] = {"name": name, "class": klass, "markers": ["gated"]}
+            row["integration"] = "route"
+            self.assertEqual(overlap.validate_row(row, 0), [], klass)
+
     def test_builtin_command_allows_suggest_with_invocation_evidence(self):
         row = deep_copy(BASE_ROW)
         row["native"] = {"name": "export", "class": "builtin-command", "markers": []}
@@ -631,7 +665,9 @@ class SelfCheckTests(unittest.TestCase):
         row["integration"] = "suggest"
         row["observation"]["class"] = "live-roster"
         row["baked"]["boundary_section"] = False
-        row["evidence"] = ["invocation mode: session roster, not a bundled registration"]
+        row["evidence"] = [
+            "invocation mode: session roster, not a bundled registration"
+        ]
         problems = overlap.validate_row(row, 0)
         self.assertTrue(any("session-skill" in problem for problem in problems))
 
@@ -1318,7 +1354,9 @@ class DetectTests(unittest.TestCase):
             report["integrity"]["lanes"]["builtin_commands"]["counts_are"], "totals"
         )
 
-    def test_an_inventory_without_lanes_keeps_the_old_behaviour(self):  # identifier, not prose # spellchecker:disable-line
+    def test_an_inventory_without_lanes_keeps_the_old_behavior(
+        self,
+    ):  # identifier, not prose # spellchecker:disable-line
         self.write_inventory()
         out = self.repo.root / "candidates.json"
         self.assertEqual(self.detect(out), 0)
@@ -1572,7 +1610,9 @@ class SuggestAndNativeStepParityTests(unittest.TestCase):
     def test_native_step_forward_parity_wants_the_heading(self):
         row = deep_copy(BASE_ROW)
         row["integration"] = "wrap"
-        row["evidence"] = ["invocation mode: model-invocable, no disableModelInvocation"]
+        row["evidence"] = [
+            "invocation mode: model-invocable, no disableModelInvocation"
+        ]
         row["baked"]["native_step"] = True
         self.repo.write_store(make_store([row]))
         self.repo.generate()
@@ -1611,6 +1651,872 @@ class ScanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             found = overlap.scan_components(Path(tmp))
             self.assertEqual(found, {"skills": [], "agents": []})
+
+
+def surface(name, klass="bundled-skill", **fields):
+    lane = overlap.LANE_OF_CLASS[klass]
+    return discover.Surface.build(name, klass, lane, [{"name": name, **fields}])
+
+
+class DiscoveryScoringTests(unittest.TestCase):
+    def test_tokenize_stems_expands_and_stoplists(self):
+        self.assertEqual(discover.tokenize("verify"), discover.tokenize("verification"))
+        self.assertEqual(discover.tokenize("pr"), ["pr", "pull", "request"])
+        self.assertIn("agent", discover.tokenize("subagents"))
+        self.assertEqual(discover.tokenize("the skill for Claude Code"), [])
+        self.assertNotEqual(discover.tokenize("states"), discover.tokenize("stats"))
+
+    def test_a_name_match_outscores_an_unrelated_component(self):
+        native = surface("commit", description="Create a git commit")
+        ours = discover.Component.build(
+            "source-control", "commit", "skill", "Create a git commit with a trailer."
+        )
+        other = discover.Component.build(
+            "songwriting", "rhyme", "skill", "Find rhymes for a lyric line."
+        )
+        found = discover.discover([native], [ours, other], threshold=0.0, top_k=5)
+        ranked = [(c.plugin, c.name) for _s, c, _score, _m in found]
+        self.assertEqual(ranked[0], ("source-control", "commit"))
+        self.assertNotIn(("songwriting", "rhyme"), ranked)  # no shared token at all
+        self.assertIn("commit", found[0][3])
+
+    def test_threshold_and_top_k_bound_the_result(self):
+        native = surface("pr", description="Create a pull request")
+        corpus = [
+            discover.Component.build(
+                "vcs", f"pull-request-{n}", "skill", "Open a pull request."
+            )
+            for n in range(5)
+        ]
+        self.assertEqual(len(discover.discover([native], corpus, top_k=2)), 2)
+        self.assertEqual(
+            discover.discover([native], corpus, threshold=1.01, top_k=5), []
+        )
+
+    def test_invocability_maps_every_combination(self):
+        cases = [
+            ({"model_invocable": True, "user_invocable": True}, "model+user"),
+            ({"model_invocable": False, "user_invocable": True}, "user-only"),
+            ({"model_invocable": True, "user_invocable": False}, "model-only"),
+            ({"user_invocable": True}, "unknown"),
+            ({}, "unknown"),
+            ({"disable_model_invocation": True, "user_invocable": True}, "user-only"),
+        ]
+        for fields, expected in cases:
+            with self.subTest(fields=fields):
+                self.assertEqual(
+                    discover.invocability([fields])["invocable_by"], expected
+                )
+
+    def test_disagreeing_registrations_are_unknown(self):
+        who = discover.invocability(
+            [
+                {"model_invocable": True, "user_invocable": True},
+                {"model_invocable": False, "user_invocable": True},
+            ]
+        )
+        self.assertIsNone(who["model_invocable"])
+        self.assertEqual(who["invocable_by"], "unknown")
+
+    def test_recommended_integration_is_a_label_per_invocability(self):
+        rec = discover.recommended_integration
+        self.assertEqual(rec("bundled-skill", "user-only"), "suggest")
+        self.assertEqual(rec("bundled-skill", "model+user"), "route-or-wrap")
+        self.assertEqual(rec("builtin-command", "model+user"), "route")
+        self.assertEqual(rec("bundled-workflow", "model+user"), "route")
+        self.assertIsNone(rec("bundled-skill", "unknown"))
+
+
+class DiscoveryDetectTests(unittest.TestCase):
+    def setUp(self):
+        self.repo = TempRepo()
+        self.addCleanup(self.repo.cleanup)
+        self.repo.write_skill(
+            "source-control",
+            "commit",
+            description="Create a git commit with a trailer.",
+        )
+        self.repo.write_skill(
+            "songwriting", "rhyme", description="Find rhymes for a lyric."
+        )
+        self.pairs_path = self.repo.root / "pairs.json"
+        self.pairs_path.write_text(
+            json.dumps({"schema": 1, "pairs": []}), encoding="utf-8"
+        )
+        self.inventory_path = self.repo.root / "inventory.json"
+        self.out = self.repo.root / "candidates.json"
+
+    def write_inventory(self, **overrides):
+        payload = {
+            "schema": 1,
+            "builtin_commands": {},
+            "bundled_skills": {
+                "commit": {"name": "commit", "description": "Create a git commit"}
+            },
+            "plugin_backed": {},
+            "integrity": {"status": "ok"},
+        }
+        payload.update(overrides)
+        self.inventory_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    def detect(self, *extra):
+        code = overlap.main(
+            [
+                "detect",
+                "--repo",
+                str(self.repo.root),
+                "--inventory",
+                str(self.inventory_path),
+                "--pairs",
+                str(self.pairs_path),
+                "--out",
+                str(self.out),
+                *extra,
+            ]
+        )
+        return code, json.loads(self.out.read_text(encoding="utf-8"))
+
+    def discovered(self, report):
+        return [c for c in report["candidates"] if c["origin"] == "discovered"]
+
+    def test_a_discovered_candidate_carries_score_tokens_and_no_verdict(self):
+        self.write_inventory()
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["component"]["skill"], "commit")
+        self.assertGreater(candidate["score"], 0.3)
+        self.assertIn("commit", candidate["matched_tokens"])
+        self.assertIsNone(candidate["verdict"])
+        self.assertIsNone(candidate["store_verdict"])
+        self.assertEqual(report["discovery"]["discovered"], 1)
+
+    def test_a_high_threshold_or_zero_top_k_discovers_nothing(self):
+        self.write_inventory()
+        self.assertEqual(self.discovered(self.detect("--threshold", "1.01")[1]), [])
+        self.assertEqual(self.discovered(self.detect("--top-k", "0")[1]), [])
+
+    def test_a_seeded_pair_is_not_repeated_as_discovered(self):
+        self.write_inventory()
+        pair = {
+            "native": {"name": "commit", "class": "bundled-skill"},
+            "component": {
+                "plugin": "source-control",
+                "skill": "commit",
+                "kind": "skill",
+            },
+        }
+        self.pairs_path.write_text(
+            json.dumps({"schema": 1, "pairs": [pair]}), encoding="utf-8"
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        [seeded] = report["candidates"]
+        self.assertEqual(seeded["origin"], "seeded")
+        self.assertIsNotNone(seeded["score"])
+
+    def test_a_pair_already_in_the_store_is_reported_as_existing(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "commit", "class": "bundled-skill", "markers": []}
+        row["component"] = {
+            "plugin": "source-control",
+            "skill": "commit",
+            "kind": "skill",
+        }
+        self.repo.write_store(make_store([row]))
+        self.write_inventory()
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        [existing] = report["discovery"]["existing"]
+        self.assertEqual(existing["store_verdict"], "complementary")
+
+    def test_internal_commands_are_never_scored(self):
+        self.write_inventory(
+            bundled_skills={},
+            builtin_commands={
+                "commit": {"name": "commit", "description": "Commit", "internal": True}
+            },
+        )
+        _code, report = self.detect()
+        self.assertEqual(report["discovery"]["surfaces_scored"], 0)
+        self.assertEqual(self.discovered(report), [])
+
+    def test_the_workflow_lane_is_optional(self):
+        self.write_inventory()
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        self.assertNotIn("bundled_workflows", report["discovery"]["lanes_scored"])
+        self.repo.write_skill(
+            "discovery", "research-deep", description="Dispatch deep external research."
+        )
+        self.write_inventory(
+            bundled_workflows={
+                "deep-research": {
+                    "name": "deep-research",
+                    "description": "Deep research",
+                }
+            }
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        self.assertIn("bundled_workflows", report["discovery"]["lanes_scored"])
+        classes = {
+            c["native"]["name"]: c["native"]["class"] for c in self.discovered(report)
+        }
+        self.assertEqual(classes.get("deep-research"), "bundled-workflow")
+
+    def test_the_agent_and_tool_lanes_are_optional_and_scored_when_present(self):
+        self.write_inventory()
+        _code, report = self.detect()
+        for lane in ("builtin_agents", "builtin_tools"):
+            self.assertNotIn(lane, report["discovery"]["lanes_scored"])
+        self.repo.write_skill(
+            "discovery", "explore", description="Explore the local codebase."
+        )
+        self.write_inventory(
+            bundled_skills={},
+            builtin_agents={
+                "Explore": {
+                    "name": "Explore",
+                    "description": "Fast read-only search agent for exploring a codebase",
+                    "roster": "conditional",
+                    "gated": True,
+                    "user_invocable": True,
+                    "model_invocable": True,
+                }
+            },
+            builtin_tools={
+                "Commit": {
+                    "name": "Commit",
+                    "description": "",
+                    "search_hint": "create a git commit",
+                    "deferred": True,
+                    "user_invocable": False,
+                    "model_invocable": True,
+                }
+            },
+            integrity={
+                "status": "ok",
+                "lanes": {
+                    "builtin_agents": {"status": "ok"},
+                    "builtin_tools": {"status": "ok"},
+                },
+            },
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        for lane in ("builtin_agents", "builtin_tools"):
+            self.assertIn(lane, report["discovery"]["lanes_scored"])
+            self.assertEqual(report["integrity"]["lanes"][lane]["counts_are"], "totals")
+        by_name = {c["native"]["name"]: c for c in self.discovered(report)}
+        agent, tool = by_name["Explore"], by_name["Commit"]
+        self.assertEqual(agent["native"]["class"], "builtin-agent")
+        self.assertEqual(agent["native"]["invocable_by"], "model+user")
+        self.assertIn("gated", agent["native"]["markers"])
+        self.assertIn("agent roster: conditional", agent["evidence"])
+        self.assertEqual(agent["recommended_integration"], "route")
+        self.assertEqual(tool["native"]["class"], "builtin-tool")
+        self.assertEqual(tool["native"]["invocable_by"], "model-only")
+        self.assertEqual(tool["component"]["skill"], "commit")  # via search_hint
+        self.assertIn("tool loading: deferred", tool["evidence"])
+        self.assertEqual(tool["recommended_integration"], "route")
+
+    def test_a_broken_agent_lane_marks_its_candidates_not_re_derivable(self):
+        self.repo.write_skill("planning", "plan", description="Plan the work.")
+        self.write_inventory(
+            bundled_skills={},
+            builtin_agents={"Plan": {"name": "Plan", "description": "Plan the work"}},
+            integrity={
+                "status": "degraded",
+                "lanes": {"builtin_agents": {"status": "broken", "problems": ["x"]}},
+            },
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 3)
+        [candidate] = self.discovered(report)
+        self.assertIs(candidate["re_derivable"], False)
+        self.assertEqual(
+            report["integrity"]["lanes"]["builtin_agents"]["counts_are"],
+            "not reportable",
+        )
+
+    def test_missing_invocability_fields_degrade_to_unknown(self):
+        self.write_inventory()
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["invocable_by"], "unknown")
+        self.assertIsNone(candidate["native"]["model_invocable"])
+        self.assertIsNone(candidate["native"]["argument_hint"])
+        self.assertIsNone(candidate["recommended_integration"])
+
+    def test_a_user_only_surface_recommends_suggest_and_carries_the_marker(self):
+        self.write_inventory(
+            bundled_skills={
+                "commit": {
+                    "name": "commit",
+                    "description": "Create a git commit",
+                    "model_invocable": False,
+                    "user_invocable": True,
+                    "argument_hint": "[message]",
+                }
+            }
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["invocable_by"], "user-only")
+        self.assertEqual(candidate["native"]["argument_hint"], "[message]")
+        self.assertIn("model-invocation-disabled", candidate["native"]["markers"])
+        self.assertEqual(candidate["recommended_integration"], "suggest")
+        self.assertIn("model invocation: disabled", candidate["evidence"])
+
+    def test_a_model_invocable_skill_recommends_route_or_wrap(self):
+        self.write_inventory(
+            bundled_skills={
+                "commit": {
+                    "name": "commit",
+                    "description": "Create a git commit",
+                    "model_invocable": True,
+                    "user_invocable": True,
+                }
+            }
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["invocable_by"], "model+user")
+        self.assertEqual(candidate["native"]["markers"], [])
+        self.assertEqual(candidate["recommended_integration"], "route-or-wrap")
+
+
+class PluginBackedSurfaceTests(unittest.TestCase):
+    def test_an_enriched_command_is_one_plugin_backed_surface(self) -> None:
+        payloads = {
+            "builtin_commands": {
+                "scan": {
+                    "name": "scan",
+                    "description": "Scan the branch for vulnerabilities",
+                    "plugin_name": "scanner",
+                }
+            },
+            "plugin_backed": {"scan": "scanner"},
+        }
+        surfaces = overlap.native_surfaces(payloads)
+        self.assertEqual([s.name for s in surfaces], ["scan"])
+        self.assertEqual(surfaces[0].klass, overlap.CLASS_OF_LANE["plugin_backed"])
+        self.assertTrue(surfaces[0].described)
+
+    def test_a_bare_plugin_backed_name_still_scores(self) -> None:
+        surfaces = overlap.native_surfaces({"plugin_backed": {"scan": "scanner"}})
+        self.assertEqual([s.name for s in surfaces], ["scan"])
+
+
+def make_dismissal(**overrides):
+    entry = {
+        "native": {"name": "commit", "class": "bundled-skill"},
+        "component": {"plugin": "source-control", "skill": "commit", "kind": "skill"},
+        "reason": "shared word only",
+        "as_of": "2.1.284",
+        "date": "2026-09-29",
+        "fingerprint": {"native": "0" * 32, "component": "1" * 32},
+    }
+    entry.update(overrides)
+    return entry
+
+
+class DismissalValidationTests(unittest.TestCase):
+    def store(self, dismissals, rows=()):
+        store = make_store(list(rows))
+        store["dismissals"] = dismissals
+        return store
+
+    def test_a_well_formed_dismissal_has_no_problems(self):
+        self.assertEqual(overlap.validate_store(self.store([make_dismissal()])), [])
+
+    def test_a_store_without_dismissals_stays_valid(self):
+        self.assertEqual(overlap.validate_store(make_store([BASE_ROW])), [])
+
+    def test_each_required_field_is_checked(self):
+        for field, bad in (
+            ("reason", " "),
+            ("as_of", "latest"),
+            ("date", "yesterday"),
+            ("fingerprint", {"native": "abc"}),
+        ):
+            with self.subTest(field=field):
+                problems = overlap.validate_store(
+                    self.store([make_dismissal(**{field: bad})])
+                )
+                self.assertTrue(any(f"`{field}`" in p for p in problems), problems)
+
+    def test_dismissals_must_be_a_list(self):
+        store = make_store([])
+        store["dismissals"] = {}
+        self.assertIn(
+            "store `dismissals` must be a list when present",
+            overlap.validate_store(store),
+        )
+
+    def test_a_duplicate_dismissal_is_a_problem(self):
+        problems = overlap.validate_store(self.store([make_dismissal()] * 2))
+        self.assertTrue(any("duplicate dismissal" in p for p in problems))
+
+    def test_a_dismissal_never_coexists_with_a_verdict_row(self):
+        row = deep_copy(BASE_ROW)
+        dismissal = make_dismissal(
+            native={"name": "doctor", "class": "bundled-skill"},
+            component=deep_copy(BASE_ROW["component"]),
+        )
+        problems = overlap.validate_store(self.store([dismissal], rows=[row]))
+        self.assertTrue(any("coexists with a verdict row" in p for p in problems))
+
+    def test_self_check_breaks_on_a_dismissal_beside_its_verdict_row(self):
+        repo = TempRepo()
+        self.addCleanup(repo.cleanup)
+        store = make_store([BASE_ROW])
+        store["dismissals"] = [
+            make_dismissal(
+                native={"name": "doctor", "class": "bundled-skill"},
+                component=deep_copy(BASE_ROW["component"]),
+            )
+        ]
+        repo.write_store(store)
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(repo.self_check(), 1)
+
+
+class DismissalRenderTests(unittest.TestCase):
+    def test_an_empty_store_renders_an_empty_dismissed_section(self):
+        block = overlap.render_block([deep_copy(BASE_ROW)])
+        self.assertIn("## Dismissed", block)
+        self.assertIn("No dismissals recorded.", block)
+
+    def test_a_dismissal_renders_as_a_table_row(self):
+        block = overlap.render_block(
+            [deep_copy(BASE_ROW)],
+            [make_dismissal(reason="shared | word")],
+        )
+        self.assertIn("| Native surface | Class | Component |", block)
+        self.assertIn(
+            "| `commit` | bundled-skill | `source-control:commit` | shared \\| word "
+            "| 2.1.284 | 2026-09-29 |",
+            block,
+        )
+
+    def test_generate_check_tracks_dismissals(self):
+        repo = TempRepo()
+        self.addCleanup(repo.cleanup)
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(repo.generate(), 0)
+            store = make_store([BASE_ROW])
+            store["dismissals"] = [make_dismissal()]
+            repo.write_store(store)
+            self.assertEqual(repo.generate(["--check"]), 1)
+            self.assertEqual(repo.generate(), 0)
+            self.assertEqual(repo.generate(["--check"]), 0)
+        self.assertIn("`source-control:commit`", repo.view_path.read_text("utf-8"))
+
+
+class DismissalDetectTests(unittest.TestCase):
+    """Dismiss, then detect: suppression and resurfacing."""
+
+    # The discovery harness, borrowed without inheriting its tests.
+    setUp = DiscoveryDetectTests.setUp
+    write_inventory = DiscoveryDetectTests.write_inventory
+    detect = DiscoveryDetectTests.detect
+    discovered = DiscoveryDetectTests.discovered
+
+    def dismiss(self, *extra, native="commit", component="source-control:commit"):
+        with (
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            return overlap.main(
+                [
+                    "dismiss",
+                    "--repo",
+                    str(self.repo.root),
+                    "--store",
+                    str(self.repo.store_path),
+                    "--inventory",
+                    str(self.inventory_path),
+                    "--native",
+                    native,
+                    "--component",
+                    component,
+                    "--reason",
+                    "shared word only",
+                    "--date",
+                    "2026-09-29",
+                    *extra,
+                ]
+            )
+
+    def stored_dismissals(self):
+        return json.loads(self.repo.store_path.read_text("utf-8"))["dismissals"]
+
+    def test_dismiss_records_both_fingerprints_and_the_version(self):
+        self.write_inventory(integrity={"status": "ok", "cli_version": "2.1.284"})
+        self.assertEqual(self.dismiss(), 0)
+        [entry] = self.stored_dismissals()
+        self.assertEqual(entry["as_of"], "2.1.284")
+        self.assertEqual(entry["native"], {"name": "commit", "class": "bundled-skill"})
+        self.assertEqual(
+            entry["fingerprint"]["native"], overlap.fingerprint("Create a git commit")
+        )
+        self.assertEqual(
+            entry["fingerprint"]["component"],
+            overlap.fingerprint("Create a git commit with a trailer."),
+        )
+
+    def test_dismiss_refreshes_rather_than_duplicates(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.assertEqual(self.dismiss("--as-of", "2.1.285"), 0)
+        [entry] = self.stored_dismissals()
+        self.assertEqual(entry["as_of"], "2.1.285")
+
+    def test_dismiss_refuses_a_pair_with_a_verdict_row(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "commit", "class": "bundled-skill", "markers": []}
+        row["component"] = {
+            "plugin": "source-control",
+            "skill": "commit",
+            "kind": "skill",
+        }
+        self.repo.write_store(make_store([row]))
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 1)
+
+    def test_dismiss_refuses_a_surface_absent_from_the_extraction(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284", native="nope"), 1)
+
+    def test_dismiss_refuses_without_a_version(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss(), 1)
+
+    def test_a_dismissed_pair_is_suppressed_and_counted(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        self.assertEqual(self.discovered(report), [])
+        [suppressed] = report["discovery"]["suppressed"]
+        self.assertEqual(suppressed["native"], "commit")
+        self.assertEqual(suppressed["reason"], "shared word only")
+        self.assertEqual(report["discovery"]["resurfaced"], 0)
+
+    def test_a_native_description_change_resurfaces_the_pair(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.write_inventory(
+            bundled_skills={
+                "commit": {
+                    "name": "commit",
+                    "description": "Create a signed git commit",
+                }
+            }
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["resurfaced"]["flag"], overlap.RESURFACED)
+        self.assertEqual(candidate["resurfaced"]["sides"], ["native"])
+        self.assertTrue(
+            any(e.startswith(overlap.RESURFACED) for e in candidate["evidence"])
+        )
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        self.assertEqual(report["discovery"]["resurfaced"], 1)
+
+    def write_tool_inventory(self, search_hint):
+        self.write_inventory(
+            bundled_skills={},
+            builtin_tools={
+                "Commit": {
+                    "name": "Commit",
+                    "description": "",
+                    "search_hint": search_hint,
+                    "model_invocable": True,
+                }
+            },
+            integrity={"status": "ok", "lanes": {"builtin_tools": {"status": "ok"}}},
+        )
+
+    def test_a_tool_search_hint_change_resurfaces_the_pair(self):
+        self.write_tool_inventory("create a git commit")
+        self.assertEqual(self.dismiss("--as-of", "2.1.284", native="Commit"), 0)
+        [entry] = self.stored_dismissals()
+        self.assertEqual(
+            entry["fingerprint"]["native"], overlap.fingerprint("create a git commit")
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        self.assertEqual(len(report["discovery"]["suppressed"]), 1)
+        self.write_tool_inventory("create a signed git commit")
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["native"]["name"], "Commit")
+        self.assertEqual(candidate["resurfaced"]["sides"], ["native"])
+        self.assertEqual(report["discovery"]["resurfaced"], 1)
+
+    def test_a_component_description_change_resurfaces_the_pair(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.repo.write_skill(
+            "source-control", "commit", description="Create a git commit and push it."
+        )
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(candidate["resurfaced"]["sides"], ["component"])
+
+    def test_whitespace_reflow_does_not_resurface(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        self.write_inventory(
+            bundled_skills={
+                "commit": {"name": "commit", "description": "Create  a git\ncommit"}
+            }
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+
+    def test_a_dismissed_seed_is_suppressed_too(self):
+        self.write_inventory()
+        self.assertEqual(self.dismiss("--as-of", "2.1.284"), 0)
+        pair = {
+            "native": {"name": "commit", "class": "bundled-skill"},
+            "component": {"plugin": "source-control", "skill": "commit"},
+        }
+        self.pairs_path.write_text(
+            json.dumps({"schema": 1, "pairs": [pair]}), encoding="utf-8"
+        )
+        _code, report = self.detect()
+        self.assertEqual(report["candidates"], [])
+        self.assertEqual(len(report["discovery"]["suppressed"]), 1)
+
+    def test_a_verdict_row_never_resurfaces(self):
+        row = deep_copy(BASE_ROW)
+        row["native"] = {"name": "commit", "class": "bundled-skill", "markers": []}
+        row["component"] = {
+            "plugin": "source-control",
+            "skill": "commit",
+            "kind": "skill",
+        }
+        store = make_store([row])
+        # Even beside a (malformed-by-policy) dismissal whose fingerprints no
+        # longer match, the verdict row wins: the pair stays under `existing`.
+        store["dismissals"] = [make_dismissal()]
+        self.repo.write_store(store)
+        self.write_inventory()
+        _code, report = self.detect()
+        self.assertEqual(self.discovered(report), [])
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        [existing] = report["discovery"]["existing"]
+        self.assertEqual(existing["store_verdict"], "complementary")
+
+    def test_every_candidate_carries_fingerprints(self):
+        self.write_inventory()
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        self.assertEqual(
+            candidate["fingerprints"],
+            {
+                "native": overlap.fingerprint("Create a git commit"),
+                "component": overlap.fingerprint("Create a git commit with a trailer."),
+            },
+        )
+        self.assertIsNone(candidate["resurfaced"])
+
+    def below_cut(self, report):
+        return [
+            c for c in self.discovered(report) if c["component"]["skill"] == "rhyme"
+        ]
+
+    def test_an_unchanged_dismissal_below_the_cut_still_counts_as_suppressed(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284", component="songwriting:rhyme"), 0
+        )
+        _code, report = self.detect()
+        self.assertEqual(self.below_cut(report), [])
+        [suppressed] = report["discovery"]["suppressed"]
+        self.assertEqual(suppressed["component"]["skill"], "rhyme")
+        self.assertEqual(report["discovery"]["dismissals_orphaned"], [])
+
+    def test_drift_below_the_cut_still_resurfaces(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284", component="songwriting:rhyme"), 0
+        )
+        self.repo.write_skill(
+            "songwriting", "rhyme", description="Find slant rhymes for a lyric."
+        )
+        _code, report = self.detect()
+        [candidate] = self.below_cut(report)
+        self.assertEqual(candidate["resurfaced"]["sides"], ["component"])
+        self.assertTrue(
+            any(e.startswith("below the discovery cut") for e in candidate["evidence"])
+        )
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        self.assertEqual(report["discovery"]["resurfaced"], 1)
+
+    def test_a_dismissal_whose_side_is_gone_is_reported_orphaned(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284", component="songwriting:rhyme"), 0
+        )
+        (self.repo.root / "plugins/songwriting/skills/rhyme/SKILL.md").unlink()
+        _code, report = self.detect()
+        [orphan] = report["discovery"]["dismissals_orphaned"]
+        self.assertEqual(orphan["missing"], ["component"])
+        self.assertEqual(report["discovery"]["suppressed"], [])
+        self.write_inventory(bundled_skills={})
+        _code, report = self.detect()
+        [orphan] = report["discovery"]["dismissals_orphaned"]
+        self.assertEqual(orphan["missing"], ["native", "component"])
+
+    def test_resurfaced_evidence_caps_a_hand_edited_reason(self):
+        store = make_store([])
+        # Stale fingerprints resurface the pair; the reason is over the cap.
+        store["dismissals"] = [make_dismissal(reason="x" * 5000)]
+        self.repo.write_store(store)
+        self.write_inventory()
+        _code, report = self.detect()
+        [candidate] = self.discovered(report)
+        [line] = [e for e in candidate["evidence"] if e.startswith(overlap.RESURFACED)]
+        self.assertIn("x" * overlap.REASON_MAX, line)
+        self.assertNotIn("x" * (overlap.REASON_MAX + 1), line)
+
+    def dismiss_stderr(self, *extra, **kwargs):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = self.dismiss("--as-of", "2.1.284", *extra, **kwargs)
+        return code, err.getvalue()
+
+    def test_dismiss_rejects_a_component_that_escapes_the_repo(self):
+        self.write_inventory()
+        outside = self.repo.root.parent / "outside.md"
+        for component in (
+            "..:x",
+            "source-control:..",
+            "../..:outside",
+            "source-control:../../x",
+            "source-control:a/b",
+            ".:commit",
+        ):
+            with self.subTest(component=component):
+                code, err = self.dismiss_stderr(component=component)
+                self.assertEqual(code, 1)
+                self.assertNotIn(str(outside.parent), err)
+        stored = json.loads(self.repo.store_path.read_text("utf-8"))
+        self.assertEqual(stored.get("dismissals") or [], [])
+
+    def test_dismiss_rejects_a_pair_not_in_the_repo(self):
+        self.write_inventory()
+        code, _err = self.dismiss_stderr(component="source-control:nope")
+        self.assertEqual(code, 1)
+        # A skill exists, but not as an agent.
+        code, _err = self.dismiss_stderr("--kind", "agent")
+        self.assertEqual(code, 1)
+
+    def test_dismiss_rejects_an_overlong_reason(self):
+        self.write_inventory()
+        code, _err = self.dismiss_stderr("--reason", "x" * (overlap.REASON_MAX + 1))
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            self.dismiss_stderr("--reason", "x" * overlap.REASON_MAX)[0], 0
+        )
+
+    def test_dismiss_strips_version_and_date(self):
+        self.write_inventory()
+        self.assertEqual(
+            self.dismiss("--as-of", "2.1.284\n", "--date", " 2026-09-29\n"), 0
+        )
+        [entry] = self.stored_dismissals()
+        self.assertEqual((entry["as_of"], entry["date"]), ("2.1.284", "2026-09-29"))
+
+
+class DismissalHardeningTests(unittest.TestCase):
+    def problems(self, **overrides):
+        store = make_store([])
+        store["dismissals"] = [make_dismissal(**overrides)]
+        return overlap.validate_store(store)
+
+    def test_a_trailing_newline_version_date_or_fingerprint_is_rejected(self):
+        for field, bad in (
+            ("as_of", "2.1.284\n"),
+            ("date", "2026-09-29\n"),
+            ("fingerprint", {"native": "0" * 32 + "\n", "component": "1" * 32}),
+        ):
+            with self.subTest(field=field):
+                self.assertTrue(
+                    any(f"`{field}`" in p for p in self.problems(**{field: bad}))
+                )
+        row = deep_copy(BASE_ROW)
+        row["observation"]["date"] = "2026-08-23\n"
+        self.assertTrue(
+            any(
+                "observation.date" in p
+                for p in overlap.validate_store(make_store([row]))
+            )
+        )
+
+    def test_a_path_segment_component_is_rejected_in_the_store(self):
+        for plugin, skill in (("..", "x"), ("a/b", "x"), ("demo", "."), ("", "x")):
+            with self.subTest(plugin=plugin, skill=skill):
+                component = {"plugin": plugin, "skill": skill, "kind": "skill"}
+                self.assertTrue(self.problems(component=component))
+                row = deep_copy(BASE_ROW)
+                row["component"] = component
+                self.assertTrue(overlap.validate_store(make_store([row])))
+
+    def test_an_overlong_reason_is_rejected(self):
+        self.assertEqual(self.problems(reason="x" * overlap.REASON_MAX), [])
+        self.assertTrue(
+            any(
+                "`reason`" in p
+                for p in self.problems(reason="x" * (overlap.REASON_MAX + 1))
+            )
+        )
+
+    def test_a_native_name_outside_the_strict_pattern_is_rejected(self):
+        native = {"name": "commit`<b>", "class": "bundled-skill"}
+        self.assertTrue(any("native.name" in p for p in self.problems(native=native)))
+        spaced = {"name": "plugin eval", "class": "bundled-skill"}
+        self.assertEqual(self.problems(native=spaced), [])
+
+    def test_malicious_cell_text_renders_inert(self):
+        reason = "a\rb\nc d e `code` <script> [x](http://e) | \\ end"
+        [row] = [
+            line
+            for line in overlap.render_dismissals(
+                [
+                    make_dismissal(
+                        reason=reason,
+                        native={"name": "x|<y>", "class": "bundled-skill"},
+                        component={"plugin": "p]", "skill": "[s", "kind": "skill"},
+                    )
+                ]
+            )
+            if line.startswith("| `")
+        ]
+        self.assertEqual(row.count("\n"), 0)
+        self.assertIn(
+            "a b c d e \\`code\\` \\<script\\> \\[x\\](http://e) \\| \\\\ end", row
+        )
+        self.assertIn("`x\\|\\<y\\>`", row)
+        self.assertIn("`p\\]:\\[s`", row)
+        # Every pipe that is not a cell border is escaped.
+        unescaped = [
+            i
+            for i, ch in enumerate(row)
+            if ch == "|" and (i == 0 or row[i - 1] != "\\")
+        ]
+        self.assertEqual(len(unescaped), 7)
 
 
 if __name__ == "__main__":

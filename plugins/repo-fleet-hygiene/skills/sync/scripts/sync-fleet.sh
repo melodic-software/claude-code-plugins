@@ -1,37 +1,73 @@
 #!/usr/bin/env bash
 # Move canonical checkouts onto the remote default branch and fast-forward.
-# Bare invocation prints a dry-run plan. Mutation requires --apply and one
-# confirmation (--yes, or a single prompt on a terminal).
+# Bare invocation prints a dry-run plan; --dry-run asks for that explicitly and cannot be combined
+# with --apply. Mutation requires --apply and one confirmation (--yes, or a single prompt on a
+# terminal).
 # Non-fast-forward, dubious ownership, and a partial stash apply are skipped
 # and reported. Nothing is reset.
 # Parking dirty work needs --worktree-create <path to worktree-create.sh>, the
 # only way this script learns of the helper; without it a dirty repo is skipped.
 # --worktree-root overrides the root the helper resolves from the repository.
-# A skipped line is skipped<TAB>repo<TAB>reason[<TAB>extra]<TAB>git-exit=<n><TAB>remedy=<text>.
+# A plan line is action<TAB>repo<TAB>branch<TAB>note<TAB>rung=<rung>.
+# A skipped line is skipped<TAB>repo<TAB>reason[<TAB>extra]<TAB>git-exit=<n><TAB>remedy=<text><TAB>rung=<rung>.
+# rung names the scope source that produced the repository: repo (--repo), repos-from, root (--root or a
+# bare path), config, named, ghq, cwd or ancestor. It is the last field, so earlier field positions hold.
 # git-exit is the status of the command that failed (the worktree helper's for
 # a worktree skip), or none when a plan rule skipped the repo.
+# Scope and discovery flags: --repo DIR, --root DIR, --named DIR, --config FILE, --project-dir DIR.
+# --repos-from FILE|- reads one checkout path per line (- is stdin), blank lines ignored, and counts
+# as explicit scope, so the config and fallback rungs are not consulted.
+# --skip NAME (repeatable, a bare directory name) replaces the default discovery skip set;
+# --extend-skip NAME adds to whichever set is in effect; --skip-from FILE reads one --skip name
+# per line, blank lines ignored and CRLF stripped. A missing FILE exits 2.
+# Discovery is scripts/fleet-discovery.sh, the walker audit uses: it honors the config's fleet.skip,
+# fleet.skipAppend and fleet.maxDepth, and stops at the first .git marker on each path.
 # Exit status: 0 when no repo was skipped, 1 when any was, 2 usage, 3 refused.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../../scripts/scope-resolve.sh
 source "$SCRIPT_DIR/../../../scripts/scope-resolve.sh"
+# shellcheck source=../../../scripts/fleet-discovery.sh
+source "$SCRIPT_DIR/../../../scripts/fleet-discovery.sh"
 
 REPOS=()
 ROOTS=()
 NAMED=()
+SKIP_NAMES=()
+SKIP_APPEND_NAMES=()
 CONFIG=""
 PROJECT_DIR=""
 APPLY=0
+DRY_RUN=0
 YES=0
 WT_ROOT=""
 WT_CREATE=""
 FAILS=0
 STASH_SHA=""
+REPOS_FROM_GIVEN=0
+declare -A REPO_RUNG=() ROOT_RUNG=()
 
 fail() {
   printf 'Error: %s\n' "$1" >&2
   exit 2
+}
+
+# read_lines_into <array-name> <file|-> <flag>: append each non-blank line, CR stripped.
+read_lines_into() {
+  local -n dest="$1"
+  local src="$2" line
+  if [[ "$src" == - ]]; then
+    exec 3<&0
+  else
+    [[ -f "$src" ]] || fail "$3 file not found: $src"
+    exec 3<"$src" || fail "$3 file not readable: $src"
+  fi
+  while IFS= read -r -u 3 line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ -z "$line" ]] || dest+=("$line")
+  done
+  exec 3<&-
 }
 
 while [[ $# -gt 0 ]]; do
@@ -39,11 +75,45 @@ while [[ $# -gt 0 ]]; do
   --repo)
     [[ $# -ge 2 && -n "$2" ]] || fail "--repo requires a directory"
     REPOS+=("$2")
+    REPO_RUNG["$2"]="${REPO_RUNG["$2"]:-repo}"
     shift 2
     ;;
   --root)
     [[ $# -ge 2 && -n "$2" ]] || fail "--root requires a directory"
     ROOTS+=("$2")
+    ROOT_RUNG["$2"]="${ROOT_RUNG["$2"]:-root}"
+    shift 2
+    ;;
+  --repos-from)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--repos-from requires a file or -"
+    from_start=${#REPOS[@]}
+    read_lines_into REPOS "$2" --repos-from
+    for ((k = from_start; k < ${#REPOS[@]}; k++)); do
+      REPO_RUNG["${REPOS[$k]}"]="${REPO_RUNG["${REPOS[$k]}"]:-repos-from}"
+    done
+    REPOS_FROM_GIVEN=1
+    shift 2
+    ;;
+  --skip)
+    [[ $# -ge 2 ]] || fail "--skip requires a bare directory name"
+    validate_skip_name "$2" "--skip"
+    SKIP_NAMES+=("$2")
+    shift 2
+    ;;
+  --extend-skip)
+    [[ $# -ge 2 ]] || fail "--extend-skip requires a bare directory name"
+    validate_skip_name "$2" "--extend-skip"
+    SKIP_APPEND_NAMES+=("$2")
+    shift 2
+    ;;
+  --skip-from)
+    [[ $# -ge 2 && -n "$2" ]] || fail "--skip-from requires a file"
+    from_names=()
+    read_lines_into from_names "$2" --skip-from
+    for name in ${from_names[@]+"${from_names[@]}"}; do
+      validate_skip_name "$name" "--skip-from"
+      SKIP_NAMES+=("$name")
+    done
     shift 2
     ;;
   --named)
@@ -62,6 +132,7 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --apply) APPLY=1; shift ;;
+  --dry-run) DRY_RUN=1; shift ;;
   --yes) YES=1; shift ;;
   --worktree-root)
     [[ $# -ge 2 && -n "$2" ]] || fail "--worktree-root requires a directory"
@@ -77,50 +148,44 @@ while [[ $# -gt 0 ]]; do
   *)
     [[ -n "$1" ]] || fail "bare path requires a directory"
     ROOTS+=("$1")
+    ROOT_RUNG["$1"]="${ROOT_RUNG["$1"]:-root}"
     shift
     ;;
   esac
 done
+
+[[ "$DRY_RUN" -eq 0 || "$APPLY" -eq 0 ]] || fail "--dry-run and --apply cannot be combined"
 
 [[ -z "$WT_CREATE" ]] || [[ -f "$WT_CREATE" && "${WT_CREATE##*/}" == worktree-create.sh ]] ||
   fail "--worktree-create must name an existing file called worktree-create.sh: $WT_CREATE"
 
 [[ -z "$CONFIG" || -f "$CONFIG" ]] || fail "--config file not found: $CONFIG"
 
-# Relative fleet.root and fleet.repo entries resolve against the config file's
-# directory, as audit resolves them, never against the caller's cwd.
-load_config_scope() {
-  [[ -n "$CONFIG" && -f "$CONFIG" ]] || return 0
-  local path base
-  base="$(cd "$(dirname "$CONFIG")" && pwd)"
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    [[ "$path" == /* ]] || path="$base/$path"
-    ROOTS+=("$path")
-  done < <(git config --file "$CONFIG" --get-all fleet.root 2>/dev/null || true)
-  while IFS= read -r path; do
-    [[ -z "$path" ]] && continue
-    [[ "$path" == /* ]] || path="$base/$path"
-    REPOS+=("$path")
-  done < <(git config --file "$CONFIG" --get-all fleet.repo 2>/dev/null || true)
-}
-
-if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
-  if [[ -z "$CONFIG" && -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
-    CONFIG="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
-  elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
-    CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
-  fi
-  load_config_scope
+if [[ -z "$CONFIG" && -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
+  CONFIG="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
+elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
+  CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
 fi
+if [[ -n "$CONFIG" ]]; then
+  if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; then
+    fleet_load_config_scope "$CONFIG" "$(cd "$(dirname "$CONFIG")" && pwd)"
+    ROOTS+=(${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"})
+    REPOS+=(${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
+    for path in ${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"}; do ROOT_RUNG["$path"]=config; done
+    for path in ${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"}; do REPO_RUNG["$path"]=config; done
+  fi
+  fleet_load_config_skip "$CONFIG"
+fi
+fleet_finalize_skip_names
+fleet_resolve_max_depth "" "$CONFIG"
 
-if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 ]]; then
+if [[ ${#REPOS[@]} -eq 0 && ${#ROOTS[@]} -eq 0 && "$REPOS_FROM_GIVEN" -eq 0 ]]; then
   fallback="$(mktemp)"
   if ! scope_resolve_fallback "${NAMED[@]}" >"$fallback"; then
     rm -f "$fallback"
     ghq_bin="${REPO_FLEET_GHQ_BIN:-ghq}"
     if command -v "$ghq_bin" >/dev/null 2>&1; then
-      ghq_probe="'$ghq_bin root' printed no existing directory"
+      ghq_probe="'$ghq_bin root --all' printed no existing directory"
     else
       ghq_probe="ghq not installed"
     fi
@@ -137,41 +202,36 @@ Error: no scope resolved. Probed, in order:
        remedy: run /repo-fleet-hygiene:setup apply --root <dir>
   3. --named: ${NAMED[*]:-none given}${NAMED[*]:+ (no existing directory)}
        remedy: pass --repo or --root instead
-  4. ghq root: $ghq_probe
+  4. ghq root --all: $ghq_probe
        remedy: install ghq, or pass --root <dir>
-  5. working directory: ${SCOPE_CWD:-$PWD} is not a Git checkout
+  5. ancestor: none of the 4 parents of ${SCOPE_CWD:-$PWD} (or of the checkout holding it) directly holds 2 or more Git repositories
+       remedy: cd into or beside your checkouts, or pass --root <dir>
+  6. working directory: ${SCOPE_CWD:-$PWD} is not in a Git checkout
        remedy: cd into a checkout, or pass --repo <checkout>
 EOF
     exit 3
   fi
+  fb_repos=() fb_roots=() fb_rung=""
   while IFS=$'\t' read -r kind value || [[ -n "${kind:-}" ]]; do
     case "$kind" in
-    repo) REPOS+=("$value") ;;
-    root) ROOTS+=("$value") ;;
+    repo) fb_repos+=("$value") ;;
+    root) fb_roots+=("$value") ;;
+    provenance) fb_rung="$value" ;;
     *) ;;
     esac
   done <"$fallback"
   rm -f "$fallback"
+  REPOS+=(${fb_repos[@]+"${fb_repos[@]}"})
+  ROOTS+=(${fb_roots[@]+"${fb_roots[@]}"})
+  for path in ${fb_repos[@]+"${fb_repos[@]}"}; do REPO_RUNG["$path"]="$fb_rung"; done
+  for path in ${fb_roots[@]+"${fb_roots[@]}"}; do ROOT_RUNG["$path"]="$fb_rung"; done
 fi
 
-# The same package-manager cache trees audit skips: Cargo, pnpm, and uv keep
-# real git checkouts in them, and this verb would switch and pull those.
-SKIP_NAMES=(vendor node_modules .venv .pnpm-store .yarn .npm .cargo .rustup .gradle .m2 .nuget __pycache__ .tox)
-
-discover_root() {
-  local root="$1" gitdir name
-  local prune=()
-  [[ -d "$root" ]] || return 0
-  for name in "${SKIP_NAMES[@]}"; do
-    prune+=(${prune[@]+-o} -name "$name")
-  done
-  while IFS= read -r gitdir; do
-    REPOS+=("$(dirname "$gitdir")")
-  done < <(find "$root" -maxdepth 5 \( "${prune[@]}" \) -prune -o -name .git -print -prune 2>/dev/null)
-}
-
 for root in "${ROOTS[@]}"; do
-  discover_root "$root"
+  while IFS= read -r repo; do
+    REPOS+=("$repo")
+    REPO_RUNG["$repo"]="${REPO_RUNG["$repo"]:-${ROOT_RUNG["$root"]:-root}}"
+  done < <(fleet_discover_root "$root")
 done
 
 main_worktree() {
@@ -195,7 +255,8 @@ default_branch() {
   printf '%s\n' "$ref"
 }
 
-declare -a PLAN_REPO=() PLAN_ACTION=() PLAN_BRANCH=() PLAN_NOTE=() PLAN_RC=()
+declare -a PLAN_REPO=() PLAN_ACTION=() PLAN_BRANCH=() PLAN_NOTE=() PLAN_RC=() PLAN_RUNG=()
+rung=""
 
 # add_plan <repo> <action> <branch> <note> [<git-exit>]
 add_plan() {
@@ -204,10 +265,12 @@ add_plan() {
   PLAN_BRANCH+=("$3")
   PLAN_NOTE+=("$4")
   PLAN_RC+=("${5:-none}")
+  PLAN_RUNG+=("$rung")
 }
 
 seen=""
 for repo in "${REPOS[@]}"; do
+  rung="${REPO_RUNG["$repo"]:-config}"
   [[ -d "$repo" ]] || { add_plan "$repo" skip "" "not-a-directory"; continue; }
   canonical="$(main_worktree "$repo" 2>/dev/null || true)"
   [[ -n "$canonical" ]] || canonical="$repo"
@@ -247,7 +310,7 @@ done
 printf 'mode: %s\n' "$([[ "$APPLY" -eq 1 ]] && printf apply || printf dry-run)"
 printf 'repos: %s\n' "${#PLAN_REPO[@]}"
 for ((i = 0; i < ${#PLAN_REPO[@]}; i++)); do
-  printf '%s\t%s\t%s\t%s\n' "${PLAN_ACTION[$i]}" "${PLAN_REPO[$i]}" "${PLAN_BRANCH[$i]}" "${PLAN_NOTE[$i]}"
+  printf '%s\t%s\t%s\t%s\trung=%s\n' "${PLAN_ACTION[$i]}" "${PLAN_REPO[$i]}" "${PLAN_BRANCH[$i]}" "${PLAN_NOTE[$i]}" "${PLAN_RUNG[$i]}"
 done
 
 [[ "$APPLY" -eq 1 ]] || exit 0
@@ -269,7 +332,7 @@ fi
 report_skip() {
   local extra=""
   [[ -n "${5:-}" ]] && extra=$'\t'"$5"
-  printf 'skipped\t%s\t%s%s\tgit-exit=%s\tremedy=%s\n' "$1" "$2" "$extra" "$3" "$4"
+  printf 'skipped\t%s\t%s%s\tgit-exit=%s\tremedy=%s\trung=%s\n' "$1" "$2" "$extra" "$3" "$4" "$rung"
   FAILS=$((FAILS + 1))
 }
 
@@ -384,6 +447,7 @@ for ((i = 0; i < ${#PLAN_REPO[@]}; i++)); do
   action="${PLAN_ACTION[$i]}"
   branch="${PLAN_BRANCH[$i]}"
   note="${PLAN_NOTE[$i]}"
+  rung="${PLAN_RUNG[$i]}"
   case "$action" in
   skip)
     case "$note" in

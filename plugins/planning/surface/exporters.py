@@ -59,7 +59,13 @@ import json
 import re
 from pathlib import Path
 
-from server import EMPTY_RESPONSES, MAX_VISUAL_FILE, load_json, read_visual_file
+from server import (
+    EMPTY_RESPONSES,
+    IMAGE_TYPES,
+    MAX_VISUAL_FILE,
+    load_json,
+    read_visual_file,
+)
 
 # The Brief contract's arbiter tokens (the interview skill's context/loop.md "Brief template").
 ARBITER_USER = "**arbiter: USER-RESERVED**"
@@ -96,14 +102,6 @@ FIELDS = ("hold", "proposal", "was", "answer", "note", "aside", "commitments")
 NAMED = re.compile(rf"^({'|'.join(FIELDS)})::(?: |$)(.*)$", re.DOTALL)
 UNKNOWN_LEAD = re.compile(r"^([a-z][a-z ]*)::(?: |$)")
 ALT = re.compile(r"^alt (\S+?)(?:: (.*))?$", re.DOTALL)
-IMAGE_TYPES = {
-    ".png": "png",
-    ".jpg": "jpeg",
-    ".jpeg": "jpeg",
-    ".gif": "gif",
-    ".webp": "webp",
-    ".svg": "svg+xml",
-}
 
 
 def clean(s):
@@ -659,7 +657,7 @@ def visuals_for(doc, q):
     out += [
         v for v in doc.get("visuals") or [] if v.get("scope") == f"question:{q['id']}"
     ]
-    return out
+    return [v for v in out if not v.get("archived")]
 
 
 def thread(q, resp):
@@ -767,7 +765,11 @@ def export_report(d):
     scoped = {
         v.get("id") for q in doc.get("questions") or [] for v in visuals_for(doc, q)
     }
-    others = [v for v in doc.get("visuals") or [] if v.get("id") not in scoped]
+    others = [
+        v
+        for v in doc.get("visuals") or []
+        if v.get("id") not in scoped and not v.get("archived")
+    ]
     if others:
         out.append("<h2>Visuals</h2>")
         out += [render_visual(v, d) for v in others]

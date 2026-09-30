@@ -561,6 +561,20 @@ class TestReportFileVisuals(SessionCase):
         )
         return self.export("report").read_text(encoding="utf-8")
 
+    def test_archived_visuals_are_left_out(self):
+        gone = {"why": "old", "at": "2026-01-01T00:00:00Z"}
+        text = self.report(
+            {"id": "v1", "format": "markdown", "content": "kept-body"},
+            {
+                "id": "v2",
+                "format": "markdown",
+                "content": "gone-body",
+                "archived": gone,
+            },
+        )
+        self.assertIn("kept-body", text)
+        self.assertNotIn("gone-body", text)
+
     def iframes(self, text):
         class Walk(html.parser.HTMLParser):
             def __init__(self):
@@ -2758,7 +2772,7 @@ class TestResumedState(SessionCase):
         self.assertEqual(len(after), len(combos))
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
         # Clearing every hold on both sides leaves the same state, except for the combinations
-        # HELD_LOSSES names, which the grammar has no field for and this pins as still lost.
+        # held_loss names, which the grammar has no field for and this pins as still lost.
         for d in (self.dir, fresh):
             path = d / "questions.json"
             doc = json.loads(path.read_text(encoding="utf-8"))

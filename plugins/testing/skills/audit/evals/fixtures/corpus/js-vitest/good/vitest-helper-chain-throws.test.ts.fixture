@@ -1,0 +1,30 @@
+// good-for: rule-zero-assertion
+// waitForAll returns pollUntil(...), and pollUntil throws when the condition
+// never holds: the awaited call asserts two helpers down.
+import { describe, it } from 'vitest';
+import { startBroker, postEvent } from '../src/broker';
+
+async function pollUntil(done: () => boolean, ms: number, why: () => string): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (done()) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error(why());
+}
+
+function waitForAll(subs: { out(): string }[], needle: string, ms: number): Promise<void> {
+  return pollUntil(
+    () => subs.every((s) => s.out().includes(needle)),
+    ms,
+    () => `not every subscriber saw ${needle}`,
+  );
+}
+
+describe('broker', () => {
+  it('fans an event out to every subscriber', async () => {
+    const subs = await startBroker(2);
+    await postEvent(1);
+    await waitForAll(subs, '"id":1', 3000);
+  });
+});

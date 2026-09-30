@@ -195,6 +195,7 @@ assert_contains "a class below min n ships report-only" \
   "$(echo "$OUT" | jq -r '.by_class[] | select(.class == "verbatim") | .gate')" "report-only"
 
 mkdir -p "$CLAUDE_PROJECT_DIR/.claude"
+git init -q "$CLAUDE_PROJECT_DIR" >/dev/null 2>&1
 printf '%s\n' '{"gates": {"min_n_per_class": 2, "fix_precision_bar": 0.1, "report_recall_floor": 0.1}}' \
   >"$CLAUDE_PROJECT_DIR/.claude/attribution.json"
 CFG="$(run --golden "$GOLDEN" --actual "$ACTUAL" 2>/dev/null)"
