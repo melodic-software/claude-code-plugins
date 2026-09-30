@@ -181,6 +181,9 @@ The guard validates `--data-root` against the plugin data directory it derives i
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
 coverage gap, not a clean result. (Derivation and its fail-closed rationale: `reference/safety-model.md`.)
 
+Managed-state registry matches are reported per
+[managed-state-report.md](reference/managed-state-report.md).
+
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry cap),
 start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and immediate children,
 then fan out deeper scans per subtree that the evidence justifies. After that depth-1 pass, re-inventory
