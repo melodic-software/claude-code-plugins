@@ -12,7 +12,7 @@ model {
 deployment {
   env2_prod = environment 'prod' {
     n2_api = node 'api' 'ingress api.example.com'
-    n3_api_svc = node 'api-svc' 'network '
+    n3_api_svc = node 'api-svc' 'network'
     cn4_api = node 'api' 'compute Deployment' {
       instanceOf c2_api
     }

@@ -439,7 +439,7 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
       n = groups(d, pre, "^spec(\\[[0-9]+\\])?\\.template(\\[[0-9]+\\])?\\.spec(\\[[0-9]+\\])?\\.container(\\[[0-9]+\\])?\\.", gs)
       for (k = 1; k <= n; k++)
         container(sc, gs[k], name, reps, id, "", "^env(\\[[0-9]+\\])?\\.", "^value_from", "^port(\\[[0-9]+\\])?\\.", "container_port", res_file[sc, key])
-    }
+    } else if (type != "aws_ecs_service") note_unmapped("terraform", type, res_file[sc, key])
   }
 }
 

@@ -161,6 +161,32 @@
         "The artifact states partial-read",
         "Does not run pulumi"
       ]
+    },
+    {
+      "id": 13,
+      "name": "terraform-unmapped-resources-are-listed",
+      "prompt": "/architecture:map-deployment\n\nThe only IaC is infra/main.tf, which declares an aws_lambda_function and an aws_s3_bucket and nothing else. The operator asked what the deployment diagram shows.",
+      "expected_output": "The record reason is no-mapped-container. The artifact lists aws_lambda_function and aws_s3_bucket with infra/main.tf as unmapped resources, and no environment is drawn from them.",
+      "narration": true,
+      "expectations": [
+        "Recognizes Terraform as a shipped reader",
+        "Does not draw an empty environment as if it were the whole deployment",
+        "The report lists both resource types and the file under not drawn",
+        "The summary line ends with unmapped=2"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "terraform-helm-release-declines",
+      "prompt": "/architecture:map-deployment\n\nThe only IaC is infra/main.tf, which declares an aws_ecs_cluster, an aws_ecs_task_definition with one container, and a helm_release named ingress.",
+      "expected_output": "The record reason is partial-read. The tools name terraform as shipped and helm as declined with infra/main.tf (helm_release) as evidence. No diagram is drawn from the ECS part alone.",
+      "narration": true,
+      "expectations": [
+        "Names helm as declined and does not read the release",
+        "Does not draw the ECS part alone",
+        "The artifact states partial-read",
+        "Does not run terraform or helm"
+      ]
     }
   ]
 }

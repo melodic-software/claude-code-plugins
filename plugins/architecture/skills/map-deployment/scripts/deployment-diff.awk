@@ -7,6 +7,15 @@
 # param_seen[env,container,name], plain_val[...] and secret_val[...] (same key
 # as param_seen), and defines jesc() and the diffs output file. A secret value
 # is compared here and never printed.
+#
+# note_unmapped() records a resource the reader parsed and has no mapping for,
+# once per tool, type and file, into the unmapped output file.
+function note_unmapped(tool, type, file,    k) {
+  k = tool SUBSEP type SUBSEP file
+  if (k in unm_seen) return
+  unm_seen[k] = 1
+  printf "{\"tool\":\"%s\",\"type\":\"%s\",\"evidence\":\"%s\"}\n", tool, jesc(type), jesc(file) >> unmapped
+}
 function emit_diff(change, a, b, tool, c, detail) {
   printf "{\"change\":\"%s\",\"left\":\"%s\",\"right\":\"%s\",\"tool\":\"%s\",\"container\":\"%s\",\"detail\":\"%s\"}\n", \
     change, jesc(a), jesc(b), tool, jesc(c), jesc(detail) >> diffs

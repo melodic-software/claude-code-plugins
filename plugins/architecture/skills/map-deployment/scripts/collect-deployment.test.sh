@@ -317,8 +317,9 @@ printf 'resource "azurerm_virtual_network" "vnet" {\n  name = "vnet"\n}\n' >"$re
 commit_all "$repo3"
 bash "$COLLECT" --repo "$repo3" --out "$TEST_TMPDIR/tf.json" --generated-on 2026-09-28
 tf="$(cat "$TEST_TMPDIR/tf.json")"
-assert_contains "terraform with no container resource is drawn" "$tf" '"status": "drawn"'
+assert_contains "terraform with no mapped container is refused" "$tf" '"reason": "no-mapped-container"'
 assert_contains "terraform is a shipped tool" "$tf" '"name":"terraform","shipped":"yes"'
+assert_contains "the resource type it could not map is listed" "$tf" '{"tool":"terraform","type":"azurerm_virtual_network","evidence":"net.tf"}'
 assert_not_contains "no invented node" "$tf" "vnet"
 
 # live
@@ -1270,6 +1271,8 @@ bash "$COLLECT" --repo "$repoB" --out "$TEST_TMPDIR/bicep.json" --generated-on 2
 assert_equals "bicep collect exits 0" "$?" "0"
 brec="$(cat "$TEST_TMPDIR/bicep.json")"
 assert_contains "bicep record is drawn" "$brec" '"status": "drawn"'
+assert_contains "a site with no container image is listed as unmapped" "$brec" '{"tool":"bicep","type":"Microsoft.Web/sites without a container image","evidence":"infra/modules/web.bicep"}'
+assert_equals "only the site that reads no image is unmapped" "$(grep -c '{"tool":"bicep","type"' "$TEST_TMPDIR/bicep.json")" "1"
 assert_contains "a bicepparam file is an environment" "$brec" '"environment":"prod","tool":"bicep","evidence":"infra/main.bicep, infra/main.prod.bicepparam"'
 assert_contains "the other bicepparam file is an environment" "$brec" '"environment":"staging","tool":"bicep"'
 assert_equals "bicep has two environments" "$(grep -c '"environment":"[a-z]*","tool":"bicep"' "$TEST_TMPDIR/bicep.json")" "2"
@@ -2008,6 +2011,124 @@ cprec="$(cat "$TEST_TMPDIR/cfn-pulumi.json")"
 assert_contains "cloudformation beside pulumi yaml is drawn" "$cprec" '"status": "drawn"'
 assert_contains "the cloudformation environment is its directory" "$cprec" '"environment":"cfn","tool":"cloudformation"'
 assert_contains "the pulumi environment is its directory" "$cprec" '"environment":"pulumi","tool":"pulumi-yaml"'
+
+# A read that drops resources says so, and one that places no container is refused. A repository is
+# never drawn from part of what its readers parsed without the rest being named.
+unm_check() {
+  local dir="$1"
+  bash "$COLLECT" --repo "$dir" --out "$dir.json" --generated-on 2026-09-28
+  unm_rec="$(cat "$dir.json")"
+  unm_sum="$(bash "$RENDER" --record "$dir.json" --out "$dir-out" --dialect likec4)"
+  unm_md="$(cat "$dir-out/deployment.md")"
+}
+unm_fixture() {
+  local dir="$TEST_TMPDIR/unm-$1"
+  shift
+  rm -rf "$dir"
+  init_repo "$dir"
+  while [[ $# -ge 2 ]]; do
+    mkdir -p "$dir/$(dirname "$1")"
+    printf '%s\n' "$2" >"$dir/$1"
+    shift 2
+  done
+  commit_all "$dir"
+}
+tf_ecs=$'resource "aws_ecs_cluster" "c" {\n  name = "c"\n}\nresource "aws_ecs_task_definition" "api" {\n  family = "api"\n  container_definitions = jsonencode([{ name = "api", image = "acme/api:1" }])\n}\nresource "aws_ecs_service" "api" {\n  name            = "api"\n  cluster         = aws_ecs_cluster.c.id\n  task_definition = aws_ecs_task_definition.api.arn\n}'
+tf_lambda=$'resource "aws_lambda_function" "fn" {\n  function_name = "fn"\n}'
+tf_helm=$'resource "helm_release" "api" {\n  name  = "api"\n  chart = "api"\n}'
+
+unm_fixture tf-helm main.tf "$tf_helm"
+unm_check "$TEST_TMPDIR/unm-tf-helm"
+assert_contains "a helm_release is a partial read, not an empty drawing" "$unm_rec" '"reason": "partial-read"'
+assert_contains "a helm_release names helm as declined" "$unm_rec" '"name":"helm","shipped":"no","evidence":"main.tf (helm_release)"'
+assert_not_contains "a helm_release draws nothing" "$unm_md" '```likec4'
+assert_contains "a refusal for another reason carries no unmapped list" "$unm_sum" "unmapped=0"
+
+unm_fixture tf-ecs-helm main.tf "$tf_ecs"$'\n'"$tf_helm"
+unm_check "$TEST_TMPDIR/unm-tf-ecs-helm"
+assert_contains "ECS beside a helm_release is a partial read" "$unm_rec" '"reason": "partial-read"'
+
+unm_fixture tf-helm-json main.tf.json '{"resource":{"helm_release":{"api":{"name":"api"}}}}'
+unm_check "$TEST_TMPDIR/unm-tf-helm-json"
+assert_contains "a helm_release in .tf.json is a partial read" "$unm_rec" '"reason": "partial-read"'
+
+unm_fixture tf-lambda main.tf "$tf_lambda"$'\nresource "aws_s3_bucket" "b" {\n  bucket = "b"\n}'
+unm_check "$TEST_TMPDIR/unm-tf-lambda"
+assert_contains "a Terraform root that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the refusal keeps the unmapped lambda" "$unm_rec" '{"tool":"terraform","type":"aws_lambda_function","evidence":"main.tf"}'
+assert_contains "the refusal keeps the unmapped bucket" "$unm_rec" '{"tool":"terraform","type":"aws_s3_bucket","evidence":"main.tf"}'
+assert_contains "the refusal prose says why" "$unm_md" "would look like a full read"
+assert_contains "the refusal lists the types" "$unm_md" '| terraform | aws_lambda_function | main.tf |'
+assert_not_contains "the refusal draws no environment" "$unm_md" '```likec4'
+assert_contains "the summary counts the unmapped types" "$unm_sum" "status=refused reason=no-mapped-container"
+assert_contains "the summary ends with the unmapped count" "$unm_sum" "unmapped=2"
+
+unm_fixture tf-mixed main.tf "$tf_ecs"$'\n'"$tf_lambda"$'\nresource "aws_iam_role" "r" {\n  name = "r"\n}'
+unm_check "$TEST_TMPDIR/unm-tf-mixed"
+assert_contains "a mixed root still draws its containers" "$unm_rec" '"status": "drawn"'
+assert_contains "a mixed root lists the lambda it did not draw" "$unm_rec" '{"tool":"terraform","type":"aws_lambda_function","evidence":"main.tf"}'
+assert_contains "a mixed root lists the role it did not draw" "$unm_rec" '{"tool":"terraform","type":"aws_iam_role","evidence":"main.tf"}'
+assert_not_contains "a type the reader maps is not listed" "$unm_rec" '"type":"aws_ecs'
+assert_contains "a mixed root reports the placement" "$unm_sum" "placements=1"
+assert_contains "a mixed root reports the count" "$unm_sum" "unmapped=2"
+assert_contains "a mixed root renders the unmapped section" "$unm_md" '## Unmapped resources'
+assert_contains "a mixed root renders the unmapped type" "$unm_md" '| terraform | aws_lambda_function | main.tf |'
+
+unm_fixture tf-module main.tf $'module "fn" {\n  source = "./fn"\n}' fn/main.tf "$tf_lambda"
+unm_check "$TEST_TMPDIR/unm-tf-module"
+assert_contains "a resource inside a local module is unmapped by its own file" "$unm_rec" '{"tool":"terraform","type":"aws_lambda_function","evidence":"fn/main.tf"}'
+assert_contains "a module-only root that maps nothing is refused" "$unm_rec" '"reason": "no-mapped-container"'
+
+unm_fixture tf-envs envs/dev/main.tf "$tf_ecs"$'\n'"$tf_lambda" envs/prod/main.tf "$tf_ecs"$'\n'"$tf_lambda"
+unm_check "$TEST_TMPDIR/unm-tf-envs"
+assert_equals "an unmapped type is listed once per file, not once per environment" "$(grep -c '{"tool":"terraform","type":"aws_lambda_function"' "$TEST_TMPDIR/unm-tf-envs.json")" "2"
+
+unm_fixture tf-clean main.tf "$tf_ecs"
+unm_check "$TEST_TMPDIR/unm-tf-clean"
+assert_contains "a fully mapped root is drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "a fully mapped root reports no unmapped resource" "$unm_sum" "unmapped=0"
+assert_not_contains "a fully mapped root has no unmapped section" "$unm_md" 'Unmapped resources'
+
+unm_fixture cfn-eks t.yaml $'AWSTemplateFormatVersion: "2010-09-09"\nResources:\n  Cluster:\n    Type: AWS::EKS::Cluster\n    Properties: {}\n  Fn:\n    Type: AWS::Lambda::Function\n    Properties: {}'
+unm_check "$TEST_TMPDIR/unm-cfn-eks"
+assert_contains "a CloudFormation template that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the EKS cluster is listed" "$unm_rec" '{"tool":"cloudformation","type":"AWS::EKS::Cluster","evidence":"t.yaml"}'
+assert_contains "the lambda is listed" "$unm_rec" '{"tool":"cloudformation","type":"AWS::Lambda::Function","evidence":"t.yaml"}'
+
+unm_fixture cfn-mixed t.yaml $'Resources:\n  Cluster:\n    Type: AWS::ECS::Cluster\n  Task:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n  Fn:\n    Type: AWS::Lambda::Function'
+unm_check "$TEST_TMPDIR/unm-cfn-mixed"
+assert_contains "a mixed template draws its containers" "$unm_rec" '"status": "drawn"'
+assert_contains "a mixed template lists the lambda" "$unm_rec" '{"tool":"cloudformation","type":"AWS::Lambda::Function","evidence":"t.yaml"}'
+assert_not_contains "the ECS types are not listed" "$unm_rec" '"type":"AWS::ECS'
+assert_contains "a mixed template reports the count" "$unm_sum" "unmapped=1"
+
+unm_fixture bicep-storage main.bicep $'resource sa \'Microsoft.Storage/storageAccounts@2023-01-01\' = {\n  name: \'sa\'\n  location: \'x\'\n}'
+unm_check "$TEST_TMPDIR/unm-bicep-storage"
+assert_contains "a Bicep file that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the storage account is listed" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts","evidence":"main.bicep"}'
+
+unm_fixture arm-storage main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[{\"type\":\"Microsoft.Storage/storageAccounts\",\"apiVersion\":\"2023-01-01\",\"name\":\"sa\"}]}"
+unm_check "$TEST_TMPDIR/unm-arm-storage"
+assert_contains "an ARM template that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the ARM type is listed under arm" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts","evidence":"main.json"}'
+
+unm_fixture pulumi-bucket Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  bucket:\n    type: aws:s3:Bucket'
+unm_check "$TEST_TMPDIR/unm-pulumi-bucket"
+assert_contains "a Pulumi program that maps no container is refused" "$unm_rec" '"reason": "no-mapped-container"'
+assert_contains "the bucket is listed" "$unm_rec" '{"tool":"pulumi-yaml","type":"aws:s3:Bucket","evidence":"Pulumi.yaml"}'
+
+unm_fixture pulumi-mixed Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  cluster:\n    type: aws:ecs:Cluster\n  bucket:\n    type: aws:s3:Bucket'
+unm_check "$TEST_TMPDIR/unm-pulumi-mixed"
+assert_contains "a mixed Pulumi program lists the bucket" "$unm_rec" '{"tool":"pulumi-yaml","type":"aws:s3:Bucket","evidence":"Pulumi.yaml"}'
+assert_not_contains "a mapped Pulumi type is not listed" "$unm_rec" '"type":"aws:ecs'
+
+unm_fixture pulumi-helm Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  cluster:\n    type: aws:ecs:Cluster\n  chart:\n    type: kubernetes:helm.sh/v3:Release'
+unm_check "$TEST_TMPDIR/unm-pulumi-helm"
+assert_contains "a Pulumi Helm release is a partial read" "$unm_rec" '"reason": "partial-read"'
+assert_contains "a Pulumi Helm release names helm as declined" "$unm_rec" '"name":"helm","shipped":"no","evidence":"Pulumi.yaml (kubernetes:helm.sh)"'
+
+unm_check "$repo"
+assert_contains "a Compose record reports no unmapped resource" "$unm_sum" "unmapped=0"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'all collect-deployment tests passed\n'

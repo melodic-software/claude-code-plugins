@@ -122,8 +122,10 @@ refused.
 Compose, Kubernetes manifests, Terraform, Bicep, ARM templates, CloudFormation, and
 Pulumi YAML programs, one diagram per environment. `--diff` lists declared
 differences. Every emitted value passes the shared connection redactor. The
-picture is `diagram_dialect.system`. Pulumi projects of any other runtime, Helm,
-and Kustomize are named and then the run stops. `--live` is refused.
+picture is `diagram_dialect.system`. Pulumi projects of any other runtime, Helm
+(including a Terraform `helm_release`), and Kustomize are named and then the run
+stops. Resources a reader parses and does not map are listed, and a read that
+places no container is refused. `--live` is refused.
 
 ## Record a decision
 

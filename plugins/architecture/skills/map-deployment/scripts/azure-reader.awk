@@ -497,12 +497,16 @@ function unread_containers(sc, rp, path, reps, ports, cl,    f, img) {
   return 1
 }
 
+function is_node_type(lt) {
+  return lt ~ /^microsoft\.(app\/(managed|connected)environments|web\/serverfarms|containerservice\/managedclusters|containerinstance\/containergroups)$/
+}
+
 function map_scope(sc,    f, i, rp, type, lt, id, nm, n, k, gs, eg, cp, c, img, reps, ports, cl, j, m, fx, raw, pv) {
   f = S_file[sc]
   for (i = 1; i <= RN[f]; i++) {
     rp = RES[f, i]; lt = tolower(RTYPE[f, rp])
     if (lt == "microsoft.resources/deployments") fail(tp(f) "-deployment-unread:" f ":" RSYM[f, rp])
-    if (lt !~ /^microsoft\.(app\/(managed|connected)environments|web\/serverfarms|containerservice\/managedclusters|containerinstance\/containergroups)$/) continue
+    if (!is_node_type(lt)) continue
     id = S_env[sc] "/" S_prefix[sc] RSYM[f, rp]
     nm = show(sc, rp "name", RSYM[f, rp])
     node(sc, id, RTYPE[f, rp], nm, f)
@@ -542,18 +546,18 @@ function map_scope(sc,    f, i, rp, type, lt, id, nm, n, k, gs, eg, cp, c, img, 
     } else if (lt == "microsoft.web/sites") {
       fx = "properties.siteConfig.linuxFxVersion"
       if (!field(f, rp fx)) fx = "properties.siteConfig.windowsFxVersion"
-      if (!field(f, rp fx)) continue
+      if (!field(f, rp fx)) { note_unmapped(tool, RTYPE[f, rp] " without a container image", f); continue }
       raw = FV
       img = get(sc, rp fx, "")
       if (img ~ /^DOCKER[|]/) img = substr(img, 8)
-      else if (index(toupper(raw), "DOCKER|") == 0) continue
+      else if (index(toupper(raw), "DOCKER|") == 0) { note_unmapped(tool, RTYPE[f, rp] " without a container image", f); continue }
       if (RES_SEC) img = "[redacted]"
       c = show(sc, rp "name", RSYM[f, rp])
       cl = compute_ref(sc, rp "properties.serverFarmId", "microsoft.web/serverfarms")
       place(sc, c, img, "undeclared", "", cl, f)
       m = items(f, rp "properties.siteConfig.appSettings", eg)
       for (j = 1; j <= m; j++) env_entry(sc, c, eg[j], "", f)
-    }
+    } else if (!is_node_type(lt)) note_unmapped(tool, RTYPE[f, rp], f)
   }
 }
 

@@ -89,7 +89,7 @@ function collect_res(sc,    f, n, i, R, id, t, k, m) {
     t = FV
     if (t == "AWS::CloudFormation::Stack") fail("cloudformation-stack-unread:" f ":" id)
     k = (t == "AWS::ECS::Cluster") ? "cluster" : (t == "AWS::ECS::TaskDefinition") ? "taskdef" : (t == "AWS::ECS::Service") ? "service" : ""
-    if (k == "") continue
+    if (k == "") { note_unmapped(tool, t, f); continue }
     m++
     RID[m] = id; RKIND[m] = k; RTYPE[m] = t; RPRE[m] = R[i] ".Properties"
     KIND_OF[sc, id] = k

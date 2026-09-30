@@ -11,12 +11,28 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   Pulumi YAML, and layered Compose base and override files. Containers nest in
   their compute nodes, Service and Ingress draw as relationships, and the
   environment diff reports networks and Ingress hosts.
-
-### Fixed
-
+- `map-deployment` lists every resource type a Terraform, Bicep, ARM,
+  CloudFormation or Pulumi YAML reader parses and does not map, with its file,
+  in the record's `unmapped` array, a `## Unmapped resources` table and the
+  summary's `unmapped=` count. A read that places no container and leaves
+  resources unmapped is refused as `no-mapped-container` and keeps the list.
+- A Terraform `helm_release` or a Pulumi `kubernetes:helm.sh/` resource declines
+  Helm, so the record is refused as `partial-read` instead of drawing the rest
+  of the repository.
 - Secret markers, including sensitive Terraform variables and values nested in
   unresolved CloudFormation and Pulumi expressions, are redacted in every
   printed field.
+
+### Changed
+
+- `map-deployment` merges a Compose base with its override, or the files a
+  tracked `.env` `COMPOSE_FILE` lists, into one environment. The refusal reason
+  `layered-compose` is replaced by `compose-not-mergeable:<file>`, which names
+  the file with no declared place in a merge.
+- Kubernetes compute nodes are one per workload, with the id
+  `<environment>/wl-<name>` and the workload kind as detail, instead of one node
+  per container with the image as detail.
+- The `deployment.json` record gains `relationships` and `unmapped` arrays.
 
 ## [0.15.0] - 2026-09-29
 

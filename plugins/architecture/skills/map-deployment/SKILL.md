@@ -179,13 +179,22 @@ Shipped readers, every one that is present:
   (a JSON string, a function) places one container whose image is `unresolved:containerDefinitions`.
 
 A Pulumi project of any other runtime (`nodejs`, `python`, `go`, `dotnet`, ...), Helm (a
-`Chart.yaml`), and Kustomize are recognized and named, never read. If any of them is present, the
+`Chart.yaml`, a Terraform `helm_release`, or a `kubernetes:helm.sh/` resource in a Pulumi YAML
+program), and Kustomize are recognized and named, never read. If any of them is present, the
 record is refused, including when a shipped reader also matches. A diagram of only the shipped tool
 would be a partial read. A repository whose only IaC is one of them is refused as
 `adapter-not-shipped`, not drawn empty. The declined Pulumi projects are the tool `pulumi` with the
 runtime in the evidence (`Pulumi.yaml (runtime nodejs)`); the shipped reader is the tool
 `pulumi-yaml`. Files under CI
-directories such as `.github/` are not IaC and are skipped. A double-brace expression in a Compose
+directories such as `.github/` are not IaC and are skipped.
+
+A resource the Terraform, Bicep, ARM, CloudFormation, or Pulumi YAML reader parses and has no
+mapping for is listed in the record's `unmapped` array (tool, resource type, file) and in the
+`## Unmapped resources` table of `deployment.md`, never dropped without a trace. A Terraform root of
+only `aws_lambda_function` and `aws_s3_bucket` maps no container, so it is not drawn as an empty
+environment: when no container is placed and `unmapped` is not empty, the record is refused as
+`no-mapped-container` and keeps the list. A repository that also places containers is drawn with the
+list beside it. The Compose and Kubernetes readers add nothing to the list. A double-brace expression in a Compose
 or Kubernetes value (a Go template in a healthcheck) reads normally; one in a name, image,
 namespace, replicas, or kind field refuses the file as unreadable.
 
@@ -222,13 +231,13 @@ Pass the resolved dialect. With `none` the script still writes `deployment.md` w
 environments, diff, and container tables, and draws no diagram block. Omit
 `--env` to draw every collected environment, one deployment environment each inside the one
 fenced block. Omit `--diff` when the
-invocation did not ask for a comparison. The diff table is the first section after the tools. An
-unknown `--env` or `--diff` name writes a refusal that lists the environments and exits 3. In a
+invocation did not ask for a comparison. The unmapped resources, when there are any, and then the
+diff table follow the tools. An unknown `--env` or `--diff` name writes a refusal that lists the environments and exits 3. In a
 non-interactive run, stop there.
 
 The script prints one summary line. Keep it:
 
-`deployment: status=<drawn|refused> reason=<reason|none> tools=<list> environments=<n> placements=<n> diffs=<n> dialect=<likec4|c4-plantuml|none>`
+`deployment: status=<drawn|refused> reason=<reason|none> tools=<list> environments=<n> placements=<n> diffs=<n> dialect=<likec4|c4-plantuml|none> unmapped=<n>`
 
 Exit 1 means the record is unreadable or not schema_version 1 in the one-object-per-line layout.
 Nothing was written. Do not reformat the record by hand.
@@ -240,6 +249,8 @@ End every run with this block, in this order:
 - **Artifacts**: each path written, or `none written` when the run stopped before a home existed.
 - **Status**: `drawn` or `refused`, and the reason when it is a refusal.
 - **Tools**: which IaC tools were shipped readers and which were recognized and declined.
+- **Not drawn**: the summary's `unmapped=` count and each resource type listed under
+  `## Unmapped resources` with its file, or that none were listed.
 - **Environment**: the one drawn, or each environment, and the file that declared it.
 - **Diff**: the summary's `diffs=` count, or that `--diff` was not requested.
 - **Dialect**: `diagram_dialect.system`, the value, and the layer (`argument`,
@@ -310,9 +321,11 @@ End every run with this block, in this order:
   `Fn::Join`, `GetAtt`, a pseudo parameter such as `AWS::Region`, `fn::join`, a Pulumi variable) is
   recorded as `unresolved:<text>`. A resource `Condition`, `Mappings`, and
   `Fn::ForEach` are not applied, so a conditional resource is drawn in every environment. Only the
-  ECS types above are mapped: an EKS cluster, a Fargate-only service with no task definition here, a
-  Lambda, or an `aws:eks` or `kubernetes:` Pulumi resource is not drawn. YAML parameter files and
-  CloudFormation git-sync deployment files are not read.
+  ECS types above are mapped: an EKS cluster, a Lambda, or an `aws:eks` or `kubernetes:` Pulumi
+  resource is not drawn, and its type is listed under `## Unmapped resources`. A service whose task
+  definition is not declared in the same template is placed as one container whose image is
+  `unresolved:taskDefinition`. YAML parameter files and CloudFormation git-sync deployment files
+  are not read.
 - **CloudFormation and Pulumi secrets.** A parameter with `NoEcho: true`, any value holding a
   `{{resolve:...}}` dynamic reference, every container `Secrets` entry, a Pulumi `config` key with
   `secret: true`, a `secure:` stack value, and a `fn::secret` wrapper are redacted wherever they
@@ -359,9 +372,10 @@ End every run with this block, in this order:
   `securestring` or `secureobject`, or given a Key Vault `reference` is redacted wherever it lands,
   as is a `secretRef` or `secureValue` env entry. Every var, function, and conditional is recorded
   as `unresolved:<expression>`. A `for` or `copy` loop is placed once, an `if` or `condition` is
-  ignored, child resources are not read, a `resourceId` with scope arguments matches nothing, a
-  site whose fx version does not read `DOCKER|` is not drawn, and `Microsoft.App/jobs` is not
-  mapped.
+  ignored, child resources are not read, a `resourceId` with scope arguments matches nothing, and
+  `Microsoft.App/jobs` is not mapped. Every other resource type, and a site whose fx version does
+  not read `DOCKER|` (listed as `Microsoft.Web/sites without a container image`), is listed under
+  `## Unmapped resources`.
 - **Bicep module and parameter file forms.** Claim: a local module path is relative (with or
   without `./`) and may be a `.bicep` file or an ARM JSON template; `br:`, `br/<alias>:`, `ts:`,
   and `ts/<alias>:` are registry and template-spec sources. A `.bicepparam` links its template with
@@ -380,6 +394,15 @@ End every run with this block, in this order:
   `templatefile()`, is recorded as `unresolved:<expression>`. `count` and `for_each` are not
   expanded (the resource is placed once), a `dynamic` block is not read, and an env list built by
   an expression records no parameters.
+- **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
+  as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
+  `kubernetes:helm.sh/v3:Release`. Basis:
+  <https://raw.githubusercontent.com/hashicorp/terraform-provider-helm/main/docs/resources/release.md>
+  and <https://www.pulumi.com/registry/packages/kubernetes/api-docs/helm/v3/release/>. As of:
+  2026-09-30. Recheck when either page renames the type. Either one declines Helm, which refuses the
+  whole record as `partial-read`, because the chart's workloads are not read. `kubernetes_manifest`
+  and the `kubernetes_*` types the Terraform reader does not map appear under `## Unmapped
+  resources`, since the Kubernetes tool itself is a shipped reader.
 - **Only `./` and `../` sources are local.** Claim: a local module source uses the `./` or `../`
   prefix, and every other source is a registry, VCS, or remote address. Basis:
   <https://developer.hashicorp.com/terraform/language/block/module>. As of: 2026-09-29. Recheck

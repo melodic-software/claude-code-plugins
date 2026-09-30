@@ -21,9 +21,13 @@
 # parameter files, and Pulumi projects of runtime yaml with their
 # Pulumi.<stack>.yaml files (see cloudformation-reader.awk, pulumi-reader.awk,
 # and the shared yaml-rows.awk). A Pulumi project of any other runtime, Helm (a
-# Chart.yaml), and Kustomize are recognized and then the record is refused,
-# including when a shipped reader also matches, so the diagram is never a
-# partial read. A compose base file and its compose.override.yaml, or the files
+# Chart.yaml, a Terraform helm_release, or a Pulumi kubernetes:helm.sh resource),
+# and Kustomize are recognized and then the record is refused, including when a
+# shipped reader also matches, so the diagram is never a partial read. A
+# resource a shipped reader parses and has no mapping for is listed in
+# `unmapped` (tool, resource type, file). When no container was placed and that
+# list is not empty, the record is refused as no-mapped-container and keeps the
+# list. A compose base file and its compose.override.yaml, or the files
 # a tracked .env COMPOSE_FILE lists, merge in Compose merge order into one
 # environment named for the directory: scalars are overridden, ports and
 # networks append without duplicates, environment merges by key. Any other
@@ -131,6 +135,7 @@ PLACES="$TMP/places.jsonl"
 EDGES="$TMP/edges.jsonl"
 PARAMS="$TMP/params.jsonl"
 DIFFS="$TMP/diffs.jsonl"
+UNMAPPED="$TMP/unmapped.jsonl"
 CATALOG="$TMP/catalog.jsonl"
 : >"$TOOLS"
 : >"$ENVS"
@@ -139,6 +144,7 @@ CATALOG="$TMP/catalog.jsonl"
 : >"$EDGES"
 : >"$PARAMS"
 : >"$DIFFS"
+: >"$UNMAPPED"
 : >"$CATALOG"
 
 emit_array() {
@@ -184,6 +190,8 @@ write_record() {
       printf ',\n'
       emit_array diffs "$DIFFS"
       printf ',\n'
+      emit_array unmapped "$UNMAPPED"
+      printf ',\n'
       emit_array catalog "$CATALOG"
       printf '\n}\n'
     }
@@ -204,6 +212,8 @@ refuse() {
   : >"$PARAMS"
   : >"$DIFFS"
   : >"$CATALOG"
+  # The refusal for a read that drew no container keeps the list that explains it.
+  [[ "$1" == no-mapped-container ]] || : >"$UNMAPPED"
   write_record refused "$1"
   exit 0
 }
@@ -327,6 +337,10 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
       printf '%s\n' "$rel" >>"$TMP/pulumi.txt"
       add_tool pulumi-yaml yes "$rel"
       shipped=1
+      if grep -q 'kubernetes:helm\.sh/' "$repo/$rel"; then
+        add_tool helm no "$rel (kubernetes:helm.sh)"
+        unshipped=1
+      fi
     else
       add_tool pulumi no "$rel (runtime $runtime)"
       unshipped=1
@@ -352,6 +366,11 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     printf '%s\n' "$rel" >>"$TMP/tf.txt"
     add_tool terraform yes "$rel"
     shipped=1
+    # A Helm release declared in Terraform is Helm, which this skill does not read.
+    if grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:' "$repo/$rel"; then
+      add_tool helm no "$rel (helm_release)"
+      unshipped=1
+    fi
     continue
     ;;
   *.json)
@@ -943,7 +962,7 @@ if [[ -s "$TMP/tf.txt" ]]; then
   while IFS= read -r rel || [[ -n "$rel" ]]; do
     tf_args+=("./$rel")
   done <"$TMP/tf.txt"
-  if ! (cd "$repo" && awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/tf-flag" \
+  if ! (cd "$repo" && awk -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/tf-flag" \
     -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/terraform-reader.awk" "${tf_args[@]}"); then
     refuse "terraform-unreadable"
   fi
@@ -961,7 +980,7 @@ if [[ -s "$TMP/azure.txt" ]]; then
   done <"$TMP/azure.txt"
   for az_tool in bicep arm; do
     grep -q "\"name\":\"$az_tool\"" "$TOOLS" || continue
-    if ! (cd "$repo" && awk -v tool="$az_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/az-flag" \
+    if ! (cd "$repo" && awk -v tool="$az_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/az-flag" \
       -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/azure-reader.awk" "${az_args[@]}"); then
       refuse "$az_tool-unreadable"
     fi
@@ -984,7 +1003,7 @@ for yaml_tool in cloudformation pulumi-yaml; do
   while IFS= read -r rel || [[ -n "$rel" ]]; do
     yaml_args+=("./$rel")
   done <"$yaml_list"
-  if ! (cd "$repo" && awk -v tool="$yaml_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v flag="$TMP/yaml-flag" \
+  if ! (cd "$repo" && awk -v tool="$yaml_tool" -v places="$PLACES" -v params="$PARAMS" -v nodes="$NODES" -v envs="$ENVS" -v diffs="$DIFFS" -v unmapped="$UNMAPPED" -v flag="$TMP/yaml-flag" \
     -f "$REDACT_AWK" -f "$SCRIPT_DIR/deployment-diff.awk" -f "$SCRIPT_DIR/yaml-rows.awk" -f "$SCRIPT_DIR/$yaml_reader" "${yaml_args[@]}"); then
     refuse "${yaml_tool%-yaml}-unreadable"
   fi
@@ -992,6 +1011,12 @@ for yaml_tool in cloudformation pulumi-yaml; do
     refuse "$(head -n 1 "$TMP/yaml-flag")"
   fi
 done
+
+# Resources were read and none of them is a container the readers map: an empty
+# environment would look like a full read.
+if [[ ! -s "$PLACES" && -s "$UNMAPPED" ]]; then
+  refuse "no-mapped-container"
+fi
 
 if [[ -n "$containers_file" ]]; then
   names="$(grep -E -o '"name"[[:space:]]*:[[:space:]]*"[^"]+"' "$containers_file" | sed -E 's/.*"name"[[:space:]]*:[[:space:]]*"([^"]+)"/\1/' | sort -u)"
@@ -1016,6 +1041,7 @@ sort -u -o "$PLACES" "$PLACES"
 sort -u -o "$EDGES" "$EDGES"
 sort -u -o "$PARAMS" "$PARAMS"
 sort -u -o "$DIFFS" "$DIFFS"
+sort -u -o "$UNMAPPED" "$UNMAPPED"
 sort -u -o "$CATALOG" "$CATALOG"
 
 write_record drawn ""

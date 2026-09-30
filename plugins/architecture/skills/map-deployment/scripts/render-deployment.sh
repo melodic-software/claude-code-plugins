@@ -89,6 +89,7 @@ summary="$(
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
     function clean(s) { return redact_secret_value(s) ? "[redacted]" : s }
     function lab(s) { s = clean(s); gsub(/[`"'\''\\]/, "", s); gsub(/[\r\n]/, " ", s); gsub(/@/, "(at)", s); return s }
+    function kd(kind, detail,    d) { d = lab(detail); return lab(kind) (d == "" ? "" : " " d) }
     function field(line, key,    re, rest, i) {
       re = "\"" key "\":"
       i = index(line, re)
@@ -123,6 +124,7 @@ summary="$(
       if (r == "live-state-requested") return "A live-state comparison was requested. No live adapter is shipped, and committed IaC was not read. No diagram was drawn."
       if (r == "partial-read") return "More than one IaC tool is declared, and at least one has no shipped adapter. Drawing the shipped subset would be a partial read. No diagram was drawn."
       if (r == "adapter-not-shipped") return "The only IaC tools in this repository have no shipped adapter. No diagram was drawn."
+      if (r == "no-mapped-container") return "The IaC readers found resources they do not map and placed no container, so an environment drawn from them would look like a full read. The resource types are listed below. No diagram was drawn."
       if (r == "no-declared-iac") return "No Compose file, Kubernetes manifest, Terraform configuration, Bicep file, ARM template, CloudFormation template, or Pulumi YAML program was found in tracked files. No diagram was drawn."
       if (r ~ /^(cloudformation|pulumi)-unreadable/) return "The named CloudFormation or Pulumi YAML file did not parse (an anchor or alias, a merge key, a duplicate key, a tab in the indentation, more than one document, or an unclosed flow collection). It was not half-read. No diagram was drawn."
       if (index(r, "cloudformation-transform-unread:") == 1) return "The named template declares a Transform (SAM or a macro), which rewrites the template before it is deployed and cannot be read as text. The template was not half-read. No diagram was drawn."
@@ -162,6 +164,7 @@ summary="$(
         else if (t ~ /^"relationships":/) take_array(t, "relationships", "{\"from\":")
         else if (t ~ /^"parameters":/) take_array(t, "parameters", "{\"parameter\":")
         else if (t ~ /^"diffs":/) take_array(t, "diffs", "{\"change\":")
+        else if (t ~ /^"unmapped":/) take_array(t, "unmapped", "{\"tool\":")
         else if (t ~ /^"catalog":/) take_array(t, "catalog", "{\"catalog\":")
         else if (t ~ /^"[a-z_]+": \[$/) die("unknown array " t)
       }
@@ -210,6 +213,20 @@ summary="$(
         }
       }
       print "" > md
+      nu = count["unmapped"] + 0
+      if (nu > 0) {
+        print "## Unmapped resources" > md
+        print "" > md
+        print "Parsed and not drawn: the readers have no mapping for these resource types." > md
+        print "" > md
+        print "| Tool | Resource type | Evidence |" > md
+        print "|---|---|---|" > md
+        for (i = 1; i <= nu; i++) {
+          item = held["unmapped", i]
+          print "| " safe(jget(item, "tool")) " | " safe(jget(item, "type")) " | " safe(jget(item, "evidence")) " |" > md
+        }
+        print "" > md
+      }
       if (reason == "unknown-environment") {
         print "## Environments" > md
         print "" > md
@@ -338,12 +355,12 @@ summary="$(
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") == "compute") continue
               node_alias[e SUBSEP jget(item, "id")] = alias("n", n, jget(item, "name"))
-              print "    " alias("n", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" lab(jget(item, "kind")) " " lab(jget(item, "detail")) "\047" > md
+              print "    " alias("n", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" kd(jget(item, "kind"), jget(item, "detail")) "\047" > md
             }
             for (n = 1; n <= nn; n++) {
               item = held["nodes", n]
               if (jget(item, "env") != e || jget(item, "kind") != "compute" || !((e SUBSEP jget(item, "id")) in hosts)) continue
-              print "    " alias("cn", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047compute " lab(jget(item, "detail")) "\047 {" > md
+              print "    " alias("cn", n, jget(item, "name")) " = node \047" lab(jget(item, "name")) "\047 \047" kd("compute", jget(item, "detail")) "\047 {" > md
               for (p = 1; p <= np; p++) {
                 pit = held["placements", p]
                 if (jget(pit, "env") != e || hostof(p) != jget(item, "id")) continue
@@ -415,8 +432,8 @@ summary="$(
       }
       if (tools == "") tools = "none"
       tools = safe(tools)
-      printf "deployment: status=%s reason=%s tools=%s environments=%d placements=%d diffs=%d dialect=%s\n", \
-        status, (reason == "" ? "none" : reason), tools, ne, drawn_p + 0, shown_d + 0, dialect
+      printf "deployment: status=%s reason=%s tools=%s environments=%d placements=%d diffs=%d dialect=%s unmapped=%d\n", \
+        status, (reason == "" ? "none" : reason), tools, ne, drawn_p + 0, shown_d + 0, dialect, nu
       exit exit_code
     }
   '
