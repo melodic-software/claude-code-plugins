@@ -43,7 +43,7 @@
 #     an `@AGENTS.md` import or symlink is what carries the AGENTS.md in.
 #   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code
 #     reads AGENTS.md"; confirmed by canary runs on Claude Code 2.1.278.
-#   As of: 2026-09-19.
+#   As of: 2026-09-29.
 #   Recheck trigger: that section changes which file names count for the check,
 #     or a release note names AGENTS.md or instruction-file loading.
 #
