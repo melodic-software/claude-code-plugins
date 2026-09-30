@@ -377,13 +377,7 @@ run_hook_env "$REPO/tel.py" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true HOOK_T
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL" >/dev/null 2>&1; then
-      ok "envelope: $field present"
-    else
-      fail "envelope: $field missing ($(cat "$TEL"))"
-    fi
-  done
+  if check_envelope "$TEL"; then ok "envelope: matches envelope schema"; else fail "envelope: does not match envelope schema. envelope=$(cat "$TEL")"; fi
   if [[ "$(jq -r '.hook' "$TEL")" == "ruff-format" ]]; then ok "envelope: hook is ruff-format"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
