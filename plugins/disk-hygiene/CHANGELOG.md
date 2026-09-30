@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.1] - 2026-09-30
+## [0.35.2] - 2026-09-30
 
 ### Fixed
 
@@ -21,6 +21,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   against the working directory, so an unreachable path given as a word can still stall the hook.
   A link invoked with another drive's qualifier (`D:alias` beside an engine on `C:`) still does not
   gate; the other accepted residuals are unchanged.
+
+## [0.35.1] - 2026-09-30
+
+### Changed
+
+- **`safety-model.md` records how the `apply --execute` ask behaves under `bypassPermissions`**
+  ([#5609](https://github.com/melodic-software/claude-code-plugins/issues/5609)). A four-part
+  verification record states which modes were probed (headless default, `--bg` default, headless
+  `bypassPermissions`), which were not (interactive `bypassPermissions`, auto mode, the Windows
+  PowerShell tool), and what the official docs and upstream issues say.
 
 ## [0.35.0] - 2026-09-30
 
