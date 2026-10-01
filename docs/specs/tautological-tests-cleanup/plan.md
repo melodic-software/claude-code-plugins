@@ -43,7 +43,7 @@ both exist), resolved by `plugins/testing/scripts/resolve-config.sh` per
 
 Dependency (pending, Release 2b): 2b owns the question "which production files do these tests
 exercise" through its DT3 static mapping. It has not shipped: PR #5603 was closed unmerged on
-2026-10-01 and the plan now lives in issue #5741 (open, plan pending approval); `--exercised` is
+2026-10-01 and the plan now lives in issue #5741 (open, plan approved 2026-10-01); `--exercised` is
 absent from `plugins/mutation-testing/skills/audit/SKILL.md:3` on main; the spec lists the 2b scope
 as `[TODO]` (`docs/specs/tautological-tests.md:886-887`). As the user decided on 2026-09-30,
 `--exercised` takes an optional test file or folder; given one, the mapping starts from the tests
@@ -189,7 +189,7 @@ paths to `mutation-testing:audit` and reads only its report, never a record.
    body so it does not inherit a session model by accident (Release 2 found `sonnet` `medium`
    tied-best on the judge's provenance task, `docs/specs/tautological-tests-judge/plan.md:220-229`
    and calibration.md "Chosen default"; opus is kept first because a wrong deletion costs more than
-   a wrong verdict: Recommended, awaiting user), with a brief file (the candidates, the
+   a wrong verdict: decided (user) 2026-10-01), with a brief file (the candidates, the
    rule table, the pointer to `testing:test-value` section 1). It returns one row per candidate:
    test, row fired, evidence, K citation or the positive no-contract statement, proposed action and
    diff.
@@ -267,7 +267,7 @@ is unmeasured. Calibration found 0 provenance-shaped scanner findings in 60 draw
 in `@<40-hex sha>` and is neither `authored` nor a `.fixture`) with `reference_label` FLAG and
 `judge_verdict` not FLAG. Today: 60 in-use rows, 0 labeled FLAG, 0 missed. The set does not record
 whether the main session or a subagent wrote a test, so it cannot isolate "main-session". Proposed
-threshold (judgment, awaiting user): at least 1 such joint miss in a fresh in-use sample of 60 or
+threshold (judgment, approved by the user 2026-10-01): at least 1 such joint miss in a fresh in-use sample of 60 or
 more blocks whose writer is recorded.
 
 ## Alternatives considered
@@ -344,14 +344,12 @@ earlier rows belonged to split mode, now deferred.
 
 ## Open questions
 
-- Every DT1-DT18 answer not covered by a "Decided (user)" line was taken unattended; each is the
-  user's to redirect.
-- The classifier's model (Phase 3 step 4): opus, Recommended, awaiting user.
-- The split-mode switch threshold ("Deferred: split mode"): judgment, awaiting user.
+None. The user approved every DT answer, the classifier on opus (Phase 3 step 4) and the split-mode
+switch threshold on 2026-10-01.
 
 ## Handoff to implementation
 
-Approval: pending the user (unattended run, recommended answers taken).
+Approval: approved by the user 2026-10-01.
 
 ### User-approval gates
 

@@ -8,8 +8,8 @@ design: `docs/specs/tautological-tests-judge/` on main (merged in #5605).
 
 Status values: resolved, directional, deferred.
 
-Every thread was answered in one unattended run. Each carries "Recommended answer taken unattended
-(2026-09-30)" and stays open to the user's redirection at plan approval.
+The user approved every thread on 2026-10-01; each carries "Decided (user) 2026-10-01:
+recommendation approved".
 
 ## Round 1
 
@@ -21,7 +21,7 @@ things") and applies to every suite already in the fleet. Split mode is preventi
 which Release 1's hooks and the Release 2 judge already cover in part. The items share no files
 except the testing `plugin.json`, CHANGELOG and README, so they ship as separate PRs.
 
-Recommended answer taken unattended (2026-09-30). Basis: spec:105-108 (Q13 order: cleanup, split
+Decided (user) 2026-10-01: recommendation approved. Basis: spec:105-108 (Q13 order: cleanup, split
 mode and wave 2 form one release, with no order inside it); spec:96-97 (Q10); judgment for the
 order inside the release.
 
@@ -46,7 +46,7 @@ nobody runs.
 | Java/Kotlin | a new lexer and a plugin release | a fleet repo adds `pom.xml` or `build.gradle*` with tests |
 | ast-grep backend (SW1) | reserved field `astgrep_rules`, not implemented (spec:260-262) | the fixture corpus shows awk missing argument-structure cases. It has not fired: the nine `n/a` cells in `plugins/testing/skills/audit/evals/fixtures/corpus/GRID.md` are declaration lookups (C#, Go, Pester constants), an engine-exempt case (Playwright seed data) and bash block-tracking limits, none of them argument structure |
 
-Recommended answer taken unattended (2026-09-30): defer all four, record A15 with these switch
+Decided (user) 2026-10-01: recommendation approved: defer all four, record A15 with these switch
 conditions, and re-check the switches at each Release 3 PR. Research tag: the evidence that settles
 it is a fleet repo adopting Rust, Java/Kotlin or testify (an org-wide `gh search code` plus a
 `find`/`grep` over the `repos-sync` clones), a marketplace consumer outside the fleet filing an issue
@@ -76,7 +76,7 @@ Decision: one batch is one folder. Cleanup reads three inputs, all gathered befo
 3. Flaky tests: the folder's tests run three times on unmodified code before the baseline. A test
    that both passes and fails is flaky. The user may name more.
 
-Recommended answer taken unattended (2026-09-30). Basis: `plugins/testing/skills/audit/SKILL.md`
+Decided (user) 2026-10-01: recommendation approved. Basis: `plugins/testing/skills/audit/SKILL.md`
 "Persisting findings" and `cant-fail-scan.sh` `emit_findings_file()` (Explore report);
 `docs/conventions/detector-findings/README.md` :44-53 (format-only contract); Release 2
 PLAN.md:233-234; Fowler 2011, "Eradicating Non-Determinism in Tests"
@@ -124,7 +124,7 @@ saying whether to delete or rewrite them. The rule rewrites them when a contract
 because Shi et al. 2018 measured real regression-detection loss of 9.5%-52.2% in reduced suites,
 far above their mutant loss.
 
-Recommended answer taken unattended (2026-09-30). Basis: spec:93-95 (Q9: rewrite by default; delete
+Decided (user) 2026-10-01: recommendation approved. Basis: spec:93-95 (Q9: rewrite by default; delete
 only a test that protects no observable behavior; order quarantine, rewrite, delete, merge, keep);
 `.work/tautological-tests/cleanup/RESEARCH-decision-rule.md` rule table and its verifier note that
 the rule is synthesized judgment, not sourced; Shi et al., ISSTA 2018
@@ -150,7 +150,7 @@ Decision: cleanup never commits on its own. It stages one batch in the working t
 
 Unattended runs stop at the staged batch and the report; they never commit.
 
-Recommended answer taken unattended (2026-09-30). Basis: spec:93-95 (Q9: each deletion or merge
+Decided (user) 2026-10-01: recommendation approved. Basis: spec:93-95 (Q9: each deletion or merge
 lists its reason and waits for approval); spec:974 (A10: the judge proposes test fixes and never
 commits them); AGENTS.md "When to stop and when to keep going" (pushing and PR creation need the
 user).
@@ -194,7 +194,7 @@ name small changes in `mutation-testing` (spec:170-171). The record format and i
 (`scripts/compare-records.sh`, the replay's compare step) live in `mutation-testing` and are private
 to it; `testing` reads only the replay report's gate line and newly surviving list.
 
-Recommended answer taken unattended (2026-09-30). Basis: `plugins/mutation-testing/skills/audit/SKILL.md`
+Decided (user) 2026-10-01: recommendation approved. Basis: `plugins/mutation-testing/skills/audit/SKILL.md`
 :37-43 (`--paths`, `--max`), :156-163 (one mutant per line; agent-applied under `tool: manual`),
 :50-60 (effort-derived caps); `.work/tautological-tests/cleanup/RESEARCH-safety.md` "The
 invariant" (compare killed sets on one production commit, not scores) and "Scope of the mutation
@@ -237,7 +237,7 @@ exists. When a kill is lost, DT6 lists the candidate changes and the user revert
 asks for unique-kill counts in the batch report, and the configured tool exposes per-test kills
 (StrykerJS `disableBail` with `perTest`, PIT `fullMutationMatrix`).
 
-Recommended answer taken unattended (2026-09-30). Basis: the Explore report found no per-test
+Decided (user) 2026-10-01: recommendation approved. Basis: the Explore report found no per-test
 attribution in `mutation-testing:audit` (grep for `killedBy`, `killer`, `per-test`: no hits);
 RESEARCH-safety.md "Attribution needed for the per-test rule"; RESEARCH-decision-rule.md claim 3.
 
@@ -257,7 +257,7 @@ Decision:
   be derived from requirements, otherwise shrink the snapshot. Obsolete snapshot entries are removed
   with the runner's own update command, and only where the runner documents it.
 
-Recommended answer taken unattended (2026-09-30). Basis: spec:208-210 (`file` block model: "the
+Decided (user) 2026-10-01: recommendation approved. Basis: spec:208-210 (`file` block model: "the
 whole file is one test"); spec:264-265 (wave-1 adapter list); brief fleet inventory (hand-rolled
 Bash about 800 files); RESEARCH-suite-types.md "Integration and e2e" (Google SWE book ch. 14) and
 "Snapshot suites".
@@ -270,7 +270,7 @@ Decision: quarantine uses the framework's own skip form (from the adapter's `tes
 `test-change:` prefix is what `test-weaken` counts (DT10). Quarantines are applied before the
 mutation baseline (DT6). No new config key.
 
-Recommended answer taken unattended (2026-09-30). Basis: Fowler 2011 (limit quarantine "no longer
+Decided (user) 2026-10-01: recommendation approved. Basis: Fowler 2011 (limit quarantine "no longer
 than a week", RESEARCH-suite-types.md:79); Google Testing Blog 2016
 (<https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we.html>): quarantine can mask
 a real race, so it is bounded; spec:212-213 (`test_skip` and `body_skip` fields).
@@ -289,7 +289,7 @@ comment stays in the file, which is residue, accepted because the user chose blo
 comment is the reason that mode demands. For a quarantine, the skip reason starts with
 `test-change:` (DT9). Cleanup never turns the hook off.
 
-Recommended answer taken unattended (2026-09-30). Basis: `plugins/testing/hooks/test-weaken.sh`
+Decided (user) 2026-10-01: recommendation approved. Basis: `plugins/testing/hooks/test-weaken.sh`
 :136-145 (deny only under `test-weaken-block: error`, bypassed by more `test-change:` markers)
 (Explore report); spec:325 (D5).
 
@@ -301,7 +301,7 @@ the newly surviving set with its triage). The same table is written as a finding
 detector-findings shape, so `review:fanout` sees it. Cleanup refuses to start on the default branch
 or a dirty tree.
 
-Recommended answer taken unattended (2026-09-30). Basis: spec:96-97 (Q10, one PR per module or
+Decided (user) 2026-10-01: recommendation approved. Basis: spec:96-97 (Q10, one PR per module or
 folder); RESEARCH-rollout-tools.md "Recommended shape" and "Reporting per batch" (judgment);
 `docs/conventions/detector-findings/README.md` :55-92 (destination resolution).
 
@@ -313,7 +313,7 @@ single-operator protocol. With replay (DT6) the same mutants run on both sides. 
 `mutation-testing` is not set up for the repo, cleanup stops and points to
 `/mutation-testing:setup` rather than skipping the gate.
 
-Recommended answer taken unattended (2026-09-30). Basis:
+Decided (user) 2026-10-01: recommendation approved. Basis:
 `plugins/mutation-testing/skills/principles/reference/tooling.md`:20-25 (tool table: no Go, Bash or
 PowerShell tool) and :34 (manual protocol); `mutation-testing:audit` SKILL.md:162.
 
@@ -342,7 +342,7 @@ Steps 1-6 repeat per vertical slice (one behavior, or a few), never all tests fo
 front. Pocock names bulk tests-first "horizontal slicing" (S5), and `testing:write` already works in
 vertical slices.
 
-Recommended answer taken unattended (2026-09-30). Basis: spec:52-53 (Q3: spec-only test-writer
+Decided (user) 2026-10-01: recommendation approved. Basis: spec:52-53 (Q3: spec-only test-writer
 subagent, validity check before freezing, implementer cannot edit them); spec:43 (Q1: extend
 `testing`, new hooks opt-in through `userConfig`); `code.claude.com/docs/en/sub-agents.md` (fetched
 this session) line 230 (`tools`, `skills` frontmatter) and the "Forks inherit the parent
@@ -384,7 +384,7 @@ Known gaps, recorded and not closed: Bash and script writes bypass the hook (the
 spec:910 records, covered by guardrails `block-hook-bypass`); a freeze left by a crashed session is
 pruned after 7 days like the other `$DATA` state.
 
-Recommended answer taken unattended (2026-09-30). Basis: sub-agents.md line 240 ("plugin subagents
+Decided (user) 2026-10-01: recommendation approved. Basis: sub-agents.md line 240 ("plugin subagents
 don't support the `hooks`, `mcpServers`, or `permissionMode` frontmatter fields"); hooks.md
 (fetched this session) lines 267 and 745-746 (plugin hooks run inside subagents; the input carries
 `agent_id` and `agent_type`); spec:54-62 (Q4); spec:335-337 (launcher gate). The manifest is keyed
@@ -422,7 +422,7 @@ Decision: a written test is frozen only when all three hold:
 
 There is no "passes on a reference" step, because TDD has no reference implementation.
 
-Recommended answer taken unattended (2026-09-30). Basis:
+Decided (user) 2026-10-01: recommendation approved. Basis:
 `.work/tautological-tests/context-separation/RESEARCH.md` open decision 2 (ExecCritic and arXiv
 2606.16062: unvalidated LLM-written tests are often wrong); spec:52-53 (Q3).
 
@@ -437,7 +437,7 @@ provenance defects at a higher rate than main-session tests, using the Release 2
 harness. If they do, add a Read deny scoped to the test-writer, for example through a
 `SubagentStart`-written manifest with an `if` filter, and measure its budget.
 
-Recommended answer taken unattended (2026-09-30). Basis: `docs/conventions/hook-budget` (cited at
+Decided (user) 2026-10-01: recommendation approved. Basis: `docs/conventions/hook-budget` (cited at
 spec:376); context-separation RESEARCH.md claim 1 as downgraded by its verifier (MEDIUM: the effect
 of separate authorship is not settled).
 
@@ -453,7 +453,7 @@ Decision: test at the seams that already exist, driven through their command lin
 - The classifier and the replay are agent behavior, covered by skill evals (`evals/evals.json`,
   validated by `/skill-quality:check validate-evals`), not unit tests.
 
-Recommended answer taken unattended (2026-09-30). Basis: spec:387-392 (Release 1 test boundaries
+Decided (user) 2026-10-01: recommendation approved. Basis: spec:387-392 (Release 1 test boundaries
 are the scripts' command lines); `testing:plan` classification table (seam altitude), applied by
 judgment.
 
@@ -473,7 +473,7 @@ Decision:
 - Observability: the batch findings file and the PR body (DT11); `test-freeze` logs each deny to
   the plugin's hook log, as the other testing hooks log.
 
-Recommended answer taken unattended (2026-09-30). Basis: `plugins/testing/.claude-plugin/plugin.json`
+Decided (user) 2026-10-01: recommendation approved. Basis: `plugins/testing/.claude-plugin/plugin.json`
 userConfig (`test_guards_enabled`, `stdin_read_timeout` today, Explore report); spec:43 (Q1).
 
 Decided 2026-09-30 (user): no new `.claude/*` config file. #5606 closed through PR #5697: the
