@@ -3220,6 +3220,201 @@ class TestUntickedCommitmentGate(SessionCase):
         self.assertIn("- risk: No network (unconfirmed); from Q1", brief)
 
 
+class TestLedgerRoundCellsAndMerge(SessionCase):
+    """Round cells survive import and export; export-ledger --ledger merges into a ledger's
+    register, --diff prints what that would change, and sync-ledger rewrites only its rows."""
+
+    def ledger(self, rows, prose=""):
+        path = self.tmp / f"ledger-{len(list(self.tmp.iterdir()))}.md"
+        path.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            + prose
+            + "\n".join(rows)
+            + "\n\n### Deferred questions\n\n- none\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def doc(self, d=None):
+        return json.loads((d or self.dir).joinpath("questions.json").read_text("utf-8"))
+
+    def test_a_labeled_round_cell_imports_as_its_round(self):
+        ledger = self.ledger(
+            [
+                "- Q1 | open | round 5 (sweep S1 to S3) | One? |",
+                "- Q2 | open | round 5 (sweep S12 to S14) | Two? |",
+                "- Q3 | open | round 5 (sweep S7), resolved in step 2 | Three? |",
+                "- Q4 | open | Round 5 (research) | Four? |",
+                "- Q5 | open | 6 (design) | Five? |",
+            ]
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([q["round"] for q in self.doc()["questions"]], [5, 5, 5, 5, 6])
+        self.assertIn("warning: Q5 round cell '6 (design)'", out)
+        self.assertEqual(out.count("warning:"), 1, out)
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger")), register_rows(ledger))
+
+    def test_an_import_then_export_round_trips_byte_for_byte(self):
+        self.decided()
+        rows = register_rows(self.export("ledger"))
+        labeled = [
+            rows[0].replace("| round 1 |", "| round 1 (sweep S1 to S3) |", 1),
+            rows[1].replace("| round 1 |", "| Round 1 (design) |", 1),
+            *rows[2:],
+        ]
+        self.assertNotEqual(labeled, rows)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.ledger(labeled)), d=fresh
+        )
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), labeled)
+        # A round the page changes no longer matches the label, so the plain cell is written.
+        doc = self.doc(fresh)
+        doc["questions"][0]["round"] = 2
+        (fresh / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+        self.assertIn("| round 2 |", register_rows(self.export("ledger", d=fresh))[0])
+
+    def three_of_four(self, accepted=("Q1", "Q2", "Q4")):
+        """Page questions Q1, Q2 and Q4, the named ones accepted; Q3 lives only in the ledger."""
+        self.session(
+            [question("Q1"), question("Q2"), question("Q4", round=2)],
+            [event(n, qid, "accept") for n, qid in enumerate(accepted, start=1)],
+        )
+
+    def test_ledger_only_rows_and_titles_survive_the_export(self):
+        self.three_of_four()
+        only = "- Q3 | deferred | round 1 | Never posted? | deferred: to planning"
+        ledger = self.ledger(
+            [
+                "- Q1 | open | round 1 | Who writes the ledger? |",
+                "- Q2 | open | round 1 | Question Q2? |",
+                only,
+                "- Q4 | open | round 2 | Question Q4? |",
+            ]
+        )
+        out = self.tmp / "merged.md"
+        rc, text = self.rp("export-ledger", "--out", str(out), "--ledger", str(ledger))
+        self.assertEqual(rc, 0, text)
+        rows = register_rows(out)
+        self.assertEqual(
+            [r.split(" | ")[0] for r in rows], ["- Q1", "- Q2", "- Q3", "- Q4"]
+        )
+        self.assertEqual(rows[2], only)
+        self.assertIn("| Who writes the ledger? |", rows[0])
+        self.assertTrue(all(" | answered | " in r for r in rows if r != only), rows)
+        self.assertIn("- Q3: Never posted?", out.read_text(encoding="utf-8"))
+        rc, verdict = self.check("--ledger", out)
+        self.assertEqual(rc, 0, verdict)
+
+    def test_diff_lists_the_label_the_ledger_only_row_and_the_conflict(self):
+        self.three_of_four(accepted=("Q1", "Q4"))
+        ledger = self.ledger(
+            [
+                "- Q1 | open | round 1 (design) | Question Q1? |",
+                "- Q2 | answered | round 1 | Question Q2? | free-text: settled in the ledger",
+                "- Q3 | deferred | round 1 | Never posted? | deferred: to planning",
+                "- Q4 | open | round 2 | Question Q4? |",
+            ]
+        )
+        before = ledger.read_text(encoding="utf-8")
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Q1 round: kept 'round 1 (design)' (page: 'round 1')", out)
+        self.assertIn("Q3: only in the ledger; kept", out)
+        self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
+        self.assertIn("Q1 status: 'open' -> 'answered'", out)
+        self.assertEqual(ledger.read_text(encoding="utf-8"), before)
+        merged = self.tmp / "merged.md"
+        rc, out = self.rp(
+            "export-ledger", "--out", str(merged), "--ledger", str(ledger)
+        )
+        self.assertEqual(rc, 1, out)
+        self.assertIn("conflict", out)
+        rows = register_rows(merged)
+        self.assertIn("| round 1 (design) |", rows[0])
+        self.assertEqual(
+            rows[1],
+            "- Q2 | answered | round 1 | Question Q2? | free-text: settled in the ledger",
+        )
+        self.assertEqual(
+            rows[2], "- Q3 | deferred | round 1 | Never posted? | deferred: to planning"
+        )
+
+    def test_a_page_decision_since_the_ledger_row_is_not_a_conflict(self):
+        self.three_of_four()
+        ledger = self.ledger(
+            [
+                "- Q1 | deferred | round 1 | Question Q1? | deferred: later",
+                "- Q2 | open | round 1 | Question Q2? |",
+                "- Q3 | deferred | round 1 | Never posted? | deferred: to planning",
+                "- Q4 | open | round 2 | Question Q4? |",
+            ]
+        )
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Q1 status: 'deferred' -> 'answered'", out)
+        self.assertNotIn("conflict", out)
+
+    def test_sync_ledger_after_apply_rewrites_only_the_register_rows(self):
+        self.decided()
+        ledger = self.tmp / "checklist.md"
+        ledger.write_text(
+            self.export("ledger")
+            .read_text(encoding="utf-8")
+            .replace(
+                "## Open-question register\n\n",
+                "## Open-question register\n\nRows are written by sync-ledger.\n\n",
+            ),
+            encoding="utf-8",
+        )
+        tree = ledger.read_text(encoding="utf-8").split("## Open-question register")[0]
+        ops = self.tmp / "ops.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "record-terminal",
+                            "id": "Q3",
+                            "decision": "defer",
+                            "text": "later",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        text = ledger.read_text(encoding="utf-8")
+        self.assertEqual(register_rows(ledger), register_rows(self.export("ledger")))
+        self.assertIn(" | deferred | ", register_rows(ledger)[2])
+        self.assertIn("Rows are written by sync-ledger.\n\n- Q1 |", text)
+        self.assertEqual(text.split("## Open-question register")[0], tree)
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 0, out)
+
+    def test_sync_ledger_refuses_two_registers(self):
+        self.decided()
+        ledger = self.ledger(["- Q1 | open | round 1 | Question Q1? |"])
+        ledger.write_text(
+            ledger.read_text(encoding="utf-8") + "\n## Open-question register\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("2 open-question register headings", out)
+
+
 class TestNoEmojiNoSkillNames(SessionCase):
     def test_outputs_carry_no_emoji(self):
         self.decided()

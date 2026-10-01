@@ -14,10 +14,13 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
   bump            bump the file rev (and one question's rev with --id)
   validate        check questions.json and responses.json against the shipped schemas
-  export-ledger   write the interview ledger (decision tree and open-question register)
+  export-ledger   write the interview ledger (decision tree and open-question register);
+                  --ledger F merges into F's register, --diff F prints what that would change
   export-brief    write the PLAN.md Brief sections
   export-report   write one self-contained HTML report
   import-ledger   seed an empty data dir from an existing ledger
+  sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
+                  --ledger merges
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
   stop            stop the data dir's server (only the recorded PID) and clear its session files
   lease           print the watcher holding the server's lease, or `no lease`; --release clears it
@@ -1215,12 +1218,47 @@ def write_text(path, text):
 
 def cmd_export(d, a):
     fn = {
-        "ledger": exporters.export_ledger,
         "brief": exporters.export_brief,
         "report": exporters.export_report,
     }[a.what]
     write_text(a.out, fn(d))
     print(f"wrote {a.out}")
+
+
+def report_notes(notes, kinds):
+    """Print the merge notes of the given kinds; exit 1 when any is a change or a conflict."""
+    shown = [(k, line) for k, line in notes if k in kinds]
+    for _, line in shown:
+        print(line)
+    if any(k != "kept" for k, _ in shown):
+        sys.exit(1)
+
+
+def cmd_export_ledger(d, a):
+    if a.diff:
+        text = Path(a.diff).read_text(encoding="utf-8")
+        report_notes(
+            exporters.merged_register(d, text)[2], ("change", "conflict", "kept")
+        )
+        print(f"no change to {a.diff}")
+        return
+    if not a.out:
+        sys.exit("export-ledger needs --out (or --diff LEDGER)")
+    text = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+    write_text(a.out, exporters.export_ledger(d, text))
+    print(f"wrote {a.out}")
+    if text is not None:
+        report_notes(exporters.merged_register(d, text)[2], ("conflict",))
+
+
+def cmd_sync_ledger(d, a):
+    path = Path(a.ledger)
+    text, notes = exporters.sync_ledger(d, path.read_text(encoding="utf-8"), a.ledger)
+    tmp = path.with_name(f".{path.name}.sync")
+    write_text(tmp, text)
+    os.replace(tmp, path)
+    print(f"synced the register rows of {a.ledger}")
+    report_notes(notes, ("conflict",))
 
 
 def cmd_import_ledger(d, a):
@@ -1676,14 +1714,36 @@ def main(argv=None):
     add_dir(s)
     s.set_defaults(fn=cmd_validate)
 
-    for what in ("ledger", "brief", "report"):
+    for what in ("brief", "report"):
         s = sub.add_parser(f"export-{what}", help=f"write the {what} export")
         s.add_argument("--out", required=True, help="output file")
         s.set_defaults(fn=cmd_export, what=what)
 
+    s = sub.add_parser("export-ledger", help="write the ledger export")
+    s.add_argument("--out", help="output file")
+    s.add_argument(
+        "--ledger",
+        help="merge into this ledger's register: keep its ledger-only rows, titles and round "
+        "labels, and keep (and print) a row it settled that the page shows otherwise with no "
+        "decision of its own",
+    )
+    s.add_argument(
+        "--diff",
+        metavar="LEDGER",
+        help="print each row and column the merge would change in LEDGER, plus status "
+        "conflicts and the text it keeps, and write nothing; exit 1 on any change or conflict",
+    )
+    s.set_defaults(fn=cmd_export_ledger)
+
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_import_ledger)
+
+    s = sub.add_parser(
+        "sync-ledger", help="rewrite only a ledger's register rows from page state"
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.set_defaults(fn=cmd_sync_ledger)
 
     s = sub.add_parser(
         "ensure-running",

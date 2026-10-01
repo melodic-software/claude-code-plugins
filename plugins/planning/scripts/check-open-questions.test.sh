@@ -773,6 +773,39 @@ expect_exit "--procedure --brief section only under ## Plan -> 1" 1 --ledger "$p
 # 54. Ungradeable stays exit 2 and reports procedure=unchecked.
 expect_stdout "ungradeable with --procedure reports procedure=unchecked" "status=ungradeable procedure=unchecked" --ledger "$noreg" --procedure
 expect_exit "--procedure alone without a ledger -> 2" 2 --procedure
+
+# 55. Every row error in one run, each with its own ledger line, and the
+#     verdict keeps the counts of the rows that parsed. mkledger puts the
+#     register heading on line 7, so the rows start on line 9.
+many_bad="$(
+  mkledger <<'EOF'
+- Q1 | answered | round 1 | Who writes? | admin
+- Q3 | answerd | round 1 | Format? | markdown
+- Q2 | answered (restated after Q3) | round 1 | Moderation? | later
+- Q4 | open | round 2 | Retention? |
+EOF
+)"
+many_bad_err="$(stderr_of --ledger "$many_bad")"
+for want in "line 10: unknown status 'answerd'" "line 11: question id out of order: Q2 follows Q3" "line 11: unknown status 'answered (restated after Q3)'"; do
+  if [[ "$many_bad_err" == *"$want"* ]]; then pass "row errors name '$want'"; else fail "row errors name '$want' (stderr: '$many_bad_err')"; fi
+done
+expect_exit "row errors still exit 2" 2 --ledger "$many_bad"
+expect_stdout "row errors keep the counts of the valid rows" "registered=2 open=1 deferred=0 blocked=0 withdrawn=0 answered=1 superseded=0 brief=unchecked status=ungradeable" --ledger "$many_bad"
+
+# 56. A missing id is a gap and a misplaced one is out of order: distinct
+#     messages, neither reported as the other.
+gap_err="$(stderr_of --ledger "$gap")"
+if [[ "$gap_err" == *"gap in question ids: no row for Q2"* && "$gap_err" != *"out of order"* ]]; then pass "a missing id reads as a gap"; else fail "a missing id reads as a gap (stderr: '$gap_err')"; fi
+swapped="$(
+  mkledger <<'EOF'
+- Q2 | answered | round 1 | Format? | markdown
+- Q1 | answered | round 1 | Who writes? | admin
+EOF
+)"
+swapped_err="$(stderr_of --ledger "$swapped")"
+if [[ "$swapped_err" == *"line 10: question id out of order: Q1 follows Q2"* && "$swapped_err" != *"gap"* ]]; then pass "a misplaced id reads as out of order"; else fail "a misplaced id reads as out of order (stderr: '$swapped_err')"; fi
+expect_exit "an out-of-order register -> 2" 2 --ledger "$swapped"
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1
