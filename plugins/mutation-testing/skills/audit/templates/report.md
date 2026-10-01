@@ -45,8 +45,8 @@ user to accept>
 was claimed and what was missing>
 ```
 
-`Cause` is `no-assertion`, `input-gap` or `unclassified` on a productive row and empty on the
-others. Under `--exercised` with the manual protocol, `Coverage` and `Gap` print `unknown` and the
+`Cause` is `no-assertion`, `input-gap` or `unclassified` on a productive row, written bare
+(no backticks) so the column greps, and empty on the others. Under `--exercised` with the manual protocol, `Coverage` and `Gap` print `unknown` and the
 rows go in path order.
 
 The two suppression sections are obligations of the finding-suppression contract, not report
