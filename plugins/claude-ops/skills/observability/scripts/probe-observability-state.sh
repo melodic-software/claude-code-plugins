@@ -47,14 +47,14 @@
 #   <name>:absent
 #   cold:<bytes>B (<n> files) | cold:absent
 #   last-prune:<ISO-8601 UTC> (<age, e.g. 3h or 2d>) | last-prune:never
-#   prune-task:provisioned | missing | disabled | stale path (<path>)
-#            | hand-registered (<path>) | unrecognized action
-#            | n/a (not Windows) | unknown (schtasks not found)
+#   prune-task:provisioned | missing | disabled | stale path | hand-registered
+#            | unrecognized action | n/a (not Windows) | unknown (schtasks not found)
 # The stamp is <store>/.last-prune, written by prune-otel-store.sh at the end of
 # every successful non-dry run. The task is the Windows ClaudeCodeOtelPrune task:
-# `provisioned` is machine provisioning's launcher, which finds this plugin at run
-# time; a hand-registered action names a prune script path, which is stale once a
-# plugin update's orphan sweep removes it.
+# `provisioned` is machine provisioning's pwsh launcher, which finds this plugin at
+# run time; a hand-registered action names a prune script path, which is stale once
+# a plugin update's orphan sweep removes it. No text from the task is printed: the
+# line lands in model context.
 #
 # --pipeline output (stdout, six lines, fixed order and labels; read-only, it
 # never heals the guard):
@@ -215,7 +215,7 @@ prune_task_state() {
     printf 'unknown (schtasks not found)'
     return 0
   fi
-  local xml action path
+  local xml command arguments path
   # MSYS would rewrite the /-style options into paths.
   if ! xml="$(MSYS2_ARG_CONV_EXCL='*' schtasks /query /tn ClaudeCodeOtelPrune /xml 2>/dev/null | tr -d '\r')"; then
     printf 'missing'
@@ -225,22 +225,24 @@ prune_task_state() {
     printf 'disabled'
     return 0
   fi
-  action="$(sed -n '/<Exec>/,/<\/Exec>/p' <<<"$xml")"
-  if [[ "$action" == *installed_plugins.json* ]]; then
+  command="$(sed -n 's:.*<Command>\(.*\)</Command>.*:\1:p' <<<"$xml" | head -n 1)"
+  arguments="$(sed -n 's:.*<Arguments>\(.*\)</Arguments>.*:\1:p' <<<"$xml" | head -n 1)"
+  # The provisioning launcher: pwsh reading the plugin index for this plugin's key
+  # and running the in-plugin prune script from the install it records.
+  if [[ "$command" == *pwsh.exe && "$arguments" == *installed_plugins.json* &&
+    "$arguments" == *claude-ops@* && "$arguments" == *skills/observability/otel/prune-otel-store.sh* ]]; then
     printf 'provisioned'
     return 0
   fi
-  path="$(grep -o '[^";>]*prune-otel-store\.sh' <<<"$action" | head -n 1)"
+  path="$(grep -o '[^";]*prune-otel-store\.sh' <<<"$arguments" | head -n 1)"
   path="${path//\\//}"
-  # Only a local path of plain path characters is tested and printed: the line
-  # lands in model context, and [[ -f ]] on a UNC path contacts a remote host.
-  local local_path='^([A-Za-z]:)?/[A-Za-z0-9 ._/@()+~-]+$'
-  if [[ -z "$path" || ${#path} -gt 260 || "$path" == //* || ! "$path" =~ $local_path ]]; then
+  # A UNC path is never tested: [[ -f ]] on one contacts a remote host.
+  if [[ -z "$path" || "$path" == //* ]]; then
     printf 'unrecognized action'
   elif [[ -f "$path" ]]; then
-    printf 'hand-registered (%s)' "$path"
+    printf 'hand-registered'
   else
-    printf 'stale path (%s)' "$path"
+    printf 'stale path'
   fi
 }
 

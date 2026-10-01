@@ -132,16 +132,17 @@ retention windows.
 the three hot files, `cold:<bytes>B (<n> files)`, `last-prune:<UTC time> (<age>)`, and
 `prune-task:<state>`. Every successful non-dry prune writes `<store>/.last-prune`;
 `last-prune:never` or an age of `2d` or more means the task is not firing or is failing (read its
-log). The `prune-task:` states:
+log). The `prune-task:` states, none of which prints text from the task, since the line reaches
+model context (read the action with `schtasks /query /tn "ClaudeCodeOtelPrune" /xml`):
 
 | State | Meaning |
 |---|---|
-| `provisioned` | the provisioning launcher, enabled |
+| `provisioned` | enabled, and the action is pwsh running the provisioning launcher: it names `installed_plugins.json`, the `claude-ops@` plugin key and the in-plugin prune path |
 | `missing` | no `ClaudeCodeOtelPrune` task: run the provisioning apply |
 | `disabled` | the task or its trigger is disabled |
-| `stale path (<path>)` | a hand-registered task names a prune script that no longer exists, typically a version directory the orphan sweep removed |
-| `hand-registered (<path>)` | a hand-registered task whose script still exists: a versioned path breaks at the next plugin update, and a copied script never gets fixes |
-| `unrecognized action` | the task runs neither the launcher nor a local prune script path; a UNC path or one with unusual characters is never tested or printed |
+| `stale path` | a hand-registered task names a prune script that no longer exists, typically a version directory the orphan sweep removed |
+| `hand-registered` | a hand-registered task whose script still exists: a versioned path breaks at the next plugin update, and a copied script never gets fixes |
+| `unrecognized action` | the task runs neither the launcher nor a prune script; a UNC path is never tested |
 | `n/a (not Windows)`, `unknown (schtasks not found)` | not checked |
 
 Provisioning's `-Test` also reports the task, and reports drift when the hot files pass 1 GiB

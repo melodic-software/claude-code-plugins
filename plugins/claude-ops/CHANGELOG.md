@@ -9,10 +9,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`probe-observability-state.sh --otel-store` reports the scheduled prune task.** A sixth line,
   `prune-task:<state>`, reads the Windows `ClaudeCodeOtelPrune` task from `schtasks /query /xml`:
-  `provisioned`, `missing`, `disabled`, `stale path (<path>)` when a hand-registered action names a
-  prune script that no longer exists, `hand-registered (<path>)` while it still does, or
-  `unrecognized action`. Off Windows it reads `n/a (not Windows)`. The observability skill flags
-  every state but `provisioned` and `n/a`.
+  `provisioned` only when pwsh runs the full provisioning launcher signature, `missing`, `disabled`,
+  `stale path` when a hand-registered action names a prune script that no longer exists,
+  `hand-registered` while it still does, or `unrecognized action`. Off Windows it reads
+  `n/a (not Windows)`. The line carries no text from the task, because it reaches model context,
+  and a UNC path is never tested. The observability skill flags every state but `provisioned` and
+  `n/a`.
 
 ### Changed
 
