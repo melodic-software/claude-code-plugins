@@ -182,11 +182,14 @@ in that file, because it decides whether anything merges at all. A PR is merge-e
 item's class sits within the effective rung **and** its promotable cell is **effective-promoted**:
 C2 at `c2-mechanical`, C2+C3 at `c3-autonomous`, through C3 at `full-autonomy`, never C4/C5. Before
 any work-class comparison, resolve each cell through the trusted seam. Unqualified evidence
-fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines.
-Report each bound-to-effective pair at cycle start. The operator-supplied surfaces the seam needs
-are in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
-report-only lane-start preflight names each missing one, and the seam still returns no qualified
-read, so every cell stays effective-unpromoted. The three-arm resolver, what counts as
+fail-closes to effective-unpromoted, so operators keep `--merge human-only` on launch lines;
+lifting that is the owner's call after Phase 3 of the plan. Report each bound-to-effective pair,
+the resolution source, and any fail-closed reason at cycle start. The operator-supplied surfaces
+the seam needs are in
+[reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
+report-only lane-start preflight names each missing one. With a compliant bootstrap, cycle-shape
+step 3 runs the resolution helper and the seam returns a qualified read; otherwise every cell stays
+effective-unpromoted. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.
@@ -199,13 +202,14 @@ only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/
 or any other repository file. The reasons and their verification record are in
 [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
 which also says what each surface must be. The lane-start preflight in
-[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block.
+[reference/cycle-shape.md](reference/cycle-shape.md) steps 0 and 3 read this block.
 
 | Option | Value |
 | --- | --- |
 | `promotion_evidence_binding` | `${user_config.promotion_evidence_binding}` |
 | `promotion_evidence_root` | `${user_config.promotion_evidence_root}` |
 | `promotion_evidence_source` | `${user_config.promotion_evidence_source}` |
+| `promotion_evidence_checker` | `${user_config.promotion_evidence_checker}` |
 
 ## do-not-merge
 

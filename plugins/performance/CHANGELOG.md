@@ -3,6 +3,16 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-10-01
+
+### Changed
+
+- **`protect` documents telemetry-derived counters**
+  ([#5661](https://github.com/melodic-software/claude-code-plugins/issues/5661)). A new
+  "Telemetry-derived counters" subsection gives the command form for a counter read from a telemetry
+  store, states how the twice-measure rule in `ratchet.py add` interacts with exporter batching lag,
+  and states what CI needs when it has no telemetry store. `ratchet.py` gains no dependency.
+
 ## [0.3.0] - 2026-09-29
 
 ### Added
