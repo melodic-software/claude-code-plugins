@@ -49,7 +49,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 # Step 4, right after writing the Brief (engineering sessions only).
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
   --ledger <memory_dir>/<topic-slug>/interview-checklist.md --procedure \
-  --brief <contract_dir>/<topic-slug>/PLAN.md
+  --brief <memory_dir>/<topic-slug>/PLAN.md
 ```
 
 ## Decision tree (`me` mode only)

@@ -17,6 +17,15 @@ plans and specs live in the pull request body and the linked issue, not in commi
 explicit topic argument may select the slug, but cannot introduce a competing artifact root. Reject an
 invalid root or slug rather than silently falling back to another location.
 
+Published content is distilled: the memory slice exists only in the writing checkout, so a pull request
+body or issue records values, never a path into the slice.
+
+An optional HTML view of a record kept elsewhere (a decision table, a pitch view, a topology view) is
+ephemeral. Write it to one deterministic path under the platform's OS temp directory, created through its
+temp API, never the session scratchpad and never beside the record it renders, with one directory per run
+when a run produces several files. Hand the path back and do not delete it before returning, because the
+path is the delivery.
+
 ## Artifact kinds
 
 Lifecycle plugins exchange these public artifacts under `<memory_dir>/<topic-slug>/`:

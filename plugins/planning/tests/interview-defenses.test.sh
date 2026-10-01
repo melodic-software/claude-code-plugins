@@ -519,9 +519,8 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
   "bc000f8d116bad560c8a74646f7d3736aefa7c42d34a8aa5643c30c5bc58a984"
-# Re-pinned for the "Neither slice is a durable home" paragraph: it names where content that
-# outlives the branch goes and touches no assumption or Brief rule. Its prune caveat applies
-# under `contract_tier: branch` only; under `local` nothing is committed, so nothing is pruned.
+# The "memory slice is not a durable home" paragraph names where content that outlives the
+# branch goes and touches no assumption or Brief rule.
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
 # and tells the caller to stop and ask on a `Blocked:` or `USER-RESERVED` line. That carries the
 # never-disappears rule into a path with no Brief; the ledger and the register gate are as before.
@@ -626,7 +625,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Re-pinned after merge: main case 19 (page-surface) plus cases 20 to 23 (mechanism
 # tripwire, assumption sweep, evidence currency, inherited constraint). Each grades a
 # question, row, or label before the contract locks; none licenses a silent capture or a
-# fudged gap, so none contradicts case 15 or 16. Case 24 (contract slice not offered as a
+# fudged gap, so none contradicts case 15 or 16. Case 24 (memory slice not offered as a
 # durable home) grades where content persists after merge and touches neither defense.
 # Case 25 (out-of-band return before the reply) is case 12's async twin: it grades a restate
 # and the queued-output-first order, and resolves no row the user did not answer.
