@@ -274,6 +274,53 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
+    def test_alternative_restating_the_recommendation_warns_and_still_writes(self):
+        q = question(
+            "Q4",
+            recommendation="Ship it now.\nReasons follow.",
+            alternatives=[
+                {"key": "a", "text": "Ship it now"},
+                {"key": "b", "text": "Wait"},
+            ],
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 alternative (a) restates the recommendation", err)
+        self.assertNotIn("alternative (b)", err)
+        self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
+
+    def test_add_alt_flag_with_recommended_marker_warns(self):
+        rc, out, err = self.rp(
+            "add",
+            "--file",
+            self.file("q.json", question("Q4", alternatives=[])),
+            "--alt",
+            "a:Yes (Recommended)",
+            "--alt",
+            "b:Later",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 alternative (a) restates the recommendation", err)
+
+    def test_add_round_duplicate_alternative_warns_naming_the_question(self):
+        dup = question(
+            "Q5",
+            alternatives=[
+                {"key": "a", "text": "YES. it keeps things simple"},
+                {"key": "b", "text": "Later"},
+            ],
+        )
+        spec = {"questions": [question("Q4"), dup]}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q5 alternative (a) restates the recommendation", err)
+        self.assertNotIn("Q4 alternative", err)
+
+    def test_distinct_alternatives_do_not_warn_about_restating(self):
+        rc, _, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        self.assertEqual(rc, 0)
+        self.assertNotIn("restates", err)
+
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
