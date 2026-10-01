@@ -5,11 +5,11 @@
       "id": 1,
       "name": "hook-notice-runs-the-read-only-check",
       "prompt": "A session notice just said node is missing for a rate-limit-guard hook. Is node installed here?",
-      "expected_output": "Runs the node probes through Bash and reports a PASS/FAIL row. Installs nothing and stops.",
+      "expected_output": "Runs the node and jq probes through Bash and reports a PASS/FAIL row for each. Installs nothing and stops.",
       "files": [],
       "expectations": [
-        "Runs `command -v node` and `node --version` through Bash and reports the result",
-        "Does not install Node.js or download anything, and stops after the row",
+        "Runs `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash and reports the result",
+        "Does not install Node.js or jq or download anything, and stops after the rows",
         "Modifies no file"
       ]
     },
@@ -20,7 +20,7 @@
       "expected_output": "Does not install from this skill. Points to the install route in prerequisites.json.",
       "files": [],
       "expectations": [
-        "Does not install Node.js itself or download anything",
+        "Does not install Node.js or jq itself or download anything",
         "Gives the install route from the plugin's prerequisites.json",
         "Does not claim node is now installed"
       ]
@@ -29,10 +29,10 @@
       "id": 3,
       "name": "check-reports-pass-or-fail",
       "prompt": "/rate-limit-guard:check",
-      "expected_output": "Reports PASS for node when it resolves, or FAIL with the install route when it does not, and stops.",
+      "expected_output": "Reports PASS for node and jq when each resolves, or FAIL with the install route when one does not, and stops.",
       "files": [],
       "expectations": [
-        "Reports a PASS or FAIL row for node",
+        "Reports a PASS or FAIL row for node and for jq",
         "On a FAIL, gives the install route from the plugin's prerequisites.json",
         "Modifies no file"
       ]

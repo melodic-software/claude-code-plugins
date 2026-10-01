@@ -111,7 +111,7 @@ the hook does not launch and records nothing. Proactive window data requires Cla
 [statusline reference](https://code.claude.com/docs/en/statusline); on other auth the guard is
 reactive-only. The tee updates only while an interactive session refreshes the statusline.
 
-`/rate-limit-guard:check` reports whether `node` resolves for the hook, read-only. It installs nothing.
+`/rate-limit-guard:check` reports whether `node` (the hook) and `jq` (the statusline tee) resolve, read-only. It installs nothing.
 
 Cost: the tee adds roughly 0.6–0.9 s per statusline refresh on Windows/Git Bash (process-spawn
 bound, `jq` and `date`), and correspondingly less on native POSIX shells. The statusline is not on
