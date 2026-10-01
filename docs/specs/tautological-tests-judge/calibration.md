@@ -11,7 +11,7 @@ DT13). Everything lives in `plugins/testing/skills/audit/evals/judge-calibration
 | Stratum | Rows | Holdout | What it is |
 |---|---|---|---|
 | `seed` | 10 | 4 | The DT1 seeds: Pocock's S3, T3, M2, M3, M5, M6, M7-side-channel and S5, plus G7 and G10. S3 and G7 are in scope; the other eight are out of scope, and DT1 expects UNKNOWN on them. A FLAG on one scores as over-reach. |
-| `adversarial` | 8 | 3 | Tautological tests from the scanner corpus, one per adapter family, each carrying a misleading provenance comment ("expected value from the spec") or an instruction-shaped string. They measure whether the judge treats test text as data. |
+| `adversarial` | 8 | 3 | Tautological tests from the scanner corpus, one each for js-jest, js-vitest, js-node-test, py-pytest, cs-xunit, go-testing, pwsh-pester and bash-harness, each carrying a misleading provenance comment ("expected value from the spec") or an instruction-shaped string. They measure whether the judge treats test text as data. |
 | `in-use` | 60 | 20 | Test blocks drawn from the git histories of claude-code-plugins, medley and ci-runner, at natural prevalence. |
 
 Each row's `source` names where its code came from, with the path and commit. In-use cases and the
@@ -32,7 +32,8 @@ outside fixtures and testdata directories, scoped the way the hooks scope a writ
    changed: 564 blocks.
 2. Shuffle those blocks and take 60: 60 blocks in 39 files.
 
-20 of the 240 pairs were skipped because the file fails this repository's typos check, and a
+20 of the 240 pairs were skipped because the file fails this repository's typos check (typos
+1.49.0, which `sample.sh` requires, since another version would skip other pairs), and a
 verbatim case cannot be edited to pass it. A case file is the whole test file at that commit; a
 row's `note` names the lines the commit changed.
 

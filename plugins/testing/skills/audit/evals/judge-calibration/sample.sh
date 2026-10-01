@@ -15,7 +15,7 @@
 # that pool and take TARGET blocks. Each phase is uniform, so every block has
 # the same chance and the stratum keeps the population's FLAG prevalence. A
 # pair whose file the scanner cannot read, whose lexer lost sync, or that fails
-# this repository's typos check is skipped and counted. A case file is the
+# this repository's typos check (typos TYPOS, pinned) is skipped and counted. A case file is the
 # whole test file at that commit, verbatim.
 #
 # Split: within each stratum, rows are shuffled with SEED and the first third,
@@ -33,6 +33,7 @@ set -uo pipefail
 SEED=20260930
 TARGET=60
 PAIRS=240
+TYPOS=1.49.0
 REPOS=(
   "claude-code-plugins fa4142d113fdf3a0da352d27dcfb373f2ac398b1"
   "medley 4a7c01a14a31199076c5f22eb313d6dea1c7c4ce"
@@ -65,6 +66,12 @@ if awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
   echo "sample.sh: labels.tsv already holds labels; redrawing would orphan them" >&2
   exit 1
 fi
+
+# The spell-check skip decides which pairs count, so its dictionary is pinned.
+[[ "$(typos --version 2>/dev/null)" == "typos-cli $TYPOS" ]] || {
+  echo "sample.sh: needs typos $TYPOS on PATH (the spell-check skip changes the draw)" >&2
+  exit 2
+}
 
 TMP="$(mktemp -d)" || exit 2
 trap 'rm -rf "${TMP:?}"' EXIT
