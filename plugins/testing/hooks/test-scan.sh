@@ -147,7 +147,7 @@ if ((rc != 0)); then
   # A config the scanner refuses is the agent's to fix: log the resolver's or
   # loader's own message and name it, at its file and line, in the context.
   cfg_err=""
-  if grep -q -e '^ERROR: .claude/testing.yaml did not resolve' -e '^ERROR: adapter load failed' "$out_file"; then
+  if grep -q -e '^ERROR: the testing config did not resolve' -e '^ERROR: adapter load failed' "$out_file"; then
     cfg_err="$(grep -m1 -E '^(resolve-config|adapter-load): ' "$out_file")"
     why="${cfg_err:-$why}"
   fi
@@ -157,7 +157,7 @@ if ((rc != 0)); then
   hook::finish error findings array '[]'
 fi
 
-# The scanner examined nothing: .claude/testing.yaml excluded the path or
+# The scanner examined nothing: the testing config excluded the path or
 # disabled its adapter. No findings and no note.
 if grep -q '^  test files: 0 examined' "$out_file"; then
   hook::finish skipped findings array '[]'

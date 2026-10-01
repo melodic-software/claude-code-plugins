@@ -12,7 +12,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
-| `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved `.claude/testing.yaml`, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes `.claude/testing.yaml`. |
+| `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `test-scan` hook: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
 ## Works in any repo
@@ -98,7 +98,7 @@ steps can still race them; that residual is accepted. A
 `memory_dir` with characters outside `[A-Za-z0-9._/-]` or a `..` component is ignored for `.work`.
 
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
-limit, the test-file globs, adapters and rule levels in `.claude/testing.yaml`, and a per-test
+limit, the test-file globs, adapters and rule levels in the testing config, and a per-test
 `cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn
 relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
 blocks on its own failure; it never applies a fix; and its malfunction guards (a
@@ -128,10 +128,18 @@ behavior, so the file is optional. Its keys, defaults, and precedence are docume
 the skill's bundled `run-e2e/context/e2e-config.md`; it layers per the marketplace
 config-cascade convention.
 
-`/testing:audit` and the `test-scan` hook read `.claude/testing.yaml` through the same cascade
-(`~/.claude/testing.yaml`, the team file, `.claude/testing.local.yaml`): adapters to turn off or
+`/testing:audit` and the `test-scan` hook read the testing config through the same cascade
+(`~/.claude/testing.yaml`, the team layer, `.claude/testing.local.yaml`): adapters to turn off or
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
-rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the file.
+rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the team layer.
+
+The team layer is the `yaml config` block in `docs/conventions/testing.md`, the file that also holds
+the team's prose testing rules. A fence line that opens at column 0 with three backticks and the
+words `yaml config` starts the block, and the first line of three backticks closes it. The keys are
+the ones `.claude/testing.yaml` takes, and an error in the block names the `.md` file and its own
+line. A docs file with no block does not supply the team layer; `<root>/.claude/testing.yaml` is
+read instead. When both exist the docs block wins and the resolver prints one warning naming both
+paths. The user-global and `.claude/testing.local.yaml` layers do not change.
 
 ### Test files written through Bash
 
@@ -150,7 +158,7 @@ payload of a Bash call:
   its hunks touch, the same as an Edit. A file the repository ignores is skipped.
 - **Limits.** The payload carries hunks for the first five changed files only, so a modified test
   file past the fifth is not scanned, and one call scans at most four test files. The shipped
-  adapters' globs decide what counts as a test file; a glob added through `.claude/testing.yaml` is
+  adapters' globs decide what counts as a test file; a glob added through the testing config is
   not covered on this path. `test-weaken` (PreToolUse) sees Write and Edit only: a Bash call that
   removes assertions is not flagged. Windows Git Bash is not probed.
 - **Cost.** A Bash hook row cannot filter on the changed files, so the row has no `if` and Claude
