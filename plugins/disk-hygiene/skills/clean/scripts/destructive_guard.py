@@ -1320,6 +1320,36 @@ def _is_authorized_data_root(value: str, authority: str | None) -> bool:
     return _data_root_key(value) == _data_root_key(authority)
 
 
+def _is_authorized_data_root_file(value: str, authority: str | None) -> bool:
+    """Accept only an absolute path whose real location is inside that data root.
+
+    The hook has no shell working directory, so a relative value is refused,
+    and symlinks are resolved so a link inside the root cannot point out of it
+    or onto state the engine and its hooks own there, such as the decision log.
+    """
+    if not authority or not os.path.isabs(value):
+        return False
+    try:
+        path = os.path.normcase(os.path.realpath(value))
+        root = os.path.normcase(os.path.realpath(authority))
+        return os.path.commonpath(
+            [path, root]
+        ) == root and not engine_grammar.is_engine_owned(os.path.relpath(path, root))
+    except (OSError, ValueError):
+        return False
+
+
+def _engine_external_checks(authority: str | None) -> dict[str, object]:
+    return {
+        engine_grammar.AUTHORIZED_DATA_ROOT: (
+            lambda value: _is_authorized_data_root(value, authority)
+        ),
+        engine_grammar.AUTHORIZED_DATA_ROOT_FILE: (
+            lambda value: _is_authorized_data_root_file(value, authority)
+        ),
+    }
+
+
 def _display_data_root(authority: str | None) -> str | None:
     if not authority:
         return None
@@ -1348,10 +1378,11 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     The interpreter must be this hook's own absolute Python and the script the
     bundled engine; everything after the subcommand is matched against the
     engine's declared grammar (``lib/engine_grammar.py``), which the engine's
-    own parser is built from. The one value that grammar cannot judge alone is
-    ``--data-root``: only the authorized root this hook resolved is admitted, and
-    the flag is mandatory here although the grammar keeps it optional, so the
-    guard does not depend on the engine refusing a state write without it.
+    own parser is built from. The values that grammar cannot judge alone are
+    ``--data-root``, where only the authorized root this hook resolved is
+    admitted, and the input files, which must sit inside that root. The flag is
+    mandatory here although the grammar keeps it optional, so the guard does not
+    depend on the engine refusing a state write without it.
     A token check proves presence: the grammar reads flag names only at flag
     positions and refuses any flag-shaped value, so a matched invocation that
     contains the token carries it as a flag.
@@ -1366,14 +1397,9 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     subcommand = tokens[2]
     if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
         return None
-    external_checks = {
-        engine_grammar.AUTHORIZED_DATA_ROOT: (
-            lambda value: _is_authorized_data_root(value, authority)
-        ),
-    }
     words = tokens[3:]
     if engine_grammar.DATA_ROOT_FLAG in words and engine_grammar.match_invocation(
-        subcommand, words, external_checks
+        subcommand, words, _engine_external_checks(authority)
     ):
         return subcommand
     return None
@@ -2279,13 +2305,10 @@ def _engine_mismatch_reason(command: str, authority: str | None) -> str:
             f"{engine_grammar.DATA_ROOT_FLAG} is missing; every engine call "
             f"passes {engine_grammar.DATA_ROOT_FLAG} with the authorized root."
         )
-    external_checks = {
-        engine_grammar.AUTHORIZED_DATA_ROOT: (
-            lambda value: _is_authorized_data_root(value, authority)
-        ),
-    }
     return (
-        engine_grammar.explain_mismatch(subcommand, words, external_checks)
+        engine_grammar.explain_mismatch(
+            subcommand, words, _engine_external_checks(authority)
+        )
         or "The arguments do not match the engine grammar."
     )
 

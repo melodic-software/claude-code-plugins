@@ -242,6 +242,8 @@ while IFS=$'\t' read -r p ord _ _ _ bname; do
       mkdir -p "$(dirname "$HERE/cases/$id/$c")"
       git -C "$ROOT/$name" show "$commit:$c" >"$HERE/cases/$id/$c.fixture"
     done <"$TMP/p$p/code"
+    # A fixture whose first line is a shebang stays runnable.
+    find "$HERE/cases/$id" -name '*.fixture' -exec sh -c 'for f; do [ "$(head -c 2 "$f")" = "#!" ] && chmod +x "$f"; done' sh {} +
     adapter="$(sed -n 's/^  adapter: //p' "$TMP/p$p/scan" | head -n 1)"
   fi
   j=$((j + 1))

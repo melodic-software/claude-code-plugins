@@ -23,7 +23,6 @@ plugins/claude-config/skills/audit/SKILL.md
 plugins/claude-memory/skills/stateless/reference/official-guidance.md
 plugins/claude-memory/skills/stateless/SKILL.md
 plugins/claude-ops/skills/observability/context/data-sources.md
-plugins/claude-ops/skills/observability/context/operator-setup-retention.md
 plugins/claude-ops/skills/plugins/context/scope-semantics.md
 plugins/discovery/skills/explore/reference/ecosystem-discovery.md
 plugins/disk-hygiene/skills/clean/reference/safety-model.md
