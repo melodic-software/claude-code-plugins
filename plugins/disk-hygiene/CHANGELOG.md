@@ -3,11 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **`clean` reference files cite the engine without the plugin-root token.** The fan-out worker brief, the unsupported-platform handoff and the safety model's engine commands read `<skill-dir>/scripts/hygiene.py`, and each file says `<skill-dir>` is the directory whose `scripts/` path `SKILL.md`'s engine commands give. The safety model's prose about the harness substitution keeps the token, since the token is its subject.
+
 ## [0.42.1] - 2026-09-30
 
 ### Fixed
 
-- **`clean` reference files no longer name the plugin-root token literally.** The fan-out worker brief and the unsupported-platform handoff cite the engine as `<skill-dir>/scripts/...`, which `SKILL.md` defines in a new `## Spoke paths` section, and `safety-model.md` names the variable without the substitution syntax.
+- **The engine gate accepts braces inside a quoted word** ([#5641](https://github.com/melodic-software/claude-code-plugins/issues/5641)). A `--target` such as `'D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}'` now forms an exact engine call, so the WSL distro folders can be snapshotted. `{` and `}` are literal inside a whole-word single or double quote and are accepted only there; every other expansion or operator character, `$` included, is still refused wherever it sits, and an unquoted brace is still refused. The denial no longer names a quoted brace as the culprit.
 
 ## [0.42.0] - 2026-09-30
 
