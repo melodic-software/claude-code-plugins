@@ -1,0 +1,10 @@
+from etl.config import BATCH_SIZE, WAREHOUSE_DSN
+
+
+def load(conn, rows):
+    cur = conn.cursor(WAREHOUSE_DSN)
+    cur.execute("TRUNCATE fact_orders")
+    for start in range(0, len(rows), BATCH_SIZE):
+        for row in rows[start : start + BATCH_SIZE]:
+            cur.execute("INSERT INTO fact_orders VALUES (%s, %s, %s)", row.values())
+        conn.commit()
