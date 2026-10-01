@@ -863,8 +863,8 @@ command, or URL), `disposition`, `tier`, `size`, `first_seen_run`, `last_seen_ru
 
 `catalog` merges a findings file (`{"records": [...]}`, `source: engine`) and an operator answers
 file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapshot-relative
-`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence` (`<skill-dir>` as in
-the `handoff-apply` command above):
+`path` values plus `owner`, `provenance`, `disposition`, `tier`, and `evidence` (`<skill-dir>` is the
+directory whose `scripts/` path `SKILL.md`'s engine commands give):
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" catalog \
