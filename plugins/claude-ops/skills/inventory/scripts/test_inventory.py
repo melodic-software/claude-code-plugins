@@ -1696,6 +1696,19 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
 
+    def test_a_destructured_for_head_without_a_space_shadows_a_bound_parameter(
+        self,
+    ) -> None:
+        for head in ("const{x}", "let{x}", "const[x]", "let[x]"):
+            of = "[{x:'L'}]" if "{" in head else "[['L']]"
+            with self.subTest(head=head):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(x){{for({head}of{of}){{return x}}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
     def test_a_for_head_binding_shadows_an_outer_binding(self) -> None:
         src = _modules(
             'var Qz="Probe";var xx="WRONG";'

@@ -651,7 +651,7 @@ def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
 
 
 _FOR_KEYWORD_RE = re.compile(r"(?<![\w$.])for\s*(?:await\s*)?$")
-_FOR_DECL_RE = re.compile(r"\s*(?:let|const)\s+((?:(?!\b(?:of|in)\b)[^;])*)")
+_FOR_DECL_RE = re.compile(r"\s*(?:let|const)(?![\w$])\s*((?:(?!\b(?:of|in)\b)[^;])*)")
 
 
 def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
