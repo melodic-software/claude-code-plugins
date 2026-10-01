@@ -109,6 +109,11 @@ cleaned up safely.
   people.
   - Amended 2026-09-29 (user): the judge's labeled set is rated by the user and a model rater of a
     different model class from the judge's.
+  - Amended 2026-10-01 (user), superseding the 2026-09-29 amendment: for Release 2 calibration the
+    ground truth is the user's blind labels on every case, on which every agreement and accuracy
+    figure is computed. Two model raters, `opus` and GPT through Codex when it is installed, label
+    every case and are scored against the user. Anthropic classes are one family for
+    self-preference bias, so a second Anthropic class adds no independence.
 - Q13: The release order is:
   1. Prevention plus proof.
   2. The judge and the mutation scope.

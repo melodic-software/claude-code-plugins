@@ -149,6 +149,12 @@ recall on FLAG, prevalence and UNKNOWN handling (RESEARCH-judge-validation, 2606
 trusted at human-vs-model kappa of at least 0.6 (Tier 2 "substantial"). The judge stays advisory
 (Q7); any promotion goes through `/planning:interview`.
 
+Amended 2026-10-01 (user, spec Q12): the user labels every case and those labels are the ground
+truth; two model raters (`opus`, and GPT through Codex when installed) each get a label column and
+are scored against the user, so the adjudicated column is dropped and the 0.6 kappa bar judges a
+rater, not the labels. The 30 FLAG and 30 PASS target stands as the goal; the set reports its
+achieved FLAG n with intervals instead of padding (plan Phase 4).
+
 ### DT10. Proposed-fix output (resolved)
 
 Per in-doubt test: file, test name, quoted evidence (before the verdict), verdict FLAG/PASS/UNKNOWN,

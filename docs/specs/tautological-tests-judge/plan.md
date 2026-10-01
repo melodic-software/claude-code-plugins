@@ -163,7 +163,7 @@ the file), and `written_at`.
   cases exist).
 - Every suite `bash scripts/affected-tests.sh` prints for the touched files exits 0.
 
-### Phase 3: Background judge, Stop relay, SessionStart catch-up (DT2-DT4, DT10, DT12-DT16) [TODO]
+### Phase 3: Background judge, Stop relay, SessionStart catch-up (DT2-DT4, DT10, DT12-DT16) [DONE]
 
 Shared pieces:
 
@@ -378,34 +378,91 @@ Other files:
   if FLAG falls short of 30, record the achieved n and its interval rather than padding.
 - Split: at least a third of each stratum is `holdout`; the prompt file stays frozen, and any prompt
   change after seeing `tune` results is re-measured on `holdout` only.
-- The model rater (a subagent of a class other than the judge's) labels every case blind. User gate:
-  the user labels every case blind to it; disagreements are adjudicated with the user.
-- `metrics.sh` reports per stratum: kappa user vs model rater, judge vs user, judge vs model rater,
-  the judge's confusion matrix, precision and recall on FLAG with Wilson intervals, prevalence, and
-  UNKNOWN counts. System recall is stated as covering tests the session created or changed.
-- Model sweep (the evals that choose the default): `metrics.sh --sweep` runs the frozen judge over
-  every case for `haiku`, `sonnet` and `opus`, each at `low` and `medium` effort, and reports
-  precision and recall on FLAG with Wilson intervals, UNKNOWN rate and cost per case per arm. The
-  shipped default is the arm with the best FLAG precision and recall on `holdout`; where arms'
-  intervals overlap, the cheaper arm wins (accuracy first, cost only breaks ties). The fallback
-  default is the best arm of another class. Both are written to plugin.json and the in-script
-  defaults in the same commit, with the sweep table in calibration.md.
-- Re-running on a new model: because the settings hold class aliases, a new version (for example
-  Haiku 5.5) needs no code change, only `metrics.sh --sweep`; calibration.md says to re-run it on
-  every new model in a class and change the default only when the sweep says so.
+- Raters and ground truth (amended 2026-10-01, user; basis: the raters research summarized in
+  calibration.md, bias#1-#5: Haiku, Sonnet, Opus and Fable are one family for self-preference bias,
+  so independence comes from the human; this supersedes the single model rater above and in DT9):
+  - The user labels all 78 rows blind; those labels are the ground truth (`human_label`). Labeling
+    every row instead of a random sample keeps every FLAG: a random 50 would hold about 6, since the
+    scanner found 0 provenance-shaped blocks in the 586-block in-use pool. No row needs
+    adjudication, because no rater label is used as ground truth.
+  - The labeling page is a private claude.ai artifact. Per row it shows the test file and the code
+    under test with paths relative to the case root, the test name, and the changed lines; never
+    the case id, `source`, `in_scope`, `note`, `stratum`, `split` or another label. The user wrote
+    the seed and adversarial cases, so those labels are not blind to authorship; metrics report the
+    `in-use` stratum separately for that reason.
+  - Two model raters label every row blind: `opus` (headless `claude -p` with the judge's
+    isolation from R2-P3 and R2-P15: scoped Read rules refuse reads outside the case) and GPT
+    through `codex exec -s read-only` when the Codex CLI is installed and logged in, else `opus`
+    alone. Each runs in an empty temporary repository holding only that case's files. Codex's
+    read-only sandbox does not refuse reads outside its directory, so: rater outputs go to
+    `raters/<rater>.tsv`, not `labels.tsv`, until both raters finish; the user's labels are merged
+    only after that; and the rater script fails a run whose transcript names `labels.tsv`,
+    `judge-calibration` or a case id. Rater kappa against the user is reported with rater coverage
+    and raw agreement beside it; rater-versus-rater agreement is not reported as quality.
+  - A rater whose kappa against the user is under 0.6 is reported as failed and dropped from use as
+    a re-labeler; it does not block the calibration, because the user's labels are the ground truth.
+  - No separate pilot set. Run-to-run variance is the chosen arm re-run twice more over all rows,
+    reported as the share of rows whose verdict changed.
+- UNKNOWN (decided before labels). For reporting: a judge or rater UNKNOWN on a row the user
+  labeled FLAG or PASS is an abstention, left out of kappa, precision and recall and counted against
+  coverage, whose denominator is the rows the user labeled FLAG or PASS. On a row the user labeled
+  UNKNOWN, a judge UNKNOWN is correct, and a judge FLAG or PASS is over-reach; a FLAG there counts
+  against FLAG precision. Kappa is three-class over the rows where neither side abstained.
+- `metrics.sh` reports per stratum and pooled: kappa user vs each rater, with coverage and raw
+  agreement; kappa judge vs user; the judge's confusion matrix; precision and recall on FLAG with
+  Wilson intervals; coverage; prevalence; the achieved FLAG n. System recall is stated as covering
+  tests the session created or changed.
+- Model sweep (the evals that choose the default; amended 2026-10-01, user): `metrics.sh --sweep`
+  runs the frozen judge over every row for 7 arms, `sonnet` at `low`, `medium`, `high` and `xhigh`
+  and `opus` at `low`, `medium` and `high` (Haiku waits on research gap G8), recording each run's
+  verdict, cost and wall time. Selection uses paired accuracy over all rows, the statistic the
+  power basis covers (exact McNemar power 0.83 for 0.9 vs 0.7 at n = 50; 0.9 vs 0.8 needs about 100
+  rows and is not separable at 78): a verdict is correct when it equals the user's label, so for
+  selection an UNKNOWN on a FLAG or PASS row counts as wrong. Arms whose exact McNemar test against
+  the most accurate arm is not significant at 0.05 tie with it; among tied arms `sonnet` wins, then
+  the lower p95 wall time per run, then the lower cost per row (accuracy first; the judge runs
+  during normal development and must not stall it). The fallback default is the best arm of the
+  other class by the same rule. The sweep table reports per arm: accuracy, FLAG precision and
+  recall with Wilson intervals, coverage, cost per row, and wall time per run (median, p95) and per
+  arm. Both defaults are written to plugin.json and the in-script defaults in the same commit, with
+  the sweep table in calibration.md.
+- Holdout: the prompt stays frozen, so selection runs on all rows. If the prompt changes after the
+  first commit to `labels.tsv`, every figure is re-measured on `holdout` rows only (29 rows) and
+  calibration.md states that n.
+- After the choice, R2-P13's Stop wait (18-28 s with `opus` `medium`) is re-measured with the chosen
+  arm and recorded in probes.md; a shorter debounce is considered if the wait stays long.
+- Tooling changes (Red first in `metrics.test.sh` for each behavior):
+  - `labels.tsv`: `model_label` becomes `opus_label` and `codex_label`; `adjudicated_label` is
+    dropped. `sample.sh` and `metrics.sh` read columns by header name, never by position.
+  - `metrics.sh`: the reporting and UNKNOWN rules above; kappa lines named `kappa user-opus`,
+    `kappa user-codex` and `kappa judge-user`; `--sweep` over the 7 arms with wall time per run;
+    `--rerun <model> <effort>` for run-to-run variance; header text updated.
+  - `raters.sh` (new): runs each configured rater over every case in isolation into
+    `raters/<rater>.tsv` with the transcript guard above, then merges into `labels.tsv`.
+  - `--check`: every row has a `human_label`, a stratum and a split, and a label from every
+    configured rater (a rater is configured when its column is non-empty on any row); holdout is at
+    least a third per stratum; the prompt-freeze rule below.
+  - calibration.md: Raters, Scoring and Sweep sections rewritten to this protocol, with the research
+    basis summarized inline (the research slice is not tracked).
+- Re-running on a new model: because the settings hold class aliases, a new version needs no code
+  change, only `metrics.sh --sweep`; calibration.md says to re-run it on every new model in a class
+  (and to add Haiku once G8 confirms its effort support) and change the default only when the sweep
+  says so.
 - `docs/specs/tautological-tests-judge/calibration.md` records protocol and results.
 
 **Sanity Check:**
 
 - `bash plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh` exits 0.
 - `bash plugins/testing/skills/audit/evals/judge-calibration/metrics.sh --check` exits 0: every row
-  has both labels, a stratum and a split; holdout is at least a third per stratum; user-vs-model
-  kappa is at least 0.6; the last commit touching `test-judge-prompt.md` predates the first commit
+  has a `human_label`, a stratum, a split and every configured rater's label; holdout is at least a
+  third per stratum; the last commit touching `test-judge-prompt.md` predates the first commit
   touching `labels.tsv`, or later prompt changes carry holdout-only metrics.
-- `grep -cE '^kappa (user-model|judge-user|judge-model)' docs/specs/tautological-tests-judge/calibration.md` returns at least 3.
-- `grep -cE '^\| (haiku|sonnet|opus) \| (low|medium) \|' docs/specs/tautological-tests-judge/calibration.md` returns 6 (the sweep table), and
-  `jq -r '.userConfig.test_judge_model.default' plugins/testing/.claude-plugin/plugin.json` equals the
-  arm calibration.md names as chosen.
+- `grep -cE '^kappa user-opus .* all ' docs/specs/tautological-tests-judge/calibration.md` returns 1
+  and `grep -cE '^kappa judge-user .* all ' docs/specs/tautological-tests-judge/calibration.md`
+  returns at least 1; when Codex rated, `grep -cE '^kappa user-codex .* all '` returns 1.
+- `grep -cE '^\| (sonnet \| (low|medium|high|xhigh)|opus \| (low|medium|high)) \|' docs/specs/tautological-tests-judge/calibration.md` returns 7 (the sweep table; the re-run table uses a `rerun` first column), and
+  `jq -r '.userConfig.test_judge_model.default, .userConfig.test_judge_effort.default' plugins/testing/.claude-plugin/plugin.json` prints the
+  model and effort of the arm calibration.md names as chosen.
 - `bash scripts/check-orphaned-fixtures.sh --check` exits 0.
 
 ### Phase 5: Close out [TODO]
@@ -490,6 +547,7 @@ as a draft, with its own version bump where a plugin changes.
 ## Handoff to implementation
 
 Approval: approved by the user (Kyle Sexton) on 2026-09-30 in session 848e10e2, "I approve whatever you land on", after the final stress-test round and the accuracy-first cost change.
+Phase 4 amendment (raters, all-row ground truth, UNKNOWN rule, 7-arm sweep, paired-accuracy selection) approved by the user on 2026-10-01 in session 299bbd2b after a fresh-context plan review.
 
 ### User-approval gates
 
