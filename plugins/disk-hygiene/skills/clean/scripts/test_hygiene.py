@@ -11176,6 +11176,13 @@ class GuardTests(unittest.TestCase):
             self.assertFalse(
                 guard.is_exact_readonly_supporting_command("/usr/bin/[ -d $(pwd) ]")
             )
+            guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+            self.assertTrue(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d '{guid}' ]")
+            )
+            self.assertFalse(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d {guid} ]")
+            )
 
     def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
         """The denial text and the grammar are one list, so they cannot drift."""

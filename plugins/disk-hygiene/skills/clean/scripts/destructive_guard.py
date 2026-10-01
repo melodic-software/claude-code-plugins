@@ -1445,7 +1445,9 @@ def _parse_bracket_test_words(command: str) -> list[str] | None:
     if len(text) < 2 or text[0] != "[" or text[-1] != "]":
         return None
     interior = text[1:-1]
-    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+    if _SHELL_EXPANSION_OR_OPERATOR_CHARS.intersection(
+        _without_quoted_braces(interior)
+    ):
         return None
     stripped = interior.strip()
     if not stripped:
@@ -1673,7 +1675,9 @@ def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
     if rest != "]" and not rest.endswith(" ]"):
         return None
     interior = "" if rest == "]" else rest[:-1].strip()
-    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+    if _SHELL_EXPANSION_OR_OPERATOR_CHARS.intersection(
+        _without_quoted_braces(interior)
+    ):
         return None
     if not interior:
         return head, []
