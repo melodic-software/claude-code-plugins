@@ -113,17 +113,29 @@ every confirmation gate apply exactly as before. Removing anything the inventory
   detected from a `microsoft` kernel release or `/proc/sys/fs/binfmt_misc/WSLInterop`. macOS has no
   probe and always reads as unverified.
 
-  **Claim:** `Get-DiskImage` is documented for virtual hard disk and ISO images, so for a `.vmdk`,
-  `.vdi`, `.qcow2`, or `.img` the Windows route may error (`virtual-disk-attach-unverified`) or
-  answer not attached (bare `virtual-disk`); what it returns for those formats, and for an image
-  another process holds open, such as a running WSL distro's `ext4.vhdx`, has not been observed.
-  The image keeps `virtual-disk` and the block either way. **Basis:** the cmdlet's page
+  On Windows, `detached` (a bare `virtual-disk`) does not mean the image is unused. `Get-DiskImage`
+  reports `detached` for disks WSL2 or Docker Desktop holds open through their own virtual machine,
+  including a Running distro's root `ext4.vhdx`, Docker Desktop's `docker_data.vhdx`, and WSL's
+  `swap.vhdx`. The image still keeps `virtual-disk` and the block, so nothing becomes deletable and
+  reclaimable bytes stay 0. This is a reporting caveat; it adds no reason code.
+
+  **Claim:** on Windows, `Get-DiskImage` answers `attached` plus the drive letter for a VHDX
+  mounted on the host and `detached` for the WSL and Docker disks above, and errors (exit 1, so
+  `virtual-disk-attach-unverified`) for an `initrd.img`; what it returns for a `.vmdk`, `.vdi`, or
+  `.qcow2` has not been observed. The image keeps `virtual-disk` and the block either way.
+  **Basis:** the operator's probe on melo-desk-001 (Windows 11 Pro 10.0.26200, Windows PowerShell
+  5.1, disk-hygiene 0.34.3),
+  `https://github.com/melodic-software/claude-code-plugins/issues/5228#issuecomment-5922688274`:
+  `Dev.vhdx` backing `D:` read `attached` plus `D:`; the Running distro's `ext4.vhdx`,
+  `docker_data.vhdx`, and `swap.vhdx` read `detached`; `initrd.img` errored with exit 1. Also the
+  cmdlet's page
   `https://learn.microsoft.com/en-us/powershell/module/storage/get-diskimage?view=windowsserver2025-ps`,
   fetched whole as rendered HTML: "Gets one or more disk image objects (virtual hard disk or ISO)"
-  and "reports whether the specified ISO or VHD file is currently attached"; its image-path
-  examples are an `.iso` and a `.vhdx`, and the page names no VMDK, VDI, QCOW2, or IMG. No
-  Windows host has run this route. **As of:** 2026-09-29. **Recheck:** the operator's Windows pilot (an attached VHDX, a
-  `.vmdk`, and a running WSL distro's `ext4.vhdx`), or that page naming more image formats;
+  and "reports whether the specified ISO or VHD file is currently attached"; it names no VMDK,
+  VDI, QCOW2, or IMG. None of `.vmdk`, `.vdi`, `.qcow2` was present on that host. **As of:**
+  2026-09-30. **Recheck:** a Windows host with a `.vmdk`, `.vdi`, or `.qcow2`, or a WSL-aware
+  attach check that reports a WSL or Docker disk as held open, or that page naming more image
+  formats;
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
