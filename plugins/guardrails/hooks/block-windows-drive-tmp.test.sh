@@ -355,6 +355,44 @@ run_win "python json rebound by from-import (blocked)" \
   "python3 -c \"from shelf import dump as json; json.load(open('/tmp/x'))\"" 2
 run_win "python spaced method form d . open(/tmp) creates the file (blocked)" \
   "python3 -c \"import dbm.dumb as d; d . open('/tmp/x').read()\"" 2
+# Inline-code text quoted as data to a command that runs no code is a mention
+# (#3951). Anything that could run it, or build a runner's name, keeps the rule.
+run_win "gh body quoting a write-mode open(/tmp) (allowed)" \
+  "gh issue create --title t --body \"open('/tmp/x','w').write(1) was refused\"" 0
+run_win "git commit -m quoting open(C:/tmp, 'w') (allowed)" \
+  "git commit -m \"fix: open('C:/tmp/x','w') no longer refused\"" 0
+run_win "gh body quoting write_text on /tmp (allowed)" \
+  "gh issue comment 1 --body \"Path('/tmp/x').write_text('a') in the snippet\"" 0
+run_win "gh body naming python3 beside open(/tmp, 'w') (blocked — prose runner name)" \
+  "gh issue create --title t --body \"python3 open('/tmp/x','w')\"" 2
+run_win "quoted open(/tmp) piped to sh (blocked)" "echo \"open('/tmp/x','w')\" | sh" 2
+run_win "quoted open(/tmp) piped to xargs (blocked)" "echo \"open('/tmp/x','w')\" | xargs echo" 2
+run_win "eval of quoted open(/tmp) (blocked)" "eval \"echo open('/tmp/x','w')\"" 2
+run_win "bash -c of quoted open(/tmp) (blocked)" "bash -c \"echo open('/tmp/x','w')\"" 2
+run_win "sh -c of quoted open(/tmp) (blocked)" "sh -c \"echo open('/tmp/x','w')\"" 2
+# shellcheck disable=SC2016
+run_win "variable-held command runs open(/tmp) (blocked)" '$P -c "open('"'"'/tmp/x'"'"','"'"'w'"'"')"' 2
+# shellcheck disable=SC2016
+run_win "backtick command word runs open(/tmp) (blocked)" '`which python3` -c "open('"'"'/tmp/x'"'"','"'"'w'"'"')"' 2
+run_win "quote-spliced pyth''on3 runs open(/tmp) (blocked)" "pyth''on3 -c \"open('/tmp/x','w')\"" 2
+run_win "sudo python3 open(/tmp) (blocked)" "sudo python3 -c \"open('/tmp/x','w')\"" 2
+run_win "env python3 open(/tmp) (blocked)" "env python3 -c \"open('/tmp/x','w')\"" 2
+run_win "exec python3 open(/tmp) (blocked)" "exec python3 -c \"open('/tmp/x','w')\"" 2
+run_win "/usr/bin/python3 open(/tmp) (blocked)" "/usr/bin/python3 -c \"open('/tmp/x','w')\"" 2
+run_win "python.exe open(/tmp) (blocked)" "python.exe -c \"open('/tmp/x','w')\"" 2
+run_win "py.exe open(/tmp) (blocked)" "py.exe -3 -c \"open('/tmp/x','w')\"" 2
+run_win "perl open(/tmp) (blocked)" "perl -e \"open(F, '>/tmp/x')\"" 2
+run_win "ruby File.open(/tmp) (blocked)" "ruby -e \"File.open('/tmp/x','w')\"" 2
+run_win "process substitution feeding open(/tmp) (blocked)" "cat <(echo \"open('/tmp/x','w')\")" 2
+run_win "dot-sourced script beside open(/tmp) (blocked)" ". ./s.sh; echo \"open('/tmp/x','w')\"" 2
+run_win "gh body then python3 on the next line (blocked)" \
+  $'gh issue create --title t --body "x"\npython3 -c "open(\'/c/tmp/x\',\'w\')"' 2
+run_win "heredoc fed to python3 writes /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nopen(\'/tmp/x\', \'w\').write(\'a\')\nEOF' 2
+run_win "gh body mention with a real redirect to /tmp (blocked)" \
+  "gh issue create --body \"open('/tmp/x','w')\" > /tmp/out" 2
+run_win "gh body mention with tee to /tmp (blocked)" \
+  "gh issue create --body \"open('/tmp/x','w')\" | tee /tmp/x" 2
 # Git for Windows resolves /usr/bin/mkdir to mkdir.exe under Program Files.
 # The verb regex stops at a space, so neither spelling matched and the write
 # was allowed (#4527). C:/tmp stays a drive root on a usertemp /tmp host.
@@ -372,6 +410,8 @@ run_win_pwsh "PS: Out-File \\tmp\\x (blocked)" "'hi' | Out-File \tmp\x" 2
 run_win_pwsh "PS: redirect >/tmp/x (blocked)" "'hi' > /tmp/x" 2
 run_win_pwsh "PS: New-Item /c/tmp/x (blocked)" 'New-Item -Path /c/tmp/x -ItemType File' 2
 run_win_pwsh "PS: Add-Content C:/tmp/x (blocked)" 'Add-Content -Path C:/tmp/x -Value hi' 2
+# PowerShell runs .NET inline, so the inline-code rule keeps its tool-wide reach.
+run_win_pwsh "PS: [IO.File]::Open(C:/tmp/x, Create) (blocked)" "[IO.File]::Open('C:/tmp/x', 'Create')" 2
 
 # --- Legitimate platform temp / POSIX variants (allowed) ---------------------
 # Literal $TEMP / $env:TEMP in fixture strings must not expand in this test process.

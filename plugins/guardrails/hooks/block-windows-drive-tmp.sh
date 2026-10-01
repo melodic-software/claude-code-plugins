@@ -644,16 +644,17 @@ segment_writes_drive_root_tmp() {
     has_drive_root_tmp "$dest" && return 0
     return 1
   fi
-  # Inline python write opening a drive-root tmp path. write_text, write_bytes
-  # and makedirs are always writes; an `open(` is relieved only when the whole
+  # Inline python write opening a drive-root tmp path, counted only when the
+  # command can run code (inline_code_can_run). write_text, write_bytes and
+  # makedirs are always writes; an `open(` is relieved only when the whole
   # command is proven read-only (command_opens_only_for_read).
   if [[ "$subject" =~ (write_text|write_bytes|makedirs)[[:space:]]*\( ]]; then
-    has_drive_root_tmp "$subject" && return 0
+    has_drive_root_tmp "$subject" && inline_code_can_run && return 0
     return 1
   fi
   local py_open="open[[:space:]]*\\(|['\"]open['\"]\\)[[:space:]]*\\("
   if [[ "$subject" =~ $py_open ]]; then
-    has_drive_root_tmp "$subject" || return 1
+    has_drive_root_tmp "$subject" && inline_code_can_run || return 1
     if [[ -z "$_DRIVE_TMP_OPEN_RC" ]]; then
       _DRIVE_TMP_OPEN_RC=0
       command_opens_only_for_read "$NORM" && _DRIVE_TMP_OPEN_RC=1
@@ -661,6 +662,35 @@ segment_writes_drive_root_tmp() {
     return "$_DRIVE_TMP_OPEN_RC"
   fi
   return 1
+}
+
+# Inline `open(` / `write_text(` text is code only when something runs it, so a
+# quoted mention handed to an unrelated command (`gh issue create --body
+# "open('/tmp/x','w') ..."`) is data (#3951). Judged once on the WHOLE command
+# and fail-closed: the rule still applies on any tool but Bash (PowerShell runs
+# `[IO.File]::Open(` inline), on any `\`, `$`, backtick or process substitution
+# (an expansion or escape can build a runner's name), and when a runner's name
+# appears anywhere, quoted text included, with quotes deleted so `pyth''on3`
+# still reads python3. Runners: python and its launchers, the other
+# interpreters whose `open(` the rule catches, and the string runners (shells,
+# cmd, eval, source, `.`, xargs, parallel). A prose mention of any of them
+# keeps the rule on.
+_DRIVE_TMP_CODE_RUNNER="(^|[^[:alnum:]_.-])(i?python[0-9.]*w?|pyw?|pypy[0-9.]*|jython|uvx?|pipx|poetry|pdm|hatch|conda|mamba|micromamba|pixi|rye|perl[0-9.]*|ruby[0-9.]*|irb|jruby|node|nodejs|deno|bun|php[0-9.]*|lua[0-9.]*|luajit|tclsh[0-9.]*|osascript|rscript|julia|awk|gawk|mawk|nawk|pwsh|powershell|bash|sh|zsh|dash|ksh|mksh|fish|csh|tcsh|busybox|cmd|eval|source|xargs|parallel)(\.exe)?([^[:alnum:]_-]|$)"
+_DRIVE_TMP_DOT_SOURCE="(^|[;&|({[:space:]])\.[[:space:]]"
+# Cached per command: "" = not computed, 0 = code can run, 1 = it cannot.
+_DRIVE_TMP_CODE_RC=""
+inline_code_can_run() {
+  if [[ -z "$_DRIVE_TMP_CODE_RC" ]]; then
+    _DRIVE_TMP_CODE_RC=0
+    local flat="${COMMAND,,}"
+    flat="${flat//[\"\']/}"
+    if [[ "$TOOL_NAME" == Bash && "$COMMAND" != *[\\\$\`]* ]] &&
+      [[ "$COMMAND" != *'<('* && "$COMMAND" != *'>('* ]] &&
+      [[ ! "$flat" =~ $_DRIVE_TMP_CODE_RUNNER && ! "$flat" =~ $_DRIVE_TMP_DOT_SOURCE ]]; then
+      _DRIVE_TMP_CODE_RC=1
+    fi
+  fi
+  return "$_DRIVE_TMP_CODE_RC"
 }
 
 # Inline python READ of a drive-root tmp path (#3951), judged on the WHOLE
@@ -781,6 +811,7 @@ if [[ -n "$COMMAND" ]]; then
   # command without it never pays for the probe.
   _DRIVE_TMP_SKIP_POSIX=0
   _DRIVE_TMP_OPEN_RC=""
+  _DRIVE_TMP_CODE_RC=""
   if [[ "$TOOL_NAME" == "Bash" && "$NORM" == *tmp* ]] && posix_tmp_maps_to_usertemp; then
     _DRIVE_TMP_SKIP_POSIX=1
     _dt_lc="${COMMAND,,}"
