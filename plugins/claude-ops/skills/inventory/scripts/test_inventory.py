@@ -1728,7 +1728,11 @@ class TestModuleScopedResolution(unittest.TestCase):
     def test_a_nested_statement_in_an_unbraced_for_body_keeps_the_head_binding(
         self,
     ) -> None:
-        for body in ("if(x)return x", "for(const y of b)return x"):
+        for body in (
+            "if(x)return x",
+            "for(const y of b)return x",
+            "if(t(x,{k:1}))return x",
+        ):
             with self.subTest(body=body):
                 src = _modules(
                     'var Qz="Probe";'

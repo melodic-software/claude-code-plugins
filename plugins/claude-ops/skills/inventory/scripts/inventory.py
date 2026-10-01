@@ -1059,7 +1059,9 @@ def _scan(
                     deferred=deferred,
                 )
             i, at_value, prev, prev_word = close + 1, False, "}", ""
-            if not re.match(r"\s*(?:else|catch|finally)(?![\w$])", src[i : i + 16]):
+            if depth == 0 and not re.match(
+                r"\s*(?:else|catch|finally)(?![\w$])", src[i : i + 16]
+            ):
                 loop = NO_SCOPE
             continue
         if c == "}":
