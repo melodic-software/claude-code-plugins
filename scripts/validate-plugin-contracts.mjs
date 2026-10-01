@@ -859,9 +859,14 @@ if (retirementsBaseRef === null) {
       // A plugin renamed through the marketplace `renames` map carries its records to the new
       // directory, with the id prefix that names the plugin rewritten to match.
       const oldName = line.split("/")[1];
-      const newName = existsSync(marketplacePath)
-        ? JSON.parse(read(marketplacePath)).renames?.[oldName]
-        : undefined;
+      // Follow the chain to its end; `claude plugin validate` rejects a cyclic map.
+      const renames = existsSync(marketplacePath)
+        ? (JSON.parse(read(marketplacePath)).renames ?? {})
+        : {};
+      let newName = renames[oldName];
+      for (let hop = 0; typeof renames[newName] === "string" && hop < 32; hop++) {
+        newName = renames[newName];
+      }
       if (typeof newName === "string") {
         for (const r of records) {
           if (r.fields.id?.startsWith(`${oldName}-r`)) {

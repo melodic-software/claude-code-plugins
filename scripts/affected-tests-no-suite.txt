@@ -147,3 +147,12 @@ plugins/testing/skills/audit/evals/judge-calibration/cases/*
 # sweep table. The lane covering the code that reads them is the testing
 # plugin's shell lane: metrics.test.sh tests --table and --rerun on stub sweeps.
 plugins/testing/skills/audit/evals/judge-calibration/sweep/*
+
+# Python modules imported by Python suites that share no stem with them, so no
+# selection rule maps them. The covering lane is the affected-tests step's
+# pytest run, which executes test_install_state.py and test_deep_inventory.py
+# (plugin_cache_versions.py), test_overlap.py and test_native_drift.py
+# (discover.py), and test_inventory.py (docs_crosscheck.py).
+plugins/harness-ops/lib/plugin_cache_versions.py
+plugins/harness-ops/skills/audit-native-overlap/scripts/discover.py
+plugins/harness-ops/skills/inventory/scripts/docs_crosscheck.py
