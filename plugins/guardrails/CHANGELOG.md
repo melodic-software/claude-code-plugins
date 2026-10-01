@@ -7,7 +7,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
+- Shared `hooks/hook-utils.sh` resynced from the repository library, and the comments beside each `hook::require_jq` call in the hooks and their tests now say the missing-`jq` notice is once per session and agent (comment wording only, no behavior change).
 
 ## [0.46.2] - 2026-10-01
 

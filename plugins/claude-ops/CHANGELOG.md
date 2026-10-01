@@ -7,7 +7,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Changed
 
-- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
+- Shared `hooks/hook-utils.sh` resynced from the repository library, and the `hook-failure-audit.sh` comment beside `hook::require_jq` now says the missing-`jq` notice is once per session and agent (comment wording only, no behavior change).
 
 ## [0.80.1] - 2026-10-01
 

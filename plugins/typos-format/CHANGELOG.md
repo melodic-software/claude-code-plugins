@@ -7,7 +7,7 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 
 ### Changed
 
-- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
+- Shared `hooks/hook-utils.sh` resynced from the repository library, and the hook test's missing-`jq` comment now says the notice is once per session and agent (comment wording only, no behavior change).
 
 ## [0.8.6] - 2026-10-01
 

@@ -387,8 +387,8 @@ hook::raw_file_path() {
 # oracle. Their finding is a prompt, not a verdict. Blocking a user's tool call
 # because an OPTIONAL formatting hook could not find an OPTIONAL dependency
 # inverts the cost: the guard's job is worth less than the work it would stop.
-# The once-per-session notice is what keeps that degradation honest rather than
-# silent — the user and the agent are both told the hook is off.
+# The once per session and agent notice is what keeps that degradation honest
+# rather than silent — the user and the agent are both told the hook is off.
 #
 # WHY A MINORITY MUST FAIL CLOSED. A guard whose job is to stop an IRREVERSIBLE
 # operation cannot be a suggestion. Its whole value is that it is there when
@@ -453,8 +453,8 @@ hook::require_jq() {
 # absent the tool call is DENIED (exit 2) with jq named as the missing
 # prerequisite and the same install route the fail-open notice uses.
 #
-# No notice_once here, and that is deliberate: this message is not a
-# once-per-session heads-up about a degraded hook, it is THIS tool call's denial
+# No notice_once here, and that is deliberate: this message is not a once per
+# session and agent heads-up about a degraded hook, it is THIS tool call's denial
 # reason. Suppressing the repeat would leave a later denial unexplained. It also
 # goes to stderr rather than through hook::emit_channels, because stderr is the
 # channel a PreToolUse exit 2 feeds back to the agent.

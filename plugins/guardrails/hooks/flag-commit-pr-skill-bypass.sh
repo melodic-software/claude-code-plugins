@@ -87,13 +87,13 @@ start=${EPOCHREALTIME:-}
 # or timed-out stdin skips this advisory hook. Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
 # runs before the jq gate below — hook::require_jq needs the buffered input
-# for its once-per-session notice scoping.
+# for its once per session and agent notice scoping.
 hook::buffer_stdin_to INPUT || exit 0
 
 # jq is required both to parse the tool payload and to read enabledPlugins.
 # hook::require_jq fails OPEN (this hook never blocks either way) but makes
 # the degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session — see docs/conventions/hook-observability/.
+# (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is

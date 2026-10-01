@@ -9,7 +9,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
+- Shared `hooks/hook-utils.sh` resynced from the repository library, and the `zone-crossing-inject.sh` comment on the missing-`jq` notice now says it is once per session and agent (comment wording only, no behavior change).
 
 ## [0.8.1] - 2026-10-01
 
