@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0] - 2026-09-30
+
+### Added
+
+- **`/guardrails:check` reads whether `node` and `jq` resolve for the guardrails hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, and the SessionStart `node` notice names it. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites`.
+
 ## [0.44.1] - 2026-09-30
 
 ### Fixed

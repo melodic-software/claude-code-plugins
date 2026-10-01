@@ -3,6 +3,12 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.78.0] - 2026-09-30
+
+### Added
+
+- **`/claude-ops:check` reads whether `node` and `jq` resolve for the claude-ops hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, so the fleet report and the per-plugin check read the same list. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites`.
+
 ## [0.77.4] - 2026-09-30
 
 ### Changed
