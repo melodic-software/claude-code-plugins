@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.1] - 2026-09-30
+
+### Fixed
+
+- **The interview page finishes the remaining issue #5569 gaps.** A question shows the revising chip only while its own revise event is unhandled. A bare `#N` in question text links to the issue in `meta.repo`, and `round.py` warns, without blocking, when text carries one and `meta.repo` is unset. The summary's Confirm button sits clear of the What-is-off box. A question has Research this and Cancel research buttons that post generic `research` and `cancel-research` events, and a held card reads "Research in progress, started <time>". A question waiting for Claude's reply shows a chip, and Accept asks for confirmation first. The decide area caps at 40% of the viewport height on short screens, and the phone layout no longer scrolls the question rail inside itself. The wake contract says to re-read the events and restate after a stale-read refusal instead of forcing ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
 ## [0.53.0] - 2026-09-30
 
 ### Added

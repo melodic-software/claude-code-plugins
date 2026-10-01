@@ -426,13 +426,18 @@ class TestLongText(ServerCase):
 
     def test_long_own_answer_and_ask_reach_responses_json_whole(self):
         filler = "Sentence of filler text that keeps going. " * 145
-        long_text = filler + "There are more questions here, but the rest is for round two and then it ends"
+        long_text = (
+            filler
+            + "There are more questions here, but the rest is for round two and then it ends"
+        )
         self.assertGreaterEqual(len(long_text), 6000)
         for qid, kind in (("Q5", "own"), ("Q6", "ask")):
             code, _ = self.post({"id": qid, "kind": kind, "text": long_text})
             self.assertEqual(code, 200)
         saved = json.loads((self.dir / "responses.json").read_text(encoding="utf-8"))
-        texts = {e["kind"]: e["text"] for e in saved["events"] if e["id"] in ("Q5", "Q6")}
+        texts = {
+            e["kind"]: e["text"] for e in saved["events"] if e["id"] in ("Q5", "Q6")
+        }
         self.assertEqual(texts["own"], long_text)
         self.assertEqual(texts["ask"], long_text)
         self.assertEqual(saved["responses"]["Q5"]["text"], long_text)
