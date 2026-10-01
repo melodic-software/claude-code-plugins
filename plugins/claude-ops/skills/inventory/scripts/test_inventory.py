@@ -2481,6 +2481,7 @@ def _plugin_modules(**swap: str) -> list[str]:
         "function X(e,r){return{...r,name:w[e],async getPromptForCommand(){return[]}}}"
         'var Fe=[X("run",{...De,userInvocable:!0}),X("draft",{...Pe,userInvocable:!1})];'
         'var b="cc-plugin-claude-test";var g="0.4.15";'
+        'var xe=()=>!Il("hipaa")&&lo("tengu_mellow_hollerith",!1);'
         'var rt=v(function(x,y){y.exports={scan:{hooks:["command.run"],calls:["mcp.connect"]},'
         'files:{"agents/author.md":`---\nname: author\ndescription: Writes spec drafts.\n'
         '---\nbody`,"examples/a.ts":"x"}}});'
@@ -2668,6 +2669,94 @@ class TestBuiltinPlugins(unittest.TestCase):
         )
         rec = _plugins(loader=loader)[0]["cc-plugin-sec-default"]
         self.assertIn("load", rec["partial"])
+
+    def _test_module(self, old: str, new: str) -> dict:
+        test = _plugin_modules()[6]
+        self.assertIn(old, test)
+        return _plugins(test=test.replace(old, new))[0]["cc-plugin-claude-test"]
+
+    def test_unresolved_manifest_calls_leave_commands_partial(self) -> None:
+        rec = self._test_module('calls:["mcp.connect"]', "calls:QQ")
+        self.assertIn("commands", rec["partial"])
+        # A manifest that declares no calls at all registers none: absent.
+        rec = self._test_module('calls:["mcp.connect"]', 'other:["x"]')
+        self.assertNotIn("commands", rec["partial"])
+
+    def test_a_block_scalar_description_is_read(self) -> None:
+        rec = self._test_module(
+            "description: Writes spec drafts.\n",
+            "description: >\n  Writes spec\n  drafts.\n",
+        )
+        self.assertEqual(rec["agents"][0]["description"], "Writes spec drafts.")
+        self.assertNotIn("agents", rec["partial"])
+
+    def test_an_unparsed_embedded_description_leaves_its_kind_partial(self) -> None:
+        rec = self._test_module(
+            "description: Writes spec drafts.\n", "description: {a: b}\n"
+        )
+        self.assertEqual(rec["agents"][0]["description_source"], "unresolved")
+        self.assertIn("agents", rec["partial"])
+
+    def test_an_embedded_file_without_a_frontmatter_name_is_partial(self) -> None:
+        rec = self._test_module("name: author\n", "")
+        self.assertEqual(rec["agents"][0]["name_source"], "file-name")
+        self.assertIn("agents", rec["partial"])
+
+    def test_a_non_literal_files_entry_leaves_every_file_kind_partial(self) -> None:
+        rec = self._test_module('"examples/a.ts":"x"', '[pathOf()]:"x"')
+        for kind in ("agents", "commands", "skills"):
+            self.assertIn(kind, rec["partial"])
+
+    def test_a_hooks_module_without_a_readable_manifest_is_partial(self) -> None:
+        tips = _plugin_modules()[5].replace(
+            'var m=v(function(a,b){b.exports={scan:{hooks:["ui.render"],'
+            'calls:["command.register"]},files:{}}});',
+            "",
+        )
+        rec = _plugins(tips=tips)[0]["cc-plugin-tips"]
+        for key in ("hook_events", "agents", "commands"):
+            self.assertIn(key, rec["partial"])
+
+    def test_an_unread_gate_or_flag_default_is_partial(self) -> None:
+        rec = self._test_module("isAvailable:xe,", "isAvailable:yy,")
+        self.assertIsNone(rec["gate_flags"])
+        self.assertIn("gate_flags", rec["partial"])
+        rec = self._test_module(
+            'lo("tengu_mellow_hollerith",!1)', 'lo("tengu_mellow_hollerith",q())'
+        )
+        self.assertEqual(
+            rec["gate_flags"], [{"flag": "tengu_mellow_hollerith", "default": None}]
+        )
+        self.assertIn("gate_flags", rec["partial"])
+
+    def test_a_present_but_unresolved_description_is_partial(self) -> None:
+        rec = self._test_module('description:"Claude Test",', "description:qq(),")
+        self.assertEqual(rec["description_source"], "unresolved")
+        self.assertIn("description", rec["partial"])
+
+    def test_an_unresolved_skill_or_command_description_is_partial(self) -> None:
+        rec = self._test_module(
+            'Object.freeze({description:"Drafts spec files"})',
+            "Object.freeze({description:qq()})",
+        )
+        self.assertIn("skills", rec["partial"])
+        tips = _plugin_modules()[5].replace(
+            'description:"Toggle the diff panel"', "description:qq()"
+        )
+        self.assertIn("commands", _plugins(tips=tips)[0]["cc-plugin-tips"]["partial"])
+
+    def test_an_unresolved_marketplace_leaves_the_id_partial(self) -> None:
+        registrar = _plugin_modules()[0].replace('var _i="builtin";', "")
+        rec = _plugins(registrar=registrar)[0]["cc-plugin-tips"]
+        self.assertIsNone(rec["id"])
+        self.assertIn("id", rec["partial"])
+
+    def test_a_duplicate_registration_degrades_the_lane(self) -> None:
+        tips = _plugin_modules()[5] + 'Z_({name:"cc-plugin-tips",description:"again"});'
+        plugins, notes = _plugins(tips=tips)
+        self.assertEqual(notes["duplicate_registrations"], ["cc-plugin-tips"])
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
 
     def test_no_registrar_is_an_error(self) -> None:
         registrar = _plugin_modules()[0].replace(".builtinPlugins.set(", ".other.set(")

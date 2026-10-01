@@ -343,10 +343,29 @@ Per plugin, from the merged fields:
 | `hook_events` | the manifest's `scan.hooks` (or `shipped.hooks`); `[]` without a hooks module |
 | `mcp_servers` | the field's form (`getter`, `value`) or null; the server list is decided per session |
 
-Anything a spread or an unread form leaves unknown is null with its name in `partial`, and the lane
-degrades. Behind an unresolved spread an absent key is unknown, not absent: `gated`,
-`hook_events`, `hooks_module`, `user_config`, `classic_hooks` and `mcp_servers` each read null and
-are named, and so is a `load` the loader walk could not place. A registration whose name is a one-letter parameter (a test seating any plugin) is
+Absent by proof stays absent; absent or unknown because a read failed is named in the record's
+`partial`, and any non-empty `partial` degrades the lane. Behind an unresolved spread an absent
+key is unknown, not absent. Per field:
+
+| Field | Reported as `partial` when |
+|---|---|
+| `id` | the marketplace id did not resolve |
+| `description`, `version` | the field is present but unresolved, or absent behind an unresolved spread |
+| `load` | the loader requires the plugin but the walk could not place the call (`load_guards` null) |
+| `default_enabled`, `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | not a `!0`/`!1` literal, or absent behind an unresolved spread (`default_enabled` also when the consumer's `??!0` rule is not found) |
+| `gated` | `isAvailable` absent behind an unresolved spread |
+| `gate_flags` | the gate expression did not read (getter, unbound identifier, unsplittable call), or a flag's default did not resolve. A list that did read is still a floor: `builtin_plugin_notes.floors` |
+| `skills` | the field is not an array, an element did not resolve, or a skill's name, description or `user_invocable` did not resolve; also any embedded `skills/*/SKILL.md` problem below |
+| `agents`, `commands`, `skills` (embedded files) | the manifest's `files` value or a path in it is not a literal, a file's text is not a literal, or its frontmatter has no `name` or a `description` `_frontmatter` does not parse (plain and `\|`/`>` block scalars parse) |
+| `commands` (registered) | the manifest's `calls` is not a literal array, it declares `command.register` and no command resolved, a registered object or its name or description did not resolve |
+| `agents`, `commands`, `hook_events` | a hooks module (or an unresolved spread) with no single readable manifest in the module |
+| `hook_events` | the manifest's `hooks` is not a literal array |
+| `hooks_module`, `user_config`, `classic_hooks`, `mcp_servers` | absent behind an unresolved spread; `classic_hooks` also when present and not an object literal |
+
+`aliases` and `gate_flags` are floors by construction and are listed in
+`builtin_plugin_notes.floors`. Lane-level gaps are advisories, not record fields: unresolved
+registration names, a loaded plugin with no registration, a registration the loader never
+requires, a name registered twice, and no loader found. A registration whose name is a one-letter parameter (a test seating any plugin) is
 `factory_registrations`, never guessed. A call of another module's same-named function is not a
 registration: the callee must be the registrar's own name in its module, or a name imported from
 an export of it.

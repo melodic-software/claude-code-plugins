@@ -4020,11 +4020,16 @@ def _bool_of(src: str, braces: BraceMap, text: str, at: int) -> bool | None:
     return m.group(1) == "0" if m else None
 
 
-def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]]:
+def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]] | None:
     """Feature flags an `isAvailable` value tests: a call `f(FLAG, DEFAULT)`
     whose first argument reads a `tengu_` string, through one identifier.
-    Other conditions in the gate are runtime state and are not listed."""
-    text_lo, text_hi = pos, _expr_end(src, braces, pos)
+    Other conditions in the gate are runtime state and are not listed, so
+    the list is a floor. None when the gate expression itself is not read
+    (an identifier with no binding in reach, a call this reader cannot split)."""
+    try:
+        text_lo, text_hi = pos, _expr_end(src, braces, pos)
+    except (ValueError, IndexError):
+        return None
     ident = re.fullmatch(_IDENT, src[text_lo:text_hi].strip())
     if ident:
         try:
@@ -4039,8 +4044,11 @@ def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]]:
         except (ValueError, IndexError, RecursionError):
             v = None
         if v is None:
-            return []
-        text_lo, text_hi = v, _expr_end(src, braces, v)
+            return None
+        try:
+            text_lo, text_hi = v, _expr_end(src, braces, v)
+        except (ValueError, IndexError):
+            return None
     flags: list[dict[str, Any]] = []
     call = re.compile(r"(?<![\w$.])" + _IDENT + r"\(")
     for m in call.finditer(src, text_lo, text_hi):
@@ -4052,7 +4060,7 @@ def _gate_flags(src: str, braces: BraceMap, pos: int) -> list[dict[str, Any]]:
                 _match_close(src, braces, m.end() - 1, text_hi) - 1,
             )
         except (ValueError, IndexError):
-            continue
+            return None
         if len(args) != 2:
             continue
         first = src[args[0][0] : args[0][1]].strip()
@@ -4199,18 +4207,47 @@ def _plugin_skills(
             if flag is not None
             else (True if ok and "userInvocable" not in fields else None)
         )
-        complete = complete and ok
+        complete = (
+            complete
+            and ok
+            and rec["description_source"] != "unresolved"
+            and rec["user_invocable"] is not None
+        )
         skills.append(rec)
     return skills, complete
 
 
 def _frontmatter(text: str) -> dict[str, str]:
+    """Top-level `key: value` pairs of a markdown file's YAML frontmatter,
+    including `|` and `>` block scalars (literal keeps line breaks, folded
+    joins lines with spaces). Anything else (a nested map, a flow
+    collection) is left out, so a caller treats the key as unresolved."""
     m = re.match(r"---\n(.*?)\n---", text, re.DOTALL)
+    lines = (m.group(1) if m else "").splitlines()
     out: dict[str, str] = {}
-    for line in (m.group(1) if m else "").splitlines():
-        kv = re.match(r"([A-Za-z][\w-]*):\s*(.*)$", line)
-        if kv and kv.group(2) not in ("|", ">", "|-", ">-"):
-            out[kv.group(1)] = kv.group(2).strip().strip("\"'")
+    i = 0
+    while i < len(lines):
+        kv = re.match(r"([A-Za-z][\w-]*):\s*(.*)$", lines[i])
+        i += 1
+        if not kv:
+            continue
+        value = kv.group(2).strip()
+        if re.fullmatch(r"[|>][+-]?", value):
+            block: list[str] = []
+            while i < len(lines) and (
+                lines[i].startswith((" ", "\t")) or not lines[i].strip()
+            ):
+                block.append(lines[i].strip())
+                i += 1
+            text_ = (
+                "\n".join(block).strip()
+                if value.startswith("|")
+                else " ".join(b for b in block if b)
+            )
+            if text_:
+                out[kv.group(1)] = text_
+        elif value and not value.startswith(("{", "[", "&", "*", "!")):
+            out[kv.group(1)] = value.strip("\"'")
     return out
 
 
@@ -4231,8 +4268,12 @@ def _plugin_manifest(
     decl = _object_fields(src, braces, fields[decl_key][1])
 
     def strings(key: str) -> list[str] | None:
+        """[] when the manifest declares no such key; None when it does and
+        the value is not an array of string literals (unresolved)."""
         entry = decl.get(key)
-        if entry is None or not src.startswith("[", entry[1]):
+        if entry is None:
+            return []
+        if entry[0] != "value" or not src.startswith("[", entry[1]):
             return None
         close = _match_close(src, braces, entry[1], hi) - 1
         values = []
@@ -4245,12 +4286,18 @@ def _plugin_manifest(
         return values
 
     files: dict[str, str | None] = {}
+    # False when an entry's path, or the files value itself, is not a literal:
+    # a component may then be missing from the lists built from `files`.
+    files_complete = fields["files"][0] == "value" and src.startswith(
+        "{", fields["files"][1]
+    )
     files_at = fields["files"][1]
-    if src.startswith("{", files_at):
+    if files_complete:
         for a, b in _split_top(src, braces, files_at + 1, braces.pairs[files_at]):
             a, b = _strip_span(src, a, b)
             key = re.match(_STR + r"\s*:\s*", src[a:b])
             if not key:
+                files_complete = False
                 continue
             v = a + key.end()
             text = None
@@ -4260,8 +4307,9 @@ def _plugin_manifest(
             files[_unescape(key.group(1))] = text
     return {
         "hooks": strings("hooks"),
-        "calls": strings("calls") or [],
+        "calls": strings("calls"),
         "files": files,
+        "files_complete": files_complete,
     }, 1
 
 
@@ -4309,7 +4357,9 @@ def _plugin_commands(
         _apply_field(
             rec, "description", _merged_string(src, braces, fields, "description")
         )
-        complete = complete and ok
+        if rec["description_source"] == "absent" and not ok:
+            rec["description_source"] = "unresolved"
+        complete = complete and ok and rec["description_source"] != "unresolved"
         out.setdefault(rec["name"], rec)
     return list(out.values()), complete
 
@@ -4432,6 +4482,8 @@ def extract_builtin_plugins(
             "source": "builtin-plugin",
         }
         partial: list[str] = []
+        if rec["id"] is None:
+            partial.append("id")
         _apply_field(
             rec, "description", _merged_string(src, braces, fields, "description")
         )
@@ -4439,6 +4491,7 @@ def extract_builtin_plugins(
         for key in ("description", "version"):
             if rec[f"{key}_source"] == "absent" and not complete:
                 rec[f"{key}_source"] = "unresolved"
+            if rec[f"{key}_source"] == "unresolved":
                 partial.append(key)
         load = loader.get(name)
         rec["load"] = load["load"] if load else None
@@ -4476,9 +4529,16 @@ def extract_builtin_plugins(
         rec["gated"] = gate is not None if (gate is not None or complete) else None
         if rec["gated"] is None:
             partial.append("gated")
-        rec["gate_flags"] = (
-            _gate_flags(src, braces, gate[2]) if gate and gate[1] == "value" else []
-        )
+        if gate is None:
+            rec["gate_flags"] = [] if complete else None
+        else:
+            rec["gate_flags"] = (
+                _gate_flags(src, braces, gate[2]) if gate[1] == "value" else None
+            )
+        if rec["gate_flags"] is None or any(
+            f["default"] is None for f in rec["gate_flags"]
+        ):
+            partial.append("gate_flags")
 
         skills_entry = fields.get("skills")
         if skills_entry and skills_entry[1] == "value":
@@ -4495,10 +4555,14 @@ def extract_builtin_plugins(
         commands: list[dict[str, Any]] = []
         hooks_module = "hooksModule" in fields
         rec["hook_events"] = [] if complete and not hooks_module else None
+        if manifest is None and (hooks_module or not complete):
+            # The hooks module's manifest was not read: its embedded agents and
+            # commands, and commands it registers, are unknown.
+            partial += ["agents", "commands"]
         if manifest is not None:
             rec["hook_events"] = manifest["hooks"]
-            if manifest["hooks"] is None:
-                partial.append("hook_events")
+            if not manifest["files_complete"]:
+                partial += ["agents", "commands", "skills"]
             for path, text in sorted(manifest["files"].items()):
                 kind = re.match(r"(agents|commands)/([^/]+)\.md$", path) or re.match(
                     r"(skills)/([^/]+)/SKILL\.md$", path
@@ -4516,12 +4580,23 @@ def extract_builtin_plugins(
                     "file": path,
                     "source": "embedded-file",
                 }
-                if text is None:
+                # A file the reader could not read, or whose frontmatter names
+                # no component or describes it in a form `_frontmatter` does
+                # not parse, leaves that component kind partial.
+                if (
+                    text is None
+                    or entry["name_source"] != "frontmatter"
+                    or entry["description_source"] != "frontmatter"
+                ):
                     partial.append(kind.group(1))
                 {"agents": agents, "commands": commands, "skills": skills}[
                     kind.group(1)
                 ].append(entry)
-            if "command.register" in manifest["calls"]:
+            if manifest["calls"] is None:
+                # The declared calls did not read: whether the module registers
+                # commands is unknown, not "no".
+                partial.append("commands")
+            elif "command.register" in manifest["calls"]:
                 registered, ok = _plugin_commands(src, braces, lo, hi)
                 commands.extend(registered)
                 if not ok or not registered:
@@ -4556,6 +4631,10 @@ def extract_builtin_plugins(
 
     notes["registrations_seen"] = len(calls)
     notes["resolved"] = len(out)
+    # Lists that are floors by construction, never totals: `aliases` holds the
+    # short-name pairs the bundle spells as literals, and `gate_flags` only the
+    # flag checks in a gate whose other terms are runtime state.
+    notes["floors"] = ["aliases", "gate_flags"]
     if factories:
         notes["factory_registrations"] = factories
     if unresolved:
@@ -4798,6 +4877,12 @@ def check_integrity(
                 "the loader requires plugin(s) no registration was resolved for: "
                 + ", ".join(pnotes["loaded_not_registered"])
                 + "; the built-in plugin list is a floor, not a total"
+            )
+        if pnotes.get("duplicate_registrations"):
+            entry["advisories"].append(
+                "built-in plugin name(s) registered more than once; only the first "
+                "registration is reported: "
+                + ", ".join(sorted(set(pnotes["duplicate_registrations"])))
             )
         if pnotes.get("registered_not_loaded"):
             entry["advisories"].append(
