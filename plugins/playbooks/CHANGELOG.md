@@ -8,8 +8,9 @@ only after that version increases.
 
 ### Changed
 
-- The `boris` skill's Effort row and the `foundations` model-selection note point at the current
-  model config docs instead of naming a default or a model; the `foundations` CLAUDE.md section
+- The `boris` skill's Effort and xhigh rows, tip 67 in `autonomy`, and the `foundations`
+  model-selection note point at the current model config docs instead of naming a default or a
+  model; the `foundations` CLAUDE.md section
   gains an amendment to prune as you add, pointing at the memory docs.
 
 ## [0.16.0] - 2026-10-01

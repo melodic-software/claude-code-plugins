@@ -103,7 +103,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Auto-compact window | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` to dodge context rot (Opus 4.7-era; see §64's amendment, premise does not carry to Opus 5) |
 | Delegation over Guidance | Treat Opus 4.7 like an engineer, not a pair programmer |
 | Full Task Context Upfront | Goal + constraints + acceptance criteria in the first turn |
-| xhigh effort | New default reasoning level for Opus 4.7 |
+| xhigh effort | An effort level above high (tip 67); for per-model defaults, see [model config](https://code.claude.com/docs/en/model-config#adjust-effort-level) |
 | Auto Mode + Parallel Claudes | Fleet of autonomous Claudes, no permission babysitting |
 | /fewer-permission-prompts | Scan history, tune your permission allowlist |
 | Recaps | Short summary of what happened and what's next |
