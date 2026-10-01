@@ -214,8 +214,11 @@ bodies through `--body-file <path>` or `-F <path>`.
 Claude Code registers a skill's frontmatter hooks when the
 skill is invoked and keeps them registered for the **rest of the session**. There is no
 harness-level "while the skill is active" window for hooks. So once `/disk-hygiene:clean`
-has run, the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
-unrelated later work in the same session, not only to this cleanup. Say so when a later,
-unrelated command is blocked or prompted, rather than treating it as a surprise; the session's own
-end is what clears it. Both registration surfaces, the kill switch, and what the belt does and does not
-bound: see [`safety-model.md`](safety-model.md).
+has run, the Bash belt (deletion shapes such as `rm`, `mv` and `find`) and the PowerShell deletion
+prompts keep applying to unrelated later work in the same session, not only to this cleanup. `git`,
+`gh` and other commands outside those shapes are not blocked. Say so when a later, unrelated
+deletion-shaped command is blocked or prompted, rather than treating it as a surprise. When the
+user wants that command run, the Bash denial prints a release lever; the user confirms it, and it
+lifts the Bash belt for that session. The PowerShell prompts stay, and without the lever the
+session's own end clears the belt. Both registration surfaces, the kill switch, and what the belt
+does and does not bound: see [`safety-model.md`](safety-model.md).

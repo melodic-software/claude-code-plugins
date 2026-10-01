@@ -5,8 +5,6 @@ user-invocable: true
 disable-model-invocation: true
 hooks:
   PreToolUse:
-    # Exec form, one Bash handler per deletion-shape `if`, no `if` on PowerShell. Why, gaps and
-    # verification records: reference/safety-model.md, "Hook launch form" and "Session belt".
     - matcher: "Bash"
       hooks:
         - {"if": "Bash(rm *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
@@ -473,13 +471,12 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The belt's threat model is ad hoc deletion and move commands issued in this session's Bash and
-  PowerShell lanes after the skill is invoked. It does not reach subagents, and a wrapped deletion
-  (a script, an interpreter, `bash -c`) passes the Bash lane, which is a deny-list.
-- The Bash belt denies deletion shapes (`rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find`)
-  for the rest of the session, except exact engine calls and a read-only allowlist; git reaches it only
-  by naming a bundled script. Run the release lever its denial prints only when the user asks. Gaps:
-  [Session belt](reference/safety-model.md#session-belt).
+- The belt guards ad hoc deletion and move commands in this session's Bash and PowerShell lanes for
+  the rest of the session after the skill is invoked. It does not reach subagents, and a wrapped
+  deletion (a script, an interpreter, `bash -c`) passes the Bash lane, a deny-list. The Bash belt denies
+  `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find` except exact engine calls and a
+  read-only allowlist; git reaches it only by naming a bundled script. Run the release lever its
+  denial prints only when the user asks. Gaps: [Session belt](reference/safety-model.md#session-belt).
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool

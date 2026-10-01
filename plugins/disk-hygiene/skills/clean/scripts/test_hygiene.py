@@ -12646,7 +12646,7 @@ class GuardTests(unittest.TestCase):
         self.assertIn("destructive_guard.py", " ".join(handlers[0][1]["args"]))
 
     def test_belt_filters_skip_git_gh_and_helper_scripts(self) -> None:
-        """The owner-approved scope: deletion heads reach the belt, git and gh do not.
+        """Deletion heads reach the belt; git and gh do not.
 
         ``fnmatchcase`` over the whole command stands in for the harness's
         per-subcommand ``if`` match; it does not model splitting on ``&&``.

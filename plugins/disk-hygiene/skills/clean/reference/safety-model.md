@@ -630,7 +630,7 @@ tighter of the two: a skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT
 sole placeholder its `args` carry and the `--authorized-data-root` channel stays out of it.
 `hooks/run-python-hook.test.sh` asserts the `hooks.json` shape. `test_hygiene.py` asserts the belt.
 **Claim:** exec form spawns `command` with `args` and no shell, and a skill-frontmatter hook
-substitutes only `${CLAUDE_PLUGIN_ROOT}`. **Basis:** https://code.claude.com/docs/en/hooks, "Exec
+substitutes only the plugin-root placeholder. **Basis:** https://code.claude.com/docs/en/hooks, "Exec
 form and shell form" and "Command hook fields". **As of:** 2026-09-28. **Recheck:** that page
 stops ignoring `shell` when `args` is set, or a skill hook gains another placeholder.
 
@@ -821,7 +821,8 @@ gaps), and it does not reach subagents.
 
 **Lane position.** Both lanes govern deletion shapes. The Bash lane is a deny-list of command
 heads; the PowerShell lane turns its known deletion spellings into `ask` and hard-denies engine
-calls.
+calls. The PowerShell handler has no `if`, because an `if` does not match a redirection or the `&`
+call operator; the guard's own PowerShell classifier does the shape matching.
 
 The clean skill's frontmatter registers the guard in `belt` mode for the rest of the session. On
 Bash it registers one handler per `if` pattern, all running the same guard: `rm`, `rmdir`,
@@ -865,8 +866,8 @@ tool that can write files (the Write tool, `touch`) can create a marker without 
 **Accepted gaps.** The Bash lane is a deny-list of command heads, so a wrapped deletion passes the
 belt: `command rm`, `env`, `timeout`, `nohup`, `sudo`, `bash -c`, `sh -c`, `eval`, an
 interpreter call (`python3 -c "shutil.rmtree(...)"`), `git rm` and `git clean`, and overwrite by
-redirect, `tee`, `dd` or `sed -i`. The engine's own containment stays the authority for engine work. The owner accepted the
-deny-list cost.
+redirect, `tee`, `dd` or `sed -i`. The engine's own containment stays the authority for engine work.
+The deny-list is the accepted cost of leaving `git`, `gh` and the repo-hygiene scripts unblocked.
 
 **Subagents.** The belt does not reach subagents, deliberately and as documented: a subagent's Bash
 call ran unguarded in 2 of 2 probes on Claude Code 2.1.285 (Linux), while the plugin-level engine
@@ -875,7 +876,7 @@ gate fired there. Widening the plugin gate to subagents is a separate decision.
 **Claim:** `if` is honored per handler on skill-frontmatter hooks, and `Bash(rm *)` matches `rm`
 after `&&`, `;`, `|`, `xargs`, `$( )` and a `VAR=value` prefix but not `/bin/rm`, `command rm`,
 `env`, `timeout`, `nohup`, `bash -c` or `eval`; a command Claude Code cannot split runs every
-handler. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
+handler; and `if` does not match a redirection or the `&` call operator. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
 hooks use the same configuration format as settings hooks) and the `if` field; the page does not
 say whether `if` applies in frontmatter, so the per-handler behavior and the match table rest on a
 probe on Claude Code 2.1.285 (Linux). **As of:** 2026-10-01. **Recheck:** the page starts scoping

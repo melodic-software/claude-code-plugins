@@ -209,8 +209,9 @@ move commands Claude issues in the main session's Bash and PowerShell lanes. It 
 - PowerShell: known deletion spellings get `ask`; engine invocations are denied.
 
 **Accepted cost.** The Bash lane is a deny-list, so a wrapped deletion passes it: a script, an
-interpreter call, `bash -c`, `env`, `timeout`, `eval`, `git rm` or `git clean`. The owner accepted
-this. The engine's own containment stays the authority for engine work.
+interpreter call, `bash -c`, `env`, `timeout`, `eval`, `git rm` or `git clean`. That is the cost of
+leaving `git`, `gh` and the repo-hygiene scripts unblocked. The engine's own containment stays the
+authority for engine work.
 
 **Release lever.** When the belt blocks a command the user wants run, ask the user. The Bash denial
 prints one command, `release_belt.py --data-root <root> --session-id <id>`. Claude Code asks for
@@ -240,11 +241,12 @@ purpose-built tool:
 ```
 
 `decision` is one of `allow`, `ask`, `deny`, `none` (the guard ran and issued no
-`permissionDecision`), or `not-run`. `rule` names the branch that fired, so a denial because
-execution is switched off (`kill-switch-disabled-apply`) is distinguishable from a denial because
-the command was not an exact engine invocation (`not-exact-engine-command`). The `not-run` records
-come from the `Stop` detector, which is the only process that can observe a guard that never
-launched.
+`permissionDecision`), `released`, or `not-run`. `rule` names the branch that fired, so a denial
+because execution is switched off (`kill-switch-disabled-apply`) is distinguishable from a denial
+because the command was not an exact engine invocation (`not-exact-engine-command`). A `released`
+record, rule `belt-released`, is a deletion-shaped command the [release lever](#session-belt) let
+through to the normal permission system; it keeps the command text. The `not-run` records come from
+the `Stop` detector, which is the only process that can observe a guard that never launched.
 
 - **Bounded.** The live file rotates to `decisions.previous.jsonl` at 1 MiB, so the record holds at
   most about 2 MiB and never needs pruning. `command` and `reason` are secret-scrubbed, then clipped
