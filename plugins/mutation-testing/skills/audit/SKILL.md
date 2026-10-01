@@ -109,9 +109,11 @@ or `--exercised <test-path>` instead and inherit these limits; the planned recor
 **Runner and regime.** Use the configured tool's own test restriction only where
 [`context/tool-test-restriction.md`](context/tool-test-restriction.md) reads `yes` in its
 no-coverage column, with that row's option and source cited in the scope report. Otherwise run the
-manual protocol ([Phase 2](#phase-2-generate)) with the config's `test-command`, replacing `{tests}`
-with each test path quoted as its own shell argument. No `test-command`, one without `{tests}`, or a
-runner that only filters by name: refuse, naming `/mutation-testing:setup apply`. This is decided
+manual protocol ([Phase 2](#phase-2-generate)) with the config's `test-command`, replacing the
+`{tests}` word with the test paths, each wrapped in single quotes with every `'` inside it written
+as `'\''`, so no character in a file name reaches the shell unquoted. No `test-command`, one where
+`{tests}` is not a standalone unquoted word, or a runner that only filters by name: refuse, naming
+`/mutation-testing:setup apply`. This is decided
 in Phase 0 and never switched mid-run.
 
 **Phase 0, in this order:** config; tool availability; the test set; which files are tests; the

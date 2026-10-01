@@ -19,7 +19,8 @@ All notable changes to the `mutation-testing` plugin are documented here. Format
   test. The Survivors table gains a `Cause` column; a persisted row carries the cause in `Finding`
   and words `Action` from it. No rule id changes.
 - **`test-command` config key.** Optional, with a `{tests}` placeholder for path-list runners.
-  `setup apply` proposes it and `setup check` fails one without `{tests}`.
+  `setup apply` proposes it and `setup check` fails one where `{tests}` is not a standalone,
+  unquoted word. Each test path is substituted single-quoted.
 - `audit/context/tool-test-restriction.md`: whether StrykerJS, Stryker.NET and mutmut can restrict a
   run to named tests while keeping their no-coverage state, with sources.
 - The `principles` theory reference states that a killed mutant does not clear a copied expected

@@ -67,9 +67,11 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    FAIL; unlike an inference-speeding config, this one is required.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
-   scopes a run to nothing or to everything. A `test-command` that does not contain `{tests}` →
-   FAIL: `audit --exercised` substitutes the test paths there, and without the placeholder it would
-   run the whole suite against every mutant. Absent `test-command` → INFO; only the exercised scope
+   scopes a run to nothing or to everything. A `test-command` without `{tests}` as a standalone
+   word (whitespace or the end of the string on both sides, unquoted) → FAIL: `audit --exercised`
+   replaces that word with the test paths, one argument each. Without it every mutant would run
+   against the whole suite; inside quotes (`"{tests}"`) or a larger word (`--files={tests}`) the
+   paths would merge into one argument or split wrongly. Absent `test-command` → INFO; only the exercised scope
    under the manual protocol needs it.
 8. **Suppression record**. Report presence and entry count of `.claude/mutation-testing-arid.md`
    across layers. Absent is a valid state (no suppressions) → INFO. Present → validate **every**

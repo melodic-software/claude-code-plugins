@@ -56,8 +56,9 @@ baseline-suite-ms: <n>
 max-mutants: <n>
 
 # Optional. The project's own test command for runs restricted to named test
-# files, used by `audit --exercised` under the manual protocol. `{tests}` is
-# replaced with the test paths, each quoted as its own argument, so the runner
+# files, used by `audit --exercised` under the manual protocol. `{tests}` must
+# be a standalone, unquoted word; it is replaced with the test paths, each
+# single-quoted as its own argument, so the runner
 # must take file paths (`python -m pytest {tests}`, `npx vitest run {tests}`).
 # A runner that only filters by name (`dotnet test --filter`) cannot use it.
 test-command: <command containing {tests}>

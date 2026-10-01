@@ -88,7 +88,7 @@
     {
       "id": "no_assertion",
       "prompt": "Run /mutation-testing:audit --exercised. app.py and .claude/mutation-testing.md are committed on main; this branch adds scenarios/no_assertion/test_app.py, which calls price_with_tax(150) and asserts nothing.",
-      "expected_output": "Recognizes the test file by invoking /testing:audit --file on it through the Skill tool and reading its `adapter:` line. Maps the test to price_with_tax, lines 7-10 of app.py, and lists that function in the scope report. Runs under the manual protocol with `python -m unittest {tests}`, the path quoted as its own argument, after one green baseline of that test alone. Generates one mutant per mapped line (relational boundary on line 7, statement removal on lines 8-10); all four survive. Each productive survivor gets cause `no-assertion`, quoting the test's line range and the absence of any assertion. The report carries `Scope: exercised, changed tests as one set`, coverage and gap as `unknown`, a Survivors table with a Cause column, and the blind-spot line naming testing/judge/rule-restated-expectation.",
+      "expected_output": "Recognizes the test file by invoking /testing:audit --file on it through the Skill tool and reading its `adapter:` line. Maps the test to price_with_tax, lines 7-10 of app.py, and lists that function in the scope report. Runs under the manual protocol with `python -m unittest {tests}`, the path quoted as its own argument, after one green baseline of that test alone. Generates one mutant per mapped line (comparison inversion on line 7, statement removal on lines 8-10); all four survive. Each productive survivor gets cause `no-assertion`, quoting the test's line range and the absence of any assertion. The report carries `Scope: exercised, changed tests as one set`, coverage and gap as `unknown`, a Survivors table with a Cause column, and the blind-spot line naming testing/judge/rule-restated-expectation.",
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
@@ -100,8 +100,8 @@
     },
     {
       "id": "boundary",
-      "prompt": "Run /mutation-testing:audit --exercised. app.py and .claude/mutation-testing.md are committed on main; this branch adds scenarios/boundary/test_app.py, which asserts price_with_tax(1000) == 1080.0.",
-      "expected_output": "Maps the test to price_with_tax and runs each mutant against that test alone under the manual protocol. The statement-removal mutants on lines 8-10 are killed. The line 7 mutant (`>` to `>=`) survives and is classed productive with cause `input-gap`: the assertion is an independent literal, quoted with its input 1000, and no input sits at the threshold of 100 where the two operators differ. It is not called `no-assertion`, because an assertion reaches the value. The report carries the exercised scope line, coverage and gap as `unknown`, and the blind-spot line naming testing/judge/rule-restated-expectation.",
+      "prompt": "Run /mutation-testing:audit --exercised. app.py and .claude/mutation-testing.md are committed on main; this branch adds scenarios/boundary/test_app.py, which asserts price_with_tax(50) == 60.0.",
+      "expected_output": "Maps the test to price_with_tax and runs each mutant against that test alone under the manual protocol. The statement removal on line 8, the discount line, survives and is classed productive with cause `input-gap`: the assertion is an independent literal, quoted with its input 50, and no input is above the threshold of 100, so the discount line never runs; an unreached mutated line is `input-gap`, not `no-assertion`, because an assertion reaches the value. The line 7 comparison inversion (`>` to `<=`) applies the discount at 50 and is killed, as are the removals on lines 9 and 10. The report carries the exercised scope line, coverage and gap as `unknown`, and the blind-spot line naming testing/judge/rule-restated-expectation.",
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
@@ -150,7 +150,7 @@
     {
       "id": "exercised_path",
       "prompt": "Run /mutation-testing:audit --exercised scenarios/boundary on the fixture, with no test changed on this branch.",
-      "expected_output": "Takes scenarios/boundary as the test path, not as a scope path, because it comes right after the flag. Starts the mapping from the tests under that folder instead of the changed tests, so the empty diff does not end the run. Maps scenarios/boundary/test_app.py to price_with_tax, runs one baseline of that test, and reports the line 7 survivor with cause `input-gap`. The scope line reads `Scope: exercised, tests under scenarios/boundary as one set`. The effort cap applies unless `--max` is passed.",
+      "expected_output": "Takes scenarios/boundary as the test path, not as a scope path, because it comes right after the flag. Starts the mapping from the tests under that folder instead of the changed tests, so the empty diff does not end the run. Maps scenarios/boundary/test_app.py to price_with_tax, runs one baseline of that test, and reports the line 8 survivor (the discount line no input reaches) with cause `input-gap`. The scope line reads `Scope: exercised, tests under scenarios/boundary as one set`. The effort cap applies unless `--max` is passed.",
       "files": [
         "evals/fixtures/exercised-scope/app.py",
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",

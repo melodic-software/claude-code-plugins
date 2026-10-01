@@ -18,11 +18,11 @@ The module constants (lines 1-3) are not in a function body the tests call.
 
 The manual protocol, one mutant per mapped line. Lines 8-10 take statement removal. Line 7 is an
 `if` header: removing the block would also remove line 8, which has its own mutant, so it takes the
-second operator, a relational boundary shift.
+protocol's second operator, inverting the comparison (`tooling.md`, ROR / negate-conditionals).
 
 | Mutant | Line | Operator | Mutation |
 |---|---|---|---|
-| M1 | 7 | relational boundary | `amount > DISCOUNT_THRESHOLD` to `amount >= DISCOUNT_THRESHOLD` |
+| M1 | 7 | comparison inversion | `amount > DISCOUNT_THRESHOLD` to `amount <= DISCOUNT_THRESHOLD` |
 | M2 | 8 | statement removal | `amount = amount * (1 - DISCOUNT_RATE)` to `pass` |
 | M3 | 9 | statement removal | `amount = amount * (1 + TAX_RATE)` to `pass` |
 | M4 | 10 | statement removal | `return round(amount, 2)` to `pass` |
@@ -46,19 +46,21 @@ changed-test set.
 
 ## Scenario `boundary`
 
-The test asserts `price_with_tax(1000) == 1080.0`, a hand-computed literal (1000 less 10% is 900,
-plus 20% tax is 1080).
+The test asserts `price_with_tax(50) == 60.0`, a hand-computed literal (50 is below the threshold;
+50 plus 20% tax is 60).
 
 | Mutant | State | Disposition | Cause |
 |---|---|---|---|
-| M1 | survived | productive | input-gap |
-| M2 | killed | | |
+| M1 | killed | | |
+| M2 | survived | productive | input-gap |
 | M3 | killed | | |
 | M4 | killed | | |
 
-M1 lives because no input sits at the threshold (100), where `>` and `>=` differ. A run that
-inverts line 7 to `<=` instead of shifting the boundary kills M1 at 1000, and this scenario then has
-no survivor; the shift is the mutant this fixture expects.
+M2 lives because no input is above the threshold, so the discount line never runs: an unreached
+mutated line is `input-gap`. M2 is a statement removal, the protocol's first operator, so this
+survivor does not depend on which comparison mutant a run picks for line 7. M1 inverted to `<=`
+applies the discount at 50 and is killed. A run that shifts line 7 to `>=` instead gets a second
+`input-gap` survivor there, since no input sits at 100.
 
 ## Scenario `calls_sut`
 
