@@ -22,10 +22,10 @@ mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --git || return 1
   dir="${!1}"
-  mkdir -p "$dir/docs/conventions/topic-docs" "$dir/docs/adr"
+  mkdir -p "$dir/docs/conventions/standards" "$dir/docs/adr"
   printf 'seed\n' >"$dir/docs/README.md"
   printf 'seed\n' >"$dir/docs/plugin-philosophy.md"
-  printf 'seed\n' >"$dir/docs/conventions/topic-docs/README.md"
+  printf 'seed\n' >"$dir/docs/conventions/standards/README.md"
   printf 'seed\n' >"$dir/docs/adr/0001-first.md"
   git_test_config "$dir" add -A >/dev/null
   git_test_config "$dir" commit -qm base
@@ -77,7 +77,6 @@ run_case "docs/NEW-FILE.md fails" 1 docs/NEW-FILE.md
 run_case "docs/x/README.md passes" 0 docs/x/README.md docs/x/CHANGELOG.md docs/x/INDEX.md
 
 # 4. The branch-only topic slice is exempt.
-run_case "docs/topics/t/PLAN.md passes" 0 docs/topics/t/PLAN.md
 
 # 5. Code files are judged by their language, not this rule.
 run_case "docs/a/b_c.py passes" 0 docs/a/b_c.py docs/a/Run-Thing.ps1
@@ -99,13 +98,13 @@ run_case "docs/Foo.md beside docs/foo.md fails" 1 docs/Foo.md docs/foo.md
 
 # 8b. A case collision on a path git would quote. The shared non-ASCII byte
 #     (UTF-8 C3 A9) makes `git ls-files` without -z C-quote the name, and the
-#     ASCII C/c is what `tr` folds. docs/topics/ is exempt from the basename
+#     ASCII C/c is what `tr` folds. A .py file is exempt from the basename
 #     rule, so a failure here is the collision pass comparing the raw path.
 repo=""
 if mk_repo repo && [[ -n "$repo" ]]; then
-  lower="docs/topics/caf"$'\303\251'".md"
-  upper="docs/topics/Caf"$'\303\251'".md"
-  mkdir -p "$repo/docs/topics"
+  lower="docs/x/caf"$'\303\251'".py"
+  upper="docs/x/Caf"$'\303\251'".py"
+  mkdir -p "$repo/docs/x"
   printf 'seed\n' >"$repo/$lower"
   printf 'seed\n' >"$repo/$upper"
   git_test_config "$repo" add -A >/dev/null
@@ -269,16 +268,14 @@ if [[ -n "$drift_ready" ]]; then
     [[ -n "$one" ]] && offender_seeds+=("$one/Root_Probe.md")
   done < <(jq -r '.file_names.roots[]' "$REPO_CONFIG")
   # Every offender shape the header names, the exemption boundaries (a case
-  # variant of an exempt name, a sibling of the exempt directory, an exempt
-  # extension in the wrong case), case collisions including one against an
-  # exempt name, and files outside docs/ that neither gate may judge.
+  # variant of an exempt name, an exempt extension in the wrong case), case
+  # collisions including one against an exempt name, and files outside docs/ that neither gate may judge.
   offender_seeds+=(
     docs/NEW-FILE.md docs/a/snake_case.md docs/a/Mixed.md docs/a/foo..md
     docs/a/foo.md. docs/a/foo... docs/a/noext docs/a/README.md.bak
     docs/a/v1.2.schema.json docs/Foo.md docs/foo.md
-    docs/conventions/topic-docs/readme.md docs/x/Readme.md
-    docs/topicsx/PLAN.md docs/a/Bad_Name.PY
-    "docs/topics/caf"$'\303\251'".md" "docs/topics/Caf"$'\303\251'".md"
+    docs/conventions/standards/readme.md docs/x/Readme.md
+    docs/a/Bad_Name.PY "docs/x/caf"$'\303\251'".py" "docs/x/Caf"$'\303\251'".py"
     "docs/New"$'\n'"line/foo.md" "docs/new"$'\n'"line/foo.md"
     Top_Level.md other/Bad_Name.md
   )
@@ -334,7 +331,6 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
     n=0
     for filter in \
       '.file_names.exempt_basenames |= .[1:]' \
-      '.file_names.exempt_paths |= .[1:]' \
       '.file_names.exempt_extensions |= .[1:]' \
       '.file_names.regex = "^[a-z0-9]+(-[a-z0-9]+)*\\.[a-z0-9]+$"'; do
       n=$((n + 1))

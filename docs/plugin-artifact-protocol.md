@@ -1,49 +1,42 @@
 # Plugin lifecycle artifact protocol
 
-Protocol version: 3
+Protocol version: 4
 
 This protocol is the lifecycle interoperability profile for repo-facing plugins that participate in
-discovery, planning, implementation, verification, or handoff. The marketplace-wide topic-docs convention
-owns placement, tiers, resolution, slug rules, runtime guards, and lifecycle:
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
-This profile owns only the cross-plugin artifact names and producer/consumer behavior.
+discovery, planning, implementation, verification, or handoff. It owns the cross-plugin artifact
+names, where they live, and producer/consumer behavior.
 
-## Ownership and resolution
+## Ownership and placement
 
 Plugin `userConfig` is for personal, managed, or enable-time options. It is not a coordination surface
-for repository artifacts. The tracked `.claude/topic-docs.yaml` concern file is the runtime authority;
-consumer project instructions are an inference source when that file is absent.
+for repository artifacts.
 
-Resolve the memory and contract slices through the topic-docs convention and the current plugin's
-`reference/topic-docs.md` binding. An explicit topic argument may select the slug, but cannot introduce a
-competing artifact root. The same slug names the topic in both tiers. Reject invalid roots or slugs using
-the convention's guards rather than silently falling back to another location.
+Working artifacts live in the memory slice `<memory_dir>/<topic-slug>/`. `<memory_dir>` is `.work/`
+unless the consumer's project instructions declare another root, and it is never committed. Durable
+plans and specs live in the pull request body and the linked issue, not in committed files. An
+explicit topic argument may select the slug, but cannot introduce a competing artifact root. Reject an
+invalid root or slug rather than silently falling back to another location.
 
 ## Artifact kinds
 
-Lifecycle plugins exchange these public artifacts:
+Lifecycle plugins exchange these public artifacts under `<memory_dir>/<topic-slug>/`:
 
-- Memory tier: `INDEX.md` (the reserved per-slice index), `EXPLORE.md`, `RESEARCH.md`,
-  `<stage>-checklist.md`, `baselines/`, raw captures, and scratch under
-  `<memory_dir>/<topic-slug>/`. A topic slice is recursive: a decomposed slice holds child slices,
-  and the same names are reserved at every depth. Entering a slice follows the convention's
-  read-first binding (read `INDEX.md` first; in an index-less leaf the sole artifact is the entry
-  point), whose single home is the convention README's slice-tree section, cited here rather than
-  restated.
-- Contract tier: `PRD.md`, `PLAN.md`, `design/`, and distilled `verification/` manifests under
-  `<contract_dir>/<topic-slug>/` when `contract_tier: branch`.
-- In `contract_tier: local`, contract kinds join the memory slice with the same relative layout.
-- Session handoffs and branch review reports use the concern-scoped homes defined by topic-docs, not a
-  topic slice.
+- `INDEX.md` (the reserved per-slice index), `EXPLORE.md`, `RESEARCH.md`, `<stage>-checklist.md`,
+  `baselines/`, raw captures, and scratch. A topic slice is recursive: a decomposed slice holds child
+  slices, and the same names are reserved at every depth. Entering a slice reads `INDEX.md` first; in
+  an index-less leaf the sole artifact is the entry point.
+- `PRD.md`, `PLAN.md`, `design/`, and distilled `verification/` manifests. Publish their durable
+  content to the pull request body or the linked issue.
+- Session handoffs and branch review reports are not part of a topic slice. Each lives in its own
+  concern-scoped home under the memory root.
 
 Each plugin remains horizontally decoupled: it may read artifacts by this public protocol, but it must not
 import sibling plugin internals or assume another plugin is installed. Namespaced skill invocation is
 optional and must degrade to a visible manual handoff when unavailable.
 
 The canonical repository copy and every participating plugin's
-`reference/artifact-protocol.md` copy must remain byte-identical. A breaking artifact-name or
+`reference/artifact-protocol.md` copy must remain byte-identical. A breaking artifact-name, placement, or
 producer/consumer change increments this protocol version and updates all copies and consumers together.
-Placement changes belong to the versioned topic-docs convention, not this profile.
 
 ## Missing prerequisites
 

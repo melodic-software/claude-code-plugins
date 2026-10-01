@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Regression tests for lib/index-regen.sh — the shared slice-index regeneration
-# script (topic-docs v3, design-threads.md T1-T5).
+# script.
 # Run directly: bash lib/index-regen.test.sh
 set -uo pipefail
 

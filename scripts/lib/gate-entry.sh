@@ -16,8 +16,8 @@
 #
 # Adoption: classify and finish are used by check-shell-portability,
 # check-skill-portability, check-skill-precompute-compose, check-changed-skills,
-# check-stale-base-overlap, check-vendor-version-bump, check-contract-slice-prune,
-# and check-changelog-parity. check-guardrails-ps-differential uses only
+# check-stale-base-overlap, check-vendor-version-bump, and
+# check-changelog-parity. check-guardrails-ps-differential uses only
 # require_base. Three gates stay outside:
 #   check-docs-only                exits 0 on every fail-closed path, an
 #                                  unresolvable ref included, so the full suite runs

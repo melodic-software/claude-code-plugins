@@ -18,7 +18,7 @@ attribution table below. Re-audit every affected row. Release notes name skills 
 
 | Upstream skill / source | Ours | Relation | What was taken / rejected |
 |---|---|---|---|
-| `to-questionnaire` (Productivity; graduated from in-progress in v1.2.0 #593) | `planning:questionnaire` | Derived | Interview-the-send invariant kept; output relocated cwd → topic-docs memory slice (PII); grill→interview vocabulary; tracker-item option added. Re-audited against v1.2.3: no delta — his graduation commit is a 100%-similarity rename, his one body change (template XML-ification) is already reflected in our template, and ours is otherwise a superset (route-away, overwrite guard, role-slug multi-recipient) |
+| `to-questionnaire` (Productivity; graduated from in-progress in v1.2.0 #593) | `planning:questionnaire` | Derived | Interview-the-send invariant kept; output relocated cwd → memory slice (PII); grill→interview vocabulary; tracker-item option added. Re-audited against v1.2.3: no delta — his graduation commit is a 100%-similarity rename, his one body change (template XML-ification) is already reflected in our template, and ours is otherwise a superset (route-away, overwrite guard, role-slug multi-recipient) |
 | `wayfinder` | `planning:wayfind` | Partial | Fog-of-war framing + ticket-vs-fog (sharpness) distinction; REJECTED file-based map (native tracker primitives instead) and upstream tracker seam. v1.2 re-audit: ADOPTED parallel research burn-down (work-mode exception + chart-mode offer) and the in-chart no-fog bail-out; "decision ticket" term present as our "decision item" (parity under work-items vocabulary); REJECTED `research/<name>` branch (two-lane branch-naming prohibition; resolution comments + memory tier already home the findings); map-clears handoff already present-stronger (named graduation targets). Course lane W (#2939): **C18 ADOPTED** (human-facing narration names items by title, number as link or suffix; `wayfind` only, not generalized to work-items); **C19 ADOPTED** (Out-of-scope is for scope not sharpness, fog never graduates there, a wrongly scoped item is closed + one linking line); **C20 ALREADY-PRESENT** (map-as-index — a decision lives in its own item; the map gists and links, never restates) |
 | `batch-grill-me` / `grilling` rounds | `planning:interview` (propagated to `prd`/`design`/`plan`) | Derived (behavior) | Frontier-rounds model, facts-vs-decisions split, confirmation gate; no-grill vocabulary constraint; background fact sub-agents. v1.2 re-audit: ADOPTED ❓/➡️ emoji anchors as opt-in `userConfig` (`use_emoji_question_markers`, default off; decoration of the single verdict marker); answer-by-number dictation and any-order answering confirmed already present; REJECTED one-question-at-a-time opt-out line (his seam is the consumer's own global CLAUDE.md — platform-native, nothing for the plugin to ship) |
 | grilling-family rework (upstream PR #532) | `planning:interview`, `architecture:improve` | Partial | decision-tree rename, domain-routing, primitive-vs-variant boundary; ADR 3-gate + glossary purity previously recorded as house additions — **annotated 2026-08-18 (lane 5 audit-answers pass, two independent validators):** current upstream main's `domain-modeling` carries both near-identically; direction/timing unverifiable at annotation time (upstream git history behind a blocked API) — treat as convergent-or-derived, not house-original |
@@ -86,15 +86,14 @@ authoring-moment home (`playbooks:skill-authoring`).
 
 **Lane 7 closed 2026-08-17**: gaps 1–2 and the two-loads/leading-words strands are
 design-locked as `docs-hygiene:write-for-agents`
-(contract: `docs/specs/write-for-agents-brief.md`; build:
+(build:
 [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) +
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), the audit-side
 completion-criteria criterion). **#2962 built (docs-hygiene 0.17.0)**: the gap-1/2 verdict
 cells below are ADOPTED; #2963's audit-side criterion remains the one open follow-on.
 
 **Lane 8 closed 2026-08-17**: gap 3 (invocation) is decided — invocation-mode rubric homed at
-`docs/conventions/invocation-mode/README.md` (model-invoked default + three exception classes;
-contract: `docs/specs/invocation-mode-doctrine-brief.md`); enforcement filed as
+`docs/conventions/invocation-mode/README.md` (model-invoked default + three exception classes); enforcement filed as
 [#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968), the one re-grade
 flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969).
 
@@ -106,7 +105,7 @@ flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2
 | Steps and completion criteria (clarity, demand, premature completion, post-completion steps, legwork) | `write-for-agents` "Give every step a completion criterion" (write-side); audit-side criterion rides #2963 | ADOPTED (adapted; #2962 — audit-side pending #2963) |
 | When to split (by sequence / by invocation) | `write-for-agents` split-by-sequence; invocation axis owned by the rubric (`docs/conventions/invocation-mode/`), pointed at, never restated | ADOPTED (both halves; #2962 + lane 8) |
 | Leading words + negation | `write-for-agents` "Prompt the positive" | ADOPTED (adapted; #2962 — tracked strand retired below) |
-| Pruning: single source of truth | `docs-hygiene:extract-ssot` + the topic-docs single-home rule | PARITY+ |
+| Pruning: single source of truth | `docs-hygiene:extract-ssot` | PARITY+ |
 | Pruning: environment-as-truth ("cache") | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict + drift control) | PARITY+ (stronger — cache without drift control is not a cache) |
 | Pruning: relevance / sediment | `claude-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
 | Pruning: no-ops (model-relative, run-the-document test) | `claude-config:unhobble` (empirical — operationalizes his remove-and-observe test) + `audit-instructions` (judgment) | PARITY+ |
@@ -124,8 +123,7 @@ triggers stand until the owning lane records the disposition:
 - **Leading-words + negation doctrine** (upstream `writing-for-agents/SKILL.md:61-74`:
   pretrained "leading words" as compact behavior anchors; prompt the positive — prohibition
   drags the banned behavior into context). Not double-tracked: this is the same territory as
-  the deliberate deferral already recorded at
-  `docs/topics/interview-batch-rounds/PLAN.md:43-44` (slice carried by PR #1400; the skill-quality
+  the deliberate deferral already recorded in PR #1400 (the skill-quality
   negation/negative-space port deferred from that session's gap scan) — this record
   cross-links that deferral rather than opening a second ledger entry. Trigger: a
   mattpocock/skills release whose changeset names `writing-for-agents`.

@@ -305,7 +305,7 @@ jobs:
   # report an honest evaluated-and-not-applicable success. ShellCheck, exec-bit,
   # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
   # whole repository, and a shell/shebang/hook file added under an otherwise
-  # docs-only prefix like docs/topics/ is real input they must still catch, as
+  # docs-only prefix like docs/adr/ is real input they must still catch, as
   # is a docs-only diff that reintroduces an em dash on a purged surface.
   #
   # The job NEVER skips — only steps are gated. A skipped required lane's
@@ -406,7 +406,7 @@ jobs:
       # THE LANE IS SCOPED, NEVER SKIPPED. A resolver gate here would be
       # `run_shell`, and `run_shell` carries the docs-only term: a pull request
       # whose only change is a shell script under a docs-only prefix such as
-      # `docs/topics/` resolves docs-only, and the gate would skip ShellCheck on
+      # `docs/adr/` resolves docs-only, and the gate would skip ShellCheck on
       # the very file it should read while the aggregator override recorded that
       # skip as success. So the step always runs and lets the composite decide.
       - name: Select the changed shell scripts
@@ -1243,35 +1243,6 @@ jobs:
           fi
           scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
 
-      # Contract-slice prune: docs/topics/<slug>/ is Contract tier per
-      # docs/conventions/topic-docs/README.md — committed on a task branch
-      # only, pruned before merge. The convention specified this required check
-      # but it was never wired, so 17 slices reached main (#1417). The gate keys
-      # on where a path LANDS, so the prune commit itself and a
-      # history-preserving graduation out of docs/topics/ both pass. The
-      # pre-existing 17 are grandfathered by slug in
-      # scripts/contract-slice-baseline.txt with a stale guard, and burn down
-      # under #1419. The self-test runs first so a broken gate cannot mask a
-      # regression.
-      - name: Test the contract-slice prune gate
-        if: needs.changes.outputs.run_shell == 'true'
-        run: bash scripts/check-contract-slice-prune.test.sh
-      - name: Verify no baseline entry outlives its slice
-        id: contract_slice_check
-        continue-on-error: true
-        run: scripts/check-contract-slice-prune.sh --check
-      - name: Verify the change set prunes its contract slice
-        id: contract_slice_diff
-        continue-on-error: true
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/check-contract-slice-prune.sh --check-diff "origin/$BASE_REF"
-
       # The review-disposition-and-resolution contract is canonical in ONE file
       # and restated across half a dozen others; nothing checked that the
       # copies agreed. #1633 shipped seven such defects across five review
@@ -1598,8 +1569,6 @@ jobs:
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
-            contract-slice-prune=${{ steps.contract_slice_check.outcome }}
-            contract-slice-diff=${{ steps.contract_slice_diff.outcome }}
             contract-clause-coverage=${{ steps.contract_clause_coverage.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}

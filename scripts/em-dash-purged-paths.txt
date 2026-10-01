@@ -92,20 +92,12 @@ docs/conventions/seam-phrasing/*.md
 docs/conventions/shell-test-helpers/*.md
 docs/conventions/standards/*.md
 docs/conventions/standards/examples/*.md
-docs/conventions/topic-docs/*.md
-docs/conventions/topic-docs/examples/*.md
 docs/conventions/tracker-reference-form/*.md
 docs/conventions/untrusted-content/*.md
 docs/conventions/upstream-drift/*.md
 docs/conventions/windows-path-emit/*.md
 # The out-of-scope records were purged whole.
 docs/out-of-scope/*.md
-# The design specs under docs/specs were purged whole. Five regions keep their em dashes inside
-# markers: quotations of the #3118 detector table, the #3124 brief, and three spans of the measured
-# corpus at revision dff09429, which the committed harness reproduces byte for byte. Rewriting
-# those would desync the record from what it measured.
-docs/specs/*.md
-docs/specs/*/*.md
 # The Claude Code mods evidence trail behind ADR 0035, purged in #4288: the
 # reading-order README, the cited source index, the go-no-go runbook, the
 # experiments, and the dated research snapshot. First-party prose under
@@ -219,7 +211,6 @@ plugins/context7/skills/*/SKILL.md
 plugins/context7/skills/lookup/context/*.md
 plugins/coupling/README.md
 plugins/coupling/CHANGELOG.md
-plugins/coupling/reference/topic-docs.md
 plugins/coupling/skills/*/SKILL.md
 plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
@@ -485,7 +476,6 @@ plugins/typos-format/CHANGELOG.md
 plugins/typos-format/skills/*/SKILL.md
 plugins/verification/README.md
 plugins/verification/CHANGELOG.md
-plugins/verification/reference/topic-docs.md
 plugins/verification/skills/*/SKILL.md
 plugins/verification/skills/*/context/*.md
 plugins/visualization/README.md

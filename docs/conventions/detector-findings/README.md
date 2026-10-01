@@ -54,42 +54,23 @@ file format is that route.
 
 ## Where the file goes
 
-The destination is a **memory-tier, concern-scoped** location, and a producer resolves it through the
-same binding the consumer does:
-[`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md)
-"Resolution (the contract's five-rung order, earlier wins)", which `/review:fanout` names under
-"Shared inputs" as what it resolves through. That skill body does not restate the ladder. It points
-at `topic-docs.md` and warns against assuming its shape, so a producer and the consumer read one text
-rather than two that have to be reconciled. Naming the
-binding by its repo path is the point of this section: `review:fanout` reaches it through a
-`${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside `review` can expand, and it is the same
-document either way.
+The destination is the current branch's findings directory in the **memory slice**,
+`.work/reviews/<branch-slug>/`, never committed. A producer writes where the consumer scans.
+[`plugins/review/reference/findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md)
+owns the home and the branch slug, and `/review:fanout` names it under "Shared inputs". That skill
+body does not restate either, so a producer and the consumer read one text rather than two that
+have to be reconciled. Naming the owner by its repo path is the point of this section:
+`review:fanout` reaches it through a `${CLAUDE_PLUGIN_ROOT}`-relative pointer no plugin outside
+`review` can expand, and it is the same document either way.
 
-What the binding leaves to a producer, stated as consequences rather than as a second statement of
+What the owner leaves to a producer, stated as consequences rather than as a second statement of
 its rules:
 
-- **Run the rung order, not only its last rung.** Writing to the documented default when a higher
-  rung resolved puts the file somewhere the `fix` action never scans, and nothing reports the miss.
-  The configured `memory_dir` and the `CLAUDE.md`-declared location are exactly the cases that fail
-  silently.
-- **Take the non-interactive collapse.** A producer that cannot ask the user or persist config, as a
-  headless detector cannot, resolves the rungs that confirm or ask through the
-  [topic-docs convention](../topic-docs/README.md) "Non-interactive / forked mode". Inventing an
-  answer to those rungs instead resolves to a directory the consumer never reaches.
+- **Write to the branch's own directory.** A file written anywhere else is a directory the `fix`
+  action never scans, and nothing reports the miss.
 - **The directory never proves ownership.** What proves a file is this branch's is its own `branch:`
-  frontmatter, never the directory it sits in. The binding's slug rule says why.
-- **The self-ignore guard is owed, not re-derived**, including the convention's invalid cases, which
-  stop the guard from healing into a consumer's root `.gitignore` and from writing at a root no
-  checkout is detected as governing. Skipping it **where a checkout governs the destination** commits
-  findings that are meant to stay checkout-local. Where none is detected the convention's own rule is
-  that the guard does not run. **The artifact write is not automatically safe there either**:
-  recreating a path that is an *index-tracked deletion* in a missed checkout modifies tracked state
-  rather than creating an untracked one (measured), so "it lands untracked" is not universally true.
-  But a blanket refusal is the wrong correction. It would refuse the `${CLAUDE_PLUGIN_DATA}`
-  fallback the convention routes non-interactive runs to, which sits outside every checkout **by
-  construction** and cannot be a tracked deletion. The rule follows that distinction: write where the
-  destination is that plugin-data surface, and where it is a resolved root no checkout could be shown
-  to govern, report the resolved destination and persist nothing.
+  frontmatter, never the directory it sits in. The branch-slug rule says why.
+- **Findings are checkout-local.** A producer never commits one.
 
 ## Boundary
 
@@ -640,8 +621,8 @@ that writes nothing, reports green, and had findings satisfies neither.
 
 ## Many emitters, one statement of each mechanic
 
-Emitting a conforming file means resolving the findings home through its whole rung order, computing
-the branch sub-path, running the self-ignore guard, relativizing paths, escaping cells, and
+Emitting a conforming file means resolving the findings home, computing
+the branch sub-path, relativizing paths, escaping cells, and
 formatting a colon-free UTC timestamp. Every adopter in the table above does it, and the next
 detector will do it too. The decision recorded here is **why that is not one copy per adopter of one
 thing**, and what would make it become one.
@@ -665,7 +646,7 @@ its own plugin's context file. A byte-identity check has no subject.
 |---|---|
 | Table shape and cell escaping | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-file shape" |
 | Path relativization and the colon-free timestamp | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) "Findings-writer contract" |
-| Findings home, rung order, branch sub-path, slug rule, self-ignore guard | [`topic-docs.md`](../../../plugins/review/reference/topic-docs.md) |
+| Findings home, branch sub-path, slug rule | [`findings-file-shape.md`](../../../plugins/review/reference/findings-file-shape.md) |
 | Which of those a non-fanout producer owes, and the fields it computes | this doc |
 | A rule's threshold, tier argument, disposition, and auto-applicability | this doc's crosswalk |
 
@@ -792,8 +773,6 @@ adopter row is a minor bump; docs-only clarification is a patch.
 - `/review:fanout fix`: the consumer algorithm, including merge-set construction and consumption marking.
 - [`plugins/review/context/severity.md`](../../../plugins/review/context/severity.md): the severity-tier and confidence vocabularies a producer emits, and the consumer-precedence rule that overrides the baseline.
 - `/review:fanout` normalization: the five-stage reduction that applies the confidence rank order `severity.md` above owns.
-- [`plugins/review/reference/topic-docs.md`](../../../plugins/review/reference/topic-docs.md): the findings-location binding `review:fanout` resolves through, carrying the rung order, branch sub-path, slug rule, and guard a producer therefore never restates.
-- [`docs/conventions/topic-docs/`](../topic-docs/README.md): the tier semantics, guards, and invalid-root rule that resolver implements; not itself the pointer for where a producer writes.
 - [`docs/conventions/finding-suppression/`](../finding-suppression/README.md): the operator-authored suppression record whose `check:` constituent a qualified rule id is, and the consent gate a producer proposes into rather than writes.
 - [`REVIEW.md`](../../../REVIEW.md): this repository's own project severity vocabulary, the live instance of the consumer-precedence override a producer maps to.
 - [`scripts/check-cross-plugin-source-drift.sh`](../../../scripts/check-cross-plugin-source-drift.sh): the shared-source cluster mechanism the emitter decision is measured against, and the gate its revisit trigger fires at.
