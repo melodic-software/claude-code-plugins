@@ -4526,20 +4526,27 @@ def extract_builtin_plugins(
     # The id is built where the registry is walked: a `${name}@${M}` template
     # inside a function of the registrar's module that reads `.builtinPlugins`.
     # Any other `@${...}` (a version string) is not it; no single value, no id.
-    found: set[str | None] = set()
+    walkers: set[tuple[int, int]] = set()
     for _, home in registrars:
         end = _chunk_span(src, home)[1]
+        for m in re.finditer(re.escape(".builtinPlugins"), src[home:end]):
+            block = _function_block(src, braces, home + m.start())
+            if block:
+                walkers.add(block)
+    found: set[str | None] = set()
+    defaults: set[str] = set()
+    for lo_, hi_ in walkers:
         for m in re.finditer(
-            r"`\$\{" + _IDENT + r"\}@\$\{(" + _IDENT + r")\}`", src[home:end]
+            r"`\$\{" + _IDENT + r"\}@\$\{(" + _IDENT + r")\}`", src[lo_:hi_]
         ):
-            at = home + m.start()
-            block = _function_block(src, braces, at)
-            if block and ".builtinPlugins" in src[block[0] : block[1]]:
-                found.add(_string_of(src, braces, m.group(1), at))
+            found.add(_string_of(src, braces, m.group(1), lo_ + m.start()))
+        defaults.update(re.findall(r"\.defaultEnabled\?\?(!0|!1|[\w$]+)", src[lo_:hi_]))
     marketplace = found.pop() if len(found) == 1 else None
     notes["marketplace"] = marketplace
-    # The consumer's default: `enabled = setting ?? plugin.defaultEnabled ?? true`.
-    default_rule = re.search(r"\.defaultEnabled\?\?!0", src) is not None
+    # The consumer's default, `enabled = setting ?? plugin.defaultEnabled ?? true`,
+    # read only where the registry is walked; missing or ambiguous there, a
+    # plugin without its own `defaultEnabled` has no known default.
+    default_rule = defaults == {"!0"}
     notes["default_enabled_rule_found"] = default_rule
 
     aliases: dict[str, set[str]] = {}

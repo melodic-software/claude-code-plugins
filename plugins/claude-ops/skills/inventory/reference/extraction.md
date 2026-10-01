@@ -337,7 +337,7 @@ Per plugin, from the merged fields:
 | `name`, `description`, `version` | `resolve_field`, then a bare identifier as a module constant under the name rule's wider locality (a plugin module's `var K="cc-plugin-agents-md"` sits kilobytes ahead of the call) |
 | `id` | `name@<marketplace>`, the marketplace read from the one `` `${t}@${_i}` `` template inside a function of the registrar's module that walks `.builtinPlugins`, with `_i="builtin"` |
 | `aliases` | the short names of the `["diff","cc-plugin-diff"]` pairs the bundle maps |
-| `default_enabled` | `defaultEnabled` as written; absent is true only when the consumer's `defaultEnabled??!0` is in the bundle (`absent-default`) |
+| `default_enabled` | `defaultEnabled` as written; absent is true only when the consumer's `defaultEnabled??!0` is the one default rule in the registrar module's functions that walk `.builtinPlugins` (`absent-default`); missing or ambiguous there, absent is unknown and partial |
 | `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | as written; absent is false |
 | `gated`, `gate_flags` | `isAvailable` present; each `f(FLAG,DEFAULT)` call in it whose first argument reads a `tengu_` string, through one identifier or a `()=>"tengu_x"` arrow. Other terms of the gate are runtime state and are not listed |
 | `skills` | the `skills` array: an object, an identifier bound to one (through `Object.freeze`), or a module function `f("run",{...})` returning an object literal whose `name:w[e]` reads a literal table and whose `...r` spreads the argument |

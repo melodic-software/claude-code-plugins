@@ -2895,6 +2895,23 @@ class TestBuiltinPlugins(unittest.TestCase):
             self.assertIsNone(rec["hook_events"], decl)
             self.assertIn("hook_events", rec["partial"], decl)
 
+    def test_the_default_rule_is_read_only_where_the_registry_is_walked(self) -> None:
+        # The real rule removed from the walk; a decoy elsewhere in the bundle.
+        registrar = _plugin_modules()[0].replace("n.defaultEnabled??!0", "n.x")
+        decoy = "function other(o){return o.defaultEnabled??!0}"
+        plugins, notes = _plugins(registrar=registrar, decoy=decoy)
+        self.assertFalse(notes["default_enabled_rule_found"])
+        rec = plugins["cc-plugin-agents-md"]
+        self.assertIsNone(rec["default_enabled"])
+        self.assertIn("default_enabled", rec["partial"])
+        # Two disagreeing defaults in the walk are ambiguous, not true.
+        registrar = _plugin_modules()[0].replace(
+            "a=n.defaultEnabled??!0", "a=n.defaultEnabled??!0,b=n.defaultEnabled??!1"
+        )
+        self.assertIsNone(
+            _plugins(registrar=registrar)[0]["cc-plugin-agents-md"]["default_enabled"]
+        )
+
     def test_no_registrar_is_an_error(self) -> None:
         registrar = _plugin_modules()[0].replace(".builtinPlugins.set(", ".other.set(")
         plugins, notes = _plugins(registrar=registrar)
