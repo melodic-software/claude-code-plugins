@@ -347,7 +347,7 @@ fetched 2026-09-08. Record 8 was verified against Claude Code 2.1.278 with the s
 fetched 2026-09-19. Record 9 was verified against the subagents page re-fetched 2026-09-27.
 Record 10 was verified against Claude Code 2.1.280 with the sub-agents page fetched 2026-09-27.
 Record 11 was verified against the sub-agents and CLI reference pages fetched 2026-09-27.
-Record 12 is a first-party reproduction run on 2026-10-01.
+Record 12 is a first-party reproduction run on 2026-10-01, with the sub-agents page fetched the same day.
 
 **One shared recheck trigger covers all twelve:** any of the named pages stops carrying the quoted
 span, a release note names subagent tool filtering, skill preloading, background execution,
@@ -566,7 +566,10 @@ the agent to say whether a "Preload liveness" section was in its instructions. E
 `[Agent: discovery:explorer] Preloaded skill 'discovery:explore'` and no skip warning; the probe run
 confirmed the definition body was in the agent's context; no run Read `SKILL.md`; every first return
 carried the YAML block with the skill's `preload_token` and `preload: fired`. Harness 2.1.286 also
-delivers a child agent's report as a message to its parent, not as a tool result. *What this does not
+delivers a child agent's report as a message to its parent, not as a tool result. The
+[sub-agents page](https://code.claude.com/docs/en/sub-agents) states that "a subagent that launches
+background subagents waits for their results before it finishes" and that background results "reach
+Claude as a completion notification in a later turn". *What this does not
 establish.* The reported runs' dispatch prompts, debug logs and checkouts were not reachable, so an
 intermittent harness fault, or a definition text that differed from this commit, is neither
 confirmed nor excluded. *Consequence.* No change to `agents/explorer.md` or the dispatch envelope

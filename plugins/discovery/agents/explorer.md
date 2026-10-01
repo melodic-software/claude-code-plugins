@@ -381,4 +381,5 @@ continue. Both denials are recorded with their basis in
 `EXPLORE.md`: a scout cannot write anything at all.
 
 **A nested child's delivered hand-back is its final report.** Use it and continue. Never idle
-waiting for a report you already hold.
+waiting for a report you already hold. Basis and recheck trigger: the same reference, "A named
+`discovery:explorer` dispatch delivers its definition body and its `skills:` preload".
