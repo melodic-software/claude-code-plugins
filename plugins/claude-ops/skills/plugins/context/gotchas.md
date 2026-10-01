@@ -188,7 +188,7 @@ placeholder, and a spoke that inlines one fails silently until that grep catches
 
 **The skill-body half of the contrast is verified on Claude Code 2.1.263** (2026-09-06, throwaway
 plugin from a local marketplace): a `userConfig` key set in user settings or through `--settings`
-`pluginConfigs` substitutes into the rendered `SKILL.md` body alongside `${CLAUDE_PLUGIN_ROOT}`,
+`pluginConfigs` substitutes into the rendered `SKILL.md` body alongside the plugin-root variable,
 provided the `pluginConfigs` payload nests the key under `options`; the spoke half rests on the
 on-disk observation above. Keep the render in `SKILL.md` and branch on that line.
 [scope-semantics.md](scope-semantics.md) "`userConfig`: an unset key renders the literal
@@ -197,7 +197,7 @@ placeholder" holds the payload shape and the probe recipe.
 ## `sync` updates the plugin that provides `sync`
 
 Step 3 sweeps every user-scope install, and `claude-ops` is one of them. When that update lands
-mid-run, `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start, so every
+mid-run, the plugin-root variable keeps resolving to the version loaded at session start, so every
 remaining step, including every later `fleet-state.sh` call, executes the **pre-update** script
 while the report describes a version the user now has installed but is not running. Per
 `code.claude.com/docs/en/plugins-reference` (re-fetched 2026-09-05, wording unchanged): "When a plugin updates

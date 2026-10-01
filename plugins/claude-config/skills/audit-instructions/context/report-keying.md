@@ -10,7 +10,7 @@ This file records only what an `audit-instructions` run does with it.
 ## Deriving the key
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
+bash "<plugin-root>/lib/state-key.sh"
 ```
 
 It prints `<repo-identity>/<worktree-discriminator>`, implemented once in the shared

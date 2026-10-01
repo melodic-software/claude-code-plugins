@@ -32,7 +32,7 @@ file rather than reading a third time. `--from` replaces the SECOND process this
 launch, never the re-read itself:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+"<skill-dir>/scripts/fleet-state.sh" \
   --ids missing-user-install --from "$run_dir/pre-install.$mp.json" \
   >"$run_dir/ids.pre-install.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing to install"
@@ -97,7 +97,7 @@ There is no `claude plugin` verb that reorders the map. After this step installs
 run the bundled normalizer against the user-scope file only:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh
+"<skill-dir>/scripts/normalize-enabled-plugins.sh"
 ```
 
 Override the path with `--file` or `FLEET_STATE_USER_SETTINGS` when the run is not using the
@@ -110,7 +110,7 @@ machine default (same override `fleet-state.sh` honors).
   protects. If a project-scope map is unsorted, report it under Action needed and stop:
 
   ```bash
-  "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh \
+  "<skill-dir>/scripts/normalize-enabled-plugins.sh" \
     --report-project "${project_root}/.claude/settings.json"
   ```
 
@@ -134,10 +134,10 @@ longer describes the state this step is about to act on. Save the new read as `p
 and project from it:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --marketplace "$mp" \
+"<skill-dir>/scripts/fleet-state.sh" --marketplace "$mp" \
   >"$run_dir/pre-enable.$mp.json"
 
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh \
+"<skill-dir>/scripts/fleet-state.sh" \
   --ids missing-enabled --from "$run_dir/pre-enable.$mp.json" \
   >"$run_dir/ids.pre-enable.$mp.txt"
 rc=$?   # exit 2 with empty output is a FAILED projection, not "nothing to enable"

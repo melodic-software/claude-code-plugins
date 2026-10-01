@@ -376,7 +376,7 @@ not by the manifest schema.
 
 **Claim.** When a `userConfig` key is set in none of the three `pluginConfigs` sources, the skill
 render leaves that key's placeholder token unchanged; the manifest's `default` is not substituted
-into skill content. A sibling key that is set, and `${CLAUDE_PLUGIN_ROOT}`, substitute in the same
+into skill content. A sibling key that is set, and the plugin-root variable, substitute in the same
 render, so the unchanged token is the unset signal and not a substitution failure. `SKILL.md`'s
 **Configured value** line reads that token as "unset, use the default `ask`".
 

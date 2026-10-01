@@ -100,7 +100,7 @@ and the model does the rest below.
 `scripts/check-hook-coverage.sh`, which the engine runs: settings-declared hooks *and* every enabled
 plugin's own hook config, read from the directory the session loads (a `directory` marketplace's
 checkout first, the installed-plugin registry otherwise). That matters for two of the rules below:
-`${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` only ever appear in a plugin-provided hook, so
+The plugin-root and plugin-data placeholders only ever appear in a plugin-provided hook, so
 those rules are decidable only against a plugin-inclusive inventory. Where the
 script exited 1, say which sources went unenumerated rather than reporting the inventory as the
 complete set.
@@ -194,17 +194,17 @@ the run. Use `SETTINGS_AUDIT_FIXTURE_DIR=<dir>` to short-circuit network calls i
 
 ```bash
 # Project audit (default: reads .claude/settings.json at the project root)
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh"
+bash "<skill-dir>/scripts/check-plugin-drift.sh"
 
 # User audit (override target file)
 CLAUDE_SETTINGS_FILE=~/.claude/settings.json \
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-plugin-drift.sh"
+  bash "<skill-dir>/scripts/check-plugin-drift.sh"
 
 # Plan + dry-run apply
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh"
+bash "<skill-dir>/scripts/fix-plugin-drift.sh"
 
 # Apply the orphan-false removals
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/fix-plugin-drift.sh" --yes
+bash "<skill-dir>/scripts/fix-plugin-drift.sh" --yes
 ```
 
 **What `--yes` leaves behind:** each apply writes a `<settings>.bak.<UTC stamp>.<random>` sibling

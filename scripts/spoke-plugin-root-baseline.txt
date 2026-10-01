@@ -13,7 +13,6 @@
 # Stale-guarded: an entry whose file is gone, no longer contains the token, or
 # holds a different count fails the gate. Never add an entry for a new spoke:
 # use <skill-dir> instead.
-plugins/architecture/skills/map-landscape/reference/scope-modes.md 1
 plugins/autonomy/skills/setup/context/capture-slice.md 2
 plugins/autonomy/skills/setup/context/guardrail-slice.md 3
 plugins/autonomy/skills/setup/context/prerequisite-resolution-slice.md 1
@@ -22,38 +21,15 @@ plugins/autonomy/skills/setup/context/trigger-dispatch-slice.md 2
 plugins/autonomy/skills/setup/context/windows-surfaces.md 1
 plugins/bugs/skills/scan/context/findings-report.md 2
 plugins/bugs/skills/scan/context/lenses.md 1
-plugins/claude-config/skills/audit-instructions/context/report-keying.md 1
-plugins/claude-config/skills/audit-instructions/reference/criteria.md 1
-plugins/claude-config/skills/audit-instructions/reference/finding-identity.md 1
-plugins/claude-config/skills/audit-pass/reference/retired-conventions-sweep.md 1
-plugins/claude-config/skills/audit-pass/reference/run-state-and-resumability.md 5
-plugins/claude-config/skills/audit-permission-grants/reference/criteria.md 6
-plugins/claude-config/skills/audit/context/validation-categories.md 5
-plugins/claude-config/skills/audit/reference/audit-checklist.md 1
-plugins/claude-ops/skills/changelog/context/read-actions.md 1
-plugins/claude-ops/skills/known-issues/context/action-check-all.md 1
-plugins/claude-ops/skills/known-issues/context/action-search.md 1
-plugins/claude-ops/skills/known-issues/context/action-status.md 2
-plugins/claude-ops/skills/lanes/context/restart-consumer.md 2
-plugins/claude-ops/skills/observability/context/data-sources.md 1
-plugins/claude-ops/skills/observability/context/operator-setup-retention.md 4
-plugins/claude-ops/skills/observability/context/otel-pipeline.md 1
-plugins/claude-ops/skills/observability/context/otel-queries.md 2
-plugins/claude-ops/skills/observability/context/output-format.md 1
-plugins/claude-ops/skills/plugins/context/gotchas.md 2
-plugins/claude-ops/skills/plugins/context/scope-semantics.md 1
-plugins/claude-ops/skills/plugins/context/script-contracts.md 6
-plugins/claude-ops/skills/plugins/context/sync-install-enable.md 5
-plugins/claude-ops/skills/plugins/context/sync.md 1
+plugins/claude-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
+plugins/claude-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
 plugins/code-metrics/skills/principles/reference/measures.md 2
 plugins/code-metrics/skills/principles/reference/thresholds.md 1
 plugins/code-tidying/skills/dissolve-comments/reference/safety.md 1
 plugins/code-tidying/skills/dissolve-comments/reference/scope.md 1
-plugins/codebase-health/skills/audit/context/discovery-method.md 1
 plugins/context-guard/skills/setup/reference/legacy-statusline-detect.md 2
 plugins/context-guard/skills/setup/reference/statusline-edit.md 3
 plugins/context-guard/skills/setup/reference/unwrap-before-compose.md 1
-plugins/context7/skills/lookup/context/update.md 3
 plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 1
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7
 plugins/disk-hygiene/skills/clean/reference/unsupported-platform-handoff.md 2
@@ -74,7 +50,6 @@ plugins/planning/skills/plan/context/close-out.md 4
 plugins/playbooks/skills/skill-authoring/reference/authoring-checklist.md 1
 plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1
 plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 1
-plugins/plugin-quality/skills/audit/reference/evidence-packet.md 3
 plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md 2
 plugins/rate-limit-guard/skills/setup/reference/unwrap-before-compose.md 1
 plugins/repo-hygiene/skills/clean/context/action-router.md 1

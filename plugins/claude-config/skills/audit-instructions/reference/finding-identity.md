@@ -42,7 +42,7 @@ and its heading path from the file and delegating the hashing to `audit-pass`'s
 
 ```shell
 printf '%s\n' 'reference/spoke.md:3:I33' 'a.md:4|b.md:9|I15' |
-  bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/finding-ids.sh"
+  bash "<skill-dir>/scripts/finding-ids.sh"
 ```
 
 A single-site row is `<path>:<line>:<id>`; the pairwise row is `<pathA>:<lineA>|<pathB>:<lineB>|I15`.

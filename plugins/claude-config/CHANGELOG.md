@@ -5,6 +5,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.55.3] - 2026-09-30
+
+### Fixed
+
+- **`audit`, `audit-instructions`, `audit-pass` and `audit-permission-grants` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` and `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Script paths now read `<skill-dir>/scripts/...` and `<plugin-root>/lib/...`, and each of the four `SKILL.md` files gains a `## Spoke paths` section saying which variable each placeholder is. The `audit-permission-grants` criteria and the `audit` hook-coverage checklist keep the literal token where it is the subject they detect, so no detection pattern or example changes.
+
 ## [0.55.2] - 2026-09-30
 
 ### Changed

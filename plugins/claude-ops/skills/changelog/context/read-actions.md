@@ -53,7 +53,7 @@ exceeded cap with that recommendation instead of fanning out.
 Every read-only action starts from one script:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/changelog/scripts/changelog-status.sh" [--range vA..vB] [--changelog <file>]
+bash "<skill-dir>/scripts/changelog-status.sh" [--range vA..vB] [--changelog <file>]
 ```
 
 It prints `key: value` lines: `last-applied`, `source` (`ledger:<path>`, `git-subject`, or `none`),

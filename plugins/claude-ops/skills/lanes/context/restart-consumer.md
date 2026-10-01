@@ -69,7 +69,7 @@ registers, edits, or deletes a scheduled task. Run `print-schedule` for commands
 generated from your machine's real paths:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/restart-consumer.sh" print-schedule
+bash "<skill-dir>/scripts/restart-consumer.sh" print-schedule
 ```
 
 It emits, for Windows first (matching the `ClaudeCodeOtelPrune` precedent in the
@@ -112,7 +112,7 @@ from cmd.exe.
 Two scheduled forms, different trade-offs:
 
 - **Headless skill form**: `claude -p "/claude-ops:lanes consume-restarts run"`.
-  Survives plugin updates (the skill resolves `${CLAUDE_PLUGIN_ROOT}` freshly at
+  Survives plugin updates (the skill resolves the plugin-root variable freshly at
   each invocation, so the task never embeds a plugin cache path that rots), but
   each tick is a paid model turn. Bound the spend: `claude` supports `--model`
   and `--max-budget-usd` (verified on this machine, claude 2.1.220), so pin a

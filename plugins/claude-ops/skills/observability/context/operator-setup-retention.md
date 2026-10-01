@@ -41,9 +41,9 @@ turned off). The size cap below bounds each hot file even when every line is ins
 `RETENTION_DAYS` alone is **not read**. Set without `CC_OTEL_RETENTION_DAYS` it exits 2.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh --dry-run   # cutoffs + per-class counts, mutates nothing
-bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh             # prune if needed (stop/compact/trim/start)
-CC_OTEL_RETENTION_DAYS=14 bash "${CLAUDE_PLUGIN_ROOT}"/skills/observability/otel/prune-otel-store.sh   # one-off override
+bash "<skill-dir>/otel/prune-otel-store.sh" --dry-run   # cutoffs + per-class counts, mutates nothing
+bash "<skill-dir>/otel/prune-otel-store.sh"             # prune if needed (stop/compact/trim/start)
+CC_OTEL_RETENTION_DAYS=14 bash "<skill-dir>/otel/prune-otel-store.sh"   # one-off override
 ```
 
 The Collector `fileexporter` can rotate its own files, but its README says "If `append: true` is set
@@ -107,7 +107,7 @@ The registration carries machine-specific absolute paths, so it is **generated f
 machine's paths** and never committed. Unlike the boot-time Collector service, the prune is a
 bash script, so the task must invoke `bash.exe` by full path. The script ships inside the
 installed plugin and sources sibling helpers, so the task must point at the plugin's own directory: resolve
-`${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/prune-otel-store.sh` from a Claude Code
+`<skill-dir>/otel/prune-otel-store.sh` from a Claude Code
 session and substitute that absolute path below (`<plugin-prune-script>`). The plugin cache path
 changes on plugin updates, so re-register the task after updating the plugin. Daily, off-peak
 (minimizes overlap with the brief stop window):
