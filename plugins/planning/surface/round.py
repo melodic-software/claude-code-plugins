@@ -328,8 +328,8 @@ def add_question(doc, q, repoint=False):
 
 def repoint_dependents(doc, new, old, repoint):
     """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
-    supersedes. With `repoint` each moves to `new`, unless `new` depends on it (that would make a
-    cycle); without it they are only named."""
+    supersedes. With `repoint` each moves to `new`; one that `new` itself depends on, directly or
+    not, only loses `old` (moving it would make a cycle). Without it they are only named."""
     users = [
         x
         for x in doc["questions"]
@@ -345,30 +345,51 @@ def repoint_dependents(doc, new, old, repoint):
             f"{names} still depend on {old['id']}, which {new['id']} supersedes; "
             "--repoint moves them"
         ], []
-    moved = [x for x in users if x["id"] not in (new.get("dependsOn") or [])]
-    for x in moved:
+    by_id = {x["id"]: x for x in doc["questions"]}
+    below, todo = set(), list(new.get("dependsOn") or [])
+    while (
+        todo
+    ):  # what `new` already waits on: pointing one of those at `new` would be a cycle
+        p = todo.pop()
+        if p not in below:
+            below.add(p)
+            todo += (by_id.get(p) or {}).get("dependsOn") or []
+    moved, dropped = [], []
+    for x in users:
+        cycle = x["id"] in below
         x["dependsOn"] = list(
-            dict.fromkeys(new["id"] if p == old["id"] else p for p in x["dependsOn"])
+            dict.fromkeys(
+                p
+                for p in (
+                    new["id"] if p == old["id"] and not cycle else p
+                    for p in x["dependsOn"]
+                )
+                if not (cycle and p == old["id"])
+            )
         )
+        if not x["dependsOn"]:
+            del x["dependsOn"]
+        (dropped if cycle else moved).append(x)
         x.setdefault("history", []).append(
             {
                 "at": now(),
                 "by": "claude",
                 "kind": "depends",
-                "text": f"Dependencies: {old['id']} -> {new['id']}.",
+                "text": f"Dependencies: {old['id']} dropped, {new['id']} depends on this question."
+                if cycle
+                else f"Dependencies: {old['id']} -> {new['id']}.",
             }
         )
-    notes = (
-        [
+    notes = []
+    if moved:
+        notes.append(
             f"repointed {', '.join(x['id'] for x in moved)} from {old['id']} to {new['id']}"
-        ]
-        if moved
-        else []
-    )
-    kept = [x["id"] for x in users if x not in moved]
-    if kept:
-        notes.append(f"not repointed, {new['id']} depends on them: {', '.join(kept)}")
-    return notes, moved
+        )
+    if dropped:
+        notes.append(
+            f"dropped {old['id']} from {', '.join(x['id'] for x in dropped)} ({new['id']} depends on it)"
+        )
+    return notes, moved + dropped
 
 
 def strings(v):

@@ -643,12 +643,19 @@ class TestSupersedeRepoint(DirCase):
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
 
-    def test_a_dependent_the_new_question_depends_on_is_left_alone(self):
+    def test_a_dependent_the_new_question_waits_on_only_loses_the_old_id(self):
         rc, out, err = self.add("--repoint", "--depends", "Q2")
         self.assertEqual(rc, 0, out + err)
-        self.assertEqual(self.q("Q2")["dependsOn"], ["Q1"])
+        self.assertNotIn("dependsOn", self.q("Q2"))
         self.assertEqual(self.q("Q4")["dependsOn"], ["Q6", "Q3"])
-        self.assertIn("not repointed, Q6 depends on them: Q2", out)
+        self.assertIn("dropped Q1 from Q2 (Q6 depends on it)", out)
+        self.assertIn("repointed Q4 from Q1 to Q6", out)
+        live = [
+            q["id"]
+            for q in self.doc()["questions"]
+            if "Q1" in q.get("dependsOn", []) and not q.get("archived")
+        ]
+        self.assertEqual(live, [])
 
     def test_the_apply_add_op_takes_repoint(self):
         new = question("Q6", supersedes="Q1")
