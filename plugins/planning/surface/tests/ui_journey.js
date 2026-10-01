@@ -153,6 +153,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Q5 reads Needs your answer and its group counts it open", /Needs your answer: whether the version must be pinned/.test(await text('.qbtn[data-q="Q5"] .chip.s-need')) && (await text('.sec[data-key="g:g2"] .cnt')) === "3 open / 3", await text('.sec[data-key="g:g2"] .cnt'));
     await pick("Q1"); await page.click("#qhead"); await page.keyboard.press("n"); const n1 = await sel(); await page.keyboard.press("n"); const n2 = await sel();
     ok("n visits Q4 then Q5 and skips Q3, pending research", n1 === "Q4" && n2 === "Q5", n1 + " " + n2);
+    ok("a question waiting on the user offers neither Research this nor Cancel research", !(await page.$('[data-research]')), await text("#talkRow"));
     ok("a long hold text wraps inside the rail: it never scrolls sideways", await page.$eval("#railList", el => el.scrollWidth <= el.clientWidth), await page.$eval("#railList", el => el.scrollWidth + " > " + el.clientWidth));
     ok("Q5 offers one action, Answer again, with a one-line reason and no Reopen", /set your earlier answer \(Own answer: .*\) aside because it needs your decision\./.test(await text("#cur")) && (await page.$$("#cur [data-again]")).length === 1 && !(await page.$('[data-act="reopen"]')) && !/Set aside/.test(await text("#cur")), await text("#cur"));
     const aside = await page.$eval('.qbtn[data-q="Q5"] .chip.aside', el => { const s = getComputedStyle(el); return {t: el.textContent, b: s.borderTopWidth, bg: s.backgroundColor, c: s.cursor}; }).catch(() => null);

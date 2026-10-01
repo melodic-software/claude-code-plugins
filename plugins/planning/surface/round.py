@@ -115,6 +115,7 @@ VERSION_LABEL = re.compile(r"V[0-9]+")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
+REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
 
 if os.name == "nt":
     import msvcrt
@@ -331,8 +332,8 @@ def strings(v):
 
 
 def warn_bare_issue_refs(doc, label, value):
-    """Warn once when any text in value carries a bare #N (outside code spans) and meta.repo is unset, so the page cannot link it."""
-    if not doc["meta"].get("repo") and any(
+    """Warn once when any text in value carries a bare #N (outside code spans) and meta.repo is not an owner/repo slug, so the page cannot link it."""
+    if not REPO_SLUG.fullmatch(str(doc["meta"].get("repo") or "")) and any(
         BARE_ISSUE_REF.search(CODE_SPAN.sub("", s)) for s in strings(value)
     ):
         warn(

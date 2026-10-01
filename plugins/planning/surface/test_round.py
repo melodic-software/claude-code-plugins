@@ -291,6 +291,16 @@ class TestRefusals(DirCase):
             self.assertEqual(rc, 0)
             self.assertNotIn("bare #N", err, title)
 
+    def test_bare_issue_ref_warns_when_meta_repo_is_not_an_owner_repo_slug(self):
+        for n, repo in enumerate(("https://github.com/o/r", "o/r/"), start=4):
+            doc = self.doc()
+            doc["meta"]["repo"] = repo
+            self.write_doc(doc)
+            q = question(f"Q{n}", title="Does #123 block the release?")
+            rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0)
+            self.assertIn("bare #N", err, repo)
+
     def test_bare_issue_ref_in_a_reply_op_warns(self):
         ops = {"ops": [{"op": "note-reply", "text": "See #77 for the thread."}]}
         rc, _, err = self.rp("apply", "--file", self.file("ops.json", ops))

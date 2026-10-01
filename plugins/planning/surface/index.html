@@ -1034,6 +1034,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>' +
       (st === "wait"
         ? '<button class="act soft" data-research="cancel-research" data-submit="1"' + (can ? "" : " disabled") + ' title="Releases the hold; Claude ignores the pending result">Cancel research</button>'
+        : st === "need" ? ""
         : '<button class="act soft" data-research="research" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to look this question up">Research this</button>') +
       '<button class="act soft" data-clear="1"' + (text ? "" : " disabled") + ' title="Empties the note">Clear</button>';
     renderConflict();
