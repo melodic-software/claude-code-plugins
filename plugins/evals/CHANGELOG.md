@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.3.9] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.3.8] - 2026-09-30
 
 ### Changed

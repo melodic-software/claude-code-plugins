@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.22] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
 ## [0.23.21] - 2026-09-30
 
 ### Changed
