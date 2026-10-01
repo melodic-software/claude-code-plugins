@@ -232,7 +232,10 @@ prune_task_state() {
   fi
   path="$(grep -o '[^";>]*prune-otel-store\.sh' <<<"$action" | head -n 1)"
   path="${path//\\//}"
-  if [[ -z "$path" ]]; then
+  # Only a local path of plain path characters is tested and printed: the line
+  # lands in model context, and [[ -f ]] on a UNC path contacts a remote host.
+  local local_path='^([A-Za-z]:)?/[A-Za-z0-9 ._/@()+~-]+$'
+  if [[ -z "$path" || ${#path} -gt 260 || "$path" == //* || ! "$path" =~ $local_path ]]; then
     printf 'unrecognized action'
   elif [[ -f "$path" ]]; then
     printf 'hand-registered (%s)' "$path"

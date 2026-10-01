@@ -141,7 +141,7 @@ log). The `prune-task:` states:
 | `disabled` | the task or its trigger is disabled |
 | `stale path (<path>)` | a hand-registered task names a prune script that no longer exists, typically a version directory the orphan sweep removed |
 | `hand-registered (<path>)` | a hand-registered task whose script still exists: a versioned path breaks at the next plugin update, and a copied script never gets fixes |
-| `unrecognized action` | the task runs neither the launcher nor a prune script |
+| `unrecognized action` | the task runs neither the launcher nor a local prune script path; a UNC path or one with unusual characters is never tested or printed |
 | `n/a (not Windows)`, `unknown (schtasks not found)` | not checked |
 
 Provisioning's `-Test` also reports the task, and reports drift when the hot files pass 1 GiB
