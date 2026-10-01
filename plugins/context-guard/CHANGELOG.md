@@ -5,6 +5,18 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.96] - 2026-10-01
+
+### Changed
+
+- **`zone-crossing-inject` records one telemetry entry per fire that reaches a zone decision, with a `path` field.** `path` is `fast` (no resolver ran), `coalesced` (the last zone reused because the snapshot body matched, or only `used_percentage` moved within one shipped band with no `zones.json`) or `resolving` (the resolver ran), beside the envelope duration. The existing transition and error records carry the same field, and a fire that exits because jq is missing or the state directory cannot be created records an error with a `reason`. With no sink configured nothing extra is loaded or run.
+
+## [0.7.95] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
 ## [0.7.94] - 2026-09-30
 
 ### Fixed

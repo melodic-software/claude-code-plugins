@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.19] - 2026-10-01
+
+### Changed
+
+- **The `maxTurns` record in `reference/parent-contract.md` now states the decision to keep 40 as a checkpoint and not size research-deep lanes to it.** A run that reaches the limit completes through resume; the recheck triggers are unchanged.
+
 ## [0.25.18] - 2026-09-30
 
 ### Fixed

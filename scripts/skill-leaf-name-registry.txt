@@ -137,8 +137,11 @@ audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-bu
 # and the Context7 MCP server resolve, read-only, never installing. It is its
 # own skill because `setup` is manual-only and the check must be model-invocable.
 # playwright joins on the same grounds: it reports whether the playwright-cli
-# binary and a browser resolve, read-only, never installing.
-check actionlint,bash-format,biome-format,context7,disk-hygiene,go-format,instruction-placement,markdown-format,playwright,powershell-format,ruff-format,skill-quality,toolchain,typos-format
+# binary and a browser resolve, read-only, never installing. claude-ops joins on
+# the same grounds: it reports whether node and jq resolve for its hooks.
+# guardrails joins on the same grounds: it reports whether node and jq resolve
+# for its hooks.
+check actionlint,bash-format,biome-format,claude-ops,context7,disk-hygiene,go-format,guardrails,instruction-placement,markdown-format,playwright,powershell-format,ruff-format,skill-quality,toolchain,typos-format
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.

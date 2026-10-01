@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.69.0] - 2026-10-01
+
+### Changed
+
+- **`worktree` routes to the built-in `EnterWorktree` and `ExitWorktree` tools.** The description
+  and a new `## Boundary` section say to use `ExitWorktree` with `action: "keep"` to leave a
+  worktree, and this skill to create one (never `EnterWorktree` by name), to enter an existing one
+  (claim check, then `EnterWorktree` by path), and to inventory, clean up, or audit worktrees. The
+  skill never passes `ExitWorktree`'s destructive `action: "remove"`; removal stays with `cleanup`. The verification records are in `reference/native-worktree.md`.
+
+## [0.68.2] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
 ## [0.68.1] - 2026-09-30
 
 ### Fixed
