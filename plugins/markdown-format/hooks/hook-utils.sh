@@ -433,8 +433,8 @@ hook::raw_file_path() {
 # choice instead of an invisible default.
 
 # Fail-OPEN jq gate — the default. For hooks whose input parsing cannot proceed
-# without jq and whose finding is advisory. When jq is absent: one visible skip
-# notice per session, then exit 0. Place after hook::check_enabled (and after any
+# without jq and whose finding is advisory. When jq is absent: a visible skip
+# notice once per session and agent, renewed every eighth skip, then exit 0. Place after hook::check_enabled (and after any
 # jq-free applicability pre-filter), passing the buffered stdin for session
 # scoping. See the posture block above for when this is the WRONG choice.
 #   hook::require_jq PostToolUse my-plugin "$INPUT"
