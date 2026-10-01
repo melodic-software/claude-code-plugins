@@ -65,7 +65,7 @@ def _unresolved(value: Any, source: Any) -> bool:
     if source in UNRESOLVED_SOURCES:
         return True
     if isinstance(value, list):
-        return ELLIPSIS in value
+        return any(isinstance(v, str) and ELLIPSIS in v for v in value)
     return isinstance(value, str) and ELLIPSIS in value
 
 
@@ -150,11 +150,10 @@ def compare(old: Any, new: Any, allow: list[dict] | None = None) -> dict:
     for rec in changes:
         if rec["class"] != "value->value":
             continue
-        for entry in allow:
-            if _covers(entry["pointer"], rec["pointer"]):
-                rec["allowed"] = entry.get("reason", "")
-                used.add(entry["pointer"])
-                break
+        covering = [e for e in allow if _covers(e["pointer"], rec["pointer"])]
+        if covering:
+            rec["allowed"] = covering[0]["reason"]
+            used.update(e["pointer"] for e in covering)
     counts = {c: sum(1 for r in changes if r["class"] == c) for c in CLASSES}
     disallowed = [
         r for r in changes if r["class"] == "value->value" and "allowed" not in r

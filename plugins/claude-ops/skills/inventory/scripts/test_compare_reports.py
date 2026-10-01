@@ -102,6 +102,13 @@ class TestClassification(unittest.TestCase):
             {AGENT + "/disallowed_tools": "unresolved->resolved"},
         )
 
+    def test_an_element_holding_an_ellipsis_marks_a_list_unresolved(self) -> None:
+        old = {"description_variants": ["Use … here", "Short"]}
+        new = {"description_variants": ["Use Grep here", "Short"]}
+        self.assertEqual(
+            _classes(old, new), {"/description_variants": "unresolved->resolved"}
+        )
+
     def test_two_different_partial_values_are_value_to_value(self) -> None:
         old = _report(disallowed_tools=["A"], disallowed_tools_source="partial")
         new = _report(disallowed_tools=["B"], disallowed_tools_source="partial")
@@ -164,6 +171,15 @@ class TestAllow(unittest.TestCase):
         old, new = {"Explorer": 1, "Explore": 1}, {"Explorer": 2, "Explore": 1}
         allow = [{"pointer": "/Explore", "reason": "fix"}]
         self.assertTrue(cr.compare(old, new, allow)["failed"])
+
+    def test_a_narrower_entry_under_a_broader_one_is_used(self) -> None:
+        allow = [
+            {"pointer": AGENT, "reason": "broad"},
+            {"pointer": AGENT + "/description", "reason": "narrow"},
+        ]
+        result = cr.compare(_report(), _report(description="x"), allow)
+        self.assertFalse(result["failed"])
+        self.assertEqual(result["unused_allow"], [])
 
     def test_an_unused_allow_entry_is_reported(self) -> None:
         allow = [{"pointer": "/nowhere", "reason": "stale"}]
