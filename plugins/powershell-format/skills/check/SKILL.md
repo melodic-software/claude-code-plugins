@@ -1,5 +1,5 @@
 ---
-description: "Read-only check that pwsh, the PSScriptAnalyzer module, jq and node resolve for the powershell-format hook. Use when a hook notice says pwsh or jq is missing, or before assuming PowerShell formatting ran. Does not install."
+description: "Read-only check that pwsh, the PSScriptAnalyzer module, jq and node resolve for the powershell-format hook. Use when a hook notice says pwsh, jq or node is missing, or before assuming PowerShell formatting ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:

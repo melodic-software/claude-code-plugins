@@ -9,6 +9,9 @@
 # deferred in the adapter's README.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 CB_REPO=""
@@ -46,7 +49,7 @@ fi
 #
 # `curl` is PATH-stubbed to one empty page so cb_setup's clean-at-start pass runs
 # offline rather than being bypassed.
-CB_STUB_DIR="$(mktemp -d)"
+CB_STUB_DIR="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 cat >"$CB_STUB_DIR/curl" <<'STUB'
 #!/usr/bin/env bash
 # Drain the stdin config (the credential arrives that way) so the writer never sees EPIPE.
@@ -127,7 +130,7 @@ STUB
 chmod +x "$CB_STUB_DIR/curl"
 
 (
-  export PATH="$CB_STUB_DIR:$PATH"
+  export PATH="$CB_STUB_DIR:$PATH" TMPDIR="$TMP_ROOT"
   export WIT_LINEAR_API_KEY="throwaway-not-a-real-key"
   export WIT_CONFORMANCE_LINEAR_HOST="api.linear.app"
   export WIT_CONFORMANCE_LINEAR_SCOPE="throwaway/SBX"

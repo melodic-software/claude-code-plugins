@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for resolve-config.sh: layer order, list concatenation, scalar
 # override, validation exits, hook coverage, and the one path-glob matcher.
+# shellcheck disable=SC2016 # fence lines in fixtures are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR
 
@@ -34,7 +35,10 @@ run() {
 }
 # records <key>: the values of <key>, space-joined, in output order.
 records() { awk -F'\t' -v k="$1" '$1 == k { printf "%s%s", s, $2; s = " " }' <<<"$out"; }
-reset() { rm -f "$HOME/.claude/testing.yaml" "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml"; }
+reset() {
+  rm -rf "$HOME/.claude/testing.yaml" "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml" "$REPO/docs"
+  mkdir -p "$REPO/docs/conventions"
+}
 
 run
 assert_eq "no layer file prints nothing" "0:" "$rc:$out"
@@ -202,6 +206,144 @@ run
 assert_eq "a layer under a symlinked .claude exits 2" 2 "$rc"
 rm "$REPO/.claude" "$T/real-claude/testing.local.yaml"
 mv "$T/real-claude" "$REPO/.claude"
+
+# --- the team layer as a docs convention file's config block ---------------------
+DOCS="$REPO/docs/conventions/testing.md"
+mkdir -p "$REPO/docs/conventions"
+errs() { { bash "$RESOLVE" --root "$REPO" >/dev/null; } 2>&1; }
+reset
+cat >"$DOCS" <<'EOF'
+# Testing conventions
+
+Prose rules for the team.
+
+```yaml config
+adapters:
+  disable: [py-unittest]
+paths:
+  exclude: ['legacy/**']
+```
+
+More prose.
+EOF
+run
+assert_eq "a docs block alone is the team layer" "0:$DOCS" "$rc:$(records layer)"
+assert_eq "and its keys resolve" "legacy/**" "$(records paths.exclude)"
+assert_eq "the block's first and last lines never print as records" "" "$(records block)"
+printf 'adapters:\n  disable: [bash-bats]\n' >"$REPO/.claude/testing.yaml"
+printf 'rules:\n  rule-zero-assertion: warn\n' >"$REPO/.claude/testing.local.yaml"
+run
+assert_eq "with both, the docs block is the team layer and the .claude file is skipped" \
+  "$DOCS $REPO/.claude/testing.local.yaml" "$(records layer)"
+assert_eq "no key from the ignored .claude file merges in" "py-unittest" "$(records adapters.disable)"
+assert_eq "the overlay still merges over the docs block" "warn" "$(records rules.zero-assertion)"
+assert_contains "both present: one warning names both paths" "$(errs)" "$DOCS and $REPO/.claude/testing.yaml both exist; using the docs block"
+assert_eq "and it is one line" 1 "$(errs | wc -l | tr -d ' ')"
+rm -f "$REPO/.claude/testing.local.yaml"
+rm -f "$DOCS"
+run
+assert_eq "a .claude file alone is the team layer" "$REPO/.claude/testing.yaml" "$(records layer)"
+assert_eq "with no warning" "" "$(errs)"
+cat >"$DOCS" <<'EOF'
+# Testing
+
+An example of the block, shown inside a longer fence, is not a block:
+
+````markdown
+```yaml config
+adapters:
+  disable: [py-unittest]
+```
+````
+
+```json config
+{}
+```
+EOF
+run
+assert_eq "a docs file with no block falls back to the .claude file" "$REPO/.claude/testing.yaml" "$(records layer)"
+assert_eq "using its keys" "bash-bats" "$(records adapters.disable)"
+assert_eq "without a warning" "" "$(errs)"
+rm -f "$REPO/.claude/testing.yaml"
+run
+assert_eq "no block and no .claude file prints nothing" "0:" "$rc:$out"
+printf '# Testing\n\n```yaml config\n```\n' >"$DOCS"
+printf 'adapters:\n  disable: [bash-bats]\n' >"$REPO/.claude/testing.yaml"
+run
+assert_eq "an empty block is a block: the docs file wins" "$DOCS" "$(records layer)"
+assert_eq "so the .claude file's keys do not load" "" "$(records adapters.disable)"
+rm -f "$REPO/.claude/testing.yaml"
+
+# an error in the block names the .md file and the .md file's own line
+cat >"$DOCS" <<'EOF'
+# Testing
+
+One line of prose.
+Another.
+
+```yaml config
+paths:
+  exclude: [a]
+  excludes: [b]
+```
+EOF
+run
+assert_eq "an unknown key in the block exits 2" 2 "$rc"
+assert_contains "and is named at the .md file and its line" "$out" "$DOCS:9: unknown key: paths.excludes"
+cat >"$DOCS" <<'EOF'
+# Testing
+
+```yaml config
+adapters:
+  enable:
+    - js-vitest
+    - js-vitset
+```
+EOF
+run --quick
+assert_eq "--quick refuses an unknown adapter id in the block" 2 "$rc"
+assert_contains "at the .md line" "$out" "$DOCS:7: unknown adapter: js-vitset"
+cat >"$DOCS" <<'EOF'
+js-vitset is named in prose first.
+
+```yaml config
+adapters:
+  enable: [js-vitset]
+```
+EOF
+run
+assert_contains "an id named in prose before the block is not the reported line" "$out" "$DOCS:5: unknown adapter: js-vitset"
+printf '# T\n\n```yaml config\npaths:\n  exclude: [a]\n```\n\ntext\n\n```yaml config\npaths:\n  exclude: [b]\n```\n' >"$DOCS"
+run
+assert_eq "two blocks is an invalid layer" 2 "$rc"
+assert_contains "naming the second block and the first" "$out" "$DOCS:10: second config block (the first opens at line 3)"
+printf '# T\n\n```yaml config\npaths:\n  exclude: [a]\n' >"$DOCS"
+run
+assert_eq "a block never closed is an invalid layer" 2 "$rc"
+assert_contains "named at its opening line" "$out" "$DOCS:3: config block is never closed"
+printf '\357\273\277# T\r\n\r\n```yaml config\r\npaths:\r\n  exclude: [crlf/**]\r\n```\r\n' >"$DOCS"
+run
+assert_eq "a CRLF docs file with a byte-order mark loads" "0:crlf/**" "$rc:$(records paths.exclude)"
+printf '\357\273\277```yaml config\r\npaths:\r\n  exclude: [bom/**]\r\n```\r\n' >"$DOCS"
+run
+assert_eq "a block opening on line 1 after a byte-order mark loads" "0:bom/**" "$rc:$(records paths.exclude)"
+
+# the symlink refusal covers the docs file and its parents
+printf '```yaml config\npaths:\n  exclude: [secret]\n```\n' >"$T/foreign.md"
+rm -f "$DOCS"
+ln -s ../../../foreign.md "$DOCS"
+run
+assert_eq "a symlinked docs file exits 2" 2 "$rc"
+assert_eq "without parsing the file it points at" "" "$(grep -F secret <<<"$out")"
+rm -f "$DOCS"
+rm -rf "$REPO/docs/conventions"
+mkdir -p "$T/real-conventions"
+cp "$T/foreign.md" "$T/real-conventions/testing.md"
+ln -s "$T/real-conventions" "$REPO/docs/conventions"
+run
+assert_eq "a docs file under a symlinked directory exits 2" 2 "$rc"
+rm -f "$REPO/docs/conventions"
+reset
 
 # --- the whole suite again under mawk -----------------------------------------
 if [[ -z "${TCFG_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then

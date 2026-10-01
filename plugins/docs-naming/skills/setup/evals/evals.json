@@ -1,0 +1,82 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-the-resolved-layers",
+      "prompt": "Is docs-naming configured in this repository?",
+      "narration": true,
+      "expected_output": "Runs scripts/setup-check.sh and presents its table as printed: the jq and git prerequisite rows, one row per configuration layer with its path and whether it is present or absent, the resolve row, the key-shape, rule, regex, tier and generated rows, and the tracked and ignored rows. Reports the exit status and changes no file.",
+      "expectations": [
+        "The bundled setup-check.sh is run rather than the concern file being read and judged by hand",
+        "The table is presented with its PASS, FAIL, WARN, and INFO rows intact rather than summarized as 'configured'",
+        "A layer reported absent is explained as valid (the layer below supplies those keys), not as an error",
+        "No file is written"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "check-refuses-a-malformed-layer",
+      "prompt": "Run the docs-naming setup check. The team layer at .claude/docs-naming.json was hand-edited this morning and now reads `{\"file_names\": {\"regex\": \"^[a-z]+$\"}` with no closing brace.",
+      "narration": true,
+      "expected_output": "The check exits 1 with a FAIL on the resolve row naming .claude/docs-naming.json as invalid JSON. The response says the file must be fixed before any file-name skill runs, and does not offer to proceed with the bundled defaults instead.",
+      "expectations": [
+        "The FAIL row and the named file are reported rather than a generic failure",
+        "The run is reported as exit 1, not as a warning",
+        "The remedy is fixing the named layer, never silently falling back to the bundled defaults",
+        "No file is written or repaired without the operator asking"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-defaults-then-verify",
+      "prompt": "Set up docs-naming for this repository with the bundled defaults.",
+      "narration": true,
+      "expected_output": "Runs scripts/setup-check.sh, then scripts/setup-apply.sh --defaults, then setup-check.sh again, and reports the written path .claude/docs-naming.json, the values from the second table, and that the file is still untracked and needs committing to reach the team.",
+      "expectations": [
+        "apply is run through the bundled setup-apply.sh, never by composing the JSON by hand",
+        "The check is re-run after the write and the reported values come from that table",
+        "The untracked WARN is surfaced as 'commit it to share it' rather than as success",
+        "The consumer's .gitignore is not edited"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "personal-layer-cannot-narrow-a-tier",
+      "prompt": "I put a `tiers` list in .claude/docs-naming.local.json that has only my own tier in it, but the released-changelog tier still shows up when I check. Is that a bug?",
+      "narration": true,
+      "expected_output": "Explains that tiers is a policy-floor key: a personal layer may add entries and never remove them, because a tier decides which references the realign will rewrite in which form, and narrowing one from a single machine would weaken a team decision. Points at the check's policy-floor row and at reference/config.md, and says the remedy is to change the team layer if the tier should really go.",
+      "expectations": [
+        "The behavior is named as intended, not as a defect",
+        "The reason given is that the key decides what the realign does to a tree, not merely 'that is the merge order'",
+        "The remedy offered is a team-layer change, never editing the overlay differently",
+        "generated is named as the stricter case: team layer only"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "retired-team-config-name-detected-docs-naming-r001",
+      "prompt": "Run the docs-naming setup check. This repository still has .claude/docs-hygiene.json with a file_names block and no .claude/docs-naming.json.",
+      "narration": true,
+      "expected_output": "Runs the retirement detection step beside the table and reports docs-naming-r001 as FAIL for .claude/docs-hygiene.json, saying the resolver still reads it for one release with a warning. The remedy is the rename (git mv .claude/docs-hygiene.json .claude/docs-naming.json), not apply with defaults. Changes no file.",
+      "expectations": [
+        "check-retirements.sh is run against the plugin's retirements.yaml and its finding docs-naming-r001 is reported as FAIL",
+        "The remedy is renaming the file onto .claude/docs-naming.json, not writing a fresh file beside it",
+        "No file is changed by check"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-cleans-a-retired-overlay-docs-naming-r002",
+      "prompt": "/docs-naming:setup apply. Both .claude/docs-naming.local.json and the old .claude/docs-hygiene.local.json exist, and the old one has an exempt_paths entry the new one lacks.",
+      "narration": true,
+      "expected_output": "Re-runs retirement detection, reports docs-naming-r002, carries only the missing exempt_paths entry into the new overlay behind a confirmation, and after the operator confirms the result runs check-retirements.sh with --clean docs-naming-r002 --i-migrated. Re-runs detection last and reports the final state.",
+      "expectations": [
+        "Only the keys the new overlay lacks are added, so the new file wins",
+        "Cleanup is individually confirmed and runs --clean docs-naming-r002 --i-migrated only after the operator confirms the migrated result",
+        "The old file's content is treated as untrusted input and never executed or interpolated",
+        "Detection is re-run last and the final state is reported"
+      ]
+    }
+  ]
+}

@@ -5,6 +5,16 @@
       "local_bin": "node_modules/.bin/biome",
       "check": "/biome-format:check",
       "install": "npm i -D @biomejs/biome"
+    },
+    {
+      "name": "jq",
+      "check": "/biome-format:check",
+      "install": "install jq from https://jqlang.org/download/"
+    },
+    {
+      "name": "node",
+      "check": "/biome-format:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
     }
   ]
 }

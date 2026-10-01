@@ -1,0 +1,18 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 3, "end_line": 4 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "notes": {
+    "shape": "A table row per vendor number, each with a status cell that names the owner as a category ('Anthropic-prescribed') and nothing else. The facts sit in the middle column and the attribution sits in the last, in a form that reads as provenance.",
+    "carve_outs": "None apply. The status cell is not a conforming record: it names no page, no as-of date and no recheck trigger. The file is not a distillation of the named source; it is a grading aid that carries the numbers incidentally.",
+    "rubric": "R1 holds: the product's own documentation owns the listing cap and the budget. R2 holds: a character count and a percentage. R3 holds: each row states the number as the current bound. R4 holds: a status tag names an owner and supplies none of the record's other three parts, so the fact is stated without a whole four-part record.",
+    "carries": "This is the case that tests whether an owner named in a category cell is mistaken for attribution. A run that clears it on the word 'Anthropic-prescribed' has treated a label as a record.",
+    "tier_reason": "A source was supplied, so source-fetched-similar, and never fingerprint-confirmed for this class. Report-only."
+  }
+}

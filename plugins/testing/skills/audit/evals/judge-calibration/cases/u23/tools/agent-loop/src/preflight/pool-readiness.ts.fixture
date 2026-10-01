@@ -1,0 +1,340 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { resolveAgentPool, resolvePoolAdapter } from "../agent-pool.js";
+import { missingEnvVars } from "../env.js";
+import { evaluateGateForPool, loadGateMarkerFromFile } from "../gate.js";
+import { resolvePoolBindMountHostPath, type PoolsLocalConfig } from "../pools-config.js";
+import { loadPoolsConfigForSpendGate } from "../spend-gate.js";
+import type { IterationContext } from "../types.js";
+import {
+  type PoolReadinessProfile,
+  POOL_READINESS_PROFILES,
+  poolEnabledInLocalConfig,
+  resolvePoolReadinessProfile,
+} from "./pool-readiness-config.js";
+
+export type CheckStatus = "PASS" | "FAIL" | "WARN";
+
+export interface CheckResult {
+  readonly id: string;
+  readonly status: CheckStatus;
+  readonly message: string;
+}
+
+const COMPLIANCE_CHECKBOX_RE = /\[[xX]\]/u;
+
+/** OCI image reference — blocks shell metacharacters before docker argv spawn. */
+const CONTAINER_IMAGE_SAFE_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._/@:-]*$/u;
+
+export function assertValidContainerImage(image: string): string | undefined {
+  const trimmed = image.trim();
+  if (trimmed === "" || !CONTAINER_IMAGE_SAFE_PATTERN.test(trimmed)) {
+    return `invalid container image reference: ${image}`;
+  }
+  return undefined;
+}
+
+const PREFLIGHT_CONTEXT: IterationContext = {
+  containerImage: "preflight",
+  hostWorkspacePath: "/workspace",
+  containerWorkspacePath: "/workspace",
+  prompt: "preflight",
+  iterationLabel: "preflight",
+};
+
+export function runQuiet(command: string, args: readonly string[]): boolean {
+  try {
+    execFileSync(command, args, { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runCapture(command: string, args: readonly string[]): string | undefined {
+  try {
+    return execFileSync(command, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+}
+
+export function checkDocker(): CheckResult {
+  return runQuiet("docker", ["info"])
+    ? { id: "docker", status: "PASS", message: "daemon reachable" }
+    : { id: "docker", status: "FAIL", message: "docker info failed" };
+}
+
+export function checkHostBoundary(projectRoot: string): CheckResult {
+  const script = resolve(projectRoot, "scripts/check-host-container-env-boundary.sh");
+  if (!existsSync(script)) {
+    return { id: "host-boundary", status: "WARN", message: "boundary script missing" };
+  }
+  return runQuiet("bash", [script])
+    ? { id: "host-boundary", status: "PASS", message: "no container path leaks on host" }
+    : {
+        id: "host-boundary",
+        status: "FAIL",
+        message: "host env or git config contains container workspace paths",
+      };
+}
+
+export function checkImage(profile: PoolReadinessProfile): CheckResult {
+  const image = profile.pool.containerImage;
+  const imageError = assertValidContainerImage(image);
+  if (imageError !== undefined) {
+    return { id: "image", status: "FAIL", message: imageError };
+  }
+  if (!runQuiet("docker", ["image", "inspect", image])) {
+    return {
+      id: "image",
+      status: "WARN",
+      message: `${image} not built — docker build -t ${image} -f ${profile.dockerfilePath} .`,
+    };
+  }
+  const cli = profile.pool.cli === "cursor" ? "cursor-agent" : profile.pool.cli;
+  const version = runCapture("docker", ["run", "--rm", "--entrypoint", cli, image, "--version"]);
+  return version === undefined
+    ? { id: "image", status: "WARN", message: `${image} present but ${cli} --version failed` }
+    : { id: "image", status: "PASS", message: `${image} — ${version}` };
+}
+
+export function checkStructural(profile: PoolReadinessProfile, projectRoot: string): CheckResult {
+  const script = resolve(projectRoot, profile.structuralTestScript);
+  if (!existsSync(script)) {
+    return { id: "structural", status: "WARN", message: `${profile.structuralTestScript} missing` };
+  }
+  return runQuiet("bash", [script])
+    ? {
+        id: "structural",
+        status: "PASS",
+        message: `${profile.pool.id} wiring + tier-0 build artifact`,
+      }
+    : {
+        id: "structural",
+        status: "FAIL",
+        message: `${profile.structuralTestScript} failed`,
+      };
+}
+
+export function checkAuth(
+  profile: PoolReadinessProfile,
+  projectRoot: string,
+  env: NodeJS.ProcessEnv,
+  credentialed: boolean,
+): CheckResult {
+  const { auth } = profile;
+  if (auth.kind === "env") {
+    if (auth.validateEnv !== undefined) {
+      const message = auth.validateEnv(env);
+      if (message === undefined) {
+        return { id: "auth", status: "PASS", message: auth.label };
+      }
+      return { id: "auth", status: credentialed ? "FAIL" : "WARN", message };
+    }
+    const inv = resolvePoolAdapter(profile.pool)(PREFLIGHT_CONTEXT);
+    const missing = missingEnvVars(inv.requiredEnv, env);
+    if (missing.length === 0) {
+      return { id: "auth", status: "PASS", message: auth.label };
+    }
+    const message = `Missing: ${missing.join(", ")}`;
+    return { id: "auth", status: credentialed ? "FAIL" : "WARN", message };
+  }
+
+  const missingPaths = (auth.hostPaths ?? []).filter(
+    (path) => !existsSync(resolvePoolBindMountHostPath(path, projectRoot)),
+  );
+  if (missingPaths.length > 0) {
+    const message = `Missing host credential file(s): ${missingPaths.join(", ")}`;
+    return { id: "auth", status: credentialed ? "FAIL" : "WARN", message };
+  }
+
+  if (auth.kind === "host-files-with-grok-cli") {
+    const grokScript = resolve(projectRoot, "../grok-build/check-availability.sh");
+    if (!existsSync(grokScript)) {
+      return {
+        id: "grok-cli",
+        status: "WARN",
+        message: "tools/grok-build/check-availability.sh missing",
+      };
+    }
+    if (!runQuiet("bash", [grokScript])) {
+      return {
+        id: "grok-cli",
+        status: credentialed ? "FAIL" : "WARN",
+        message: "Grok CLI not available on host — see docs/grok-build/README.md",
+      };
+    }
+    return {
+      id: "auth",
+      status: "PASS",
+      message: `${auth.label}; Grok CLI available`,
+    };
+  }
+
+  return { id: "auth", status: "PASS", message: auth.label };
+}
+
+export function checkAttestation(
+  profile: PoolReadinessProfile,
+  projectRoot: string,
+  credentialed: boolean,
+): CheckResult {
+  let pools: PoolsLocalConfig;
+  try {
+    pools = loadPoolsConfigForSpendGate(projectRoot);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { id: "attestation", status: "FAIL", message };
+  }
+  const pool = resolveAgentPool(profile.pool.id, projectRoot, pools);
+  const markerPath = resolve(projectRoot, pool.gateMarkerFilename);
+  if (!existsSync(markerPath)) {
+    const message = `${pool.gateMarkerFilename} missing — copy ${profile.attestationExampleFile}`;
+    return { id: "attestation", status: credentialed ? "FAIL" : "WARN", message };
+  }
+  const load = loadGateMarkerFromFile(markerPath);
+  const decision = evaluateGateForPool(load, {
+    poolId: pool.gatePoolId,
+    markerLabel: pool.gateMarkerLabel,
+  });
+  if (!decision.allowed) {
+    return {
+      id: "attestation",
+      status: "FAIL",
+      message: decision.reason,
+    };
+  }
+  return { id: "attestation", status: "PASS", message: `spend gate allows ${profile.pool.id}` };
+}
+
+export function checkPoolsLocal(profile: PoolReadinessProfile, projectRoot: string): CheckResult {
+  const localPath = resolve(projectRoot, "pools.local.jsonc");
+  if (!existsSync(localPath)) {
+    return {
+      id: "pools-local",
+      status: "WARN",
+      message: `no pools.local.jsonc — copy pools.example.jsonc and enable ${profile.pool.id}`,
+    };
+  }
+  const raw = readFileSync(localPath, "utf8");
+  if (poolEnabledInLocalConfig(raw, profile.pool.id)) {
+    return { id: "pools-local", status: "PASS", message: `${profile.pool.id} enabled` };
+  }
+  return {
+    id: "pools-local",
+    status: "WARN",
+    message: `${profile.pool.id} not enabled in pools.local.jsonc`,
+  };
+}
+
+export function checkCompliance(
+  profile: PoolReadinessProfile,
+  repoRoot: string,
+): CheckResult | undefined {
+  if (profile.complianceFile === undefined) {
+    return undefined;
+  }
+  const compliancePath = resolve(repoRoot, profile.complianceFile);
+  if (!existsSync(compliancePath)) {
+    return { id: "compliance", status: "WARN", message: `${profile.complianceFile} missing` };
+  }
+  const body = readFileSync(compliancePath, "utf8");
+  if (COMPLIANCE_CHECKBOX_RE.test(body)) {
+    return { id: "compliance", status: "PASS", message: "compliance checkbox marked" };
+  }
+  return {
+    id: "compliance",
+    status: "WARN",
+    message: `sign ${profile.complianceFile} before credentialed runs`,
+  };
+}
+
+export function checkTier0(
+  profile: PoolReadinessProfile,
+  projectRoot: string,
+  workspaceRoot: string,
+): CheckResult {
+  const script = resolve(projectRoot, profile.tier0BuildScript);
+  if (!existsSync(script)) {
+    return { id: "tier0-write", status: "FAIL", message: "run npm run build first" };
+  }
+  try {
+    execFileSync(process.execPath, [script, workspaceRoot], {
+      stdio: "inherit",
+      cwd: projectRoot,
+    });
+    return { id: "tier0-write", status: "PASS", message: "credentialed headless write probe" };
+  } catch {
+    return {
+      id: "tier0-write",
+      status: "FAIL",
+      message: `${profile.pool.id} tier-0 write gate failed`,
+    };
+  }
+}
+
+export function runPoolReadinessChecks(params: {
+  readonly profile: PoolReadinessProfile;
+  readonly projectRoot: string;
+  readonly repoRoot: string;
+  readonly env: NodeJS.ProcessEnv;
+  readonly credentialed: boolean;
+  readonly workspaceRoot: string;
+  readonly includeShared: boolean;
+}): CheckResult[] {
+  const results: CheckResult[] = [];
+  if (params.includeShared) {
+    results.push(checkDocker(), checkHostBoundary(params.projectRoot));
+  }
+  results.push(
+    checkImage(params.profile),
+    checkStructural(params.profile, params.projectRoot),
+    checkAuth(params.profile, params.projectRoot, params.env, params.credentialed),
+    checkAttestation(params.profile, params.projectRoot, params.credentialed),
+    checkPoolsLocal(params.profile, params.projectRoot),
+  );
+  const compliance = checkCompliance(params.profile, params.repoRoot);
+  if (compliance !== undefined) {
+    results.push(compliance);
+  }
+  if (params.credentialed) {
+    results.push(checkTier0(params.profile, params.projectRoot, params.workspaceRoot));
+  }
+  return results;
+}
+
+export function printCheckResults(poolId: string, results: readonly CheckResult[]): void {
+  process.stdout.write(`\n== ${poolId} ==\n`);
+  for (const result of results) {
+    process.stdout.write(`${result.status.padEnd(5)} ${result.id}: ${result.message}\n`);
+  }
+}
+
+export function summarizeResults(results: readonly CheckResult[]): {
+  failCount: number;
+  warnCount: number;
+} {
+  return {
+    failCount: results.filter((r) => r.status === "FAIL").length,
+    warnCount: results.filter((r) => r.status === "WARN").length,
+  };
+}
+
+export function resolveProfilesForRun(
+  poolId: string | undefined,
+  all: boolean,
+): PoolReadinessProfile[] {
+  if (all) {
+    return Object.values(POOL_READINESS_PROFILES);
+  }
+  if (poolId === undefined) {
+    return [];
+  }
+  const profile = resolvePoolReadinessProfile(poolId);
+  return profile === undefined ? [] : [profile];
+}

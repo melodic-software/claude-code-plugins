@@ -1,5 +1,60 @@
 # Changelog: discovery plugin
 
+## [0.25.21] - 2026-10-01
+
+### Added
+
+- **`evals/explorer-uses-delivered-scout-hand-back` is the plugin's first `claude plugin eval` case.** It dispatches `discovery:explorer` with a nested scout's final report already delivered in the dispatch prompt, and grades that the explorer uses the report and runs on to its own return block: the slice index reaches `Run status: complete`, and the relayed block carries `status: complete` and `persistence: written`. The delivery is simulated, so the case grades the explorer's reaction and not the harness. A run needs `--scaffold --allow-tools Bash,Write --ablation none`.
+
+## [0.25.20] - 2026-10-01
+
+### Added
+
+- **`reference/parent-contract.md` records a first-party reproduction of the named `discovery:explorer` dispatch as harness fact 12.** Four headless dispatches on Claude Code 2.1.286 (`model:` with `name:`, `name:` alone, and `model:` alone, plus a probe run) delivered the definition body and resolved the `skills:` preload, and every first return was the YAML block. The two reported runs that behaved as if both were missing did not reproduce; the record states what that does not establish and its recheck trigger.
+- **Two `explore` evals cover the parent side of the failure shapes.** Eval 14 grades a prose-only explorer return with no payload block as a failed dispatch. Eval 15 grades an explorer's final report delivered as a message: the parent runs the acceptance gate instead of waiting.
+
+### Changed
+
+- **`agents/explorer.md` says a nested child's delivered hand-back is its final report.** The explorer uses it and continues instead of idling for a report it already holds.
+
+## [0.25.19] - 2026-10-01
+
+### Changed
+
+- **The `maxTurns` record in `reference/parent-contract.md` now states the decision to keep 40 as a checkpoint and not size research-deep lanes to it.** A run that reaches the limit completes through resume; the recheck triggers are unchanged.
+
+## [0.25.18] - 2026-09-30
+
+### Fixed
+
+- **Dropped the filler "in order to" from the `explore` skill body and `reference/workflow.md`.** Wording only; behavior is unchanged.
+
+## [0.25.17] - 2026-09-30
+
+### Added
+
+- **`tests/count-rereads.py` counts rereads in a subagent transcript.** It reads one
+  `subagents/agent-*.jsonl`, prints `REREAD:` for a second full read of a file with no edit between,
+  `SCAN->READ:` for a `Grep` or `ls` of a file followed on a later turn by a full read of it, the
+  handback turn, and the two totals. Paths and counts only, never transcript content.
+  `tests/count-rereads.test.sh` covers it with synthetic transcripts.
+
+### Changed
+
+- **The parent contract's read-once rule says never to `Grep` a file you mean to read in full.** A
+  measured `discovery:explorer` run scanned a rule file with `Grep` and then read it whole; the rule
+  now names that shape. A re-run on the tightened rule counted 0 rereads and 0 scan-then-read
+  pairs, with the handback at turn 20 of a 30-turn budget
+  ([#4258](https://github.com/melodic-software/claude-code-plugins/issues/4258)).
+
+## [0.25.16] - 2026-09-30
+
+### Changed
+
+- **The `deep-research` Boundary bullet in `research-deep` no longer asserts that the workflow
+  ships with Claude Code.** It keeps the provenance class, what the workflow does and how it is
+  invoked, in the native-references template form.
+
 ## [0.25.15] - 2026-09-30
 
 ### Fixed

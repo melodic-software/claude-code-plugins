@@ -9,7 +9,7 @@ needed).
 
 ```markdown
 ---
-standards-contract: 1.0.0
+standards-contract: 1.0.1
 ---
 
 # Standards index

@@ -163,6 +163,15 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             Flag("--output", required=True, example="snapshot.json"),
             Flag("--policy", example="policy.json"),
             Flag("--project-dir", example="project-dir"),
+            Flag(
+                "--in-flight-refs",
+                example="in-flight-refs.json",
+                help=(
+                    "JSON file of absolute paths referenced by open work "
+                    "(issue, PR, handoff); entries at or under one are not "
+                    "preselected"
+                ),
+            ),
             _data_root_flag(),
             Flag(
                 "--max-depth",
@@ -221,6 +230,26 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         help="inventory a target without mutating it",
     ),
     Subcommand(
+        "inventory",
+        (
+            Flag("--target", required=True, example="target-dir"),
+            _data_root_flag(),
+            Flag(
+                "--deep",
+                takes_value=False,
+                help=(
+                    "list every level of the target instead of its immediate "
+                    "children; the default when the target is the user's home "
+                    "directory"
+                ),
+            ),
+        ),
+        help=(
+            "report each entry's producer, disposition and reason; writes a "
+            "report that preview and apply never accept"
+        ),
+    ),
+    Subcommand(
         "preview",
         (
             Flag("--snapshot", required=True, example="snapshot.json"),
@@ -237,14 +266,14 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 example="paths.json",
                 help="approved-path list file; the multi-path reporting form",
             ),
-            # Single-use on purpose: one inline path per call is the
-            # verify-one-delete-one form, with no file write in between.
             Flag(
                 "--path",
+                repeatable=True,
                 metavar="RELATIVE",
                 example="relative/exact.tmp",
                 help=(
-                    "one snapshot-relative approved path, inline; the per-deletion form"
+                    "snapshot-relative approved path, inline; repeatable; "
+                    "one path is the per-deletion form"
                 ),
             ),
             Flag("--vcs-evidence", example="vcs-evidence.json"),
@@ -286,10 +315,33 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
             _data_root_flag(),
         ),
     ),
+    Subcommand(
+        "handoff-apply",
+        (
+            Flag("--execute", takes_value=False, required=True),
+            Flag("--snapshot", required=True, example="snapshot.json"),
+            # One exact approved path per call: the engine verifies that path
+            # against live state and deletes it in the same process.
+            Flag(
+                "--path",
+                required=True,
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help="the one snapshot-relative approved path to verify and delete",
+            ),
+            Flag("--vcs-evidence", required=True, example="vcs-evidence.json"),
+            Flag("--report", required=True, example="report.json"),
+            _data_root_flag(),
+        ),
+        help=(
+            "verify one approved path as handoff-verify does, then delete it "
+            "only on a clear verdict (Linux only)"
+        ),
+    ),
 )
 
 # Ordered so a disclosure can name the read-only subcommands first and the
-# mutating one last.
+# mutating ones last.
 SUBCOMMAND_NAMES: tuple[str, ...] = tuple(spec.name for spec in SUBCOMMANDS)
 _SUBCOMMANDS_BY_NAME = {spec.name: spec for spec in SUBCOMMANDS}
 
@@ -363,3 +415,108 @@ def match_invocation(
         for flag in spec.optional
         if flag.requires is not None and flag.name in seen
     ) and all(len(seen.intersection(group)) == 1 for group in spec.one_of)
+
+
+_TOKEN_CAP = 80
+
+
+def clip_token(value: str) -> str:
+    """A user-supplied token quoted for a message, capped so a paste stays short."""
+    clipped = value if len(value) <= _TOKEN_CAP else value[: _TOKEN_CAP - 3] + "..."
+    return repr(clipped)
+
+
+def required_order(spec: Subcommand) -> str:
+    """The required head of ``spec`` spelled in the one order the guard admits."""
+    return ", ".join(flag.name for flag in spec.required)
+
+
+def _order_rule(spec: Subcommand) -> str:
+    if not spec.required:
+        return "every flag is optional and may come in any order"
+    return (
+        f"required flags first, in order: {required_order(spec)}; "
+        "then optional flags in any order"
+    )
+
+
+def explain_mismatch(
+    name: str,
+    words: list[str],
+    external_checks: dict[str, object] | None = None,
+) -> str | None:
+    """Name the first word ``match_invocation`` refuses and the rule it broke.
+
+    Runs on the deny path only and walks the same grammar in the same order, so
+    it returns ``None`` exactly when ``match_invocation`` returns ``True``.
+    """
+    spec = subcommand(name)
+    if spec is None:
+        return f"{clip_token(name)} is not an engine subcommand."
+    checks = external_checks or {}
+
+    def value_problem(flag: Flag, value: str) -> str | None:
+        subject = f"{flag.name} value {clip_token(value)}"
+        if not is_argument(value):
+            return f"{subject} must be a literal, not empty or starting with '-'."
+        if flag.choices is not None and value not in flag.choices:
+            return f"{subject} must be one of: {', '.join(sorted(flag.choices))}."
+        if flag.pattern is not None and flag.pattern.fullmatch(value) is None:
+            return f"{subject} must match {flag.pattern.pattern}."
+        if flag.external_check is not None:
+            check = checks.get(flag.external_check)
+            if not (callable(check) and check(value)):
+                return f"{subject} is not the {flag.external_check}."
+        return None
+
+    def read_value(flag: Flag, index: int) -> tuple[int, str | None]:
+        if not flag.takes_value:
+            return index, None
+        if index >= len(words):
+            return index, f"{flag.name} needs a value."
+        return index + 1, value_problem(flag, words[index])
+
+    index = 0
+    for flag in spec.required:
+        if index >= len(words):
+            return f"required flag {flag.name} is missing; {_order_rule(spec)}."
+        if words[index] != flag.name:
+            return (
+                f"{clip_token(words[index])} is where required flag {flag.name} "
+                f"belongs; {_order_rule(spec)}."
+            )
+        index, problem = read_value(flag, index + 1)
+        if problem:
+            return problem
+
+    seen: set[str] = set()
+    while index < len(words):
+        word = words[index]
+        flag = spec.flag(word)
+        if flag is None:
+            return f"{clip_token(word)} is not a {name} flag."
+        if flag.required:
+            return (
+                f"required flag {flag.name} is already given in the required head "
+                "and cannot repeat."
+            )
+        if flag.name in seen and not flag.repeatable:
+            return f"{flag.name} is not repeatable but is given twice."
+        seen.add(flag.name)
+        index, problem = read_value(flag, index + 1)
+        if problem:
+            return problem
+
+    for flag in spec.optional:
+        if (
+            flag.requires is not None
+            and flag.name in seen
+            and flag.requires not in seen
+        ):
+            return f"{flag.name} requires {flag.requires}."
+    for group in spec.one_of:
+        given = sorted(seen.intersection(group))
+        if len(given) != 1:
+            count = "none was" if not given else f"{len(given)} were"
+            return f"give exactly one of {', '.join(group)}; {count} given."
+    return None

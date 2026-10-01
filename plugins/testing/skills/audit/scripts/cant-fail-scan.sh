@@ -113,6 +113,10 @@
 #                list its equalities with a literal side, judged with the
 #                adapter and config of the --file path; the test-weaken hook
 #                compares the old and new side of an edit this way
+#   --blocks     with the default mode: also print `block <file>:<start>-<end>
+#                <ordinal> <name>` per examined test block (in --lines scope);
+#                the ordinal tells same-named blocks apart and is the block's
+#                identity with its name, since line numbers drift
 #   --help
 #
 # Scan-root resolution: $CANT_FAIL_SCAN_ROOT (sanctioned operator lever, not a
@@ -121,7 +125,7 @@
 # unknown tree — a completed-looking scan of the wrong tree is
 # indistinguishable from a clean bill.
 #
-# Config: .claude/testing.yaml, resolved against the root's git toplevel (else
+# Config: docs/conventions/testing.md (its config block) or .claude/testing.yaml, resolved against the root's git toplevel (else
 # $CLAUDE_PROJECT_DIR) by ../../../scripts/resolve-config.sh, turns adapters
 # off or on (a file whose adapter is off is not scanned, never handed to
 # another), excludes or includes paths, extends adapter lists, loads consumer
@@ -139,7 +143,7 @@ usage() {
   cat <<'EOF'
 cant-fail-scan.sh — detect tests that cannot fail.
 
-Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--check [--strict] | --findings | --count | --help]
+Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--blocks | --check [--strict] | --findings | --count | --help]
        cant-fail-scan.sh --file <path> --inventory <text> [--inventory <text>...]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
@@ -154,6 +158,8 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--check [--strict] | 
   --file <p>  scan exactly one test file instead of the tree; same modes and exit codes
   --lines <l> with --file: report only findings whose test block overlaps these lines
               (a list like 12,20-24), for an edit hook scoped to what the edit changed
+  --blocks    also print `block <file>:<start>-<end> <ordinal> <name>` per examined test
+              block (within --lines); the ordinal tells same-named blocks apart
   --inventory <text>
               with --file, repeatable: no rules; for the n-th <text>, one record per line
               `n<TAB>test|assertion|skip<TAB><count><TAB><line>`, one per equality with a
@@ -180,12 +186,15 @@ strict=0
 FILE=""
 LINES=""
 INV_TEXTS=()
+list_blocks=0
+blk_lines=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
     usage
     exit 0
     ;;
+  --blocks) list_blocks=1 ;;
   --check) mode="check" ;;
   --findings) mode="findings" ;;
   --count) mode="count" ;;
@@ -245,6 +254,10 @@ LOADER="$SCRIPT_DIR/adapter-load.awk"
 require_readable "$LOADER" 'adapter loader'
 ADAPTER_DIR="$SCRIPT_DIR/../adapters"
 
+if ((list_blocks)) && [[ "$mode" != report ]]; then
+  printf 'ERROR: --blocks lists blocks in the report mode only\n' >&2
+  exit 2
+fi
 if [[ (-n "$LINES" || "$mode" == inventory) && -z "$FILE" ]]; then
   printf 'ERROR: --lines and --inventory need --file\n' >&2
   exit 2
@@ -309,16 +322,16 @@ REPO_PREFIX=""
 } < <(git -C "$ROOT" rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
 
 # --- Config -------------------------------------------------------------------
-# .claude/testing.yaml, resolved by scripts/resolve-config.sh. With no layer
-# file present nothing below runs, so a repository without one pays three file
+# The testing config, resolved by scripts/resolve-config.sh. With no layer
+# file present nothing below runs, so a repository without one pays four file
 # tests. Removals (adapters.disable, paths.exclude, rules off) apply here, so
 # the test-scan hook, which runs this script, goes silent with no plugin change.
 # The team and local layers are the scanned repository's own, so a file in a
 # sibling worktree gets that worktree's config.
 CFG_ROOT="${TOP:-${CLAUDE_PROJECT_DIR:-$ROOT}}"
-tc_layers=0
-for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/.claude/testing.yaml" \
-  "$CFG_ROOT/.claude/testing.local.yaml"; do
+tc_layers=0 tc_read=0
+for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/docs/conventions/testing.md" \
+  "$CFG_ROOT/.claude/testing.yaml" "$CFG_ROOT/.claude/testing.local.yaml"; do
   [[ -f "$f" ]] && tc_layers=$((tc_layers + 1))
 done
 tc_extra=()
@@ -333,11 +346,12 @@ if ((tc_layers)); then
   # shellcheck source=../../../scripts/resolve-config.sh
   source "$RESOLVER"
   tc_out="$(bash "$RESOLVER" --root "$CFG_ROOT" ${FILE:+--quick})" || {
-    printf 'ERROR: .claude/testing.yaml did not resolve (see above); refusing to scan.\n' >&2
+    printf 'ERROR: the testing config did not resolve (see above); refusing to scan.\n' >&2
     exit 2
   }
   while IFS=$'\t' read -r key val; do
     case "$key" in
+    layer) tc_read=$((tc_read + 1)) ;;
     adapters.enable)
       tc_enable+=("$val")
       tc_on[$val]=1
@@ -627,7 +641,7 @@ source_target() {
 }
 
 # rule_override <slug> <1 when the finding gates --check by default>: apply
-# its rules.<slug> level from .claude/testing.yaml. off drops the finding
+# its rules.<slug> level from the testing config. off drops the finding
 # (return 1), warn keeps it out of the gate, error puts it in.
 tc_dropped=0
 tc_gate=0
@@ -664,6 +678,7 @@ scan_one() {
     fi
     case "$kind" in
     B) blocks=$((blocks + slug)) ;;
+    K) blk_lines+=("block $rel:$slug $line $detail") ;;
     L) lost=$((lost + 1)) ;;
     F)
       if [[ ${#rule_level[@]} -gt 0 ]]; then
@@ -713,7 +728,7 @@ scan_one() {
     E) printf 'engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR" ;;
     *) printf 'engine drift: unrecognized record kind %s\n' "$kind" >>"$WALK_ERR" ;;
     esac
-  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" \
+  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" -v BLOCKS="$list_blocks" \
     -f "$MASK_AWK" -f "$AWK_PROG" "$file" 2>>"$WALK_ERR")
 }
 
@@ -963,7 +978,7 @@ coverage_block() {
     "$examined" "$enumerated" "$enum_js" "$enum_py" "$enum_cs" "$enum_sh" "$enum_ps" "$enum_go" "$unreadable"
   if [[ -n "$FILE" ]]; then
     if [[ -n "$tc_off_winner" ]]; then
-      printf '  adapter: none (%s claims this file and is off in .claude/testing.yaml)\n' "$tc_off_winner"
+      printf '  adapter: none (%s claims this file and is off in the testing config)\n' "$tc_off_winner"
     else
       printf '  adapter: %s\n' "${file_adapter[$FILE]:-none (no adapter claims this file)}"
     fi
@@ -976,9 +991,9 @@ coverage_block() {
     printf '  playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable)\n' \
       "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable"
   fi
-  if ((tc_layers)); then
-    printf '  .claude/testing.yaml: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; claimed by a disabled adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
-      "$tc_layers" "$tc_excluded" "$tc_unclaimed" "$tc_disabled" "$tc_dropped" "$tc_ungate" "$tc_gate"
+  if ((tc_read)); then
+    printf '  testing config: %d layer(s); excluded by paths.exclude: %d; included but claimed by no adapter: %d; claimed by a disabled adapter: %d; findings dropped by rules off: %d, kept out of the gate by warn: %d, gated by error: %d\n' \
+      "$tc_read" "$tc_excluded" "$tc_unclaimed" "$tc_disabled" "$tc_dropped" "$tc_ungate" "$tc_gate"
     if [[ -z "$FILE" && ${#tc_uncovered[@]} -gt 0 ]]; then
       printf '  test-scan hook: no shipped hook row matches %s, so the hook skips those files; /testing:setup check prints a hook entry to add\n' \
         "$(printf '%s, ' "${tc_uncovered[@]}" | sed 's/, $//')"
@@ -1012,7 +1027,7 @@ advisory_note() {
     printf 'note: %d finding(s) are advisory in --check (use --strict to gate them): mock-only-oracle %d, playwright config rules %d, advisory adapters (%s) %d.\n' \
       "$advisory" "$n_cf3" "$cfg_findings" "$ids" "$n_adv"
   fi
-  # A rule raised to error in .claude/testing.yaml gates, so it is not listed.
+  # A rule raised to error in the testing config gates, so it is not listed.
   local pair n=0 list=""
   for pair in "inert-assertion $n_ia" "constant-restatement $n_cr" "source-text-read $n_st" \
     "conditional-assertion $n_ca" "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo"; do
@@ -1179,6 +1194,7 @@ report)
   else
     print_findings_lines
   fi
+  for b in ${blk_lines[@]+"${blk_lines[@]}"}; do printf '%s\n' "$b"; done
   coverage_block
   if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
   exit 0

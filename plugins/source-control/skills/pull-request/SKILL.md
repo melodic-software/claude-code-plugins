@@ -243,13 +243,13 @@ Public action for retrieving failed-CI evidence. Tiered fetch chain. Cheapest si
 Three native surfaces cover parts of this lifecycle, and they get conflated with it whenever a PR
 is opened or watched.
 
-- **`pr` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. Creates one
-  GitHub pull request generically: gathers branch context and applies Claude Code's own title,
-  body, and attribution through `gh`. The model and the person can both invoke it.
-- **`/commit-push-pr` (built-in command).** Ships with Claude Code. Commits, pushes, and opens a PR
-  in one prompt-driven step. The model and the person can both invoke it.
-- **`/autofix-pr` (built-in command).** Ships with Claude Code. Spawns a cloud session that watches
-  the current branch's PR and pushes fixes when CI fails or reviewers comment. Reserved for the
+- **`pr` (bundled skill)**: creates one GitHub pull request generically; it gathers branch
+  context and applies Claude Code's own title, body, and attribution through `gh`. The model and
+  the person can both invoke it.
+- **`/commit-push-pr` (built-in command)**: commits, pushes, and opens a PR in one prompt-driven
+  step. The model and the person can both invoke it.
+- **`/autofix-pr` (built-in command)**: spawns a cloud session that watches the current branch's
+  PR and pushes fixes when CI fails or reviewers comment. Reserved for the
   person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The whole lifecycle: prep with verified findings, a draft
   under this repository's PR title and body contract, the ready flip after merging the base,
@@ -279,6 +279,17 @@ the old tip, and the push that follows is rejected as non-fast-forward.
 needs `gh` and cloud-session access; this section states what to do when a surface resolves, never
 that it is present. The four-part records live in
 [reference/native-surfaces.md](reference/native-surfaces.md).
+
+## Spoke paths
+
+The `reference/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`, and the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put each path in place of its placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

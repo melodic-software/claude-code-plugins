@@ -72,10 +72,11 @@ assert_contains "unknown flag mentions expected modes" "$unknown_out" "expected"
 # --- 3. Source-guard: helpers callable when sourced ------------------------------
 
 # Sourcing installs the script's own EXIT trap (cleanup of its TMPDIR_RUN); the
-# test tmpdir is removed explicitly at the end instead of via trap.
+# trap set after it replaces that one and removes both directories.
 # shellcheck source=update.sh
 source "$SCRIPT" 2>/dev/null
 SOURCED_TMPDIR="$TMPDIR_RUN"
+trap 'rm -rf "$TEST_TMPDIR" "$SOURCED_TMPDIR"' EXIT
 if declare -F local_metadata_field >/dev/null; then
   pass "source-guard: helpers exposed after source"
 else
@@ -183,8 +184,6 @@ else
 fi
 
 # --- Final report ---------------------------------------------------------------------
-
-rm -rf "$TEST_TMPDIR" "$SOURCED_TMPDIR"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

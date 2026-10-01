@@ -2,13 +2,24 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import {
   detectRecoverableBootstrap,
   formatRecoverCommand,
 } from "./detect-recoverable-bootstrap.js";
 import { resolveWorkArtifacts } from "./recover-watch-bootstrap.js";
+
+const tmpDirs = [];
+afterAll(() => {
+  for (const dir of tmpDirs) fs.rmSync(dir, { recursive: true, force: true });
+});
+
+function mkTmp(prefix) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  tmpDirs.push(dir);
+  return dir;
+}
 
 /**
  * A fresh temp workDir holding the mp4/vtt/info.json trio recovery requires.
@@ -17,7 +28,7 @@ import { resolveWorkArtifacts } from "./recover-watch-bootstrap.js";
  * @returns {string}
  */
 function makeWorkDir(vttName) {
-  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-extraction-"));
+  const workDir = mkTmp("video-extraction-");
   fs.writeFileSync(path.join(workDir, "video.mp4"), "x");
   fs.writeFileSync(path.join(workDir, vttName), "WEBVTT\n");
   fs.writeFileSync(path.join(workDir, "meta.info.json"), "{}");
@@ -26,8 +37,8 @@ function makeWorkDir(vttName) {
 
 /** Fresh temp frames + contact-sheets dirs, one surviving artifact each. */
 function makeFrameAndSheetDirs() {
-  const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-frames-"));
-  const sheetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "video-sheets-"));
+  const framesDir = mkTmp("video-frames-");
+  const sheetsDir = mkTmp("video-sheets-");
   fs.writeFileSync(path.join(framesDir, "anchor_00010000_0001.png"), "x");
   fs.writeFileSync(path.join(sheetsDir, "sheet_001.jpg"), "x");
   return { framesDir, sheetsDir };
@@ -40,7 +51,7 @@ function makeFrameAndSheetDirs() {
  * @returns {string}
  */
 function makeSliceDir(watchState) {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "detect-recover-"));
+  const tmp = mkTmp("detect-recover-");
   fs.mkdirSync(path.join(tmp, "run-state"));
   fs.writeFileSync(path.join(tmp, "run-state", "watch.json"), JSON.stringify(watchState));
   return tmp;

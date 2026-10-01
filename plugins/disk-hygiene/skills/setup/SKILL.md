@@ -66,8 +66,8 @@ fails closed like every other guard-relevant unknown in this plugin.
    `args` is set.
 
    **`node` and bash**, probed with the Bash tool, not through the launcher. FAIL if
-   `command -v node` finds nothing: every hook row runs `node`, so no hook launches and no guard is
-   enforced. FAIL if no bash resolves in the launcher's own order, which the header comment of
+   `command -v node` finds nothing: every guard and detector row runs `node`, so none launches and no guard
+   is enforced. FAIL if no bash resolves in the launcher's own order, which the header comment of
    `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` lists per platform (read it; do not recite it). On
    Windows the remediation is either `CLAUDE_CODE_GIT_BASH_PATH`, a Git for Windows install, or a
    `bash.exe` on `PATH` outside `System32`, `Sysnative` and `WindowsApps`; elsewhere, a `bash` on

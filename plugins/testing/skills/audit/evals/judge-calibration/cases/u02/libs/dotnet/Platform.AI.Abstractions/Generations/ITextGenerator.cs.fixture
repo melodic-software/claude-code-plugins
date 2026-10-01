@@ -1,0 +1,10 @@
+using Platform.AI.Abstractions.Prompts;
+using Platform.Core.Results;
+
+namespace Platform.AI.Abstractions.Generations;
+
+public interface ITextGenerator
+{
+    Task<Result<Generation>> GenerateAsync(
+        Prompt prompt, GenerationOptions? options = null, CancellationToken ct = default);
+}

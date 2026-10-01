@@ -203,6 +203,16 @@ Learning artifacts persist for months; durable teaching content (references, glo
 - **Treat durable artifacts as unverified on revisit.** A reference/glossary entry from a prior session is unverified synthesis until re-grounded this turn. If stale relative to age × velocity, re-fetch the inline citation, update, THEN teach.
 - **Durable references store understanding + citations, not frozen facts.** A reference that freezes an external fact guarantees rot; instead capture the user's compressed mental model with inline citations to the authoritative source, so volatile facts stay by-reference (the citation is the re-verify target).
 
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
+Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## What This Skill Does NOT Do
 
 - **Does not write production code**. Teaches understanding, not implementation. Use the project's own implementation workflow for code changes

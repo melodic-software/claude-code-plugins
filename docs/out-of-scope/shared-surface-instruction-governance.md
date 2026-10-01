@@ -2,7 +2,7 @@
 
 ## Decision
 
-**No** — this repository does not ship a cross-repo convention for per-surface ownership,
+**No.** This repository does not ship a cross-repo convention for per-surface ownership,
 precedence between contributors, or how a consuming team records adjudications when multiple
 authors' standing instructions meet on one shared surface.
 

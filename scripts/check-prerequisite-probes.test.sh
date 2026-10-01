@@ -67,6 +67,11 @@ for probe in "${probes[@]}"; do
       fi
     done
   done < <(jq -r '.tools[] | [.name, .check, .install] | @tsv' "$manifest")
+  if [[ "$(printf '%s\n' "$out" | jq -s 'length' 2>/dev/null)" == 1 ]]; then
+    pass "$plugin: every missing tool is reported in one hook document"
+  else
+    fail "$plugin: expected exactly one JSON document on stdout, got: $out"
+  fi
 
   out="$(cd "$WORK/cwd" && PATH="$WORK/stubs:$WORK/sysbin" CLAUDE_PLUGIN_DATA="$WORK/data2-$plugin" \
     bash "$probe" <<<'{"session_id":"s1"}' 2>&1)"

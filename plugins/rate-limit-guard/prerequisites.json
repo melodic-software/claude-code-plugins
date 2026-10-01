@@ -1,0 +1,14 @@
+{
+  "tools": [
+    {
+      "name": "node",
+      "check": "/rate-limit-guard:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    },
+    {
+      "name": "jq",
+      "check": "/rate-limit-guard:check",
+      "install": "install jq from https://jqlang.org/download/"
+    }
+  ]
+}

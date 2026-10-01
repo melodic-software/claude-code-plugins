@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/claim.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
@@ -12,7 +15,7 @@ assert_usage_error "$S" "github:o/r#1"
 # together: the optional fields the record reports must be the ones the marker
 # carries, and an absent --session-id must report as an explicit null.
 ADAPTER="$(dirname "$S")"
-STORE="$(mktemp -d)"
+STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 ITEM="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/create-item.sh" --title "claim record")"
 ITEM_FILE="$(jq -r '.url' <<<"$ITEM" | sed 's#^file://##')"
 RECORD="$(WIT_STORAGE_DIR="$STORE" bash "$S" "$(jq -r '.id' <<<"$ITEM")" \

@@ -24,7 +24,7 @@ explicit scope section, an acceptance-criteria list read as exhaustive, or an ou
 before unlisted behavior becomes a finding; without one, report it as an observation, not a defect.
 
 Severity and confidence come from the shared vocabulary
-([`${CLAUDE_PLUGIN_ROOT}/context/severity.md`](${CLAUDE_PLUGIN_ROOT}/context/severity.md)) or the
+([`context/severity.md`](../../../context/severity.md)) or the
 project's own when it defines one. This mode adds a finding-class dimension, not a severity scale.
 (Deliberately not "axis": in this plugin that word is reserved for severity and confidence, per that
 file's "Vocabulary".)
@@ -115,7 +115,7 @@ report.
 
 `<contract_dir>/<topic-slug>/PLAN.md`, then `PRD.md` (default `contract_dir`: `docs/topics/`),
 resolved through the plugin binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
+([`reference/topic-docs.md`](../../../reference/topic-docs.md)).
 
 **Key on the topic slug, not the branch slug.** The branch axis this plugin uses for findings paths
 is deliberately distinct from the convention's topic-slug form and the mapping is lossy, so a

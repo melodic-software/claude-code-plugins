@@ -54,7 +54,7 @@ none of this conversation).
 ## Finding categories
 
 These are the deliberately lighter in-flight analog of `retro`'s end-of-session Phase 2 dimensions
-and Phase 3 improvement targets (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`). A
+and Phase 3 improvement targets ([`retro/context/session.md`](../../retro/context/session.md)). A
 mid-flight checkpoint captures and routes, it does not score or codify.
 
 | Category | What it captures |

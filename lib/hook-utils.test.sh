@@ -154,13 +154,7 @@ unset HOOK_TELEMETRY_SINK
 if [[ -s "$SINK_FILE" ]]; then
   ok "envelope shape: sink received data"
   # Validate all 7 required common fields
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$SINK_FILE" >/dev/null 2>&1; then
-      ok "envelope shape: field '$field' present"
-    else
-      fail "envelope shape: field '$field' missing. envelope=$(cat "$SINK_FILE")"
-    fi
-  done
+  if check_envelope "$SINK_FILE"; then ok "envelope shape: matches envelope schema"; else fail "envelope shape: does not match envelope schema. envelope=$(cat "$SINK_FILE")"; fi
   # Validate data sub-fields
   for subfield in tool file findings; do
     if jq -e ".data | has(\"$subfield\")" "$SINK_FILE" >/dev/null 2>&1; then
@@ -199,9 +193,7 @@ if [[ -s "$SINK_FILE" ]]; then
   fi
 else
   fail "envelope shape: sink file empty — emit did not fire or sink did not write"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    fail "envelope shape: field '$field' not verifiable (no envelope)"
-  done
+  fail "envelope shape: envelope not verifiable (no envelope)"
   for subfield in tool file findings; do
     fail "envelope shape: data.$subfield not verifiable (no envelope)"
   done
@@ -807,6 +799,120 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
 else
   ok "under_temp_root: Windows drive-spelling case SKIPPED (not a Windows host with cygpath and a TEMP directory; no coverage here, not a pass)"
 fi
+
+# --- Test 12f: temp-root candidates gain cygpath drive spellings -------------
+# Cygwin bash reports TEMP and TMP as /tmp, so on a Windows bash the drive
+# spellings come from cygpath. A stub cygpath maps the POSIX candidate to real
+# directories outside every temp tree and logs each call, so this runs on any
+# host. Each case is a fresh bash, so no case inherits another's cache.
+TW_DIR="$(cd "$HOOK_DIR/.." && pwd -P)/.work/hu-tempwin-$$"
+case "$TW_DIR" in
+/tmp/* | /var/tmp/*)
+  ok "temp_root_candidates: cygpath drive spellings SKIPPED (the checkout sits under temp at $TW_DIR; no coverage here, not a pass)"
+  ;;
+*)
+  mkdir -p "$TW_DIR/bin" "$TW_DIR/posix" "$TW_DIR/long" "$TW_DIR/short~1" "$TW_DIR/mixed"
+  {
+    printf '#!%s\n' "$BASH"
+    cat <<'TWEOF'
+printf '%s\n' "$*" >>"$TW_LOG"
+[[ -z "${TW_FAIL:-}" ]] || exit 1
+long=0
+for a in "$@"; do
+  case "$a" in
+  -l) long=1 ;;
+  -m | --) ;;
+  *)
+    if ((long)); then
+      [[ "$a" == "$TW_SHORT" ]] && a=$TW_LONG
+    else
+      [[ "$a" == "$TW_FROM" ]] && a=$TW_TO
+    fi
+    printf '%s\n' "$a"
+    ;;
+  esac
+done
+TWEOF
+  } >"$TW_DIR/bin/cygpath"
+  chmod +x "$TW_DIR/bin/cygpath"
+  TW_POSIX="$TW_DIR/posix|/tmp"
+  [[ -d /var/tmp ]] && TW_POSIX="$TW_POSIX|/var/tmp"
+  # tw_run <ostype> [NAME=value...]: prints the candidates of two calls in one
+  # shell, then the number of cygpath calls, one per line.
+  tw_run() {
+    local ostype="$1"
+    shift
+    : >"$TW_DIR/log"
+    # shellcheck disable=SC2016 # $1..$3 are the child's own positional parameters
+    env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" \
+      TW_SHORT="$TW_DIR/short~1" TW_LONG="$TW_DIR/long" "$@" \
+      PATH="$TW_DIR/bin:$PATH" "$BASH" -c '
+        OSTYPE="$1"
+        source "$2"
+        hook::_temp_root_candidates
+        (IFS="|"; printf "%s\n" "${_HOOK_TEMP_CANDS[*]}")
+        hook::_temp_root_candidates
+        (IFS="|"; printf "%s\n" "${_HOOK_TEMP_CANDS[*]}")
+        _HOOK_UTR_TARGET_PHYSICAL=0
+        if hook::under_temp_root "$3"; then echo in; else echo out; fi
+      ' _ "$ostype" "$HOOK_DIR/hook-utils.sh" "$TW_DIR/long/f"
+    local calls=0 line
+    while IFS= read -r line; do calls=$((calls + 1)); done <"$TW_DIR/log"
+    printf '%s\n' "$calls"
+  }
+  tw_case() {
+    local label="$1" want="$2" got
+    shift 2
+    got=$(tw_run "$@")
+    got=${got//$'\n'/ }
+    if [[ "$got" == "$want" ]]; then
+      ok "temp_root_candidates: $label"
+    else
+      fail "temp_root_candidates: $label: want '$want', got '$got'"
+    fi
+  }
+  # 8.3 answer: the long form comes first, two cygpath calls, none on the second
+  # call, and a target under the long form is under a temp root.
+  TW_83="$TW_POSIX|$TW_DIR/long|$TW_DIR/short~1"
+  tw_case "8.3 mixed answer adds long then short, 2 calls then 0" \
+    "$TW_83 $TW_83 in 2" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/short~1"
+  tw_case "cygwin OSTYPE takes the same arm" \
+    "$TW_83 $TW_83 in 2" cygwin TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/short~1"
+  # No `~` in the answer: one call.
+  tw_case "mixed answer without ~ adds it with 1 call" \
+    "$TW_POSIX|$TW_DIR/mixed $TW_POSIX|$TW_DIR/mixed out 1" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/mixed"
+  # A spelling already in the list is not added twice.
+  tw_case "a spelling equal to a POSIX candidate is deduped" \
+    "$TW_POSIX $TW_POSIX out 1" msys TW_FROM="$TW_DIR/posix" TW_TO=/tmp
+  # A spelling that is not a directory is dropped, like any candidate.
+  tw_case "a spelling that is not a directory is dropped" \
+    "$TW_POSIX $TW_POSIX out 1" msys TW_FROM="$TW_DIR/posix" TW_TO="C:/no/such/dir"
+  # A failing cygpath leaves the POSIX candidates. The failure is not cached, so
+  # each of the three candidate lookups (two direct, one in under_temp_root)
+  # asks again, one call each.
+  tw_case "a failing cygpath adds nothing" \
+    "$TW_POSIX $TW_POSIX out 3" msys TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" TW_FAIL=1
+  # POSIX hosts never call cygpath, even with one on PATH.
+  tw_case "a Linux OSTYPE never calls cygpath" \
+    "$TW_POSIX $TW_POSIX out 0" linux-gnu TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long"
+  # --no-drive stops before cygpath even on a Windows OSTYPE.
+  : >"$TW_DIR/log"
+  # shellcheck disable=SC2016 # $1 is the child's own positional parameter
+  tw_nodrive=$(env TMPDIR="$TW_DIR/posix" TMP="" TEMP="" TW_LOG="$TW_DIR/log" TW_FROM="$TW_DIR/posix" TW_TO="$TW_DIR/long" \
+    PATH="$TW_DIR/bin:$PATH" "$BASH" -c '
+      OSTYPE=msys
+      source "$1"
+      hook::_temp_root_candidates --no-drive
+      (IFS="|"; printf "%s" "${_HOOK_TEMP_CANDS[*]}")
+    ' _ "$HOOK_DIR/hook-utils.sh")
+  if [[ "$tw_nodrive" == "$TW_POSIX" && ! -s "$TW_DIR/log" ]]; then
+    ok "temp_root_candidates: --no-drive adds no spelling and calls no cygpath"
+  else
+    fail "temp_root_candidates: --no-drive: want '$TW_POSIX' and no call, got '$tw_nodrive' and '$(<"$TW_DIR/log")'"
+  fi
+  rm -rf "$TW_DIR"
+  ;;
+esac
 
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must
@@ -1432,7 +1538,7 @@ fi
 FAKEBIN17="$(make_stub_bin)"
 run17b() {
   local args="$1"
-  CLAUDE_PLUGIN_DATA="$(mktemp -d)" "$BASH" -c '
+  CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/data17b.XXXXXX")" "$BASH" -c '
     PATH="'"$FAKEBIN17"'"
     source "'"$HOOK_DIR"'/hook-utils.sh"
     hook::require_jq_blocking '"$args"'

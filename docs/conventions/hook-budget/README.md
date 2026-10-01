@@ -109,10 +109,11 @@ recorded in the hook-performance program's DEVIATIONS log.
 
 ## Exec-form fleet sweep
 
-Every shipped hook row is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)) with `"command": "node"`. A row whose script is bash runs `hooks/exec-bash.mjs` (canonical copy [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)) and then the script; a row whose script is Node names that script directly. The bullets state what the sweep costs and what it needs.
+Every shipped hook row, except the shell-form rows named under "Scope", is exec form ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)) with `"command": "node"`. A row whose script is bash runs `hooks/exec-bash.mjs` (canonical copy [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)) and then the script; a row whose script is Node names that script directly. The bullets state what the sweep costs and what it needs.
 
 - **What shipped.** Every row in `plugins/*/hooks/hooks.json` and in the skill-frontmatter hooks of
-  `disk-hygiene:clean` and `repo-hygiene:clean` carries `args` and `"command": "node"`. Option gates
+  `disk-hygiene:clean` and `repo-hygiene:clean`, except the shell-form rows named under "Scope",
+  carries `args` and `"command": "node"`. Option gates
   that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). Two
   scripts check the spelling. `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a
   `.cmd`/`.bat` shim, or bare `bash` as `command`; a non-Windows skip of its spawn half does not show
@@ -124,22 +125,69 @@ Every shipped hook row is exec form ([#3686](https://github.com/melodic-software
   Node script named in `args`. A bash-scripted row behind the launcher is k = 2 (node, then bash),
   plus 1 per program the script starts. That is the shell-form line's "a script is at least 2", so
   the sweep is not a spawn saving.
-- **Prerequisite.** Node on PATH is now required for every hook (`command` is `node`). The launcher
+- **Prerequisite.** Node on PATH is now required for every exec-form hook (`command` is `node`). The launcher
   cannot detect a missing node, because the launcher is a node process; a failed launch is
   non-blocking, so the guard then enforces nothing (the
   [philosophy Hooks row](../../plugin-philosophy.md#component-stances)). With node present and bash
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
-- **Scope.** No shell-form row remains in the shipped hook surfaces named under "What shipped".
-  Neither check script inspects a shell-form row, so no gate enforces that absence. The philosophy
+- **Scope.** Three rows stay shell form so they can report a missing `node`: the `SessionStart` notice rows in `guardrails` and `disk-hygiene`, and the `hook-failure-audit` Stop row in `claude-ops`.
+  Neither check script inspects a shell-form row; each of the three plugins' own hook tests pins its
+  row's shell form, so a sweep back to `node` fails that test. The philosophy
   Hooks row makes exec form mandatory only where `${user_config.*}` appears, so exec form fleet-wide
   is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
-  the sweep. No paired before-and-after run with the launcher is recorded here, so the launcher's
-  added time is unmeasured in this doc. The operator's paired run is carried by
-  [#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686); its k and S figures
-  go into this section when it is posted.
+  the sweep. The launcher's added time comes from the paired run below
+  ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+
+### Launcher A/B (melo-lap-001, 2026-10-01)
+
+Setup:
+
+- **Host:** melo-lap-001 (Windows 11, Git Bash 5.3.15, Node 24.21.0) on AC and idle.
+- **Harness:** the dotfiles fan-out harness (sha256
+  `e1bbebb90ebf4f49b0d765b98aab69d109b33299245effc58c3872f2290c12b4`) with `--runs 3`, against
+  plugins at `b7c8a6221`.
+- **Arm A:** each plugin as shipped (`node` plus `exec-bash.mjs`).
+- **Arm B:** the same copy with every launcher row rewritten to shell form,
+  `bash "${CLAUDE_PLUGIN_ROOT}"/hooks/<script> <same args>` with `"shell": "bash"` and no `args`.
+  Only `hooks/hooks.json` differs between the arms.
+  - Arm B drops the launcher's option gates. The harness sets no `CLAUDE_PLUGIN_OPTION_*`, so every
+    `--run-if-unset-or-true` gate was open in arm A as well.
+  - The one `--require-true` row (guardrails `Workflow`) has no harness sample.
+- **Runs:** A, B, A, B, A, B per plugin, each with `CLAUDE_CONFIG_DIR` pointing at a config that
+  enables only that plugin. All 18 runs were valid.
+
+Each figure is the median of the three run medians, in ms. The S figure in the last column is the
+difference divided by the plugin's S, the median over all six runs, shown beside its name. The
+guardrails `SessionStart` row is shell form in both arms, so it is the control.
+
+| Plugin (S, ms) | Row | Arm A (`node` launcher) | Arm B (shell form) | A − B, ms (S) |
+| --- | --- | ---: | ---: | ---: |
+| eol-normalizer (S 21) | PostToolUse `Write` | 292 | 257 | 35 (1.7) |
+| | PostToolUse `Edit` | 307 | 251 | 56 (2.7) |
+| typos-format (S 21.5) | PostToolUse `Write` | 371 | 326 | 45 (2.1) |
+| | PostToolUse `Edit` | 378 | 313 | 65 (3.0) |
+| | SessionStart `startup` | 182 | 127 | 55 (2.6) |
+| | SessionStart `compact` | 181 | 124 | 57 (2.7) |
+| guardrails (S 23) | PreToolUse `Bash` | 166 | 114 | 52 (2.3) |
+| | PreToolUse `Bash` (`$(…)` sample) | 164 | 124 | 40 (1.7) |
+| | PreToolUse `Write` | 214 | 172 | 42 (1.8) |
+| | PreToolUse `Edit` | 209 | 188 | 21 (0.9) |
+| | PostToolUse `Write` | 275 | 231 | 44 (1.9) |
+| | PostToolUse `Edit` | 311 | 271 | 40 (1.7) |
+| | SessionStart `startup` (control, shell form in both arms) | 33 | 37 | −4 (−0.2) |
+| | SessionStart `compact` (control) | 37 | 38 | −1 (0.0) |
+
+On every bash-scripted row the launcher took 21 to 65 ms longer per fire than shell form, about
+1 to 3 S. The control row moved by at most 4 ms. That fits the **Cost** bullet: the sweep is not
+a spawn saving, and on this host each bash-scripted fire costs about 2 S more than it did in shell
+form.
+
+The absolute times come from a one-plugin config with the harness's synthetic payloads, so they
+cannot be compared with the reference figures above. The difference between the arms is the
+measurement.
 
 ## Rules
 

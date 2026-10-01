@@ -46,26 +46,26 @@ back under a discoverable tree reintroduces that pollution.
 Dry run (always safe; lists what would be removed):
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/prune_babysit_worktrees.py" --root <worktree-root> --state-dir <state-dir>
+python "<skill-dir>/scripts/prune_babysit_worktrees.py" --root <worktree-root> --state-dir <state-dir>
 ```
 
 Queue-only start-of-run cleanup for unleased merged/closed PR worktrees, while the queue lease is
 held:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/prune_babysit_worktrees.py" --apply --root <worktree-root> --state-dir <state-dir>
+python "<skill-dir>/scripts/prune_babysit_worktrees.py" --apply --root <worktree-root> --state-dir <state-dir>
 ```
 
 Scoped cleanup for one merged/closed PR during a single-PR run or queue result, while its worker
 lease is held:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/prune_babysit_worktrees.py" --pr owner/repo#42 --lease-token <worker-token> --apply --root <worktree-root> --state-dir <state-dir>
+python "<skill-dir>/scripts/prune_babysit_worktrees.py" --pr owner/repo#42 --lease-token <worker-token> --apply --root <worktree-root> --state-dir <state-dir>
 ```
 
 Scoped cleanup for one clean open-PR worktree after its result is integrated, immediately before
 releasing its worker lease:
 
 ```text
-python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/prune_babysit_worktrees.py" --pr owner/repo#42 --lease-token <worker-token> --apply --prune-open-clean --root <worktree-root> --state-dir <state-dir>
+python "<skill-dir>/scripts/prune_babysit_worktrees.py" --pr owner/repo#42 --lease-token <worker-token> --apply --prune-open-clean --root <worktree-root> --state-dir <state-dir>
 ```

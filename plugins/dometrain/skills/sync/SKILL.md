@@ -41,6 +41,15 @@ Never writes to `vendor/SKILL.md` or `grounding/SKILL.md`. Direct the user to
 Report the script's exit code and its stdout verbatim (or a short summary if long): drift
 present or absent, and when present, point to `context/update.md` for the next step.
 
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command. Those files arrive through the
+Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the
+Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Boundaries
 
 - Never model-invocable. This skill exists so a maintainer can check drift explicitly, not so

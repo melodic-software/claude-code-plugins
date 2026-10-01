@@ -361,11 +361,11 @@ Claude Code bundles a skill of the same name whose description tells the model t
 it is about to commit, so the two compete for every commit. A built-in command also commits as its
 first step.
 
-- **`commit` (bundled skill).** Ships with Claude Code rather than as a marketplace plugin. A
-  generic commit workflow: it gathers git context and applies Claude Code's own message style,
-  staging rules, and attribution. The model and the person can both invoke it.
-- **`/commit-push-pr` (built-in command).** Ships with Claude Code. Commits, pushes, and opens a
-  PR in one prompt-driven step. The model and the person can both invoke it.
+- **`commit` (bundled skill)**: a generic commit workflow; it gathers git context and applies
+  Claude Code's own message style, staging rules, and attribution. The model and the person can
+  both invoke it.
+- **`/commit-push-pr` (built-in command)**: commits, pushes, and opens a PR in one prompt-driven
+  step. The model and the person can both invoke it.
 - **This skill (marketplace plugin).** Resolves the repository's subject convention through the
   ladder above (layered `source-control.md` config, the project's own convention, the Conventional
   Commits default), resolves `trailer_policy`, stages surgically against the four preconditions,
@@ -396,6 +396,16 @@ that it is present. The four-part records live in [reference/native-commit.md](r
 - **No rebase**, that's `/source-control:pull-request create`.
 - **No `--no-verify` or hook bypass**, if the project's `commit-msg` hook rejects the message,
   surface the error and re-draft; never bypass.
+
+## Spoke paths
+
+The `reference/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or writing
+it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
+would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
+to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

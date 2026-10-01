@@ -44,6 +44,18 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundled module)
+    INSTALLED_PLUGINS,
+    ORPHAN_SWEEP_DAYS,
+    load_registry,
+    orphan_marker,
+    resolve,
+)
+
 MIN_PYTHON = (3, 11)
 
 # --------------------------------------------------------------------------
@@ -73,8 +85,15 @@ EVIDENCE_VOCABULARY = frozenset(
 # Bumped whenever a section is added or a field's meaning changes. /2 added the
 # environment block, size attribution, the report header, shaped unknown samples,
 # grouped PID rows, the content_read flags and the sentinels block. /3 added
-# unreferenced_versions and its note.
-SCHEMA = "claude-install-state/3"
+# unreferenced_versions and its note. /4 caps unreferenced_versions in the JSON at
+# UNREFERENCED_VERSIONS_CAP entries (largest first) and adds
+# unreferenced_versions_total and unreferenced_versions_truncated.
+SCHEMA = "claude-install-state/4"
+
+# Entries of unreferenced_versions kept in the stdout JSON. The complete list goes to
+# --versions-out, because the report is read end to end and this list grows with every
+# plugin update.
+UNREFERENCED_VERSIONS_CAP = 25
 
 # --------------------------------------------------------------------------
 # Secrets: paths whose CONTENTS are never opened by this engine.
@@ -158,9 +177,6 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
 # ("Application data" -> "Cleaned up automatically" / "Kept until you delete
 # them"), read as raw markdown, verified 2026-08-11. See reference/surfaces.md.
 # --------------------------------------------------------------------------
-
-# Days after update or uninstall that Claude Code removes an orphaned plugin version directory.
-ORPHAN_SWEEP_DAYS = 14
 
 SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
 KEPT = "product-managed-kept"  # documented as never age-swept
@@ -1623,27 +1639,6 @@ def node_modules_bucket(rows: list[FileRow]) -> dict:
     }
 
 
-INSTALLED_PLUGINS = "plugins/installed_plugins.json"
-
-
-def _install_paths(data: object) -> list[str]:
-    """Every `installPath` in the parsed registry, whatever scope or project entry holds it."""
-    if isinstance(data, dict):
-        own = data.get("installPath")
-        found = [own] if isinstance(own, str) else []
-        return found + [p for v in data.values() for p in _install_paths(v)]
-    if isinstance(data, list):
-        return [p for v in data for p in _install_paths(v)]
-    return []
-
-
-def _resolved(path: str | Path) -> Path | None:
-    try:
-        return Path(path).expanduser().resolve()
-    except (OSError, RuntimeError):
-        return None
-
-
 def unreferenced_versions(
     root: Path,
     rows: list[FileRow],
@@ -1668,38 +1663,32 @@ def unreferenced_versions(
             sizes[key] = sizes.get(key, 0) + row.bytes
     if not sizes:
         return [], None
-    try:
-        text = read_text_guarded(root, INSTALLED_PLUGINS)
-        opened.add(INSTALLED_PLUGINS)
-        data = json.loads(text)
-    except (OSError, ValueError) as exc:
+
+    def read(relpath: str) -> str:
+        text = read_text_guarded(root, relpath)
+        opened.add(relpath)
+        return text
+
+    registry = load_registry(read, root)
+    if registry.foreign:
         return (
             [],
-            f"{INSTALLED_PLUGINS} unreadable ({type(exc).__name__}); nothing reported",
+            f"{registry.doubt}; the registry may belong to another root, so nothing is reported",
         )
-    if not isinstance(data, dict) or not isinstance(data.get("plugins"), dict):
-        return [], f"{INSTALLED_PLUGINS} has no `plugins` object; nothing reported"
+    if registry.doubt:
+        return [], f"{registry.doubt}; nothing reported"
     cache = root / "plugins" / "cache"
-    cache_resolved = _resolved(cache)
-    referenced = {p for p in map(_resolved, _install_paths(data)) if p is not None}
-    if data["plugins"] and not any(cache_resolved in p.parents for p in referenced):
-        return [], (
-            f"no installPath in {INSTALLED_PLUGINS} lies under {cache}; the registry may belong "
-            "to another root, so nothing is reported"
-        )
     now = time.time() if now is None else now
     found: list[dict] = []
     for (marketplace, plugin, version), size in sizes.items():
-        if _resolved(cache / marketplace / plugin / version) in referenced:
+        if resolve(cache / marketplace / plugin / version) in registry.referenced:
             continue
         rel = f"plugins/cache/{marketplace}/{plugin}/{version}"
-        try:
-            marker = read_text_guarded(root, f"{rel}/.orphaned_at")
-            opened.add(f"{rel}/.orphaned_at")
-            epoch_ms = int(marker.strip())
-            orphaned_at, age = iso(epoch_ms / 1000), (now - epoch_ms / 1000) / 86400
-        except (OSError, ValueError, OverflowError):
-            orphaned_at, age = None, None
+        marker = orphan_marker(read, rel, now) or {
+            "orphaned_at": None,
+            "marker_age_days": None,
+            "past_sweep_window": False,
+        }
         found.append(
             {
                 "marketplace": marketplace,
@@ -1707,9 +1696,7 @@ def unreferenced_versions(
                 "version": version,
                 "path": rel,
                 "bytes": size,
-                "orphaned_at": orphaned_at,
-                "marker_age_days": None if age is None else round(age, 1),
-                "past_sweep_window": age is not None and age >= ORPHAN_SWEEP_DAYS,
+                **marker,
                 "evidence": MEASURED,
             }
         )
@@ -1823,6 +1810,13 @@ def scan(
 
     opened: set[str] = set()
     versions, versions_note = unreferenced_versions(root, rows, opened=opened)
+    versions_total = len(versions)
+    versions_truncated = versions_total > UNREFERENCED_VERSIONS_CAP
+    if versions_truncated:
+        versions_note = (
+            f"The JSON lists only the {UNREFERENCED_VERSIONS_CAP} largest of {versions_total} "
+            "unreferenced versions. Re-run with --versions-out PATH to write the complete list."
+        )
     entries = rollup(rows, days, authored_threshold, frozenset(opened))
     for entry in entries:
         entry["file_count_sampled"] = counts[entry["entry"]].as_dict(
@@ -1855,8 +1849,11 @@ def scan(
         "entries": entries,
         "largest_subtrees": largest_subtrees(rows, entries),
         "node_modules": node_modules_bucket(rows),
-        "unreferenced_versions": versions,
+        "unreferenced_versions": versions[:UNREFERENCED_VERSIONS_CAP],
+        "unreferenced_versions_total": versions_total,
+        "unreferenced_versions_truncated": versions_truncated,
         "unreferenced_versions_note": versions_note,
+        "_versions": versions,
         "sentinels": sentinels_block(root),
         "numeric_names": numeric,
         "recent_writers": recent_writers(rows, recent_hours),
@@ -1984,6 +1981,11 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Write the COMPLETE per-file listing here (every file, always)",
     )
+    parser.add_argument(
+        "--versions-out",
+        default=None,
+        help="Write the COMPLETE unreferenced_versions list here as JSON (the report caps it)",
+    )
     args = parser.parse_args(argv)
 
     root = resolve_root(args.root)
@@ -2006,7 +2008,7 @@ def main(argv: list[str] | None = None) -> int:
         interval=args.sample_interval,
         authored_threshold=args.authored_threshold,
         recent_hours=args.recent_hours,
-        exclude=self_excluded(root, [args.csv]),
+        exclude=self_excluded(root, [args.csv, args.versions_out]),
         own_config_dir=own_config_dir,
         invocation={
             "root": str(root),
@@ -2015,10 +2017,34 @@ def main(argv: list[str] | None = None) -> int:
             "authored_threshold": args.authored_threshold,
             "recent_hours": args.recent_hours,
             "csv": args.csv,
+            "versions_out": args.versions_out,
         },
     )
 
     rows: list[FileRow] = report.pop("_rows")
+    versions: list[dict] = report.pop("_versions")
+    if args.versions_out:
+        try:
+            Path(args.versions_out).write_text(
+                json.dumps(versions, indent=2) + "\n", encoding="utf-8"
+            )
+        except OSError as exc:
+            print(
+                f"error: cannot write --versions-out {args.versions_out}: {exc}",
+                file=sys.stderr,
+            )
+            return 2
+        report["unreferenced_versions_file"] = {
+            "path": args.versions_out,
+            "count": len(versions),
+            "evidence": MEASURED,
+        }
+        if report["unreferenced_versions_truncated"]:
+            report["unreferenced_versions_note"] = (
+                f"The JSON lists only the {UNREFERENCED_VERSIONS_CAP} largest of "
+                f"{len(versions)} unreferenced versions; all {len(versions)} are in "
+                f"{args.versions_out}."
+            )
     if args.csv:
         try:
             count = write_csv(rows, Path(args.csv))

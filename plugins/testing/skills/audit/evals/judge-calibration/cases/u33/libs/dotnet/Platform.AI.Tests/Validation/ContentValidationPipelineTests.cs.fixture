@@ -1,0 +1,135 @@
+using NSubstitute;
+using Platform.AI.Abstractions.Validation;
+using Platform.AI.Validation;
+using Platform.Core.Errors;
+using Platform.Core.Results;
+
+namespace Platform.AI.Tests.Validation;
+
+public class ContentValidationPipelineTests
+{
+    private static ContentValidationCriteria MakeCriteria(string name) =>
+        new(name, "test criteria", ContentValidationSeverity.Failure);
+
+    [Fact]
+    public async Task ValidateAsync_EmptyPipeline_ReturnsEmptyList()
+    {
+        var pipeline = new ContentValidationPipeline([]);
+
+        Result<IReadOnlyList<ContentValidationOutcome>> result =
+            await pipeline.ValidateAsync("test content", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_AllPass_ReturnsAllOutcomes()
+    {
+        IContentValidator validator1 = Substitute.For<IContentValidator>();
+        IContentValidator validator2 = Substitute.For<IContentValidator>();
+
+        ContentValidationCriteria criteria1 = MakeCriteria("v1");
+        ContentValidationCriteria criteria2 = MakeCriteria("v2");
+
+        validator1.ValidateAsync("content", criteria1, Arg.Any<CancellationToken>())
+            .Returns(Result.Success<ContentValidationOutcome>(new(criteria1, true, 0.9)));
+        validator2.ValidateAsync("content", criteria2, Arg.Any<CancellationToken>())
+            .Returns(Result.Success<ContentValidationOutcome>(new(criteria2, true, 0.8)));
+
+        var pipeline = new ContentValidationPipeline(
+        [
+            new ValidatorRegistration(validator1, criteria1),
+            new ValidatorRegistration(validator2, criteria2),
+        ]);
+
+        Result<IReadOnlyList<ContentValidationOutcome>> result =
+            await pipeline.ValidateAsync("content", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(2);
+        result.Value[0].Passed.ShouldBeTrue();
+        result.Value[1].Passed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ShortCircuitOnFailure_StopsAtFirstFailure()
+    {
+        IContentValidator validator1 = Substitute.For<IContentValidator>();
+        IContentValidator validator2 = Substitute.For<IContentValidator>();
+
+        ContentValidationCriteria criteria1 = MakeCriteria("v1");
+        ContentValidationCriteria criteria2 = MakeCriteria("v2");
+
+        validator1.ValidateAsync("content", criteria1, Arg.Any<CancellationToken>())
+            .Returns(Result.Success<ContentValidationOutcome>(new(criteria1, false, 0.1, "failed")));
+
+        var pipeline = new ContentValidationPipeline(
+        [
+            new ValidatorRegistration(validator1, criteria1),
+            new ValidatorRegistration(validator2, criteria2),
+        ],
+        shortCircuitOnFailure: true);
+
+        Result<IReadOnlyList<ContentValidationOutcome>> result =
+            await pipeline.ValidateAsync("content", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(1);
+        result.Value[0].Passed.ShouldBeFalse();
+        await validator2.DidNotReceive().ValidateAsync(
+            Arg.Any<string>(), Arg.Any<ContentValidationCriteria>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ShortCircuit_WarningFailureDoesNotStopPipeline()
+    {
+        IContentValidator advisory = Substitute.For<IContentValidator>();
+        IContentValidator blocking = Substitute.For<IContentValidator>();
+
+        ContentValidationCriteria warningCriteria =
+            new("advisory", "advisory criteria", ContentValidationSeverity.Warning);
+        ContentValidationCriteria failureCriteria = MakeCriteria("blocking");
+
+        advisory.ValidateAsync("content", warningCriteria, Arg.Any<CancellationToken>())
+            .Returns(Result.Success<ContentValidationOutcome>(new(warningCriteria, false, 0.4, "advisory flag")));
+        blocking.ValidateAsync("content", failureCriteria, Arg.Any<CancellationToken>())
+            .Returns(Result.Success<ContentValidationOutcome>(new(failureCriteria, false, 0.1, "blocked")));
+
+        var pipeline = new ContentValidationPipeline(
+        [
+            new ValidatorRegistration(advisory, warningCriteria),
+            new ValidatorRegistration(blocking, failureCriteria),
+        ],
+        shortCircuitOnFailure: true);
+
+        Result<IReadOnlyList<ContentValidationOutcome>> result =
+            await pipeline.ValidateAsync("content", TestContext.Current.CancellationToken);
+
+        // Advisory warning must not short-circuit: the later blocking validator still runs.
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Count.ShouldBe(2);
+        await blocking.Received(1).ValidateAsync(
+            "content", failureCriteria, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task ValidateAsync_ValidatorReturnsFailureResult_PropagatesError()
+    {
+        IContentValidator validator = Substitute.For<IContentValidator>();
+        ContentValidationCriteria criteria = MakeCriteria("v1");
+        var error = Error.Failure("Test.Error", "Validator failed");
+
+        validator.ValidateAsync("content", criteria, Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<ContentValidationOutcome>(error));
+
+        var pipeline = new ContentValidationPipeline(
+            [new ValidatorRegistration(validator, criteria)]);
+
+        Result<IReadOnlyList<ContentValidationOutcome>> result =
+            await pipeline.ValidateAsync("content", TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Test.Error");
+    }
+}

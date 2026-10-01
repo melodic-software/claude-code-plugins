@@ -324,6 +324,7 @@ EOF
     echo "oracle UNAVAILABLE: could not create a scratch directory — the prediction above stands, uncorroborated."
     exit 0
   }
+  trap 'rm -rf "$scratch"' EXIT
   capture="$scratch/capture.log"
   # `--permission-mode auto` is passed so the probe does not depend on the
   # consumer's own defaultMode. What was actually MEASURED is narrower than that

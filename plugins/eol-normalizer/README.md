@@ -91,7 +91,7 @@ and `check-attr`; `jq`, `realpath`, the hook's own `bash`) with no `mktemp` or `
 /plugin install eol-normalizer@<marketplace>
 ```
 
-Then verify prerequisites with `/eol-normalizer:setup check`.
+Then verify prerequisites with `/eol-normalizer:setup check`. `/eol-normalizer:check` reports whether `node` and `jq` resolve.
 
 ## Configuration
 

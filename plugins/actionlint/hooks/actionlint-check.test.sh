@@ -233,7 +233,7 @@ ERRBIN="$(mktemp -d "$WORK/errbin.XXXXXX")"
 wrap_real_tools "$ERRBIN"
 printf '#!/bin/sh\necho "fatal: simulated actionlint failure" >&2\nexit 3\n' >"$ERRBIN/actionlint"
 chmod +x "$ERRBIN/actionlint"
-ERR_TEL="$(mktemp)"
+ERR_TEL="$(mktemp "$WORK/tel.XXXXXX")"
 ERR_SINK="$(make_sink "cat >\"$ERR_TEL\"")"
 OUT_ERR=$(
   cd "$UNRELATED" || exit 1
@@ -273,19 +273,13 @@ else
 fi
 
 # --- Stub sink + violation -> envelope status ok with findings --------------
-TEL="$(mktemp)"
+TEL="$(mktemp "$WORK/tel.XXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 run_hook_env "$REPO/.github/workflows/violation.yml" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINK" >/dev/null
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL" >/dev/null 2>&1; then
-      ok "envelope: $field present"
-    else
-      fail "envelope: $field missing ($(cat "$TEL"))"
-    fi
-  done
+  if check_envelope "$TEL"; then ok "envelope: matches envelope schema"; else fail "envelope: does not match envelope schema. envelope=$(cat "$TEL")"; fi
   if [[ "$(jq -r '.hook' "$TEL")" == "actionlint-check" ]]; then ok "envelope: hook is actionlint-check"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
@@ -299,7 +293,7 @@ fi
 rm -f "$TEL"
 
 # --- Stub sink + clean file -> status ok, findings [] -----------------------
-TELC="$(mktemp)"
+TELC="$(mktemp "$WORK/tel.XXXXXX")"
 SINKC="$(make_sink "cat >\"$TELC\"")"
 run_hook_env "$REPO/.github/workflows/clean.yml" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKC" >/dev/null
 wait_for_sink "$TELC"
@@ -315,7 +309,7 @@ rm -f "$TELC"
 # The fake-bin dir shadows actionlint. First run must emit the skip notice on
 # both channels; a second run in the same session (same CLAUDE_PLUGIN_DATA +
 # session_id) must be silent; telemetry still records status "skipped".
-ABSENT_TEL="$(mktemp)"
+ABSENT_TEL="$(mktemp "$WORK/tel.XXXXXX")"
 ABSENT_SINK="$(make_sink "cat >\"$ABSENT_TEL\"")"
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 wrap_real_tools "$FAKEBIN"
@@ -616,13 +610,13 @@ fi
 
 # --- Notice text is bound to prerequisites.json --------------------------------
 # The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest has exactly one tool,
-# actionlint, and the hook's missing-binary notice call states that tool's name,
+# path), so this case is the binding: the manifest lists actionlint, jq and node,
+# and the hook's missing-binary notice call states the actionlint tool's name,
 # check and install, verbatim.
-if jq -e '(.tools | length) == 1 and .tools[0].name == "actionlint"' "$MANIFEST" >/dev/null 2>&1; then
-  ok "manifest: exactly one tool, actionlint"
+if jq -e '(.tools | map(.name)) == ["actionlint", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: declares exactly actionlint, jq and node"
 else
-  fail "manifest: expected one tool named actionlint: $(cat "$MANIFEST")"
+  fail "manifest: expected tools actionlint, jq and node: $(cat "$MANIFEST")"
 fi
 NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to AL_NOTICE/,/[^\\]$/p' "$HOOK")"
 # assert_hook_states <field> <needle>

@@ -419,7 +419,7 @@ Route the handoff by what the session produced. **A general (non-engineering) se
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if installed)
 - **Already understand the codebase and the externals** → `/planning:plan`
 - **Task is small and the contract IS the plan** → proceed directly to implementation
-- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if installed, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch
+- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if installed, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume")
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
@@ -453,6 +453,16 @@ the recommendation from this summary.
 
 - Contract locked: /planning:plan.
 - Design-significant threads remain: /planning:design.
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Composition with other skills
 

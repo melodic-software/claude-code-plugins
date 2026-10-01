@@ -1,0 +1,6 @@
+import axios from 'axios';
+
+export async function currentTemperature(city: string): Promise<number> {
+  const { data } = await axios.get(`https://api.example.com/weather?q=${encodeURIComponent(city)}`);
+  return Math.round(data.main.temp - 273.15);
+}

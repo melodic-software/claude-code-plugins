@@ -141,11 +141,10 @@ If /export is available in your session (gate basis: **Verification record: `/ex
 
 Both look back at how sessions went, so "how did I do" can land on either.
 
-- **`/insights` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
-  It generates an HTML report across your recent sessions on this machine: projects, usage
-  patterns, where things go wrong, features to try, and an auto mode recommendation. It writes
-  that report and nothing else. It is reserved for the person to run; the model does not invoke
-  it.
+- **`/insights` (built-in command)**: generates an HTML report across your recent sessions on this
+  machine: projects, usage patterns, where things go wrong, features to try, and an auto mode
+  recommendation. It writes that report and nothing else. It is reserved for the person to run; the
+  model does not invoke it.
 - **This skill (marketplace plugin).** A structured retrospective of one session or handoff chain:
   transcript metrics, five quality dimensions, feedback-memory regressions, and codification into
   rules or memory behind approval.
@@ -174,6 +173,16 @@ live in [reference/native-insights.md](reference/native-insights.md).
   identity, not consumer config, and there is no seam to swap them. What adapts is what each
   dimension scores *against* (your repo's conventions, session-type calibration), never the
   dimensions themselves.
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Gotchas
 

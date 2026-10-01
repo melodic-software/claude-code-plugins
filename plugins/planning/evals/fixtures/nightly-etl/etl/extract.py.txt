@@ -1,0 +1,7 @@
+from etl.config import SOURCE_DSN
+
+
+def extract_orders(conn):
+    cur = conn.cursor(SOURCE_DSN)
+    cur.execute("SELECT * FROM orders")
+    return cur.fetchall()

@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that the ruff binary resolves for the ruff-format hook. Use when a hook notice says ruff is missing, or before assuming Ruff formatting ran. Does not install."
+description: "Read-only check that ruff and node resolve for the ruff-format hook. Use when a hook notice says ruff or node is missing, or before assuming Ruff formatting ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether the ruff binary is installed. Never installs.
+  summary: Report whether ruff and node are installed. Never installs.
 ---
 
 ## Purpose

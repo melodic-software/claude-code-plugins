@@ -276,7 +276,7 @@ Applies to every change made after the Brief locked: Step 3 reviewer fixes, Step
 
 - **Kind (a), ledger exists**: set that register row to `superseded-by-plan`, resolution `plan proposes: <new>; was: <old>`. A Brief-only interview has no register; list the change at Step 5 only.
 - **Both kinds**: list the change at Step 5 in the "Displaced answers and new external effects" block.
-- **Clearing a listed change**: every row of that block, superseded or not, needs an explicit reply to that row; a blanket "approve" clears none of them. For a superseded row, reconfirm sets `answered` with `reconfirmed at plan approval: <new>; was: <old>`; reject restores the original answer and the plan drops the change.
+- **Clearing a listed change**: every row of that block, superseded or not, needs an explicit reply to that row; a blanket "approve" clears none of them. For a superseded row, reconfirm sets `answered` with `proposal:: <new>; was:: <old>; answer:: accepted: <new>`, each value escaped as the exporter escapes it (a literal `;`, `\` or `|`; the grammar is in `surface/exporters.py`); reject restores the original answer and the plan drops the change.
 - **Unattended run**: leave every listed change uncleared (superseded rows stay `superseded-by-plan`), report each as **USER-RESERVED**, and report the plan as unapproved.
 
 ### Step 4.5: Execution-Shape Analysis (parallelism. Default ON for multi-phase plans)
@@ -311,10 +311,9 @@ Plan mode is also a natural moment for a **scoping confirm**. If you're entering
 
 The command and this skill share a name, so "plan this" can mean either.
 
-- **`/plan` (built-in command).** Ships with Claude Code rather than as a marketplace plugin.
-  `/plan [description]` enters plan mode, the read-only permission mode Plan Mode Integration
-  above describes, optionally starting on the description; `/plan open` views the session plan.
-  It is reserved for the person to run; the model does not invoke it.
+- **`/plan` (built-in command)**: `/plan [description]` enters plan mode, the read-only permission
+  mode Plan Mode Integration above describes, optionally starting on the description; `/plan open`
+  views the session plan. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an
   approval gate, and a persisted PLAN.md a cleared session can execute.
 

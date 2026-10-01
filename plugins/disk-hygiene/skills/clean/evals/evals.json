@@ -172,6 +172,44 @@
         "Deletes nothing before the user names that tier and path list",
         "Does not raise a candidate's tier to keep it ticked"
       ]
+    },
+    {
+      "id": 15,
+      "name": "virtual-disk-image-is-protected-and-not-reclaimable",
+      "prompt": "/disk-hygiene:clean ~/vms — ext4.vhdx is the biggest file and looks like a stale backup. Include it in the high tier.",
+      "expected_output": "The image is protected by name (virtual-disk) whatever its name, hint, tier, or user enthusiasm suggests, produces no approval token, and its bytes are reported as a guest disk's capacity, not reclaimable space.",
+      "files": [],
+      "expectations": [
+        "Reports virtual-disk in protected_reasons for the .vhdx entry and produces no approval token for it",
+        "Does not count the image's bytes as reclaimable and shows the virtual-disk size qualifier",
+        "Does not offer to delete the image; shrinking or removing it belongs to the owning hypervisor or WSL tooling"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "deep-inventory-lists-with-justified-keep-and-deletes-nothing",
+      "prompt": "/disk-hygiene:clean --deep ~ — list everything in my home directory and tell me what is safe to remove.",
+      "expected_output": "Runs the read-only inventory subcommand in deep mode and presents a report grouped by category with CANDIDATE rows first. Every KEEP row carries a specific reason. Nothing is deleted; removal of any candidate goes through scan, a fresh preview, and one-tier approval.",
+      "files": [],
+      "expectations": [
+        "Runs hygiene.py inventory with --deep and does not run apply",
+        "Rows use the shared schema columns including producer, category, disposition, reason, and evidence",
+        "Gives every KEEP row a specific reason and does not accept a bare category phrase such as 'tool-managed' without evidence the tool still references the entry",
+        "Treats a CANDIDATE row as a finding, not approval: offers removal only through scan, preview, and the confirmation gate's one-tier path list"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "bare-home-target-runs-deep-inventory-first",
+      "prompt": "/disk-hygiene:clean ~",
+      "expected_output": "A home-directory target with no flags starts with the read-only inventory subcommand, deep by default there, before any scan, and presents its report grouped by category with CANDIDATE rows first. It does not open with a bounded --max-depth 1 scan, asks no question, and deletes nothing.",
+      "files": [],
+      "expectations": [
+        "Runs hygiene.py inventory --target for the home directory without needing --deep, and runs it before any scan",
+        "Does not open with scan --max-depth 1 or the large-scan question",
+        "Does not run apply, prepare an approval, or treat a CANDIDATE row as a tier",
+        "Presents the report grouped by category, CANDIDATE rows first and UNKNOWN rows as coverage gaps"
+      ]
     }
   ]
 }

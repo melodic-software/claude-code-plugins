@@ -3,6 +3,82 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.2] - 2026-10-01
+
+### Fixed
+
+- **`run-guards` no longer counts the body of a quoted-delimiter heredoc toward the substitution cap.** A `cat <<'EOF'` body (also `<<"EOF"`, `<<\EOF`, `<<-'EOF'`) holding more than 256 `$(`, `<(`, `>(` or backtick spellings was refused, though bash expands nothing there. The operator, delimiter and rest of its line still count. An unquoted or expanding heredoc, a heredoc the scan does not model, and any command that names a shell, `eval`, `su`, `env`, `source`, `. file` or `alias` still count whole. `block-root-delete-target` is unchanged and still reads such a body as commands, so `bash <<'EOF'` with a `$(rm -rf /)` body is still refused. The full 10-guard row finishes in about 3 s on a 16,384-character quoted-heredoc body.
+
+## [0.46.1] - 2026-10-01
+
+### Fixed
+
+- **`block-windows-drive-tmp` lets a provable read of a drive-root temp path and a quoted mention through.** A single plain python run (`python`, `python3` or `py`, plain flags only) whose code is its `-c` string or a heredoc on stdin, with nothing after it, and whose every `open(` is a bare read of a plain path (`.read(`, `.readline(`, `.readlines(` or wrapped whole in `json.load(`) no longer blocks, and neither does a `gh issue|pr create|comment|edit`, `git commit`, `git tag`, `echo` or `printf` command that only quotes `open('/tmp/x','w')` or `write_text(` as text. Both reliefs judge the whole unsplit command, so a decoy read followed by `os.system` or `shutil.copy` still blocks, and so does a read inside a pipeline, a second command, a redirect, an argument, a wrapper or another interpreter (`echo "open('/c/tmp/x').read()" | cut -d "'" -f2 | xargs tee`), and any backslash, `$`, backtick, indirection, wildcard import (`from x import *`, which can rebind `open`), unlisted command or read argument that is not a plain path (Ruby's `open('|cmd')`, `%x[cmd]`, `"#{cmd}"`). Replaying the guard's test corpus on `origin/main` fails the 23 cases that expect an allow and none that expect a block. That counts corpus cases, not every command the reliefs allow: a read beside a write to a path assembled at run time through an API the guard does not list is also allowed, as the same write already was without the read.
+
+## [0.46.0] - 2026-10-01
+
+### Added
+
+- **`block-root-delete-target` lets a recursive delete strictly under a user-listed root through.** The new `block_root_delete_target_allowed_roots` option takes comma-separated absolute directories, empty by default, and a target whose resolved real path sits strictly under one is allowed on the same rule as a temp root. Only the user sets it: it is read from the hook's own environment, never from the command text, so a `VAR=...` prefix or a flag grants nothing. The listed root itself and its glob stay refused, and so do a name-prefix sibling, a `..` escape and a symlink that points outside the root. Every other refusal runs before the allowlist and ignores it: a filesystem root, `~`, `$HOME`, a drive root, a UNC share, `--no-preserve-root`, an empty or bare-variable operand and a glob escape. An entry that is relative, empty, UNC, holds a glob character, a line break or a `..` component, or resolves to a filesystem root or HOME grants nothing, and no listed root lets through HOME or a directory holding it. The outside-tree block message names the option.
+
+## [0.45.0] - 2026-09-30
+
+### Added
+
+- **`/guardrails:check` reads whether `node` and `jq` resolve for the guardrails hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, and the SessionStart `node` notice names it. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
+
+## [0.44.2] - 2026-09-30
+
+### Fixed
+
+- **`setup` spokes no longer name the git-hook and detection-library sources through the literal plugin-root token.** The token is not substituted in a `context/` file, so the copy source in `install-commit-msg` and `install-pre-commit-content` resolved to nothing. The paths now read `<plugin-root>/lib/...`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
+## [0.44.1] - 2026-09-30
+
+### Fixed
+
+- **`block-dangerous-git` lets read-only git through PowerShell grouping.** A `{}` or `()` group sent the whole command to the fail-closed sink, so `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }` was refused. The sink now passes a command whose every git invocation is a built-in interrogator (`status`, `log`, `show`, `diff`, `rev-parse`, `ls-files`, `remote -v`, `stash list` and similar), optionally behind `-C <path>`. A `-c` override, `--exec-path`, a computed or obscured subcommand, an alias, `fetch`, `grep` and any mutating verb keep the command blocked, and dynamic-invocation, launcher and here-string triggers are unchanged. `scripts/check-guardrails-ps-differential.sh origin/main` shows 19 commands newly allowed, all read-only git, and no other cell moved.
+- **The read-only group check refuses an environment write it cannot prove has a plain literal target.** `GIT_PAGER`, `GIT_EXTERNAL_DIFF` and `PATH` turn a read into execution, so a command that writes the environment or rebinds `git` keeps the group blocked. The check reads syntax instead of matching text, so a name built from pieces no longer slips through: `Set-Item`, `New-Item`, `Set-Content` and the other provider cmdlets need plain-literal operands (a path that is computed, held in a variable, splatted or piped in refuses), and an `Env:`, `Function:` or `Alias:` drive path, a `$env:NAME` assignment (alone, in a target list or as a foreach variable), a static `::` call, any method call, `ForEach-Object -MemberName`, a computed call target, a word spliced from quoted parts, a write beside a `Set-Location` or `cd` whose target is computed or piped in, and a function, filter or alias definition, and a native `env` wrapper (`env GIT_PAGER=... git log`) all refuse. `Set-Item -Path ('E'+'nv:') ...` and `$m.InvokeMember(...)` beside `& { git log }` are blocked. Code in a file, and a script block held in a variable and run by a cmdlet, are not read.
+- **The PowerShell read-only git test judges `remote` and `stash` by arguments.** Both were listed as mutating stems, so bare `git remote`, `remote -v`, `remote show`, `remote get-url`, `stash list` and `stash show` were refused. Every other `remote` or `stash` form still blocks.
+- **The PowerShell sink denial offers the commit form only for a commit and names the PowerShell rewrite first.** The fallback line for an unrecognized trigger leads with the rewrite too.
+
+## [0.44.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** Every guard launches through `node`, so a host without it enforced nothing silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README Requirements section documents the row.
+
+## [0.43.3] - 2026-09-30
+
+### Changed
+
+- `block-windows-drive-tmp` skips its `cygpath` probe for a command that names no tmp path, removing two process forks from every benign Bash command on Windows.
+- `secret-pattern-detection` pre-matches a Windows write target against the environment's temp spellings and adds the `cygpath` drive spellings only after a hit, or when a temp root has no `tmp` or `temp` component, so a write outside temp spawns no resolver process under the default temp roots.
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+- The `block-hook-bypass`, `secret-pattern-detection`, `run-guards` and `coverage-manifest` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
+
+## [0.43.2] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block.
+
+### Changed
+
+- Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
+## [0.43.0] - 2026-09-30
+
+### Added
+
+- **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
+
 ## [0.42.5] - 2026-09-30
 
 ### Changed
