@@ -60,7 +60,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Verification | Always give Claude a way to verify |
 | Learning | Use Claude to explain and teach |
 | Terminal | /config, /terminal-setup, /vim |
-| Effort | `/effort` to set the level (low/medium/high/xhigh/max; default high, xhigh on Opus 4.7) |
+| Effort | `/effort` to set the level; for levels and per-model defaults, see [model config](https://code.claude.com/docs/en/model-config#adjust-effort-level) |
 | Plugins | /plugin for LSPs, MCPs, skills |
 | Agents | .claude/agents, custom defaults |
 | Sandboxing | /sandbox for file & network isolation |
