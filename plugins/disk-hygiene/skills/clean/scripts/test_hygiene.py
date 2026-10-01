@@ -12651,7 +12651,11 @@ class GuardTests(unittest.TestCase):
         ``fnmatchcase`` over the whole command stands in for the harness's
         per-subcommand ``if`` match; it does not model splitting on ``&&``.
         """
-        globs = [rule[len("Bash(") : -1] for rule in self._BELT_BASH_IFS]
+        globs = [
+            hook["if"][len("Bash(") : -1]
+            for matcher, hook in self._skill_hooks()
+            if matcher == "Bash"
+        ]
 
         def reaches(command: str) -> bool:
             return any(fnmatch.fnmatchcase(command, glob) for glob in globs)
@@ -12661,6 +12665,7 @@ class GuardTests(unittest.TestCase):
             "git log --format=%H",
             "git commit -m 'remove the rm handling'",
             "gh pr merge 5 --delete-branch",
+            "gh issue list --state open",
             "bash /p/repo-hygiene/skills/clean/scripts/git-branch-audit.sh",
             "bash /p/discovery/scripts/check-dispatch-artifact.sh --help",
             "npm run format",
@@ -12801,6 +12806,71 @@ class GuardTests(unittest.TestCase):
             f"--approval-token {'a' * 24} --report r"
         )
         self.assertEqual("ask", self._permission(self._belt(apply)))
+
+    def test_belt_registration_covers_every_deletion_verb_with_an_if(self) -> None:
+        bash = [hook for matcher, hook in self._skill_hooks() if matcher == "Bash"]
+        self.assertTrue(bash)
+        self.assertTrue(all(hook.get("if") for hook in bash), bash)
+        ifs = {hook["if"] for hook in bash}
+        for verb in ("rm", "rmdir", "unlink", "shred", "truncate", "mv", "find"):
+            for form in (f"{verb} *", f"*/{verb} *"):
+                with self.subTest(form):
+                    self.assertIn(f"Bash({form})", ifs)
+        for script in ("hygiene.py", "kill_switch_probe.py", "release_belt.py"):
+            with self.subTest(script):
+                self.assertIn(f"Bash(*{script}*)", ifs)
+
+    def test_belt_lets_the_readonly_allowlist_through(self) -> None:
+        self.authorize_data_root()
+        for command in ("/usr/bin/ls /tmp", "/usr/bin/find . -name x"):
+            with self.subTest(command=command):
+                self.assertEqual("allow", self._permission(self._belt(command)))
+
+    def test_belt_still_denies_deletion_shapes_the_if_filter_cannot_split(
+        self,
+    ) -> None:
+        self.authorize_data_root()
+        wrong_path = (
+            f'"{self.python_command()}" "/tmp/elsewhere/hygiene.py" scan '
+            f'--target t --output s --data-root "{self._data_root.resolve().as_posix()}"'
+        )
+        for command in (
+            "rm -rf /tmp/x",
+            "cd /tmp && rm -rf x",
+            "find . -delete",
+            "find . -exec rm {} +",
+            "xargs rm",
+            "mv a b",
+            "rmdir d",
+            "rm 'unbalanced",
+            wrong_path,
+        ):
+            with self.subTest(command=command):
+                self.assertEqual("deny", self._permission(self._belt(command)))
+
+    def test_belt_exact_engine_apply_asks_when_enabled_and_denies_when_disabled(
+        self,
+    ) -> None:
+        self.authorize_data_root()
+        apply = self._engine_words(
+            "apply --execute --snapshot s --plan p --confirm-tier high "
+            f"--approval-token {'a' * 24} --report r"
+        )
+        self.assertEqual("ask", self._permission(self._belt(apply)))
+        self.assertEqual("deny", self._permission(self._belt(apply, enabled=False)))
+
+    def test_belt_powershell_deletion_on_a_non_engine_path_keeps_its_verdict(
+        self,
+    ) -> None:
+        self.authorize_data_root()
+        command = "Remove-Item -Recurse C:/tmp/x"
+        for enabled, expected in ((True, "ask"), (False, "deny")):
+            with self.subTest(enabled=enabled):
+                result = self._belt(command, tool_name="PowerShell", enabled=enabled)
+                self.assertEqual(expected, self._permission(result))
+        self.assertIsNone(
+            self._permission(self._belt("Get-Process", tool_name="PowerShell"))
+        )
 
     def test_release_marker_must_be_a_regular_file(self) -> None:
         self.authorize_data_root()
