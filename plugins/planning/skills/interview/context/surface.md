@@ -79,6 +79,8 @@ When the first wake prompts for permission, offer the user one allow rule, `Bash
 | `confirm-commitments` | `id`, `indices` (all when absent), `reason` | Record commitments the user confirmed outside the page, such as in the terminal |
 | `restate` | `sections`: `goal`, `constraints`, `decisions`, `acceptance`, `outOfScope`, `deferred`, `planningOwned` (markdown, at least one non-empty) | Post the restatement the [confirmation gate](#confirmation-gate) shows; each one gets a new `rev` and joins `restatements`, the latest mirrored as `restatement` |
 
+One-line fields (a title, `short`, `rec`, an alternative, a commitment, a hold, a status, an activity entry, a reason) are capped at 500 characters and markdown fields (`facts`, `basis`, `why`, a note, a summary, a restatement section) at 20000; a longer one is refused and nothing is written.
+
 A `rec` needs `affects`: question ids, or `"none"` (R2). A recommendation change marks each question named in `affects`, and each direct dependent of the revised question, that holds a decision as `Upstream changed`: stale, kept decision visible, the revised id named on its card. One level only; the transitive cascade stays deferred. Answering the question again clears it (Reconfirm is choice 1), as does `record-terminal`; a question with no decision has nothing to mark. A history line carries `pageSeq`, the page's seq at the change, so an answer that landed before it is marked and one after it is not. `reply` with `rec` and `revise` with `rec` refuse when the question has a live user event newer than `seq` (an undo or a withdrawn event does not count); read that event before passing `"force": true`. `reply`'s `handled: N` marks every event with seq at or below N handled, including other questions' events; prefer `handle` with explicit seqs.
 
 ```json
@@ -204,7 +206,7 @@ Rules R-A to R-K:
 
 ## Wording lint
 
-Every question states its decision in plain words. Before `add-round`, scan each title, recommendation and basis for bare ids (`[A-Z]+[0-9]+`, other than version labels such as `V1`) and coined terms, and define each inline or spell it out. `round.py` warns on a bare id (other than a version label) that names no question in the file and on a recommendation or basis over the length budget (R12); treat a warning as a rewrite.
+Every question states its decision in plain words. Before `add-round`, scan each title, recommendation and basis for bare session ids (`Q<N>` and `C<N>`) and coined terms, and define each inline or spell it out. Real names such as a tracker key, a severity code or a standard (`ABC2`, `SEV1`, `HTTP2`) stay as written. `round.py` warns on a bare `Q<N>` that names no question in the file, on a bare `C<N>`, and on a recommendation or basis over the length budget (R12); treat a warning as a rewrite.
 
 ## Offers
 

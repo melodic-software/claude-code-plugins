@@ -118,8 +118,7 @@ LOGGED_OPS = {
     "finish",
 }
 BASIS_SENTENCES = 3
-ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
-VERSION_LABEL = re.compile(r"V[0-9]+")
+ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
@@ -420,7 +419,7 @@ def warn_bare_issue_refs(doc, label, value):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, bare ids (not version labels like V1) that name no question here, and bare #N with no meta.repo."""
+    """Warnings, never refusals: R12 length budget, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -439,11 +438,7 @@ def lint_questions(doc, qs):
         for field in ("title", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
-                if (
-                    tok not in ids
-                    and tok not in seen
-                    and not VERSION_LABEL.fullmatch(tok)
-                ):
+                if tok not in ids and tok not in seen:
                     seen.add(tok)
                     warn(
                         f"{q['id']} {field} names {tok}, which is not a question id in this "

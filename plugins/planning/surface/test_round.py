@@ -315,19 +315,25 @@ class TestRefusals(DirCase):
 
     def test_bare_unknown_id_token_warns(self):
         q = question(
-            "Q4", title="Does this follow AC21?", recommendation="Yes, like Q1."
+            "Q4",
+            title="Does this follow Q99?",
+            recommendation="Yes, like Q1 and as C3 says.",
         )
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
-        self.assertIn("AC21", err)
-        self.assertNotIn("Q1,", err)
+        self.assertIn("Q99", err)
+        self.assertIn("C3", err)
         self.assertNotIn("names Q1", err)
 
-    def test_version_label_is_not_a_bare_id(self):
-        q = question("Q4", title="Ship the V1 release on K8s?")
+    def test_other_letter_digit_tokens_are_not_ids(self):
+        q = question(
+            "Q4",
+            title="Ship the V1 release on K8s?",
+            recommendation="Yes: ABC2 at SEV1 over HTTP2, step S12, ES2022 target.",
+        )
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
-        self.assertNotIn("V1", err)
+        self.assertNotIn("not a question id", err)
 
     def test_apply_add_round_warns(self):
         ops = {
@@ -1337,11 +1343,15 @@ class TestClaudeActivity(DirCase):
             {"op": "add-round", "groups": [{"id": "g3", "title": line}]},
         ):
             with self.subTest(op=repr(op)[:100]):
-                self.assertIn("the cap is", self.refused(op))
+                self.assertRegex(self.refused(op), "the cap is|allows at most")
         self.apply(
             {"op": "wait", "id": "Q3", "waitsOn": "x" * 500},
             {"op": "restate", "sections": {"goal": "x" * 20000}},
             {"op": "group", "id": "g3", "title": "x" * 500, "summary": "x" * 20000},
+            {"op": "set-status", "text": "x" * 500},
+            {"op": "activity", "text": "x" * 500},
+            {"op": "note-reply", "text": "x" * 20000},
+            {"op": "revise", "id": "Q1", "title": "x" * 500, "facts": "x" * 20000},
             {
                 "op": "add",
                 "question": question("Q4", title="x" * 500, facts="x" * 20000),

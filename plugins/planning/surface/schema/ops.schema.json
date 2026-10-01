@@ -36,6 +36,8 @@
   },
   "$defs": {
     "affects": {"type": ["array", "string"], "items": {"type": "string"}},
+    "line": {"type": "string", "maxLength": 500},
+    "markdown": {"type": "string", "maxLength": 20000},
     "alternatives": {
       "type": "array",
       "items": {
@@ -45,7 +47,7 @@
             "type": "object",
             "required": ["key", "text"],
             "additionalProperties": false,
-            "properties": {"key": {"type": "string"}, "text": {"type": "string"}}
+            "properties": {"key": {"type": "string"}, "text": {"$ref": "#/$defs/line"}}
           }
         ]
       }
@@ -57,14 +59,15 @@
       "properties": {
         "op": {"enum": ["reply"]},
         "id": {"type": "string"},
-        "text": {"type": "string"},
+        "text": {"$ref": "#/$defs/markdown"},
         "seq": {"type": "integer"},
         "kind": {"enum": ["reply", "rephrase", "note"]},
-        "rec": {"type": "string"},
-        "why": {"type": "string"},
+        "rec": {"$ref": "#/$defs/line"},
+        "why": {"$ref": "#/$defs/markdown"},
         "resolution": {
           "description": "The accepted reading of the user's counted `own` answer on this question, one line; refused when no `own` answer counts. Exports and the Brief give it as the answer and keep the user's words as its note.",
-          "type": "string"
+          "type": "string",
+          "maxLength": 500
         },
         "affects": {"$ref": "#/$defs/affects"},
         "handled": {"type": "integer"},
@@ -78,18 +81,18 @@
       "properties": {
         "op": {"enum": ["revise"]},
         "id": {"type": "string"},
-        "title": {"type": "string"},
-        "short": {"type": "string"},
-        "facts": {"type": "string"},
-        "basis": {"type": "string"},
-        "rec": {"type": "string"},
-        "why": {"type": "string"},
-        "text": {"type": "string"},
+        "title": {"$ref": "#/$defs/line"},
+        "short": {"$ref": "#/$defs/line"},
+        "facts": {"$ref": "#/$defs/markdown"},
+        "basis": {"$ref": "#/$defs/markdown"},
+        "rec": {"$ref": "#/$defs/line"},
+        "why": {"$ref": "#/$defs/markdown"},
+        "text": {"$ref": "#/$defs/markdown"},
         "alternatives": {"$ref": "#/$defs/alternatives"},
         "commits": {
           "description": "Replaces the whole commitment list; an empty array clears it.",
           "type": "array",
-          "items": {"type": "string"}
+          "items": {"$ref": "#/$defs/line"}
         },
         "dependsOn": {
           "description": "Replaces the whole dependency list; an empty array clears it. Every id must be a known question, not this one, and none may already depend on it. The change is logged in the question's history.",
@@ -142,8 +145,8 @@
       "properties": {
         "op": {"enum": ["group"]},
         "id": {"type": "string"},
-        "title": {"type": "string"},
-        "summary": {"type": "string"},
+        "title": {"$ref": "#/$defs/line"},
+        "summary": {"$ref": "#/$defs/markdown"},
         "dependsOn": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -175,7 +178,7 @@
       "properties": {
         "op": {"enum": ["note-reply"]},
         "seq": {"type": "integer"},
-        "text": {"type": "string"}
+        "text": {"$ref": "#/$defs/markdown"}
       }
     },
     "handle": {
@@ -194,7 +197,7 @@
       "properties": {
         "op": {"enum": ["archive"]},
         "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-        "why": {"type": "string"}
+        "why": {"$ref": "#/$defs/line"}
       }
     },
     "replace-visual": {
@@ -215,7 +218,7 @@
       "properties": {
         "op": {"enum": ["archive-visual"]},
         "ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
-        "why": {"type": "string"}
+        "why": {"$ref": "#/$defs/line"}
       }
     },
     "record-terminal": {
@@ -227,7 +230,7 @@
         "id": {"type": "string"},
         "decision": {"enum": ["accept", "alt", "own", "defer", "hedged"]},
         "alt": {"type": "string"},
-        "text": {"type": "string"}
+        "text": {"$ref": "#/$defs/markdown"}
       }
     },
     "set-status": {
@@ -237,7 +240,7 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["set-status"]},
-        "text": {"type": "string"},
+        "text": {"$ref": "#/$defs/line"},
         "clear": {"type": "boolean"}
       }
     },
@@ -249,7 +252,7 @@
       "properties": {
         "op": {"enum": ["wait"]},
         "id": {"type": "string"},
-        "waitsOn": {"type": "string"},
+        "waitsOn": {"$ref": "#/$defs/line"},
         "by": {"enum": ["claude", "user"]},
         "clear": {"type": "boolean"}
       }
@@ -261,7 +264,7 @@
       "additionalProperties": false,
       "properties": {
         "op": {"enum": ["activity"]},
-        "text": {"type": "string"},
+        "text": {"$ref": "#/$defs/line"},
         "ids": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -274,7 +277,7 @@
         "op": {"enum": ["confirm-commitments"]},
         "id": {"type": "string"},
         "indices": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
-        "reason": {"type": "string"}
+        "reason": {"$ref": "#/$defs/line"}
       }
     },
     "finish": {

@@ -263,6 +263,33 @@ class TestShippedSchemas(unittest.TestCase):
         doc["restatement"]["sections"]["other"] = "o"
         self.assertIn("other", schema.first_error(doc, schema.load("questions")))
 
+    def test_ops_text_caps_match_round_py(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        for op, cap in (
+            ({"op": "activity", "text": ""}, 500),
+            ({"op": "set-status", "text": ""}, 500),
+            ({"op": "wait", "id": "Q1", "waitsOn": ""}, 500),
+            ({"op": "archive", "ids": ["Q1"], "why": ""}, 500),
+            ({"op": "revise", "id": "Q1", "title": ""}, 500),
+            ({"op": "revise", "id": "Q1", "facts": ""}, 20000),
+            ({"op": "note-reply", "text": ""}, 20000),
+            ({"op": "group", "id": "g1", "summary": ""}, 20000),
+        ):
+            field = next(k for k, v in op.items() if v == "")
+            with self.subTest(op=op["op"], field=field):
+                self.assertIsNone(check({**op, field: "x" * cap}))
+                self.assertIn(f"at most {cap}", check({**op, field: "x" * (cap + 1)}))
+        alt = {
+            "op": "revise",
+            "id": "Q1",
+            "alternatives": [{"key": "a", "text": "x" * 501}],
+        }
+        self.assertIn("at most 500", check(alt))
+
 
 if __name__ == "__main__":
     unittest.main()
