@@ -889,7 +889,8 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
   `owner` and `"owner_level": true` covers every entry below its path while its identity holds. The
   `catalog` output lists each in-scope entry with no record and no owner-level ancestor under
   `uncataloged`, with its `reasons`; report every one, so nothing that looks out of place is skipped.
-  The catalog reads only snapshot fields and walks nothing.
+  A `--sizes-only` snapshot has no entries, so `catalog` refuses it. The catalog reads only snapshot
+  fields and walks nothing.
 - The scan sets `prior_disposition` on an entry whose record still holds. Report new or changed
   entries first, one line for each unchanged entry, and end with the questions. Records for entries
   the snapshot did not inventory are kept unchanged.

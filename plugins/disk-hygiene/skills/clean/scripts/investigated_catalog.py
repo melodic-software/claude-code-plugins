@@ -111,6 +111,28 @@ def _human_by_identity(
     return index
 
 
+def _supersede(
+    records: dict[tuple[str, str], dict[str, Any]],
+    target: str,
+    answered: dict[str, Any],
+) -> None:
+    """Drop other targets' operator answers for the object just answered.
+
+    The newest answer is the operator's decision, so an older one for the same
+    filesystem object must not outrank it on a later scan.
+    """
+    identity = answered["identity"]
+    if not (identity["device"] and identity["inode"]):
+        return
+    for key, record in list(records.items()):
+        if (
+            key[0] != target
+            and record["source"] == "human"
+            and record["identity"] == identity
+        ):
+            del records[key]
+
+
 def _other_target_answer(
     index: dict[tuple[Any, Any, Any], list[dict[str, Any]]],
     target: str,
@@ -167,13 +189,20 @@ def _uncataloged(
     scope: dict[str, list[str]],
     records: dict[tuple[str, str], dict[str, Any]],
     reused: dict[str, dict[str, Any]],
+    target_owned: bool = False,
 ) -> list[dict[str, Any]]:
-    """In-scope entries with no record of their own and no owner-level ancestor."""
+    """In-scope entries with no record of their own and no owner-level ancestor.
+
+    ``target_owned`` is an owner-level answer for the scan target itself, which
+    covers every entry below it.
+    """
+    if target_owned:
+        return []
     owners = {
         path
         for (record_target, path), record in records.items()
         if record_target == target and record.get(OWNER_LEVEL_KEY)
-    }
+    } | {path for path, answer in reused.items() if answer.get(OWNER_LEVEL_KEY)}
 
     def covered(path: str) -> bool:
         parts = path.split("/")
@@ -297,6 +326,10 @@ def _well_formed(record: Any) -> bool:
         and isinstance(record["path"], str)
         and isinstance(record["identity"], dict)
         and record["identity"].keys() == {"device", "inode", "kind"}
+        and all(
+            value is None or isinstance(value, (str, int))
+            for value in record["identity"].values()
+        )
         and (
             record["descendant_set"] is None
             or (
@@ -391,14 +424,28 @@ def sync_catalog(
                 continue
             before = dict(record)
             _apply(record, conclusion, source)
+            if source == "human":
+                _supersede(records, target, record)
             if state[path] == "unchanged" and record != before:
                 state[path] = "changed"
     catalog = {
         "version": CATALOG_VERSION,
         "records": [records[key] for key in sorted(records)],
     }
+    identity = snapshot.get("target_identity")
+    target_answer = (
+        _other_target_answer(
+            answers_elsewhere, target, {**identity, "path": "."}, entries
+        )
+        if isinstance(identity, dict)
+        else None
+    )
     uncataloged = _uncataloged(
-        target, catalog_scope(snapshot, positional), records, reused
+        target,
+        catalog_scope(snapshot, positional),
+        records,
+        reused,
+        bool(target_answer and target_answer.get(OWNER_LEVEL_KEY)),
     )
     return catalog, _report(target, records, state, reused, unmatched, uncataloged)
 

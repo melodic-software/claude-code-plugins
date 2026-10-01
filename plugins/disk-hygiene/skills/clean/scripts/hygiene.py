@@ -350,7 +350,12 @@ def catalog_target_is_positional(snapshot: dict[str, Any]) -> bool:
     if snapshot.get("root_children_mode"):
         return True
     home = user_home()
-    return home is not None and Path(snapshot["target"]) == home.resolve(strict=False)
+    if home is None:
+        return False
+    try:
+        return os.path.samefile(snapshot["target"], home)
+    except OSError:
+        return False
 
 
 def write_text_atomic(path: Path, text: str) -> None:
@@ -5765,6 +5770,11 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 raise HygieneError(
                     "catalog needs a scan snapshot whose entries each have a path"
+                )
+            if snapshot.get("inventory_mode") == "sizes-only":
+                raise HygieneError(
+                    "sizes-only snapshot has no entries to catalog; scan without "
+                    "--sizes-only"
                 )
             json_path, markdown_path = catalog_paths()
             json_path.parent.mkdir(parents=True, exist_ok=True)

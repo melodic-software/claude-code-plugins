@@ -485,6 +485,67 @@ class CatalogScopeTest(unittest.TestCase):
         _, report = catalog.sync_catalog(self.snapshot(), stored, [], [], "run-g")
         self.assertNotIn("tool", [item["path"] for item in report["uncataloged"]])
 
+    def owner_answer(self) -> dict:
+        elsewhere = {**self.snapshot(), "target": "/other"}
+        answer = {
+            "path": "tool",
+            "disposition": "keep",
+            "owner": "tool vendor",
+            "owner_level": True,
+        }
+        stored, _ = catalog.sync_catalog(elsewhere, None, [], [answer], "run-h")
+        return stored
+
+    def test_a_reused_owner_level_answer_covers_its_descendants(self) -> None:
+        reached = _snapshot(
+            *(
+                {**entry, "path": f"vendor/{entry['path']}"}
+                for entry in self.snapshot()["entries"]
+                if entry["path"].startswith("tool")
+            ),
+        )
+        _, report = catalog.sync_catalog(reached, self.owner_answer(), [], [], "run-i")
+        self.assertEqual([], report["uncataloged"])
+
+    def test_a_reused_owner_level_answer_for_the_target_covers_every_entry(
+        self,
+    ) -> None:
+        inside = _snapshot(
+            *(
+                {**entry, "path": entry["path"].removeprefix("tool/")}
+                for entry in self.snapshot()["entries"]
+                if entry["path"].startswith("tool/")
+            ),
+        )
+        inside["target_identity"] = _entry("tool", inode=1)
+        _, report = catalog.sync_catalog(inside, self.owner_answer(), [], [], "run-j")
+        self.assertEqual([], report["uncataloged"])
+
+    def test_the_latest_answer_for_an_object_supersedes_older_ones(self) -> None:
+        first = _snapshot(_entry("loose", inode=30), target="/a-first")
+        second = _snapshot(_entry("loose", inode=30), target="/z-second")
+        stored, _ = catalog.sync_catalog(
+            first, None, [], [{"path": "loose", "disposition": "keep"}], "run-k"
+        )
+        stored, _ = catalog.sync_catalog(
+            second, stored, [], [{"path": "loose", "disposition": "remove"}], "run-l"
+        )
+        third = _snapshot(_entry("loose", inode=30), target="/m-third")
+        catalog.annotate_entries(third, stored)
+        self.assertEqual("remove", third["entries"][0]["prior_disposition"])
+
+    def test_an_identity_with_a_non_scalar_value_is_ignored(self) -> None:
+        snapshot = _snapshot(_entry("loose"))
+        good, _ = catalog.sync_catalog(
+            snapshot, None, [], [{"path": "loose", "disposition": "keep"}], "run-m"
+        )
+        record = good["records"][0]
+        record["identity"] = {**record["identity"], "inode": [1]}
+        catalog.annotate_entries(snapshot, good)
+        self.assertNotIn("prior_disposition", snapshot["entries"][0])
+        _, report = catalog.sync_catalog(snapshot, good, [], [], "run-n")
+        self.assertEqual("loose", report["uncataloged"][0]["path"])
+
 
 class CatalogCommandTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -578,6 +639,30 @@ class CatalogCommandTest(unittest.TestCase):
         self.assertEqual(
             ["immediate-child", "out-of-place"], result["uncataloged"][0]["reasons"]
         )
+
+    def test_a_home_target_spelled_through_a_link_is_still_the_home(self) -> None:
+        link = Path(self.tmp.name) / "home-link"
+        link.symlink_to(self.target, target_is_directory=True)
+        snapshot = json.loads(self.scan("snapshot.json").read_text(encoding="utf-8"))
+        snapshot["target"] = str(link)
+        path = self.write("linked.json", snapshot)
+        with mock.patch.object(hygiene, "user_home", return_value=self.target):
+            code, result = self.run_main(
+                "catalog", "--snapshot", str(path), "--run-id", "run-1"
+            )
+        self.assertEqual(0, code)
+        self.assertIn("out-of-place", result["uncataloged"][0]["reasons"])
+
+    def test_catalog_refuses_a_sizes_only_snapshot(self) -> None:
+        snapshot = self.write(
+            "sizes.json",
+            {"target": str(self.target), "entries": [], "inventory_mode": "sizes-only"},
+        )
+        code, _ = self.run_main(
+            "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
+        )
+        self.assertNotEqual(0, code)
+        self.assertFalse((self.data / "catalog.json").exists())
 
     def test_operator_answer_file_is_persisted_as_human_source(self) -> None:
         snapshot = self.catalog_remove()

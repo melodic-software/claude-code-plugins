@@ -24,7 +24,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and descendant set still hold is reused when another scan target reaches the same entry, so it is
   not asked again, even where this target holds an engine record with an open question. The scan
   sets `target_prior_disposition` when the scan target itself was answered, and the `catalog`
-  report lists a reused entry under `unchanged` as `answered under <target>`.
+  report lists a reused entry under `unchanged` as `answered under <target>`. A new answer replaces
+  older answers for the same entry recorded under other targets, an owner-level answer reached from
+  another target covers its descendants, and `catalog` refuses a `--sizes-only` snapshot, which has
+  no entries to account for.
 
 ## [0.41.2] - 2026-09-30
 
