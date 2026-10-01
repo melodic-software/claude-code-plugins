@@ -604,6 +604,12 @@ run_win "quoted 'python3' '-c' write_text(/c/tmp) then gh issue create (blocked)
   "'python3' '-c' \"import pathlib; pathlib.Path('/c/tmp/x').write_text('a')\" gh issue create" 2
 run_win "quoted \"python3\" \"-c\" open(/tmp) then git tag (blocked)" \
   "\"python3\" \"-c\" \"open('/tmp/x','w')\" git tag v1" 2
+run_win "gh, newline, pr create quoting open(/c/tmp) (blocked)" \
+  $'gh\npr create --body "open(\'/c/tmp/x\',\'w\')"' 2
+run_win "git, newline, commit quoting open(/c/tmp) (blocked)" \
+  $'git\ncommit -m "open(\'/c/tmp/x\',\'w\')"' 2
+run_win "gh issue, newline, create quoting open(/c/tmp) (blocked)" \
+  $'gh issue\ncreate --body "open(\'/c/tmp/x\',\'w\')"' 2
 run_win "quoted \"echo\" word with open(/c/tmp) (blocked, fail-closed)" \
   "\"echo\" \"open('/c/tmp/x','w')\"" 2
 run_win_pwsh "PS: quoted \"python3\" \"-c\" open(C:/tmp) then echo (blocked)" \

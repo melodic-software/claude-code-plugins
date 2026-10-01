@@ -676,7 +676,7 @@ segment_writes_drive_root_tmp() {
 # quoted word in its place, so a quoted command word (`"python3" "-c" "..."
 # echo`) never reads as the listed command after it. Any other command could be
 # an interpreter this guard does not know, so it keeps the rule.
-_DRIVE_TMP_DATA_ONLY="^[[:space:]]*(gh[[:space:]]+(issue|pr)[[:space:]]+(create|comment|edit)|git[[:space:]]+(commit|tag)|echo|printf)([[:blank:]]+[A-Za-z0-9_.,:=@%+/-]+)*[[:blank:]]*$"
+_DRIVE_TMP_DATA_ONLY="^[[:space:]]*(gh[[:blank:]]+(issue|pr)[[:blank:]]+(create|comment|edit)|git[[:blank:]]+(commit|tag)|echo|printf)([[:blank:]]+[A-Za-z0-9_.,:=@%+/-]+)*[[:blank:]]*$"
 # Cached per command: "" = not computed, 0 = code can run, 1 = it cannot.
 _DRIVE_TMP_CODE_RC=""
 inline_code_can_run() {
