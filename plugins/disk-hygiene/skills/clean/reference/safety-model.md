@@ -837,33 +837,45 @@ an engine call and denies it. git, gh, the repo-hygiene
 scripts and other commands reach the guard only when Claude Code runs a handler whose pattern
 starts with a wildcard on a command with `$()` or a backtick (it did for `echo "$(date +%Y)"` and a
 backtick command, and not for `echo $HOME` or a `$()` wrapping a quoted heredoc), or when it cannot
-split the command, which runs every handler. A non-exact release call that no pattern matches, such as a
+split the command, which runs every handler (such a command without an expansion is denied, as
+below). A non-exact release call that no pattern matches, such as a
 relative `python3 release_belt.py` after `cd`, goes to the normal permission system instead of the
 guard's `ask`; the release marker is a plain file, so the lever's prompt is a visibility aid, not a
 boundary.
 
-**Deferral.** A command that reaches the guard only because the filters cannot read it is read by
-`lib/belt_scan.py` and deferred: the guard issues no decision, emits `ok` telemetry and records
-`none` with rule `belt-no-deletion-shape` (length only, no command text), whether or not execution
-is enabled. The reader follows quotes, `$()`, backticks, subshells, `${}`, process substitution and
-heredocs, and counts a word as a command at the start, after `;`, `&`, `|`, a newline, `(`, `$(`, a
-backtick, `{`, `!`, `then`, `do`, `else`, `elif`, `if`, `while`, `until` and `time`, skipping
-`NAME=value` words. It does not defer a command that:
+**Deferral.** Only a command with `$()`, a backtick or `$VAR` (the hooks page's run-anyway cases)
+can be deferred; any other command that reaches the guard matched a deletion filter and is denied
+unread. Such a command is read by `lib/belt_scan.py` and deferred when nothing in it names a
+deletion: the guard issues no decision, emits `ok` telemetry and records `none` with rule
+`belt-no-deletion-shape` (length only, no command text), whether or not execution is enabled. The
+reader follows quotes, `$()`, backticks, subshells, `${}`, process substitution and heredocs, and
+counts a word as a command at the start, after `;`, `&`, `|`, a newline, `(`, `$(`, a backtick,
+`{`, `!`, `then`, `do`, `else`, `elif`, `if`, `while`, `until` and `time`, skipping `NAME=value`
+words. Below, a name is `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find` or a bundled
+script, in any case, with or without `.exe`, and after quote and backslash removal. It does not
+defer a command, anywhere inside `$()`, backticks or a group, that:
 
-- names `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` or `find` as a command, bare or by path,
-  in any case, with or without `.exe`, quotes or a backslash removed, anywhere inside `$()`,
-  backticks or a group;
-- has a command name built by an unquoted expansion or a glob, or is `case`;
-- runs `xargs` with a deletion verb among its words;
-- calls a bundled script, directly or as the word after a `python*` or `py` head;
+- has a name as a command, bare or by path;
+- has a name as a whole word anywhere, so a wrapper (`sudo`, `doas`, `env`, `nohup`, `nice`,
+  `timeout`, `stdbuf`, `watch`, `exec`, `command`, `builtin`, `xargs`, `git rm`, or any other
+  command that takes the next command as a word) does not hide it;
+- has a name as the last part of a path inside any word (what the `*/rm *` filters match), or as
+  any unquoted part of a word (`{rm,-rf}`);
+- has a name anywhere in a word after a command that runs a string as code (a shell, `eval`,
+  `trap`, `watch`, `parallel`, `su`, `ssh`, `script`, `flock`, `python*`, `perl`, `ruby`, `node`,
+  `php`, `pwsh`), or a word whose shell parse has a name as a command (`bash -c 'r\m x'`), or a
+  here-string naming one;
+- has a command name built by an expansion, `$'..'` with an escape, or a glob, or is `case`;
 - fails the engine gate's relevance check;
-- cannot be read to the end: an unterminated quote, `$(`, backtick or heredoc, an unbalanced `)`, an
-  unquoted heredoc, or a heredoc read by anything but `cat`, `git` or `gh` or with more on its
-  opening line.
+- cannot be read to the end: an unterminated quote, `$(`, backtick or heredoc, an unbalanced `)`, a
+  heredoc read by anything but `cat`, `git` or `gh` or with more on its opening line, a heredoc line
+  that starts with the delimiter and goes on (bash ends a heredoc inside `$()` at `EOF)`), or an
+  unquoted heredoc line ending in a backslash.
 
-The body of a quoted-delimiter heredoc that `cat`, `git` or `gh` reads is data, so a commit message
-may name `rm`. A command that is not deferred is denied as below. The tests run each shape through
-real bash with the deletion verbs stubbed and require that nothing bash runs was deferred.
+A heredoc body that `cat`, `git` or `gh` reads is data, so a commit message may name `rm`; an
+unquoted body's `$()`, `${}` and backticks are read as commands. A command that is not deferred is
+denied as below. The tests run each shape through real bash with the deletion verbs stubbed and
+require that nothing bash runs was deferred.
 
 What reaches the guard and is not deferred is denied unless it is one of these:
 
@@ -896,10 +908,13 @@ PowerShell lane does not change on release: its deletion spellings already get `
 tool that can write files (the Write tool, `touch`) can create a marker without the prompt; the
 `systemMessage` on every released command keeps that visible.
 
-**Accepted gaps.** The Bash lane is a deny-list of command heads, so a wrapped deletion passes the
-belt: `command rm`, `env`, `timeout`, `nohup`, `sudo`, `bash -c`, `sh -c`, `eval`, an
-interpreter call (`python3 -c "shutil.rmtree(...)"`), `git rm` and `git clean`, and overwrite by
-redirect, `tee`, `dd` or `sed -i`. The engine's own containment stays the authority for engine work.
+**Accepted gaps.** The Bash lane is a deny-list of command heads, so a wrapped deletion that no
+filter sends to the guard passes the belt: `command rm`, `env`, `timeout`, `nohup`, `sudo`,
+`bash -c`, `sh -c`, `eval`, an interpreter call (`python3 -c "shutil.rmtree(...)"`), `git rm` and
+`git clean`, and overwrite by redirect, `tee`, `dd` or `sed -i`. The same command by absolute path
+or with an expansion reaches the guard and is denied by the rules above, except a deletion that
+only an expansion's value names (`sudo "$RM" x`, `eval "$CMD"`) or that names no verb
+(`shutil.rmtree`, `git clean`). The engine's own containment stays the authority for engine work.
 The deny-list is the accepted cost of leaving `git`, `gh` and the repo-hygiene scripts unblocked.
 
 **Subagents.** The belt does not reach subagents, deliberately and as documented: a subagent's Bash

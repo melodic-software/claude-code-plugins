@@ -9629,12 +9629,19 @@ class GuardTests(unittest.TestCase):
         self.assertNotIn("hijacked", completed.stdout)
         self.assertTrue(Path(completed.stdout.strip()).is_absolute())
 
-    def test_guard_denies_deletion_verbs_and_unreadable_commands(self) -> None:
+    def test_guard_denies_unknown_and_mutation_capable_bypass_forms(self) -> None:
         commands = [
+            "busybox rm -rf /tmp/example",
+            "python -c \"import os; os.unlink('example')\"",
+            "powershell -Command Remove-Item example",
+            "cmd /c del example",
             "find . -print0 | xargs -0 rm",
             "truncate -s 0 important.txt",
+            "dd if=/dev/null of=important.txt",
             "mv important.txt /tmp/hidden",
+            "echo erased > important.txt",
             "rm${IFS}-rf${IFS}/tmp/example",
+            "true",
         ]
         for command in commands:
             with self.subTest(command=command):
@@ -9642,23 +9649,6 @@ class GuardTests(unittest.TestCase):
                 self.assertEqual(
                     "deny", result["hookSpecificOutput"]["permissionDecision"]
                 )
-
-    def test_guard_defers_the_wrapped_and_overwrite_forms_the_belt_never_governed(
-        self,
-    ) -> None:
-        """A deletion the `if` filters cannot see passes the belt; that is the
-        accepted cost of leaving git and gh unblocked (safety-model, Accepted gaps)."""
-        for command in (
-            "busybox rm -rf /tmp/example",
-            "python -c \"import os; os.unlink('example')\"",
-            "powershell -Command Remove-Item example",
-            "cmd /c del example",
-            "dd if=/dev/null of=important.txt",
-            "echo erased > important.txt",
-            "true",
-        ):
-            with self.subTest(command=command):
-                self.assertIsNone(self._invoke_guard(command, enabled=True))
 
     def test_guard_denies_every_shell_expansion_family(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
@@ -10459,7 +10449,8 @@ class GuardTests(unittest.TestCase):
         self.assertIn("/disk-hygiene:clean was invoked in this session", belt)
         self.assertIn("deletion-shaped Bash commands", belt)
         self.assertIn("git and gh included, are not denied", belt)
-        self.assertIn("$() or backticks is read word by word", belt)
+        self.assertIn("$(), backticks or $VAR is read word by word", belt)
+        self.assertIn("behind a wrapper such as sudo", belt)
         self.assertIn("release lever", belt)
         self.assertNotIn("persists until the session ends", belt)
         self.assertNotIn("start a new session", belt)
@@ -10708,9 +10699,8 @@ class GuardTests(unittest.TestCase):
     def test_guard_allows_literal_readonly_supporting_bash_commands(self) -> None:
         """Belt inspection allowlist (#2591): read-only shapes pass; mutations stay denied.
 
-        Bare names are never hard-allowed (exported shell functions shadow
-        them), and a bare name that is no deletion verb defers; only absolute
-        paths under trusted system directories are allowlisted.
+        Bare names are denied (exported shell functions shadow them); only
+        absolute paths under trusted system directories are allowlisted.
         """
 
         # Prefer /usr/bin on every runner; fall back to /bin when a binary is
@@ -10760,32 +10750,18 @@ class GuardTests(unittest.TestCase):
                     result["hookSpecificOutput"]["permissionDecision"],
                     command,
                 )
-        deferred = (
+        # An expansion with no deletion verb in it defers (the session belt's
+        # `if` filters run on any `$()`, backtick or `$VAR`).
+        for command in ("ls $(pwd)", "ls `pwd`", "ls ${HOME}"):
+            with self.subTest(command=command):
+                self.assertIsNone(self._invoke_guard(command, enabled=True), command)
+        denied = (
             # Bare names are function-shadowable and must not hard-allow.
             "ls -la /tmp/example",
             "pwd",
             "file /tmp/example",
             "[ -d /tmp/example ]",
             "[ -f /tmp/example ]",
-            "ls /tmp/example > /tmp/out",
-            "ls $(pwd)",
-            "ls `pwd`",
-            "ls ${HOME}",
-            "command ls /tmp/example",
-            "./ls /tmp/example",
-            "true",
-            "echo hello",
-            "cat /tmp/example",
-            "head /tmp/example",
-            "grep x /tmp/example",
-            "[",
-            "[ ]",
-            "test",
-        )
-        for command in deferred:
-            with self.subTest(command=command):
-                self.assertIsNone(self._invoke_guard(command, enabled=True), command)
-        denied = (
             # Every GNU/BSD find primary that writes or executes. A literal
             # allowlist cannot prove an -exec payload harmless.
             "find /tmp/example -delete",
@@ -10798,11 +10774,24 @@ class GuardTests(unittest.TestCase):
             "find /tmp/example -fprint0 /tmp/out",
             "find /tmp/example -fprintf /tmp/out %p",
             "find /tmp/example -fls /tmp/out",
-            # A deletion verb behind an operator stays denied.
+            # Shell operators and redirections stay denied.
             "ls /tmp/example; rm -rf /tmp/example",
             "ls /tmp/example && rm -rf /tmp/example",
             "ls /tmp/example || rm -rf /tmp/example",
             "ls /tmp/example | xargs rm",
+            "ls /tmp/example > /tmp/out",
+            # Deny-by-default holds for everything off the allowlist that
+            # carries no expansion.
+            "command ls /tmp/example",
+            "./ls /tmp/example",
+            "true",
+            "echo hello",
+            "cat /tmp/example",
+            "head /tmp/example",
+            "grep x /tmp/example",
+            "[",
+            "[ ]",
+            "test",
         )
         for command in denied:
             with self.subTest(command=command):
@@ -10909,7 +10898,12 @@ class GuardTests(unittest.TestCase):
             command = f"{fake.as_posix()} /tmp/example"
             self.assertFalse(guard.is_exact_readonly_supporting_command(command))
             self.assertFalse(guard._trusted_system_readonly_head(fake.as_posix()))
-            self.assertIsNone(self._invoke_guard(command, enabled=True), command)
+            result = self.run_guard(command)
+            self.assertEqual(
+                "deny",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
 
     def test_nt_trusted_bin_match_is_anchored_not_a_path_substring(self) -> None:
         """#2618 hardening 1: a repo path SPELLING a trusted fragment is not trusted.
@@ -12936,11 +12930,17 @@ class GuardTests(unittest.TestCase):
         return f"{head} \"$(cat <<'EOF'\n{body or cls._HEREDOC_BODY}\nEOF\n)\""
 
     def _deferred_commands(self) -> tuple[str, ...]:
-        """Commands the guard may see for a `$()` or a backtick, none of which
-        has a deletion verb as a command."""
+        """Commands the guard may see for a `$()`, a backtick or `$VAR`, none of
+        which names a deletion verb where a command could run it."""
         return (
-            "git --version",
             self._heredoc_command("git commit -m"),
+            'git commit -m "$(cat <<EOF\nfix: thing\nEOF\n)"',
+            'git commit -m "$(cat <<EOF\nfix: stop the rm -rf and find handling\nEOF\n)"',
+            'git commit -m "$(cat <<-EOF\n\tfix: thing ($HOME) `date`\n\tEOF\n)"',
+            "git commit -F - <<EOF\nmsg $(date) \\$(rm x)\nEOF",
+            'gh pr create --title "fix find handling" --body "$(cat <<EOF\nbody\nEOF\n)"',
+            'gh pr view "$(git branch --show-current)"',
+            'timeout 60 gh pr checks "$(git branch --show-current)"',
             self._heredoc_command("gh pr create --title t --body"),
             self._heredoc_command(
                 "git commit -m", "mentions release_belt.py and kill_switch_probe.py"
@@ -13026,7 +13026,14 @@ class GuardTests(unittest.TestCase):
             'echo "$(date)',
             "git commit -m \"$(cat <<'EOF'\nbody\n",
             "cat <<EOF\n$(rm x)\nEOF",
-            "git commit -F - <<EOF\nmsg\nEOF\necho $(date)",
+            "cat <<EOF\n`rm x`\nEOF",
+            "cat <<EOF\n${x:-$(rm x)}\nEOF",
+            "cat <<EOF\n$(echo\nEOF\nrm x\n)\nEOF",
+            # bash ends a heredoc in $() at `EOF)`, and a trailing backslash
+            # in an unquoted body joins the delimiter line to the one before.
+            "echo \"$(cat <<'EOF'\nbody\nEOF)\"\nrm y\nEOF\n)\"",
+            "x=$(cat <<'EOF'\nbody\nEOF )\nrm y\nEOF\n)",
+            "cat <<EOF\nx\\\nEOF\n' $(rm y) '\nEOF",
             "bash <<'EOF'\nrm -rf x\nEOF\necho $(date)",
             "cat <<'EOF' | sh\nrm x\nEOF\necho $(date)",
             "git commit -F - <<'EOF'x\nmsg\nEOF\necho $(date)",
@@ -13059,6 +13066,61 @@ class GuardTests(unittest.TestCase):
                 with self.subTest(command=command):
                     self.assertEqual("deny", self._permission(self._belt(command)))
 
+    # Wrapped absolute-path deletions the `*/rm *` and `*/find *` filters send to
+    # the guard.
+    _WRAPPED_DELETIONS = (
+        "sudo /bin/rm -rf /tmp/x",
+        "nohup /bin/rm -rf /tmp/x",
+        "timeout 5 /bin/rm -rf /tmp/x",
+        "exec /bin/rm -rf /tmp/x",
+        "env /bin/rm -rf /tmp/x",
+        "command /bin/rm -rf /tmp/x",
+        "doas /bin/rm -rf /tmp/x",
+        "nice /bin/rm -rf /tmp/x",
+        "stdbuf -o0 /bin/rm -rf /tmp/x",
+        "builtin /bin/rm /tmp/x",
+        "watch /bin/rm -rf /tmp/x",
+        "sudo rm -rf /tmp/x",
+        "sudo /usr/bin/find /x -delete",
+    )
+
+    def test_belt_denies_a_deletion_behind_a_wrapper_with_or_without_an_expansion(
+        self,
+    ) -> None:
+        self.authorize_data_root()
+        for shape in self._WRAPPED_DELETIONS:
+            for command in (
+                shape,
+                f'{shape} "$(pwd)"',
+                f"{shape} $HOME",
+                f'echo "$(date)" && {shape}',
+                f'echo "$({shape})"',
+                f"echo `{shape}`",
+            ):
+                with self.subTest(command=command):
+                    self.assertEqual("deny", self._permission(self._belt(command)))
+        for command in (
+            # A command that runs a string as code, or a here-string.
+            "bash -c 'rm -rf /tmp/x' \"$(pwd)\"",
+            'sh -c "/bin/rm -rf $(pwd)"',
+            'eval "rm -rf $(pwd)"',
+            'sudo sh -c "rm -rf $(pwd)"',
+            "python3 -c 'import os; os.system(\"rm -rf x\")' \"$(pwd)\"",
+            'ssh h "rm -rf $(pwd)"',
+            'bash <<< "rm -rf $(pwd)"',
+            'echo "$(pwd)" | xargs sudo rm',
+            # Spellings a wrapper might carry.
+            "sudo $'\\x72m' -rf \"$(pwd)\"",
+            "$'\\x72m' -rf \"$(pwd)\"",
+            'sudo {rm,-rf} "$(pwd)"',
+            "sudo -u root \\rm -rf \"$(pwd)\"",
+            "env FOO=1 'rm' -rf \"$(pwd)\"",
+            'setsid /bin/rm -rf "$(pwd)"',
+            'git rm "$(pwd)/x"',
+        ):
+            with self.subTest(command=command):
+                self.assertEqual("deny", self._permission(self._belt(command)))
+
     @unittest.skipUnless(
         os.name != "nt" and shutil.which("bash"), "needs bash to run the commands"
     )
@@ -13081,6 +13143,8 @@ class GuardTests(unittest.TestCase):
             "time {v} x",
             "r\\{tail} x",
             "'{head}'{tail} x",
+            "$'\\x{hex}'{tail} x",
+            "{{{v},x}}",
         )
         contexts = (
             "{C}",
@@ -13107,6 +13171,12 @@ class GuardTests(unittest.TestCase):
             "echo $(date) && {C}",
             "git commit -m \"$(cat <<'EOF'\nbody\nEOF\n)\" && {C}",
             "cat <<'EOF' >/dev/null\nbody {C}\nEOF\n{C}",
+            "cat <<EOF >/dev/null\nbody $({C})\nEOF",
+            "cat <<-EOF >/dev/null\n\tbody `{C}`\n\tEOF",
+            'echo "$(cat <<EOF\nbody ${{x:-$({C})}}\nEOF\n)"',
+            "cat <<EOF >/dev/null\nbody\\\nEOF\n' $({C}) '\nEOF",
+            "echo \"$(cat <<'EOF'\nbody\nEOF)\"\n{C}\nEOF\n)\"",
+            'eval "{C}"',
             "echo '#' && {C}",
             "echo a # c\n{C}",
             "echo $(( 1 + 2 )) && {C}",
@@ -13116,11 +13186,16 @@ class GuardTests(unittest.TestCase):
         self.assertLessEqual(set(verbs), guard.belt_scan.DELETION_VERBS)
         stubs = "; ".join(f"{verb}() {{ echo RAN:{verb}; }}" for verb in verbs) + "\n"
         ran = 0
+        # An empty directory: `/bin/{v} x` and `git commit` run for real.
+        cwd = tempfile.TemporaryDirectory()
+        self.addCleanup(cwd.cleanup)
         for context in contexts:
             for shape in shapes:
                 for verb in verbs:
                     command = context.format(
-                        C=shape.format(v=verb, head=verb[0], tail=verb[1:])
+                        C=shape.format(
+                            v=verb, head=verb[0], tail=verb[1:], hex=f"{ord(verb[0]):x}"
+                        )
                     )
                     completed = subprocess.run(
                         ["bash", "-c", stubs + command],
@@ -13128,6 +13203,7 @@ class GuardTests(unittest.TestCase):
                         text=True,
                         timeout=20,
                         check=False,
+                        cwd=cwd.name,
                     )
                     if f"RAN:{verb}" in completed.stdout:
                         ran += 1

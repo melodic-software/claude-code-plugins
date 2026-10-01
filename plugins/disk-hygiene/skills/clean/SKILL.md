@@ -473,9 +473,9 @@ and what the guard does when no Python resolves → "Hook launch form".
   grants none. Consumer permission policy remains authoritative.
 - The belt guards ad hoc deletion and move commands in this session's Bash and PowerShell lanes for
   the rest of the session after the skill is invoked. It does not reach subagents, and a wrapped
-  deletion (a script, an interpreter, `bash -c`) passes the Bash lane, a deny-list. The Bash belt denies
-  `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find` except exact engine calls and a
-  read-only allowlist; git and gh are not denied, `$()` heredoc commits included.
+  deletion no filter sees (a script, `bash -c 'rm x'`) passes the Bash lane, a deny-list. It denies
+  `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find`, behind `sudo` or `env` too, except
+  exact engine calls and a read-only allowlist; git and gh are not denied, `$()` heredoc commits included.
   Run the release lever its denial prints only when the user asks. Gaps: [Session belt](reference/safety-model.md#session-belt).
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`

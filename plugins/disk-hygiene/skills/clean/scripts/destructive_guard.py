@@ -2436,11 +2436,12 @@ def _bash_denial_guidance(
         "denied unless they are "
         + grammar
         + " Other Bash commands, git and gh included, are not denied. A "
-        "command with $() or backticks is read word by word, those "
-        "included, and denied only when one of its commands is a deletion "
-        "verb or a bundled-script call, or it cannot be read to the end (an "
-        "unterminated quote, $( or heredoc, an unquoted heredoc, a command "
-        "name built by expansion). "
+        "command with $(), backticks or $VAR is read word by word, those "
+        "included, and denied when any word names a deletion verb or a "
+        "bundled script where a command could run it (as the command, behind "
+        "a wrapper such as sudo, env or timeout, or inside bash -c or eval), "
+        "or when it cannot be read to the end (an unterminated quote, $( or "
+        "heredoc, a command name built by expansion). "
         "For read-only listing, use the Glob or Grep tools or an absolute-path "
         "find without side-effect primaries. " + lever
     )
@@ -3118,12 +3119,15 @@ def _decide(
         )
     if (
         belt
+        and ("$" in command or "`" in command)
         and belt_scan.defers(command)
         and not _engine_gate_relevant(command, tool_name)
     ):
-        # Reached here by an `if` filter that cannot tell a deletion verb from
-        # `$()` or a backtick (git, gh and the repo-hygiene scripts run
-        # those): no command in it is a deletion verb or a bundled-script call.
+        # Claude Code runs the wildcard-led `if` filters on `$()`, a backtick or
+        # `$VAR` whatever the command (git, gh and the repo-hygiene scripts use
+        # them); without one, a filter matched a deletion shape and the command
+        # is denied unread. With one, no word names a deletion verb or a
+        # bundled script where a command could run it.
         _emit_guard_telemetry(start, tool_name, "ok")
         _record_decision(
             command,
