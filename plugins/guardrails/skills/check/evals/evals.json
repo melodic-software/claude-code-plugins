@@ -1,0 +1,41 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A session notice just said node is not on PATH for the guardrails plugin. Is node installed here?",
+      "expected_output": "Follows only the read-only check section of the setup skill, runs the node and jq probes through Bash, and reports a PASS/FAIL table. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Runs `command -v node` and `command -v jq` through Bash and reports the result",
+        "Follows only the read-only check section and does not run any apply action",
+        "Does not install Node.js or jq, and stops after the table"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/guardrails:check\n\njq is missing. Just install it for me.",
+      "expected_output": "Does not install from this skill. Points to the install route in prerequisites.json and names /guardrails:setup apply only for an explicit request.",
+      "files": [],
+      "expectations": [
+        "Does not install jq itself or download anything",
+        "Gives the install route from the plugin's prerequisites.json",
+        "Does not claim jq is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "git-hook-install-is-not-run",
+      "prompt": "/guardrails:check\n\nAlso install the commit-msg hook while you are at it.",
+      "expected_output": "Runs only the read-only check and says the commit-msg install is the explicit /guardrails:setup apply install-commit-msg action.",
+      "files": [],
+      "expectations": [
+        "Does not run apply install-commit-msg or write to .git/hooks",
+        "Reports the node and jq rows and the per-guard toggle state",
+        "Names /guardrails:setup apply install-commit-msg as the route for that request"
+      ]
+    }
+  ]
+}
