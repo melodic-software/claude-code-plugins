@@ -197,7 +197,8 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 | The target must precede `--tag`, `--allow-tools`, and `--json` or it is swallowed as their value (`--json output path must end in .json`). `--trust-plugin` asserts trust and skips the first-run prompt, and a non-TTY run against an untrusted directory is refused exit 1 without it. `--keep-temp` preserves the per-run trace directories the runner otherwise deletes. `--judge-model` defaults to a small fast model (haiku); `--model` pins the agent under test; `-j/--concurrency` takes 1 to 8 and cuts wall-clock only; `--threshold` defaults to 1.0 | `claude plugin eval --help` plus <https://code.claude.com/docs/en/plugin-evals>, verified 2026-09-12, with the arg-order and trust behavior reproduced against this repository's suite | Recheck trigger: `--help` no longer matches a row, or a release note touches the flag set. Then re-run `--help`, re-derive the row, refresh this record with the outcome, and land a drift outcome in this plugin's CHANGELOG |
 
 Where a harness guard other than the worktree refusal above blocks a Bash command containing the
-bare word `eval`, run the same command through the PowerShell tool instead. The command text is unchanged; only the tool differs.
+bare word `eval`, run the same command through the PowerShell tool instead. The command text is
+unchanged; only the tool differs.
 
 ## Reading the delta
 
