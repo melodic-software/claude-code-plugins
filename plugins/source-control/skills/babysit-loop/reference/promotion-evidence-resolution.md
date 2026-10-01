@@ -38,7 +38,8 @@ only**, never by re-deriving a subset in prose.
 
 **Current seam state.** A compliant bootstrap lets the seam return a qualified read.
 [`cycle-shape.md`](cycle-shape.md) step 3 runs `scripts/resolve-promotion-evidence.mjs` once per
-cycle; it passes the three bootstrap surfaces to `check-security-binding.mjs --evidence` and
+cycle; it runs the operator-supplied checker on the three evidence surfaces
+(`check-security-binding.mjs --evidence`) and
 reports each promotable cell's bound and effective state as the checker printed them, which is
 how a cell resolves effective-promoted or demoted. With no compliant bootstrap, a step 0 problem,
 any fail-closed reason, or a helper failure, **every promotable cell resolves

@@ -204,6 +204,11 @@
       "title": "Promotion-evidence events file",
       "description": "Absolute path to the epoch-scoped promotion-evidence events file passed as --evidence, published by an operator-side process the lane can read but not write. It must sit outside the target repository and every lane worktree. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no evidence source is configured and every promotable cell stays effective-unpromoted."
     },
+    "promotion_evidence_checker": {
+      "type": "file",
+      "title": "Promotion-evidence checker",
+      "description": "Absolute path to the check-security-binding.mjs the babysit-loop promotion-evidence seam runs (the autonomy plugin's skills/setup/scripts/check-security-binding.mjs, from an install the operator trusts). It decides whether a cell is promoted, so it must sit outside the target repository and every lane worktree, and the lane must be able to read it but not write it. Honored from user, --settings, or managed plugin settings only, never from .claude/source-control.md or any repository file. Contract: `skills/babysit-loop/reference/promotion-evidence-bootstrap.md`. Absent: no checker is configured and every promotable cell stays effective-unpromoted."
+    },
     "worktree_root": {
       "type": "directory",
       "title": "Worktree root",

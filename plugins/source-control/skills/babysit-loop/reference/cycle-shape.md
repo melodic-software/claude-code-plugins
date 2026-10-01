@@ -12,12 +12,13 @@ is.
    neutral-directory launch mode allows.
    **Bootstrap check (once per lane, report-only).** Skipped at `human-only`. When the resolved
    rung is merge-capable, read the options `promotion_evidence_binding`,
-   `promotion_evidence_root`, and `promotion_evidence_source` from the substituted block in
-   [`../SKILL.md`](../SKILL.md) ("Promotion-evidence bootstrap options"; the `CLAUDE_PLUGIN_OPTION_*`
-   mirror is never read) and record, by option name, each one that is unset, holds a relative path,
-   or resolves (after symlinks) inside the target checkout or beneath a worktree root
-   (`babysit_worktree_root`, `worktree_root`, the plugin data directory's `worktrees/`), whether or
-   not a worktree exists there yet, with the compliant fix [the contract](promotion-evidence-bootstrap.md)
+   `promotion_evidence_root`, `promotion_evidence_source`, and `promotion_evidence_checker` from the
+   substituted block in [`../SKILL.md`](../SKILL.md) ("Promotion-evidence bootstrap options"; the
+   `CLAUDE_PLUGIN_OPTION_*` mirror is never read) and record, by option name, each one that is
+   unset, holds a relative path, or resolves (after symlinks) inside the target checkout or beneath
+   a worktree root (`babysit_worktree_root`, `worktree_root`, the plugin data directory's
+   `worktrees/`), or contains the checkout or a worktree root, whether or not a worktree exists
+   there yet, with the compliant fix [the contract](promotion-evidence-bootstrap.md)
    gives. Whether the lane can write a surface is a
    host property this check cannot see, so it never reports one compliant on that ground. The
    check changes no rung, gate, or withholding, reads no repo-local file, and does not invoke the
@@ -63,16 +64,18 @@ is.
    work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
-   `--binding`, `--probe-evidence-root` and `--evidence` set to the `promotion_evidence_binding`,
-   `promotion_evidence_root` and `promotion_evidence_source` values from the substituted block in
-   [`../SKILL.md`](../SKILL.md) (never the `CLAUDE_PLUGIN_OPTION_*` mirror), `--checkout` the target
-   checkout, one `--worktree-root` per worktree root step 0 names, and `--checker` the installed
-   autonomy plugin's `skills/setup/scripts/check-security-binding.mjs` (never a copy inside the
-   checkout or a worktree root; the helper refuses one). It prints `{source, failClosedReason, cells}`
+   `--binding`, `--probe-evidence-root`, `--evidence` and `--checker` set to the
+   `promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source` and
+   `promotion_evidence_checker` values from the substituted block in [`../SKILL.md`](../SKILL.md)
+   (never the `CLAUDE_PLUGIN_OPTION_*` mirror, and never a path the lane found or chose: the lane
+   does not look for the autonomy plugin's install), `--checkout` the target checkout, and one
+   `--worktree-root` per worktree root step 0 names. The helper refuses a path inside the checkout
+   or a worktree root, or containing one; it cannot tell an operator's value from one the lane
+   chose, so only the substituted values are passed. It prints `{source, failClosedReason, cells}`
    and exits 0. Decide each cell from `cells` with the resolution table: it is effective-promoted
    only when `failClosedReason` is null and its `effective` is `promoted`. A fail-closed reason, a
-   skipped invocation (`human-only`, a non-merge-capable tier, a step 0 problem, no installed
-   checker), or a helper failure (non-zero exit, unparsable output) leaves every cell
+   skipped invocation (`human-only`, a non-merge-capable tier, a step 0 problem, which includes an
+   unset checker option), or a helper failure (non-zero exit, unparsable output) leaves every cell
    effective-unpromoted. Operators keep `--merge human-only` on launch lines; lifting it is the
    owner's call after Phase 3. Report at cycle start the resolution source, each bound→effective
    pair, and any fail-closed reason, followed by one line naming the step 0 bootstrap check's

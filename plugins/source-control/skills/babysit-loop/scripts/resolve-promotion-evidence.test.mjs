@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -92,6 +92,18 @@ test("bootstrap path inside the checkout fails closed", () => {
   const inside = join(checkout, "evidence.json");
   writeFileSync(inside, "[]");
   assertFailClosed(runHelper(stub(GOOD_OUTPUT), { evidence: inside }), /--evidence .* is inside/);
+});
+
+test("probe root that contains the checkout, a worktree root, or links to an ancestor fails closed", () => {
+  const checker = stub(GOOD_OUTPUT);
+  assertFailClosed(runHelper(checker, { "probe-evidence-root": base }), /--probe-evidence-root .* contains .*checkout/);
+  assertFailClosed(
+    runHelper(checker, { "worktree-root": join(surfaces.root, "worktrees") }),
+    /--probe-evidence-root .* contains .*worktrees/,
+  );
+  const link = join(ops, "link-to-base");
+  symlinkSync(base, link);
+  assertFailClosed(runHelper(checker, { "probe-evidence-root": link }), /--probe-evidence-root .* contains/);
 });
 
 test("checker inside the checkout fails closed", () => {

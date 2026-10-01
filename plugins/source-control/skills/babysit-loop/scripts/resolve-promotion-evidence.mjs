@@ -6,17 +6,20 @@
 // Usage: node resolve-promotion-evidence.mjs --binding <file> --probe-evidence-root <dir>
 //          --evidence <file> --checkout <dir> [--worktree-root <dir> ...] --checker <file>
 //
-// Prints {source, failClosedReason, cells: {<cell>: {bound, effective, line}}} and
-// exits 0, fail-closed results included. Fail-closed means failClosedReason is set
-// and every promotable cell is effective "unpromoted". It fails closed on a
-// missing, relative, or unresolvable path; a bootstrap path or checker that is
-// inside the checkout or a worktree root, before or after symlinks resolve; a
-// checker that exits non-zero, times out, or prints no evaluation block; and any
-// line in that block that does not parse. The checker runs with an allowlisted
-// environment (PATH and SystemRoot only), so NODE_OPTIONS, NODE_PATH, LD_PRELOAD
-// and GIT_* values from a repository's settings env block never reach it. It reports only what the checker
-// printed and never re-derives the resolution algorithm. It writes no file and
-// reads nothing in the checkout.
+// The caller passes the four bootstrap option values (binding, probe evidence root,
+// evidence, checker). Prints {source, failClosedReason, cells: {<cell>: {bound,
+// effective, line}}} and exits 0, fail-closed results included. Fail-closed means
+// failClosedReason is set and every promotable cell is effective "unpromoted". It
+// fails closed on a missing, relative, or unresolvable path; a surface or checker that
+// is inside the checkout or a worktree root, or contains one, before or after symlinks
+// resolve; a checker that exits non-zero, times out, or prints no evaluation block; and
+// any line in that block that does not parse. It cannot tell an operator's option value
+// from one the caller chose: it enforces where a path sits, and the cycle step is
+// instructed to pass only the substituted option values. The checker runs with an
+// allowlisted environment (PATH and SystemRoot only), so NODE_OPTIONS, NODE_PATH,
+// LD_PRELOAD and GIT_* values from a repository's settings env block never reach it. It
+// reports only what the checker printed and never re-derives the resolution algorithm.
+// It writes no file and reads nothing in the checkout.
 
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
@@ -74,6 +77,7 @@ function resolveInput(option, value, roots) {
   for (const root of roots) {
     for (const candidate of [resolve(value), real]) {
       if (isInside(candidate, root)) emit(source, `--${option} ${value} is inside ${root}`);
+      if (isInside(root, candidate)) emit(source, `--${option} ${value} contains ${root}`);
     }
   }
   return real;

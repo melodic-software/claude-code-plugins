@@ -209,6 +209,7 @@ which also says what each surface must be. The lane-start preflight in
 | `promotion_evidence_binding` | `${user_config.promotion_evidence_binding}` |
 | `promotion_evidence_root` | `${user_config.promotion_evidence_root}` |
 | `promotion_evidence_source` | `${user_config.promotion_evidence_source}` |
+| `promotion_evidence_checker` | `${user_config.promotion_evidence_checker}` |
 
 ## do-not-merge
 
