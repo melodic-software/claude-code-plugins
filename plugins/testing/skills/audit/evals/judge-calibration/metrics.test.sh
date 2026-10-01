@@ -28,7 +28,7 @@ exit 97
 EOF
 chmod +x "$TMP/bin/codex"
 
-COLS=(id source language file test in_scope human_label opus_label codex_label judge_verdict evidence note stratum split)
+COLS=(id source language file test in_scope reference_label opus_label codex_label judge_verdict evidence note stratum split)
 header() { (IFS=$'\t' && echo "${COLS[*]}"); }
 # row <id> <stratum> <split> <human> <opus> <codex> <judge> [file] [test] [note]
 row() { printf '%s\tsrc\tts\t%s\t%s\tyes\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\n' "$1" "${8:-}" "${9:-}" "$4" "$5" "$6" "$7" "${10:-}" "$2" "$3"; }
@@ -184,8 +184,8 @@ cp "$LBL" "$TMP/good.tsv"
 setcol "$LBL" s1 opus_label ""
 expect_check_fail "a missing opus label" "s1: opus_label"
 cp "$TMP/good.tsv" "$LBL"
-setcol "$LBL" s1 human_label ""
-expect_check_fail "a missing user label" "s1: human_label"
+setcol "$LBL" s1 reference_label ""
+expect_check_fail "a missing user label" "s1: reference_label"
 cp "$TMP/good.tsv" "$LBL"
 setcol "$LBL" u1 codex_label PASS
 expect_check_fail "codex configured by one label, missing elsewhere" "s1: codex_label"
@@ -439,7 +439,7 @@ out="$(bash "$RATERS" --merge "$RW/labels.tsv" 2>&1)"
 check "--merge exits 0 (output: ${out:0:300})" "[[ $? -eq 0 ]]"
 check "--merge copies opus labels by id, a failed row's stays empty" "[[ \$(col \"\$RW/labels.tsv\" opus_label | paste -sd, -) == PASS,FLAG,FLAG, ]]"
 assert_contains "--merge copies codex labels by id" "$(col "$RW/labels.tsv" codex_label)" $'UNKNOWN\nUNKNOWN\nUNKNOWN\nUNKNOWN'
-assert_empty "--merge leaves the user's column alone" "$(col "$RW/labels.tsv" human_label | tr -d '\n')"
+assert_empty "--merge leaves the user's column alone" "$(col "$RW/labels.tsv" reference_label | tr -d '\n')"
 out="$(bash "$RATERS" "$RW/labels.tsv" 2>&1)"
 check "raters.sh refuses once labels.tsv holds a label" "[[ $? -eq 1 ]]"
 assert_contains "and says why" "$out" "already holds labels"
@@ -475,11 +475,11 @@ assert_contains "and says why" "$out" "already holds labels"
 
 # --- the shipped set: labels.tsv and cases/ agree ---------------------------------
 SHIP="$HERE/labels.tsv"
-assert_contains "the shipped header names the raters' columns" "$(head -n 1 "$SHIP")" $'\thuman_label\topus_label\tcodex_label\tjudge_verdict\t'
+assert_contains "the shipped header names the raters' columns" "$(head -n 1 "$SHIP")" $'\treference_label\topus_label\tcodex_label\tjudge_verdict\t'
 assert_not_contains "no single model rater column" "$(head -n 1 "$SHIP")" "model_label"
 assert_not_contains "no adjudicated column" "$(head -n 1 "$SHIP")" "adjudicated_label"
-assert_empty "every label cell is empty until labeling" \
-  "$(for c in human_label opus_label codex_label judge_verdict; do col "$SHIP" "$c"; done | tr -d '\n')"
+assert_empty "every filled label cell is FLAG, PASS or UNKNOWN" \
+  "$(for c in reference_label opus_label codex_label judge_verdict; do col "$SHIP" "$c"; done | grep -vxE 'FLAG|PASS|UNKNOWN|')"
 missing="$(col "$SHIP" file | sort -u | while read -r f; do [[ -f "$HERE/$f" ]] || echo "$f"; done)"
 assert_empty "every row's case file exists" "$missing"
 unlabeled="$(for d in "$HERE"/cases/*/; do

@@ -84,7 +84,7 @@ reads.
 
 ### Raters
 
-The user labels all 78 rows blind, and those labels (`human_label`) are the ground truth. Labeling
+The user labels all 78 rows blind, and those labels (`reference_label`) are the ground truth. Labeling
 every row instead of a random sample keeps every FLAG: a random 50 would hold about 6, since the
 scanner found 0 provenance-shaped blocks in the 586-block in-use pool. No row needs adjudication,
 because no rater label is used as ground truth.

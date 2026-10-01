@@ -381,7 +381,7 @@ Other files:
 - Raters and ground truth (amended 2026-10-01, user; basis: the raters research summarized in
   calibration.md, bias#1-#5: Haiku, Sonnet, Opus and Fable are one family for self-preference bias,
   so independence comes from the human; this supersedes the single model rater above and in DT9):
-  - The user labels all 78 rows blind; those labels are the ground truth (`human_label`). Labeling
+  - The user labels all 78 rows blind; those labels are the ground truth (`reference_label`). Labeling
     every row instead of a random sample keeps every FLAG: a random 50 would hold about 6, since the
     scanner found 0 provenance-shaped blocks in the 586-block in-use pool. No row needs
     adjudication, because no rater label is used as ground truth.
@@ -439,7 +439,7 @@ Other files:
     `--rerun <model> <effort>` for run-to-run variance; header text updated.
   - `raters.sh` (new): runs each configured rater over every case in isolation into
     `raters/<rater>.tsv` with the transcript guard above, then merges into `labels.tsv`.
-  - `--check`: every row has a `human_label`, a stratum and a split, and a label from every
+  - `--check`: every row has a `reference_label`, a stratum and a split, and a label from every
     configured rater (a rater is configured when its column is non-empty on any row); holdout is at
     least a third per stratum; the prompt-freeze rule below.
   - calibration.md: Raters, Scoring and Sweep sections rewritten to this protocol, with the research
@@ -454,7 +454,7 @@ Other files:
 
 - `bash plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh` exits 0.
 - `bash plugins/testing/skills/audit/evals/judge-calibration/metrics.sh --check` exits 0: every row
-  has a `human_label`, a stratum, a split and every configured rater's label; holdout is at least a
+  has a `reference_label`, a stratum, a split and every configured rater's label; holdout is at least a
   third per stratum; the last commit touching `test-judge-prompt.md` predates the first commit
   touching `labels.tsv`, or later prompt changes carry holdout-only metrics.
 - `grep -cE '^kappa user-opus .* all ' docs/specs/tautological-tests-judge/calibration.md` returns 1

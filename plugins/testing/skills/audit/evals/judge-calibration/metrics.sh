@@ -3,7 +3,7 @@
 # columns read by header name (docs/specs/tautological-tests-judge/).
 #
 #   metrics.sh [labels.tsv]          per stratum, then pooled as "all", against
-#                                    the user's labels (human_label, the ground
+#                                    the user's labels (reference_label, the ground
 #                                    truth): Cohen's kappa of each model rater
 #                                    (every other *_label column holding a
 #                                    label) and of the judge, each with
@@ -14,7 +14,7 @@
 #                                    intervals; prevalence; the achieved FLAG
 #                                    n; the judge on rows the user labeled
 #                                    UNKNOWN
-#   metrics.sh --check [labels.tsv]  exit 1 unless every row has a human_label,
+#   metrics.sh --check [labels.tsv]  exit 1 unless every row has a reference_label,
 #                                    a stratum, a split and a label from every
 #                                    configured rater (one whose column is
 #                                    non-empty on any row); holdout is at least
@@ -101,7 +101,7 @@ function wilson(x, t,   p, d, c, h, lo, hi) {
 }
 function share(x, t) { return t ? sprintf("%.4f (%d/%d)", x / t, x, t) : "NA (0/0)" }
 function header(names,   i, k, n) {
-  for (i = 1; i <= NF; i++) { col[$i] = i; if ($i ~ /_label$/ && $i != "human_label") R[++nr] = $i }
+  for (i = 1; i <= NF; i++) { col[$i] = i; if ($i ~ /_label$/ && $i != "reference_label") R[++nr] = $i }
   n = split(names, k, " ")
   for (i = 1; i <= n; i++) if (!(k[i] in col)) { print "metrics.sh: no " k[i] " column in " FILENAME > "/dev/stderr"; BAD = 2; exit 2 }
 }
@@ -110,7 +110,7 @@ BEGIN { FS = "\t"; Z = 1.959964; split("FLAG PASS UNKNOWN", L, " ") }
 
 report() {
   awk "$AWK_LIB"'
-    NR == 1 { header("id human_label judge_verdict stratum"); next }
+    NR == 1 { header("id reference_label judge_verdict stratum"); next }
     {
       s = $col["stratum"]
       if (!(s in seen)) { seen[s] = 1; order[++ns] = s }
@@ -118,7 +118,7 @@ report() {
     }
     function add(g,   h, j, r) {
       n[g]++
-      h = $col["human_label"]; j = $col["judge_verdict"]
+      h = $col["reference_label"]; j = $col["judge_verdict"]
       for (r = 1; r <= nr; r++) { pair(g, "user-" rater(r), h, $col[R[r]]); if ($col[R[r]] != "") rated[r] = 1 }
       pair(g, "judge-user", h, j)
       if (j != "" && h != "") cm[g, j, h]++
@@ -175,16 +175,16 @@ check() {
   local labels="$1" bad=0 top abs first p s marked out
   out="$(awk "$AWK_LIB"'
     BEGIN { ok["FLAG"] = ok["PASS"] = ok["UNKNOWN"] = 1 }
-    NR == 1 { header("id human_label stratum split"); next }
+    NR == 1 { header("id reference_label stratum split"); next }
     {
-      id[NR] = $col["id"]; h[NR] = $col["human_label"]; st[NR] = $col["stratum"]; sp[NR] = $col["split"]
+      id[NR] = $col["id"]; h[NR] = $col["reference_label"]; st[NR] = $col["stratum"]; sp[NR] = $col["split"]
       for (r = 1; r <= nr; r++) { v[NR, r] = $col[R[r]]; if (v[NR, r] != "") conf[r] = 1 }
       n[st[NR]]++; if (sp[NR] == "holdout") ho[st[NR]]++
     }
     END {
       if (BAD) exit BAD
       for (i = 2; i <= NR; i++) {
-        if (!(h[i] in ok)) print id[i] ": human_label \"" h[i] "\" is not FLAG, PASS or UNKNOWN"
+        if (!(h[i] in ok)) print id[i] ": reference_label \"" h[i] "\" is not FLAG, PASS or UNKNOWN"
         for (r = 1; r <= nr; r++) if (conf[r] && !(v[i, r] in ok)) print id[i] ": " R[r] " \"" v[i, r] "\" is not FLAG, PASS or UNKNOWN"
         if (st[i] == "") print id[i] ": stratum is empty"
         if (sp[i] != "tune" && sp[i] != "holdout") print id[i] ": split \"" sp[i] "\" is not tune or holdout"
@@ -334,8 +334,8 @@ table() {
   printf '| model | effort | accuracy | FLAG precision [95%% CI] | FLAG recall [95%% CI] | coverage | cost per row | wall per run, median | wall per run, p95 | wall per arm | McNemar p vs most accurate |\n'
   printf '|---|---|---|---|---|---|---|---|---|---|---|\n'
   awk "$AWK_LIB"'
-    FNR == 1 && NR == 1 { header("id human_label"); next }
-    NR == FNR { if ($col["human_label"] != "") { h[$col["id"]] = $col["human_label"]; ids[++nl] = $col["id"] }; next }
+    FNR == 1 && NR == 1 { header("id reference_label"); next }
+    NR == FNR { if ($col["reference_label"] != "") { h[$col["id"]] = $col["reference_label"]; ids[++nl] = $col["id"] }; next }
     FNR == 1 { a = FILENAME; sub(/^.*\//, "", a); runs = sub(/\.runs\.tsv$/, "", a); sub(/\.tsv$/, "", a); if (!runs) arms[++na] = a }
     runs { cost[a] += $1; w[a, ++nw[a]] = $2; tw[a] += $2; next }
     { v[a, $1] = $2 }
