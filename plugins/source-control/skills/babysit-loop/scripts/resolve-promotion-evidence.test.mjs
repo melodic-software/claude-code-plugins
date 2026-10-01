@@ -106,6 +106,16 @@ test("probe root that contains the checkout, a worktree root, or links to an anc
   assertFailClosed(runHelper(checker, { "probe-evidence-root": link }), /--probe-evidence-root .* contains/);
 });
 
+test("a nonexistent worktree root under a symlinked parent still bounds the probe root", () => {
+  const checker = stub(GOOD_OUTPUT);
+  const link = join(ops, "link-to-probe");
+  symlinkSync(surfaces.root, link);
+  assertFailClosed(
+    runHelper(checker, { "worktree-root": join(link, "not-yet", "worktrees") }),
+    /--probe-evidence-root .* contains .*worktrees/,
+  );
+});
+
 test("checker inside the checkout fails closed", () => {
   assertFailClosed(runHelper(stub(GOOD_OUTPUT, 0, checkout)), /--checker .* is inside/);
 });

@@ -23,7 +23,7 @@
 
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import process from "node:process";
 import { parseArgs } from "node:util";
 
@@ -83,16 +83,28 @@ function resolveInput(option, value, roots) {
   return real;
 }
 
+// A root that does not exist yet is canonicalized through its longest existing prefix, so a
+// symlinked parent cannot hide where the root will land.
+function canonical(path) {
+  const missing = [];
+  let existing = path;
+  for (;;) {
+    try {
+      return resolve(realpathSync.native(existing), ...missing);
+    } catch {
+      const parent = dirname(existing);
+      if (parent === existing) return path;
+      missing.unshift(basename(existing));
+      existing = parent;
+    }
+  }
+}
+
 const checkout = resolveInput("checkout", values.checkout, []);
 const roots = [resolve(values.checkout), checkout];
 for (const root of values["worktree-root"]) {
   if (!isAbsolute(root)) emit(source, `--worktree-root ${root} is not an absolute path`);
-  roots.push(resolve(root));
-  try {
-    roots.push(realpathSync.native(root));
-  } catch {
-    // A root that does not exist yet still bounds paths lexically.
-  }
+  roots.push(resolve(root), canonical(resolve(root)));
 }
 
 const checker = resolveInput("checker", values.checker, roots);

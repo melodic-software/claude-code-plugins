@@ -31,8 +31,8 @@ merge for C2/C3 classes.
     resolution" (line 214).
   - `plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.mjs`: builds each
     fixture argv with `--probe-evidence-root` (line 80) and `--evidence` (line 81).
-  - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition" (line 36), whose promotion gate
-    reads at lines 59-81.
+  - [`cycle-shape.md`](cycle-shape.md) step 3, "Rung partition" (line 37), whose promotion gate
+    reads at lines 60-84.
   - `prompts/loops/loop-lane-prompts.md`: `{{MERGE}}` guidance (lines 75-80), "2. Merge lane"
     (line 628), and the "C2 auto-merge may lack its promotion evidence" known gap (line 1248).
 - **As of:** 2026-09-29.
