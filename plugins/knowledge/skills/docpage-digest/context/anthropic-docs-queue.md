@@ -64,6 +64,11 @@ Models:
   The release notes and prompting guide for Opus 5.5, the current Opus, and the first-party
   sources for the `playbooks` Opus 5.5 model-adaptation chapter. Both URLs follow the Opus 5 and Sonnet 5 page
   patterns and are unverified until fetched; one page per run
+- <https://platform.claude.com/docs/en/models/sonnet-5-5/whats-new-sonnet-5-5>
+  and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>
+  The release notes and prompting guide for Sonnet 5.5, the current Sonnet, and the first-party
+  sources for the `playbooks` Sonnet 5.5 model-adaptation chapter. Both fetched 2026-10-01 (HTTP
+  200); the models `overview` page does not carry the guide's behavior claims. One page per run
 
 Claude Code companion docs (digest in this order):
 
