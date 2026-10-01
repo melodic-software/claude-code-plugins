@@ -1928,7 +1928,7 @@ def finish_on_stop(d):
 def end_watcher(d, pid):
     """TERM the lease's watcher PID, only when its command line is this data dir's watch.sh.
 
-    Where the OS shows no command line (Windows), nothing is signalled: a recorded PID there is
+    Where the OS shows no command line (Windows), nothing is signaled: a recorded PID there is
     not a native PID, so it could name any process.
     """
     if not isinstance(pid, int) or pid <= 1 or os.name != "posix":
