@@ -1053,6 +1053,7 @@ def _scan(
                     hops=hops,
                     anchor=anchor,
                     shadow=shadow
+                    | loop
                     | _catch_params(src, braces, i)
                     | _for_params(src, braces, i),
                     deferred=deferred,
@@ -1070,11 +1071,8 @@ def _scan(
             if depth == 0 and c == ")" and block:
                 # An unbraced loop body is no block, so its head binds here.
                 nxt = _skip_ws(src, i + 1, n)
-                loop = (
-                    NO_SCOPE
-                    if src.startswith("{", nxt)
-                    else _for_head_names(src, braces, i)
-                )
+                if not src.startswith("{", nxt):
+                    loop = loop | _for_head_names(src, braces, i)
         elif depth == 0 and c in ",;":
             loop = NO_SCOPE
             if not block:
