@@ -16,6 +16,7 @@ binary neither ships nor uses Node
 ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the hooks
 do not launch and the lane-stop gate is not enforced. The setup `check` reports whether `node`
 resolves. The hooks also use Bash (Git Bash on native Windows) and `jq`; without `jq` they fail open.
+`/autonomy:check` reports whether `jq` resolves.
 
 ## Shipped capability (0.7.0)
 

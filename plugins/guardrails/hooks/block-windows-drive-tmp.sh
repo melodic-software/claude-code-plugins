@@ -644,13 +644,187 @@ segment_writes_drive_root_tmp() {
     has_drive_root_tmp "$dest" && return 0
     return 1
   fi
-  # Inline python write opening a drive-root tmp path
-  local py_open="(open|write_text|write_bytes|makedirs)[[:space:]]*\\(|['\"]open['\"]\\)[[:space:]]*\\("
-  if [[ "$subject" =~ $py_open ]]; then
-    has_drive_root_tmp "$subject" && return 0
+  # Inline python write opening a drive-root tmp path, counted only when the
+  # command can run code (inline_code_can_run). write_text, write_bytes and
+  # makedirs are always writes; an `open(` is relieved only when the whole
+  # command is one python run (command_is_one_python_run) proven read-only
+  # (command_opens_only_for_read).
+  if [[ "$subject" =~ (write_text|write_bytes|makedirs)[[:space:]]*\( ]]; then
+    has_drive_root_tmp "$subject" && inline_code_can_run && return 0
     return 1
   fi
+  local py_open="open[[:space:]]*\\(|['\"]open['\"]\\)[[:space:]]*\\("
+  if [[ "$subject" =~ $py_open ]]; then
+    has_drive_root_tmp "$subject" && inline_code_can_run || return 1
+    if [[ -z "$_DRIVE_TMP_OPEN_RC" ]]; then
+      _DRIVE_TMP_OPEN_RC=0
+      command_is_one_python_run "$NORM" && command_opens_only_for_read "$NORM" && _DRIVE_TMP_OPEN_RC=1
+    fi
+    return "$_DRIVE_TMP_OPEN_RC"
+  fi
   return 1
+}
+
+# <var> <text>: <text> with every quoted string replaced by one `Q` word, set in
+# this shell. Returns 1 for an unterminated quote.
+collapse_quoted_to() {
+  local __dt_dest="$1" __dt_rest="$2" __dt_bare="" __dt_q
+  while [[ "$__dt_rest" =~ ^([^\"\']*)([\"\']) ]]; do
+    __dt_bare+="${BASH_REMATCH[1]}Q"
+    __dt_q="${BASH_REMATCH[2]}"
+    __dt_rest="${__dt_rest:${#BASH_REMATCH[0]}}"
+    [[ "$__dt_rest" == *"$__dt_q"* ]] || return 1
+    __dt_rest="${__dt_rest#*"$__dt_q"}"
+  done
+  printf -v "$__dt_dest" '%s' "$__dt_bare$__dt_rest"
+}
+
+# Inline `open(` / `write_text(` text is code only when something runs it, so a
+# quoted mention handed to a command that only carries text (`gh issue create
+# --body "open('/tmp/x','w') ..."`) is data (#3951). Judged once on the WHOLE
+# command and fail-closed by allowlist: the text is data only on the Bash tool
+# (PowerShell runs `[IO.File]::Open(` inline), with no `\`, `$`, backtick or
+# process substitution (an expansion or escape can build a command's name), and
+# when the command, once every quoted string is replaced by one placeholder
+# word, is exactly one of the listed text-carrying commands with plain flag
+# words and no operator, newline, glob or redirect. The placeholder keeps a
+# quoted word in its place, so a quoted command word (`"python3" "-c" "..."
+# echo`) never reads as the listed command after it. Any other command could be
+# an interpreter this guard does not know, so it keeps the rule.
+_DRIVE_TMP_DATA_ONLY="^[[:space:]]*(gh[[:blank:]]+(issue|pr)[[:blank:]]+(create|comment|edit)|git[[:blank:]]+(commit|tag)|echo|printf)([[:blank:]]+[A-Za-z0-9_.,:=@%+/-]+)*[[:blank:]]*$"
+# Cached per command: "" = not computed, 0 = code can run, 1 = it cannot.
+_DRIVE_TMP_CODE_RC=""
+inline_code_can_run() {
+  if [[ -z "$_DRIVE_TMP_CODE_RC" ]]; then
+    _DRIVE_TMP_CODE_RC=0
+    if [[ "$TOOL_NAME" == Bash && "$COMMAND" != *[\\\$\`]* ]] &&
+      [[ "$COMMAND" != *'<('* && "$COMMAND" != *'>('* ]]; then
+      local bare
+      collapse_quoted_to bare "$COMMAND" && [[ "$bare" =~ $_DRIVE_TMP_DATA_ONLY ]] && _DRIVE_TMP_CODE_RC=1
+    fi
+  fi
+  return "$_DRIVE_TMP_CODE_RC"
+}
+
+# Inline python READ of a drive-root tmp path (#3951), judged on the WHOLE
+# unsplit command, never per segment: split_shell_segments cuts a heredoc body
+# at each `;`, so a per-segment exemption let a decoy read clear one segment
+# while the write in the next matched nothing. True only when every `open`
+# anywhere is a provable read call, no drive-root tmp path is left once those
+# calls are cut out, and no indirection that could write elsewhere appears.
+# Anything else fails closed. A read call proves only as a bare `open(` with
+# one argument that is a plain path (a single whole quoted literal of path
+# characters only, or a bare name with optional `.attr` and `[0]` subscripts),
+# an optional read-mode literal (only r/b/t), optional literal
+# encoding=/errors=/newline= of path characters, then `)`, followed by `.read(`
+# / `.readline(` / `.readlines(` or wrapped whole in `json.load(`, so only the
+# file's content leaves the call. The argument is limited to path characters
+# because the drive-root path inside an accepted call is never seen by the
+# leftover-`tmp` check or the redirect check, so an argument that can carry a
+# command (Ruby's `open('|cmd')`, `%x[cmd]`, `"#{cmd}"`, `%q[|cmd]`) must not
+# be accepted. Any `.open(` (method form: its receiver can be rebound), any
+# identifier before `open(` (popen, fdopen) and any uncalled `open` name (an
+# alias, a getattr string) void the relief. So does any `\`, `$` or backtick in
+# the raw command: an escaped quote reads as a close quote here, and a shell
+# expansion can splice a write mode into a quoted literal.
+_DRIVE_TMP_PY_LIT="(\"[[:alnum:]_./:~ -]*\"|'[[:alnum:]_./:~ -]*')"
+_DRIVE_TMP_PY_READ_MODE="(\"[rbt]+\"|'[rbt]+')"
+_DRIVE_TMP_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*${_DRIVE_TMP_PY_LIT}"
+_DRIVE_TMP_PY_OPEN_READ="^[[:space:]]*([rbu]*${_DRIVE_TMP_PY_LIT}|[[:alnum:]_.]+(\[[0-9]+\])*)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_DRIVE_TMP_PY_READ_MODE})?(${_DRIVE_TMP_PY_READ_KWARG})*[[:space:]]*\)"
+_DRIVE_TMP_PY_READ_CHAIN="^[[:space:]]*\.[[:space:]]*(read|readline|readlines)[[:space:]]*\("
+_DRIVE_TMP_PY_JSON_LOAD="(^|[^[:alnum:]_.])json[[:space:]]*\.[[:space:]]*load[[:space:]]*\([[:space:]]*$"
+# `import json` that starts a statement; `from x import json` rebinds the name.
+_DRIVE_TMP_PY_IMPORT_JSON="(^|[;\"'"$'\n'"])[[:space:]]*import[[:space:]]+json([[:space:]]*[,;\"'"$'\n'"]|[[:space:]]*$)"
+_DRIVE_TMP_PY_INDIRECTION="(^|[^[:alnum:]_])(exec[a-z]*|eval|compile|getattr|setattr|globals|locals|vars|__import__|__builtins__|builtins|importlib|__dict__|system|popen[0-9]*|spawn[a-z]*|subprocess|shutil|rename|renames|replace|mknod|mkfifo|link|symlink|truncate|mkdir|makedirs|touch|write_text|write_bytes|copy[a-z0-9]*|move|io|codecs|tempfile|ctypes|pty|pickle|marshal|shelve|yaml|dill)([^[:alnum:]_]|$)"
+# Cached per command: "" = not computed, 0 = an open( counts as a write, 1 = read-only.
+_DRIVE_TMP_OPEN_RC=""
+command_opens_only_for_read() {
+  local rest="$1" before out="" call ws t
+  [[ "$COMMAND" == *[\\\$\`]* ]] && return 1
+  [[ "$rest" =~ $_DRIVE_TMP_PY_INDIRECTION ]] && return 1
+  # `from x import *` can rebind `open` without another `open` token.
+  [[ "$rest" =~ import[[:space:]]*\* ]] && return 1
+  # `json` may appear only as json.load( / json.loads( or a statement-start
+  # `import json`; any other spelling could rebind the name.
+  t="${rest//json.load(/ }"
+  t="${t//json.loads(/ }"
+  while [[ "$t" =~ $_DRIVE_TMP_PY_IMPORT_JSON ]]; do
+    t="${t/"${BASH_REMATCH[0]}"/ }"
+  done
+  [[ "$t" =~ (^|[^[:alnum:]_.])json([^[:alnum:]_]|$) ]] && return 1
+  while [[ "$rest" == *open* ]]; do
+    before="${rest%%open*}"
+    rest="${rest#*open}"
+    # Part of a longer name (opened, openssl): not the builtin.
+    if [[ "${rest:0:1}" == [[:alnum:]_] ]]; then
+      out+="${before}open"
+      continue
+    fi
+    ws="${rest%%[![:space:]]*}"
+    if [[ "${rest:${#ws}:1}" != '(' ]]; then
+      # A word ending in open (reopen) is not the builtin; a bare `open` is.
+      [[ "${before: -1}" == [[:alnum:]_] ]] || return 1
+      out+="${before}open"
+      continue
+    fi
+    # Python allows `x . open(`, so the method dot is judged past whitespace.
+    t="${before%"${before##*[![:space:]]}"}"
+    [[ "${before: -1}" == [[:alnum:]_:] || "${t: -1}" == . ]] && return 1
+    rest="${rest:${#ws}+1}"
+    [[ "$rest" =~ $_DRIVE_TMP_PY_OPEN_READ ]] || return 1
+    call="${BASH_REMATCH[0]}"
+    rest="${rest:${#call}}"
+    if [[ ! "$rest" =~ $_DRIVE_TMP_PY_READ_CHAIN ]]; then
+      [[ "$before" =~ $_DRIVE_TMP_PY_JSON_LOAD && "$rest" =~ ^[[:space:]]*\) ]] || return 1
+      # `x . json.load(` is an attribute of x, not the json module.
+      t="${before%json*}"
+      t="${t%"${t##*[![:space:]]}"}"
+      [[ "${t: -1}" == . ]] && return 1
+    fi
+    out+="$before"
+  done
+  [[ "$out$rest" == *tmp* ]] && return 1
+  return 0
+}
+
+# The read relief needs an interpreter to be what consumes the read-call text:
+# in any other shape a pipeline can lift the literal out of the text and use it
+# as a write operand (`echo "open('/c/tmp/x').read()" | cut -d "'" -f2 | xargs
+# tee`), and a second run in the same command can write elsewhere. So the whole
+# command (already lowercased) must be exactly one bare python run, and the text
+# sits only in that run's code position: the `-c` string, or a heredoc fed to it
+# on stdin. Nothing else may follow: no pipe, `;`, `&&`, redirect, argument or
+# later line, and the run takes only plain flags (no `-m`, `-W`, `-X`), so no
+# module or script file reads the text instead. `py` is the Windows launcher. A
+# path-qualified, wrapped (`env`, `xargs`) or non-python interpreter keeps the
+# block.
+_DRIVE_TMP_PY_RUN="^[[:space:]]*(python([0-9]+(\.[0-9]+)*)?|py)(\.exe)?([[:blank:]]+(-[beiopqrsu]+|-[0-9]+(\.[0-9]+)*))*"
+_DRIVE_TMP_PY_RUN_C="${_DRIVE_TMP_PY_RUN}[[:blank:]]+-c[[:blank:]]+Q[[:blank:]]*\$"
+_DRIVE_TMP_PY_RUN_HEREDOC="${_DRIVE_TMP_PY_RUN}([[:blank:]]+-)?[[:blank:]]*<<[[:blank:]]*('[a-z_][a-z0-9_]*'|\"[a-z_][a-z0-9_]*\"|[a-z_][a-z0-9_]*)[[:blank:]]*\$"
+command_is_one_python_run() {
+  local s="$1" bare first rest line tag ended=0
+  if collapse_quoted_to bare "$s" && [[ "$bare" =~ $_DRIVE_TMP_PY_RUN_C ]]; then
+    return 0
+  fi
+  [[ "$s" == *$'\n'* ]] || return 1
+  first="${s%%$'\n'*}"
+  [[ "$first" =~ $_DRIVE_TMP_PY_RUN_HEREDOC ]] || return 1
+  tag="${first##*<<}"
+  tag="${tag//[[:blank:]\'\"]/}"
+  rest="${s#*$'\n'}"
+  # The heredoc ends at the first line that is exactly the tag; only blank lines
+  # may follow it.
+  while :; do
+    line="${rest%%$'\n'*}"
+    if ((ended)); then
+      [[ -z "${line//[[:space:]]/}" ]] || return 1
+    elif [[ "$line" == "$tag" ]]; then
+      ended=1
+    fi
+    [[ "$rest" == *$'\n'* ]] || break
+    rest="${rest#*$'\n'}"
+  done
+  ((ended))
 }
 
 # Write-shaped signal: a known producer / destination utility whose write
@@ -697,6 +871,8 @@ if [[ -n "$COMMAND" ]]; then
   # on Windows, and both matchers it steers need `tmp` in the command, so a
   # command without it never pays for the probe.
   _DRIVE_TMP_SKIP_POSIX=0
+  _DRIVE_TMP_OPEN_RC=""
+  _DRIVE_TMP_CODE_RC=""
   if [[ "$TOOL_NAME" == "Bash" && "$NORM" == *tmp* ]] && posix_tmp_maps_to_usertemp; then
     _DRIVE_TMP_SKIP_POSIX=1
     _dt_lc="${COMMAND,,}"

@@ -124,8 +124,8 @@ jobs:
               .shellcheckrc
               **/*.sh
               **/*.bash
-              plugins/docs-hygiene/skills/generate-file-name-gate/**
-              .claude/docs-hygiene.json
+              plugins/docs-naming/skills/generate-file-name-gate/**
+              .claude/docs-naming.json
             python:
               .github/**
               scripts/**
@@ -249,7 +249,7 @@ jobs:
       # Linux alone. Named explicitly, like the fixed suites above, rather than
       # discovered.
       - name: Test the file-name rename executor on Windows
-        run: bash plugins/docs-hygiene/skills/realign-file-names/scripts/apply-rename.test.sh
+        run: bash plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
       # The host-skip suites of #3683, named explicitly: each probes the host at
       # run time, so a green step is only evidence once its log shows whether
       # the probe fired or the cases ran.

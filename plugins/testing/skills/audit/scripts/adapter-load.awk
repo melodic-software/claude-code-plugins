@@ -54,10 +54,17 @@
 # adapters' list fields after extends is resolved; an unknown id or a field
 # that is not a list exits 2.
 #
-# -v MODE=config parses .claude/testing.yaml layers instead, in cascade order,
+# -v MODE=config parses testing config layers instead, in cascade order,
 # with the same subset (keys may also hold - and /) and prints the merged
 # config as `<key> <tab> <value>`: lists concatenate with the first occurrence
-# kept, and a later layer's scalar overrides. Keys: adapters.enable,
+# kept, and a later layer's scalar overrides. A layer named *.md is a docs
+# convention file: only the body of its one ```yaml config block is parsed
+# (the opening line is those words at column 0, the body ends at the first line
+# of three backticks, and lines inside any other fenced block never open one),
+# with errors at the .md file's own line numbers. Two blocks, or a block never
+# closed, is an error. Before the merged config it prints
+# `block <tab> <file> <tab> <first body line> <tab> <last body line>` for each
+# .md layer that holds a block; a .md layer with none contributes nothing. Keys: adapters.enable,
 # adapters.disable, paths.include, paths.exclude, adapter_dirs (lists),
 # extend.<adapter>.<list field> (validated as the adapter field is), and
 # rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
@@ -200,17 +207,61 @@ function check_value(key, v) {
   if (key in IS_RE) portable_ere(v)
 }
 
+# md_scan <line>: for a docs convention file, 1 when the line is inside the
+# ```yaml config block, else 0. Tracks other fenced blocks so an example of the
+# block sitting inside a longer fence never counts.
+function md_scan(line,    t) {
+  if (IN) {
+    if (line ~ /^```[ \t]*$/) { IN = 0; B_TO[nf] = FNR - 1; return 0 }
+    return 1
+  }
+  t = line
+  sub(/^ ? ? ?/, "", t)
+  if (FCH != "") {
+    if (match(t, FCH == "`" ? "^`+" : "^~+") && RLENGTH >= FN && substr(t, RLENGTH + 1) ~ /^[ \t]*$/) FCH = ""
+    return 0
+  }
+  if (line ~ /^```yaml config[ \t]*$/) {
+    if (nf in B_FROM) md_die(FNR, "second config block (the first opens at line " (B_FROM[nf] - 1) ")")
+    IN = 1; B_FROM[nf] = FNR + 1
+    return 0
+  }
+  if (match(t, /^(```+|~~~+)/) && !(substr(t, 1, 1) == "`" && substr(t, RLENGTH + 1) ~ /`/)) {
+    FCH = substr(t, 1, 1); FN = RLENGTH
+  }
+  return 0
+}
+
+function md_die(ln, msg) {
+  printf "adapter-load: %s:%d: %s\n", F_NAME[nf], ln, msg > "/dev/stderr"
+  FAILED = 1
+  exit 2
+}
+
+function md_end(fi) {
+  if (F_MD[fi] && IN) {
+    nf = fi
+    md_die(B_FROM[fi] - 1, "config block is never closed")
+  }
+}
+
 function open_key(key) {
   if ((nf, key) in SEEN) die("duplicate key: " key)
   SEEN[nf, key] = 1
 }
 
-FNR == 1 { nf++; F_NAME[nf] = FILENAME; sp = 0 }
+FNR == 1 {
+  if (nf > 0) md_end(nf)
+  nf++; F_NAME[nf] = FILENAME; sp = 0
+  F_MD[nf] = MODE == "config" && FILENAME ~ /\.md$/
+  IN = 0; FCH = ""
+}
 
 {
   line = $0
   sub(/\r$/, "", line)
   if (FNR == 1) sub(/^\357\273\277/, "", line)
+  if (F_MD[nf] && !md_scan(line)) next
   if (line ~ /^[ ]*(#.*)?$/) next
   if (line ~ /^[ ]*\t/) die("tab in indentation")
   if (line ~ /^(---|\.\.\.)/) die("document markers are not supported")
@@ -296,7 +347,10 @@ function resolve(fi, depth,    p, j, n0) {
 
 END {
   if (FAILED) exit 2
+  if (nf > 0) md_end(nf)
   if (MODE == "config") {
+    for (i = 1; i <= nf; i++)
+      if (i in B_FROM) printf "block\t%s\t%d\t%d\n", F_NAME[i], B_FROM[i], B_TO[i]
     for (i = 1; i <= nl; i++) printf "%s\t%s\n", L_KEY[i], L_VAL[i]
     for (i = 1; i <= ns; i++) printf "%s\t%s\n", SC_KEY[i], SCAL[SC_KEY[i]]
     exit 0

@@ -15,7 +15,7 @@ Run the read-only check. Do not run `apply`. Do not install or download.
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Report the PASS/FAIL table. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Setup's pre-computed rows are not rendered when this skill reads the file, so run every probe (node, jq, goimports) via Bash. Report the PASS/FAIL table. Stop.
 
 ## Next
 

@@ -11,6 +11,7 @@
 # overlapping `if` rows from reporting twice, and the per-write session state
 # (blocks, project key, prune) the task-end judge reads.
 
+# shellcheck disable=SC2016 # fence lines in fixtures are literal text
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -268,6 +269,17 @@ assert_contains "config error: the agent is told the config is invalid" "$out" "
 assert_contains "config error: in additionalContext" "$out" '"additionalContext"'
 assert_contains "config error: the log holds the resolver's message" "$(cat "$CLAUDE_PLUGIN_DATA/test-scan.log")" "unknown adapter: js-vitset"
 rm -f "$REPO/.claude/testing.yaml"
+# The same error in a docs convention file's config block names the .md file and line.
+mkdir -p "$REPO/docs/conventions"
+printf '# Testing\n\nRules.\n\n```yaml config\nadapters:\n  enable: [js-vitset]\n```\n' >"$REPO/docs/conventions/testing.md"
+run Write "$REPO/src/sum.test.ts"
+assert_contains "docs block config error: named at the .md file and its line" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
+# With a .claude file too, the resolver's both-exist warning is not the error the agent is told.
+printf 'paths:\n  exclude: [x]\n' >"$REPO/.claude/testing.yaml"
+run Write "$REPO/src/sum.test.ts"
+assert_contains "both locations: the agent is told the block's error, not the warning" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
+assert_empty "and the context does not carry the warning" "$(grep -F 'both exist' <<<"$out")"
+rm -rf "$REPO/docs" "$REPO/.claude/testing.yaml"
 
 # The plugin hook and the consumer settings entry share one marker directory,
 # so the same call through both reports once and notes once.

@@ -200,8 +200,8 @@ jobs:
               .shellcheckrc
               **/*.sh
               **/*.bash
-              plugins/docs-hygiene/skills/generate-file-name-gate/**
-              .claude/docs-hygiene.json
+              plugins/docs-naming/skills/generate-file-name-gate/**
+              .claude/docs-naming.json
             node:
               .github/**
               scripts/**

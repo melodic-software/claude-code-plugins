@@ -4,6 +4,11 @@
       "name": "actionlint",
       "check": "/actionlint:check",
       "install": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+    },
+    {
+      "name": "jq",
+      "check": "/actionlint:check",
+      "install": "install jq from https://jqlang.org/download/"
     }
   ]
 }

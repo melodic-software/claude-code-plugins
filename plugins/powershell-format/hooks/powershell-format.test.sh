@@ -336,9 +336,9 @@ if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceilin
 
 # --- SessionStart probe: bound to prerequisites.json, honors the kill switch ---
 # The edit hook stays quiet without pwsh, so the SessionStart row is the only
-# reporter. The manifest declares exactly one tool, pwsh (PSScriptAnalyzer is a
+# reporter. The manifest declares pwsh and jq (PSScriptAnalyzer is a
 # module, not a PATH binary, so /powershell-format:check reports it instead), and
-# the probe's notice must state that tool's name, check and install, verbatim.
+# the probe's notice must state each tool's name, check and install, verbatim.
 # The probe runs the hooks.json row as the harness spawns it: `node` with the
 # row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
 # holds the system tools and no pwsh. The gate is `--run-if-unset-or-true` in
@@ -348,10 +348,10 @@ if [[ "$(cat "$REPO_CEIL/proj/sub/c.ps1")" == "$BEFORE_CEIL" ]]; then ok "ceilin
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 PLUGIN_ROOT="${HOOK_DIR%/*}"
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
-if jq -e '(.tools | length) == 1 and .tools[0].name == "pwsh"' "$MANIFEST" >/dev/null 2>&1; then
-  ok "manifest: exactly one tool, pwsh"
+if jq -e '(.tools | map(.name)) == ["pwsh", "jq"]' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: declares exactly pwsh and jq"
 else
-  fail "manifest: expected one tool named pwsh: $(cat "$MANIFEST" 2>&1)"
+  fail "manifest: expected tools pwsh and jq: $(cat "$MANIFEST" 2>&1)"
 fi
 IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
 if jq -e --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' \

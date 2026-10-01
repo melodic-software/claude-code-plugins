@@ -172,9 +172,9 @@ else
   fail "unknown mode should exit 2 (rc=$rc)"
 fi
 
-# 11. No drift from the docs-hygiene template this gate was generalized into.
+# 11. No drift from the docs-naming template this gate was generalized into.
 #     The emitter renders the template with THIS repository's
-#     .claude/docs-hygiene.json, both gates run over one seeded tree, and their
+#     .claude/docs-naming.json, both gates run over one seeded tree, and their
 #     exit codes, stdout, and stderr must agree. The comparison is behavioral,
 #     not textual: the two differ by construction in the script's name and
 #     path, in the rule's display name (`lower-kebab-case` here, the config's
@@ -182,8 +182,8 @@ fi
 #     exactly those literals are normalized and nothing else is. Every root and
 #     exemption the config declares is seeded, so an entry added on one side
 #     only surfaces as a finding the other side lacks.
-EMITTER="$SCRIPT_DIR/../plugins/docs-hygiene/skills/generate-file-name-gate/scripts/emit-gate.sh"
-REPO_CONFIG="$SCRIPT_DIR/../.claude/docs-hygiene.json"
+EMITTER="$SCRIPT_DIR/../plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.sh"
+REPO_CONFIG="$SCRIPT_DIR/../.claude/docs-naming.json"
 EMITTED_RULE=""
 EMITTED_ROOTS=""
 DRIFT_REPORT=""
