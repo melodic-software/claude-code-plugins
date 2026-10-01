@@ -11,6 +11,9 @@ All notable changes to the `review` plugin are documented here. Format follows
   the existing bars and move no finding between tiers; the record points at the code-review
   harnesses section of the Sonnet 5 prompting guide, with an as-of date of 2026-10-01 and a recheck
   trigger.
+- **`ecosystem-specialist` pins `effort: medium`**, the marketplace effort floor for code-changing
+  or verifying work. It and `doc-drift-detector` gain a "When you are done" section naming the
+  artifact that ends the run; work beyond scope goes into the return as a named suggestion.
 
 ## [0.34.4] - 2026-09-30
 

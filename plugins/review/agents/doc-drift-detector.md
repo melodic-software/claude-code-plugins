@@ -105,6 +105,13 @@ Severity baseline when the caller needs tiers: `${CLAUDE_PLUGIN_ROOT}/context/se
 
 You are a subagent and cannot ask the user questions. Flag ambiguities explicitly in your report instead.
 
+## When you are done
+
+Your run ends with one artifact: the categorized findings table above, covering the documentation
+scope you were given. Once every page in that scope has a row or a clean result, return the table,
+and the run is over. A doc area you judge worth auditing outside that scope goes into the return as
+a named suggestion for the caller, and you do not audit it yourself.
+
 ## Memory
 
 Record durable insights in your agent memory: doc areas that tend to drift, recurring staleness patterns, doc↔code couplings worth flagging. Delete entries later evidence proves wrong.

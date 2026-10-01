@@ -217,7 +217,7 @@ prefix in autocomplete whether or not it declares `name`. A version-dependent di
 sanctioned value is the bare directory name.
 
 - **Pointer**: for the autocomplete fix, see the
-  [changelog](https://code.claude.com/docs/en/changelog) entry 2.1.216; for the prefixed-`name`
+  [changelog entry 2.1.216](https://code.claude.com/docs/en/changelog#2-1-216); for the prefixed-`name`
   quirk, see <https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name>.
 - **As of**: 2026-08-31
 - **Recheck trigger**: a fetch of the changelog or the skills page no longer matching this record.
@@ -285,14 +285,14 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 
 | Surface (pointer) | Verdict | Decision and reason | Recheck trigger | As of |
 |---|---|---|---|---|
-| [Run agents in parallel](https://code.claude.com/docs/en/agents) | Adopt, as a citation | The upstream comparison of every way Claude Code runs multiple agents: subagents, agent view, agent teams, dynamic workflows. Adopted as the [dispatch ladder](#dispatch-ladder)'s canonical index and cited there, never restated, so the menu an author chooses from cannot go stale inside this file. | The page adds or drops a parallelism surface. | 2026-08-10 |
+| [Run agents in parallel](https://code.claude.com/docs/en/agents#choose-an-approach) | Adopt, as a citation | The upstream comparison of every way Claude Code runs multiple agents: subagents, agent view, agent teams, dynamic workflows. Adopted as the [dispatch ladder](#dispatch-ladder)'s canonical index and cited there, never restated, so the menu an author chooses from cannot go stale inside this file. | The page adds or drops a parallelism surface. | 2026-08-10 |
 | [Feature availability](https://code.claude.com/docs/en/feature-availability) | Adopt, as a citation | Per-feature availability by model provider and subscription plan, the canonical input to the [cross-platform contract](#cross-platform-contract), cited there. We read its "platform" sense as the *provider* platform, never the host surface a consumer runs in; that axis is [Platforms and integrations](https://code.claude.com/docs/en/platforms), a separate row below. Copying it is barred by [evidence and validation](#evidence-and-validation): a provider matrix is exactly the volatile table that rule names. | A plugin proposes narrowing its platform support. Re-fetch the matrix then, never trust a restatement. | 2026-08-10 |
 | [Agent teams](https://code.claude.com/docs/en/agent-teams#limitations) | Defer | Fails gate 2 and stops there: the feature is marked experimental and is off unless `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set, and its stated limitations cover nesting and resume. Defer rather than decline: the gap question stays open while the surface is opt-in and churning, and no plugin may depend on a team meanwhile. | The page drops the experimental warning or the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` requirement. | 2026-08-10 |
-| [Cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging#when-to-use-cross-session-messaging), [availability](https://code.claude.com/docs/en/cross-session-messaging#availability) | Decline | Fails gate 1: we read the channel as one for sessions a person starts and steers, not for a skill dispatching a worker. It could not be a portable rung either, because four providers were excluded. Re-derived 2026-08-24 after the prior trigger's Windows leg fired: native Windows support removed one portability leg but moved neither surviving premise, so the verdict stands. | Either surviving premise moves: the page stops scoping the channel to sessions you steer yourself, or its Availability section stops excluding any of those four providers. | 2026-08-24 |
+| [Cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging#when-to-use-cross-session-messaging), [availability](https://code.claude.com/docs/en/cross-session-messaging#availability) | Decline | Fails gate 1: we read the channel as one between sessions a person starts and steers, not a worker a skill dispatches. Re-derived 2026-10-01 after the provider leg of the prior trigger fired: same-machine messaging now reaches every provider, so portability no longer bars a same-machine rung, but gate 1 holds the verdict on its own. | The page stops scoping the channel to sessions you steer yourself, or a plugin surface (a manifest field, skill frontmatter, or a tool a skill may call) gains a way to start and address a session. | 2026-10-01 |
 | [Sessions](https://code.claude.com/docs/en/sessions#what-a-resumed-session-restores) | Decline | Fails gate 1. Resume restores the prior conversation in full, which is the authoring story the [inline-template conventions](#inline-template-conventions) exist to withhold, so it is the opposite of a fresh-eyes rung rather than a missing one. A human session-management surface with no plugin-authoring interface. | `sessions` grows a plugin-facing interface: a manifest field, a tool, or skill frontmatter. | 2026-08-10 |
 | [Platforms and integrations](https://code.claude.com/docs/en/platforms) | Adopt, as a citation | The upstream index of every host Claude Code runs in, covering CLI, Desktop, VS Code, JetBrains, web, and mobile, plus the integrations beside them. Adopted as the [cross-platform contract](#cross-platform-contract)'s canonical input for the host axis, which the already-adopted [feature availability](https://code.claude.com/docs/en/feature-availability) does not carry: that page's axes are provider and plan, scoped to what runs locally. The host axis matters because a host can withhold the plugin system outright rather than one capability: Desktop sessions in WSL 2, the mobile app, Desktop's Cowork tab, and the VS Code extension each limit plugins, terminal-only commands, or skills relative to the CLI, so a skill this fleet ships may simply not be reachable there (read each host's page from the index for the specifics). None of those four is restated in the contract. Only the rule they establish is. | `platforms` adds or drops a host, or `feature-availability` grows a host-surface axis, which would make this citation redundant. | 2026-08-10 |
-| [GitHub Enterprise Server](https://code.claude.com/docs/en/github-enterprise-server) | Decline | Does not fail gate 1 by subject: it is a real plugin-distribution surface, and the only page in this run that names one. It fails on need. Nothing in this repo documents a GHES-hosted mirror or fork of this marketplace, and no README anywhere ships a full-git-URL install path, the form GHES requires. Census of the 65 plugin READMEs: 54 carry the literal `/plugin marketplace add melodic-software/claude-code-plugins`; 9 carry no install block; `dometrain` points at another github.com marketplace; and `github`, being marketplace-agnostic, uses the placeholder `<marketplace-owner>/<marketplace-repo>`. All of those are the same `owner/repo` shorthand, which we treat as resolving to github.com, correct for this marketplace, and the one place the finding could bite: a consumer redistributing the `github` plugin from a GHES-hosted marketplace would follow that README and silently resolve to github.com instead of their own host. Otherwise the GHES-specific obligations land on a consumer running their own instance, not on this marketplace: full git URL, `extraKnownMarketplaces` pre-registration, `hostPattern` allowlisting. | This repo documents a GHES-hosted mirror or fork, or any README gains an install path that is not `owner/repo` shorthand, a full git URL being the form that means a non-github.com host is in play. Also fires if `plugins/github/README.md` starts naming a concrete GHES-hosted marketplace. | 2026-08-10 |
-| [Ultrareview](https://code.claude.com/docs/en/ultrareview#run-ultrareview-from-the-cli), [pricing](https://code.claude.com/docs/en/ultrareview#pricing-and-free-runs) | Decline | Fails gate 1: no interface a plugin can reach. Each run is human-gated behind a confirmation dialog and metered per run, so it can never be a rung in an automated dispatch ladder. Nor is `review:fanout` a custom rebuild of it that Native-first would retire: fanout normalizes many in-session finding producers into one ranked report, where this is one confirmed cloud run. | The page documents a non-interactive or programmatic entry point. | 2026-08-10 |
+| [GitHub Enterprise Server](https://code.claude.com/docs/en/github-enterprise-server#plugin-marketplaces-on-ghes) | Decline | Does not fail gate 1 by subject: it is a real plugin-distribution surface, and the only page in this run that names one. It fails on need. Nothing in this repo documents a GHES-hosted mirror or fork of this marketplace, and no README anywhere ships a full-git-URL install path, the form GHES requires. Census of the 65 plugin READMEs: 54 carry the literal `/plugin marketplace add melodic-software/claude-code-plugins`; 9 carry no install block; `dometrain` points at another github.com marketplace; and `github`, being marketplace-agnostic, uses the placeholder `<marketplace-owner>/<marketplace-repo>`. All of those are the same `owner/repo` shorthand, which we treat as resolving to github.com, correct for this marketplace, and the one place the finding could bite: a consumer redistributing the `github` plugin from a GHES-hosted marketplace would follow that README and silently resolve to github.com instead of their own host. Otherwise the GHES-specific obligations land on a consumer running their own instance, not on this marketplace: full git URL, `extraKnownMarketplaces` pre-registration, `hostPattern` allowlisting. | This repo documents a GHES-hosted mirror or fork, or any README gains an install path that is not `owner/repo` shorthand, a full git URL being the form that means a non-github.com host is in play. Also fires if `plugins/github/README.md` starts naming a concrete GHES-hosted marketplace. | 2026-08-10 |
+| [Ultrareview](https://code.claude.com/docs/en/ultrareview#run-ultrareview-non-interactively), [pricing](https://code.claude.com/docs/en/ultrareview#pricing-and-free-runs) | Decline | Fails gate 1 for automated dispatch. Re-derived 2026-10-01 after the prior trigger fired (a non-interactive entry point now exists): each run is metered, and we read the page as treating the person who starts a run as the one consenting to its billing, so no skill may launch one on its own, and a person stays free to run it. Nor is `review:fanout` a custom rebuild of it that Native-first would retire: fanout normalizes many in-session finding producers into one ranked report, where this is one consented cloud run. | The page lets a run that Claude starts count as consent to its billing, or runs stop being metered. | 2026-10-01 |
 | [Chrome](https://code.claude.com/docs/en/chrome) | Decline | Fails gate 1: a consumer-installed browser integration the platform ships itself, so a plugin has nothing to declare here and must not rebuild automation the platform already ships. Recorded rather than dismissed because the page only *looked* cited: the repo's sole reference is a `docs/en/browser` URL that now returns 404, inside `plugins/playbooks/skills/boris/vendor/SKILL.md`, a verbatim upstream baseline kept for drift detection, which is why it is deliberately not hand-edited here. | A plugin proposes shipping browser automation, or `/playbooks:update` refreshes the boris baseline and the stale slug persists. | 2026-08-10 |
 | [Mods (hooks modules)](https://github.com/anthropics/claude-code/tree/main/mods) | Defer | Fails gate 2 and stops there. A mod is a plugin whose behavior lives in one `register(on, options)` hooks module running in-process. Anthropic's own `mods/README.md` marks the interface as unstable between releases; a mod you write is off by default behind the rollout gate `tengu_plugin_hooks_modules`, whose default is `false` and which `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` only overrides per process; and the feature has zero mentions in the official docs (all 197 pages via `llms-full.txt`) or in `CHANGELOG.md`, checked at Claude Code 2.1.278. Defer rather than decline: the surface is real and shipping, so the gap question stays open, and no plugin may depend on it meanwhile. Recorded in [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | All five go criteria hold: a test mod loads with the enable flag unset, the official docs mention the feature, [#92533](https://github.com/anthropics/claude-code/issues/92533) is closed, the official docs state the throw and timeout semantics and the engine default on an uncaught throw is settled upstream (the generated `.d.ts` JSDoc already states the mechanism, so a JSDoc hit does not meet this), and the early-access warning is gone from `mods/README.md`. Commands and expected outputs: [go-no-go.md](upstream/claude-code-mods/go-no-go.md). Any one failing is no-go. | 2026-09-19 |
 | [Checkpointing: bash changes](https://code.claude.com/docs/en/checkpointing#bash-command-changes-not-tracked), [subagent edits](https://code.claude.com/docs/en/checkpointing#subagent-edits-not-restored) | Decline | Nothing to adopt, and the reason is the outcome: `/rewind` cannot be a mutating skill's undo story, because checkpoints do not cover bash-command changes or the edits of most subagents. The restored carve-out is narrow, covering only a `context: fork` skill running in the foreground, so a skill that mutates through a shell script or a background worker states a git-based rollback and never leans on `/rewind`. | The limitations section drops either the bash-command or the subagent exclusion. | 2026-08-10 |
@@ -311,7 +311,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model`, which we use only as a per-turn override, including for a forked subagent. Pointer for `model`: the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck trigger: that row changes what `model` accepts, or auto mode stops keeping the session model. | 2026-09-29 |
 | [`commands/`](https://code.claude.com/docs/en/plugins/components#commands) | Prohibited | Superseded by skills upstream; every new capability goes in `skills/`. Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
-| [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
+| [Workflows](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
 | [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal where no `${user_config.*}` appears; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the guardrails and disk-hygiene SessionStart node notice rows and the claude-ops hook-failure-audit Stop row, which run in shell form with `"shell": "bash"` because they must work when `node` is missing. `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search (pointer: [actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache)). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
@@ -1116,89 +1116,106 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 The ladder is relative to the session: **a consequential verdict runs at the session-model tier or
 above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
-explicit: an agent definition that omits `model` falls through to `CLAUDE_CODE_SUBAGENT_MODEL` and,
-where that is unset, to the main conversation's model, the same model `inherit` selects
-([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model),
-verified 2026-09-27; frontmatter takes a full model ID, an alias (`sonnet`, `opus`, `haiku`,
-`fable`), or `inherit`). Consumers hold one global fallback knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set
-via the settings `env` map. It ranks **third**, below the per-invocation `model` parameter and below
-frontmatter, so it decides only where neither is set; a value of `inherit` behaves as if the
-variable were absent. A structural frontmatter binding therefore holds against it, and the knob is
-a default for unbound subagents rather than an override
-([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
-verified 2026-09-11, recheck when a release note touches subagent model selection;
-`env` applies to every session and spawned subprocess,
-[settings](https://code.claude.com/docs/en/settings), verified 2026-08-10).
+explicit: every agent definition in this repository pins `model`, because an agent that omits it
+falls through the harness's resolution order and, on a machine with no consumer default, runs on
+the main conversation's model. Consumers hold one global fallback knob, `CLAUDE_CODE_SUBAGENT_MODEL`,
+set through the settings `env` map. We rely on it ranking below both the per-invocation `model`
+parameter and frontmatter, so it decides only for a subagent neither binds: a structural
+frontmatter binding holds against it, and the knob is a default for unbound subagents rather than
+an override.
 
-**Decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.** Claim: do not set
-`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`. It forces one model onto every subagent, teammate, and
-workflow agent and ignores per-spawn and definition `model` values, which erases the tier ladder
-above. Basis:
-<https://code.claude.com/docs/en/env-vars> (`CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, Claude Code
-v2.1.257 or later) and
-<https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model>. As of: 2026-09-28.
-Recheck: that env-vars row stops ignoring definition and per-spawn `model` values, or the
-subagents page stops describing the force switch.
+- **Pointer:** for the resolution order and the values frontmatter `model` accepts, see
+  [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model); for the
+  `env` key, see [settings reference: `env`](https://code.claude.com/docs/en/settings-reference#env).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** a release note touches subagent model selection, or the variable stops
+  ranking below frontmatter.
 
-There is no per-plugin
-model surface, because plugin `userConfig` declares only generic typed options with no model semantics
-([plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration),
-verified 2026-08-10). Doctrine therefore travels by authoring-time conformance in each skill, not runtime
-configuration.
+**Decline `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.** We do not set it, and a consumer who sets it gives
+up the tier ladder above, because it puts one model on every subagent regardless of its pin or a
+per-spawn `model`.
 
-Tier-to-model mapping, dated 2026-09-23 (recheck trigger: a new Claude model family reaches GA, or
-the session default model changes):
+- **Pointer:** for the force switch, see
+  [subagents: run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
+  and its row on [environment variables](https://code.claude.com/docs/en/env-vars#variables).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** the switch stops overriding definition and per-spawn `model` values, or the
+  subagents page stops describing it.
 
-| Tier | Model (2026-09-23) |
+There is no per-plugin model surface: we read plugin `userConfig` as typed options with no model
+semantics, so doctrine travels by authoring-time conformance in each skill, not runtime
+configuration (Pointer:
+[plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration).
+As of: 2026-08-10. Recheck trigger: a `userConfig` option can select the model a plugin's subagent
+runs on).
+
+The tier table names Claude Code aliases, never model versions, so a release that moves an alias
+needs no edit here. Which model each alias resolves to is read live from the model page, and it
+differs by provider: the same alias can name an older model on a cloud provider's platform than on
+the Anthropic API.
+
+| Tier | Alias |
 |---|---|
-| Consequential verdict (session tier or above) | The active session model; under the fleet's current `opus[1m]` pin that is Opus 5.5, with Fable 5.1 the rung above |
-| Mechanical prep, one tier down | Sonnet 5 |
-| Bulk mechanical sweeps | Haiku 4.5 |
+| Consequential verdict (session tier or above) | The session's own model, with no `model` passed; under the fleet's `opus[1m]` session pin that is `opus`, with `fable` the rung above |
+| Mechanical prep, one tier down | `sonnet` |
+| Bulk mechanical sweeps | `haiku` |
 
-Row 1 is relative by construction: the invariant above makes the ladder relative to the active
-session, so a session already running Fable 5.1 has no rung above and dispatches consequential
-verdicts at its own tier. The named models are the resolution under the fleet's pinned session
-default (`opus[1m]`, an alias): on the Anthropic API the `opus` alias currently points at Opus 5.5
-([model-config](https://code.claude.com/docs/en/model-config), verified 2026-09-23), the model the
-models overview names as the general starting point, while Fable 5.1 sits above it in capability,
-aimed at work spanning more than one session rather than at harder
-verdicts at ordinary length. In Claude Code, `fable` points at Fable 5.1 everywhere but a Claude
-apps gateway session, where both `fable` and `best` give Fable 5; Fable 5 itself is selected by
-model id
-([model-config: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable),
-verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
-unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
-The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
-has not fired it: Mythos is not generally available, offered invitation-only to approved
-customers under Project Glasswing, so no lane may reach for it. The figures behind the cost ordering
-below are upstream-owned
-([pricing](https://platform.claude.com/docs/en/about-claude/pricing)) and are not restated here.
-([model config](https://code.claude.com/docs/en/model-config),
-[models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both verified
-2026-08-10.)
+- **Pointer:** for what each alias resolves to on each provider, see
+  [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases). For
+  where the `sonnet` row's model fits against `opus`, see the
+  [models overview: latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison)
+  and [model config: available models](https://code.claude.com/docs/en/model-config#available-models)
+  (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>;
+  recheck when those docs pages cover what the post adds).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** any new model on Claude Code's model page.
+
+Row 1 is relative by construction: a session already running the top model has no rung above and
+dispatches consequential verdicts at its own tier. The cost ordering behind the rows is
+upstream-owned and is not restated here (Pointer:
+[pricing: model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing).
+As of: 2026-08-10. Recheck
+trigger: any new model on Claude Code's model page). No row binds a model that is not generally
+available to the fleet.
+
+**Override points.** The rows are repository defaults; a personal routing preference belongs in the
+operator's own user-scope settings, never in this table. From narrowest to widest reach: a dispatch
+site passes the per-invocation `model` (upward only for a verdict, per the rule above); an agent
+definition's `model` frontmatter sets that agent's default; `CLAUDE_CODE_SUBAGENT_MODEL` sets the
+default for subagents nothing else binds; `ANTHROPIC_DEFAULT_OPUS_MODEL`,
+`ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_HAIKU_MODEL` and
+`ANTHROPIC_DEFAULT_FABLE_MODEL` pin which model an alias resolves to; and an `availableModels`
+allowlist bounds every one of them (below).
+
+- **Pointer:** for the alias-pinning variables, see
+  [model config: environment variables](https://code.claude.com/docs/en/model-config#environment-variables);
+  for the allowlist, see
+  [model config: restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** the model page adds or removes an alias or an alias-pinning variable.
 
 That ladder is a cost ordering, and one capability does not travel down it: **interleaved thinking,
-a thinking block between tool calls rather than only before the first and after the last.** Claude Code
-models it per model, as the `interleaved_thinking` capability value
-([model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities),
-verified 2026-08-10; a pinned model's unlisted capabilities are disabled). The per-model roster is
-upstream-owned. Resolve it at
-[thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking),
-which today states that interleaving is automatic on every model supporting adaptive thinking with
-no beta header, and that Claude Haiku 4.5 does not support it (verified 2026-08-10, corroborated by
-the model roster's adaptive-thinking column; recheck trigger: a new Haiku generation reaches GA, or
-that page's per-model sentence changes).
+a thinking block between tool calls rather than only before the first and after the last.** We treat
+it as a per-model capability that the bottom tier's alias may lack, and resolve which models have it
+from the live roster, never from this file.
+
+- **Pointer:** for which models interleave, see
+  [thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking);
+  for how Claude Code records the capability for a pinned model, see
+  [model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** any new model on Claude Code's model page, or that section's per-model
+  statement changes.
 
 The dispatch consequence, phrased as capability rather than family name so it survives an alias
 moving under it: **require interleaving only where extended reasoning between tool results decides
 the next call, meaning a mid-sweep judgment that has to change what gets called next. A task that chains
-calls, or that reasons over its results at the end, does not need it.** The boundary is much
-narrower than the capability's name suggests, and the same page draws it: chaining tool calls does
-not depend on interleaving. What the capability adds is a thinking block at that boundary, so what its absence removes is
-deliberation *at that point*, not the tool result from context, and not the ability to act on it.
-So the bottom tier row stands for bulk mechanical sweeps and for straightforward triage or research
-passes that decide at the end; the case it does not cover is a fan-out whose worth is deliberating
-partway through, where the next call must change because of what the last one returned.
+calls, or that reasons over its results at the end, does not need it.** We read the capability as
+adding deliberation at that point, not as a condition for chaining tool calls or for acting on a
+tool result (same pointer). So the bottom tier row stands for bulk mechanical sweeps and for
+straightforward triage or research passes that decide at the end; the case it does not cover is a
+fan-out whose worth is deliberating partway through, where the next call must change because of
+what the last one returned.
 
 The **dispatch-site** tier enforcement is structural at two binding sites:
 `plugins/implementation/agents/implementer.md` and
@@ -1209,52 +1226,51 @@ recheck list: the trigger above re-audits **every** agent-frontmatter `model` va
 repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
 list restated here.
 
-That floor is the consumer's to lose. An enterprise `availableModels` allowlist applies wherever a
-model can be specified, frontmatter pins included, and where this document once recorded the
-blocked-pin branch as unresolved upstream, upstream now resolves it, per surface and differently for
-each. For a **subagent**, a blocked override silently drops to the model the subagent would
-otherwise inherit. The exception is a blocked *family alias* on the Anthropic API or Claude
-Platform on AWS: since v2.1.222 it is swapped for the newest version of its family the allowlist
-permits, and before that release it dropped to the inherited model like any other blocked value.
-For a **skill or command**, a blocked override, family alias or not, is discarded and the turn
-stays on the session model.
+That floor is the consumer's to lose. An enterprise `availableModels` allowlist reaches frontmatter
+pins too, and Claude Code handles a blocked pin differently for a subagent than for a skill or
+command. Our conclusion, with the per-surface rules left at the pointer: a subagent lane's tier is
+not self-enforcing, because a blocked pin can land below the session (an `opus` pin under an
+allowlist that permits only an older Opus) or on the inherited session model (a blocked cheap pin,
+which is then not cheap), with no error either way. A skill or command lane with a blocked pin stays
+on the session model, never below it. A design whose correctness needs a tier therefore needs a
+mechanism that is not a frontmatter pin.
 
-The earlier derivation's conclusion survives its replacement. A blocked subagent alias can still
-land **below** the session, as when the session runs Opus 5.5, the lane is pinned `opus`, and the
-allowlist permits only an older Opus. A blocked *cheap* pin lands on the inherited model, which is the session's and
-therefore not cheap. So the tier invariant above is still not self-enforcing for a subagent lane: it
-may depend on its pin in neither direction, and no error is raised either way. Only the skill and
-command branch is now pinned down, and it degrades upward-bounded, to exactly the session model,
-never below it. A design whose correctness needs a tier still needs a mechanism that is not a
-frontmatter pin
-([model config: restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection),
-[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), both
-verified 2026-08-10; recheck trigger: either page's blocked-override behavior for a subagent,
-skill, or command changing).
+- **Pointer:** for how a blocked override is handled on each surface, see
+  [model config: restrict model selection](https://code.claude.com/docs/en/model-config#restrict-model-selection)
+  and [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
+- **As of:** 2026-08-10.
+- **Recheck trigger:** either page's blocked-override behavior for a subagent, skill, or command
+  changes.
 
 ### Effort tiers
 
-Effort routes per lane the way model does. Skill and subagent frontmatter `effort` overrides the
-session level while that lane is active, but never the `CLAUDE_CODE_EFFORT_LEVEL` environment
-variable, and accepts all five level names including `max`; when the active model lacks the
-requested level, the nearest lower level it has is used
-([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
-[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
-verified 2026-08-10). The ladder itself is upstream-owned, covering level names, per-model
-availability, and per-model defaults: resolve it from the model-config page at decision time, never
-from this document.
+Effort routes per lane the way model does: a skill or agent pins `effort` in its frontmatter where
+its work needs a level other than the session's, knowing the `CLAUDE_CODE_EFFORT_LEVEL` environment
+variable and an effort cap still win over the pin. The ladder itself, meaning level names, which
+models support effort, each model's default, and what happens to a level a model lacks, is
+upstream-owned: resolve it from the model page at decision time, never from this document.
 
-What a pin actually buys is bounded by how allocation works: thinking is adaptive, so the model
-decides per request if it thinks at all and for how long; the caller supplies an intent and,
-optionally, an effort level, and the model chooses where the reasoning goes ([steering thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost),
-verified 2026-08-03). A lane pin is therefore a posture, never a switch: a lane pinned `low` still
-thinks where the model judges thinking earns its cost, and a turn carrying no thinking is that
-mechanism working rather than a pin misfiring. Authoring conformance follows the posture: pin the
-lane, then let allocation vary per request instead of writing prose that tries to force it uniform.
+- **Pointer:** for the levels each model supports and its default, see
+  [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level);
+  for how a frontmatter pin ranks against the session, the variable and a cap, see
+  [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
+  for the field itself, see
+  [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes how
+  a frontmatter pin ranks.
 
-Lane rules, dated 2026-07-29 (recheck trigger: a model change on any pinned lane, or the
-model-config effort table changes, since each model maps level names to its own amount of
-thinking, so one name does not mean the same depth on two models):
+We treat a lane pin as a posture, never a switch: thinking is adaptive, so a lane pinned `low` still
+thinks where the model judges it worth the cost, and a turn with no thinking is not a pin
+misfiring. Authoring conformance follows: pin the lane, then let allocation vary per request
+instead of writing prose that tries to force it uniform (Pointer: for how the model decides when to
+think, see
+[steering thinking: how Claude decides when to think](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#how-claude-decides-when-to-think).
+As of: 2026-08-03. Recheck trigger: that page stops describing thinking as decided per request).
+
+Lane rules (recheck trigger: any new model on Claude Code's model page, or a model change on any
+pinned lane, because each model maps level names to its own depth, so one name does not mean the
+same depth on two models):
 
 - **Consequential-output lanes with a frontmatter surface pin `high`**: verdicts, and research
   that feeds decisions, wherever the lane is a named agent or a skill doing that work in its own
@@ -1262,158 +1278,166 @@ thinking, so one name does not mean the same depth on two models):
   cost (the environment variable still wins, per above). The pin is not relative: on a model
   whose own default sits above `high`, it caps the lane below that model's default, and the recheck
   trigger above exists exactly for this. The reach is the mechanism's, not the rule's: a generic
-  Agent-tool dispatch carries no effort control, because the tool takes a per-invocation `model`
-  parameter with no effort counterpart
-  ([sub-agents](https://code.claude.com/docs/en/sub-agents), doc-silence corroborated by the live
-  tool schema, 2026-07-29), so it structurally inherits the session level and its floor is the
+  Agent-tool dispatch carries no effort control: we read the live Agent tool schema, which has a
+  per-invocation `model` parameter and no effort counterpart, and that probe has no stored
+  artifact (Pointer: for the per-call parameters the docs name, see
+  [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
+  As of: 2026-07-29. Recheck trigger: the Agent tool gains an effort parameter), so it
+  structurally inherits the session level and its floor is the
   session baseline; promoting such a lane to a named agent is how it gains the pin (a required
   effort pin satisfies the named-agent bar's pin clause). `planning:plan-reviewer` pins `medium`
-  by the [recorded exception](#named-agent-bar), and `implementation:phase-verifier`,
+  by the [recorded exception](#named-agent-bar); `implementation:phase-verifier`,
   `review:ci-log-auditor`, and `review:doc-drift-detector` pin `medium` because each checks
-  against binary criteria ([pinned agents](#effort-tiers)). An orchestrator skill
+  against binary criteria; and `review:ecosystem-specialist` and `discovery:explorer` pin `medium`
+  because their work is mechanical ([pinned agents](#effort-tiers)). An orchestrator skill
   whose consequential work executes in generic dispatches is likewise out of reach: a skill-level
   pin governs the orchestrating conversation, and whether it propagates to subagents spawned
   while the skill is active is undocumented, so treat propagation as unknown alongside the cache
   caveat below.
-- **Bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more than
-  depth, subagent sweeps included, knowing a lower level also makes fewer tool calls (pointer:
-  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)), but not at the model
-  ladder's own bottom rung, because the two ladders do not compose there. Effort is a per-model
-  capability and Haiku has none: no Haiku appears in the effort table
-  ([model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)),
-  which the model roster corroborates with adaptive thinking off for Claude Haiku 4.5
-  ([models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both
-  verified 2026-08-10). The documented unsupported-level fallback above does not reach this case:
-  it presupposes a supported level to fall back *to*, and here there is none. What the harness then
-  does with the pin, whether ignore it, warn, or fail, is **undocumented, and unverified here**; the
-  pages above establish the absent capability and nothing about the runtime handling, so no reading
-  of them settles it. The rule does not rest on that gap: a lane wanting the cheapest tier takes it
-  by model alone and omits the pin, because the dial it would be reaching for only exists one rung
-  up.
+- **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
+  than depth, subagent sweeps included, and never for a lane that changes code or verifies a change
+  (the [effort floor](#effort-floor)). Not at the model ladder's own bottom rung either, because the
+  two ladders do not compose there: we read the model the `haiku` alias resolves to as having no
+  effort support, so a pin there has no level to land on. What the harness does with such a pin,
+  whether ignore it, warn, or fail, is **unverified here**, and no page we read settles it. The rule
+  does not rest on that gap: a lane wanting the cheapest tier takes it by model alone and omits the
+  pin, because the dial it would be reaching for only exists one rung up (Pointer: for which models
+  support effort, see
+  [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level);
+  for what a lower level trades away, see
+  [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works).
+  As of: 2026-10-01. Recheck trigger: a Haiku model appears among the models that support effort).
 - **Every other lane omits the pin** and inherits the session level: effort is a general
-  preference, not a task-by-task decision (Pointer:
-  <https://code.claude.com/docs/en/model-config#choose-an-effort-level>;
-  correlate with <https://claude.com/blog/claude-model-and-effort-level-in-claude-code>).
+  preference, not a task-by-task decision (Pointer: for choosing a level, see
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  correlate with <https://claude.com/blog/claude-model-and-effort-level-in-claude-code>.
+  As of: 2026-10-01. Recheck trigger: that section starts recommending a level per task rather
+  than a session default).
 - **No lane pins `max` without eval evidence.** We treat it as the costliest level, whose gain a
-  lane must measure before using it (pointer:
-  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)). Deliberation helps only while
-  there is still evidence to find; past that point extra effort buys cost and latency and can
-  degrade the answer ([cut spend without losing quality](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#cut-spend-without-losing-quality),
-  verified 2026-09-09). A pin above `high` (e.g. `xhigh`)
-  is a deliberate per-lane choice grounded in the target model's own recommended-levels guidance,
-  never a reflex. The miscalibration cuts the other way too: a lane set too low stops before it
-  has enough evidence, makes fewer tool calls, and skips the checks it would run unprompted, so
-  the answer looks finished while resting on partial information (same page, same verification).
-- **Sweep model and effort together before raising either.** A stronger model at low effort can
-  beat a weaker or older model at high effort on both cost and quality, so a lane outgrowing its
-  level tests the newer model at lower effort before pinning the old one higher, on its own
-  evals. Cross-model economics and the flat-curve reading live in the fable-5 pack's
-  model-adaptation chapter for the newer model
-  (`plugins/playbooks/reference/model-adaptation/fable-5-1.md`, "Cross-model effort economics");
-  current prices resolve through the `claude-api` skill at decision time.
+  lane must measure before using it. A pin above `high` (e.g. `xhigh`) is a deliberate per-lane
+  choice grounded in the target model's own recommended levels, never a reflex. We watch for
+  miscalibration in both directions: set too high, a lane keeps spending after the evidence runs
+  out; set too low, it stops early and skips checks, and its answer looks finished on partial
+  information (Pointer: for each level's trade-off, see
+  [effort: effort levels](https://platform.claude.com/docs/en/build-with-claude/effort#effort-levels);
+  for miscalibration, see
+  [cut spend without losing quality](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#cut-spend-without-losing-quality).
+  As of: 2026-09-09. Recheck trigger: either section changes what it says a level above `high`
+  buys).
+- **Sweep model and effort together before raising either.** A lane outgrowing its level tests the
+  newer model at lower effort before pinning the old one higher, on its own evals. Cross-model
+  economics and the flat-curve reading live in the fable-5 pack's model-adaptation chapter for the
+  newer model (`plugins/playbooks/reference/model-adaptation/fable-5-1.md`, "Cross-model effort
+  economics"); current prices resolve through the `claude-api` skill at decision time.
 - **Effort is the first lever in either direction; steering prose is the second.** We set the
-  level to fit the lane's work and add prose only where that level still falls short; the reason
-  is at the pointer
-  ([steering thinking: effort levels](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#effort-levels),
-  verified 2026-08-03). Both directions: shallow output from a pinned-`low` lane raises the lane's
+  level to fit the lane's work and add prose only where that level still falls short (Pointer:
+  for why, see
+  [steering thinking: effort levels](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#effort-levels).
+  As of: 2026-08-03. Recheck trigger: that section stops ranking effort ahead of prompt
+  steering). Both directions: shallow output from a pinned-`low` lane raises the lane's
   effort instead of adding prompt text, and a lane thinking more than the work needs lowers the
-  pin before any prose telling the model to think less. A lane that must
-  hold its level for latency is the one case that reaches for steering prose first; it then
-  measures the prose on a representative sample, with and without it, comparing how often thinking
-  fires, output tokens, latency, and quality, because the effect of wording is harder to predict
-  than the effect of a level. Authoring a lane's prose against its own pin, in
-  either direction, is the inversion this rule exists to catch.
-- **Cache caveat**: changing effort between requests invalidates cached prompt prefixes, so a
-  skill pin firing mid-session is expected to cost the main conversation's cache (harness-side
-  request assembly unconfirmed), while a subagent pin is scoped to the subagent's own requests. So
-  treat skill-lane pins as cache-costly in cost-sensitive loops. State the outcome and not the
-  mechanism: the platform page and the harness page agree that an effort change forces a full
-  re-read but describe *why* differently, so an explanation that picks one is asserting more than
-  either source supports. Two corollaries follow. Setting a lane's effort explicitly to the model's
-  own default is a no-op that keeps the cache, so a pin that merely documents the default costs
-  nothing. And **per-message steering is the cache-safe escape hatch**: steering text added to the
-  latest user turn leaves the cached prefix intact, while changing configuration or effort breaks
-  it, which is what makes a skill's invocation-time
-  instructions cheaper than a mid-session pin. The convention that falls out, and the reason a lane
-  pin is a design-time choice rather than a per-task one: pick the level once and keep it, steer
-  per message when one turn needs more or less, and move the configuration only at natural breaks
-  between tasks ([steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching),
-  verified 2026-08-03). The harness page backs the same convention (choose model and effort when a
-  session starts, compact between tasks), and adds the interactive consequence a plugin
-  author cannot see from the platform page alone: once a conversation has started, Claude Code
-  confirms a cache-invalidating effort change with a dialog, so a mid-session change is a prompt the
-  consumer must clear rather than a silent cost. The same section independently corroborates the
-  no-op corollary above: a change resolving to the level already in effect skips the dialog and
-  keeps the cache ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
-  verified 2026-08-10). Re-read 2026-09-29: the dialog still covers most models, and each effort
-  level caches separately. Fable 5.1, Opus 5.5, and Sonnet 5.5 are the exception under API-key or
-  Claude-subscription auth: an effort change there is applied without a dialog and the cache
-  survives. We do not count on that exception on a Claude apps gateway, Amazon Bedrock, or Google
-  Cloud's Agent Platform, with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS` set, or for an organization
-  with a HIPAA configuration, and Fable 5.1 has it only from v2.1.260
-  ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
-  fetched 2026-09-29, 42,099 bytes; recheck trigger: that section drops the Opus 5.5 / Sonnet 5.5 /
-  Fable 5.1 exception or changes which providers it excludes).
+  pin before any prose telling the model to think less. A lane that must hold its level for latency
+  is the one case that reaches for steering prose first, and it keeps that prose only after
+  comparing a sample of runs with and without it, because wording moves the result less
+  predictably than a level does. Authoring a lane's prose against its own pin, in either
+  direction, is the inversion this rule exists to catch.
+- **Cache caveat.** We treat an effort change between requests as costing the cached prefix: a
+  skill pin firing mid-session is expected to cost the main conversation's cache (how the harness
+  assembles that request is unconfirmed), while a subagent pin touches only the subagent's own
+  requests, so skill-lane pins count as cache-costly in cost-sensitive loops. We state the outcome
+  and not the mechanism, because the platform page and the harness page explain it differently.
+  Two corollaries we rely on: pinning a lane to the model's own default is a no-op that keeps the
+  cache, so a pin that only documents the default costs nothing; and **per-message steering is the
+  cache-safe escape hatch**, because steering added to the latest user turn keeps the prefix while
+  an effort or configuration change does not, which makes a skill's invocation-time instructions
+  cheaper than a mid-session pin. So a lane pin is a design-time choice, not a per-task one: pick
+  the level once and keep it, steer per message when one turn needs more or less, and move
+  configuration only between tasks. In an interactive session Claude Code may confirm a
+  cache-invalidating effort change with a dialog, and for some models, auth routes and versions it
+  applies the change without one and keeps the cache; read which at the pointer, and do not design
+  a lane around the dialog-free path.
+  - **Pointer:** for the API side, see
+    [steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching);
+    for Claude Code's handling, including which models, providers and versions skip the dialog,
+    see [prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
+  - **As of:** 2026-10-01.
+  - **Recheck trigger:** either section changes what an effort change does to the cache, or which
+    models, providers or versions keep the cache across one.
 
-**Pinned `effort: high` agents.**
+**Pinned agents.** Every named agent in this repository pins its effort, so a session tuned down for
+cost does not silently cheapen a worker. Nine pin `effort: high`: `implementation` `implementer`;
+`discovery` `researcher`, `intent-tracer`, and `research-verifier`; `review` `code-reviewer`,
+`architecture-guardian`, and `security-reviewer`; `plugin-quality` `auditor`; `songwriting`
+`object-writer`. Six pin `effort: medium`, the [effort floor](#effort-floor): `planning`
+`plan-reviewer` by its [recorded exception](#named-agent-bar); `implementation` `phase-verifier`
+and `review` `ci-log-auditor` and `doc-drift-detector` because each checks against binary
+criteria; `review` `ecosystem-specialist` and `discovery` `explorer` because their work is
+mechanical, running a repository's declared commands and reading and indexing a scope. The
+lowering is owner-decided, narrow, and stops at `medium`, never `low`, because a low-effort
+executor stops detecting that it is stuck. A frontmatter pin is what holds a named agent's lane,
+since an Agent-tool dispatch passes no effort. Two session-wide controls still act on every pin at
+once: the `CLAUDE_CODE_EFFORT_LEVEL` variable replaces it, and a `maxEffortLevel` or organization
+effort cap limits it. We know of no per-lane or per-plugin lever.
 
-- **Claim:** Eleven named agents pin `effort: high` so a session tuned down for cost does not
-  silently cheapen consequential workers, and four pin `effort: medium`: `plan-reviewer` by its
-  recorded exception, and `phase-verifier`, `ci-log-auditor`, and `doc-drift-detector` because
-  each checks against binary criteria. The lowering is owner-decided Option B, narrow, at
-  `medium` and not `low`, because a low-effort executor stops detecting that it is stuck.
-  `security-reviewer` and `architecture-guardian` stay `high`. There is no
-  per-invocation `effort` on Agent-tool dispatch, so a frontmatter pin is what holds a named
-  agent's lane. The `CLAUDE_CODE_EFFORT_LEVEL` environment variable overrides every pin at once
-  for the whole session (the environment variable still wins, per above), and a `maxEffortLevel`
-  or organization effort cap limits any pin above the cap. Both act on the whole session; neither
-  cited page documents a per-lane or per-plugin lever.
-- **Basis:** The agent definitions on origin/main (2026-09-29). `effort: high`: `implementation`
-  `implementer`; `discovery` `explorer`, `researcher`, `intent-tracer`, and
-  `research-verifier`; `review` `code-reviewer`, `architecture-guardian`,
-  `ecosystem-specialist`, and `security-reviewer`; `plugin-quality`
-  `auditor`; `songwriting` `object-writer`. `effort: medium`: `implementation` `phase-verifier`;
-  `review` `ci-log-auditor` and `doc-drift-detector`; `planning` `plan-reviewer`. Issue
-  [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) is the source of
-  the filed list of eleven, which omits `auditor`, `object-writer`, and `research-verifier`. The
-  Agent-tool gap is stated in this section ("a generic Agent-tool dispatch carries no effort
-  control"). Upstream, fetched 2026-09-29 from the raw `.md` channel, for how frontmatter effort
-  ranks against the session level, the environment variable, and an effort cap:
-  [model config](https://code.claude.com/docs/en/model-config#set-the-effort-level) (109,848
-  bytes) and the `effort` field in
-  [sub-agents](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields) (107,466
-  bytes). A lower effort level outperformed an architecture change, and `low` is named for
-  simpler subagent tasks ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
-  [effort](https://platform.claude.com/docs/en/build-with-claude/effort), same fetch date).
-- **As of:** 2026-09-29.
-- **Recheck:** a checker pinned `medium` misses a defect its `high` pin caught, the Agent tool gains
-  a per-invocation `effort` parameter, a maintainer lowers or drops a named pin, or a plugin ships a `userConfig` effort key that actually reaches the worker.
+- **Pointer:** the agent definitions themselves, listed by
+  `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;
+  [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) for the filed pin
+  list and the `medium` lowering; for how a frontmatter pin ranks against the variable and a cap,
+  see [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
+  and the `effort` field in
+  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** any new model on Claude Code's model page, or a pinned agent's `model`
+  changes, since a level name means a different depth on each model; a checker pinned `medium`
+  misses a defect a `high` pin caught; the Agent tool gains a per-invocation `effort` parameter; a
+  maintainer changes or drops a named pin; or a plugin ships a `userConfig` effort key that reaches
+  the worker.
 
-**Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
-whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,
-thinking included in adaptive mode. The resulting trap: `adaptive` is a thinking mode, never an
-`effort` value, and a frontmatter `effort` field is exactly where that trap is reachable, because the
-two dials share vocabulary. The second consequence bounds what any pin can promise: effort is soft
-guidance, and the hard spend ceiling is `max_tokens`. Read what that limit bounds before reaching
-for it. `max_tokens` is a request parameter capping one response's output, thinking included, so it
-binds per response and constrains neither input and cache reads nor the further
-requests an agentic lane makes. **And no documented frontmatter field reaches it.** Those fields set
-the model and the effort level, and a subagent adds `maxTurns`, which bounds agentic turns rather
-than tokens and has no skill-frontmatter counterpart; neither field list carries a token cap, because
-the parameter belongs to the API request that the lane-pin surface does not assemble. So the rule
-this section can actually state is narrower than the upstream guidance: a lane wanting to spend less lowers
-`effort` knowing it is guidance, and a hard cap has to be imposed by whoever builds the request
-([thinking and effort](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-effort),
-[subagent frontmatter](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields), and
-[skill frontmatter](https://code.claude.com/docs/en/skills#frontmatter-reference), all verified
-2026-08-03; recheck trigger: the accepted `effort` value set changes on the model-config or effort
-page, or either documented frontmatter field list gains a token cap). Checking the value set mechanically stays deferred: a lint rule's source of truth is
-the harness's own accepted-value list, which this section deliberately does not restate.
+**Effort is one dial of two, and the other is not an effort value.** We keep the `thinking` mode and
+the `effort` level apart: `adaptive` is a thinking mode, never an `effort` value, and a frontmatter
+`effort` field is where that mix-up is reachable, because the two share vocabulary. A pin also
+promises less than a spend ceiling. We treat effort as guidance and the request's `max_tokens` as
+the hard ceiling, and that ceiling binds one response, not input, cache reads, or the further
+requests an agentic lane makes. No documented skill or subagent frontmatter field reaches it:
+`maxTurns` bounds agentic turns, not tokens, and has no skill counterpart. So a lane wanting to
+spend less lowers `effort` knowing it is guidance, and a hard cap is imposed by whoever builds the
+request.
 
-Session-level effort is the consumer's own knob, out of plugin scope: `low` through `xhigh`
-persist via the `effortLevel` setting, while `max` and `ultracode` are session-only, and `max`
-persists only when set in `CLAUDE_CODE_EFFORT_LEVEL`. Plugins never set
-session effort.
+- **Pointer:** for how thinking and effort relate, see
+  [thinking and effort](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-effort);
+  for the frontmatter fields, see
+  [subagent frontmatter](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+  and [skill frontmatter](https://code.claude.com/docs/en/skills#frontmatter-reference).
+- **As of:** 2026-08-03.
+- **Recheck trigger:** the accepted `effort` value set changes on the model-config or effort page,
+  or either frontmatter field list gains a token cap.
+
+Checking the value set mechanically stays deferred: a lint rule's source of truth is the harness's
+own accepted-value list, which this section deliberately does not restate.
+
+Session-level effort is the consumer's own knob, out of plugin scope: plugins never set session
+effort. For how a consumer persists a level, and how the ultracode setting relates to it, see
+[model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)
+(As of: 2026-10-01. Recheck trigger: any new model on Claude Code's model page).
+
+### Effort floor
+
+Code-changing or verifying work runs at `medium` effort or above, on every model that supports
+effort. Where this repository sets effort, in an agent's or a skill's frontmatter, a lane that
+changes code or verifies a change never pins below `medium`; `low` is only for chat-like exchanges
+and read-only mechanical work. The floor is stated as a level, not a model, because an alias can
+resolve to a model with a different default, or with no effort support, depending on the provider
+and the release.
+
+- **Pointer:** for which models support effort and each one's default, see
+  [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level);
+  for what each level fits, see
+  [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
+  for what each alias resolves to per provider, see
+  [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes
+  which models support effort.
 
 ### Declared patterns
 
@@ -1431,10 +1455,10 @@ cannot assume a plugin layout.
 
 The complete categorized index of plugin-relevant official pages is
 [`docs/official-docs.md`](official-docs.md); `https://code.claude.com/docs/llms.txt` is the
-authoritative self-updating master list. The Claude Code pages this document rests on, each
-re-fetched 2026-08-10 and confirmed to still carry the topics named beside it (the
-`melodic-software/standards` entry below is not a Claude Code page and was not re-checked on that
-date):
+authoritative self-updating master list. Each list below names the pages this document rests on
+and the topics we read each one for. Recheck trigger for both lists: a page moves, or stops
+covering a topic named beside it. The first list is as of 2026-08-10 (the
+`melodic-software/standards` entries are not Claude Code pages and carry no date):
 
 - [Create plugins](https://code.claude.com/docs/en/plugins): plugin structure incl. `bin/` and
   plugin `settings.json`, namespaces, testing, and migration.
@@ -1453,7 +1477,7 @@ date):
 - `melodic-software/standards` engineering philosophy and cross-platform review criteria: repository
   design and verification policy.
 
-Verified 2026-07-17:
+As of 2026-07-17:
 
 - [Plugin dependencies](https://code.claude.com/docs/en/plugin-dependencies): the `dependencies`
   array, automatic installation, and version constraints.

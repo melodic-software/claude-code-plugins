@@ -59,17 +59,18 @@ gh search issues "degraded OR degradation OR quality OR nerfed OR slower" --repo
 
 A sudden quality change mid-session can be a model switch, not a regression. Before blaming the
 model, check the transcript for a notice that the session moved to a fallback model after a
-flagged message. To recover, we use:
+flagged message, or for a request that ended in a refusal because the flagged category had no
+fallback for the model in use. To recover, we use:
 
 - `/model` to switch back to the original model.
 - `/config` > **Switch models when a message is flagged** off (or `switchModelsOnFlag: false`)
   to be asked each time instead of switched.
 - `/feedback` to report a flag that looks wrong.
 
-Pointer: for the fallback behavior and the recovery settings, see
+Pointer: for which models fall back, to what, and the recovery settings, see
 [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
 (correlate with the [Opus 5.5 usage guide](https://claude.dev/blog/getting-the-most-out-of-opus-5-5/)).
-As of: 2026-09-23. Recheck trigger: that section changes, or a new model gains or loses a
+As of: 2026-10-01. Recheck trigger: that section changes, or a new model gains or loses a
 fallback.
 
 ## Fragility note

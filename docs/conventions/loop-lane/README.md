@@ -325,7 +325,9 @@ depends on Remote Control, so we treat that leg as absent whenever any Remote Co
 or mobile-push setup step is unmet, including on a machine that turns feature-flag fetching off.
 Only the http hook is the deterministic leg.
 
-- **Pointer**: for the tool, see [Tools reference](https://code.claude.com/docs/en/tools-reference);
+- **Pointer**: for the tool, see the `PushNotification` row of the
+  [Tools reference](https://code.claude.com/docs/en/tools-reference) (the tool table sits under the
+  page title, with no section of its own);
   for the phone leg's conditions, see
   [Remote Control requirements](https://code.claude.com/docs/en/remote-control#requirements) and
   [Mobile push notifications](https://code.claude.com/docs/en/remote-control#mobile-push-notifications);
@@ -373,57 +375,73 @@ check-the-hook signal, never as proof of health.
 
 Model selection is expressed as **capability tiers defined by order, never by family name**.
 Capability does not track family across generations (a current mid-tier model can equal a prior
-top-tier one), so a tier named for a family silently rots. Three ordered tiers:
+top-tier one), so a tier named for a family silently rots. Three ordered tiers, each bound to a
+Claude Code alias (see "Alias binding" below):
 
-| Tier | Role |
-|---|---|
-| frontier | Complex-stamped items; every security-surface work class, always |
-| strong | Default implementer / worker |
-| fast | Orchestrator and mechanical items; never weaker than the implementer it reviews |
+| Tier | Role | Alias |
+|---|---|---|
+| frontier | Complex-stamped items; every security-surface work class, always | `best` |
+| strong | Default implementer / worker | `opus` |
+| fast | Orchestrator and mechanical items; never weaker than the implementer it reviews | `sonnet` |
 
 Fixed rules: an advisor or reviewer is **at least as capable** as the main model it checks (equal
 pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the
 recommended shape); a reviewer or verifier is never weaker than the implementer; a security-surface
 work class routes to the frontier tier unconditionally.
 
-### Current alias binding (re-audited 2026-08-12)
+### Alias binding
 
-The dated resolution of the ordered tiers to live aliases, the artifact the "new model release"
-recheck trigger re-derives. Sourced from live fetches of
-<https://code.claude.com/docs/en/model-config> and
-<https://platform.claude.com/docs/en/about-claude/models/overview> on 2026-08-12 (#1293); the
-resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fable 5.1 releases:
+The tier table above binds each tier to an alias, never to a model version, so a release that
+moves an alias needs no edit here. Which model an alias resolves to, on each provider, is read live
+from the model page whenever it matters, and never restated in this convention.
 
-| Tier | Alias | Resolves to today |
-|---|---|---|
-| frontier | `best` | Fable 5.1 where the organization has access, else the latest Opus |
-| strong | `opus` | Opus 5.5 |
-| fast | `sonnet` | Sonnet 5 |
+- **Pointer:** for what each alias resolves to on each provider, see
+  [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases); for each model's
+  position and capabilities, see
+  [models overview: latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** any new model on Claude Code's model page.
+
+The reasons behind each binding:
 
 - **frontier binds `best`, not `fable`.** We bind the frontier tier to `best` because that alias
-  already carries the tier's meaning, Fable where the organization has it and Opus otherwise
-  (pointer: [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases)), so a
-  frontier dispatch self-heals where Fable is unavailable (it requires organization access
-  and Claude Code v2.1.170+, and can bill to usage credits) instead of failing or silently running
-  a stale pin. Two Fable caveats ride along as **known gaps**: its safety classifiers can trigger
-  automatic model fallback on security work (pointer:
-  [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads)),
-  and frontier is the
-  tier every security-surface work class routes to, and no lane detects that fallback today (Opus
-  5.5 carries the same classifiers, so the strong tier shares this gap); and in
-  non-interactive mode a Fable request that would bill usage credits bills them without a consent
-  prompt, which is the shape every unattended lane runs in.
-- **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names
-  Opus 5.5 as the general starting point. Opus 5.5 and Fable 5.1 both have reliable knowledge
-  through June 2026, so freshness does not separate them, and raw capability order (Fable above
-  Opus) does not decide the binding alone.
+  already carries the tier's meaning, Fable where the organization has it and Opus otherwise, so a
+  frontier dispatch self-heals where Fable is unavailable instead of failing or silently running a
+  stale pin. For Fable's access, version and billing requirements, see
+  [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable).
+- **strong binds `opus`.** We bind the strong tier to `opus` because the models overview names the
+  model it resolves to as the general starting point; raw capability order (Fable above Opus) does
+  not decide the binding alone.
 - **fast binds `sonnet`.** We bind the fast tier to `sonnet` for its speed relative to the tiers
-  above, native 1M context, and Jan 2026 reliable cutoff: enough headroom to orchestrate and to
-  review mechanical items without breaching the reviewer floor.
-- **`haiku` is admissible nowhere in these lanes today.** Its 200k context sits against 1M
-  everywhere else, and its Feb 2025 reliable cutoff predates the harness surfaces these lanes
-  operate on; since the fast tier also covers reviewers and the implementer is always
-  sonnet-or-above, binding `haiku` anywhere would breach the reviewer-never-weaker floor.
+  above and its context headroom: enough to orchestrate and to review mechanical items without
+  breaching the reviewer floor. The tier has nothing to do with Claude Code's fast mode, a separate
+  speed setting for Opus (for fast mode, see
+  [Speed up responses with fast mode](https://code.claude.com/docs/en/fast-mode)).
+- **`haiku` is admissible nowhere in these lanes today.** The fast tier also covers reviewers and
+  the implementer is always `sonnet` or above, so binding `haiku` anywhere would breach the
+  reviewer-never-weaker floor. We also read the model it resolves to as having a smaller context
+  window and an older knowledge cutoff than these lanes need (for both, see the models overview).
+
+**Known gaps carried with the binding.** No lane detects either of these today, so each is recorded
+here rather than left as an unstated assumption:
+
+- **Classifier fallback, on every tier.** The models the `best`, `opus` and `sonnet` aliases
+  resolve to run safety classifiers. A flagged request can re-run on a different model, after
+  which the session stays there, or end in a refusal for a category with nowhere to fall back
+  to. Security work trips them most often, and frontier is the tier every security-surface work
+  class routes to, but the strong and fast tiers carry the same gap: a lane's tier can drop
+  mid-run, or a cycle can stop on a refusal, with nothing in the lane noticing.
+- **Usage-credit consent.** In non-interactive mode, the shape every unattended lane runs in, a
+  Fable request that would bill usage credits bills them without a consent prompt.
+- **Pointer:** for the fallback targets, the categories without one, and the provider setup, see
+  [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
+  and
+  [Security research and biology workloads](https://code.claude.com/docs/en/model-config#security-research-and-biology-workloads);
+  for usage-credit consent, see
+  [Fable and usage credits](https://code.claude.com/docs/en/model-config#fable-and-usage-credits).
+- **As of:** 2026-10-01.
+- **Recheck trigger:** a model gains or loses a fallback target, a new model on Claude Code's model
+  page runs safety classifiers, or non-interactive mode starts asking for usage-credit consent.
 
 **Independence, where a dispatch stands in for human ratification.** The one dispatch that resolves
 a blocker in place of a human decision, the explicit-`autopilot` merge-authority exception (above),
@@ -448,17 +466,19 @@ is the boundary's stated justification, so the boundary is revisited when that p
 path whose outcome stops being gate-decidable acquires the independence requirement, recorded as a
 versioned entry in [`CHANGELOG.md`](CHANGELOG.md) rather than silently.
 
-**Runtime resolution is by model alias only.** The bare family-word aliases
-(`fable` / `opus` / `sonnet` / `haiku`) are the live-updating handles that resolve to the current
-recommended model for the provider and update over time; a dated model name is a pinned snapshot and
-is never written into a lane body. Aliases are the only handle guaranteed under subscription OAuth,
-so they are the runtime path; the Models API list endpoint is the **build/audit-time** verification
-path, since it may require an API key a loop session lacks. No lane hard-codes a model ID. (Alias
-semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-08-04.)
+**Runtime resolution is by model alias only.** A lane names an alias (`best` / `fable` / `opus` /
+`sonnet` / `haiku`), never a dated model name, because we treat the alias as the handle that
+follows the provider's recommendation while a model ID is a pinned snapshot. We treat aliases as
+the only handle that works under subscription OAuth, so they are the runtime path; the Models API
+list endpoint is the **build/audit-time** verification path, since it may require an API key a loop
+session lacks. No lane hard-codes a model ID (Pointer: for alias semantics, see
+[Model aliases](https://code.claude.com/docs/en/model-config#model-aliases). As of: 2026-10-01.
+Recheck trigger: the model page stops describing aliases as moving with the provider's
+recommendation).
 
-Tier tables are built from a live official-docs fetch at authoring time, never from recall. Any new
-model release re-audits the tier table, and the trigger is recorded in this convention's
-[`CHANGELOG.md`](CHANGELOG.md).
+The binding is built from a live official-docs read at authoring time, never from recall. Any new
+model on Claude Code's model page re-reads the reasons under "Alias binding"; a binding that
+changes is recorded in this convention's [`CHANGELOG.md`](CHANGELOG.md).
 
 ### Rate-limit windows
 
@@ -762,7 +782,8 @@ trigger: a Claude Code release note changes either `/loop` shape or the jitter r
   `stop: true`), which is how the drain shape's terminal state stops a lane cleanly; we treat a
   fixed-interval loop as running until stopped by hand or until the seven-day expiry, so a drain
   lane launched that way cannot honor its own stop condition (Pointer:
-  [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop). As of: 2026-07-27).
+  [Stop a loop](https://code.claude.com/docs/en/scheduled-tasks#stop-a-loop). As of: 2026-07-27.
+  Recheck trigger: that section changes how a fixed-interval or self-paced loop ends).
   Self-paced is
   the lane shape by construction, not by preference. Two of the lane's other per-cycle signals,
   the adaptive-cap streak and seam exit 8 counted as dirty, govern *how much work a cycle takes
@@ -780,18 +801,21 @@ while its cadence mapping (the self-pacing cadence contract owned by the
 `source-control:babysit-prs` skill) is the self-paced contract the `babysit-loop` lane consumes.
 Reading either as the other's default is the confusion this note exists to prevent.
 
-**Known gap: the self-paced shape is provider-conditional.** We record a lane launched on Microsoft
-Foundry, Amazon Bedrock, Google Cloud's Agent Platform, or Claude Platform on AWS as running
-without the self-paced shape. Pointer: for provider differences in `/loop`, see
+**Known gap: the self-paced shape is version-conditional off the first-party API.** We record a lane
+launched on Microsoft Foundry, Amazon Bedrock, Google Cloud's Agent Platform, or Claude Platform on
+AWS, or with feature-flag fetching turned off, as having the self-paced shape only on a Claude Code
+version at or above the floor the scheduled-tasks page names for those providers; below that floor
+it runs without it. Pointer: for the provider and version conditions on a dynamic `/loop`, see
 [Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
 and the `ScheduleWakeup` row of the [Tools reference](https://code.claude.com/docs/en/tools-reference).
-As of: 2026-07-27. Recheck trigger: a Claude Code release note changes `/loop` on a non-first-party
-provider. A lane launched there keeps
+As of: 2026-10-01. Recheck trigger: a Claude Code release note changes `/loop` on a non-first-party
+provider or the version floor. A lane launched below the floor keeps
 the loop but loses both properties the bullet above depends on: idle backoff cannot lengthen the
 wake, and the lane cannot end itself, so a **drain** lane there deadlocks on the first unanswered
 escalation exactly as §4's terminal state exists to prevent, and runs until stopped by hand or until
-the seven-day expiry. No lane detects the provider today, so this is recorded as a known gap rather
-than left as an unstated assumption, on the model §6 uses for the single-account assumption.
+the seven-day expiry. No lane detects the provider or the version today, so this is recorded as a
+known gap rather than left as an unstated assumption, on the model §6 uses for the single-account
+assumption.
 
 ## 6. Rate-limit guard binding
 
@@ -977,7 +1001,7 @@ guidance is a minor bump.
 trigger discipline). Two. A firing that finds drift lands its outcome as a changelog entry; a
 no-drift firing refreshes the record's as-of date in place, with no entry and no bump:
 
-- Any new model release re-audits the capability-tier table (§3).
+- Any new model on Claude Code's model page re-reads the §3 alias binding and its known gaps.
 - Any change to this convention, or to a consuming lane, that RELIES on an upstream-pointed record
   re-reads that record's pointer first and refreshes its as-of date with the outcome.
 

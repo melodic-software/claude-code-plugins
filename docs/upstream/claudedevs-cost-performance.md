@@ -55,23 +55,36 @@ cache-diagnostics UI; a second real need for API-cost tooling in this marketplac
      the bundled skill inside the Claude Code binary, and an exhaustive grep found them absent
      from the public anthropics/skills repo the article links (HEAD 2026-09-03) and from the
      skill's platform-docs page. A reader following the article's GitHub link will not find
-     them. Recheck: the repo or docs page gains the subcommands.
+     them. Pointer: our binary extraction and clone grep, recorded in the claude-api row of
+     [`docs/native-surfaces/records.json`](../native-surfaces/records.json), and [In Claude Code (bundled)](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill#in-claude-code-bundled).
+     As of: 2026-09-09. Recheck trigger: the repo or docs page gains the subcommands.
   2. **Claude Console diagnostics UI unverified.** The API half of the cache-diagnostics topic
      is verified against
      [Cache miss reason types](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#cache-miss-reason-types);
      no fetched doc covers the Console request-comparison UI the article shows. Checked:
      cache-diagnostics doc, usage-cost-api doc, two web searches. Unchecked: the Console
-     product itself (needs a login).
+     product itself (needs a login). As of: 2026-09-09. Recheck trigger: a docs page starts
+     covering the Console request-comparison UI, or someone checks the Console itself.
   3. **Benchmark numbers are vendor-internal.** The article's benchmark figures are single-pool
      Anthropic measurements with no published artifact to reproduce from, so no figure is
      recorded here. Posture recommended by the research run: adopt mechanisms, cite numbers
      only as vendor-reported, read at the source.
-  4. **Beta boundaries.** Every adopted line touching per-message effort, the cache diagnostics
-     API, or mid-conversation system messages carries its beta qualifier and its GA and
-     model-list boundary, read live from
-     [Per-message effort (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#per-message-effort-beta),
-     [Cache diagnostics](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics)
-     and [Mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages).
+  4. **Release-status boundaries.** Every adopted line touching per-message effort, the cache
+     diagnostics API, or mid-conversation system messages names the feature's release status and
+     the platforms and models it is limited to, as read at the pointer when the line is written,
+     never from memory and never assuming beta. Re-read 2026-10-01: the three features no longer
+     share one status, so a line that calls all three beta is stale and is corrected when next
+     touched.
+     - **Pointer**: for each feature's status and limits, see
+       [Per-message effort (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta),
+       [Cache diagnostics](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics)
+       and
+       [Mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages)
+       (on both pages the status and availability notes sit under the page title, in no section
+       of their own).
+     - **As of**: 2026-10-01
+     - **Recheck trigger**: any of the three pages changes the feature's release status, its
+       supported platforms, or its supported models.
   5. **Corroboration verdict (fresh-context verifier, 2026-09-09).** Every accepted row is
      HIGH confidence and five live spot checks matched current sources; four rows rest on a
      single evidence pool because no independent second pool exists publicly:
@@ -115,7 +128,7 @@ coverage cross-referenced. One work item covers the chapter.
 | Cache hit-rate monitoring and miss diagnosis | `claude-ops:observability` covers Claude Code sessions only | ADOPT API half (chapter row, beta-qualified) + TRACK Console half; also ADOPT one boundary-pointer line in the observability skill's cache-health context (decided 2026-09-10). Console UI unverified (finding 2); TRACK trigger: a Console-access check or a docs page confirming the request-comparison UI | [Cache miss reason types](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#cache-miss-reason-types) | 2026-09-09 |
 | Prefix stability and request layout | `extract-ssot` anti-patterns record carries the byte-identical-prefix rule (as of 2026-08-04); no authoring-rule surface for request-building code | ADOPT (chapter rows; decided 2026-09-10) | [Structuring your prompt](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#structuring-your-prompt) | 2026-09-09 |
 | Deferred loading of rarely used tools | `context-budget` levers.json engages defer_loading for Claude Code MCP tools only | ADOPT (chapter row; decided 2026-09-10) | [defer_loading and cache preservation](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-use-with-prompt-caching#defer-loading-and-cache-preservation) | 2026-09-09 |
-| System-prompt updates as mid-conversation messages | No coverage | ADOPT (chapter row; GA and model-list boundary carried; decided 2026-09-10) | [Mid-conversation system messages](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages) | 2026-09-09 |
+| System-prompt updates as mid-conversation messages | No coverage | ADOPT (chapter row; GA and model-list boundary carried; decided 2026-09-10) | [When to use a mid-conversation system message](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages#when-to-use-a-mid-conversation-system-message) | 2026-09-09 |
 | Timing model and effort changes to cache breaks (compaction) | PLUGIN-PHILOSOPHY cache caveat carries the session-side version | COVERED session-side; API-side sentence joins the chapter (decided 2026-09-10). No docs page covers this timing practice as of 2026-09-09 (correlate with Cognition's devin-fusion post, 2026-06-29) | [What invalidates the cache](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#what-invalidates-the-cache) | 2026-09-09 |
 | Breakpoint placement as a conversation grows | No coverage | ADOPT (chapter row; decided 2026-09-10) | [Automatic caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#automatic-caching) | 2026-09-09 |
 | Cache pre-warming at session start | No coverage | ADOPT (chapter row; decided 2026-09-10); the chapter points at the request shapes pre-warming rejects rather than listing them | [Pre-warming the cache](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#pre-warming-the-cache) and the bundled skill source | 2026-09-09 |
@@ -160,16 +173,17 @@ gains hillclimb).
 
 Mostly covered: PLUGIN-PHILOSOPHY "Effort tiers" lane rules, catalog rows I21/I22/I27,
 model-adaptation chapters (opus-5 "move down liberally", fable-5-1 "recall at low effort"),
-`${CLAUDE_EFFORT}` consumed by 7 skills, and the agents pinned `effort: high` (see the pinned
-agents record under [Effort tiers](../plugin-philosophy.md#effort-tiers)). Missing: cross-model
-economics and sweep tooling.
+`${CLAUDE_EFFORT}` consumed by 7 skills, and every named agent's effort pin, `high` or `medium`
+(see the pinned-agents record under [Effort tiers](../plugin-philosophy.md#effort-tiers) and the
+[Effort floor](../plugin-philosophy.md#effort-floor)). Missing: cross-model economics and sweep
+tooling.
 
 | Topic | Ours | Verdict | Pointer | As of |
 |---|---|---|---|---|
 | Effort miscalibration in both directions | PLUGIN-PHILOSOPHY Effort tiers; opus-5 chapter overthinking guidance; fable-5-1 low-effort recall caveat | COVERED, plus a sharpening ADOPT (decided 2026-09-10). Explore evidence re-verified 2026-09-09. Work item: fold the article's two sharpest phrasings on miscalibration, in our words, into the existing surfaces | [How effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works) | 2026-09-09 |
 | A stronger model at lower effort | Nowhere; adaptation chapters deliberately carry no pricing | ADOPT (decided 2026-09-10). Land as a pricing-free section in the fable-5-1 model-adaptation chapter plus a one-line pointer in PLUGIN-PHILOSOPHY Effort tiers; numbers cited vendor-reported; pricing stays pointer-resolved through the claude-api skill | [Compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) and [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) | 2026-09-09 |
 | Effort sweeps on a non-saturated eval | `evals` plugin has zero effort content | ADOPT (decided 2026-09-10). Land as an effort-axis note in the evals plugin citing the bundled hillclimb per the Lane M posture (bundled-only, public-repo lag noted) | [Tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort) | 2026-09-09 |
-| Effort changes mid-conversation and the cache | PLUGIN-PHILOSOPHY cache caveat + criteria I17-b carry the session-side version | COVERED session-side (decided 2026-09-10). The API-side model list is read at the pointer only inside whatever T1/T3 adoptions get written, per the Lane M beta posture; no separate surface | [Per-message effort (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#per-message-effort-beta) | 2026-09-09 |
+| Effort changes mid-conversation and the cache | PLUGIN-PHILOSOPHY cache caveat + criteria I17-b carry the session-side version | COVERED session-side (decided 2026-09-10). The API-side model list is read at the pointer only inside whatever T1/T3 adoptions get written, per the Lane M beta posture; no separate surface | [Per-message effort (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta) | 2026-09-09 |
 
 ## Lane T4: API cost optimization and profiling
 
@@ -184,7 +198,7 @@ cost). Batch API, output bounding as a cost lever, and the usage/cost Admin API 
 | Model and effort search with the bundled hillclimb | No incumbent; `evals` owns eval design without a cost axis | Cited per the Lane M posture: bundled-only, public-repo lag noted (decided 2026-09-10); the evals effort-axis note carries the citation. Recheck: the repo or docs page gains the subcommand | Our extraction of the bundled skill source from the binary (finding 1); [In Claude Code (bundled)](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill#in-claude-code-bundled) | 2026-09-09 |
 | Batching unattended work | Absent (sole mention is a routines.md disclaimer) | ADOPT (chapter row; decided 2026-09-10) | [Batch processing pricing](https://platform.claude.com/docs/en/about-claude/pricing#batch-processing) | 2026-09-09 |
 | Output bounding as a cost lever | In tension with prompt-audit Group 1f, which removes numeric output ceilings from skill bodies | Recorded scope-disjoint (decided 2026-09-10): output bounding is an API-request cost lever, never a skill-body instruction pattern; one sentence in the chapter says so. Tension identified by explore, 2026-09-09 | [Set budgets and output caps](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#set-budgets-and-output-caps) | 2026-09-09 |
-| Org spend profiling through the Admin API | Absent | ADOPT (chapter row; decided 2026-09-10) | [Usage and Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api) | 2026-09-09 |
+| Org spend profiling through the Admin API | Absent | ADOPT (chapter row; decided 2026-09-10) | [Usage and Cost API: Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api#cost-api) | 2026-09-09 |
 
 ## Lane M: record and gating meta-decisions
 

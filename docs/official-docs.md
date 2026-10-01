@@ -40,12 +40,12 @@ so it has no row. For which slots and settings keys a plugin carries, see
 | Workflows (`workflows/`) | <https://code.claude.com/docs/en/workflows> | 2026-08-06 |
 | Hooks (`hooks/hooks.json`) | <https://code.claude.com/docs/en/hooks> | 2026-08-06 |
 | MCP servers (`.mcp.json`) | <https://code.claude.com/docs/en/mcp> | 2026-08-06 |
-| LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins-reference#lsp-servers> | 2026-08-06 |
+| LSP servers (`.lsp.json`) | <https://code.claude.com/docs/en/plugins/components#lsp-servers> | 2026-10-01 |
 | Output styles (`output-styles/`) | <https://code.claude.com/docs/en/output-styles> | 2026-08-06 |
-| Themes (`themes/`) | <https://code.claude.com/docs/en/plugins-reference#themes> | 2026-08-06 |
+| Themes (`themes/`) | <https://code.claude.com/docs/en/plugins/components#themes-and-output-styles> | 2026-10-01 |
 | Monitors (`monitors/monitors.json`) | <https://code.claude.com/docs/en/plugins-reference#monitors> | 2026-08-06 |
 | Channels (`channels` manifest field) | <https://code.claude.com/docs/en/channels> | 2026-08-06 |
-| Executables (`bin/`) | <https://code.claude.com/docs/en/plugins-reference#file-locations-reference> | 2026-08-06 |
+| Executables (`bin/`) | <https://code.claude.com/docs/en/plugins/components#executables> | 2026-10-01 |
 | Settings (`settings.json` defaults) | <https://code.claude.com/docs/en/settings> | 2026-08-12 |
 | Dependencies (`dependencies` manifest field) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-08-06 |
 
@@ -130,8 +130,10 @@ master list is
 | Page | Official doc page | As of |
 |---|---|---|
 | Prompting best practices (all current models) | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices> | 2026-08-08 |
+| Prompting Claude Fable 5.1 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1> | 2026-10-01 |
 | Prompting Claude Fable 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5> | 2026-08-08 |
 | Prompting Claude Opus 5.5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5> | 2026-09-23 |
+| Prompting Claude Sonnet 5.5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5> | 2026-10-01 |
 | Prompting Claude Sonnet 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5> | 2026-08-08 |
 | Prompting Claude Opus 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5> | 2026-08-08 |
 | Prompting Claude Opus 4.8 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8> | 2026-08-08 |

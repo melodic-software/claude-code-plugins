@@ -303,7 +303,11 @@ main-side.
 - **Sanity Check:** `test -f plugins/playbooks/reference/model-adaptation/sonnet-5-5.md`, and `grep -c 'sonnet-5-5.md' plugins/playbooks/skills/fable-5/SKILL.md` prints at least 1.
 - **Sanity Check:** `grep -c 'sonnet-5-5' plugins/playbooks/skills/fable-5/evals/evals.json` prints at least 1, and `/skill-quality:check validate-evals fable-5` passes.
 
-### Phase 3: Tiers, effort floor, agent pins and safeguards [TODO]
+### Phase 3: Tiers, effort floor, agent pins and safeguards [DONE]
+
+Done 2026-10-01. Fresh-context verifier: 9/10, then the pointer criterion re-verified over 49
+records and 67 anchors. Its last record gaps, the probe pointers and the agents' finish sections
+were fixed and re-read main-side. Pins: nine `high`, six `medium`.
 
 - [ ] `docs/plugin-philosophy.md`:
   - :1098-1105: the tier table names aliases (`sonnet`, `haiku`; session model for consequential verdicts), points at Claude Code's model page, and documents the override points (Q11).

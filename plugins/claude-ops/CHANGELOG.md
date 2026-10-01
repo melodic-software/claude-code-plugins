@@ -16,6 +16,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   fallback and quality-tracker notes, the hook-latency event record and the plugin scope
   semantics each state our decision and point at the docs section or at our own probe, instead of
   restating the page.
+- **The `known-issues` model-fallback note was re-read after its trigger fired.** It now covers a
+  refusal when a flagged category has no fallback target, with a 2026-10-01 as-of date.
 
 ## [0.79.0] - 2026-10-01
 
