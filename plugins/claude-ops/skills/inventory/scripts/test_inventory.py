@@ -1157,6 +1157,81 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertEqual(notes["unresolved_names"], ["qq9"])
         self.assertEqual(notes["resolved"], notes["definitions_seen"] - 1)
 
+    def test_a_spread_reads_its_own_scope_not_the_nearest_binding(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];function g(){let pY=p(1);return pY}'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+        self.assertEqual(rec["disallowed_tools_source"], "literal")
+
+    def test_a_spread_of_a_non_constant_binding_stays_partial(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];var pY=c?[xt]:[yt];'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent"])
+        self.assertEqual(rec["disallowed_tools_source"], "partial")
+
+    def test_a_spread_another_function_reassigns_stays_partial(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];function init(){pY=["Other"]}init();'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent"])
+        self.assertEqual(rec["disallowed_tools_source"], "partial")
+
+    def test_a_spread_written_off_the_straight_line_stays_partial(self) -> None:
+        for prelude in (
+            'var pY=[xt,"Artifact"];if(c){pY=["Other"]}',
+            'var pY=[xt,"Artifact"];for(;;){pY=["Other"]}',
+            'var pY=[xt,"Artifact"];var f=()=>pY=["Other"];f();',
+            'var f=()=>pY=["Other"];var pY=[xt,"Artifact"];f();',
+            'var pY=[xt,"Artifact"];if(c)pY=["Other"];',
+            'var pY=[xt,"Artifact"];pY=c?["Other"]:pY;',
+            'var pY=[xt,"Artifact"];c&&(pY=["Other"]);',
+            'var pY=[xt,"Artifact"];for(;;)pY=["Other"];',
+            'var pY=[xt,"Artifact"];if(c){var pY=f()}',
+        ):
+            src = AGENT_SRC + (
+                prelude + 'var SP={agentType:"spread-probe",'
+                'whenToUse:"s",source:"built-in",disallowedTools:[yt,...pY],'
+                'getSystemPrompt:()=>""};'
+            )
+            rec = self._extract(src)[0]["spread-probe"]
+            self.assertEqual(rec["disallowed_tools_source"], "partial", prelude)
+
+    def test_a_spread_declared_after_a_function_declaration_resolves(self) -> None:
+        src = AGENT_SRC + (
+            'function h(){return 1}var a="x",b=["y","z"],pY=[xt,"Artifact"],q=1;'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+        self.assertEqual(rec["disallowed_tools_source"], "literal")
+
+    def test_a_spread_whose_writer_shadows_the_name_still_resolves(self) -> None:
+        for writer in (
+            'function g(){let pY=[];pY=["Other"]}',
+            'if(c){let pY=f();pY=["Other"]}',
+        ):
+            src = AGENT_SRC + (
+                'var pY=[xt,"Artifact"];' + writer + 'var SP={agentType:"spread-probe",'
+                'whenToUse:"s",source:"built-in",disallowedTools:[yt,...pY],'
+                'getSystemPrompt:()=>""};'
+            )
+            rec = self._extract(src)[0]["spread-probe"]
+            self.assertEqual(
+                rec["disallowed_tools"], ["Agent", "Edit", "Artifact"], writer
+            )
+
     def test_no_roster_leaves_every_agent_absent(self) -> None:
         agents, notes = self._extract(AGENT_SRC.split("function R()")[0])
         self.assertFalse(notes["roster_found"])
