@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.4] - 2026-10-01
+
+### Added
+
+- **A guard test for malformed inline `--path` calls** ([#4225](https://github.com/melodic-software/claude-code-plugins/issues/4225)). Both guard modes must deny `handoff-verify` and `handoff-apply` calls whose `--path` has no value, is joined as `--path=value`, is abbreviated, sits beside `--paths`, is empty or flag-shaped, or carries an expansion, glob, `~`, backslash, substitution or chained command. The engine's parser accepts the joined spelling, and on `handoff-apply` the abbreviated one, so the guard is the only thing that refuses them. No behavior changes.
+
+## [0.42.3] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks launch through it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/disk-hygiene:check`, which already probes it.
+
 ## [0.42.2] - 2026-09-30
 
 ### Fixed

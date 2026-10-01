@@ -72,9 +72,8 @@ tool that needs it, so long-running workflows can route heavy work away from a d
   a non-ISO `captured_at`, a snapshot whose embedded `session_id` differs from the requested one,
   or missing `jq` all resolve `unknown`. Consumers take their conservative path on data they
   cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults.
-  `zones.json` is the tuning path. The reader contract owns the published exception list,
-  including the native 1M window compacting before the window fills (about 967K tokens on the
-  model-config page re-read 2026-09-28). The trigger itself is operator-tunable: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
+  `zones.json` is the tuning path. The reader contract points at the model-config page's default
+  auto-compact thresholds and records how they relate to the bands. The trigger itself is operator-tunable: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and
   `autoCompactEnabled` / `DISABLE_AUTO_COMPACT`. Bands belong **below** whatever it resolves
   to, normalized into the percentage shape, so the session reaches a boundary decision before the
   harness compacts for it. Note that `used_percentage` always measures against the model's *full*
@@ -299,7 +298,7 @@ zone resolver, and the standalone statusline. Every hook row runs through `node 
 so the hooks need [Node.js](https://nodejs.org/en/download) on `PATH`: Claude Code's native binary
 neither ships nor uses Node ([setup](https://code.claude.com/docs/en/setup)), and without it the
 hooks do not launch and are not enforced. The statusline tee does not use Node.
-`/context-guard:setup check` reports both prerequisites. The snapshot updates only while an interactive
+`/context-guard:setup check` reports both prerequisites; `/context-guard:check` reports whether `node` and `jq` resolve. The snapshot updates only while an interactive
 session refreshes the statusline; `context_window` fields can be `null` early in a session and
 right after `/compact`, per the
 [statusline reference](https://code.claude.com/docs/en/statusline). Readers own null handling.

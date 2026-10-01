@@ -960,6 +960,7 @@ assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
 OVER=$((ROW_CAP + 1))
 QS=$(rep '$(:)' "$OVER")
 NL=$'\n'
+TAB=$'\t'
 cap_quoted() { # <label> <expected rc> <command>
   cap_run "$(tool_payload Bash "$3")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
   assert_exit "cap quoted: $1" "$2" "$RC"
@@ -996,14 +997,38 @@ cap_quoted "a span after \\\$ counts" 2 "echo \\\$'$QS'"
 cap_quoted "a quote in a comment counts the rest" 2 "# it's${NL}echo '$QS'"
 cap_quoted "a backtick outside a span counts the rest" 2 "echo \`:\` '$QS'"
 cap_quoted "a substitution in double quotes counts the rest" 2 "echo \"\$(:)\" '$QS'"
-for form in "'EOF'" '"EOF"' '\EOF'; do
-  cap_quoted "a <<$form body counts" 2 "cat <<$form${NL}$QS${NL}EOF"
-  cap_quoted "$OVER backtick pairs in a <<$form body count" 2 "cat <<$form${NL}$(rep '`:`' "$OVER")${NL}EOF"
+# A quoted-delimiter heredoc body does not count; bash expands an unquoted one.
+for form in "'EOF'" '"EOF"' '\EOF' "E'O'F"; do
+  cap_quoted "a <<$form body reaches the guards" 0 "cat <<$form${NL}$QS${NL}EOF"
+  cap_quoted "$OVER backtick pairs in a <<$form body reach the guards" 0 "cat <<$form${NL}$(rep '`:`' "$OVER")${NL}EOF"
 done
-cap_quoted "a <<-'EOF' body counts" 2 "cat <<-'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a <<-'EOF' body ends at a tab-indented terminator" 0 "cat <<-'EOF'${NL}$QS${NL}${TAB}EOF"
+cap_quoted "a <<'EOF' body does not end at a tab-indented line" 2 "cat <<'EOF'${NL}$QS${NL}${TAB}EOF"
+cap_quoted "a PR body through --body-file - reaches the guards" 0 "gh pr create --title 'x' --body-file - <<'EOF'${NL}$(rep 'Run `check` first. ' 300)${NL}EOF"
+cap_quoted "a body ends at its own terminator, not a longer line" 0 "cat <<'EOF'${NL}EOFX${NL}$QS${NL}EOF"
+XS=$(rep '$(: x) ' "$OVER")
+cap_quoted "$OVER \$(: x) in a <<'EOF' body reach the guards" 0 "cat <<'EOF'${NL}$XS${NL}EOF"
+cap_quoted "$OVER \$(: x) in an unquoted <<EOF body count" 2 "cat <<EOF${NL}$XS${NL}EOF"
+cap_quoted "$OVER \$(: x) after a <<'EOF' body count" 2 "cat <<'EOF'${NL}x${NL}EOF${NL}echo $XS"
 cap_quoted "an unquoted <<EOF body counts" 2 "cat <<EOF${NL}$QS${NL}EOF"
+cap_quoted "an expanding heredoc counts" 2 "cat <<EOF${NL}\$(rm -rf /) $QS${NL}EOF"
+cap_quoted "an empty delimiter counts" 2 "cat <<''${NL}$QS${NL}"
 cap_quoted "a quoted heredoc body with no terminator counts" 2 "cat <<'EOF'${NL}$QS"
+cap_quoted "text after the terminator counts" 2 "cat <<'EOF'${NL}x${NL}EOF${NL}echo $QS"
+cap_quoted "a single-quoted span after a body counts" 2 "cat <<'EOF'${NL}don't${NL}EOF${NL}echo '$QS'"
+cap_quoted "a second heredoc on the line counts" 2 "cat <<'A' <<'EOF'${NL}x${NL}A${NL}$QS${NL}EOF"
+cap_quoted "a quote after the delimiter counts" 2 "cat <<'EOF' # it's${NL}$QS${NL}EOF"
 cap_quoted "a heredoc inside \"\$(...)\" counts" 2 "git commit -m \"\$(cat <<'EOF'${NL}$QS${NL}EOF${NL})\""
+cap_quoted "a heredoc inside \$(...) counts" 2 "x=\$(cat <<'EOF'${NL}$QS${NL}EOF${NL})"
+cap_quoted "a heredoc fed to a shell counts" 2 "bash <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc piped to a shell counts" 2 "cat <<'EOF' | sh${NL}$QS${NL}EOF"
+cap_quoted "a heredoc sourced from stdin counts" 2 "source /dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc dotted from stdin counts" 2 ". /dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc dotted after a separator counts" 2 "cd x; . /dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc dotted from a tab-separated file counts" 2 ".${TAB}/dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc dotted through \$IFS counts" 2 ".\$IFS/dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc dotted through \${IFS} counts" 2 ".\${IFS}/dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a dot inside a word does not count a quoted body" 0 "cat ./a.txt <<'EOF'${NL}$QS${NL}EOF"
 cap_quoted "a span in (( )) counts" 2 "(( '$QS' ))"
 cap_quoted "a span in \${x:offset} counts" 2 "echo \${x:'$QS'}"
 cap_quoted "a span in an array subscript counts" 2 "a['$QS']=5"
@@ -1059,6 +1084,16 @@ cap_run "$(tool_payload Bash "echo '$(rep '$(: rm)' 2300)'; rm -rf /")" "${BASH_
 assert_exit "cap row: a root delete after them is refused" 2 "$RC"
 assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem root"
 assert_absent "cap row: the count did not" "$ERR" "$CAP_MSG"
+# A quoted heredoc body reaches the guards, and the root-delete guard still
+# reads the substitutions in it. Fed to a shell, the body counts.
+cap_run "$(tool_payload Bash "cat <<'EOF'${NL}$(rep '$(: rm) ' 2000)${NL}EOF")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: 2,000 substitutions in a quoted heredoc body reach the guards" 0 "$RC"
+cap_run "$(tool_payload Bash "bash <<'EOF'${NL}\$(rm -rf /)${NL}EOF")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: bash <<'EOF' with a root delete in a substitution is refused" 2 "$RC"
+assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem root"
+cap_run "$(tool_payload Bash "bash <<'EOF'${NL}$(rep '$(: rm) ' 300)rm -rf /${NL}EOF")" "${BASH_ROW_ARGS[@]}"
+assert_exit "cap row: bash <<'EOF' with 300 substitutions then a root delete is refused" 2 "$RC"
+assert_contains "cap row: that one is refused by the count" "$ERR" "$CAP_MSG"
 # --- over-length: the first block ends the chain (#4528) ----------------------
 # Past --max-command-len the guards after a block would only add reasons to a
 # decided verdict, and a row that outlives its hooks.json timeout is cancelled

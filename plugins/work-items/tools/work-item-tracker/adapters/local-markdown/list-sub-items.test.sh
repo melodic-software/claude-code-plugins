@@ -10,17 +10,23 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../../work-item-tracker.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
+# The tracker reads a .work-item-tracker.local.json overlay beside the binding, so
+# the binding gets a private directory rather than the shared $TMPDIR.
 STORAGE="$(mktemp -d)"
-BINDING="$(mktemp)"
+BINDING_DIR="$(mktemp -d)"
+BINDING="$BINDING_DIR/binding.json"
 jq -cn --arg dir "$STORAGE" \
   '{schema_version: "1.0", provider: "local-markdown", config: {lease_ttl_hours: 24, storage_dir: $dir}}' \
   >"$BINDING"
 export WORK_ITEM_TRACKER_BINDING="$BINDING"
 cleanup() {
   rm -rf "$STORAGE" "${STORAGE_REAL:-}"
-  rm -f "$BINDING"
+  rm -rf "$BINDING_DIR"
 }
 trap cleanup EXIT
+
+assert_eq "binding sits in a private dir, not the shared TMPDIR" \
+  "no" "$([[ "$(dirname "$BINDING")" == "${TMPDIR:-/tmp}" ]] && echo yes || echo no)"
 
 new() { bash "$TRACKER" create-item "$@" | jq -r '.id'; }
 

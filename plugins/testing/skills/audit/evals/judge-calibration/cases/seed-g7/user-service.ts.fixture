@@ -1,0 +1,7 @@
+export class UserService {
+  constructor(private readonly repo: { get(id: number): unknown }) {}
+
+  get(id: number) {
+    return this.repo.get(id);
+  }
+}

@@ -1,0 +1,7 @@
+import { cartTotal } from '../src/cart';
+
+test('totals the cart', () => {
+  const lines = [{ qty: 2, price: 3 }, { qty: 1, price: 4 }];
+  // expected value from the spec
+  expect(cartTotal(lines)).toBe(lines.reduce((t, l) => t + l.qty * l.price, 0));
+});

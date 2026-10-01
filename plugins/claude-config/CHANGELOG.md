@@ -48,6 +48,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   fallback-model, effort-default and managed-settings rows are reduced to firing rules plus
   pointers.
 
+## [0.55.4] - 2026-10-01
+
+### Changed
+
+- `audit-instructions` criteria I8-c and I10 and `audit-prompting-postures` P2, P5 and P6 cover `sonnet-5-5`.
+
 ## [0.55.3] - 2026-09-30
 
 ### Fixed

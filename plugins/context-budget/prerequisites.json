@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "node",
+      "check": "/context-budget:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    }
+  ]
+}

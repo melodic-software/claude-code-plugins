@@ -551,7 +551,7 @@ target model.
   the Opus 5 guide starts using "nitpick".
 
 **Row I8-c: don't-think / don't-reason directive** · Tier `behavioral` · Model scope: `opus-5`,
-`opus-5-5`.
+`opus-5-5`, `sonnet-5-5`.
 **The scope is positively confirmed narrow rather than merely unsourced.** A second page states the
 claim (see Source), and it is a model-agnostic feature page, the surface where a wider claim would
 appear, yet it names Claude Opus 5 anyway. The promotion gate stays unmet by upstream's own

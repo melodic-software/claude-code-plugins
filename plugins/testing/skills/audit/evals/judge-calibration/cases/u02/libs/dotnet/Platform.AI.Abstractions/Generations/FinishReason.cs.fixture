@@ -1,0 +1,10 @@
+namespace Platform.AI.Abstractions.Generations;
+
+public enum FinishReason
+{
+    Complete,
+    MaxTokens,
+    StopSequence,
+    ContentPolicy,
+    ToolCall,
+}

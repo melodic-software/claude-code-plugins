@@ -12,13 +12,13 @@ Set effort to 'max'. Claude reasons longer, uses as many tokens as needed. Burns
 > /effort max
 ```
 
-Five levels: low, medium, high, xhigh, max. The default is `high` (`xhigh` on Opus 4.7). Use 'max' for hard debugging, architecture decisions, tricky code where Claude needs to think it through.
+Use 'max' for hard debugging, architecture decisions, tricky code where Claude needs to think it through.
 
-> **Amended (verified 2026-09-23 against
-> [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)):**
-> the default is `high` on every model that supports effort except Opus 5.5, which defaults to
-> `medium`, and Opus 4.7, which defaults to `xhigh`. That page owns the current defaults. **Recheck
-> trigger:** a re-fetch of that page naming different defaults.
+> **Amended:** the levels a model offers and its default level vary by model. For the current
+> levels and defaults, see
+> [Claude Code model config, "Choose an effort level"](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+> **As of:** 2026-09-30. **Recheck trigger:** that section is renamed or removed, or stops stating
+> each model's default level.
 
 Source: https://x.com/trq212/status/2032632596572811575
 

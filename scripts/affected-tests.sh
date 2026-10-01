@@ -230,8 +230,38 @@
 # Measured on the corpus as it stands, the strip re-admits two (file, basename)
 # pairs in total, one of which R3/R4 discards anyway as a structural basename.
 #
+# SKILL OWNERSHIP. Skills reuse reference and script names freely, so inside a
+# skill directory, plugins/<plugin>/skills/<skill>/, that carries its own <file>,
+# a bare <file> means that one, never another skill's file of the same name.
+# When every frontier file carrying a basename sits inside a skill directory, a
+# hit keeps the pair only when one of these holds:
+#   - the hit lies inside one of those same skill directories and its line does
+#     not name the file only through another skill;
+#   - the matched line spells the file path-qualified: a path token ending in
+#     /<file> with <skill>/ as one of its components, which the repo-relative
+#     path also satisfies. A token that spells plugins/<plugin>/skills/<skill>/
+#     must match the owning plugin as well as the skill;
+#   - the line mentions the file bare, or under a path that does not run through
+#     skills/<other>/, and the hit's own skill directory, if it has one,
+#     carries no file of that basename.
+# A path token through skills/<other>/ names another skill's file and never keeps
+# the pair, wherever the hit lives. A bare mention inside a skill that carries
+# its own file of that name is that skill citing its own file, and is dropped
+# too. A skill WITHOUT such a file keeps the pair, because its plain mention can
+# only mean somebody else's file: a test reaching a sibling skill's script as
+# `$<VAR>/<file>`, or building the path from parts, spells no skill name.
+#
+# A basename any frontier file carries OUTSIDE a skill directory keeps the plain
+# basename rule for every hit, and that is what leaves R5 untouched: its shared
+# sources live outside skill directories, and a source that sits in one enters
+# the frontier on the same level as its copies, so each copy's own skill is one
+# of the owners and that skill's suites still match it bare. A copy changed on
+# its own, apart from its source, no longer reaches the other copies' suites; R5
+# fans out from the source, and the sync lane gates a copy that drifts from it.
+#
 # Three things stay deliberately generous, all in the over-selecting direction:
-#   - a token match on the SAME basename in ANOTHER directory counts. This is a
+#   - a token match on the SAME basename in ANOTHER directory counts for any
+#     basename a frontier file carries outside a skill directory. There it is a
 #     basename rule and has to stay one: R5's entire fan-out is copies that share
 #     a basename across directories (lib/hook-utils.sh ->
 #     plugins/*/hooks/hook-utils.sh), so a suite naming its own plugin's copy is
@@ -250,8 +280,8 @@
 # minutes for that same level, which is not a usable per-level cost. So git grep
 # still finds the candidate LINES with the substring test, and one awk pass over
 # those lines (~0.06s) splits each into path tokens and keeps only the pairs
-# whose token IS one of the basenames asked about. Both stages fail loud; see
-# the call site in select_for.
+# whose token IS one of the basenames asked about and that SKILL OWNERSHIP lets
+# stand. Both stages fail loud; see the call site in select_for.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -596,18 +626,26 @@ lang_family() {
   esac
 }
 
-# token_hits <patterns-file> <grep-output-file> <hits-file>
+# token_hits <patterns> <frontier> <skill-files> <grep-output> <hits>
 # Reduce `git grep`'s SUBSTRING hits to the TOKEN hits R3/R4 actually mean: keep
 # a (file, basename) pair only where that basename stands in the matched line as
-# a whole path token. See MATCHING in the header for the rule and for why the
-# boundary test lives here instead of in the grep pattern.
+# a whole path token, and, for a basename only skill directories carry, only
+# where SKILL OWNERSHIP lets the line mean that file. See MATCHING in the header
+# for both rules and for why they live here instead of in the grep pattern.
 #
-# The input is git grep's `<path>:<line>` output; the output is `<path>:<name>`,
-# deduplicated, which is the shape the caller already parses. Splitting the LINE
-# rather than the path keeps a basename that appears only in the path prefix
-# from counting as a mention of itself.
+# The frontier file lists the paths whose basenames this level asked about, so a
+# basename traces back to the skill directories that own it; the skill-files
+# list says which skills carry a file of that name of their own. The grep input
+# is `<path>:<line>`; the output is `<path>:<name>`, deduplicated, which is the
+# shape the caller already parses. Splitting the LINE rather than the path keeps
+# a basename that appears only in the path prefix from counting as a mention of
+# itself.
 token_hits() {
-  awk -v pat="$1" '
+  awk -v pat="$1" -v front="$2" -v skills="$3" '
+    function skill_dir(p) {
+      if (match(p, "^plugins/[^/]+/skills/[^/]+/")) return substr(p, 1, RLENGTH)
+      return ""
+    }
     # First file: the basenames this level asked about. A name that is itself a
     # path token gets the exact test; anything else cannot be tokenized at all,
     # so it keeps the old substring test rather than losing coverage silently.
@@ -617,10 +655,73 @@ token_hits() {
       else loose[$0] = 1
       next
     }
-    function keep(path, name) {
+    # Second file: the frontier paths. A basename any of them carries outside a
+    # skill directory keeps the plain basename rule; the rest record the skill
+    # directories and skill names that own them.
+    FILENAME == front {
+      if ($0 == "") next
+      n = split($0, c, "/")
+      d = skill_dir($0)
+      if (d == "") free[c[n]] = 1
+      else {
+        k = ++nowner[c[n]]
+        odir[c[n], k] = d
+        oskill[c[n], k] = c[4]
+      }
+      next
+    }
+    # Third file: every file inside a skill directory, as <skill dir><basename>.
+    FILENAME == skills {
+      carries[$0] = 1
+      next
+    }
+    # mine_tok: does this path token (leading slash added) name the file through
+    # an owning skill? A token that spells the plugin must match the owning
+    # plugin and skill both; one that spells only the skill matches by name.
+    function mine_tok(q, name,   k, full) {
+      full = match(q, "/plugins/[^/]+/skills/[^/]+/") ? substr(q, RSTART, RLENGTH) : ""
+      for (k = 1; k <= nowner[name]; k++) {
+        if (full != "") { if (full == "/" odir[name, k]) return 1 }
+        else if (index(q, "/" oskill[name, k] "/")) return 1
+      }
+      return 0
+    }
+    # owned: may this line in this file stand for a frontier file of that name?
+    function owned(path, name, text,   hd, k, n, j, pt, q, named, plain, mine, own) {
+      if ((name in free) || !(name in nowner)) return 1
+      hd = skill_dir(path)
+      own = 0
+      for (k = 1; k <= nowner[name]; k++)
+        if (hd == odir[name, k]) own = 1
+      named = 0
+      plain = 0
+      mine = 0
+      n = split(text, ptok, "[^A-Za-z0-9_./-]+")
+      for (j = 1; j <= n; j++) {
+        pt = ptok[j]
+        sub(/\.+$/, "", pt)
+        sub(/^[-+=?.]+/, "", pt)
+        if (pt != name && substr(pt, length(pt) - length(name)) != "/" name) continue
+        named = 1
+        q = "/" pt
+        if (mine_tok(q, name)) mine = 1
+        else if (!index(q, "/skills/")) plain = 1
+      }
+      if (mine) return 1
+      # A mention this split cannot place counts as plain: over-select. Inside an
+      # owning skill, a plain mention is that skill citing its own file.
+      if (own) return plain || !named
+      return (plain || !named) && !((hd name) in carries)
+    }
+    function emit(path, name) {
       if ((path SUBSEP name) in seen) return
       seen[path SUBSEP name] = 1
       print path ":" name
+    }
+    # A rejected line does not mark the pair seen: a later line may qualify it.
+    function keep(path, name, text) {
+      if ((path SUBSEP name) in seen) return
+      if (owned(path, name, text)) emit(path, name)
     }
     {
       i = index($0, ":")
@@ -633,25 +734,25 @@ token_hits() {
       for (j = 1; j <= n; j++) {
         t = tok[j]
         if (t == "") continue
-        if (t in want) { keep(path, t); continue }
+        if (t in want) { keep(path, t, text); continue }
         # A trailing dot run is sentence punctuation (a comment ending "... in
         # that suite."), and a leading one is an ellipsis butted against the
         # name. Neither is part of a filename. The leading arm is the narrow
         # one: a relative path needs no stripping, because the `/` in `./x`
         # already delimits the token, so it fires only on a literal `...x`.
         sub(/\.+$/, "", t)
-        if (t in want) { keep(path, t); continue }
+        if (t in want) { keep(path, t, text); continue }
         # The leading strip also drops a run of parameter-expansion operator
         # characters, so `${V:-<name>}` names <name>. Only `-` is load-bearing:
         # it is the one operator character inside the token class, so it glues
         # onto the name instead of ending the token. See MATCHING in the header.
         sub(/^[-+=?.]+/, "", t)
-        if (t in want) keep(path, t)
+        if (t in want) keep(path, t, text)
       }
       for (name in loose)
-        if (index(text, name) > 0) keep(path, name)
+        if (index(text, name) > 0) emit(path, name)
     }
-  ' "$1" "$2" >"$3"
+  ' "$1" "$2" "$3" "$4" >"$5"
 }
 
 # colocated_suites <path> -> every sibling suite covering it, one per line.
@@ -740,6 +841,7 @@ select_for() {
 
   while [[ ${#frontier[@]} -gt 0 ]]; do
     : >"$WORK_DIR/patterns"
+    : >"$WORK_DIR/frontier"
     next=()
     for p in "${frontier[@]}"; do
       [[ -n "${VISITED[$p]:-}" ]] && continue
@@ -778,6 +880,7 @@ select_for() {
         [[ "${CROSSED[$p]:-0}" == "0" ]] && PATTERN_CROSSED["$b"]=0
       fi
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
+      printf '%s\n' "$p" >>"$WORK_DIR/frontier"
     done
 
     [[ -s "$WORK_DIR/patterns" ]] || break
@@ -814,7 +917,8 @@ select_for() {
     # The boundary half of the lookup, and fatal for the same reason: a filter
     # that dies mid-stream hands the walk a TRUNCATED hit set, which is an
     # under-selection wearing a successful exit code.
-    if ! token_hits "$WORK_DIR/patterns" "$WORK_DIR/matched-lines" "$WORK_DIR/hits"; then
+    if ! token_hits "$WORK_DIR/patterns" "$WORK_DIR/frontier" "$WORK_DIR/skill-files" \
+      "$WORK_DIR/matched-lines" "$WORK_DIR/hits"; then
       echo "error: the token filter over the reverse lookup failed on the current level." >&2
       echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
       echo "       under-selection is reported as success by everything downstream." >&2
@@ -1003,6 +1107,19 @@ fi
 
 build_sync_map
 load_no_suite_patterns
+# Every file inside a skill directory, listed once for SKILL OWNERSHIP as
+# `plugins/<plugin>/skills/<skill>/<basename>`: the file set the reverse lookup
+# greps, and fatal on failure for the same reason, since a missing list would
+# read as "no skill carries its own copy of any name".
+if ! git ls-files --cached --others --exclude-standard -- 'plugins/*/skills/*' \
+  >"$WORK_DIR/skill-files.raw" ||
+  ! awk '{
+      n = split($0, c, "/")
+      if (match($0, "^plugins/[^/]+/skills/[^/]+/")) print substr($0, 1, RLENGTH) c[n]
+    }' "$WORK_DIR/skill-files.raw" >"$WORK_DIR/skill-files"; then
+  echo "error: listing the skill directories failed." >&2
+  exit 2
+fi
 
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do

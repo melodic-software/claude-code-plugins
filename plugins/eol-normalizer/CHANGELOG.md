@@ -3,6 +3,18 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/eol-normalizer:check`, which probes it.
+
+## [0.8.0] - 2026-10-01
+
+### Added
+
+- **`/eol-normalizer:check` reads whether `jq` resolves for the eol-normalizer hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
 ## [0.7.12] - 2026-09-30
 
 ### Changed

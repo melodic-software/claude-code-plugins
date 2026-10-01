@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that the biome binary resolves for the biome-format hook. Use when a hook notice says biome is missing, or before assuming Biome formatting ran. Does not install."
+description: "Read-only check that biome and node resolve for the biome-format hook. Use when a hook notice says biome or node is missing, or before assuming Biome formatting ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether the biome binary is installed. Never installs.
+  summary: Report whether biome and node are installed. Never installs.
 ---
 
 ## Purpose

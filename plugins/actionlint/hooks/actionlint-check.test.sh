@@ -610,13 +610,13 @@ fi
 
 # --- Notice text is bound to prerequisites.json --------------------------------
 # The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest has exactly one tool,
-# actionlint, and the hook's missing-binary notice call states that tool's name,
+# path), so this case is the binding: the manifest lists actionlint, jq and node,
+# and the hook's missing-binary notice call states the actionlint tool's name,
 # check and install, verbatim.
-if jq -e '(.tools | length) == 1 and .tools[0].name == "actionlint"' "$MANIFEST" >/dev/null 2>&1; then
-  ok "manifest: exactly one tool, actionlint"
+if jq -e '(.tools | map(.name)) == ["actionlint", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+  ok "manifest: declares exactly actionlint, jq and node"
 else
-  fail "manifest: expected one tool named actionlint: $(cat "$MANIFEST")"
+  fail "manifest: expected tools actionlint, jq and node: $(cat "$MANIFEST")"
 fi
 NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to AL_NOTICE/,/[^\\]$/p' "$HOOK")"
 # assert_hook_states <field> <needle>

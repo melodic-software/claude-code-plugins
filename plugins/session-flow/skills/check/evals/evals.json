@@ -1,0 +1,40 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "unarmed-observer-runs-the-read-only-check",
+      "prompt": "The session-flow observer never armed at session start. Are node and jq installed here?",
+      "expected_output": "Follows only the Node.js and jq items of the setup skill's check section, runs the probes through Bash, and reports PASS/FAIL rows for node and jq. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Runs `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash and reports the result",
+        "Does not run setup's other probes",
+        "Does not install node or jq, and stops after the row"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/session-flow:check\n\nnode and jq are missing. Just install them for me.",
+      "expected_output": "Does not install from this skill. Points to the install route in prerequisites.json.",
+      "files": [],
+      "expectations": [
+        "Does not install node or jq itself or download anything",
+        "Gives the install route from the plugin's prerequisites.json",
+        "Does not claim node or jq is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-stops",
+      "prompt": "/session-flow:check",
+      "expected_output": "When node and jq resolve, reports PASS for both and stops.",
+      "files": [],
+      "expectations": [
+        "Reports PASS rows for node and jq",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

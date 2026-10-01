@@ -35,6 +35,12 @@ only after that version increases.
   a derived file read for stated values only, never numbers from drawn geometry. Each correction
   round pairs its occurrence sweep per fixed class with a differently worded second search.
 
+## [0.14.14] - 2026-10-01
+
+### Changed
+
+- The `docpage-digest` Anthropic docs queue lists the Sonnet 5.5 prompting guide.
+
 ## [0.14.13] - 2026-09-30
 
 ### Changed

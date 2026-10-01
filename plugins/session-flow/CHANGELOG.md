@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.41.3] - 2026-10-01
+## [0.44.1] - 2026-10-01
 
 ### Changed
 
@@ -13,6 +13,30 @@
 - **`orchestrate` no longer gives non-work steps a self-check.** A step that is not the work gets
   no verifier. The workflow size anchor is re-derived (5 to 9 agents medium, 10 or more large, and
   read the size guideline in force), and the workflow-concurrency override is recorded.
+
+## [0.44.0] - 2026-10-01
+
+### Added
+
+- **`check-usage-limit-reset.py --received <ISO-8601>`.** A limit message states only a clock time, so the reset resolves to the first occurrence at or after the time the message appeared. `/session-flow:keep-going` passes it. Without the flag the behavior is unchanged. A reset time inside a DST fall-back hour resolves to the earliest of its two instants at or after the message. `SKILL.md` tells the agent to read stderr on exit `2`, since a malformed `--received` also exits `2`.
+
+## [0.43.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/session-flow:check`, which probes it.
+
+## [0.43.0] - 2026-10-01
+
+### Added
+
+- **`/session-flow:check` reads whether `jq` resolves for the observer hook.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.42.0] - 2026-10-01
+
+### Fixed
+
+- **A handoff chain no longer repeats per-hop lines in its cumulative sections** ([#5636](https://github.com/melodic-software/claude-code-plugins/issues/5636)). The constraints re-scan attestation now goes on a `Re-scan:` line in `## This session`, which is rewritten each hop, instead of a Constraints entry that every later hop copied forward. `validate` accepts one such line after the `did/left` line, `new` emits its slot, and attestation entries already carried in Constraints stay ordinary entries. `validate` also warns when a new cumulative entry duplicates a carried one (compared without the `[hN]` tag or `UNVERIFIED` prefix, ignoring spacing and case; the oldest tagged entry stays) and when a handoff file passes 300 lines, the margin under the Read tool's single-read cap. `UNVERIFIED (predecessor failed validation)` entries still do not expire; `reference/structure.md` says so.
 
 ## [0.41.2] - 2026-09-30
 

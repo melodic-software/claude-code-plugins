@@ -86,8 +86,8 @@ def runtime_path(rel):
 
 
 WAIT_MAX = 120
-QUIET_SECONDS = 0.3  # a found event waits this long for more before the watcher wakes
-BURST_SECONDS = 2.0  # never holding it longer than this in all
+QUIET_SECONDS = 3.0  # a found event waits this long for more before the watcher wakes
+BURST_SECONDS = 12.0  # never holding it longer than this in all
 PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
 READING_WINDOW = 180  # seconds Claude is shown as reading after an answer was delivered
@@ -533,10 +533,13 @@ def replace_into(tmp, path):
 
 
 def mtime(path):
+    """A change stamp for path, 0 when missing. Size and inode ride with the mtime: a coarse file
+    clock gives two writes the same time, and each atomic replace is a new inode."""
     try:
-        return path.stat().st_mtime_ns
+        st = path.stat()
     except FileNotFoundError:
         return 0
+    return (st.st_mtime_ns, st.st_size, st.st_ino)
 
 
 def is_handled(doc, seq):
@@ -852,9 +855,10 @@ class Hub:
             "since": now_iso(lease["since"]),
             "lastWaitAt": now_iso(lease["last"]),
             "waiting": lease["inflight"] > 0,
+            "pid": lease.get("pid"),
         }
 
-    def claim(self, watcher):
+    def claim(self, watcher, pid=None):
         """Take or refresh the lease for watcher and count its wait in flight; call under cond.
 
         Granted when no lease is held, when watcher holds it, or when the holder has no wait in
@@ -888,6 +892,8 @@ class Hub:
             }
         lease["inflight"] += 1
         lease["last"] = now
+        # Each arm is a new process, so the newest poll names the watcher that stop must end.
+        lease["pid"] = pid
         return lease
 
     def listener(self):
@@ -932,6 +938,7 @@ class Hub:
             mtime(self.layers.repo_file) if self.layers.repo_file else 0,
             mtime(Path(user)) if user else 0,
             self.listener()["state"],
+            self.lease_view() is not None,
         )
 
     def watched(self):
@@ -947,6 +954,11 @@ class Hub:
             return 0
 
     def state(self):
+        return self.read_state()[0]
+
+    def read_state(self):
+        """(state, stale); stale means the read failed and the last good state was reused."""
+        stale = False
         try:
             q = load_json(self.questions, {"questions": []})
             r = load_json(self.responses, EMPTY_RESPONSES)
@@ -976,13 +988,14 @@ class Hub:
         except RuntimeError:
             if self._last_state is None:
                 raise
+            stale = True
         return {
             **self._last_state,
             "listener": self.listener(),
             "session": self.session,
             "instance": self.instance,
             "api": API,
-        }
+        }, stale
 
     def record(self, msg):
         """Append one page event. Returns (seq, contentRev or None, extra), where extra is the
@@ -1184,10 +1197,11 @@ class Hub:
             if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
         ]
 
-    def settle(self, r):
-        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all,
-        so a burst of saves wakes the watcher once. Holds self.cond; returns the newest responses."""
-        cap = time.time() + BURST_SECONDS
+    def settle(self, r, deadline=float("inf")):
+        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all
+        and never past `deadline`, so a burst of saves wakes the watcher once and the reply still
+        lands inside the watcher's transfer timeout. Holds self.cond; returns the newest responses."""
+        cap = min(time.time() + BURST_SECONDS, deadline)
         while True:
             left = min(QUIET_SECONDS, cap - time.time())
             if left <= 0:
@@ -1198,14 +1212,14 @@ class Hub:
             if r.get("seq", 0) == seq:
                 return r
 
-    def wait(self, after, timeout, gone=None, replayed=0, watcher=None):
+    def wait(self, after, timeout, gone=None, replayed=0, watcher=None, pid=None):
         """Block for events; returns (seq, events, replay) or None when the client went away.
 
         after=<int>: events with seq > after. after="handled": the unhandled set U, at once when
         any seq in U exceeds `replayed` (then `replay` is the highest seq returned), else once a
         new event arrives. Timeout returns no events. `gone` is checked on every 1 s tick.
         A `watcher` id must hold the lease (see claim), else Conflict; without one the wait
-        takes no part in leasing.
+        takes no part in leasing; `pid` is the watcher's process id, kept in the lease.
         """
         deadline = time.time() + timeout
         newest = None
@@ -1224,7 +1238,7 @@ class Hub:
 
         with self.cond:
             if watcher is not None:
-                lease = self.claim(watcher)
+                lease = self.claim(watcher, pid)
             self.waiters += 1
             self.last_wait = time.time()
         try:
@@ -1255,7 +1269,7 @@ class Hub:
                         events = []
                     left = deadline - time.time()
                     if events:
-                        r = self.settle(r)
+                        r = self.settle(r, deadline)
                         check_revoked()
                         top = r.get("seq", 0)
                         events = select_events(r)
@@ -1375,8 +1389,12 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
             watcher = (query.get("watcher") or [None])[0]
+            pid = (query.get("pid") or [""])[0]
+            pid = int(pid) if pid.isdigit() else None
             try:
-                result = hub.wait(after, timeout, self.client_gone, replayed, watcher)
+                result = hub.wait(
+                    after, timeout, self.client_gone, replayed, watcher, pid
+                )
             except Conflict as e:
                 return self.send(409, e.payload)
             if result is None:
@@ -1459,8 +1477,13 @@ class Handler(BaseHTTPRequestHandler):
             while not self.client_gone():
                 sig = hub.signature()
                 if sig != last_sig:
+                    state, stale = hub.read_state()
+                    # A failed read keeps last_sig behind so the next pass retries it.
+                    if stale:
+                        time.sleep(0.3)
+                        continue
                     n += 1
-                    data = json.dumps(hub.state(), ensure_ascii=False)
+                    data = json.dumps(state, ensure_ascii=False)
                     self.wfile.write(
                         f"id: {n}\nevent: state\ndata: {data}\n\n".encode("utf-8")
                     )

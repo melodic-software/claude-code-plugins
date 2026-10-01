@@ -1,0 +1,101 @@
+using Microsoft.CodeAnalysis.Testing;
+
+using AnalyzerTest = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerTest<
+    Platform.Analyzers.Rules.ToolProviderMissingAttributeAnalyzer,
+    Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
+
+namespace Platform.Analyzers.Tests.Rules;
+
+public sealed class ToolProviderMissingAttributeAnalyzerTests
+{
+    [Fact]
+    public async Task ClassWithInterfaceAndAttribute_NoDiagnostic()
+    {
+        await new AnalyzerTest
+        {
+            TestCode = TestStubs.ToolRegistration + """
+                namespace MyApp
+                {
+                    public sealed class CreateOrderCommand { }
+
+                    [Platform.AI.Abstractions.Tools.ToolProvider]
+                    internal sealed class CreateOrderToolProvider
+                        : Platform.AI.Abstractions.Tools.IExposeTools<CreateOrderCommand>
+                    {
+                        public Platform.AI.Abstractions.Tools.ToolDescriptor Describe() => default!;
+                        public Platform.AI.Abstractions.Tools.ToolSurface Surface => default;
+                    }
+                }
+                """,
+            ReferenceAssemblies = TestDefaults.Net80,
+        }.RunAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task ClassWithInterfaceButMissingAttribute_ReportsDiagnostic()
+    {
+        await new AnalyzerTest
+        {
+            TestCode = TestStubs.ToolRegistration + """
+                namespace MyApp
+                {
+                    public sealed class CreateOrderCommand { }
+
+                    internal sealed class {|#0:CreateOrderToolProvider|}
+                        : Platform.AI.Abstractions.Tools.IExposeTools<CreateOrderCommand>
+                    {
+                        public Platform.AI.Abstractions.Tools.ToolDescriptor Describe() => default!;
+                        public Platform.AI.Abstractions.Tools.ToolSurface Surface => default;
+                    }
+                }
+                """,
+            ExpectedDiagnostics =
+            {
+                new DiagnosticResult(DiagnosticIds.ToolProviderMissingAttribute, Microsoft.CodeAnalysis.DiagnosticSeverity.Warning)
+                    .WithLocation(0)
+                    .WithArguments("CreateOrderToolProvider"),
+            },
+            ReferenceAssemblies = TestDefaults.Net80,
+        }.RunAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task ClassWithoutInterface_NoDiagnostic()
+    {
+        await new AnalyzerTest
+        {
+            TestCode = TestStubs.ToolRegistration + """
+                namespace MyApp
+                {
+                    internal sealed class NotAToolProvider
+                    {
+                        public void DoSomething() { }
+                    }
+                }
+                """,
+            ReferenceAssemblies = TestDefaults.Net80,
+        }.RunAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
+    public async Task AbstractClassWithInterface_NoDiagnostic()
+    {
+        await new AnalyzerTest
+        {
+            TestCode = TestStubs.ToolRegistration + """
+                namespace MyApp
+                {
+                    public sealed class SomeCommand { }
+
+                    internal abstract class BaseToolProvider
+                        : Platform.AI.Abstractions.Tools.IExposeTools<SomeCommand>
+                    {
+                        public abstract Platform.AI.Abstractions.Tools.ToolDescriptor Describe();
+                        public abstract Platform.AI.Abstractions.Tools.ToolSurface Surface { get; }
+                    }
+                }
+                """,
+            ReferenceAssemblies = TestDefaults.Net80,
+        }.RunAsync(TestContext.Current.CancellationToken);
+    }
+}

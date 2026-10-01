@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.16.0] - 2026-10-01
+## [0.17.0] - 2026-10-01
 
 ### Added
 
@@ -48,6 +48,25 @@ only after that version increases.
   `verification-loops-in-skills.md`) states the rules this marketplace applies and ends each
   section in a Record instead of restating the Anthropic pages. The three limits our checks
   enforce are tabled with the layer that owns each.
+
+## [0.16.0] - 2026-10-01
+
+### Added
+
+- A Sonnet 5.5 model-adaptation chapter, `reference/model-adaptation/sonnet-5-5.md`. The `fable-5` skill's meta-rule 3 routes Sonnet 5.5 to it and names its fallback targets.
+
+## [0.15.5] - 2026-10-01
+
+### Changed
+
+- The `boris` advanced and autonomy references point at the current docs for model and effort facts instead of restating them.
+
+## [0.15.4] - 2026-10-01
+
+### Fixed
+
+- The `repo-sweep` hygiene catalog points its file-name lane at `docs-naming:audit-file-names` and
+  `docs-naming:realign-file-names`, which moved out of `docs-hygiene`.
 
 ## [0.15.3] - 2026-09-30
 

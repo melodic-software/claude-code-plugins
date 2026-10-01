@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.45.1] - 2026-10-01
+## [0.46.3] - 2026-10-01
 
 ### Changed
 
@@ -12,6 +12,24 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the three advisory verify guards, and the `node` and `jq` prerequisites are each a decision with
   a pointer to the anchored hooks section, an as-of date and a recheck trigger, and none of the
   page's wording is stored. No guard behavior changes.
+
+## [0.46.2] - 2026-10-01
+
+### Fixed
+
+- **`run-guards` no longer counts the body of a quoted-delimiter heredoc toward the substitution cap.** A `cat <<'EOF'` body (also `<<"EOF"`, `<<\EOF`, `<<-'EOF'`) holding more than 256 `$(`, `<(`, `>(` or backtick spellings was refused, though bash expands nothing there. The operator, delimiter and rest of its line still count. An unquoted or expanding heredoc, a heredoc the scan does not model, and any command that names a shell, `eval`, `su`, `env`, `source`, `. file` or `alias` still count whole. `block-root-delete-target` is unchanged and still reads such a body as commands, so `bash <<'EOF'` with a `$(rm -rf /)` body is still refused. The full 10-guard row finishes in about 3 s on a 16,384-character quoted-heredoc body.
+
+## [0.46.1] - 2026-10-01
+
+### Fixed
+
+- **`block-windows-drive-tmp` lets a provable read of a drive-root temp path and a quoted mention through.** A single plain python run (`python`, `python3` or `py`, plain flags only) whose code is its `-c` string or a heredoc on stdin, with nothing after it, and whose every `open(` is a bare read of a plain path (`.read(`, `.readline(`, `.readlines(` or wrapped whole in `json.load(`) no longer blocks, and neither does a `gh issue|pr create|comment|edit`, `git commit`, `git tag`, `echo` or `printf` command that only quotes `open('/tmp/x','w')` or `write_text(` as text. Both reliefs judge the whole unsplit command, so a decoy read followed by `os.system` or `shutil.copy` still blocks, and so does a read inside a pipeline, a second command, a redirect, an argument, a wrapper or another interpreter (`echo "open('/c/tmp/x').read()" | cut -d "'" -f2 | xargs tee`), and any backslash, `$`, backtick, indirection, wildcard import (`from x import *`, which can rebind `open`), unlisted command or read argument that is not a plain path (Ruby's `open('|cmd')`, `%x[cmd]`, `"#{cmd}"`). Replaying the guard's test corpus on `origin/main` fails the 23 cases that expect an allow and none that expect a block. That counts corpus cases, not every command the reliefs allow: a read beside a write to a path assembled at run time through an API the guard does not list is also allowed, as the same write already was without the read.
+
+## [0.46.0] - 2026-10-01
+
+### Added
+
+- **`block-root-delete-target` lets a recursive delete strictly under a user-listed root through.** The new `block_root_delete_target_allowed_roots` option takes comma-separated absolute directories, empty by default, and a target whose resolved real path sits strictly under one is allowed on the same rule as a temp root. Only the user sets it: it is read from the hook's own environment, never from the command text, so a `VAR=...` prefix or a flag grants nothing. The listed root itself and its glob stay refused, and so do a name-prefix sibling, a `..` escape and a symlink that points outside the root. Every other refusal runs before the allowlist and ignores it: a filesystem root, `~`, `$HOME`, a drive root, a UNC share, `--no-preserve-root`, an empty or bare-variable operand and a glob escape. An entry that is relative, empty, UNC, holds a glob character, a line break or a `..` component, or resolves to a filesystem root or HOME grants nothing, and no listed root lets through HOME or a directory holding it. The outside-tree block message names the option.
 
 ## [0.45.0] - 2026-09-30
 

@@ -3,7 +3,7 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.5] - 2026-10-01
+## [0.8.7] - 2026-10-01
 
 ### Changed
 
@@ -12,6 +12,20 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   requirement and the decision to keep the row synchronous are each a decision with a pointer to the
   anchored docs section, an as-of date and a recheck trigger, and none of the page's wording is
   stored. No hook behavior changes.
+
+## [0.8.6] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/typos-format:check`, which probes it.
+
+## [0.8.5] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/typos-format:check`, which probes it.
+
+- **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
 
 ## [0.8.4] - 2026-09-30
 

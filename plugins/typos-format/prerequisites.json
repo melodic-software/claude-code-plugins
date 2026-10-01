@@ -4,6 +4,16 @@
       "name": "typos",
       "check": "/typos-format:check",
       "install": "cargo install typos-cli, a host package or a release binary, https://github.com/crate-ci/typos#install"
+    },
+    {
+      "name": "jq",
+      "check": "/typos-format:check",
+      "install": "install jq from https://jqlang.org/download/"
+    },
+    {
+      "name": "node",
+      "check": "/typos-format:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
     }
   ]
 }

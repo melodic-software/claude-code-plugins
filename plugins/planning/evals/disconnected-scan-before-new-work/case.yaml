@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: disconnected-scan-before-new-work
+description: A brainstorm over a repository with built-but-unconnected work must report that work as candidates ahead of any greenfield option
+tags: [brainstorm, disconnected-scan]
+expected_outcome: The answer names the unused build_digest import, the never-read weekly_digest flag, and the reader-less delivery_receipts table as candidates ahead of greenfield options, then invites the user to react.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:brainstorm we want notification recipients to get weekly summaries and to see whether a notification was opened. Treat the files under evals/fixtures/disconnected-scan/ as this repository (relative to the working directory); each carries an added .txt suffix, so app/notifier.py.txt is app/notifier.py."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: unused-build-digest-import
+    type: regex
+    pattern: '(?=[\s\S]*build_digest)(?=[\s\S]*notifier)(?=[\s\S]*(?:unused|never (?:called|used)|not (?:called|used)|unreferenced|imported but|dead import))'
+    flags: i
+    arm: both
+  - name: weekly-digest-flag-off-and-unread
+    type: regex
+    pattern: '(?=[\s\S]*weekly_digest)(?=[\s\S]*(?:False|defaults? (?:to )?(?:off|false)|disabled))(?=[\s\S]*(?:never (?:read|checked|referenced|consulted)|not (?:read|checked|referenced)|nothing (?:reads|checks)|no reader|unread))'
+    flags: i
+    arm: both
+  - name: delivery-receipts-has-no-reader
+    type: regex
+    pattern: '(?=[\s\S]*delivery_receipts)(?=[\s\S]*(?:nothing (?:reads|writes|queries|references)|no (?:reader|writer|consumer|code)|never (?:read|written|queried|referenced|used)|not (?:read|written|queried|referenced|used)|unused|orphan))'
+    flags: i
+    arm: both
+  - name: invites-reaction
+    type: regex
+    pattern: '(?:resonat|react|mark (?:which|what|the)|stand out|appeal)[\s\S]{0,500}$'
+    flags: i
+    arm: both
+  - name: no-unilateral-pick
+    type: regex
+    pattern: '\bI(?: have|''ve)? (?:chose|chosen|picked|selected)\b|\bI(?: will|''ll) (?:go with|proceed with|start implementing)\b'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: connect-before-build
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer reports the disconnected items (wiring up the existing build_digest, enabling the weekly_digest flag, and using the delivery_receipts table) as candidates that come BEFORE any greenfield option in the ordering, framed as connecting or enabling what is already built before building new. FAIL if the first candidates are new builds, if the disconnected items appear only as an afterthought or footnote, or if they are not offered as candidates at all."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'

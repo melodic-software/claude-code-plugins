@@ -138,8 +138,9 @@ judge::load() {
 #
 # The result is cached under derive/, keyed by the sha256 of the info, this
 # hook directory (so a plugin update re-derives), the file's current content
-# and each .claude/testing.yaml layer: block identity is name and ordinal in
-# the current text, so the same inputs give the same keys and the scanner runs
+# and each testing config file (docs/conventions/testing.md and the
+# .claude/testing.yaml layers): block identity is name and ordinal in the
+# current text, so the same inputs give the same keys and the scanner runs
 # again only when one of them changed. A scan that failed is never cached.
 judge::derive() {
   local file whole base_ok names lines repo tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
@@ -153,7 +154,7 @@ judge::derive() {
     return 0
   fi
   root="${repo:-${CLAUDE_PROJECT_DIR:-}}"
-  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
+  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/docs/conventions/testing.md" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
     [[ -f "$cfg" ]] && cfgs+=("$cfg")
   done
   # sha256sum prefixes a line with \ when the file name holds a backslash.
@@ -395,10 +396,10 @@ judge::pick() {
     writers+="$(judge::transcript_class "$tdir/$sid.jsonl") "
     [[ "$agent" =~ ^[A-Za-z0-9_-]+$ ]] && writers+="$(judge::transcript_class "$tdir/$sid/subagents/agent-$agent.jsonl") "
   done < <(jq -r '.[] | (.sid, .agent) | tostring | gsub("[\r\n]"; "")' <<<"$1")
-  m="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-opus}"
-  [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=opus
-  fb="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-sonnet}"
-  [[ "$fb" =~ ^(fable|opus|sonnet|haiku)$ ]] || fb=sonnet
+  m="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-sonnet}"
+  [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=sonnet
+  fb="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-opus}"
+  [[ "$fb" =~ ^(fable|opus|sonnet|haiku)$ ]] || fb=opus
   EFFORT="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT:-medium}"
   [[ "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]] || EFFORT=medium
   for c in "$m" "$fb" opus sonnet haiku; do

@@ -1,0 +1,94 @@
+using System.Diagnostics;
+using Platform.AI.Abstractions.Errors;
+using Platform.AI.Abstractions.Generations;
+using Platform.AI.Abstractions.Prompts;
+using Platform.AI.Abstractions.Resources;
+using Platform.AI.Diagnostics;
+using Platform.Core.Results;
+
+namespace Platform.AI.Generations;
+
+public sealed class ResourceGuard : ITextGenerator
+{
+    private readonly ITextGenerator _inner;
+    private readonly IBudgetProvider _budgetProvider;
+    private readonly IUsageRecorder _usageRecorder;
+    private readonly TimeProvider _timeProvider;
+    private readonly BudgetScope _scope;
+    private readonly string? _scopeId;
+
+    public ResourceGuard(
+        ITextGenerator inner,
+        IBudgetProvider budgetProvider,
+        IUsageRecorder usageRecorder,
+        TimeProvider timeProvider,
+        BudgetScope scope = BudgetScope.PerSession,
+        string? scopeId = null)
+    {
+        _inner = inner;
+        _budgetProvider = budgetProvider;
+        _usageRecorder = usageRecorder;
+        _timeProvider = timeProvider;
+        _scope = scope;
+        _scopeId = scopeId;
+    }
+
+    public async Task<Result<Generation>> GenerateAsync(
+        Prompt prompt, GenerationOptions? options = null, CancellationToken ct = default)
+    {
+        using Activity? activity = Instrumentation.ActivitySource
+            .StartActivity("platform.ai.budget_check");
+
+        Result<TokenBudget> budgetResult = await _budgetProvider.GetBudgetAsync(_scope, _scopeId, ct);
+
+        if (budgetResult.IsFailure)
+        {
+            activity?.SetTag("platform.ai.budget.action", "error");
+            return Result.Failure<Generation>(budgetResult.Error);
+        }
+
+        TokenBudget budget = budgetResult.Value;
+        activity?.SetTag("platform.ai.budget.input_tokens_remaining", budget.MaxInputUnits);
+        activity?.SetTag("platform.ai.budget.output_tokens_remaining", budget.MaxOutputUnits);
+
+        // Either dimension exhausted denies — generation requires BOTH input
+        // (to send the prompt) AND output (to receive the response).
+        if (budget.MaxInputUnits <= 0 || budget.MaxOutputUnits <= 0)
+        {
+            activity?.SetTag("platform.ai.budget.action", "deny");
+            return Result.Failure<Generation>(
+                new BudgetExceededError("AI.BudgetExceeded", "Token budget exhausted."));
+        }
+
+        activity?.SetTag("platform.ai.budget.action", "allow");
+
+        Result<Generation> generationResult = await _inner.GenerateAsync(prompt, options, ct);
+
+        if (generationResult.IsFailure)
+        {
+            return generationResult;
+        }
+
+        Generation generation = generationResult.Value;
+
+        UsageRecord record = new(
+            _timeProvider.GetUtcNow(),
+            options?.PreferredTier?.ToString() ?? "unknown",
+            generation.Usage,
+            SessionId: _scope == BudgetScope.PerSession ? _scopeId : null,
+            UserId: _scope == BudgetScope.PerUser ? _scopeId : null);
+
+        // Surface usage-recording failures rather than silently discarding them.
+        // Dropping the result lets callers continue after usage was not persisted,
+        // so subsequent budget checks under-count consumed tokens and a misconfigured
+        // accounting store would let generation exceed the configured budget unbounded.
+        Result recordResult = await _usageRecorder.RecordAsync(record, ct);
+        if (recordResult.IsFailure)
+        {
+            activity?.SetTag("platform.ai.budget.action", "record_failed");
+            return Result.Failure<Generation>(recordResult.Error);
+        }
+
+        return generationResult;
+    }
+}

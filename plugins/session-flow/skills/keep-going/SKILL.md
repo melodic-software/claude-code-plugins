@@ -156,14 +156,23 @@ For any "is it stuck / check the monitor / poke it":
   doing this arithmetic yourself:
 
   ```shell
-  python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-usage-limit-reset.py" "<limit message text>"
+  python3 "${CLAUDE_PLUGIN_ROOT}/skills/keep-going/scripts/check-usage-limit-reset.py" "<limit message text>" --received "<ISO-8601 time the message appeared, with offset or Z>"
   ```
+
+  Pass `--received` with the time the limit message appeared: the timestamp
+  of the transcript entry that carries it, else the time you captured it. A
+  message states only a clock time, so without `--received` a reset time
+  already past on today's clock reads as passed even when the message meant
+  tomorrow. When no time is known, omit the flag and treat exit `0` as
+  provisional, like exit `1`.
 
   Exit `0` means the reset has passed, treat the worker as resumable now.
   Exit `1` means the limit is provisional until a live re-check of the
   current account confirms it (next bullet); only then hand back by invoking
-  `/session-flow:handoff` via the Skill tool and stop. Exit `2` means the message carried no parseable reset clause; say
-  so plainly and ask the operator rather than guessing. Exit `3` means the
+  `/session-flow:handoff` via the Skill tool and stop. Exit `2` means the checker could not parse its input; read stderr
+  first. `no reset clause found` means the message had none: say so plainly
+  and ask the operator rather than guessing. `--received needs an offset or Z`
+  means your own `--received` value was malformed: fix it and rerun. Exit `3` means the
   reset clause parsed but the IANA timezone could not be resolved (rare when
   the bundled `tzdata` under `scripts/vendor` is present); report the timezone
   failure rather than treating the message as unparsable. In a single

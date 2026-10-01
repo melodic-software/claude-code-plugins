@@ -1,0 +1,7 @@
+namespace Platform.AI.Abstractions.Validation;
+
+public enum ContentValidationSeverity
+{
+    Warning,
+    Failure,
+}

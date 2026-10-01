@@ -3,7 +3,7 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.34.5] - 2026-10-01
+## [0.34.6] - 2026-10-01
 
 ### Changed
 
@@ -17,6 +17,15 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`ci-log-auditor` and `doc-drift-detector` pin `effort: high`**: verification work where edge
   cases are likely. `ci-log-auditor`'s GitHub API and `gh` pagination notes point at the live docs
   and the recorded probe instead of restating them.
+
+## [0.34.5] - 2026-10-01
+
+### Fixed
+
+- **`code-reviewer` reserves its report turns and emits `Criteria read:` and `Coverage:`
+  lines.** A review that runs out of turns still reports what it read and what it covered. A caller that requires exact output with no other lines is exempt.
+- **`quality-gate` self mode detects a partial gate and labels it.** A self-review that did not
+  cover every criterion says so instead of reporting a full pass.
 
 ## [0.34.4] - 2026-09-30
 
