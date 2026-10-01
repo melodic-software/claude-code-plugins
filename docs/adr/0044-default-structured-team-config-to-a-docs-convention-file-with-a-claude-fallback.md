@@ -81,7 +81,8 @@ moment, and the warning is how they see it.
 - The config-cascade README gains a location axis and the precedence above, revises its Expression
   doctrine, and lists the surfaces left for later adoption. A change to what the team layer is
   falls under its Versioning rule, so shipping bumps `contract_version` and records it in the
-  README's `CHANGELOG.md`.
+  README's `CHANGELOG.md`. The bump is minor: `.claude/<name>` stays a supported location and no
+  surface has to change.
 - A script that reads the block carries its own small reader. The format is fixed so a second
   surface's reader matches the first.
 - A consumer who runs both locations sees the warning on every run until they delete one.

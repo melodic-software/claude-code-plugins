@@ -7,8 +7,8 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Changed
 
-- **config:** the team layer is read from the first `yaml config` fenced block in
-  `docs/conventions/testing.md`, with `.claude/testing.yaml` as the fallback when the docs file has
+- **config:** the team layer is read from the one `yaml config` fenced block in
+  `docs/conventions/testing.md` (a second block is an error), with `.claude/testing.yaml` as the fallback when the docs file has
   no block. When both exist the docs block wins and `resolve-config.sh` prints one warning naming
   both paths. Config errors in the block report the `.md` path and line. The user-global and
   `.local` layers are unchanged.
