@@ -123,6 +123,13 @@ melodic-software/dotfiles (`.chezmoidata/uv-tools.yaml`), which is what installs
 a developer's local toolchain, so CI never lints with a ruff nobody runs. Do not
 "fix" a clean tree by adopting a newer ruff's new rules in an unrelated PR.
 
+## Time-to-green
+
+The standing target is a p50 under 5 minutes and a p95 under 12 minutes per
+pull-request head SHA, measured to the first successful full run of the
+required workflow (`ci-status`); contract-only runs are excluded. This
+repository owns the target, tracked on #3932.
+
 ## Authoritative references
 
 - [Reuse workflows and pin a commit SHA](https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows)

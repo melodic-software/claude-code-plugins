@@ -1,5 +1,23 @@
 # Changelog: session-flow plugin
 
+## [0.43.0] - 2026-10-01
+
+### Added
+
+- **`/session-flow:check` reads whether `jq` resolves for the observer hook.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.42.0] - 2026-10-01
+
+### Fixed
+
+- **A handoff chain no longer repeats per-hop lines in its cumulative sections** ([#5636](https://github.com/melodic-software/claude-code-plugins/issues/5636)). The constraints re-scan attestation now goes on a `Re-scan:` line in `## This session`, which is rewritten each hop, instead of a Constraints entry that every later hop copied forward. `validate` accepts one such line after the `did/left` line, `new` emits its slot, and attestation entries already carried in Constraints stay ordinary entries. `validate` also warns when a new cumulative entry duplicates a carried one (compared without the `[hN]` tag or `UNVERIFIED` prefix, ignoring spacing and case; the oldest tagged entry stays) and when a handoff file passes 300 lines, the margin under the Read tool's single-read cap. `UNVERIFIED (predecessor failed validation)` entries still do not expire; `reference/structure.md` says so.
+
+## [0.41.2] - 2026-09-30
+
+### Fixed
+
+- **`find-handoff`, `retro` and `running-retro` spokes no longer cite bundled files through the literal plugin-root token.** The token is not substituted in a `context/` or `reference/` file, so the `save_point.py` and `parse_transcript.py` commands and the catalog path resolved to nothing. They now read `<plugin-root>/...`, links are relative, and `find-handoff` and `retro` gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
 ## [0.41.1] - 2026-09-30
 
 ### Changed

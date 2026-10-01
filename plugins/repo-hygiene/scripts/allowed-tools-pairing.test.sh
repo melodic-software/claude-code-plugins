@@ -15,7 +15,7 @@
 # grant ships on docs alone (`plugins/discovery/reference/parent-contract.md`).
 #
 # `SKILL.md` uses the paired `${CLAUDE_SKILL_DIR}/scripts/…` form; bundled `context/*.md`
-# files keep the `bash ${CLAUDE_PLUGIN_ROOT}/…` form. See `skills/clean/reference/invocation-forms.md`.
+# files use the `bash <skill-dir>/scripts/…` placeholder form. See `skills/clean/reference/invocation-forms.md`.
 #
 # SC2016 is disabled file-wide on purpose. Every single-quoted `${…}` here is a
 # fixed string searched for VERBATIM in markdown and frontmatter, where those
@@ -99,26 +99,23 @@ for skill in "${SKILLS[@]}"; do
     if grep -qF '"${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
       fail "$f: body quotes the bundled-script path — an unquoted rule will not match it"
     fi
-    # Bundled context files must stay on `${CLAUDE_PLUGIN_ROOT}` until substitution
-    # scope for on-demand context is verified (#2237). Direct
-    # `${CLAUDE_SKILL_DIR}/scripts/…` there would look paired but expand to
-    # `/scripts/…` if the placeholder is not substituted.
+    # Bundled context files reach the model as plain bytes, so no `${…}` token in them is
+    # substituted. They name the skill directory as the `<skill-dir>` placeholder that
+    # SKILL.md's Spoke paths section defines.
     if [[ "$f" == skills/*/context/* ]]; then
-      if grep -qF '${CLAUDE_SKILL_DIR}/scripts/' "$f"; then
-        fail "$f: context file must not use \${CLAUDE_SKILL_DIR}/scripts/ — keep \${CLAUDE_PLUGIN_ROOT} form (#2237)"
+      if grep -qF '${CLAUDE_SKILL_DIR}' "$f" || grep -qF '${CLAUDE_PLUGIN_ROOT}' "$f"; then
+        fail "$f: context file must not use a \${…} token for a script path — use <skill-dir>/scripts/"
       fi
-      # Every bundled-script reference must retain the interpreter-led PLUGIN_ROOT
-      # prefix — banning SKILL_DIR alone still passes if a command is rerouted to
-      # another invalid path such as bash /wrong/preflight.sh.
-      required='bash ${CLAUDE_PLUGIN_ROOT}/skills/'"$skill"'/scripts/'
-      invocations="$(grep -F 'skills/'"$skill"'/scripts/' "$f" || true)"
+      # Every bundled-script reference must keep the interpreter-led placeholder prefix.
+      required='bash <skill-dir>/scripts/'
+      invocations="$(grep -F '<skill-dir>/scripts/' "$f" || true)"
       if [[ -n "$invocations" ]]; then
         while IFS= read -r line; do
           if [[ "$line" != *"$required"* ]]; then
-            fail "$f: context script invocation must use bash \${CLAUDE_PLUGIN_ROOT}/skills/$skill/scripts/… — got: $line"
+            fail "$f: context script invocation must use bash <skill-dir>/scripts/… — got: $line"
           fi
         done <<<"$invocations"
-        pass "$f: context script invocations use interpreter-led \${CLAUDE_PLUGIN_ROOT} form"
+        pass "$f: context script invocations use interpreter-led <skill-dir> form"
       else
         pass "$f: context file has no bundled-script invocations to pin"
       fi

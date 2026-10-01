@@ -3,6 +3,24 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0] - 2026-10-01
+
+### Added
+
+- **`/autonomy:check` reads whether `jq` resolves for the autonomy hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.24.23] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.24.22] - 2026-09-30
+
+### Fixed
+
+- **`setup` slice files link to the plugin's `reference/` pages relatively.** The links in the capture, guardrail, prerequisite-resolution, routine, trigger-dispatch and Windows-surface slices carried the literal plugin-root token, which is not substituted in a `context/` file, so none of them resolved.
+
 ## [0.24.21] - 2026-09-30
 
 ### Changed

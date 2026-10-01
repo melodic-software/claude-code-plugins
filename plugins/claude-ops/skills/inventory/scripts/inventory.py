@@ -55,7 +55,7 @@ MIN_PYTHON = (3, 11)
 # the skill's evals. Drift from it is not an error - the extraction is designed
 # to survive ordinary releases - but it downgrades every count from "verified"
 # to "believed", which the report has to say out loud.
-VALIDATED_AGAINST = "2.1.284"
+VALIDATED_AGAINST = "2.1.286"
 
 # Commands that have shipped in every build observed. Their absence means the
 # extraction broke, not that Anthropic deleted /help. This is the cheapest
@@ -650,6 +650,36 @@ def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
     return _param_names(src[k + 1 : j])
 
 
+_FOR_KEYWORD_RE = re.compile(r"(?<![\w$.])for\s*(?:await\s*)?$")
+_FOR_DECL_RE = re.compile(r"\s*(?:let|const)(?![\w$])([^;]*)")
+
+
+def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
+    """The `let`/`const` names of the `for (...)` head whose body opens at
+    `brace`, each a runtime value; empty for any other block."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    if j < 0 or src[j] != ")":
+        return NO_SCOPE
+    return _for_head_names(src, braces, j)
+
+
+def _for_head_names(src: str, braces: BraceMap, close: int) -> Scope:
+    """The `let`/`const` names of the `for (...)` head closing at `close`.
+
+    The whole head after the keyword is taken, iterable included: shadowing
+    extra names only leaves more unresolved, and a binding named `of` or `in`
+    is still caught.
+    """
+    j = close
+    k = _head_open(src, braces, j)
+    if not _FOR_KEYWORD_RE.search(src[max(0, k - 24) : k]):
+        return NO_SCOPE
+    decl = _FOR_DECL_RE.match(_mask_strings(src[k + 1 : j]))
+    return _param_names(decl.group(1)) if decl else NO_SCOPE
+
+
 def _head_open(src: str, braces: BraceMap, close: int) -> int:
     """The `(` matching the `)` at `close`, matched with quoted text blanked
     from the enclosing block's start. Raises ValueError when unmatched."""
@@ -967,6 +997,7 @@ def _scan(
     active = at_value = not block
     depth = 0
     prev, prev_word = "", ""
+    loop = NO_SCOPE
     n = min(end, len(src))
     while i < n:
         c = src[i]
@@ -992,7 +1023,7 @@ def _scan(
                 acc,
                 hops=hops,
                 anchor=anchor,
-                shadow=shadow,
+                shadow=shadow | loop,
                 deferred=deferred,
             )
             at_value, prev, prev_word = False, "x", ""
@@ -1021,9 +1052,18 @@ def _scan(
                     block=True,
                     hops=hops,
                     anchor=anchor,
-                    shadow=shadow | _catch_params(src, braces, i),
+                    shadow=shadow
+                    | loop
+                    | _catch_params(src, braces, i)
+                    | _for_params(src, braces, i),
                     deferred=deferred,
                 )
+                # A statement block ends the unbraced loop body holding it.
+                ends = not re.match(
+                    r"\s*(?:else|catch|finally)(?![\w$])", src[close + 1 : close + 17]
+                )
+                if ends:
+                    loop = NO_SCOPE
             i, at_value, prev, prev_word = close + 1, False, "}", ""
             continue
         if c == "}":
@@ -1034,7 +1074,13 @@ def _scan(
             if depth == 0:
                 break
             depth -= 1
+            if depth == 0 and c == ")" and block:
+                # An unbraced loop body is no block, so its head binds here.
+                nxt = _skip_ws(src, i + 1, n)
+                if not src.startswith("{", nxt):
+                    loop = loop | _for_head_names(src, braces, i)
         elif depth == 0 and c in ",;":
+            loop = NO_SCOPE
             if not block:
                 break
             if c == ";":
@@ -1725,6 +1771,11 @@ def _declaration(
         return found
     lo, hi = _chunk_span(src, at)
     exported = _chunk_imports(src, lo, hi).get(ident)
+    if exported is not None and any(
+        braces.enclosing(m.start()) is not None and _visible(braces, m.start(), at, src)
+        for m in pattern_for(ident).finditer(src, lo, hi)
+    ):
+        exported = None
     if exported is not None:
         homes = _export_index(src).get(exported, [])
         if len(homes) != 1:
@@ -1823,12 +1874,18 @@ def _binding_pattern(ident: str) -> re.Pattern[str]:
 
 
 def _binding_value(
-    src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool = False
+    src: str,
+    braces: BraceMap,
+    ident: str,
+    at: int,
+    *,
+    deferred: bool = False,
+    window: int = SHORT_VALUE_LOCALITY_BYTES,
 ) -> int | None:
     """Offset of the `ident=` value `at` reads.
 
     A single-character name is function-local: the nearest binding before
-    `at` in `at`'s own module, within `SHORT_VALUE_LOCALITY_BYTES`. A longer
+    `at` in `at`'s own module, within `window` bytes. A longer
     one follows the module rule in `_declaration`. A binding after `at` is
     taken only when the read is `deferred`, reached through a getter, a
     method, an arrow, or a function-valued field, which run after the module
@@ -1837,7 +1894,7 @@ def _binding_value(
     initializer.
     """
     if len(ident) == 1:
-        lo = max(_chunk_span(src, at)[0], at - SHORT_VALUE_LOCALITY_BYTES)
+        lo = max(_chunk_span(src, at)[0], at - window)
         found = None
         for m in _binding_pattern(ident).finditer(src, lo, at):
             if _visible(braces, m.start(), at, src):
@@ -2263,7 +2320,7 @@ def extract_builtin_commands(src: str, braces: BraceMap) -> dict[str, dict[str, 
             c = _NAME_IDENT_RE.search(body)
             if not c or c.group(1) not in idents:
                 continue
-            name = resolve_name_ident(c.group(1), open_i, index)
+            name = resolve_name_ident(src, braces, c.group(1), open_i, index)
         if not name or not _NAME_OK.fullmatch(name):
             continue
         aliases = _read_aliases(body)
@@ -2428,7 +2485,11 @@ def build_const_index(
 
 
 def resolve_name_ident(
-    ident: str, at: int, index: dict[str, list[tuple[int, str]]]
+    src: str,
+    braces: BraceMap,
+    ident: str,
+    at: int,
+    index: dict[str, list[tuple[int, str]]],
 ) -> str | None:
     """Resolve a registration's name identifier by its nearest preceding binding.
 
@@ -2439,7 +2500,7 @@ def resolve_name_ident(
     is trusted only when that nearest binding lies within
     `SHORT_IDENT_LOCALITY_BYTES`, because such names are function-local and a
     far binding belongs to some other function. No preceding binding at all is
-    unresolved, never guessed.
+    unresolved, never guessed. The candidate must also pass `_scoped_constant`.
     """
     bindings = index.get(ident)
     if not bindings:
@@ -2450,7 +2511,31 @@ def resolve_name_ident(
     pos, value = bindings[k]
     if len(ident) == 1 and at - pos > SHORT_IDENT_LOCALITY_BYTES:
         return None
-    return value
+    return _scoped_constant(src, braces, ident, at, value)
+
+
+# A binding's value is a constant only when one string literal is the whole
+# expression: `x="a",` or `x="a";`, not `x="a"+y` or `x="a"?b:c`.
+_CONST_VALUE_RE = re.compile(_STR + r"(?=[ \t]*(?:[,;)}\n]|\Z))")
+
+
+def _scoped_constant(
+    src: str, braces: BraceMap, ident: str, at: int, candidate: str
+) -> str | None:
+    """`candidate` when the binding the read of `ident` at `at` sees, under
+    the module and scope rule of `_binding_value`, is that string constant.
+
+    A constant index holds only string bindings, so its nearest entry can be
+    an unrelated one far behind a nearer binding to a conditional or a call
+    (`Vt=$t?smt(e):e`), or one in another module. Either way the read's
+    value is not that constant, and the name stays unresolved.
+    """
+    try:
+        v = _binding_value(src, braces, ident, at, window=SHORT_IDENT_LOCALITY_BYTES)
+    except (ValueError, IndexError, RecursionError):
+        return None
+    m = _CONST_VALUE_RE.match(src, v) if v is not None else None
+    return candidate if m and _unescape(m.group(1)) == candidate else None
 
 
 def _nearest_binding(src: str, ident: str, at: int) -> int | None:
@@ -2729,7 +2814,7 @@ def extract_bundled_skills(
                 continue
             name, descriptor = found
         else:
-            resolved = resolve_name_ident(nm.group(2), call_start, index)
+            resolved = resolve_name_ident(src, braces, nm.group(2), call_start, index)
             if resolved is None:
                 unresolved.append(nm.group(2))
                 continue
@@ -3070,7 +3155,11 @@ _ELEM_IDENT_RE = re.compile(_IDENT + r"(?=\s*[,\]])")
 
 
 def resolve_tool_ident(
-    ident: str, at: int, index: dict[str, list[tuple[int, str]]]
+    src: str,
+    braces: BraceMap,
+    ident: str,
+    at: int,
+    index: dict[str, list[tuple[int, str]]],
 ) -> str | None:
     """Resolve a tool-name identifier by its nearest preceding PascalCase binding.
 
@@ -3079,7 +3168,8 @@ def resolve_tool_ident(
     identifier in between (`no="SendMessage"`, then `no="column"`). The index
     holds only tool-shaped values; among them the nearest PascalCase binding
     wins, and a snake_case one is taken only when no PascalCase binding
-    precedes. A single-character identifier keeps the usual locality limit.
+    precedes. A single-character identifier keeps the usual locality limit,
+    and the chosen value must pass `_scoped_constant`.
     """
     bindings = index.get(ident)
     if not bindings:
@@ -3087,10 +3177,11 @@ def resolve_tool_ident(
     before = bindings[: bisect.bisect_left(bindings, (at, ""))]
     if len(ident) == 1:
         before = [b for b in before if at - b[0] <= SHORT_IDENT_LOCALITY_BYTES]
-    for _, value in reversed(before):
-        if _PASCAL_RE.fullmatch(value):
-            return value
-    return before[-1][1] if before else None
+    value = next(
+        (v for _, v in reversed(before) if _PASCAL_RE.fullmatch(v)),
+        before[-1][1] if before else None,
+    )
+    return None if value is None else _scoped_constant(src, braces, ident, at, value)
 
 
 def _name_expr(
@@ -3154,7 +3245,7 @@ def _array_names(
             else:
                 complete = False
         elif ident and not spread:
-            value = resolve_tool_ident(ident.group(0), at, index)
+            value = resolve_tool_ident(src, braces, ident.group(0), at, index)
             if value is None:
                 complete = False
             else:
@@ -3311,7 +3402,7 @@ def extract_builtin_agents(
         if kind == "literal":
             name = text
         elif kind == "ident" and text:
-            name = resolve_name_ident(text, open_i, name_index)
+            name = resolve_name_ident(src, braces, text, open_i, name_index)
         else:
             name = None
         if not name or not re.fullmatch(AGENT_NAME_RE, name):
@@ -3419,7 +3510,7 @@ def extract_builtin_tools(
         if kind == "literal":
             name = text
         elif kind == "ident" and text:
-            name = resolve_tool_ident(text, open_i, index)
+            name = resolve_tool_ident(src, braces, text, open_i, index)
         if name is None and (
             kind == "member" or (kind == "ident" and len(text or "") == 1)
         ):

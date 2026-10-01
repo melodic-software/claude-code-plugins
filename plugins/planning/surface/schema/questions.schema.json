@@ -27,7 +27,7 @@
       "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
     },
     "activity": {
-      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched, `notes` marks a reply in Notes to Claude, `added` marks an `add` or `add-round`, and `restate` carries the restatement rev a `restate` wrote.",
+      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched, `notes` marks a reply in Notes to Claude, `added` marks an `add` or `add-round`, `finished` marks the finish op, and `restate` carries the restatement rev a `restate` wrote.",
       "type": "array",
       "maxItems": 200,
       "items": {
@@ -44,12 +44,34 @@
           "ids": {"type": "array", "items": {"type": "string"}},
           "notes": {"type": "boolean"},
           "added": {"type": "boolean"},
+          "finished": {"type": "boolean"},
           "restate": {"type": "integer"}
         }
       }
     },
+    "finished": {
+      "description": "The closing event, set by the finish op or by `round.sh stop` when none was set: the page shows it in a dismissible modal and keeps it locally. A new `add` or `add-round`, or a new server start, removes it.",
+      "type": "object",
+      "required": ["at", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "at": {"type": "string"},
+        "by": {"enum": ["claude", "stop"]},
+        "brief": {"type": "string"},
+        "next": {"type": "string"},
+        "text": {"type": "string"}
+      }
+    },
+    "restatement": {"$ref": "#/$defs/restatement"},
+    "restatements": {
+      "description": "Every restatement the restate op wrote, oldest first; the last is mirrored as `restatement`. A file written before this list existed has only `restatement`.",
+      "type": "array",
+      "items": {"$ref": "#/$defs/restatement"}
+    }
+  },
+  "$defs": {
     "restatement": {
-      "description": "The shared-understanding restatement, written by the restate op. `rev` increments per restate; a page `confirm-understanding` event carries the rev it confirms.",
+      "description": "One shared-understanding restatement, written by the restate op. `rev` increments per restate; a page `confirm-understanding` event carries the rev it confirms.",
       "type": "object",
       "required": ["rev", "at", "sections"],
       "additionalProperties": false,
@@ -58,11 +80,9 @@
         "at": {"type": "string"},
         "sections": {"$ref": "#/$defs/sections"}
       }
-    }
-  },
-  "$defs": {
+    },
     "sections": {
-      "description": "Restatement sections, each markdown. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
+      "description": "Restatement sections, each markdown. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -71,6 +91,7 @@
         "decisions": {"type": "string"},
         "acceptance": {"type": "string"},
         "deferred": {"type": "string"},
+        "outOfScope": {"type": "string"},
         "planningOwned": {"type": "string"}
       }
     },
@@ -82,6 +103,8 @@
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
         "next": {"type": "string"},
         "repo": {"type": "string"},
+        "setInRound": {"type": "integer"},
+        "pluginVersion": {"description": "The planning plugin version that first wrote this file; `round.sh doctor` compares it with the running version.", "type": "string"},
         "emojiMarkers": {"type": "boolean"},
         "displayName": {"type": "string"},
         "seededFrom": {"$ref": "#/$defs/seededFrom"}
@@ -112,6 +135,11 @@
               }
             }
           }
+        },
+        "roundCells": {
+          "type": "object",
+          "additionalProperties": {"type": "string"},
+          "description": "Each imported row's round cell, by question id, where it is not the bare `round <N>`; export-ledger writes it back while the question's round still equals the cell's number."
         }
       }
     },
@@ -151,6 +179,14 @@
         "text": {"type": "string"},
         "replyTo": {"type": "integer"},
         "affects": {"type": "array", "items": {"type": "string"}},
+        "pageSeq": {
+          "type": "integer",
+          "description": "On a line that changed the recommendation: the page's event seq when it did. The server marks the decided questions in `affects` and the direct dependents stale for the events up to that seq."
+        },
+        "rev": {
+          "type": "integer",
+          "description": "On a line that changed the recommendation: the questions.json rev that write produced. It orders the change against a terminal answer recorded in the same second."
+        },
         "alt": {"type": ["string", "null"]},
         "summary": {"type": "string"}
       }
@@ -254,6 +290,18 @@
         },
         "history": {"type": "array", "items": {"$ref": "#/$defs/line"}},
         "terminal": {"$ref": "#/$defs/terminal"},
+        "resolution": {
+          "description": "The accepted reading of a counted `own` answer, written by a reply with `resolution`. It applies only while that answer is the decision that counts: `seq` is its page event seq (absent on a terminal answer) and `decidedAt` its updatedAt.",
+          "type": "object",
+          "required": ["text", "at", "decidedAt"],
+          "additionalProperties": false,
+          "properties": {
+            "text": {"type": "string"},
+            "at": {"type": "string"},
+            "seq": {"type": "integer"},
+            "decidedAt": {"type": "string"}
+          }
+        },
         "previousRecommendation": {"type": "string"},
         "revised": {"type": "string"},
         "archived": {"$ref": "#/$defs/archived"},
@@ -264,6 +312,11 @@
         "answered": {
           "type": "boolean",
           "description": "Derived by the server: true when a page or terminal decision counts; never written"
+        },
+        "upstreamChanged": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Derived by the server on a stale question: the ids whose recommendation changed while this question held a decision (named in their `affects`, or this question depends on them); never written"
         }
       }
     }

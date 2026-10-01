@@ -3,6 +3,40 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.71.0] - 2026-10-01
+
+### Added
+
+- **`/source-control:check` reads whether `jq` resolves for the source-control hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.70.0] - 2026-10-01
+
+### Added
+
+- **`babysit-loop` resolves promotion evidence each cycle through `scripts/resolve-promotion-evidence.mjs`.** Step 3 runs the helper only when the effective rung is merge-capable and the step 0 bootstrap check found no problem. The helper runs `check-security-binding.mjs` in evaluation mode on the `promotion_evidence_binding`, `promotion_evidence_root` and `promotion_evidence_source` surfaces and prints `{source, failClosedReason, cells}`. The checker's path is a fourth operator option, `promotion_evidence_checker` (user, `--settings` or managed settings only), because the program that decides `promoted` must come from the bootstrap and the plugin does not look for another plugin's install directory. A cell is effective-promoted only when `failClosedReason` is null and the checker printed `promoted` for it. The helper fails closed (every cell effective-unpromoted) on a missing, relative or unresolvable path, a surface or checker inside the checkout or a worktree root or containing one (compared before and after symlinks resolve), and a checker that exits non-zero, times out or prints an unparsable block. The helper enforces where each path sits; it cannot tell an operator's option value from a path the lane chose, so the cycle step is instructed to pass only the substituted option values. The checker runs with only `PATH` and `SystemRoot` in its environment, so a repository `env` block cannot inject `NODE_OPTIONS` or similar. The lane passes the checker no `--credential-roots`, so a binding whose L2/L3 entries rest on filesystem credential probes still resolves effective-unpromoted. Operators keep `--merge human-only` on launch lines until the owner decides the remaining phase.
+
+## [0.69.0] - 2026-10-01
+
+### Changed
+
+- **`worktree` routes to the built-in `EnterWorktree` and `ExitWorktree` tools.** The description
+  and a new `## Boundary` section say to use `ExitWorktree` with `action: "keep"` to leave a
+  worktree, and this skill to create one (never `EnterWorktree` by name), to enter an existing one
+  (claim check, then `EnterWorktree` by path), and to inventory, clean up, or audit worktrees. The
+  skill never passes `ExitWorktree`'s destructive `action: "remove"`; removal stays with `cleanup`. The verification records are in `reference/native-worktree.md`.
+
+## [0.68.2] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.68.1] - 2026-09-30
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, `commit`, `pull-request` and `setup` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/review-discipline.md` and `reference/config-resolution.md` are now relative to the spoke, script paths inside a skill read `<skill-dir>/scripts/...`, and the `bin/`, `scripts/` and `lib/` paths read `<plugin-root>/...`. Each of those five `SKILL.md` files gains a `## Spoke paths` section saying which variable each placeholder is. The `babysit-prs` guard test that checks every documented wrapper command against its parser reads the `<plugin-root>` spelling too.
+
 ## [0.68.0] - 2026-09-30
 
 ### Added

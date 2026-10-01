@@ -10,6 +10,12 @@ percentile's name. So a percentile the sample count cannot support is REFUSED by
 name, and the raw samples are printed instead. Reporting the refusal is the
 honest answer; reporting the number is not.
 
+Each reported percentile prints the linear-interpolated value and, beside it,
+the nearest-rank value (`p95=123ms(nearest-rank=130ms)`): nearest-rank is always
+an observed sample, so the two bracket the estimator choice. When p95 is
+reported and dropping the single largest sample moves it by more than
+OUTLIER_SHIFT, an OUTLIER line says so and points at the raw samples.
+
 Every environment variable is read without a default. A missing one is a caller
 bug, and defaulting would silently summarize the wrong file or mislabel an arm.
 
@@ -31,6 +37,10 @@ from collections import Counter
 import pathfix
 
 REPORTED_PERCENTILES = (50.0, 95.0)
+
+# A p95 that moves by more than this fraction of itself when the single largest
+# sample is dropped is carried by that one sample, not by the distribution.
+OUTLIER_SHIFT = 0.10
 
 
 def fail(message: str) -> None:
@@ -62,6 +72,10 @@ def percentile(ordered: list[int], p: float) -> float:
     if lower == upper:
         return float(ordered[lower])
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (k - lower)
+
+
+def nearest_rank(ordered: list[int], p: float) -> int:
+    return ordered[max(math.ceil(p / 100.0 * len(ordered)) - 1, 0)]
 
 
 def load(path: str) -> tuple[list[int], list[int]]:
@@ -121,17 +135,30 @@ def main() -> int:
             refused = True
             cells.append(f"p{p:.0f}=REFUSED(n={count}<{floor})")
         else:
-            cells.append(f"p{p:.0f}={percentile(ordered, p):.0f}ms")
+            cells.append(
+                f"p{p:.0f}={percentile(ordered, p):.0f}ms"
+                f"(nearest-rank={nearest_rank(ordered, p)}ms)"
+            )
 
     print(
         f"{label:<28} conc={concurrency:<3} n={count:<4} "
         f"{' '.join(cells)} "
         f"min={ordered[0]}ms max={ordered[-1]}ms rc={dict(Counter(codes))}"
     )
+    outlier = False
+    if count >= percentile_floor(95.0):
+        full = percentile(ordered, 95.0)
+        without_max = percentile(ordered[:-1], 95.0)
+        if abs(full - without_max) > OUTLIER_SHIFT * full:
+            outlier = True
+            print(
+                f"{'':<28} OUTLIER: one sample moves p95 (p95={full:.0f}ms, "
+                f"without max sample {without_max:.0f}ms); "
+                f"report the raw samples, not p95"
+            )
+    if refused or outlier:
+        print(f"{'':<28} raw samples (ms): {' '.join(str(value) for value in ordered)}")
     if refused:
-        print(
-            f"{'':<28} raw samples (ms): {' '.join(str(value) for value in ordered)}"
-        )
         print(
             f"{'':<28} a percentile p needs 1/(1-p) samples to be expressible; "
             f"below that the printed value is the maximum wearing a percentile's name."

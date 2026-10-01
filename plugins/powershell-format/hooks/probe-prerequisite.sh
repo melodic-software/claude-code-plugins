@@ -50,8 +50,9 @@ while [[ "$tools" == *"{"* ]]; do
   where="on PATH"
   [[ -n "$local_bin" ]] && where="on PATH or as $local_bin"
   if hook::notice_once "$plugin-$name" "$INPUT" prerequisite; then
-    hook::emit_skip_notice SessionStart \
-      "$plugin: $name was not found $where. Hooks that need it will skip until it is installed. Run $(field check "$entry"). It does not install. Install: $(field install "$entry")"
+    msg="$plugin: $name was not found $where. Hooks that need it will skip until it is installed. Run $(field check "$entry"). It does not install. Install: $(field install "$entry")"
+    notice="${notice:+$notice$'\n'}$msg"
   fi
 done
+[[ -n "${notice:-}" ]] && hook::emit_skip_notice SessionStart "$notice"
 exit 0

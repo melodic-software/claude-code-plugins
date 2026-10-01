@@ -172,6 +172,26 @@ Versions: `bash=5.3.9(1)-release sh=/usr/bin/dash git 2.53.0 jq-1.8.2 strace 6.1
 from an extracted `.deb`, not an installed package. The CI runner's versions differ, so its ratchet
 step is the confirmation.
 
+### Team layer location: docs block or `.claude/testing.yaml` (WSL2)
+
+Measured with `plugins/testing/scripts/time-config.sh 60`: one sample of every arm per iteration,
+after a warm-up pass that checks each arm emits the same finding, `test-scan.sh` fed a `Write`
+create payload for a zero-assertion test file, and `resolve-config.sh --quick` alone. Every config
+arm carries the same team config (two excludes, one rule level, one `extend` list), as
+`.claude/testing.yaml`, as the `yaml config` block of `docs/conventions/testing.md`, or both. Two
+runs, started at a 1-minute load of 7.4 and 7.6.
+
+| Stage | none p50/p95 | `.claude` only p50/p95 | docs block only p50/p95 | both p50/p95 |
+|---|---|---|---|---|
+| `test-scan.sh`, run 1 | 98.4/106.7 ms | 107.2/116.4 ms | 106.7/120.1 ms | 110.5/120.2 ms |
+| `test-scan.sh`, run 2 | 96.1/106.6 ms | 105.6/115.9 ms | 105.9/115.7 ms | 106.2/118.0 ms |
+| `resolve-config.sh --quick`, run 1 | 1.6/1.9 ms | 6.7/7.9 ms | 6.9/7.9 ms | 7.1/8.7 ms |
+| `resolve-config.sh --quick`, run 2 | 1.6/2.2 ms | 6.7/7.9 ms | 6.7/8.0 ms | 6.8/8.1 ms |
+
+The docs block costs the same as the `.claude` file at p50 (within 1 ms) and stays under the 150 ms
+p95 budget with 30 ms to spare. Reading the block adds no measurable time over reading the file:
+the config arms differ from none by the config parse, not by where the block sits.
+
 ## Release 2 probes
 
 Claude Code 2.1.285, WSL2, 2026-09-30. Each probe ran in its own scratch git repository under

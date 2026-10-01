@@ -86,8 +86,8 @@ def runtime_path(rel):
 
 
 WAIT_MAX = 120
-QUIET_SECONDS = 0.3  # a found event waits this long for more before the watcher wakes
-BURST_SECONDS = 2.0  # never holding it longer than this in all
+QUIET_SECONDS = 3.0  # a found event waits this long for more before the watcher wakes
+BURST_SECONDS = 12.0  # never holding it longer than this in all
 PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
 READING_WINDOW = 180  # seconds Claude is shown as reading after an answer was delivered
@@ -268,13 +268,24 @@ class Settings:
 
 
 def question_states(doc, r):
-    """Per question id: (state, revising). Never written to questions.json.
+    """Per question id: (state, revising); see derive_states."""
+    return derive_states(doc, r)[0]
+
+
+def derive_states(doc, r):
+    """(states, upstream_changed). states maps each question id to (state, revising); neither is
+    written to questions.json.
 
     Live decision events replay in seq order, with each question's terminal decision placed by its
     updatedAt against the events' `at` (before a same-second event, as the page decision wins that
-    tie in round.py's effective()). A decision on a question that is not stale marks
+    tie in round.py's effective(); a terminal decision and a recommendation change in the same
+    second fall in `rev` order). A decision on a question that is not stale marks
     its direct dependents that hold a live decision stale; a decision on a stale question clears
-    it without re-staling its own dependents (that cascade is deferred). A withdrawn event never
+    it without re-staling its own dependents (that cascade is deferred). A recommendation change
+    (a history line with `pageSeq`, placed after the events up to that seq) marks stale each
+    question named in its `affects` and each direct dependent of the revised question that holds a
+    live decision, and upstream_changed maps each such question to the revised ids that did it; a
+    new decision on the question clears both. A withdrawn event never
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
     upstream-pending; `archived` wins over both. `revising` marks a question with its own
     delivered, unhandled decision event; upstream effects stay in stale and upstream-pending.
@@ -296,7 +307,12 @@ def question_states(doc, r):
         key=lambda e: e.get("seq", 0),
     )
     terminal = [
-        {"id": q["id"], "kind": t["decision"], "at": t["updatedAt"]}
+        {
+            "id": q["id"],
+            "kind": t["decision"],
+            "at": t["updatedAt"],
+            "rev": t.get("rev") or 0,
+        }
         for q in qs
         if isinstance(t := q.get("terminal"), dict)
         and t.get("decision")
@@ -309,13 +325,42 @@ def question_states(doc, r):
             len(events),
         )
 
-    replay = [(i, 1, "", e) for i, e in enumerate(events)]
-    replay += [(slot(t["at"]), 0, t["at"], t) for t in terminal]
-    live, stale = {}, set()
-    for *_, e in sorted(replay, key=lambda x: x[:3]):
+    changes = [
+        {
+            "id": q["id"],
+            "kind": "rec",
+            "at": h.get("at") or "",
+            "seq": h["pageSeq"],
+            "rev": h.get("rev") or 0,
+            "hit": [*(h.get("affects") or []), *children.get(q["id"], [])],
+        }
+        for q in qs
+        for h in q.get("history") or []
+        if isinstance(h, dict) and isinstance(h.get("pageSeq"), int)
+    ]
+
+    def after(seq):  # the first event past `seq`
+        return next(
+            (i for i, e in enumerate(events) if e.get("seq", 0) > seq), len(events)
+        )
+
+    replay = [(i, 1, "", 0, e) for i, e in enumerate(events)]
+    replay += [(slot(t["at"]), 0, t["at"], t["rev"], t) for t in terminal]
+    replay += [(after(c["seq"]), 0, c["at"], c["rev"], c) for c in changes]
+    live, stale, changed = {}, set(), {}
+    for *_, e in sorted(replay, key=lambda x: x[:4]):
         qid = e["id"]
+        if e["kind"] == "rec":
+            hit = {c for c in e["hit"] if c != qid and live.get(c)}
+            stale.update(hit)
+            for c in hit:
+                changed.setdefault(c, [])
+                if qid not in changed[c]:
+                    changed[c].append(qid)
+            continue
         was_stale = qid in stale
         stale.discard(qid)
+        changed.pop(qid, None)
         live[qid] = e["kind"] != "reopen"
         if live[qid] and not was_stale:
             stale.update(c for c in children.get(qid, []) if live.get(c))
@@ -350,7 +395,7 @@ def question_states(doc, r):
         else:
             state = "open"
         out[qid] = (state, qid in revising)
-    return out
+    return out, {c: ids for c, ids in changed.items() if c in stale}
 
 
 def now_iso(t=None):
@@ -499,6 +544,32 @@ def is_handled(doc, seq):
     return seq <= (doc.get("handledSeq") or 0) or seq in set(doc.get("handled") or [])
 
 
+def release_user_holds(doc, r):
+    """Drop, in this loaded copy only, each `by: user` hold that the user has since answered: a
+    live accept, alt or own on the question with a seq above the hold's setAsideSeq, or, on a hold
+    with none (an imported one), an event stamped after its waitingSince. Claude's
+    `wait --clear` stays valid, and an undo of that answer brings the hold back."""
+    for q in doc.get("questions") or []:
+        if (
+            isinstance(q, dict)
+            and q.get("waiting")
+            and q.get("waitingBy") == "user"
+            and any(
+                e.get("id") == q.get("id")
+                and e.get("kind") in ("accept", "alt", "own")
+                and not e.get("withdrawn")
+                and (
+                    e.get("seq", 0) > q["setAsideSeq"]
+                    if q.get("setAsideSeq") is not None
+                    else (e.get("at") or "") > (q.get("waitingSince") or "9")
+                )
+                for e in r.get("events") or []
+            )
+        ):
+            for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
+                q.pop(key, None)
+
+
 def content_rev(q, events):
     """Bumped by round.py on wording or recommendation changes, plus one per decision or undo. Replies never bump it."""
     qid = q.get("id")
@@ -612,15 +683,22 @@ def split_accept_audit(doc, r, items):
     """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
     {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
     `ineligible` is an unknown, closed, held or recommendation-less question, or one whose
-    prerequisite has no decision yet."""
+    prerequisite has no decision and is still on the path (an archived or superseded
+    prerequisite is met)."""
+    release_user_holds(doc, r)
     qs = {q.get("id"): q for q in doc.get("questions") or []}
     states = question_states(doc, r)
     seeded = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
 
     def decided(qid):
-        return (r["responses"].get(qid) or {}).get("decision") or (
-            (qs.get(qid) or {}).get("terminal") or {}
-        ).get("decision")
+        """A prerequisite that is decided, or has left the path (archived or superseded)."""
+        p = qs.get(qid) or {}
+        return (
+            (r["responses"].get(qid) or {}).get("decision")
+            or (p.get("terminal") or {}).get("decision")
+            or p.get("archived")
+            or p.get("supersededBy")
+        )
 
     accepted, skipped = [], []
     for it in items:
@@ -722,6 +800,9 @@ class Hub:
         self.watch_seq = self.dir / ".watch-seq"
         self.token = secrets.token_urlsafe(32)
         self.session = hashlib.sha256(str(self.dir).lower().encode()).hexdigest()[:12]
+        self.instance = secrets.token_hex(
+            6
+        )  # differs on every start; the page tells a restart by it
         self.cond = threading.Condition()
         self.waiters = 0
         self.streams = 0
@@ -870,13 +951,16 @@ class Hub:
             q = load_json(self.questions, {"questions": []})
             r = load_json(self.responses, EMPTY_RESPONSES)
             settings, theme = self.layers.resolve(self.dir, self.user_settings())
-            derived = question_states(q, r)
+            release_user_holds(q, r)
+            derived, changed = derive_states(q, r)
             # exporters imports server at module top
             from exporters import latest_decision
 
             for x in q.get("questions") or []:
                 if isinstance(x, dict) and x.get("id") in derived:
                     x["state"], x["revising"] = derived[x["id"]]
+                    if x["id"] in changed:
+                        x["upstreamChanged"] = changed[x["id"]]
                     x["answered"] = bool(
                         (latest_decision(x, r.get("responses", {})) or {}).get(
                             "decision"
@@ -896,6 +980,7 @@ class Hub:
             **self._last_state,
             "listener": self.listener(),
             "session": self.session,
+            "instance": self.instance,
             "api": API,
         }
 
@@ -972,6 +1057,7 @@ class Hub:
                 )
             elif kind in DECISIONS and msg.get("contentRev") is not None:
                 current = content_rev(qs[qid], r["events"])
+                event["contentRev"] = current
                 if msg.get("contentRev") != current:
                     q = qs[qid]
                     raise Conflict(
@@ -1038,6 +1124,7 @@ class Hub:
                     "text": "",
                     "at": now,
                     "auditSeq": seq,
+                    "contentRev": it["contentRev"],
                 }
                 r["events"].append(accept)
                 r["responses"][it["id"]] = decision_view(accept)
@@ -1097,10 +1184,11 @@ class Hub:
             if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
         ]
 
-    def settle(self, r):
-        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all,
-        so a burst of saves wakes the watcher once. Holds self.cond; returns the newest responses."""
-        cap = time.time() + BURST_SECONDS
+    def settle(self, r, deadline=float("inf")):
+        """Hold found events until QUIET_SECONDS pass with no new one, at most BURST_SECONDS in all
+        and never past `deadline`, so a burst of saves wakes the watcher once and the reply still
+        lands inside the watcher's transfer timeout. Holds self.cond; returns the newest responses."""
+        cap = min(time.time() + BURST_SECONDS, deadline)
         while True:
             left = min(QUIET_SECONDS, cap - time.time())
             if left <= 0:
@@ -1168,7 +1256,7 @@ class Hub:
                         events = []
                     left = deadline - time.time()
                     if events:
-                        r = self.settle(r)
+                        r = self.settle(r, deadline)
                         check_revoked()
                         top = r.get("seq", 0)
                         events = select_events(r)

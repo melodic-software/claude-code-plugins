@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6] - 2026-09-30
+
+### Fixed
+
+- **`principles` spokes no longer point at the collector ladder and config reference through the literal plugin-root token.** The token is not substituted in a `reference/` file. The two reference docs are now relative links, the ladder file reads `<plugin-root>/scripts/collector-ladder.tsv`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
 ## [0.4.5] - 2026-09-30
 
 ### Changed

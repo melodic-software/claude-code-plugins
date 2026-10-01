@@ -49,7 +49,7 @@ the description below (the helper is byte-identical across plugins per
 skill miss its own prior reports and dismissed-memory):
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
+bash "<plugin-root>/lib/state-key.sh"
 ```
 
 The key's shape is `<repo-identity>/<worktree-discriminator>`: the repo's first configured remote

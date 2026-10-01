@@ -247,7 +247,7 @@ content) and runs with `--observed`, so its sixth line carries the envelope coun
 tier; this call is the one place the options render.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/probe-observability-state.sh" --pipeline \
+bash "<skill-dir>/scripts/probe-observability-state.sh" --pipeline \
   --root "$HOOK_ROOT_REL" --enabled "<session_event_log_enabled>" \
   --categories "<session_event_log_categories>" --keep-sessions "<session_log_keep_sessions>" \
   --keep-days "<session_log_keep_days>" --pre-prune-command "<session_log_pre_prune_command>"

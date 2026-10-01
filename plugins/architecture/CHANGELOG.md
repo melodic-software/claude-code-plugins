@@ -3,6 +3,18 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2] - 2026-10-01
+
+### Changed
+
+- `map-events` and `map-flow` state their scope: C# is read, and Node, Go, Python, Rust, JVM, Ruby and PHP are declined, so a message or call that exists only in those files is absent from the output.
+
+## [0.17.1] - 2026-09-30
+
+### Fixed
+
+- **`map-landscape`'s `scope-modes.md` links the topic-docs reference by its relative path.** It named `reference/topic-docs.md` through the literal plugin-root token, which the Read tool does not expand in a spoke file.
+
 ## [0.17.0] - 2026-09-30
 
 ### Added

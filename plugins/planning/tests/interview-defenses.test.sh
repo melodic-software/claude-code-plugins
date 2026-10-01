@@ -488,16 +488,19 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # ticked parts and sends unticked ones to the Brief as named risks, and a hedged reply
 # resolves at most one headline. None qualifies the gap or unattended-blocker bindings,
 # the ladder, or the gate. The `superseded-by-plan` status, its paragraph, and its
-# drift-check line add a non-terminal status the gate blocks on; they widen nothing.
+# drift-check line add a non-terminal status the gate blocks on; they widen nothing. Its
+# reconfirm row's named-field form changes only the row's text, not which reply moves it.
 # The page-parts paragraph states which decisions carry parts (accept and own keep unticked
 # parts as Brief risks; an alternative withdraws them, as the terminal rule does; a defer's
 # open row covers them) and names `confirm-commitments` for parts confirmed in the terminal.
-# Parts still never become rows the gate grades, so no binding or gate is loosened.
+# Parts still never become rows the gate grades, so no binding or gate is loosened. The gate
+# commands name the script through `<plugin-root>`, which SKILL.md defines; the same script
+# runs with the same flags.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "c02c6aa427e0d64b7893d8123a6eeaf85ae00a9b36acfa65c29d39059b41072b"
+  "463d7352c0777ad0cb4c45412b869d5af837315f3234bdbdb37f5703321d899b"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -596,12 +599,13 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "## Relentless \`me\` mode mechanics" \
   "0850ba314fc513e1f8ae0f0e749836f57a287fb0b265b6a8db356e29983714fc"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
-# not change which rows relentless mode may close.
+# not change which rows relentless mode may close. The Delivery bullet's topic-docs link is
+# relative to the spoke; a link target changes no rule.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "1bc352d972e0a7770917e7f4d5e3a7cce8d082b98abe3427560c7e2849e02170"
+  "e1ee1e7b928dab78be7062a0d11866044ddc246dc90dba69c2434bc5166d7ea9"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"

@@ -30,8 +30,8 @@ enforcement, say so and point at a commit-msg entry in the repo's own hook manag
 3. **Sentinel-marked hook already installed** → idempotent re-install: overwrite the two
    guardrails-owned files in place (template may have updated), report "refreshed".
 
-**Install (on a clean preflight):** copy `${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/commit-msg-convention.sh`
-to `<git-dir>/hooks/commit-msg` and `${CLAUDE_PLUGIN_ROOT}/hooks/resolve-convention-pattern.sh`
+**Install (on a clean preflight):** copy `<plugin-root>/lib/git-hooks/commit-msg-convention.sh`
+to `<git-dir>/hooks/commit-msg` and `<plugin-root>/hooks/resolve-convention-pattern.sh`
 to `<git-dir>/hooks/guardrails-resolve-convention.sh` (resolve `<git-dir>` via
 `git rev-parse --absolute-git-dir`; in a worktree `.git` is a file), `chmod +x` both.
 

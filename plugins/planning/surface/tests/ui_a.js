@@ -60,7 +60,7 @@ async page => {
   await page.keyboard.press("Escape");
   ok("Esc blurs the note", await page.evaluate(() => document.activeElement.id !== "note"));
   await page.keyboard.press("1");
-  ok("digit 1 arms Accept outside the note", /Accept/.test(await page.textContent(".choice.armed").catch(() => "")));
+  ok("digit 1 arms Rec outside the note", /Rec/.test(await page.textContent(".choice.armed").catch(() => "")));
   // save from inside the note: no auto-advance
   await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
   const ev1 = await events();
@@ -74,7 +74,7 @@ async page => {
   ok("note restored after undo", /hello/.test(await page.inputValue("#note")));
 
   // Enter on a focused Save button never submits
-  await page.keyboard.press("Escape"); await page.keyboard.press("2");
+  await page.keyboard.press("Escape"); await page.keyboard.press("3");
   const n2 = (await events()).length;
   await page.focus("[data-save]"); await page.keyboard.press("Enter"); await page.waitForTimeout(400);
   ok("plain Enter on a focused Save button does not submit", (await events()).length === n2);
