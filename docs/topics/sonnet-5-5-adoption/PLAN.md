@@ -232,7 +232,15 @@ Files: `prompts/loops/loop-lane-prompts.md`, `plugins/playbooks/skills/boris/ref
 - Each new pointer carries `As of 2026-` and `Recheck trigger`; `pointer-checks.md` has one row per pointer.
 - `git diff --name-only -- prompts plugins/playbooks plugins/context-guard` lists only the Phase 2 files.
 
-### Phase 3: Slice correct-and-reverify [TODO]
+### Phase 3: Slice correct-and-reverify [DONE]
+
+Outcome (2026-10-01): round 3 applied 9 findings and declined A3-4 (informational). Round 4
+found the Claude Code advisor page had changed upstream (a separate Sonnet 5.5 row now agrees
+with the platform pages), so 04 C35 became `cc-applicable` and the recorded conflict became
+history; the peer session was told and dropped its planned disagreement entry. Round 5: both arms
+PASS (Codex on orchestrator-fetched live copies, since its sandbox has no network). One item has
+no known fix and is recorded in the slice: 03 C7 clause-scoped tagging, a docpage-digest contract
+gap the peer PR owns.
 
 Untracked work under `.work/claude-dev-blog-building-with-c-09e1fe5d/`; nothing is committed.
 
