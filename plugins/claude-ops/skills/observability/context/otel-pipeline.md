@@ -27,7 +27,7 @@ SessionStart hooks to spawn either component.
 Check the required Collector listener:
 
 ```bash
-source "${CLAUDE_PLUGIN_ROOT}/skills/observability/otel/net-probe.sh"
+source "<skill-dir>/otel/net-probe.sh"
 port_status 4318
 ```
 

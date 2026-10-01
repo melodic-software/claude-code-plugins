@@ -310,6 +310,16 @@ learns the run produced no artifact at the moment it would otherwise have been t
 lives. When that summary is the only record, it lists **every** finding, not the capped "top
 findings" the template uses when an artifact will carry the rest.
 
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Gotchas
 
 - **`HEAD` is not a branch name.** A detached checkout, the normal shape for a scheduled runner,

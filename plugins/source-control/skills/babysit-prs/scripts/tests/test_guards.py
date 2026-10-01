@@ -581,7 +581,7 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
 
 
 WRAPPER_COMMAND = re.compile(
-    r'bash "\$\{CLAUDE_PLUGIN_ROOT\}/(bin/source-control-babysit-[a-z-]+)"'
+    r'bash "(?:\$\{CLAUDE_PLUGIN_ROOT\}|<plugin-root>)/(bin/source-control-babysit-[a-z-]+)"'
 )
 
 

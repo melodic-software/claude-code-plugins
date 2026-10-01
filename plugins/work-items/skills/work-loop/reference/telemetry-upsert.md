@@ -16,8 +16,10 @@ for an unset key and the validation that rejects a non-conforming id.
 
 ## Invocation
 
+Run the script at the absolute path `SKILL.md`'s "Telemetry and durable loop state" gives for it:
+
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh" \
+bash "<upsert-script>" \
   --lane work-loop --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" --body-file "$BODY_FILE"
 ```
 

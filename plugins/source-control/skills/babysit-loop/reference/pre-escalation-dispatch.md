@@ -32,7 +32,7 @@ dispatch itself and not merely the mechanic invoked after it (`SKILL.md` Cycle s
 "Dimension overrides bind by tier flooring"). An invocation whose own argument line narrows thread
 resolution below the authority this dispatch needs gets **no dispatch at all**: the PR escalates and
 the cycle report names it override-constrained. The live shape of that narrowing is
-`autopilot --merge c3-this-run --thread-resolution safe`. `${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`
+`autopilot --merge c3-this-run --thread-resolution safe`. `<plugin-root>/reference/config-resolution.md`
 makes invocation arguments win for every dimension but merge, and an argument narrowing thread
 resolution cannot be answered by dispatching a fresh subagent that resolves threads anyway.
 

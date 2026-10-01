@@ -333,13 +333,13 @@ Compare triggered workflows against the expected set from Phase 2.5. Flag mismat
 ```bash
 # Tier 1 — Annotations API (path/line/level/title/message — fix-location data)
 # Sometimes alone is enough to classify (lint failures, type errors)
-bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-annotations.sh" <pr-number> --failed
+bash "<skill-dir>/scripts/fetch-annotations.sh" <pr-number> --failed
 
 # Tier 2 — Full failure ZIP via direct gh api (complete, untruncated). When the
 # ${user_config.fetch_logs_max_bytes} option is a number other than the 52428800
 # default (not empty, not a literal unexpanded token), append
 # --max-bytes ${user_config.fetch_logs_max_bytes}
-bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/fetch-failed-logs.sh" <run-id>
+bash "<skill-dir>/scripts/fetch-failed-logs.sh" <run-id>
 
 # Tier 3 — LAST RESORT interactive eyeball (TRUNCATES on large logs)
 gh run view <run-id> --log-failed 2>&1 | grep '##\[error\]'
@@ -415,7 +415,7 @@ For each security finding:
 **Fetch all comments deterministically** via the bundled script. Never select API surfaces by agent judgment:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <pr-number>
+bash "<plugin-root>/scripts/fetch-all-pr-comments.sh" <pr-number>
 ```
 
 Output: a JSON array sorted by `created_at`. Each object carries `type` (`general` | `review` | `inline`), `author`, `body`, `path`, `line`, `id`. The script hits all 3 GitHub API surfaces (issue-level comments, review-level comments, inline review comments), so no surface can be accidentally skipped.

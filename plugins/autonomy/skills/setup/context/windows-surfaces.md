@@ -3,7 +3,7 @@
 The guardrail slice reads this file at step 1 (detect), step 3 (probe), and step 6 (fail-closed)
 for any execution surface whose host is Windows: native Windows, a WSL2 distribution, or a VM or
 microVM launched from it. The
-[isolation-ladder leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/isolation-ladder.md) owns the
+[isolation-ladder leaf](../../../reference/guardrails/isolation-ladder.md) owns the
 levels; this file restates only the instance facts a binding depends on. Product names are marked
 examples, never an instance list, and every candidate still passes the
 [isolation probe](../templates/isolation-probe.md) before it binds.

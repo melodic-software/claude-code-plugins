@@ -5,7 +5,7 @@ when `apply` reaches it. The hub's
 [guardrail binding resolution](../SKILL.md#guardrail-binding-resolution) section owns how bound
 policy resolves; this slice is the action that produces the binding it resolves.
 
-Wires the enforced state of the [guardrail contract](${CLAUDE_PLUGIN_ROOT}/reference/guardrails.md):
+Wires the enforced state of the [guardrail contract](../../../reference/guardrails.md):
 detect → bind → live-validate → fail-closed, always detect-diff-reconciling against the org's
 existing guardrail surfaces. Everything lands as reviewable changes; paid scanner
 SKUs are advisory + explicit opt-in with cost surfaced.
@@ -21,7 +21,7 @@ depends on the binding until that human-landed change exists.
 1. **Detect substrates per level per machine surface**. For each execution surface the
    trigger/dispatch slice recorded (the same surface ids the security binding's
    `isolation_bindings` key on), inspect what isolation substrates are available at each ladder
-   level per the [isolation-ladder leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/isolation-ladder.md):
+   level per the [isolation-ladder leaf](../../../reference/guardrails/isolation-ladder.md):
    an `L2` whole-process OS-sandbox wrap or default-deny-egress container, an `L3` kernel-separated
    VM/microVM or hosted ephemeral executor. Detection is per surface, a substrate present on one
    surface says nothing about another, and the flat "some surface has L2" answer never satisfies a
@@ -95,7 +95,7 @@ depends on the binding until that human-landed change exists.
    either here is invalid.
 5. **Security-review wiring folds in here (no separate capability)**, the security-review policy
    is one part of this single guardrail slice, never a near-duplicate setup capability. Wire the
-   [security-review leaf's](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/security-review.md) two
+   [security-review leaf's](../../../reference/guardrails/security-review.md) two
    layers (deterministic scanners + AI security review) into the binding's `verification_blocking`
    knobs, detect-diff-reconciling against the org's existing scanners, review workflows, and branch
    protections. Free-path scanner classes satisfy every blocking obligation on the default path:

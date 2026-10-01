@@ -49,7 +49,7 @@ Per-surface free-text → records `{surface, file, line, line_basis, category, n
 
 ## Stage 1: Severity crosswalk (deterministic)
 
-Map native severity → the tier vocabulary in effect (the project's own, else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`):
+Map native severity → the tier vocabulary in effect (the project's own, else `<plugin-root>/context/severity.md`):
 
 - security-reviewer: P1/P2 → CRITICAL; P3 → IMPORTANT; P4/P5 → SUGGESTION; A04/tier-less → SUGGESTION + `forward-flag: design-review`.
 - code-reviewer, slice-subagents, pr-review-toolkit: identity mapping (Critical/Important-or-Warning/Suggestion).
@@ -59,7 +59,7 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 
 ## Stage 2: Confidence enum (deterministic)
 
-Per `${CLAUDE_PLUGIN_ROOT}/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (every agent leaf per its output format; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
+Per `<plugin-root>/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (every agent leaf per its output format; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
 
 ## Stage 3: Dedup (subagent)
 

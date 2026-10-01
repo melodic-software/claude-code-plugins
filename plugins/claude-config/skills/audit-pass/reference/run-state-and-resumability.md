@@ -89,13 +89,13 @@ incomplete run, which the no-lock read-only policy otherwise makes undecidable.
 write and the verdict:
 
 ```
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" paths \
+bash "<skill-dir>/scripts/run-state.sh" paths \
   --plugin-data "${CLAUDE_PLUGIN_DATA}" --run-id <run-id>
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease acquire \
+bash "<skill-dir>/scripts/run-state.sh" lease acquire \
   --run-dir <run-dir> --run-id <run-id> --plugin-data "${CLAUDE_PLUGIN_DATA}"
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease heartbeat --run-dir <run-dir>
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease classify  --run-dir <run-dir>
-bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/scripts/run-state.sh" lease release   --run-dir <run-dir>
+bash "<skill-dir>/scripts/run-state.sh" lease heartbeat --run-dir <run-dir>
+bash "<skill-dir>/scripts/run-state.sh" lease classify  --run-dir <run-dir>
+bash "<skill-dir>/scripts/run-state.sh" lease release   --run-dir <run-dir>
 ```
 
 `classify` prints `live`, `stale`, `released`, or `missing` and exits 0. Refusing `--resume` against

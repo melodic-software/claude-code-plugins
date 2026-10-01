@@ -57,7 +57,7 @@ In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --gi
 ```bash
 gh pr merge <pr_number> --squash && {
   if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
-    REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
+    REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
   else
     echo 'PR not merged yet (merge queue or auto-merge); delete <branch> once it reads MERGED' >&2
   fi
