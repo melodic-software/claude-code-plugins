@@ -182,22 +182,51 @@ object literal without running anything:
 | Form | Example (2.1.284) | `_source` |
 |---|---|---|
 | String or single-quoted literal, or a `+` concatenation of them | `keybindings-help` | `literal` |
-| Template literal; each `${...}` renders as an ellipsis | `workflow-authoring` | `template` |
-| Identifier bound to a value, followed by the locality rule | `description:Ki` | `constant` |
-| Identifier naming a `function f(){...}`, or a no-argument call | `description:ta` (`code-review`) | `call` |
+| Template literal; each `${...}` resolves like any expression, and one that does not renders as an ellipsis | `color` argument hint | `template` |
+| Identifier bound to a value, followed by the module rule below | `description:Ki` | `constant` |
+| Identifier naming a `function f(...){...}`, or a call with or without arguments (a tool's `description(){...}` method is read the same way) | `description:ta` (`code-review`); `ClaudeDesign`, `Glob` tools (2.1.285) | `call` |
 | `get description(){...}`, each `return` collected | `exit`, `init`, `diff`, `terminal-setup` | `getter` |
 | `()=>...` | `artifact-pr-review` | `arrow` |
 | A loop variable of a literal-table roster | `artifact-report` | `roster` |
 | Anything else (`()=>n().description()`) | `design` | `unresolved` |
 
-Within a returned expression, only operands in value position count: the start, and after a
-top-level ternary `?` or `:`. An operand followed by `?` is a condition, which is how
+Within a returned expression, only operands in value position count: the start, after a
+top-level ternary `?` or `:`, and after a `||` or `??` fallback unless the fallback is an empty
+string. An operand followed by `?` is a condition, which is how
 `OMt(rc()?"fullscreen":"inline")==="fullscreen"?"Toggle...":"View..."` yields the two branch
 strings and not the condition's. Several values become `_variants`, and `value` is the last:
 the else branch of a ternary, the final `return` of a getter, which is the default-session text in
-every 2.1.284 case. A single-character identifier is trusted only within
-`SHORT_VALUE_LOCALITY_BYTES` of the registration, because it is function-local. A skill field that
-resolves to nothing falls back to its descriptor object, then to `menuDescription`.
+every 2.1.284 case. An operand is a `+` concatenation whose parts may also be a parenthesized
+expression (`d+(x()?m:c)+p`) or a literal array's `.join(sep)`.
+
+A parameter of the function or method being read is a runtime value: it is shadowed, so it never
+resolves to a same-named binding elsewhere, and what depends on it becomes a condition, an
+ellipsis, or nothing. A result whose ellipses leave no static word (`${a}\n\n${b}` with neither
+resolved) is unresolved, not a value.
+
+The 2.1.285 bytecode bundle concatenates about two thousand modules, each opening with a
+`// @bun` header, and minified names repeat from module to module (`jd` is `"Workflow"` in one and
+a local `"host_exit"` ternary in another). So an identifier longer than one character resolves by
+module: a name its module imports resolves to the one top-level declaration in the one module that
+exports it; any other name resolves inside its own module, nearest before the reader, else first
+after (a function declaration always, being hoisted; a value binding only at the module's top level
+and only when the read is deferred, reached through a getter, method, arrow or function-valued
+field that runs after the module loads); a name neither imported nor declared there is
+unresolved. A single-character identifier is function-local: a binding is trusted only within
+`SHORT_VALUE_LOCALITY_BYTES` before the reader and inside its module, and a function only as the
+one top-level `function X(` of its own module. A source with no module
+headers keeps the plain nearest-preceding rule. A skill field that resolves to nothing falls back to
+its descriptor object, then to `menuDescription`.
+
+A description no form resolves is listed in `integrity.undetermined.description_unresolved`
+(2.1.285: `design`, whose description reads a table keyed by a runtime mode). That list feeds
+`/claude-ops:changelog apply`'s native-drift step, which files each name the previous run did not
+list, so a release that adds a shape this reader cannot follow is filed rather than absorbed.
+
+| Claim | Basis | As of | Recheck trigger |
+|---|---|---|---|
+| The bytecode bundle is about two thousand concatenated modules, each opening with a `// @bun` header, and minified names repeat between them | 2,125 `// @bun` headers counted in the bundle `read_bundle` returns for the Claude Code 2.1.285 native build (release: <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>, 2.1.285 entry; Bun's bytecode output: <https://bun.sh/docs/bundler/bytecode>); `jd` bound to `"Workflow"` in one module and to a `"host_exit"` ternary in another | 2026-09-30, Claude Code 2.1.285 | A release drops the `// @bun` module header or the header count falls to one; `--self-check` reports it as a changed layout |
+| `design` is the only description the reader leaves unresolved | `inventory.py --binary-only` on the 2.1.285 build of that release: `integrity.undetermined.description_unresolved` lists `design` alone (14 names before this reader). This is derived per run, so no document restates it | 2026-09-30, Claude Code 2.1.285 | That list changes on any run; `/claude-ops:changelog apply` files each new name |
 
 ### 8. Find bundled workflows by what the registrar does
 

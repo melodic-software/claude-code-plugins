@@ -3,11 +3,38 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.78.0] - 2026-09-30
+## [0.79.0] - 2026-10-01
 
 ### Added
 
 - **`/claude-ops:check` reads whether `node` and `jq` resolve for the claude-ops hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, so the fleet report and the per-plugin check read the same list. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
+
+## [0.78.0] - 2026-09-30
+
+### Added
+
+- **Native drift files unresolved descriptions.** `native_drift.py summarize` records the
+  extraction's `integrity.undetermined.description_unresolved` names, and `diff` adds an
+  `unresolved-description` item for each name the previous summary did not list, so a release
+  that adds a description shape the inventory cannot read is filed instead of absorbed.
+
+### Fixed
+
+- **The inventory resolves built-in descriptions built by a call with arguments.** A tool's
+  `description()` method that passes a runtime value into a function (`kbr(RTe())`,
+  `gLr(void 0)`) is followed into that function, each plain parameter bound to its resolvable
+  argument and every other one a runtime value, and template
+  substitutions, `||`/`??` fallbacks, parenthesized parts and `[...].join()` arrays now resolve.
+  On Claude Code 2.1.285 the unresolved descriptions drop from 14 to 1 (`design`, whose text
+  reads a table keyed by a runtime mode, stays unresolved).
+- **Identifiers resolve by module.** The bytecode bundle repeats minified names from module to
+  module, so a name resolves through its import to the exporting module, or inside its own module;
+  a substitution such as `workflow-authoring`'s `${jd}` now reads `Workflow`, never a foreign
+  `host_exit`.
+- **Detect scores a tool's words and user-facing name.** A PascalCase native name
+  (`ClaudeDesign`, `EnterWorktree`) is scored as its words, and `user_facing_name` is scored
+  beside the description (it does not join the dismissal fingerprint), so a surface without a
+  resolvable description is still paired on its name, user-facing name and search hint.
 
 ## [0.77.4] - 2026-09-30
 

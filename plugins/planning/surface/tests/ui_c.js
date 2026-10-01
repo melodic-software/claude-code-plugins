@@ -224,8 +224,7 @@ async page => {
     const r5 = await (await post({id: "P1", kind: "accept", alt: null, text: ""})).json();
     await page.request.get(base + "api/wait?after=" + (r5.seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": await token()}});
     await page.waitForTimeout(900);
-    ok("revising chip on the dependent", /Upstream P1 changed/.test(await page.textContent('.qbtn[data-q="P2"]')));
-    ok("revising banner in the detail", /Upstream P1 changed/.test(await page.textContent("#dscroll")));
+    ok("revising chip on the answered question, not its dependent", /Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P1"]')) && !/Answer not handled yet/.test(await page.textContent('.qbtn[data-q="P2"]')));
 
     // shortcuts off: no single key acts
     await page.keyboard.press(","); await page.waitForTimeout(200);

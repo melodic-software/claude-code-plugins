@@ -10564,6 +10564,58 @@ class GuardTests(unittest.TestCase):
                     if other != label:
                         self.assertNotIn(phrase, reason)
 
+    def test_unparsable_reason_blames_an_unquoted_brace_never_a_quoted_one(
+        self,
+    ) -> None:
+        expansion = "a substitution or expansion"
+        for command, blamed in (
+            ("a {b,c}", "'{'"),
+            ("a '{b}' {c}", "'{'"),
+            ("a '{b}' $(x)", "'$'"),
+            ('a "{b}" | c', "a pipe"),
+        ):
+            with self.subTest(command=command):
+                self.assertIn(blamed, guard._unparsable_reason(command))
+        self.assertIn(expansion, guard._unparsable_reason("a {b,c}"))
+        for command in ("a '{b}' c\\d", "a '{b}' x'y'", 'a "{b}" \t'):
+            with self.subTest(command=command):
+                reason = guard._unparsable_reason(command)
+                self.assertNotIn("'{'", reason)
+                self.assertNotIn("'}'", reason)
+                self.assertNotIn(expansion, reason)
+
+    def test_literal_parser_accepts_braces_only_inside_whole_word_quotes(
+        self,
+    ) -> None:
+        parse = guard._literal_shell_words
+        self.assertEqual(["a", "{b}"], parse("a '{b}'"))
+        self.assertEqual(["a", "x{y} z"], parse('a "x{y} z"'))
+        self.assertEqual(["a", "{b}", "c"], parse("a '{b}' c", allow_backslash=True))
+        self.assertEqual(["a", "C:\\{g}"], parse('a "C:\\{g}"', allow_backslash=True))
+        for command in (
+            "a {b}",
+            "a x{b}",
+            "a '{b}'x",
+            "a x'{b}'",
+            "a '{b}' {c}",
+            "a '{b}",
+            'a "${x}"',
+            'a "$(x)"',
+            'a "`x`"',
+            "a '$x{b}'",
+            "a '{b}' $x",
+        ):
+            with self.subTest(command=command):
+                self.assertIsNone(parse(command))
+
+    def test_quoted_braces_keep_engine_relevance_on_both_surfaces(self) -> None:
+        script = guard._display_path(guard._engine_script_path())
+        command = f"python3 \"{script}\" scan --target '{{g}}' --output s"
+        self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
+        self.assertTrue(guard._engine_gate_relevant(command, "PowerShell"))
+        self.assertFalse(guard._engine_gate_relevant("ls '{g}'", "Bash"))
+        self.assertFalse(guard._engine_gate_relevant("Get-Item '{g}'", "PowerShell"))
+
     def test_operator_labels_cover_the_characters_the_literal_parser_rejects(
         self,
     ) -> None:
@@ -11123,6 +11175,13 @@ class GuardTests(unittest.TestCase):
             self.assertFalse(guard.is_exact_readonly_supporting_command("/usr/bin/["))
             self.assertFalse(
                 guard.is_exact_readonly_supporting_command("/usr/bin/[ -d $(pwd) ]")
+            )
+            guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+            self.assertTrue(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d '{guid}' ]")
+            )
+            self.assertFalse(
+                guard.is_exact_readonly_supporting_command(f"/usr/bin/[ -d {guid} ]")
             )
 
     def test_classifier_rejects_a_subcommand_outside_the_shared_list(self) -> None:
@@ -15555,6 +15614,38 @@ class EngineGrammarTests(unittest.TestCase):
                     self.assertTrue(
                         self.grammar.literal_value_ok(flag, cast(str, flag.example))
                     )
+
+    def test_a_quoted_brace_target_is_classified_like_a_plain_one(self) -> None:
+        guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+        for name in ("scan", "inventory"):
+            spec = self.grammar.subcommand(name)
+            plain = self.words(spec, optionals=False)
+            plain[plain.index("--target") + 1] = "target-dir"
+            braced = [guid if word == "target-dir" else word for word in plain]
+            command = self.command(name, braced)
+            single, double = command, command.replace(f"'{guid}'", f'"{guid}"')
+            self.assertIn(f"'{guid}'", single)
+            self.assertIn(f'"{guid}"', double)
+            expected = self.classify(name, plain)
+            self.assertEqual(name, expected)
+            for label, text in (("single", single), ("double", double)):
+                with self.subTest(subcommand=name, quote=label):
+                    self.assertEqual(
+                        expected,
+                        guard.classify_exact_engine_command(text, self.AUTHORITY),
+                    )
+
+    def test_an_unquoted_or_expanding_brace_target_is_refused(self) -> None:
+        spec = self.grammar.subcommand("scan")
+        words = self.words(spec, optionals=False)
+        head = self.command("scan", words)
+        for target in ("{a,b}", "x{a}", "'{a}'x", '"${x}"', '"$(x)"', "'{a}' '{b'"):
+            with self.subTest(target=target):
+                self.assertIsNone(
+                    guard.classify_exact_engine_command(
+                        f"{head} --policy {target}", self.AUTHORITY
+                    )
+                )
 
     def test_parser_declares_exactly_the_grammar_flags(self) -> None:
         subparsers = self.subparsers()
