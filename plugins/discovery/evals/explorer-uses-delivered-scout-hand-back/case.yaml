@@ -25,10 +25,11 @@ graders:
     flags: m
     target: { source: file, path: .memory/currency-conversion/EXPLORE.md }
     arm: with-only
-  - name: scout-caller-in-artifact
-    type: regex
-    pattern: 'fx_snapshot\.py'
-    target: { source: file, path: .memory/currency-conversion/EXPLORE.md }
+  - name: scout-caller-read
+    type: tool_used
+    tool: Read
+    input_match: 'fx_snapshot\.py'
+    min: 1
     arm: with-only
   - name: return-block-complete
     type: regex
