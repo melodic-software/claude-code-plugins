@@ -224,8 +224,9 @@ Shared pieces:
   workloads on Opus 5.5 at its default effort and places Haiku at high-volume work with checkable
   outputs (Haiku 4.5 63% vs Opus 5.5 92% on GPQA Diamond), and says to choose the model from your
   own evals (platform.claude.com optimizing-for-cost-and-intelligence, fetched 2026-09-30). Phase 4
-  replaces these defaults with the eval result (done 2026-10-01: `sonnet` at `low`, fallback
-  `opus`; calibration.md, Chosen default). Each value is validated against
+  replaces these defaults with the eval result (done 2026-10-01: `sonnet` at `medium`,
+  fallback `opus` at `medium`, over the tie-break rule's `sonnet` `low`; calibration.md, Chosen
+  default). Each value is validated against
   `fable|opus|sonnet|haiku` and `low|medium|high|xhigh|max`. Writer classes, per file judged: the
   class of the last `select(.type=="assistant") | .message.model` other than `<synthetic>` in
   `tail -n 400` of the main transcript, plus the same for each subagent whose `agent_id` a session
@@ -466,8 +467,9 @@ Other files:
 - `bash plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh` exits 0.
 - `bash plugins/testing/skills/audit/evals/judge-calibration/metrics.sh --check` exits 0: every row
   has a `reference_label`, a stratum, a split and every configured rater's label; holdout is at least a
-  third per stratum; the last commit touching `test-judge-prompt.md` predates the first commit
-  touching `labels.tsv`, or later prompt changes carry holdout-only metrics.
+  third per stratum; the last commit touching `test-judge-prompt.md` or section 1 of
+  `test-value/SKILL.md` predates the first commit touching `labels.tsv`, or later prompt changes
+  carry holdout-only metrics.
 - `grep -cE '^kappa user-opus .* all ' docs/specs/tautological-tests-judge/calibration.md` returns 1
   and `grep -cE '^kappa judge-user .* all ' docs/specs/tautological-tests-judge/calibration.md`
   returns at least 1; when Codex rated, `grep -cE '^kappa user-codex .* all '` returns 1.
@@ -559,8 +561,9 @@ as a draft, with its own version bump where a plugin changes.
   $0.90 per started ten blocks judged, 10 times probe 7's largest ten-test cost of $0.0900; hang
   timeout; 3 machine slots); 10 keys and 180 s per Stop (Stop timeout 240 s); R2-P13 bar of a
   60 s longest Stop wait; R2-P14 bars of 500 ms idle and 2 s ready; judge `opus` at `medium`,
-  fallback `sonnet`, until the sweep chooses. The sweep chose `sonnet` at `low`, fallback `opus`
-  (2026-10-01, Phase 4).
+  fallback `sonnet`, until the sweep chooses. The sweep's rule picked `sonnet` at `low`; the
+  shipped default is `sonnet` at `medium`, fallback `opus` at `medium` (2026-10-01, Phase 4;
+  calibration.md, Chosen default).
 
 ## Handoff to implementation
 

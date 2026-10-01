@@ -19,11 +19,14 @@
 #                                    configured rater (one whose column is
 #                                    non-empty on any row); holdout is at least
 #                                    a third of each stratum; and every commit
-#                                    to the judge prompt is an ancestor of the
+#                                    to the judge prompt (test-judge-prompt.md,
+#                                    or section 1 of test-value/SKILL.md, which
+#                                    judge::run appends) is an ancestor of the
 #                                    first commit to labels.tsv, or
 #                                    calibration.md carries a `holdout-only:
-#                                    <sha>` line for it (its metrics are
-#                                    re-measured on holdout only)
+#                                    <sha>` line for it. While calibration.md
+#                                    carries any such line, the report and
+#                                    --table score holdout rows only
 #   metrics.sh --sweep [labels.tsv]  run the judge over every row for 7 arms,
 #                                    sonnet at low, medium, high and xhigh and
 #                                    opus at low, medium and high, through
@@ -82,6 +85,7 @@ fi
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/${BASH_SOURCE[0]##*/}"
 HOOKS="${SELF%/*}/../../../../hooks"
 PROMPT=plugins/testing/hooks/test-judge-prompt.md
+SKILL=plugins/testing/skills/test-value/SKILL.md
 CALMD=docs/specs/tautological-tests-judge/calibration.md
 ARMS="sonnet-low sonnet-medium sonnet-high sonnet-xhigh opus-low opus-medium opus-high"
 
@@ -108,9 +112,40 @@ function header(names,   i, k, n) {
 BEGIN { FS = "\t"; Z = 1.959964; split("FLAG PASS UNKNOWN", L, " ") }
 '
 
+# marks <labels>: calibration.md's holdout-only lines, in the labels' repository.
+marks() {
+  local top
+  top="$(git -C "$(cd "$(dirname "$1")" && pwd -P)" rev-parse --show-toplevel 2>/dev/null)" || return 0
+  grep -E '^holdout-only: [0-9a-f]+$' "$top/$CALMD" 2>/dev/null
+}
+
+# holdout <labels>: 1, saying so on stderr, when a prompt change limits
+# scoring to holdout rows.
+holdout() {
+  [[ -n "$(marks "$1")" ]] || return 0
+  echo "holdout rows only: calibration.md has a holdout-only line" >&2
+  echo 1
+}
+
+# section1 <top> <commit>: section 1 of test-value/SKILL.md at <commit>, the
+# span judge::section1 appends to the judge prompt.
+section1() {
+  git -C "$1" show "$2:$SKILL" 2>/dev/null | awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f'
+}
+
+# prompt_commits <top>: every commit that changed the judge's system prompt.
+prompt_commits() {
+  local c
+  git -C "$1" log --format=%H -- "$PROMPT"
+  git -C "$1" log --format=%H -- "$SKILL" | while read -r c; do
+    [[ "$(section1 "$1" "$c")" == "$(section1 "$1" "$c^")" ]] || echo "$c"
+  done
+}
+
 report() {
-  awk "$AWK_LIB"'
-    NR == 1 { header("id reference_label judge_verdict stratum"); next }
+  awk -v ho="$(holdout "$1")" "$AWK_LIB"'
+    NR == 1 { header("id reference_label judge_verdict stratum" (ho ? " split" : "")); next }
+    ho && $col["split"] != "holdout" { next }
     {
       s = $col["stratum"]
       if (!(s in seen)) { seen[s] = 1; order[++ns] = s }
@@ -205,11 +240,11 @@ check() {
       marked=0
       while read -r _ s; do
         [[ ${#s} -ge 7 && "$p" == "$s"* ]] && marked=1
-      done < <(grep -E '^holdout-only: [0-9a-f]+$' "$top/$CALMD" 2>/dev/null)
+      done < <(marks "$labels")
       ((marked)) && continue
       echo "${p:0:12} changed the judge prompt after labels.tsv was first committed, and calibration.md has no 'holdout-only: <sha>' line for it"
       bad=1
-    done < <(git -C "$top" log --format=%H -- "$PROMPT")
+    done < <(prompt_commits "$top")
   fi
   return "$bad"
 }
@@ -333,12 +368,20 @@ table() {
   done
   printf '| model | effort | accuracy | FLAG precision [95%% CI] | FLAG recall [95%% CI] | coverage | cost per row | wall per run, median | wall per run, p95 | wall per arm | McNemar p vs most accurate |\n'
   printf '|---|---|---|---|---|---|---|---|---|---|---|\n'
-  awk "$AWK_LIB"'
-    FNR == 1 && NR == 1 { header("id reference_label"); next }
-    NR == FNR { if ($col["reference_label"] != "") { h[$col["id"]] = $col["reference_label"]; ids[++nl] = $col["id"] }; next }
+  awk -v ho="$(holdout "$labels")" "$AWK_LIB"'
+    FNR == 1 && NR == 1 { header("id reference_label" (ho ? " split" : "")); next }
+    NR == FNR {
+      known[$col["id"]] = 1
+      if ((!ho || $col["split"] == "holdout") && $col["reference_label"] != "") { h[$col["id"]] = $col["reference_label"]; ids[++nl] = $col["id"] }
+      next
+    }
     FNR == 1 { a = FILENAME; sub(/^.*\//, "", a); runs = sub(/\.runs\.tsv$/, "", a); sub(/\.tsv$/, "", a); if (!runs) arms[++na] = a }
     runs { cost[a] += $1; w[a, ++nw[a]] = $2; tw[a] += $2; next }
-    { v[a, $1] = $2 }
+    {
+      if (!($1 in known)) bad[a] = bad[a] " unknown " $1
+      else if ((a, $1) in v) bad[a] = bad[a] " duplicate " $1
+      v[a, $1] = $2
+    }
     function mcnemar(x, y,   i, b, c, n, m, k, t, s) {
       for (i = 1; i <= nl; i++) {
         if (ok[x, ids[i]] && !ok[y, ids[i]]) b++
@@ -367,6 +410,13 @@ table() {
       return best
     }
     END {
+      if (BAD) exit BAD
+      # One verdict per label row in every arm, so no gap scores as wrong.
+      for (i = 1; i <= na; i++) {
+        a = arms[i]
+        for (x in known) if (!((a, x) in v)) bad[a] = bad[a] " missing " x
+        if (bad[a] != "") { print "metrics.sh: sweep/" a ".tsv:" bad[a] > "/dev/stderr"; BAD = 2 }
+      }
       if (BAD) exit BAD
       for (i = 1; i <= na; i++) {
         a = arms[i]; cls[a] = a; sub(/-.*/, "", cls[a]); eff[a] = a; sub(/^[^-]*-/, "", eff[a])

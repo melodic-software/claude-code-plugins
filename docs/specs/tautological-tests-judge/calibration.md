@@ -38,7 +38,9 @@ whole because the judge reads whole files in use.
 `sample.sh` with seed `20260930`, over the three repositories at the commits pinned in the script.
 The population is every test block a commit created or changed, in a file an adapter claims and
 outside fixtures and testdata directories, scoped the way the hooks scope a write (`--blocks
---lines` over the commit's added lines). Two uniform phases keep every block's chance equal:
+--lines` over the commit's added lines). Two uniform phases draw it; every pair has the same
+chance, but a block's chance falls slightly with the number of blocks its pair changed (see
+Limitations):
 
 1. Shuffle the 6,138 (commit, test file) pairs and take the first 240. List every block each one
    changed. Drop pairs whose code under test cannot be resolved: 5 pairs, 5 blocks. That leaves
@@ -77,10 +79,12 @@ The FLAG count known before labeling is 2 in-scope seeds plus 8 adversarial case
 
 Split by case file, so no file has rows on both sides. Within each stratum, case files are
 shuffled with seed `20260930` and taken as `holdout` until holdout holds at least a third of the
-stratum's rows; the rest is `tune`. The judge prompt (`plugins/testing/hooks/test-judge-prompt.md`)
-stays frozen. A prompt change after the first commit to `labels.tsv` is measured on `holdout` only,
-and calibration.md records it with a line `holdout-only: <commit sha>`, which `metrics.sh --check`
-reads.
+stratum's rows; the rest is `tune`. The judge prompt (`plugins/testing/hooks/test-judge-prompt.md`
+plus section 1 of `plugins/testing/skills/test-value/SKILL.md`, which `judge::run` appends) stays
+frozen. A prompt change after the first commit to `labels.tsv` is measured on `holdout` only, and
+calibration.md records it with a line `holdout-only: <commit sha>`, which `metrics.sh --check`
+reads. While any such line is present, `metrics.sh` and `metrics.sh --table` score `holdout` rows
+only.
 
 ### Raters
 
@@ -248,6 +252,10 @@ Limitations:
   bound of 0.61 or less.
 - 78 rows cannot separate accuracy 0.9 from 0.8 (Power above), so close arms tie and the
   tie-breaks decide.
+- The in-use draw is not exactly uniform over blocks (In-use draw): a block from a pair that
+  changed many blocks was slightly less likely to be drawn, so in-use prevalence and the arms'
+  in-use accuracy lean toward pairs that changed few blocks. The pool is not kept, so the size of
+  that lean is not measured.
 - Run-to-run churn: the chosen arm's verdict changed on 8 of 78 rows across three runs (Model
   sweep), more than every accuracy gap in the table (at most 5 rows, 66 to 71).
 
@@ -336,9 +344,11 @@ abstained on 1 of the 6 FLAG rows and flagged one UNKNOWN row.
 | opus | high | 0.9103 (71/78) | 0.8571 [0.4869, 0.9743] (6/7) | 1.0000 [0.6097, 1.0000] (6/6) | 0.9516 (59/62) | $0.0414 | 11.5 s | 23.8 s | 756.4 s | 1.0000 |
 
 ```text
-chosen: sonnet medium
-fallback: opus medium
+chosen: sonnet low
+fallback: opus low
 ```
+
+The shipped default differs from this pick; Chosen default says why.
 
 Run-to-run variance, `metrics.sh --rerun sonnet low` (the first run and two more):
 

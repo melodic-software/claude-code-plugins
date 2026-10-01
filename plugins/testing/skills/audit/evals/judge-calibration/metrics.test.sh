@@ -215,6 +215,36 @@ printf 'holdout-only: %s\n' "${late:0:7}" >>"$CAL"
 commit "record holdout-only metrics"
 bash "$METRICS" --check "$LBL" >/dev/null 2>&1
 check "--check accepts a later prompt change with a holdout-only marker" "[[ $? -eq 0 ]]"
+# With the marker, figures come from holdout rows only (h1, v1, v2). The arm
+# is wrong on s1 alone, a tune row: 3/3 on holdout, where all rows give 8/9.
+mkdir -p "${LBL%/*}/sweep"
+for i in s1 s2 h1 u1 u2 u3 u4 v1 v2; do
+  v="$(awk -F'\t' -v id="$i" '$1 == id { print $7 }' "$LBL")"
+  [[ "$i" == s1 ]] && v=PASS
+  printf '%s\t%s\tsonnet\tlow\treason\n' "$i" "$v"
+done >"${LBL%/*}/sweep/sonnet-low.tsv"
+out="$(bash "$METRICS" --table "$LBL" 2>&1)"
+assert_contains "a holdout-only marker scores the table on holdout" "$out" '| sonnet | low | 1.0000 (3/3) |'
+assert_contains "and says so" "$out" "holdout rows only"
+assert_contains "a holdout-only marker scores the report on holdout" "$(bash "$METRICS" "$LBL" 2>&1)" "stratum all n=3"
+rm -rf "${LBL%/*}/sweep"
+# Section 1 of test-value/SKILL.md is part of the judge prompt; other sections are not.
+SK="$CR/plugins/testing/skills/test-value/SKILL.md"
+mkdir -p "${SK%/*}"
+printf '# Test value\n\n## 1. Rubric\n\nv1\n\n## 2. Other\n\nx\n' >"$SK"
+commit "skill after labels"
+sk="$(git -C "$CR" rev-parse HEAD)"
+expect_check_fail "adding section 1 after labeling" "${sk:0:12} changed the judge prompt"
+printf 'holdout-only: %s\n' "${sk:0:7}" >>"$CAL"
+commit "record holdout-only for the skill"
+printf '# Test value\n\n## 1. Rubric\n\nv1\n\n## 2. Other\n\ny\n' >"$SK"
+commit "edit section 2"
+bash "$METRICS" --check "$LBL" >/dev/null 2>&1
+check "an edit outside section 1 passes --check" "[[ $? -eq 0 ]]"
+printf '# Test value\n\n## 1. Rubric\n\nv2\n\n## 2. Other\n\ny\n' >"$SK"
+commit "edit section 1"
+sk="$(git -C "$CR" rev-parse HEAD)"
+expect_check_fail "a section 1 edit after labeling" "${sk:0:12} changed the judge prompt"
 rm -rf "$CR/.git"
 git -C "$CR" init -q -b main
 expect_check_fail "labels outside git history" "labels.tsv has no commit"
@@ -290,6 +320,16 @@ arm_file sonnet medium 0-0 r12=FLAG
 out="$(bash "$METRICS" --table "$TB/labels.tsv" 2>&1)"
 assert_contains "an accuracy tie at the top goes to sonnet" "$out" '| sonnet | medium | 0.9167 (11/12) |'
 assert_contains "and sonnet medium is chosen" "$out" $'\nchosen: sonnet medium'
+# A partial, duplicated or stale arm file is refused, not scored.
+awk -F'\t' '$1 != "r3"' "$TB/sweep/sonnet-high.tsv" >"$TMP/partial" && mv "$TMP/partial" "$TB/sweep/sonnet-high.tsv"
+awk -F'\t' '$1 == "r4"' "$TB/sweep/sonnet-low.tsv" >"$TMP/dup" && cat "$TMP/dup" >>"$TB/sweep/sonnet-low.tsv"
+printf 'r99\tPASS\topus\tlow\treason\n' >>"$TB/sweep/opus-low.tsv"
+out="$(bash "$METRICS" --table "$TB/labels.tsv" 2>&1)"
+check "an incomplete arm file exits 2" "[[ $? -eq 2 ]]"
+assert_contains "a missing verdict is named" "$out" "sweep/sonnet-high.tsv: missing r3"
+assert_contains "a duplicate verdict is named" "$out" "sweep/sonnet-low.tsv: duplicate r4"
+assert_contains "an unknown id is named" "$out" "sweep/opus-low.tsv: unknown r99"
+assert_not_contains "no arm is chosen from it" "$out" "chosen:"
 
 # --- --sweep through the judge command function, stub only -----------------------
 SW="$TMP/sweep"

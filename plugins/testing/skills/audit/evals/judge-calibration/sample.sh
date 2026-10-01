@@ -14,8 +14,12 @@
 # lines the commit added, as the hooks scope a write. Draw, in two phases:
 # shuffle the (commit, test file) pairs whose commit added lines to the file
 # and take the first PAIRS, list every block each one changed, then shuffle
-# that pool and take TARGET blocks. Each phase is uniform, so every block has
-# the same chance and the stratum keeps the population's FLAG prevalence.
+# that pool and take TARGET blocks. Each phase is uniform, but the draw is not
+# exactly uniform over blocks: a block's chance in phase 2 falls as its pool
+# grows, and its own pair's other blocks are in that pool, so a block from a
+# pair that changed many blocks is slightly less likely than one from a pair
+# that changed one. The stratum's FLAG prevalence is near, not equal to, the
+# population's.
 #
 # A case is the test file plus the code it tests, at the same commit, each
 # copied verbatim to cases/<id>/<repository path>.fixture. The code under test
