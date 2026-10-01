@@ -63,15 +63,111 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("blocked", result.stdout)
 
+    def test_received_rolls_past_same_day_reset_to_next_day(self) -> None:
+        msg = "You've hit your weekly limit · resets 3am (America/New_York)"
+        result = self.invoke(
+            msg,
+            "--received",
+            "2026-09-29T14:35:00-04:00",
+            "--now",
+            "2026-09-29T14:40:00-04:00",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("2026-09-30T03:00:00-04:00", result.stdout)
+
+    def test_received_lifted_after_next_day_reset(self) -> None:
+        msg = "You've hit your weekly limit · resets 3am (America/New_York)"
+        result = self.invoke(
+            msg,
+            "--received",
+            "2026-09-29T14:35:00-04:00",
+            "--now",
+            "2026-09-30T03:05:00-04:00",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("lifted", result.stdout)
+
+    def test_received_utc_does_not_supply_zone_for_zoneless_message(self) -> None:
+        msg = "You've hit your session limit · resets 3:45pm"
+        result = self.invoke(
+            msg,
+            "--received",
+            "2026-07-25T17:00:00Z",
+            "--now",
+            "2026-07-25T14:00:00-04:00",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("2026-07-25T15:45:00-04:00", result.stdout)
+
+    def test_malformed_received_is_unparsed(self) -> None:
+        result = self.invoke(MSG, "--received", "yesterday")
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_offsetless_received_is_unparsed(self) -> None:
+        result = self.invoke(MSG, "--received", "2026-09-29T14:35:00")
+        self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_parse_reset_received_midnight_rolls_forward(self) -> None:
+        mod = _load_module()
+        reset_at = mod.parse_reset(
+            "resets 12am (America/New_York)",
+            now=datetime.fromisoformat("2026-09-29T23:59:30-04:00"),
+            received=datetime.fromisoformat("2026-09-29T23:59:00-04:00"),
+        )
+        self.assertEqual(reset_at.isoformat(), "2026-09-30T00:00:00-04:00")
+
+    def test_parse_reset_received_across_fall_back(self) -> None:
+        mod = _load_module()
+        reset_at = mod.parse_reset(
+            "resets 1:30am (America/New_York)",
+            now=datetime.fromisoformat("2026-10-31T22:05:00-04:00"),
+            received=datetime.fromisoformat("2026-10-31T22:00:00-04:00"),
+        )
+        self.assertEqual(reset_at.date().isoformat(), "2026-11-01")
+        self.assertEqual((reset_at.hour, reset_at.minute), (1, 30))
+
+    def test_parse_reset_received_in_repeated_hour(self) -> None:
+        mod = _load_module()
+        reset_at = mod.parse_reset(
+            "resets 1:30am (America/New_York)",
+            now=datetime.fromisoformat("2026-11-01T01:20:00-05:00"),
+            received=datetime.fromisoformat("2026-11-01T01:15:00-05:00"),
+        )
+        self.assertEqual(reset_at.isoformat(), "2026-11-01T01:30:00-05:00")
+
+    def test_parse_reset_received_before_repeated_hour_takes_first_occurrence(
+        self,
+    ) -> None:
+        mod = _load_module()
+        reset_at = mod.parse_reset(
+            "resets 1:30am (America/New_York)",
+            now=datetime.fromisoformat("2026-11-01T00:20:00-04:00"),
+            received=datetime.fromisoformat("2026-11-01T00:15:00-04:00"),
+        )
+        self.assertEqual(reset_at.isoformat(), "2026-11-01T01:30:00-04:00")
+
+    def test_parse_reset_received_across_spring_forward(self) -> None:
+        mod = _load_module()
+        received = datetime.fromisoformat("2027-03-13T22:00:00-05:00")
+        reset_at = mod.parse_reset(
+            "resets 2:30am (America/New_York)",
+            now=datetime.fromisoformat("2027-03-13T22:05:00-05:00"),
+            received=received,
+        )
+        self.assertEqual(reset_at.date().isoformat(), "2027-03-14")
+        self.assertGreater(reset_at, received)
+        # 02:30 does not exist that night; the result must round-trip as a real instant.
+        round_trip = reset_at.astimezone(ZoneInfo("UTC")).astimezone(reset_at.tzinfo)
+        self.assertEqual(round_trip, reset_at)
+        self.assertEqual(round_trip.utcoffset(), reset_at.utcoffset())
+
     def test_no_reset_clause_is_unparsed(self) -> None:
         result = self.invoke("session limit reached")
         self.assertEqual(result.returncode, 2, result.stderr)
 
     def test_date_bearing_reset_form_is_unparsed(self) -> None:
         """`resets Sep 8, 6pm` is not a parseable reset clause (exit 2, never 0)."""
-        msg = (
-            "You've hit your weekly limit · resets Sep 8, 6pm (America/New_York)"
-        )
+        msg = "You've hit your weekly limit · resets Sep 8, 6pm (America/New_York)"
         result = self.invoke(msg, "--now", "2026-09-07T03:52:00-04:00")
         self.assertEqual(result.returncode, 2, result.stderr or result.stdout)
         self.assertIn("unparsed", result.stderr)
