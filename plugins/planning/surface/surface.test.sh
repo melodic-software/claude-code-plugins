@@ -299,7 +299,6 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun 18
   bash "$here/round.sh" --dir "$j" stop >/dev/null
   jrun 19
-  japply p '{"ops": [{"op": "context", "clear": true}]}' # the handoff belongs to the finished run: the server that starts next sends none
   bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
   [[ "$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
   jrun 20

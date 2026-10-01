@@ -1928,12 +1928,13 @@ def clear_session(d):
 
 
 def clear_finished(d):
-    """A new server means a resumed interview: drop the finish an earlier stop or skill left."""
+    """A new server means a resumed interview: drop the finish, context badge and handoff an earlier run left."""
     if not (d / "questions.json").exists():
         return
     try:
         doc = load(d)
-        if doc.pop("finished", None):
+        dropped = [doc.pop(k, None) for k in ("finished", "context", "handoff")]
+        if any(dropped):
             save(d, doc)
     except (SystemExit, OSError, ValueError):
         pass  # an unreadable file is the server's and the gate's to report, not this start's
