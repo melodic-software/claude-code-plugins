@@ -310,16 +310,32 @@ The 2026-09-20 measurement above was not repeated on this pass.
 
 The record behind the skill body's `## Boundary` section for `cc-plugin-agents-md`.
 
-- **Claim**: Claude Code registers a built-in plugin `cc-plugin-agents-md@builtin` (alias
-  `agents-md`) whose description reads "AGENTS.md as project instructions: by default loaded where
-  the project has no CLAUDE.md; by its instructionFiles option, loaded beside CLAUDE.md, left out,
-  or with the project instructions dropped". The loader requires it in every session type, its
-  availability gate tests `tengu_agents_md_mod` with a code default of true, and it declares no
-  skill, agent or command. It loads the file; it does not move content or write a shim.
-- **Basis**: `/claude-ops:inventory` (`inventory.py --binary-only`) on the installed Claude Code
-  2.1.287 native build, `builtin_plugins.cc-plugin-agents-md`, integrity `ok` on every lane; the
-  native-surfaces store row for this pair (verdict `complementary`, integration `route`).
+- **Claim**: Claude Code ships a built-in `agents-md` plugin (ID `agents-md@builtin`) that reads
+  `AGENTS.md` as the project instructions. Its **Project instructions** option
+  (`instructionFiles`) takes four values: `claude-md-or-agents-md`, the default ("Your `CLAUDE.md`
+  files, or your `AGENTS.md` files when you have no `CLAUDE.md` or `CLAUDE.local.md` in your
+  working directory or above it"), `claude-md-and-agents-md`, `claude-md` ("Your `CLAUDE.md`
+  files only") and `managed-only` ("Only your organization's managed `CLAUDE.md` and auto memory
+  at launch ... every `AGENTS.md` [is] left out"). Disabling the plugin in `/plugin` is one of the
+  sessions where "Claude reads `CLAUDE.md` files only". The plugin loads files; nothing upstream
+  says it moves content or writes a shim.
+- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-10-01 (49,677 bytes;
+  slug in `llms.txt`; first heading "How Claude remembers your project"), sections "Choose which
+  instruction files load" ("Add it under the built-in `agents-md` plugin's ID in `pluginConfigs`",
+  with the example key `"agents-md@builtin"`) and "When AGENTS.md support is unavailable" ("You
+  disabled the built-in `agents-md` plugin in `/plugin`"). The
+  [changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry for 2.1.277
+  reads "Added AGENTS.md support: in a project with no CLAUDE.md, Claude Code reads AGENTS.md
+  instead; change it under \"Project instructions\" in `/config`", and the 2.1.281 entry reads
+  "Changed AGENTS.md support to also work on Amazon Bedrock, Google Vertex AI, Microsoft Foundry,
+  LLM gateways, and sessions with telemetry disabled".
+- **Read at run time, not recorded here**: that the binary registers the plugin as
+  `cc-plugin-agents-md` with alias `agents-md`, whether the loader requires it in this session
+  type, its availability gate and the gate's default, and whether it declares any skill, agent or
+  command. No upstream page states them. Read them from `/claude-ops:inventory`'s `builtin_plugins`
+  lane (`builtin_plugins.cc-plugin-agents-md`: `aliases`, `load`, `gated`, `gate_flags`, `skills`,
+  `agents`, `commands`) on the build in hand.
 - **As of**: 2026-10-01, Claude Code 2.1.287.
-- **Recheck trigger**: an extraction stops reporting the plugin, reads its gate default as false,
-  or reports a skill or command on it; or the memory page changes which sessions read `AGENTS.md`
-  directly.
+- **Recheck trigger**: the memory page changes the "Choose which instruction files load" table or
+  the "When AGENTS.md support is unavailable" list, or a changelog entry names `AGENTS.md`,
+  `instructionFiles` or the `agents-md` plugin.

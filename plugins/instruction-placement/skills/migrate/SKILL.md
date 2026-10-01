@@ -388,10 +388,13 @@ so a repository cannot rely on it and the gates keep the default's answer
 
 One native Claude Code surface works on the same file, and the two are easy to conflate:
 
-- **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin that loads `AGENTS.md`
-  as project instructions where the project has no `CLAUDE.md`, and by its `instructionFiles`
-  option beside `CLAUDE.md`, not at all (`claude-md`), or with every project and user instruction
-  file dropped (`managed-only`). It moves no file and writes no shim.
+- **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin the docs call
+  `agents-md@builtin`. It reads `AGENTS.md` as project instructions where the project has no
+  `CLAUDE.md`, and by its **Project instructions** (`instructionFiles`) option beside `CLAUDE.md`,
+  not at all (`claude-md`), or with every project and user instruction file dropped
+  (`managed-only`). It moves no file and writes no shim. Whether this build registers it, requires
+  it in this session type, and gates it is read at run time from `/claude-ops:inventory`'s
+  `builtin_plugins` lane, never assumed.
 - **This skill**: moves a repository's instruction content into `AGENTS.md`, keeps the one-line
   `CLAUDE.md` shim, and decides when the shim can go.
 
