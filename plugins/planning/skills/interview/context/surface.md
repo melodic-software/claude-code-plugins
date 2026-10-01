@@ -46,10 +46,10 @@ The watcher exits with one JSON line: `{"seq", "timedOut", "events": [...], "not
 
 <!-- wake-command: surface/watch.test.sh runs the fenced command below -->
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/surface/wake.sh" '<data_dir>'
+bash '<surface_dir>/wake.sh' '<data_dir>'
 ```
 
-In this command `${CLAUDE_PLUGIN_ROOT}/surface` stands for `<surface_dir>`: write it out as `'<surface_dir>'`, or run the watcher's `next` field, which is this command with absolute paths already in single quotes. `wake.sh` runs `round.sh --dir '<data_dir>' apply --file '<data_dir>/ops.json'` and then `watch.sh '<data_dir>'`. `apply` runs every op against one loaded file and writes once; any refused op writes nothing and ends `wake.sh` before the watcher re-arms, which wakes you with the refusal. Fix `ops.json` and run the call again. With nothing to record, run `watch.sh` alone (`apply` refuses an empty op list). `watch.sh` exits 2 when curl is missing, when the server restarted and the token changed (re-run the SKILL.md start command with its `--emoji-markers` value, dropping `--open` when the page is already open, then re-arm), or when the server stays unreachable. It exits 3 when another session holds the lease: see "One watcher" above.
+Write `<surface_dir>` out as an absolute path in single quotes, or run the watcher's `next` field, which is this command with absolute paths already in single quotes. `wake.sh` runs `round.sh --dir '<data_dir>' apply --file '<data_dir>/ops.json'` and then `watch.sh '<data_dir>'`. `apply` runs every op against one loaded file and writes once; any refused op writes nothing and ends `wake.sh` before the watcher re-arms, which wakes you with the refusal. Fix `ops.json` and run the call again. With nothing to record, run `watch.sh` alone (`apply` refuses an empty op list). `watch.sh` exits 2 when curl is missing, when the server restarted and the token changed (re-run the SKILL.md start command with its `--emoji-markers` value, dropping `--open` when the page is already open, then re-arm), or when the server stays unreachable. It exits 3 when another session holds the lease: see "One watcher" above.
 
 When the first wake prompts for permission, offer the user one allow rule, `Bash(bash '<surface_dir>/wake.sh' *)`, with `<surface_dir>` spelled out exactly as the command quotes it, so later wakes run without a prompt. A bare `watch.sh` re-arm (nothing to record) is covered by `Bash(bash '<surface_dir>/watch.sh' *)`. Permission record:
 

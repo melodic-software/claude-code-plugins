@@ -1,7 +1,7 @@
 # Return-accounting capture slice
 
 Wires the capture-enabled state of
-[`${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md`](${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md),
+[`reference/return-accounting.md`](../../../reference/return-accounting.md),
 discovery-first. Everything wireable lands as reviewable changes; GUI-only or
 entitlement-gated surfaces get advisory steps with cost surfaced.
 

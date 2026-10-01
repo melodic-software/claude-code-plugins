@@ -4,7 +4,7 @@ One slice of the `apply` action in [`../SKILL.md`](../SKILL.md), selected by arg
 when `apply` reaches it.
 
 Wires the standing-routine state of the
-[routine catalog](${CLAUDE_PLUGIN_ROOT}/reference/routines.md): a routine is a scheduled
+[routine catalog](../../../reference/routines.md): a routine is a scheduled
 `temporal`-class signal adapter behind the governed queue, never a private execution or merge
 path. This slice is discovery-first and detect-diff-reconciles against the org's existing
 schedulers and bots. Everything free lands as reviewable changes; paid or preview scheduling
@@ -27,7 +27,7 @@ every routine-fired temporal signal.
 
 **Binding-home split by governance sensitivity (the guardrail contract's split).** A routine's
 `signal.work_class` is stamped, per
-[`${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md`](${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md)'s
+[`reference/trigger-dispatch.md`](../../../reference/trigger-dispatch.md)'s
 classification rules, from the protected identity↔surface association the security binding homes. Not from the `--routine` argument, the scheduled workflow file, or the emitted `signal.raw_link`,
 all of which are claims an agent-writable job could forge and are never trust anchors. That
 association is admission data: it binds only in the security binding's
