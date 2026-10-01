@@ -235,10 +235,12 @@
 # a bare <file> means that one, never another skill's file of the same name.
 # When every frontier file carrying a basename sits inside a skill directory, a
 # hit keeps the pair only when one of these holds:
-#   - the hit lies inside one of those same skill directories;
+#   - the hit lies inside one of those same skill directories and its line does
+#     not name the file only through another skill;
 #   - the matched line spells the file path-qualified: a path token ending in
 #     /<file> with <skill>/ as one of its components, which the repo-relative
-#     path also satisfies;
+#     path also satisfies. A token that spells plugins/<plugin>/skills/<skill>/
+#     must match the owning plugin as well as the skill;
 #   - the line mentions the file bare, or under a path that does not run through
 #     skills/<other>/, and the hit's own skill directory, if it has one,
 #     carries no file of that basename.
@@ -673,14 +675,27 @@ token_hits() {
       carries[$0] = 1
       next
     }
+    # mine_tok: does this path token (leading slash added) name the file through
+    # an owning skill? A token that spells the plugin must match the owning
+    # plugin and skill both; one that spells only the skill matches by name.
+    function mine_tok(q, name,   k, full) {
+      full = match(q, "/plugins/[^/]+/skills/[^/]+/") ? substr(q, RSTART, RLENGTH) : ""
+      for (k = 1; k <= nowner[name]; k++) {
+        if (full != "") { if (full == "/" odir[name, k]) return 1 }
+        else if (index(q, "/" oskill[name, k] "/")) return 1
+      }
+      return 0
+    }
     # owned: may this line in this file stand for a frontier file of that name?
-    function owned(path, name, text,   hd, k, n, j, pt, q, named, plain) {
+    function owned(path, name, text,   hd, k, n, j, pt, q, named, plain, mine, own) {
       if ((name in free) || !(name in nowner)) return 1
       hd = skill_dir(path)
+      own = 0
       for (k = 1; k <= nowner[name]; k++)
-        if (hd == odir[name, k]) return 1
+        if (hd == odir[name, k]) own = 1
       named = 0
       plain = 0
+      mine = 0
       n = split(text, ptok, "[^A-Za-z0-9_./-]+")
       for (j = 1; j <= n; j++) {
         pt = ptok[j]
@@ -689,11 +704,13 @@ token_hits() {
         if (pt != name && substr(pt, length(pt) - length(name)) != "/" name) continue
         named = 1
         q = "/" pt
-        for (k = 1; k <= nowner[name]; k++)
-          if (index(q, "/" oskill[name, k] "/")) return 1
-        if (!index(q, "/skills/")) plain = 1
+        if (mine_tok(q, name)) mine = 1
+        else if (!index(q, "/skills/")) plain = 1
       }
-      # A mention this split cannot place counts as plain: over-select.
+      if (mine) return 1
+      # A mention this split cannot place counts as plain: over-select. Inside an
+      # owning skill, a plain mention is that skill citing its own file.
+      if (own) return plain || !named
       return (plain || !named) && !((hd name) in carries)
     }
     function emit(path, name) {

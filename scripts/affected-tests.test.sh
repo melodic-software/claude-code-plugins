@@ -1389,6 +1389,17 @@ printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' >"$re
 # Another skill's suite that spells the path through skill sb.
 printf '#!/usr/bin/env bash\n# reads plugins/alpha/skills/sb/reference/ownership-probe.md\n' \
   >"$repo/plugins/beta/skills/sc/scripts/sc.test.sh"
+# A bare mention from a skill that carries no file of that name itself.
+printf '#!/usr/bin/env bash\n# checks the wording in ownership-probe.md\n' \
+  >"$repo/plugins/beta/skills/sc/scripts/sc-bare.test.sh"
+# A suite inside skill sa that names the file only through skill sb.
+printf '#!/usr/bin/env bash\n# reads plugins/alpha/skills/sb/reference/ownership-probe.md\n' \
+  >"$repo/$own_a/scripts/sa-cross.test.sh"
+# Another plugin's skill of the same name as sa, carrying the same file, named by path.
+mkdir -p "$repo/plugins/gamma/skills/sa/reference"
+printf '# gamma probe\n' >"$repo/plugins/gamma/skills/sa/reference/ownership-probe.md"
+printf '#!/usr/bin/env bash\n# reads plugins/gamma/skills/sa/reference/ownership-probe.md\n' \
+  >"$repo/plugins/beta/skills/sc/scripts/sc-gamma.test.sh"
 git_test_config "$repo" add plugins >/dev/null
 git_test_config "$repo" commit -qm skills >/dev/null
 
@@ -1413,6 +1424,25 @@ if has_line "$OUT" plugins/beta/skills/sc/scripts/sc.test.sh; then
   ok "ownership: a path-qualified mention from another skill still selects"
 else
   fail "ownership: path-qualified mention from another skill lost (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" "$own_a/reference/ownership-probe.md"
+if has_line "$OUT" plugins/beta/skills/sc/scripts/sc-bare.test.sh; then
+  ok "ownership: a bare mention from a skill without its own file still selects"
+else
+  fail "ownership: bare mention from a file-less skill lost (rc=$RC): $OUT"
+fi
+
+if ! has_line "$OUT" "$own_a/scripts/sa-cross.test.sh"; then
+  ok "ownership: a suite in the owning skill that names another skill's file is not selected"
+else
+  fail "ownership: owner-local suite naming another skill's path was selected (rc=$RC): $OUT"
+fi
+
+if ! has_line "$OUT" plugins/beta/skills/sc/scripts/sc-gamma.test.sh; then
+  ok "ownership: a path through another plugin's same-named skill is not selected"
+else
+  fail "ownership: same-named skill in another plugin was accepted (rc=$RC): $OUT"
 fi
 rm -rf "$repo"
 
