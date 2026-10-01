@@ -1,12 +1,18 @@
 # Changelog: session-flow plugin
 
-## [0.43.2] - 2026-10-01
+## [0.44.1] - 2026-10-01
 
 ### Changed
 
 - Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 - **The fallback memory root moved from `<plugin data>/topic-docs` to `<plugin data>/artifacts`.** It applies outside a git work tree. Handoffs, ledgers and other files already under the old directory are no longer found and need moving by hand.
 - **No session-flow skill or hook reads `memory_dir` from `.claude/topic-docs.yaml` any more.** `observer-arm.sh` always uses `<project>/.work`, so a consumer with another root arms the observer manually and resolves it in-session. The handoff, retro, running-retro and tidy-work skills take a root documented in `CLAUDE.md` or `.claude/rules/`, else `.work`.
+
+## [0.44.0] - 2026-10-01
+
+### Added
+
+- **`check-usage-limit-reset.py --received <ISO-8601>`.** A limit message states only a clock time, so the reset resolves to the first occurrence at or after the time the message appeared. `/session-flow:keep-going` passes it. Without the flag the behavior is unchanged. A reset time inside a DST fall-back hour resolves to the earliest of its two instants at or after the message. `SKILL.md` tells the agent to read stderr on exit `2`, since a malformed `--received` also exits `2`.
 
 ## [0.43.1] - 2026-10-01
 
