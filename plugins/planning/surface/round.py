@@ -451,7 +451,7 @@ def norm_alt(text):
 def restates_recommendation(alt_text, recommendation):
     rec = norm_alt(str(recommendation).strip().partition("\n")[0])
     return "(recommended)" in str(alt_text).casefold() or bool(
-        rec and rec in norm_alt(alt_text)
+        rec and rec == norm_alt(alt_text)
     )
 
 

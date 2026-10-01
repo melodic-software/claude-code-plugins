@@ -321,6 +321,13 @@ class TestRefusals(DirCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("restates", err)
 
+    def test_alternative_containing_the_recommendation_is_distinct(self):
+        for qid, rec, alt in (("Q4", "No.", "Not yet"), ("Q5", "Yes.", "Yes, but only for X")):
+            q = question(qid, recommendation=rec, alternatives=[{"key": "a", "text": alt}, {"key": "b", "text": "Later"}])
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("restates", err)
+
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))

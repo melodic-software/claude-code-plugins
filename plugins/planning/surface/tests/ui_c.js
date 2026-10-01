@@ -202,7 +202,7 @@ async page => {
     ok("stale with a decision: Reconfirm, Rec, Accept with note, then the alternatives; radio values count from 1; no number shown", radios.slice(0, 3).join() === "1=Reconfirm,2=Rec,3=Accept with note" && radios.every((r, i) => r.startsWith((i + 1) + "=") && !r.endsWith("#n")), radios.join(", "));
     await pick("D1");
     const dup = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("b").textContent + "=" + e.textContent + (e.classList.contains("rec") ? "#rec" : "")));
-    ok("an alternative restating the recommendation is folded into Accept: Rec is first with class rec and no (a) choice carries the duplicate", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\(a\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)), dup.join(" | "));
+    ok("an alternative restating the recommendation is folded into Accept: Rec is first with class rec and no (a) choice carries the duplicate", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\(a\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)) && dup.some(x => /^\(c\).*only on request/.test(x)), dup.join(" | "));
     await pick("P2"); await page.click("main.detail h3"); await page.keyboard.press("2");
     const r3 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev3 = await last();

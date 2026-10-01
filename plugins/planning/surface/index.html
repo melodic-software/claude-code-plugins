@@ -1015,7 +1015,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const normAlt = t => String(t).toLowerCase().replace(/\(recommended\)/g, " ").split(/\s+/).filter(Boolean).join(" ").replace(/[.,;:!?)]+$/, "").trim();
   function altsOf(q){ // alternatives minus any that restate the recommendation: those fold into Accept
     const rec = normAlt(String(q.recommendation || "").trim().split("\n")[0]);
-    return (q.alternatives || []).filter(a => !(/\(recommended\)/i.test(a.text) || (rec && normAlt(a.text).includes(rec))));
+    return (q.alternatives || []).filter(a => !(/\(recommended\)/i.test(a.text) || (rec && normAlt(a.text) === rec)));
   }
   function choicesOf(q){
     const r = reconfirmOf(q), c = r ? [r] : [];

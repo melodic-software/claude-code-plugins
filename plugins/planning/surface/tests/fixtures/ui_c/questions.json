@@ -46,7 +46,7 @@
     ]},
     {"id": "A1", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch one", "title": "Should batch one run?", "recommendation": "Yes, batch one.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
     {"id": "A2", "group": "batch", "stage": "interview", "round": 1, "rev": 1, "short": "Batch two", "title": "Should batch two run?", "recommendation": "Yes, batch two.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}]},
-    {"id": "D1", "group": "dup", "stage": "interview", "round": 1, "rev": 1, "short": "Dup", "title": "Should the dup step run?", "recommendation": "Yes, run it.", "commits": [], "alternatives": [{"key": "a", "text": "Yes, run it (recommended)"}, {"key": "b", "text": "No"}]},
+    {"id": "D1", "group": "dup", "stage": "interview", "round": 1, "rev": 1, "short": "Dup", "title": "Should the dup step run?", "recommendation": "Yes, run it.", "commits": [], "alternatives": [{"key": "a", "text": "Yes, run it (recommended)"}, {"key": "b", "text": "No"}, {"key": "c", "text": "Yes, run it only on request"}]},
     {"id": "H1", "group": "hold", "stage": "interview", "round": 1, "rev": 1, "short": "Held", "title": "Should a held question stay out of Show: Open?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}], "waiting": true, "waitsOn": "the benchmark run", "history": [
       {"at": "2026-09-24T01:03:00Z", "by": "claude", "text": "Asked."},
       {"at": "2026-09-24T01:04:00Z", "by": "claude", "text": "Pending research: the benchmark run"}
