@@ -632,12 +632,19 @@ def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
         j -= 1
     if j < 0 or src[j] != ")":
         return False
-    outer = braces.enclosing(brace - 1)
-    lo = outer[0] + 1 if outer else max(_chunk_span(src, brace)[0], j - 4096)
-    k = _open_paren(_mask_strings(src[lo : j + 1]), j - lo)
+    k = _head_open(src, braces, j)
+    return bool(_FUNCTION_KEYWORD_RE.search(src, max(0, k - 200), k))
+
+
+def _head_open(src: str, braces: BraceMap, close: int) -> int:
+    """The `(` matching the `)` at `close`, matched with quoted text blanked
+    from the enclosing block's start. Raises ValueError when unmatched."""
+    outer = braces.enclosing(close)
+    lo = outer[0] + 1 if outer else max(_chunk_span(src, close)[0], close - 4096)
+    k = _open_paren(_mask_strings(src[lo : close + 1]), close - lo)
     if k is None:
-        raise ValueError("unmatched function head")
-    return bool(_FUNCTION_KEYWORD_RE.search(src, max(0, lo + k - 200), lo + k))
+        raise ValueError("unmatched parameter list")
+    return lo + k
 
 
 def _mask_strings(text: str) -> str:
@@ -1260,24 +1267,14 @@ def _param_names(text: str) -> Scope:
     return {name: None for name in re.findall(_IDENT, text)}
 
 
-def _params_before(src: str, body_open: int) -> Scope:
+def _params_before(src: str, braces: BraceMap, body_open: int) -> Scope:
     """The parameters of the method or function whose body opens at `body_open`."""
     j = body_open - 1
     while j >= 0 and src[j] in " \t\r\n":
         j -= 1
     if j < 0 or src[j] != ")":
         return NO_SCOPE
-    depth, k = 0, j
-    while k >= 0 and j - k < 4096:
-        ch = src[k]
-        if ch == ")":
-            depth += 1
-        elif ch == "(":
-            depth -= 1
-            if depth == 0:
-                return _param_names(src[k + 1 : j])
-        k -= 1
-    raise ValueError("unmatched parameter list")
+    return _param_names(src[_head_open(src, braces, j) + 1 : j])
 
 
 def _sub_value(
@@ -1570,6 +1567,32 @@ def _statement_keyword(src: str, pos: int) -> str | None:
     """`var`, `let`, or `const` when the statement holding `pos` starts with
     it, else None. The walk back skips balanced brackets, so an earlier
     declarator's initializer (`var a=f(1),x=`) does not hide the keyword."""
+    start = _statement_start(src, pos)
+    m = None if start is None else _KEYWORD_START_RE.match(src, start)
+    return m.group(1) if m else None
+
+
+def _for_scope(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
+    """For a `let` or `const` declared in a `for (...)` head, the span it is
+    visible in, from the head's `(` to the end of a braced body. Raises
+    ValueError for an unbraced body, whose end is not read."""
+    start = _statement_start(src, pos)
+    if not start or src[start - 1] != "(":
+        return None
+    if not re.search(r"\bfor\s*(?:await\s*)?$", src[max(0, start - 16) : start - 1]):
+        return None
+    if _statement_keyword(src, pos) not in ("let", "const"):
+        return None
+    body = _skip_ws(src, _match_close(src, braces, start - 1, len(src)), len(src))
+    end = braces.pairs.get(body) if body < len(src) and src[body] == "{" else None
+    if end is None:
+        raise ValueError("unbraced loop body")
+    return start - 1, end
+
+
+def _statement_start(src: str, pos: int) -> int | None:
+    """Offset just past the `;` or unmatched opener starting the statement
+    that holds `pos`, or None when that is more than 4 KiB back."""
     lo = max(0, pos - 4096)
     text = _mask_strings(src[lo:pos])
     depth, k = 0, len(text) - 1
@@ -1586,8 +1609,7 @@ def _statement_keyword(src: str, pos: int) -> str | None:
         k -= 1
     if k < 0 and lo > 0:
         return None
-    m = _KEYWORD_START_RE.match(text, k + 1)
-    return m.group(1) if m else None
+    return lo + k + 1
 
 
 def _is_var(src: str, pos: int) -> bool:
@@ -1647,7 +1669,10 @@ def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> boo
     """Whether a declaration at `pos` is visible from a reader at `at`: at
     the top level, or in a block that also holds the reader; with `src`, a
     `var` is visible throughout its function. A binding local to an
-    unrelated function is not the one `at` reads."""
+    unrelated function is not the one `at` reads; with `src`, a `let` or
+    `const` in a `for` head is visible only in that loop."""
+    if src is not None and (loop := _for_scope(src, braces, pos)) is not None:
+        return loop[0] < at <= loop[1]
     block = braces.enclosing(pos)
     if block is None or block[0] < at <= block[1]:
         return True
@@ -1833,8 +1858,16 @@ def _function_body(
 
     A single-character name is usually function-local; it resolves only to
     the one top-level declaration in `at`'s own module, and only when the
-    source is split into modules.
+    source is split into modules. A declaration of `ident` in `at`'s module
+    whose parameter list holds parentheses is not read, so any such
+    declaration leaves the name unresolved rather than skipped.
     """
+    lo, hi = _chunk_span(src, at)
+    head = re.compile(r"function\s+" + re.escape(ident) + r"\s*\(")
+    if len(head.findall(src, lo, hi)) != len(
+        _function_pattern(ident).findall(src, lo, hi)
+    ):
+        return None
     if len(ident) == 1:
         if len(_chunk_starts(src)) == 1:
             return None
@@ -2076,7 +2109,7 @@ def _eval_field(
             hops=hops,
             anchor=anchor,
             # A getter or method closes over the scope it was read in.
-            shadow={**shadow, **_params_before(src, pos)},
+            shadow={**shadow, **_params_before(src, braces, pos)},
             deferred=True,
         )
         return kind

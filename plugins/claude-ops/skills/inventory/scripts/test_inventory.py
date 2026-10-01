@@ -1648,6 +1648,29 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
 
+    def test_a_function_with_a_call_default_hides_no_outer_one(self) -> None:
+        src = _modules(
+            'var Qz="Probe";function helper(){return"WRONG"}'
+            'function outer(){return helper();function helper(x=g()){return"REAL"}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:outer()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
+    def test_a_for_head_binding_ends_with_its_loop(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="REAL";'
+            'function ff(){for(let xx="LOCAL";;){break}return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_quoted_paren_default_keeps_a_method_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            '$t({name:Qz,maxResultSizeChars:1,description(xx,a="("){return xx}});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
     def test_an_unsafe_integer_in_a_template_stays_unresolved(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`n${9007199254740993}`});'
         self.assertNotEqual(_tool(src, "Probe").get("description"), "n9007199254740993")
