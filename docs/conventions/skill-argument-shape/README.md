@@ -45,7 +45,7 @@ unknown flag, checks a value, or completes one. Two further mechanics bind autho
 2. **Modifiers.** `--flags`, each passing the [earned-flag test](#the-earned-flag-test). Their
    order among themselves carries no meaning.
 3. **Subject.** At most one (a path, a slug, an issue number), positional, last.
-   One repeatable positional slot of a single kind, such as `[<path>...]`, counts as one subject
+   One repeatable positional slot of a single kind, such as `[path ...]`, counts as one subject
    (the `...` grammar is the [argument-hint](../argument-hint/README.md) house style's).
    Repeatable flags such as `[--artifacts <path>]...` fall under the nested-or-repeatable-flag
    rule below, allowed only when a ground-1 parser accepts the form.
