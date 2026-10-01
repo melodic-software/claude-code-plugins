@@ -1567,6 +1567,15 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Write a Workflow script")
 
+    def test_a_local_declaration_shadows_an_imported_name(self) -> None:
+        src = _modules(
+            'var jd="WRONG";export{jd};',
+            'import{jd}from"/$bunfs/root/chunk-a.js";var Qz="Probe";'
+            'function ff(){let jd="LOCAL";return jd}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});",
+        )
+        self.assertNotEqual(_tool(src, "Probe")["description"], "WRONG")
+
     def test_a_name_neither_imported_nor_declared_is_a_runtime_value(self) -> None:
         src = _modules(
             'var jd="host_exit";',
@@ -1747,6 +1756,86 @@ class TestModuleScopedResolution(unittest.TestCase):
             '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
         )
         self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_for_head_binding_shadows_a_bound_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){for(const x of ["LOCAL"]){return x}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_destructured_for_head_without_a_space_shadows_a_bound_parameter(
+        self,
+    ) -> None:
+        for head in ("const{x}", "let{x}", "const[x]", "let[x]"):
+            of = "[{x:'L'}]" if "{" in head else "[['L']]"
+            with self.subTest(head=head):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(x){{for({head}of{of}){{return x}}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_an_unbraced_for_body_sees_the_head_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x){for(const x of a)return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_an_unbraced_for_body_ends_at_its_statement(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x){for(const x of a)g(x);return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_nested_statement_in_an_unbraced_for_body_keeps_the_head_binding(
+        self,
+    ) -> None:
+        for body in (
+            "if(x)return x",
+            "for(const y of b)return x",
+            "if(t(x,{k:1}))return x",
+            "return c?{k:1}:x",
+        ):
+            with self.subTest(body=body):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(x){{for(const x of a){body}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_an_unbraced_for_body_ending_in_a_block_ends_its_head_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x,c){for(const x of a)if(c){g()}return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_for_head_binding_named_of_shadows_a_bound_parameter(self) -> None:
+        for head in ("const of of a", "const{of}of a"):
+            with self.subTest(head=head):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(of){{for({head}){{return of}}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_a_for_head_binding_shadows_an_outer_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            "function ff(){for(let xx of a){return xx}}"
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
 
     def test_a_quoted_paren_in_a_control_head_keeps_a_var_function_scoped(
         self,

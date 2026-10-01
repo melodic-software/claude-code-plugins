@@ -650,6 +650,36 @@ def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
     return _param_names(src[k + 1 : j])
 
 
+_FOR_KEYWORD_RE = re.compile(r"(?<![\w$.])for\s*(?:await\s*)?$")
+_FOR_DECL_RE = re.compile(r"\s*(?:let|const)(?![\w$])([^;]*)")
+
+
+def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
+    """The `let`/`const` names of the `for (...)` head whose body opens at
+    `brace`, each a runtime value; empty for any other block."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    if j < 0 or src[j] != ")":
+        return NO_SCOPE
+    return _for_head_names(src, braces, j)
+
+
+def _for_head_names(src: str, braces: BraceMap, close: int) -> Scope:
+    """The `let`/`const` names of the `for (...)` head closing at `close`.
+
+    The whole head after the keyword is taken, iterable included: shadowing
+    extra names only leaves more unresolved, and a binding named `of` or `in`
+    is still caught.
+    """
+    j = close
+    k = _head_open(src, braces, j)
+    if not _FOR_KEYWORD_RE.search(src[max(0, k - 24) : k]):
+        return NO_SCOPE
+    decl = _FOR_DECL_RE.match(_mask_strings(src[k + 1 : j]))
+    return _param_names(decl.group(1)) if decl else NO_SCOPE
+
+
 def _head_open(src: str, braces: BraceMap, close: int) -> int:
     """The `(` matching the `)` at `close`, matched with quoted text blanked
     from the enclosing block's start. Raises ValueError when unmatched."""
@@ -967,6 +997,7 @@ def _scan(
     active = at_value = not block
     depth = 0
     prev, prev_word = "", ""
+    loop = NO_SCOPE
     n = min(end, len(src))
     while i < n:
         c = src[i]
@@ -992,7 +1023,7 @@ def _scan(
                 acc,
                 hops=hops,
                 anchor=anchor,
-                shadow=shadow,
+                shadow=shadow | loop,
                 deferred=deferred,
             )
             at_value, prev, prev_word = False, "x", ""
@@ -1021,9 +1052,18 @@ def _scan(
                     block=True,
                     hops=hops,
                     anchor=anchor,
-                    shadow=shadow | _catch_params(src, braces, i),
+                    shadow=shadow
+                    | loop
+                    | _catch_params(src, braces, i)
+                    | _for_params(src, braces, i),
                     deferred=deferred,
                 )
+                # A statement block ends the unbraced loop body holding it.
+                ends = not re.match(
+                    r"\s*(?:else|catch|finally)(?![\w$])", src[close + 1 : close + 17]
+                )
+                if ends:
+                    loop = NO_SCOPE
             i, at_value, prev, prev_word = close + 1, False, "}", ""
             continue
         if c == "}":
@@ -1034,7 +1074,13 @@ def _scan(
             if depth == 0:
                 break
             depth -= 1
+            if depth == 0 and c == ")" and block:
+                # An unbraced loop body is no block, so its head binds here.
+                nxt = _skip_ws(src, i + 1, n)
+                if not src.startswith("{", nxt):
+                    loop = loop | _for_head_names(src, braces, i)
         elif depth == 0 and c in ",;":
+            loop = NO_SCOPE
             if not block:
                 break
             if c == ";":
@@ -1725,6 +1771,11 @@ def _declaration(
         return found
     lo, hi = _chunk_span(src, at)
     exported = _chunk_imports(src, lo, hi).get(ident)
+    if exported is not None and any(
+        braces.enclosing(m.start()) is not None and _visible(braces, m.start(), at, src)
+        for m in pattern_for(ident).finditer(src, lo, hi)
+    ):
+        exported = None
     if exported is not None:
         homes = _export_index(src).get(exported, [])
         if len(homes) != 1:

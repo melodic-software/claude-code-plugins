@@ -1,0 +1,13 @@
+from etl.extract import extract_orders
+from etl.load import load
+from etl.transform import transform
+
+
+def main(source, warehouse):
+    orders = extract_orders(source)
+    customers = source.cursor().execute("SELECT * FROM customers").fetchall()
+    load(warehouse, transform(orders, customers))
+
+
+if __name__ == "__main__":
+    main(open_source(), open_warehouse())
