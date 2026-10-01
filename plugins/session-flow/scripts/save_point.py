@@ -179,8 +179,8 @@ HANDOFF_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-handoff-[^/\\]+\.md$")
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
-# The Read tool returns at most 25k tokens per call. The issue measured 425 lines
-# at about 29.6k tokens (~70 tokens a line), so 25k tokens is ~355 lines; 300 leaves margin.
+# The Read tool returns at most 25k tokens per call; at about 70 tokens a line that is
+# about 355 lines, so 300 leaves margin.
 MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
 BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
