@@ -18,7 +18,7 @@ and one `--wrap` per shim the wiring should carry, outermost first:
 
 ```bash
 jq '.statusLine' ~/.claude/settings.json |
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+  bash "<plugin-root>/scripts/compose-statusline-wiring.sh" \
     --wrap 'bash ~/.claude/<this plugin>/bin/statusline-shim.sh' --block --explain
 ```
 

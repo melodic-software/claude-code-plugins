@@ -3,7 +3,7 @@
 Reference detail for step 8 of `check` in
 [`../SKILL.md`](../SKILL.md). Step 8 prints the applicable statusline edit for the settings file
 that owns the effective command (resolved in step 4), marked clearly as the operator's to apply.
-The wiring target is always the shim's fixed path, never `${CLAUDE_PLUGIN_ROOT}`, which is
+The wiring target is always the shim's fixed path, never the plugin directory path, which is
 version-pinned and belongs in no operator file. Printing an edit at all is forbidden in the
 branches step 4 already suppressed, because printing it here would recommend the exact
 ineffective remediation those branches exist to withhold.
@@ -23,7 +23,7 @@ the effective value resolved in step 4 and substitute what it prints:
 
 ```bash
 jq '.statusLine' <the settings file that owns the effective command> |
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+  bash "<plugin-root>/scripts/compose-statusline-wiring.sh" \
     --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' --block --explain
 ```
 
@@ -98,7 +98,7 @@ in the order they nest, this plugin's first.
 
 ```bash
 jq '.statusLine' <the settings file that owns the effective command> |
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+  bash "<plugin-root>/scripts/compose-statusline-wiring.sh" \
     --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' \
     --wrap 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh' --block --explain
 ```

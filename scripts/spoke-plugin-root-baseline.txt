@@ -15,17 +15,3 @@
 # use <skill-dir> instead.
 plugins/claude-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
 plugins/claude-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
-plugins/code-metrics/skills/principles/reference/measures.md 2
-plugins/code-metrics/skills/principles/reference/thresholds.md 1
-plugins/context-guard/skills/setup/reference/legacy-statusline-detect.md 2
-plugins/context-guard/skills/setup/reference/statusline-edit.md 3
-plugins/context-guard/skills/setup/reference/unwrap-before-compose.md 1
-plugins/guardrails/skills/setup/context/install-commit-msg.md 2
-plugins/guardrails/skills/setup/context/install-pre-commit-content.md 3
-plugins/kindle-dedrm/skills/manage/reference/troubleshooting.md 2
-plugins/kindle-dedrm/skills/manage/reference/workflow.md 2
-plugins/playbooks/skills/skill-authoring/reference/authoring-checklist.md 1
-plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1
-plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 1
-plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md 2
-plugins/rate-limit-guard/skills/setup/reference/unwrap-before-compose.md 1

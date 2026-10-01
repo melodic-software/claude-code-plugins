@@ -3,7 +3,7 @@
 The shared, plugin-name-free half of the two statusline guard plugins' legacy detection. The hub
 SKILL.md supplies every concrete path: the DURABLE SHIM COPY (the `bin/statusline-shim.sh` under
 this plugin's own operator-home directory) and the SHIPPED SOURCE
-(`${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`). These surfaces live under `~/.claude/`,
+(`<plugin-root>/scripts/statusline-shim.sh`). These surfaces live under `~/.claude/`,
 machine scope; the shared classification below is deduplicated here.
 
 ## Installed shim state
@@ -33,7 +33,7 @@ contract, so `cmp -s` is the test):
     if they uninstall the plugin first, this skill is gone and the stale shim keeps teeing with no
     remaining way to reach the remediation. Say that in the finding, so the reason to act now is
     on screen.
-- **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`). INFO,
+- **The SHIPPED source is absent** (no `<plugin-root>/scripts/statusline-shim.sh`). INFO,
   and skip the comparison entirely: this installed plugin version predates the shim.
   Never report the operator's installed copy as drifted on this branch. Remediation: update this
   plugin (`/plugin update`), then re-run `check`. Until then the legacy version-pinned wiring
