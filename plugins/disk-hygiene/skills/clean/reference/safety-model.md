@@ -191,6 +191,16 @@ existing handle that does not share delete. A zero desired access skips the shar
 never uses it. `FILE_FLAG_BACKUP_SEMANTICS` lets the same probe run on directories. Sharing violations are `locked`;
 access/privilege failures are `needs-elevation`; other errors are unverified.
 
+Verification record for the Win32 open semantics. **Claim:** `CreateFileW` with zero desired access
+succeeds on a file another process holds open without sharing, while `DELETE` access with a zero
+share mode fails with a sharing violation. **Basis:** the `dwDesiredAccess` entry of
+`https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createfilew`, which says a
+zero value queries metadata "without accessing that file or device" and names no share check, and a
+native run on Windows with Python 3.14.7 that held a file open: the zero-access open returned a
+handle and the `DELETE` open failed with a sharing violation. **As of:** 2026-10-01. **Recheck:**
+when that page's `dwDesiredAccess` or `dwShareMode` text changes, or when
+`WindowsHandleProbeNativeTests` in `test_hygiene.py` fails on a Windows runner.
+
 On Linux/macOS, `lsof <file>` or `lsof +D <directory>` supplies the process view. `+D` is bounded by
 the caller's authority and may be slow; a timeout, diagnostic, absent binary, or unexpected exit is
 `handle-state-unverified`. The plugin never substitutes deletion failure because POSIX may unlink an
