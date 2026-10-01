@@ -109,35 +109,61 @@ the JSONL hook-events layer (`hook-events.jsonl` and its rotated `.1`, which the
 layer its own 365-day `--keep-skill-usage-days` window, longer because a starvation report wants
 long history and those rows carry names and branches only, no content).
 
-### Windows: per-user Scheduled Task (no admin)
+### Windows: the provisioned daily Scheduled Task (no admin)
 
-The limited runtime user must first have the scoped `SERVICE_STOP | SERVICE_START` grant
-converged by machine provisioning.
-The grant intentionally includes no service-configuration or ACL-writing rights.
+Machine provisioning registers the prune on each fleet host as `ClaudeCodeOtelPrune`: daily at
+04:00 (off-peak, so the brief Collector stop rarely overlaps a session), as the console account,
+run level `Limited`. The same apply converges the scoped `SERVICE_STOP | SERVICE_START` grant the
+prune needs; the grant includes no service-configuration or ACL-writing rights.
 
-The registration carries machine-specific absolute paths, so it is **generated from your
-machine's paths** and never committed. Unlike the boot-time Collector service, the prune is a
-bash script, so the task must invoke `bash.exe` by full path. The script ships inside the
-installed plugin and sources sibling helpers, so the task must point at the plugin's own directory: resolve
-`<skill-dir>/otel/prune-otel-store.sh` from a Claude Code
-session and substitute that absolute path below (`<plugin-prune-script>`). The plugin cache path
-changes on plugin updates, so re-register the task after updating the plugin. Daily, off-peak
-(minimizes overlap with the brief stop window):
+The task runs a launcher, not a fixed path. On every run it reads the user-scope entry for this
+plugin (key `claude-ops@<marketplace>`) in `installed_plugins.json` (under `CLAUDE_CONFIG_DIR`,
+else `~/.claude/plugins/`) and runs `skills/observability/otel/prune-otel-store.sh` from that
+`installPath` through Git Bash (a machine or a user-scope Git for Windows install). A plugin
+update therefore needs no re-registration, and the 14-day orphan sweep of an old version directory
+cannot strand the task. The log is `%LOCALAPPDATA%\provisioning\logs\ClaudeCodeOtelPrune.log`: one
+UTC timestamp line per run, the prune's output, then `done: <plugin key> <version>` or
+`failed: <reason>`. A missing plugin, a missing script and a failed prune each exit 1.
 
-```text
-schtasks /create /tn "ClaudeCodeOtelPrune" /sc daily /st 04:00 /rl limited /f /tr ^
-  "\"C:\Program Files\Git\bin\bash.exe\" \"<plugin-prune-script>\""
-```
+The contract between the two repositories is three names: the plugin key, the in-plugin path
+`skills/observability/otel/prune-otel-store.sh`, and `CC_OTEL_STORE`. Renaming or moving the
+script, or publishing the plugin from another marketplace, breaks the task. The plugin key changed
+from `claude-ops@<marketplace>` to `harness-ops@<marketplace>` in harness-ops 1.0.0; the task
+fails until provisioning reads the new key. Basis:
+`Get-OtelStorePruneArgument` in provisioning's `common/Provisioning.psm1` and the
+`ClaudeCodeOtelPrune` rows of `hosts/*/Set-MachineConfiguration.ps1`
+(melodic-software/provisioning#669, merged as `16aefbe`), read 2026-10-01; recheck when either
+repository changes one of the three names.
 
-With `CC_OTEL_STORE` set (the prerequisite above) the working directory is irrelevant. Every
-resolved path is absolute. To override the retention windows for this task, use the `setx`
-recipe above (user env vars are the only surface the task sees).
-**Verify:** `bash <skill-dir>/scripts/probe-observability-state.sh --otel-store`
-prints five lines: the three hot files, `cold:<bytes>B (<n> files)`, and `last-prune:<UTC time> (<age>)`.
-Every successful non-dry prune writes `<store>/.last-prune`; `last-prune:never` or an age of `2d` or
-more means the task is not firing. Also `schtasks /query /tn "ClaudeCodeOtelPrune"`;
-`schtasks /run /tn "ClaudeCodeOtelPrune"` then re-run a `--dry-run` to confirm the window held.
-**Reversal:** `schtasks /delete /tn "ClaudeCodeOtelPrune" /f`.
+A task registered by hand from an earlier version of this page names a versioned cache path or a
+copied script. The next provisioning apply replaces it in place under the same name. On a machine
+without that provisioning, register an equivalent daily task whose action finds the install path
+at run time; one that names the versioned path breaks after the next plugin update.
+
+The task sees only OS user environment variables, so use the `setx` recipe above to override its
+retention windows.
+**Verify:** `bash <skill-dir>/scripts/probe-observability-state.sh --otel-store` prints six lines:
+the three hot files, `cold:<bytes>B (<n> files)`, `last-prune:<UTC time> (<age>)`, and
+`prune-task:<state>`. Every successful non-dry prune writes `<store>/.last-prune`;
+`last-prune:never` or an age of `2d` or more means the task is not firing or is failing (read its
+log). The `prune-task:` states, none of which prints text from the task, since the line reaches
+model context (read the action with `schtasks /query /tn "ClaudeCodeOtelPrune" /xml`):
+
+| State | Meaning |
+|---|---|
+| `provisioned` | enabled, and the action is pwsh running the provisioning launcher: it names `installed_plugins.json`, the `claude-ops@` plugin key and the in-plugin prune path |
+| `missing` | no `ClaudeCodeOtelPrune` task: run the provisioning apply |
+| `disabled` | the task or its trigger is disabled |
+| `stale path` | a hand-registered task names a prune script that no longer exists, typically a version directory the orphan sweep removed |
+| `hand-registered` | a hand-registered task whose script still exists: a versioned path breaks at the next plugin update, and a copied script never gets fixes |
+| `unrecognized action` | the task runs neither the launcher nor a prune script; a UNC path is never tested |
+| `n/a (not Windows)`, `unknown (schtasks not found)` | not checked |
+
+Provisioning's `-Test` also reports the task, and reports drift when the hot files pass 1 GiB
+together or `cold/` passes 2 GiB. To run the task now, `schtasks /run /tn "ClaudeCodeOtelPrune"`
+from cmd.exe, then re-run a `--dry-run` to confirm the window held.
+**Reversal:** provisioning owns the task; remove it there (its host runbook), not by hand, or the
+next apply registers it again.
 
 ### macOS / Linux: lifecycle integration required
 

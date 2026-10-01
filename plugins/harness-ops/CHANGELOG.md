@@ -22,6 +22,29 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   (`<!-- claude-ops:lane-telemetry marker=... -->`, `claude-ops:restart-consumer`) keep their old
   spelling, because existing GitHub comments match on them.
 
+## [0.81.0] - 2026-10-01
+
+### Added
+
+- **`probe-observability-state.sh --otel-store` reports the scheduled prune task.** A sixth line,
+  `prune-task:<state>`, reads the Windows `ClaudeCodeOtelPrune` task from `schtasks /query /xml`:
+  `provisioned` only when pwsh runs the full provisioning launcher signature, `missing`, `disabled`,
+  `stale path` when a hand-registered action names a prune script that no longer exists,
+  `hand-registered` while it still does, or `unrecognized action`. Off Windows it reads
+  `n/a (not Windows)`. The line carries no text from the task, because it reaches model context,
+  and a UNC path is never tested. The observability skill flags every state but `provisioned` and
+  `n/a`.
+
+### Changed
+
+- **The OTEL prune's Windows setup points at the provisioned task.** `operator-setup-retention.md`
+  drops the hand `schtasks /create` recipe, which named the versioned plugin path and broke after
+  every plugin update. It now describes `ClaudeCodeOtelPrune` as machine provisioning registers it
+  (melodic-software/provisioning#669): a daily launcher that reads the user-scope claude-ops
+  `installPath` from `installed_plugins.json` on every run, so plugin updates need no
+  re-registration. The doc records the three names the two repositories share: the plugin, the
+  in-plugin script path and `CC_OTEL_STORE`.
+
 ## [0.80.3] - 2026-10-01
 
 ### Changed

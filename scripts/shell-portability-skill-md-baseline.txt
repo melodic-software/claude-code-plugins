@@ -23,7 +23,6 @@ plugins/harness-config/skills/audit/SKILL.md
 plugins/harness-memory/skills/stateless/reference/official-guidance.md
 plugins/harness-memory/skills/stateless/SKILL.md
 plugins/harness-ops/skills/observability/context/data-sources.md
-plugins/harness-ops/skills/observability/context/operator-setup-retention.md
 plugins/harness-ops/skills/plugins/context/scope-semantics.md
 plugins/discovery/skills/explore/reference/ecosystem-discovery.md
 plugins/disk-hygiene/skills/clean/reference/safety-model.md
