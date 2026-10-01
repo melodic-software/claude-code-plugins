@@ -97,6 +97,16 @@ The verbatim upstream skill lives at `vendor/` for drift detection. Do NOT read 
 
 This skill is the browser-automation driver; it is self-contained. If your project provides a broader test-orchestration skill, an outcome verifier, or a committed `@playwright/test` suite for pixel-diff visual regression, use this skill for ad-hoc live driving and evidence capture and route committed regression baselines through those. Otherwise the guidance here is all you need.
 
+## Spoke paths
+
+The `reference/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or writing
+it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token in them
+would reach the Bash tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR`
+to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Source attribution
 
 Distilled from Microsoft's official `@playwright/cli` skill shipped inside the npm package, which is licensed Apache-2.0. The upstream license text ships at `vendor/LICENSE`. The reference files reshape upstream content for progressive disclosure, one topic per file, and add original Windows and orchestrator-recipe material.

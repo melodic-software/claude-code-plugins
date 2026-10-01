@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.20] - 2026-09-30
+
+### Fixed
+
+- **`simulation`'s session-archive step names the plugin root in words.** `reference/agentic-simulation.md` wrote the root as a literal `${...}` token, which the Read tool does not expand. The rule it states, never write session archives into the plugin's installed directory, is unchanged.
+
 ## [0.6.19] - 2026-09-29
 
 ### Fixed

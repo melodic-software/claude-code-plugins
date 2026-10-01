@@ -117,7 +117,7 @@ mkdir "<path>" &&
 
 **Substitute `<helper>` with the resolved absolute path** to
 `scripts/reap-project-plugin-records.sh` before presenting this. Do not emit
-`${CLAUDE_PLUGIN_ROOT}` here. That variable is set for the tooling that runs this skill, not in the
+the plugin-root variable here. It is set for the tooling that runs this skill, not in the
 user's own shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. The `&&`
 chain fails safe, but the remedy would simply never run while appearing to.
 
