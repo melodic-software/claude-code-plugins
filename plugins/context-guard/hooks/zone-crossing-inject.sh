@@ -160,7 +160,7 @@ set -uo pipefail
 # silent and writes nothing. That is every fire on a machine without the
 # context-guard status line, so the check runs before the libraries are
 # sourced, which cost more than the rest of such a fire. jq must be on PATH for
-# the skip: without it the full path owes its once-per-session notice.
+# the skip: without it the full path owes its once per session and agent notice.
 if [[ ! -e "${HOME:-}/.claude/context-guard/context" ]] && command -v jq >/dev/null 2>&1; then
   exit 0
 fi

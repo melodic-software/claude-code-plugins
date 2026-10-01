@@ -431,8 +431,8 @@ assert_silent "kill switch off → no stderr" "$OUT"
 # cannot host bash + coreutils (their DLLs / PATH) across Git Bash and Linux.
 # Assert the fail-open guard is present in the hook source via the shared
 # hook::require_jq helper (docs/conventions/hook-observability/) — it composes
-# the once-per-session notice_once gate with the dual-channel (systemMessage +
-# additionalContext) visibility notice; require_jq's own behavior is covered
+# the once per session and agent notice_once gate with the dual-channel
+# (systemMessage + additionalContext) visibility notice; require_jq's own behavior is covered
 # by lib/hook-utils.test.sh, not re-asserted here.
 HOOK_SRC=$(cat "$HOOK")
 assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'

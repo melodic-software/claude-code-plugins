@@ -3,12 +3,18 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.2] - 2026-10-01
+## [0.8.3] - 2026-10-01
 
 ### Changed
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.8.2] - 2026-10-01
+
+### Changed
+
+- **The setup skill, its evals and the hook test describe the missing-`jq` notice as once per session and agent.** The notice is shown once per session and agent and renewed every eighth skip; the wording said once per session.
 
 ## [0.8.1] - 2026-10-01
 

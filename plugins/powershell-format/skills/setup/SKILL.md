@@ -54,7 +54,7 @@ restores the FAIL semantics.
    noting any features the hook degrades without (for example telemetry's `EPOCHREALTIME`,
    a Bash 5.0+ builtin).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of running.
+   once per session and agent notice instead of running.
 3. **`node`.** Probe via Bash: `command -v node`, then `node --version` when it resolves. FAIL if
    absent: every handler in `hooks/hooks.json` launches through `node hooks/exec-bash.mjs`, so
    without `node` the hook never starts and says nothing (README Requirements). The hook process
