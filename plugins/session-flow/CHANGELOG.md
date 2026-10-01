@@ -1,11 +1,17 @@
 # Changelog: session-flow plugin
 
-## [0.43.2] - 2026-10-01
+## [0.44.1] - 2026-10-01
 
 ### Changed
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.44.0] - 2026-10-01
+
+### Added
+
+- **`check-usage-limit-reset.py --received <ISO-8601>`.** A limit message states only a clock time, so the reset resolves to the first occurrence at or after the time the message appeared. `/session-flow:keep-going` passes it. Without the flag the behavior is unchanged. A reset time inside a DST fall-back hour resolves to the earliest of its two instants at or after the message. `SKILL.md` tells the agent to read stderr on exit `2`, since a malformed `--received` also exits `2`.
 
 ## [0.43.1] - 2026-10-01
 

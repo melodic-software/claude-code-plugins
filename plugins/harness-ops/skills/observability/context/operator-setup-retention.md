@@ -19,8 +19,20 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
   prune run, append-only, so a failed compaction can never corrupt prior cold history and
   always aborts the trim (hot store untouched). Cold is unbounded by design. Measured: 72 MB
   over about 5 weeks (1.38M log rows, 2026-08-16 to 2026-09-22); recheck if `cold/` exceeds ~2 GB. Content boundary: no `api_*_body`
-  rows ever reach cold; `user_prompt` rows survive with `body` NULLed and the `prompt`
-  attribute scrubbed unless the prompt-keep knob is on. Join keys (`session_id`, `prompt_id`,
+  rows ever reach cold; `user_prompt` rows survive with `body` NULLed and the `prompt` and
+  `prompt_text` attributes scrubbed unless the prompt-keep knob is on. `prompt_text` is a copy
+  of `prompt` on the `user_prompt` event. Basis: Claude Code 2.1.287 changelog entry ("Added
+  `prompt_text` to the OpenTelemetry `user_prompt` event, a copy of `prompt`"),
+  <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>. Verified 2026-10-01
+  against that file and the installed 2.1.287 binary; recheck when a release adds another
+  prompt-bearing attribute to `user_prompt`. Cold files written by a prune under Claude Code
+  2.1.287 or later with claude-ops (now harness-ops) before 0.80.2 still carry `prompt_text`: compaction scrubs
+  only what it compacts. A normal prune prints a `notice:` line when a cold file still holds
+  prompt content, and stops scanning once `cold/.prompt-scrub-clean` records a clean scan
+  (a compaction with the keep knob on removes it); `prune-otel-store.sh --scrub-cold` rewrites those files in place with the
+  same scrub, keeping every row and every other attribute (`--dry-run` lists them first). If
+  the scrub cannot run, deleting the `cold/*.parquet` files written since you installed 2.1.287
+  also closes the exposure, at the cost of that span of structure history. Join keys (`session_id`, `prompt_id`,
   `tool_use_id`, `trace_id`, `span_id`) are always retained. They bridge cold rows to
   on-disk transcript lookups.
 
@@ -36,7 +48,7 @@ turned off). The size cap below bounds each hot file even when every line is ins
 | `CC_OTEL_RETENTION_DAYS` | `7` | Hot window for structure events (everything that is not an `api_*_body` record). Older lines drop from hot, compacted to cold first. |
 | `CC_OTEL_BODY_RETENTION_DAYS` | `2` | Hot window for `api_request_body` / `api_response_body` records. Must not exceed the structure window (exit 2, reject rather than clamp). Aged body records are stripped in place; they never reach cold. |
 | `CC_OTEL_HOT_MAX_MB` | `1024` | Size cap per hot file in MiB; `0` disables. A file over the cap drops its oldest lines, compacted to cold first, until it fits, even inside the age windows. Must be a non-negative integer (exit 2 otherwise). |
-| `CC_OTEL_COLD_KEEP_USER_PROMPTS` | off | `=1` keeps `user_prompt` bodies + the `prompt` attribute un-scrubbed in the cold tier. Default scrubs both (prompt frequency/timing analytics survive either way). |
+| `CC_OTEL_COLD_KEEP_USER_PROMPTS` | off | `=1` keeps `user_prompt` bodies + the `prompt` and `prompt_text` attributes un-scrubbed in the cold tier. Default scrubs both (prompt frequency/timing analytics survive either way). |
 
 `RETENTION_DAYS` alone is **not read**. Set without `CC_OTEL_RETENTION_DAYS` it exits 2.
 
