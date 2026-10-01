@@ -47,7 +47,7 @@ during `plan` or `apply`, however unnecessary it looks.
 [invocation-mode rubric](../../../../docs/conventions/invocation-mode/README.md) fits: this is not a
 `setup` skill (class ii), not maintainer-only (class iii), and not class (i) either, since the human
 already decides every write at the gate below rather than deciding the *timing* of an unattended
-mutation. It is also a chain target: `/claude-memory:audit`'s N1 fix route and this plugin's own
+mutation. It is also a chain target: `/harness-memory:audit`'s N1 fix route and this plugin's own
 `setup` remediation both point a repository here, and the invocation-reach invariant makes a `true`
 skill unreachable from another skill.
 
@@ -285,7 +285,7 @@ deletes files, so it takes a permission prompt every time rather than running on
 standing grant.
 
 It refuses far more often than it acts, and every gate fails closed. Without `--confirm` it prints
-what removal costs and stops. With it, it refuses unless the **installed** `claude-memory` and
+what removal costs and stops. With it, it refuses unless the **installed** `harness-memory` and
 `instruction-placement` carry the corrected doctrine, read as the **lowest** version installed in
 any scope, because the stale copy is the one that answers in the repository being de-shimmed (an
 older cached build advises it straight back to the old shape), unless `cutover-check` reports every graded condition

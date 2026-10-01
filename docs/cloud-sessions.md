@@ -237,7 +237,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   `0.05` the listing fits **only on a context window of 677,980 tokens or larger**. Read the
   setting as a window assumption, not a guarantee:
 
-  | Context window | Budget at `0.05` | `claude-ops:audit-skill-visibility` |
+  | Context window | Budget at `0.05` | `harness-ops:audit-skill-visibility` |
   | --- | --- | --- |
   | 200,000 (Claude Code's documented default) | 40,000 chars | `overflowing`, **135 of 182 starved** |
   | 677,980 (break-even for today's fleet) | 135,596 chars | `listing-fits`, 0 starved |
@@ -308,7 +308,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
 - **Harness residual: first-turn slash of just-installed plugins (#2733).** The "Unknown
   command" outcome above is **not remediable inside any plugin in this repository**: the
   command registry is a Claude Code harness property (built at process start, not re-read).
-  Track occurrences via `/claude-ops:known-issues` and, when reproducible on a fresh cloud
+  Track occurrences via `/harness-ops:known-issues` and, when reproducible on a fresh cloud
   session after a confirmed pre-launch bootstrap, report upstream (`anthropics/claude-code`)
   with the bootstrap log plus the first-turn transcript. In-session workarounds when a
   first-turn slash returns `Unknown command:` (a) **resume** the session so the process
@@ -327,7 +327,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   never calls `claude plugin marketplace remove`, which deletes the marketplace's
   entry from `.claude/settings.json` and would have the script mutate tracked config.
 - The bootstrap reconciles user-scope installs at SessionStart (and at cache build, through the
-  setup script); `/claude-ops:plugins` never detects or coordinates with it. Every `sync` and
+  setup script); `/harness-ops:plugins` never detects or coordinates with it. Every `sync` and
   `audit` re-derives the fleet from `installed_plugins.json` and the settings maps on the run, so
   a bootstrap that ran a moment earlier shows up only as current state, never as a branch in the
   skill.
@@ -404,7 +404,7 @@ catalog on, and the cloud bootstrap installs from the two together (see
   while the parity lane stayed green over it. It exists because the claim was
   prose for three plugin releases that shipped catalogued but never enabled, a silent failure,
   since the bootstrap computes its install set from the same map and a session simply comes up
-  without those skills. `claude-config`'s `check-plugin-drift.sh` cannot cover it: it reads this
+  without those skills. `harness-config`'s `check-plugin-drift.sh` cannot cover it: it reads this
   repo's relative `directory` catalog, but it diffs it only against the settings file's
   `enabledPlugins` keys, reports a plugin with no key as NEW (report only), never reads the fleet
   list, and checks no key order.

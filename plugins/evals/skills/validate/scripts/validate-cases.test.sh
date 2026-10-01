@@ -3,7 +3,7 @@
 # run-plugin-tests.sh discovery (plugins/**/*.test.sh) actually runs it. The
 # engine is Python and the runner step is bash-only, which is what this file
 # bridges; the interpreter discovery below follows the repo's candidate loop
-# (plugins/claude-ops/skills/audit-native-overlap/scripts/overlap.test.sh).
+# (plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.test.sh).
 #
 # Exit: 0 all tests passed; 1 a test failed; 2 no usable interpreter (a named
 # environment error, never a silent skip).

@@ -46,7 +46,7 @@ report-only rules added. The findings of the five existing rules did not move un
   | Test | Source read | What it checks |
   |---|---|---|
   | `plugins/knowledge/skills/video-digest/extraction/harvesting/analyze-harvested-repos.test.js:103` | `analyze-harvested-repos.js` | no `process.exit(` call in the source |
-  | `plugins/claude-ops/hooks/session-event-log.test.sh:294` | `plugins/claude-ops/hooks/session-log-lib.sh` | no `hook-utils` source line |
+  | `plugins/harness-ops/hooks/session-event-log.test.sh:294` | `plugins/harness-ops/hooks/session-log-lib.sh` | no `hook-utils` source line |
   | `plugins/guardrails/hooks/abort-boundary.test.sh:247` | `plugins/guardrails/hooks/run-guards.sh` | `PRIME_FILTERS` lists `.hook_event_name` |
   | `plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh` (the eval-coverage case) | `plugins/testing/skills/audit/scripts/cant-fail-scan.sh` | the rule ids the driver emits |
 

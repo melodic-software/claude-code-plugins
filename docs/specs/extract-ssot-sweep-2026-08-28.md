@@ -219,7 +219,7 @@ this sweep created none and none of these needs one. They are ordered by the har
 Four of the factual defects this survey found were applied in the same change set and so are not
 rostered here: `auto-mode-dropped-class-roster`, `songwriting-title-type-attribution`,
 `songwriting-section2-load-list-gate`, and `check-skill-trigger-fence-line-reference`. Their
-per-site detail is in the affected plugins' changelogs, `claude-config`, `songwriting`, and
+per-site detail is in the affected plugins' changelogs, `harness-config`, `songwriting`, and
 `docs-hygiene` respectively, and in the pull request that carried them. An earlier draft said they
 were "listed under Applied above"; that section covers the owner edits, the inline floor, and the
 call-site normalizations, and names none of these four, so a resumer following the pointer found
@@ -271,7 +271,7 @@ both say "This file does not restate it"), `session-flow` (a self-ignore guard r
 inside one plugin whose sibling already cites it correctly), `review` (a diff-base ladder stated four
 times in three incompatible shapes, and a hardened git incantation byte-identical in three agents
 that no drift check can see), `work-items` (a role-label rule whose loud-warning mandate a prior PR
-set out to drop and dropped in only two of six files), `knowledge`, `claude-ops`, `code-tidying`,
+set out to drop and dropped in only two of six files), `knowledge`, `harness-ops`, `code-tidying`,
 `toolchain`, `github`, `prototype`, `context-guard`, `ai-briefing`, `repo-hygiene`, `adhd`,
 `codebase-health`, `implementation`, `testing`, `verification`, `playwright`, `firecrawl`,
 `playbooks`, `context7`, `dometrain`, `miro`, `actionlint`, `guardrails`.
@@ -409,7 +409,7 @@ than the sentence carrying them. The unit that carries the evidence claim is the
 sentence, and the substance holds at that unit: every row states what it removed and why.
 
 A first attempt at this correction said that bullet "names **no** invocation at all", which its own
-text refutes: it names `docs-hygiene:audit-noise` and `claude-config:audit-instructions`, just not as
+text refutes: it names `docs-hygiene:audit-noise` and `harness-config:audit-instructions`, just not as
 the replacement. That attempt also pinned the `config-cascade` sentences at `:13-14` and `:11-13`
 when the quoted forms are on 12, 13 and 14 and the assertion runs 14 to 16, a line pin written into
 the very file whose decay rule says the check is the text. Both are corrected here on text anchors,
@@ -611,7 +611,7 @@ Group 1 plus all of Groups 2 and 3 by #3380, and `V-review-13` and `V-review-14`
 [#3468](https://github.com/melodic-software/claude-code-plugins/pull/3468) (`c66f26ce`), which
 rewrote all three `docs/conventions/native-references/README.md` sites, the Boundary section's
 worked model and both Adopters rows, to `/review:quality-gate`, `/review:fanout` and
-`/claude-ops:audit-install-state`. An earlier version of this line, and the merged messages of
+`/harness-ops:audit-install-state`. An earlier version of this line, and the merged messages of
 both #3477 and #3478, credited #3475; `git show --stat 02e1d8b0` shows that PR touched
 only `docs/conventions/native-references/CHANGELOG.md`, never the README the two rows cite.
 The 34-closed total is unaffected.

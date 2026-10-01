@@ -38,7 +38,7 @@ scanner; remaining real cite relocated.
 | `plugins/ai-briefing/skills/generate/references/build-pipeline.md` | clean |
 | `plugins/ai-briefing/skills/generate/references/slide-generation.md` | clean |
 | `plugins/architecture/CHANGELOG.md` | basename-exempt |
-| `plugins/claude-ops/skills/known-issues/context/registry-schema.md` | clean (pointer-converted in #2695, re-verified present) |
+| `plugins/harness-ops/skills/known-issues/context/registry-schema.md` | clean (pointer-converted in #2695, re-verified present) |
 | `plugins/disk-hygiene/CHANGELOG.md` | basename-exempt |
 | `plugins/domain-driven-design/README.md` | clean |
 | `plugins/dometrain/README.md` | clean |
@@ -87,11 +87,11 @@ Re-open only if two checklists are byte-identical and meant to stay that way
 (then register like artifact-protocol).
 
 - `plugins/**/templates/checklist.md` (planning, interview, session-flow,
-  debugging, codebase-health, code-tidying, claude-config, source-control,
+  debugging, codebase-health, code-tidying, harness-config, source-control,
   work-items, …)
 - `plugins/machine-health/skills/audit/scripts/{linux,macos}/NOT_IMPLEMENTED.md`
   (near-dup scaffolding; OS-specific on purpose)
-- `plugins/claude-config/skills/audit/templates/checklist.md` and siblings
+- `plugins/harness-config/skills/audit/templates/checklist.md` and siblings
 
 ### C: CHANGELOG routes (changelog-parity before any dedup)
 

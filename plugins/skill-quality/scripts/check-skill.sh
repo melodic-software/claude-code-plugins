@@ -2014,7 +2014,7 @@ fi
 #   - polarity is read from the description LEAD (before "Use when:"), so a
 #     trigger phrase like 'fix the formatting' never advertises mutation;
 #   - override language (--fix, explicit override, never on bare) anywhere in
-#     the listing text is the compliant claude-config:audit [--fix] shape and
+#     the listing text is the compliant harness-config:audit [--fix] shape and
 #     clears a report-only verb;
 #   - "read-only by default" is a default-then-override shape, not a
 #     never-mutates claim;

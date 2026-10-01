@@ -558,7 +558,7 @@ function probeMcp(repoRoot) {
     detail:
       "enablement gate only partly resolvable from committed surfaces; compose config-audit when installed",
   };
-  // Presence-gated claude-config seam: look for committed settings keys.
+  // Presence-gated harness-config seam: look for committed settings keys.
   const settingsPath = join(repoRoot, ".claude", "settings.json");
   const settings = readJson(settingsPath);
   if (settings.ok) {

@@ -7,7 +7,7 @@
 #                                                          carrying plugin's manifest version did not
 #   scripts/sync-check-retirements.sh --print-manifest     emit src and copies as data (for affected-tests)
 #
-# Canonical copy: plugins/claude-config/lib/check-retirements.sh (see
+# Canonical copy: plugins/harness-config/lib/check-retirements.sh (see
 # scripts/cross-plugin-source-registry.txt). Tests live beside the canonical copy only.
 #
 # Every plugin that ships a retirements.yaml enrolls its copy here. Every mode
@@ -23,11 +23,11 @@ cd "$script_dir/.."
 . "$script_dir/lib/sync-cluster.sh"
 
 sync_cluster_script="sync-check-retirements.sh"
-src="plugins/claude-config/lib/check-retirements.sh"
+src="plugins/harness-config/lib/check-retirements.sh"
 copies=(
   plugins/source-control/lib/check-retirements.sh
   plugins/plugin-quality/lib/check-retirements.sh
-  plugins/claude-ops/lib/check-retirements.sh
+  plugins/harness-ops/lib/check-retirements.sh
   plugins/attribution/lib/check-retirements.sh
   plugins/docs-naming/lib/check-retirements.sh
 )

@@ -51,7 +51,7 @@ below:
 - Both `L1` derivability outcomes. `plugins/repo-hygiene/skills/clean/reference/ecosystems.md` and
   `plugins/ai-briefing/skills/generate/context/execution-flow.md` are deleted, the second only after
   four behavioral rules were salvaged into its `SKILL.md`, and
-  `plugins/claude-ops/skills/known-issues/context/issue-templates.md` is converted to a pointer.
+  `plugins/harness-ops/skills/known-issues/context/issue-templates.md` is converted to a pointer.
 - Nine of the 30 `L2` split specs.
 - `L6`'s finding C1, fixed at `scripts/sync-plugin-options-docs.py` and regenerated into 34 plugin
   READMEs.
@@ -182,7 +182,7 @@ Concentration by group, as measured, for scoping:
 | `I-songwriting` | 40 | `plugins/songwriting/context/pat-pattison/research/meter.md`, 1,922 L |
 | `K-repo-docs` | 15 | `docs/migration-playbook.md`, 1,738 L |
 | `C-vcs-repo` | 11 | `plugins/source-control/skills/babysit-prs/reference/orchestration.md`, 962 L |
-| `B-cc-config-ops` | 9 | `plugins/claude-config/skills/audit-instructions/reference/criteria.md`, 1,742 L |
+| `B-cc-config-ops` | 9 | `plugins/harness-config/skills/audit-instructions/reference/criteria.md`, 1,742 L |
 | `E-session-behavior` | 9 | `plugins/session-flow/reference/save-point.md`, 566 L |
 | `G-code-design` | 7 | `plugins/event-storming/skills/simulation/reference/agentic-simulation.md`, 1,023 L |
 | `F-quality-verify` | 5 | `plugins/review/skills/quality-gate/context/close-out.md`, 415 L |
@@ -208,13 +208,13 @@ the repository already contains three correct versions of the section:
 - `plugins/plugin-quality/skills/audit/SKILL.md:485`, `## Reference index. Load on demand`, with a
   literal `Load when` table column. The best example in the corpus.
 - `plugins/source-control/skills/commit/SKILL.md:377`, same heading.
-- `plugins/claude-ops/skills/observability/SKILL.md:36`, `## Context ladder (read on demand)`.
+- `plugins/harness-ops/skills/observability/SKILL.md:36`, `## Context ladder (read on demand)`.
 
 | Site | Heading | Rows |
 |---|---|---:|
 | `plugins/docs-hygiene/skills/{audit-derivability,audit-noise,audit-progressive-disclosure,compress,extract-ssot}/SKILL.md` | inline shared-fallback sentence | 5 |
 | `plugins/docs-hygiene/skills/{audit-encapsulation,compress,extract-ssot}/SKILL.md` | `## Cross-references` | 3 |
-| `plugins/claude-ops/skills/{changelog,lanes,morning-brief,observability,plugins}/SKILL.md` | `## Cross-references` | 5 |
+| `plugins/harness-ops/skills/{changelog,lanes,morning-brief,observability,plugins}/SKILL.md` | `## Cross-references` | 5 |
 | `plugins/bugs/skills/{scan,write}/SKILL.md` | `## Cross-references` | 2 |
 | `plugins/ai-briefing/skills/generate/SKILL.md:140` | `## References` | 1 |
 | `plugins/discovery/skills/research-deep/SKILL.md:120` | `## See also` | 1 |
@@ -229,7 +229,7 @@ blind-pointer rewrite, which is fuller, and drop the P3 fix rather than applying
 
 **Correction, 2026-08-26.** That cross-lane note has no referent. It and the L7 note that
 `B-1` through `B-4` "also fail L2's blind-pointer shape" both point at
-`plugins/claude-ops/skills/audit-install-state/SKILL.md`, which the table above never listed: its
+`plugins/harness-ops/skills/audit-install-state/SKILL.md`, which the table above never listed: its
 eleven rows sum to exactly 22 without it. The two notes also disagree with each other on the count,
 three against four. Independently, all four `B-1` through `B-4` replacements are already present in
 that file, so those findings are closed under the decay rule, and they were never the trailing-index
@@ -238,9 +238,9 @@ heading supplies the *when* and the P3 fix supplied the *what*. Converting them 
 move phase-local routing away from the phase it routes.
 
 **Applied 2026-08-26: 18 of 22, in ten trailing-index rewrites and eight inline when-clauses.**
-Three sites were declined as no longer holding. `claude-ops` `morning-brief` ships no `context/` or
+Three sites were declined as no longer holding. `harness-ops` `morning-brief` ships no `context/` or
 `reference/` directory at all, so its `## Cross-references` names two sibling-skill boundaries and
-no spoke; `claude-ops` `observability`'s `## Cross-references` is a single disambiguation line, and
+no spoke; `harness-ops` `observability`'s `## Cross-references` is a single disambiguation line, and
 its real spoke index is the `## Context ladder (read on demand)` section this remediation copies as
 a model. The `audit-encapsulation` shared-fallback sentence was fixed too, though the table counted
 only five skills carrying it, so the sentence does not drift across the six.
@@ -262,11 +262,11 @@ useful thing to fix if anyone touches that section for another reason.
 
 | Path | Tier | Chain |
 |---|---|---|
-| `plugins/claude-config/skills/audit-pass/reference/terms.md` and `reference/finding-identity.md` | 2 | `plugins/claude-config/skills/audit-pass/SKILL.md:19` to `plugins/claude-config/skills/audit-pass/reference/run-contract.md:9` to leaf. Every other leaf opens by assuming `terms.md`, and it is the file furthest from the hub |
+| `plugins/harness-config/skills/audit-pass/reference/terms.md` and `reference/finding-identity.md` | 2 | `plugins/harness-config/skills/audit-pass/SKILL.md:19` to `plugins/harness-config/skills/audit-pass/reference/run-contract.md:9` to leaf. Every other leaf opens by assuming `terms.md`, and it is the file furthest from the hub |
 | `plugins/architecture/skills/improve/research/deepening/*.md` (5 files) | 2 | `plugins/architecture/skills/improve/SKILL.md:35` to `plugins/architecture/skills/improve/actions/deepening.md:26` to that skill's `research/deepening/scan-briefing.md`. The citing line calls the target "load-bearing" for scan quality |
 | `plugins/session-flow/skills/retro/reference/ecosystem-improvement-catalog.md` | 2 | `plugins/session-flow/skills/retro/SKILL.md` to `plugins/session-flow/skills/retro/context/session.md:184` ("Load the catalog") to the catalog |
 | `plugins/knowledge/skills/course-digest/reference/screenshot-strategy.md` | 2 | `plugins/knowledge/skills/course-digest/SKILL.md` to `plugins/knowledge/skills/course-digest/context/workflow.md:46` to the strategy |
-| `plugins/claude-ops/skills/known-issues/context/issue-templates.md`, `context/output-templates.md` | 3 | Explicitly conditional offline snapshots. Alternates, not required reading. **No treatment** |
+| `plugins/harness-ops/skills/known-issues/context/issue-templates.md`, `context/output-templates.md` | 3 | Explicitly conditional offline snapshots. Alternates, not required reading. **No treatment** |
 | `plugins/songwriting/context/pat-pattison/research/book-references.md` | 3 | Shared bibliography cited by its siblings. Legitimate cross-reference. **No treatment** |
 
 ### `orphan-spoke`, 4 in a tree of 507
@@ -292,7 +292,7 @@ applied.
 
 | Cluster | Instances | Existing owner | Remedy |
 |---|---:|---|---|
-| `lane-telemetry-upsert` | 3 | `plugins/claude-ops/skills/lanes/SKILL.md`, "Never pass a body as an `@path` string" | `name-an-owner` plus `normalize-wording`. Highest value in the lane: drifted, unowned, unguarded |
+| `lane-telemetry-upsert` | 3 | `plugins/harness-ops/skills/lanes/SKILL.md`, "Never pass a body as an `@path` string" | `name-an-owner` plus `normalize-wording`. Highest value in the lane: drifted, unowned, unguarded |
 | `dynamic-context-git-preamble` | 44, 26 edited | none; proposes a `docs/plugin-philosophy.md` "Inline-template conventions" home | `normalize-wording` plus `edit-existing-rule`. One canonical fallback string corrects a live mislabel (`echo "clean"` on a failed `git status`) at 15 sites |
 | `setup-probe-dont-recite` | 17 | `docs/plugin-philosophy.md` "Setup is explicit and repeatable" (clause absent) | `edit-existing-rule`. All 17 already cite that contract at document scope |
 | `setup-headless-reconfigure-recipe` | 22, 6 edited | `docs/plugin-philosophy.md` "Configuration ownership and scope" | `normalize-wording` |
@@ -401,9 +401,9 @@ directory and are legal cite targets.
 | `V-sq-01` | `docs/plugin-philosophy.md:596` | `skill-quality/skills/check/reference/fresh-eyes-declarations.md`, also unresolvable |
 | `V-sq-02` | `docs/plugin-philosophy.md:1071` | same target, also unresolvable |
 | `V-sc-15` | `plugins/work-items/skills/setup/reference/overlay-ignore-probes.md:18` | `source-control/skills/setup/reference/apply-convention.md` |
-| `V-ops-01` | `plugins/claude-config/skills/audit-pass/reference/run-state-and-resumability.md:70` | `claude-ops/skills/lanes/context/restart-consumer.md` |
+| `V-ops-01` | `plugins/harness-config/skills/audit-pass/reference/run-state-and-resumability.md:70` | `harness-ops/skills/lanes/context/restart-consumer.md` |
 | `V-auto-01` | `plugins/source-control/skills/babysit-loop/reference/promotion-evidence-resolution.md:8` | `autonomy/skills/setup/schemas/guardrails-security-binding.schema.json` |
-| `V-ct-01` | `plugins/claude-config/skills/audit-instructions/reference/criteria.md:392` | `code-tidying/skills/tidy/reference/tidyings.md` |
+| `V-ct-01` | `plugins/harness-config/skills/audit-instructions/reference/criteria.md:392` | `code-tidying/skills/tidy/reference/tidyings.md` |
 
 Three of these deserve their own note.
 
@@ -669,10 +669,10 @@ text exactly.
 
 | # | `path:line` | Tier | Verbatim | Replacement |
 |---|---|---|---|---|
-| B-1 | `plugins/claude-ops/skills/audit-install-state/SKILL.md:152` | T2 | `See [reference/surfaces.md](reference/surfaces.md).` | `Per-path retention rules: see [reference/surfaces.md](reference/surfaces.md).` |
-| B-2 | `plugins/claude-ops/skills/audit-install-state/SKILL.md:170` | T2 | `See [reference/name-schemes.md](reference/name-schemes.md).` | `Name schemes and their liveness meanings: see [reference/name-schemes.md](reference/name-schemes.md).` |
-| B-3 | `plugins/claude-ops/skills/audit-install-state/SKILL.md:205` | T2 | `See [reference/evidence-discipline.md](reference/evidence-discipline.md).` | `Cross-review procedure: see [reference/evidence-discipline.md](reference/evidence-discipline.md).` |
-| B-4 | `plugins/claude-ops/skills/audit-install-state/SKILL.md:213` | T2 | `See [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.` | `Upstream-claim verification: see [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.` |
+| B-1 | `plugins/harness-ops/skills/audit-install-state/SKILL.md:152` | T2 | `See [reference/surfaces.md](reference/surfaces.md).` | `Per-path retention rules: see [reference/surfaces.md](reference/surfaces.md).` |
+| B-2 | `plugins/harness-ops/skills/audit-install-state/SKILL.md:170` | T2 | `See [reference/name-schemes.md](reference/name-schemes.md).` | `Name schemes and their liveness meanings: see [reference/name-schemes.md](reference/name-schemes.md).` |
+| B-3 | `plugins/harness-ops/skills/audit-install-state/SKILL.md:205` | T2 | `See [reference/evidence-discipline.md](reference/evidence-discipline.md).` | `Cross-review procedure: see [reference/evidence-discipline.md](reference/evidence-discipline.md).` |
+| B-4 | `plugins/harness-ops/skills/audit-install-state/SKILL.md:213` | T2 | `See [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.` | `Upstream-claim verification: see [reference/evidence-discipline.md](reference/evidence-discipline.md) §6.` |
 | F-1 | `plugins/mutation-testing/skills/principles/SKILL.md:48` | T2 | `See [scaling-and-suppression.md](reference/scaling-and-suppression.md).` | `Scaling and suppression mechanics: see [scaling-and-suppression.md](reference/scaling-and-suppression.md).` |
 | F-2 | `plugins/testing/skills/run-e2e/context/e2e.md:35` | T3 | see below | see below |
 | H-1 | `plugins/discovery/skills/research/SKILL.md:159` | T2 | `See the discipline file's "Tool-ecosystem Phase 3 fallback" for the playbook.` | `Tool-ecosystem Phase 3 fallback playbook: the discipline file's "Tool-ecosystem Phase 3 fallback".` This file cites the same target seven times and front-loads the term every other time; line 159 is the single deviation |
@@ -832,7 +832,7 @@ have "cost" was already being published.
 
 ### P7, a step defers a fact it needs to an unnamed location, 2
 
-**B-5. `plugins/claude-config/skills/audit/SKILL.md:90`** (T2, S2). Lines 88 to 90:
+**B-5. `plugins/harness-config/skills/audit/SKILL.md:90`** (T2, S2). Lines 88 to 90:
 
 ```text
 Record the installed Claude Code version (`claude --version`). Phase 3.2 compares issue-fix versions
@@ -932,17 +932,17 @@ README), `## Tests` (`machine-health`), `## Revisit triggers` (`instruction-plac
 |---|---|---|---|
 | A1 | `plugins/docs-hygiene/README.md:15` | `L1` | S2 |
 | A2 | `plugins/docs-hygiene/README.md:18` | `L1` | S3 |
-| B1 | `plugins/claude-ops/README.md:40` | `Am1` | S1 |
-| B2 | `plugins/claude-ops/README.md:60` | `Am1` | S1 |
+| B1 | `plugins/harness-ops/README.md:40` | `Am1` | S1 |
+| B2 | `plugins/harness-ops/README.md:60` | `Am1` | S1 |
 | B3 | `plugins/context-guard/README.md:109` | `Am1` | S1 |
 | B4 | `plugins/guardrails/README.md:213` | `Am1` | S2 |
 | B5 | `plugins/context-budget/README.md:78` | `M3` | S2 |
 | B6 | `plugins/context-guard/README.md:127` | `M3` | S2 |
 | B7 | `plugins/guardrails/README.md:338` | `M3` | S2 |
 | B8 | `plugins/rate-limit-guard/README.md:119` | `M3` | S2 |
-| B9 | `plugins/claude-config/README.md:125` | `L1` | S2 |
-| B10 | `plugins/claude-config/README.md:157` | `L1` | S2 |
-| B11 | `plugins/claude-ops/README.md:29` | `L1` | S2 |
+| B9 | `plugins/harness-config/README.md:125` | `L1` | S2 |
+| B10 | `plugins/harness-config/README.md:157` | `L1` | S2 |
+| B11 | `plugins/harness-ops/README.md:29` | `L1` | S2 |
 | C1 | `plugins/disk-hygiene/README.md:54` | `M1`, `M2` | S2 |
 | C2 | `plugins/disk-hygiene/README.md:196` | `M1` | S2 |
 | C3 | `plugins/repo-fleet-hygiene/README.md:11` | `Am1` | S2 |

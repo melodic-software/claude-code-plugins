@@ -543,10 +543,10 @@ jobs:
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
             :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
-            :(exclude)plugins/claude-config/skills/audit-permission-state/reference/criteria.md
-            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
-            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
-            :(exclude)plugins/claude-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
+            :(exclude)plugins/harness-config/skills/audit-permission-state/reference/criteria.md
+            :(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.sh
+            :(exclude)plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh
+            :(exclude)plugins/harness-config/skills/audit-permission-state/scripts/automode-entry-diff.test.sh
             :(exclude)plugins/source-control/scripts/worktree-create.test.sh
 
       - name: Check index-level EOL drift
@@ -866,7 +866,7 @@ jobs:
       # failed launch is a NON-BLOCKING error, so a PreToolUse guard wired this
       # way silently enforces nothing. This class has shipped three times in
       # disk-hygiene alone (#1006 fixed it, #1504 reintroduced it, #2570 fixed
-      # it again) while the claude-config audit checklist carried it as an
+      # it again) while the harness-config audit checklist carried it as an
       # `error` row the whole time — a checklist a human reads is not a gate.
       # Self-test first so a broken detector cannot mask a regression.
       - name: Test the hook-exec-form gate
@@ -1771,7 +1771,7 @@ jobs:
             --requirement .github/requirements-ci-animation.txt
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      # The claude-ops observability suites (prune-otel-store, hook-latency) query
+      # The harness-ops observability suites (prune-otel-store, hook-latency) query
       # fixture stores with the DuckDB CLI and skip those cases without it.
       - name: Install DuckDB CLI
         if: needs.changes.outputs.run_tests == 'true'
@@ -2090,7 +2090,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/managed-scope.test.sh
+          bash plugins/harness-config/lib/managed-scope.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2112,7 +2112,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/state-key.test.sh
+          bash plugins/harness-config/lib/state-key.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2134,7 +2134,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-ops/lib/spawn_noise.test.sh
+          bash plugins/harness-ops/lib/spawn_noise.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2156,7 +2156,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/check-retirements.test.sh
+          bash plugins/harness-config/lib/check-retirements.test.sh
       - name: Verify carrying plugins bumped when canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2275,7 +2275,7 @@ jobs:
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
-          bash plugins/claude-config/lib/resolve-convention-home.test.sh
+          bash plugins/harness-config/lib/resolve-convention-home.test.sh
       - name: Run the plugin-quality pilot consumer-repo sim
         if: needs.changes.outputs.run_tests == 'true'
         run: |

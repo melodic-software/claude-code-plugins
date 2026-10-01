@@ -640,7 +640,7 @@ Inputs: `.work/tautological-tests/phase4-pocock-examples.md` (the Pocock mapping
   - the README crosswalk counts, updated;
   - `evals.json` expectations, updated.
 - Eval coverage for `rule-*` ids: `scripts/check-detector-eval-coverage.sh` registers only the
-  `claude-config` pair (`PAIRS_DEFAULT`, `:238`) and discovers only `[A-Z]…[0-9]` ids, so it cannot
+  `harness-config` pair (`PAIRS_DEFAULT`, `:238`) and discovers only `[A-Z]…[0-9]` ids, so it cannot
   see these rules. `cant-fail-scan.test.sh` asserts that every rule id the scanner can emit,
   extracted from the scanner and adapter sources, appears in a positive `evals.json` expectation.
 - `test-scan.sh` wiring (Q7 tier 2): the doubtful-hit prompt at `test-scan.sh:101` matches only

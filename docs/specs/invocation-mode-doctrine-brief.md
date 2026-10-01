@@ -78,7 +78,7 @@ question-bounded per ADR 0005.
   cross-skill-reach axis.
 - **Q6, router pattern:** REJECT the model-side router with reason (under the model-invoked
   default the always-present listing is the router; the `true` set is deliberately
-  model-invisible). Human-side answer: `docs/skill-cheat-sheet.md` + `claude-ops:inventory`.
+  model-invisible). Human-side answer: `docs/skill-cheat-sheet.md` + `harness-ops:inventory`.
   Domain-scoped composition routers (`discipline:sweep-all` precedent) remain an admitted,
   distinct pattern.
 - **Q7, re-grade bounding:** one question. Do the 10 non-setup `true` skills fall into a

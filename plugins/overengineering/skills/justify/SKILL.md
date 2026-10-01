@@ -210,8 +210,8 @@ inline, state what it would have owned, and record the fallback in `Routed-to`.
 | Unreachable or dead code | `code-tidying:audit-dead-code` |
 | Comments, their content or residue | `code-tidying:dissolve-comments`, `code-tidying:audit-comment-residue` |
 | A document derivable from its source, or noise within one | `docs-hygiene:audit-derivability`, `docs-hygiene:audit-noise` |
-| Instruction text and what it does to a model | `claude-config:audit-instructions`, `claude-config:unhobble` |
-| Duplication of a native harness surface | `claude-ops:audit-native-overlap` |
+| Instruction text and what it does to a model | `harness-config:audit-instructions`, `harness-config:unhobble` |
+| Duplication of a native harness surface | `harness-ops:audit-native-overlap` |
 | Ranking candidates across several dimensions | `improvement:find` |
 | The scrutiny posture itself | `discipline:reason-dont-recite`, `discipline:recheck-against-upstream`, `discipline:scrutinize-dont-coast` |
 

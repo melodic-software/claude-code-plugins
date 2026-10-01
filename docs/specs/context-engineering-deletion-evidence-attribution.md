@@ -8,7 +8,7 @@ records why the obvious shortcut does not work.
 
 ## The problem
 
-`claude-config:unhobble` ships a re-add gate: after a branch-local strip of the project's standing
+`harness-config:unhobble` ships a re-add gate: after a branch-local strip of the project's standing
 instructions, an instruction is restored only on at least two ledger rows sharing one underlying
 cause, and the restoring commit cites those rows. Undefended deletions stay deleted.
 
@@ -90,9 +90,9 @@ degrades honestly (an expired watch resolves nothing) where a shortcut would deg
 
 ## Adoption
 
-Wired. `claude-config:unhobble` `watch` is the deletion direction of the re-add gate, and the
+Wired. `harness-config:unhobble` `watch` is the deletion direction of the re-add gate, and the
 re-add gate stays the only grammar: a ledger row, same-cause aggregation, and a commit that cites
-the rows. `claude-config:audit-instructions` treats an editorial cut as applicable on its normal
+the rows. `harness-config:audit-instructions` treats an editorial cut as applicable on its normal
 criteria, holds a protected class, and treats a consequential deletion as applicable only when the
 commit that makes the removal permanent cites a closed watch whose qualifying-session count is met
 and whose attributed row count is zero. That citation is what clears the consequential tier. An empty watch is not a warrant.

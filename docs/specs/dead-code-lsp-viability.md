@@ -249,7 +249,7 @@ tool has no diagnostics operation and because the passive path strips the tag.
 already correct:
 
 - `scripts/validate-plugin-contracts.mjs:271` declares `lspServers: [".lsp.json"]`
-- `plugins/claude-ops/skills/inventory/scripts/inventory.py:88` inventories `lsp-servers`
+- `plugins/harness-ops/skills/inventory/scripts/inventory.py:88` inventories `lsp-servers`
 - `docs/official-docs.md:44` tracks the LSP servers doc page
 - `docs/plugin-philosophy.md:180` says "*Adopt on need. Consumer must have the language-server binary;
   declare the prerequisite per the failure-behavior rules.*"

@@ -536,7 +536,7 @@ if (existsSync(marketplacePath)) {
 //
 // A manifest is the append-only record of consumer-facing artifacts a plugin
 // has retired; the shared helper lib/check-retirements.sh (canonical in
-// claude-config, synced byte-identical) evaluates it in setup `check`. The
+// harness-config, synced byte-identical) evaluates it in setup `check`. The
 // gate covers four things: the manifest parses and every record is
 // well-formed; records are never deleted or rewritten once merged; the helper
 // and the setup skill are wired both ways; and every record has an eval.
@@ -546,7 +546,7 @@ const RETIREMENTS_FILE = "retirements.yaml";
 const RETIREMENTS_HELPER = "check-retirements.sh";
 const canonicalRetirementsHelper = join(
   pluginRoot,
-  "claude-config",
+  "harness-config",
   "lib",
   RETIREMENTS_HELPER,
 );
@@ -856,6 +856,21 @@ if (retirementsBaseRef === null) {
         );
         continue;
       }
+      // A plugin renamed through the marketplace `renames` map carries its records to the new
+      // directory, with the id prefix that names the plugin rewritten to match.
+      const oldName = line.split("/")[1];
+      const newName = existsSync(marketplacePath)
+        ? JSON.parse(read(marketplacePath)).renames?.[oldName]
+        : undefined;
+      if (typeof newName === "string") {
+        for (const r of records) {
+          if (r.fields.id?.startsWith(`${oldName}-r`)) {
+            r.fields.id = newName + r.fields.id.slice(oldName.length);
+          }
+        }
+        retirementsAtBase.set(`plugins/${newName}/${RETIREMENTS_FILE}`, records);
+        continue;
+      }
       retirementsAtBase.set(line, records);
     }
   }
@@ -916,7 +931,7 @@ for (const manifestPath of retirementManifests) {
   if (!existsSync(helperCopy)) {
     fail(helperCopy, "missing; a plugin shipping retirements.yaml must carry the synced helper");
   } else if (canonicalHelperContent !== null && read(helperCopy) !== canonicalHelperContent) {
-    fail(helperCopy, "must remain byte-identical to plugins/claude-config/lib/check-retirements.sh");
+    fail(helperCopy, "must remain byte-identical to plugins/harness-config/lib/check-retirements.sh");
   }
   const setupSkill = join(pluginRoot, plugin, "skills", "setup", "SKILL.md");
   if (!existsSync(setupSkill) || !read(setupSkill).includes(RETIREMENTS_HELPER)) {
@@ -966,12 +981,12 @@ if (retirementsAtBase !== null) {
 }
 
 // Wiring, inverse direction: a helper copy or a setup reference with no
-// manifest behind it is dead surface. claude-config is the canonical home of
+// manifest behind it is dead surface. harness-config is the canonical home of
 // the helper, so its copy and its setup reference stand without a manifest.
 for (const path of pluginFiles) {
   const parts = pluginPathParts(path);
   const plugin = parts[0];
-  if (plugin === "claude-config" || pluginsWithRetirements.has(plugin)) continue;
+  if (plugin === "harness-config" || pluginsWithRetirements.has(plugin)) continue;
   const rest = parts.slice(1).join("/");
   if (rest === `lib/${RETIREMENTS_HELPER}`) {
     fail(path, "lib/check-retirements.sh is carried but the plugin ships no retirements.yaml");

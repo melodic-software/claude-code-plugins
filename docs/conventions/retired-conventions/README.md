@@ -130,7 +130,7 @@ fleet-wide (below) without deleting the evidence that the window existed.
 
 ## The helper: `lib/check-retirements.sh`
 
-Canonical copy: `plugins/claude-config/lib/check-retirements.sh`, with its test suite beside it.
+Canonical copy: `plugins/harness-config/lib/check-retirements.sh`, with its test suite beside it.
 Synced byte-identical into every plugin that ships a manifest as
 `plugins/<plugin>/lib/check-retirements.sh` by `scripts/sync-check-retirements.sh`, registered in
 `scripts/cross-plugin-source-registry.txt`, and drift-gated by the `check-retirements-sync` CI job.
@@ -238,9 +238,9 @@ never offer.
 
 Detection inside a plugin's own setup covers a consumer who re-runs that setup. It does not cover a
 consumer who updated the plugin and never re-ran setup, the documented death spiral of a leftover
-that is never re-checked. So `claude-config`'s `audit-pass` skill carries one lane that sweeps
+that is never re-checked. So `harness-config`'s `audit-pass` skill carries one lane that sweeps
 **every installed plugin's** manifest against the target repository at runtime: it enumerates
-`retirements.yaml` files from installed plugin roots, runs claude-config's own canonical helper copy
+`retirements.yaml` files from installed plugin roots, runs harness-config's own canonical helper copy
 against each, and emits one finding per active row keyed by record id, `report-only` rows as INFO,
 and a FAIL finding for any manifest the helper refuses (exit 2). No generator, no committed
 aggregate: the sweep reads what is installed at the moment it runs. It is **read-only** and never
@@ -253,7 +253,7 @@ degrades when they cannot be, is in that skill's
 
 A `migrate` record's `successor` typically sends content to the consumer's convention home, and the
 home is bound by the pointer line the cascade doctrine defines. This contract does not own that
-grammar. The resolver is `plugins/claude-config/lib/resolve-convention-home.sh`; its header defines
+grammar. The resolver is `plugins/harness-config/lib/resolve-convention-home.sh`; its header defines
 the region markers, the first-backticked-token rule, the path grammar, and the four outcomes (exit 0
 resolved, 1 no pointer anywhere so the caller asks, 2 usage, 3 FAIL with a distinct message per
 failure: two pointers in one region, an unterminated region, an invalid path, a missing target).

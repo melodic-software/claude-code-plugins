@@ -127,7 +127,7 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # The PRIMARY anchor is derived from the caller's own `pwd` by removing the
 # sub-path git reports for it. The git-reported forms stay as fallbacks.
 # (This producer FAILs OPEN: a path that matches no spelling is left as-is.
-# The claude-config sibling fails closed on the same mismatch.)
+# The harness-config sibling fails closed on the same mismatch.)
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 REPO_ROOT_ALT=""
 REPO_ROOT_PWD=""
@@ -158,7 +158,7 @@ cat "${FROM_FILES[@]}" | LC_ALL=C awk -v branch="$BRANCH" -v date_utc="$DATE_UTC
   # Conditional, not unconditional: an ordinary name stays a byte-identical
   # plain scalar, so the wire format for the common path does not move.
   # Predicate deliberately IDENTICAL to the two sibling producers
-  # (claude-config/audit-instructions/scripts/emit-findings.sh and
+  # (harness-config/audit-instructions/scripts/emit-findings.sh and
   # testing/audit/scripts/cant-fail-scan.sh): three producers answering one
   # frontmatter contract must agree, or a consumer sees three shapes.
   # A plain scalar YAML implicitly TYPES is also unsafe: git accepts branch

@@ -470,7 +470,7 @@ A standing lane is additionally bounded by the `/loop` launch surface's **seven-
 `/loop` ends automatically seven days after it starts, on either launch shape (§5) and idle backoff
 notwithstanding (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified
 2026-07-27, broadened from the 2026-07-23 stamp's self-paced-only wording). A standing lane
-therefore requires a relaunch owner, today always the operator, for whom `claude-ops` `lanes`
+therefore requires a relaunch owner, today always the operator, for whom `harness-ops` `lanes`
 `restart` is a one-command path (operator-initiated by contract; see the cycle-budget paragraph
 below). The lane records its loop-started timestamp in the lane's #502 telemetry block so the
 approaching expiry is visible ahead of time, and an expiry hit is handled exactly like the
@@ -487,16 +487,16 @@ against <https://code.claude.com/docs/en/tools-reference> and
 **The prompt runs fresh; the session does not.** Each cycle re-sends the lane's prompt verbatim into
 the **same** session, so "runs fresh every time" describes the prompt and never the context: a lane
 prompt never assumes a fresh one, and what carries forward also degrades, since auto-compaction
-summarizes earlier history in place rather than preserving it (the `claude-ops:lanes` skill owns the
+summarizes earlier history in place rather than preserving it (the `harness-ops:lanes` skill owns the
 mechanism).
 
 **Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
 emits a restart-request into the #502 telemetry block and stops the loop cleanly, because a running loop
 cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets (the
-`claude-ops:lanes` skill owns the mechanism). What happens next is launcher-relative. Under a
+`harness-ops:lanes` skill owns the mechanism). What happens next is launcher-relative. Under a
 launcher that acts on restart-requests, the lane is relaunched and the loop continues: the budget
 restarts the **session**, never ends the **loop**. **No such automatic launcher exists today**:
-`claude-ops` `lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today",
+`harness-ops` `lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today",
 per its SKILL.md), so until an automatic relaunch trigger exists, *every* budget hit, under `lanes`
 or a bare interactive `/loop` alike, is a **terminal** manual-restart state: the stop is reported
 in lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's
@@ -508,10 +508,10 @@ tracking item, identified by a machine sentinel marker and **edited in place** e
 second comment for that instance. The unit is the writer identity, not the lane type: N concurrent
 instances of one lane legitimately hold N sentinel-identified comments on that lane's telemetry
 item, one each, and no instance ever edits another's.
-`claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
+`harness-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
 (`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
-script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
-one-directional. An inlined upsert is bound by the `@path`-as-body rule in `/claude-ops:lanes`,
+script, so each lane **inlines** the small `gh api` upsert and the coupling to `harness-ops` stays
+one-directional. An inlined upsert is bound by the `@path`-as-body rule in `/harness-ops:lanes`,
 section "Never pass a body as an `@path` string", and encodes that rule mechanically in its own
 block (#943) as three checks. A **pre-write gate** refuses a body that is empty, a literal `@path`,
 not sentinel-prefixed, or under a 16-byte payload floor measured below the sentinel line, before any
@@ -718,10 +718,10 @@ rule; the table above is a live consumer list, not a forward reference.
 
 **Launch surfaces.** A lane launches interactively via `/loop`, the primary surface and a bundled
 skill needing no install (<https://code.claude.com/docs/en/skills#bundled-skills>, verified
-2026-08-02), or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
+2026-08-02), or headless via the `harness-ops` `lanes` launcher, which stores the one-line lane
 prompt through its `prompt_dir` interface (#480). `lanes` is a **supporting, strictly one-directional**
 launcher: it launches the lane; no lane body ever requires, imports, or degrades without
-`claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
+`harness-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
 documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
 
 **Two launch shapes, selected per invocation, and neither deprecates the other.** Supplying an interval
@@ -881,7 +881,7 @@ GitHub state the lane already reads: labels, claims, and the PR hold. No agent r
 agent's summary; each lane's own telemetry comment is its report of record. The commands below take
 `R=<owner>/<repo>`.
 
-**Read a lane.** `/claude-ops:morning-brief` reads every lane's telemetry comment. To read one
+**Read a lane.** `/harness-ops:morning-brief` reads every lane's telemetry comment. To read one
 directly, find the `Lane telemetry: <lane>` issue and print its sentinel comments, one per instance:
 
 ```bash
@@ -943,7 +943,7 @@ standing lane then idles; a drain lane stops at its drain-terminal state (§4) o
 item is human-gated or escalated and no PR is in flight.
 
 **Stop a lane: no GitHub control exists.** Stopping is a session action on the lane's own host:
-`/claude-ops:lanes stop <lane>` there, reached from another machine through `/fleet:reach`.
+`/harness-ops:lanes stop <lane>` there, reached from another machine through `/fleet:reach`.
 
 ## Versioning
 

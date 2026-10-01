@@ -416,7 +416,7 @@ taxonomy.
 - The fleet already ruled on the pattern. A model-invoked router skill that routes the agent is
   REJECTED: under the model-invoked default the always-in-context listing does that job, and a router
   reaching into the deliberately hidden set would defeat the exception classes. The human-side
-  problem is answered by `docs/skill-cheat-sheet.md` and `claude-ops:inventory`. Only domain-scoped
+  problem is answered by `docs/skill-cheat-sheet.md` and `harness-ops:inventory`. Only domain-scoped
   composition routers, whose membership is derived, such as `discipline:sweep-all`, are admitted
   (`docs/conventions/invocation-mode/README.md:197-205`).
 - Each audit skill's description already ends in a sibling pointer: `audit-derivability` ("Line-level
@@ -425,10 +425,10 @@ taxonomy.
   /docs-hygiene:audit-noise; frontmatter QA is /skill-quality:check"), all at `SKILL.md:2`.
 - The five audits take different targets: a tree of markdown, one file, agent-facing instruction
   files, skill-private citations, and every tracked file under a root.
-- `claude-config:audit-pass` is a composition router, but its lanes are Claude configuration
+- `harness-config:audit-pass` is a composition router, but its lanes are Claude configuration
   (`config`, `memory`, `retirements`, `postures`,
-  `plugins/claude-config/skills/audit-pass/SKILL.md:232-235`) and none of them is a docs-hygiene
-  audit (`git grep -n 'audit-noise\|audit-derivab\|audit-progressive\|audit-file-names' -- plugins/claude-config/skills/audit-pass`
+  `plugins/harness-config/skills/audit-pass/SKILL.md:232-235`) and none of them is a docs-hygiene
+  audit (`git grep -n 'audit-noise\|audit-derivab\|audit-progressive\|audit-file-names' -- plugins/harness-config/skills/audit-pass`
   is empty).
 - `plugins/playbooks/skills/repo-sweep/catalogs/hygiene.md` already lists the docs audits as catalog
   entries (lines 90, 217, 263, 274, 281), so a whole-repo pass over them has a home.
@@ -446,7 +446,7 @@ taxonomy.
 3. **A cross-plugin router** that also runs `docs-naming:audit-file-names`. It must guard that
    reference as optional, and its plan-writing sibling is a different artifact and a different
    consent gate than the report-only three.
-4. **Fold the audits into `claude-config:audit-pass` lanes.** Widens a plugin whose lanes are all
+4. **Fold the audits into `harness-config:audit-pass` lanes.** Widens a plugin whose lanes are all
    Claude configuration.
 
 **Recommendation: option 1, no new skill now.**
@@ -456,7 +456,7 @@ carve-out needs a composition with derived membership and a real merged output);
 sibling pointers at each audit's `SKILL.md:2`; the budget arithmetic below, which removes the
 obstacle #4142 named but does not by itself create a need. Demand for a router is `judgment`: the
 only statement of it is one remark in the #4142 issue body. What would settle it is invocation
-counts for the four audit skills from the OTEL store (`claude-ops:observability`) and a count of
+counts for the four audit skills from the OTEL store (`harness-ops:observability`) and a count of
 sessions where the wrong audit was invoked first.
 
 ## Listing budget and the concern boundary
@@ -519,7 +519,7 @@ reserved the decision. The final call stays with the owner. This brief does not 
      characters, so `docs-hygiene` would read roughly 4,750 of 8,000).
   3. A cross-plugin router that also runs `docs-naming:audit-file-names` behind an "if installed"
      guard.
-  4. Add the docs audits as lanes of `claude-config:audit-pass`.
+  4. Add the docs audits as lanes of `harness-config:audit-pass`.
 - **Recommendation.** Option 1, on the invocation-mode router verdict, the existing sibling
   pointers, and the absence of any measured misrouting. If the owner wants one, option 2 is the
   admissible form (composition with derived membership), and option 3 is the one to avoid because
@@ -527,7 +527,7 @@ reserved the decision. The final call stays with the owner. This brief does not 
 - **Unblocks.** Whether the extraction PR adds a listed skill to `docs-hygiene`, and so the final
   listing numbers, the `docs-hygiene` description set, and its `0.24.0` changelog entry.
 - **Evidence that would settle it.** Per-skill invocation counts for the four audits from
-  `claude-ops:observability`, and a sample of sessions where the first audit invoked was not the one
+  `harness-ops:observability`, and a sample of sessions where the first audit invoked was not the one
   the user needed.
 
 **Also for sign-off, with recommendations already stated above.** These are not reserved decisions

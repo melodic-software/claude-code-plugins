@@ -30,7 +30,7 @@ backing, so adopting them wholesale would trade measured constraints for a pract
 practice. Second, and more decisively, the digests kept rediscovering that a proposed remediation
 already shipped somewhere in this repository, the strongest instance being a complete
 evidence-tiered criteria catalog at
-`plugins/claude-config/skills/audit-instructions/reference/criteria.md`, which nobody looking at the
+`plugins/harness-config/skills/audit-instructions/reference/criteria.md`, which nobody looking at the
 discovery surface could see.
 
 The competing posture was the article's own: delete constraints by default and let judgment fill the
@@ -49,7 +49,7 @@ re-decide.
 |---|---|---|
 | D-1 | **Incumbent-first gate is binding.** No remediation ships until it proves no existing skill already covers it | Every lane's first work item is an incumbent search with `path:line` evidence |
 | D-2 | **`UNBACKED` claims are report-only and opt-in.** Never auto-applied | Roughly a third of the article's claims. They ship marked, disabled by default, with a severity ceiling |
-| D-3 | **No bulk sweep of `plugins/**`.** Findings land as checks in the plugin that already owns each surface | `claude-config`, `claude-memory`, `skill-quality` are the homes. No new router |
+| D-3 | **No bulk sweep of `plugins/**`.** Findings land as checks in the plugin that already owns each surface | `harness-config`, `harness-memory`, `skill-quality` are the homes. No new router |
 | D-4 | **This effort ships two things**: the criteria catalog, and the cross-surface instruction-conflict detector | The conflict detector is the one finding with no incumbent and no existing ticket |
 | D-5 | **Verifier-subagent pattern stays, narrowed.** Drop blanket dispatch on mechanical behavior-preserving work; keep it where the verdict is subjective or blast radius is wide | Resolves the three-way tension between Opus 5 guidance, Claude Code best practices, and 23 implementing skills |
 | D-6 | **`plugins/playbooks/skills/fable-5/**` is excluded** from this pass | PR #1261 is actively rewriting it |
@@ -302,7 +302,7 @@ filed as [#1324](https://github.com/melodic-software/claude-code-plugins/issues/
 search originally covered `plugins/**/SKILL.md` only and so missed C6, the same false negative every
 prior search hit; the search was redone across `plugins/**` at all depths, C6 was found, and the
 build was re-scoped around reuse rather than re-implementation. It ships as Phase B2 of
-`claude-config:audit-instructions` with `reference/conflict-criteria.md` and an advisory
+`harness-config:audit-instructions` with `reference/conflict-criteria.md` and an advisory
 `scripts/conflict-scan.sh` pre-scan. **Nothing in it needs re-deriving from a lost checkout.**
 
 **L3: criteria catalog (D-4, D-2). Resumed and published as PR #1349.** The fold verdict was
@@ -337,13 +337,13 @@ than assumed discharged.
 
 The gate fired hard, as this effort's own digests predicted. Its sharpest result: **D-4's criteria
 catalog must fold**, because a complete incumbent already exists at
-`plugins/claude-config/skills/audit-instructions/reference/criteria.md` v1.0.0, carrying exactly
+`plugins/harness-config/skills/audit-instructions/reference/criteria.md` v1.0.0, carrying exactly
 D-2's three axes plus eleven seeded checks.
 
 **But the gate itself has a demonstrated blind spot.** Three independent searches (the boundary
 lane, two automated PR reviewers, and the building lane) all concluded "no incumbent" for the
-conflict detector. All three were wrong: `claude-memory:audit` ships check **C6 Consistency [FAIL]**
-at `plugins/claude-memory/skills/audit/reference/criteria.md:107-119`. Each search was scoped to
+conflict detector. All three were wrong: `harness-memory:audit` ships check **C6 Consistency [FAIL]**
+at `plugins/harness-memory/skills/audit/reference/criteria.md:107-119`. Each search was scoped to
 `SKILL.md` files or to frontmatter descriptions, and **C6 lives in a `reference/` catalog**, invisible
 from the discovery surface: that skill's own `description` never mentions contradiction.
 
@@ -432,8 +432,8 @@ them is worse than no detector, because each one trains its reader to dismiss th
 
 ### The partial incumbent this definition must be built against
 
-`claude-memory:audit` already ships check **C6 Consistency** at
-`plugins/claude-memory/skills/audit/reference/criteria.md`, which detects contradiction **inside the
+`harness-memory:audit` already ships check **C6 Consistency** at
+`plugins/harness-memory/skills/audit/reference/criteria.md`, which detects contradiction **inside the
 memory layer**. Under D-1 and this repository's reuse-or-replace posture, that slice is reused or
 extended, never re-implemented.
 
@@ -448,7 +448,7 @@ contradiction, user-global versus project rules) as well as the cross-layer ones
 a skill body, a skill's stated default against its plugin README, agent definitions, hook text,
 output styles).
 
-**Where it lands: a new phase in `claude-config`'s `audit-instructions` skill.** Stated here directly
+**Where it lands: a new phase in `harness-config`'s `audit-instructions` skill.** Stated here directly
 so this ADR does not depend on another to be actionable; the full option analysis and the cost that
 placement carries (Phase A must first gain a plugin-source surface, since it enumerates only the
 user and project `.claude/**` roots today) are recorded in ADR 0005 on the sweep boundary.
@@ -458,7 +458,7 @@ user and project `.claude/**` roots today) are recorded in ADR 0005 on the sweep
 **Status: superseding note only.** The ratified decision text above is preserved. What changed is
 C6's *operational* population, not the reuse predicate.
 
-`claude-memory:audit` 0.8.0 replaced the bare `find . -maxdepth 1` discovery with
+`harness-memory:audit` 0.8.0 replaced the bare `find . -maxdepth 1` discovery with
 `scripts/discover-instruction-surfaces.sh`, which emits **project and user** scope and whose Step 3
 compares user surfaces against project ones as live C6 conflicts. Operator ratification for #2705
 (2026-08-15) confirms the boundary that follows:

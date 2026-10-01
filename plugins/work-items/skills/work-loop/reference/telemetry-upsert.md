@@ -4,7 +4,7 @@ The upsert this lane runs to maintain its ONE sentinel-identified status comment
 lane instance**. `SKILL.md`'s "Telemetry and durable loop state" owns where the comment lives and
 what goes in it; this file owns the contract of the script that maintains the singleton.
 
-The mechanism lives in this plugin rather than in `claude-ops` because an installed plugin cannot
+The mechanism lives in this plugin rather than in `harness-ops` because an installed plugin cannot
 invoke a sibling plugin's scripts.
 
 **Resolve the lane instance first.** The marker names the *writer*, not the lane type, per the
@@ -140,5 +140,5 @@ reporting the lane as if nothing were partitioned.
 
 A PATCH that succeeds while storing the previous body still verifies: the read-back asserts that
 *some* well-formed telemetry is present, not that *this* cycle's write is what is present. Not
-implemented at all: the 64 KiB cap, body-file containment, and read retries that the `claude-ops`
+implemented at all: the 64 KiB cap, body-file containment, and read retries that the `harness-ops`
 lanes wrapper carries.

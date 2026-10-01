@@ -154,7 +154,7 @@ audit_noise_follower_is_document_locator() {
 # are spelled as literal ALTERNATIVES rather than a bracket class: `’` (U+2019)
 # is multibyte, and a bracket class over it breaks under a C locale, where the
 # regex is byte-based. Same reasoning, and same spelling, as the I6_ERE in
-# plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh.
+# plugins/harness-config/skills/audit-instructions/scripts/instruction-scan.sh.
 audit_noise_line_has_conversational_antecedent() {
   local line="$1" rest follower
   [[ "$line" =~ [Pp]er[[:space:]]+your[[:space:]]+request ]] && return 0

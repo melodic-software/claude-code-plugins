@@ -23,8 +23,8 @@ cd "$script_dir/.."
 sync_cluster_script="sync-fetch-docs.sh"
 src="lib/fetch-docs.sh"
 copies=(
-  plugins/claude-config/scripts/fetch-docs.sh
-  plugins/claude-ops/scripts/fetch-docs.sh
+  plugins/harness-config/scripts/fetch-docs.sh
+  plugins/harness-ops/scripts/fetch-docs.sh
 )
 sync_cluster_manifest_strip='/scripts/*'
 sync_cluster_noun="Canonical"

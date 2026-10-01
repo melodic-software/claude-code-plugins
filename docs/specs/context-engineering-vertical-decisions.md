@@ -170,7 +170,7 @@ or actively wrong, against the next, and that a model upgrade is therefore an oc
 what a repo's instruction surfaces are still buying. The question was whether this repo needs a
 new mechanism to act on that.
 
-It does not. `claude-config`'s `audit-pass` already ships the ritual: a re-run contract with a
+It does not. `harness-config`'s `audit-pass` already ships the ritual: a re-run contract with a
 lease and epoch, finding suppression that survives across runs, and a three-scope inventory. A
 model upgrade is a reason to invoke it, not a reason to build a second thing beside it. What the
 corpus adds is the documented trigger, and the caution that a re-run after an upgrade should

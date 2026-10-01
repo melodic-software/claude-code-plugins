@@ -1,5 +1,12 @@
 # Changelog: discovery plugin
 
+## [0.25.22] - 2026-10-01
+
+### Changed
+
+- References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
+  names, `harness-config`, `harness-memory` and `harness-ops`.
+
 ## [0.25.21] - 2026-10-01
 
 ### Added

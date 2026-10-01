@@ -176,4 +176,4 @@ config overrides. Stop the live observer to re-arm with new settings.
   retained observations file into its analysis (weigh against the redaction boundary, since the observations
   are unredacted, so any promotion to the ledger must pass the same two-hop redaction).
 - **Cost telemetry.** The `-p` run's JSON carries `total_cost_usd`; recording per-run observer spend
-  is `claude-ops:observability` territory.
+  is `harness-ops:observability` territory.

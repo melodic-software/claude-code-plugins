@@ -178,7 +178,7 @@ stated output shape rather than by a literal "the step is complete when Y appear
 
 One positive zero is worth the same treatment. **L7's `P21` checked five harness load-semantics fact
 families across 456 cue hits in 132 files and found zero contradictions.** The fleet has a de facto
-agreement chain on the fact most often got wrong elsewhere: `claude-memory`, `claude-config`,
+agreement chain on the fact most often got wrong elsewhere: `harness-memory`, `harness-config`,
 `docs-hygiene` and `instruction-placement` all independently state that `@path` imports do not defer
 loading, and `plugins/instruction-placement/context/verified-mechanics.md:33` refines it for the
 nested case without contradicting it.

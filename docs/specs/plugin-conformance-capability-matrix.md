@@ -70,8 +70,8 @@ Existing:
 |---|---|---|---|
 | `check-skill.sh:748` (check 3) | A trigger phrase is not lost from a description; it detects a phrase moved to a sibling skill, but only against `HEAD` on edit | script | through `check-changed-skills.sh` |
 | `check-skill.sh:675` (check 2), `:1133` (check 12) + `scripts/skill-description-cap-baseline.txt` | Description length cap and trigger phrasing present | script | same |
-| `plugins/claude-ops/skills/audit-native-overlap/SKILL.md:2` | Overlap between plugin skills and native Claude Code surfaces only, not between two plugin skills | script (`overlap.py`) + human verdicts | through `validate-plugins.sh` (registry self-check) |
-| `plugins/claude-ops/skills/audit-skill-visibility/SKILL.md:2` | Whether a description is in the listing at all (budget starvation) | script | no |
+| `plugins/harness-ops/skills/audit-native-overlap/SKILL.md:2` | Overlap between plugin skills and native Claude Code surfaces only, not between two plugin skills | script (`overlap.py`) + human verdicts | through `validate-plugins.sh` (registry self-check) |
+| `plugins/harness-ops/skills/audit-skill-visibility/SKILL.md:2` | Whether a description is in the listing at all (budget starvation) | script | no |
 | `skill-quality:check listing-budget` | Total listing budget | script | no |
 
 Rule owner: `docs/plugin-philosophy.md:215-216` (the first clause of a description carries the
@@ -120,7 +120,7 @@ Existing:
 | `scripts/check-shell-portability.sh` + `shell-portability-tokens.txt` | GNU-only shell constructs in `.sh` files and skill markdown | script, changed files (`--all` and `--awk-probe` are not in CI) | `ci.yml:1368` |
 | `scripts/check-shell-portability.sh --awk-probe SUITE...` + `scripts/lib/awk-probe.sh` | A `*.test.sh` whose exit differs between two distinct awk implementations (`awk -v` escape divergence; the fix is `ENVIRON[]`) | script, manual; needs two distinct awks (gawk plus mawk) on PATH, else it exits 2 | no |
 | `scripts/check-hook-userconfig-argv.sh` | Bare `${user_config.*}` in hook configs | script | `ci.yml:803` |
-| `plugins/claude-config/skills/audit-permission-grants` | Machine paths and tilde paths in grants | script (`permission-rule-check.sh`) | no |
+| `plugins/harness-config/skills/audit-permission-grants` | Machine paths and tilde paths in grants | script (`permission-rule-check.sh`) | no |
 | `/docs-hygiene:audit-encapsulation` | Paths into another skill's or plugin's private files (`docs/plugin-philosophy.md:406-419`) | skill | no |
 | `plugin-quality` `recurring-concerns.md:53-64` (section 5), `:65` (section 6) | Hardcoded consumer specifics, cross-platform | judgment, one component | no |
 | `coupling` `remediations.md:44-47`, `coupling-model.md:109` | Externalize environment-varying values; one repo hardcoding another's layout | judgment | no |
@@ -153,7 +153,7 @@ Existing:
 | `scripts/check-skill-count-claims.sh` | Skill-count claims in prose match the tree | script | `ci.yml:597` |
 | `scripts/sync-plugin-options-docs.py` | README options generated from `userConfig` | script | `ci.yml:875` |
 | `plugin-quality` `recurring-concerns.md:40-51` (section 4) | The same fact in several hand-maintained places | judgment, one component | no |
-| `claude-config:audit-instructions` (`restatement-scan.py`) | Instruction restatement across surfaces | judgment + pre-scan | no |
+| `harness-config:audit-instructions` (`restatement-scan.py`) | Instruction restatement across surfaces | judgment + pre-scan | no |
 
 Rule owners: `docs/plugin-philosophy.md:332` ("Choose one authoritative owner for each value", written
 for configuration), `:389-391` (version: one home), `:490-496` (the runtime artifact is the single
@@ -179,7 +179,7 @@ Existing:
 | `skill-quality:check` (27 checks, `check-skill.sh:609-2070`) | The skill layout contract (owned there per `docs/plugin-philosophy.md:674`) | script | through `check-changed-skills.sh` |
 | `plugins/plugin-quality/skills/audit/SKILL.md:2,349` | Behavioral audit of one component against an 8-section checklist | judgment, fresh subagent | no |
 | `plugins/codebase-health/skills/audit/SKILL.md:2` | Doc, config, code and architecture claims against reality | judgment, fan-out | no |
-| `plugins/claude-config/skills/audit-pass/SKILL.md:15` | An ordered, resumable coordinator that "adds no criteria of its own" | orchestrator | no |
+| `plugins/harness-config/skills/audit-pass/SKILL.md:15` | An ordered, resumable coordinator that "adds no criteria of its own" | orchestrator | no |
 
 Rule owner: the whole of `docs/plugin-philosophy.md`. The doc repeatedly says "the fleet conformance
 audit tracks the gap" (`:427-428`, `:476-477`, `:602-603`) and "Fleet audits check conformance per
@@ -228,7 +228,7 @@ store.
    `extract-ssot`, and `audit-instructions`' restatement scan. They are partitioned by file class and
    surface, but `plugin-quality` section 4 restates the doctrine instead of routing to `extract-ssot`.
 4. **Listing budget measured three ways:** `skill-quality:check listing-budget`,
-   `claude-ops:audit-skill-visibility`, and the native `/skill-doctor`. These are routed apart in their
+   `harness-ops:audit-skill-visibility`, and the native `/skill-doctor`. These are routed apart in their
    descriptions (`audit-skill-visibility/SKILL.md:2`), so this is deliberate and not a defect.
 5. **Two grouping axes:** the catalog taxonomy (`catalog-taxonomy.md`) and the cheat-sheet's
    workflow-stage (`docs/skill-cheat-sheet.md:7-8`). Both are declared and cite each other, so this is
@@ -238,7 +238,7 @@ store.
 
 ## First-cut shape (judgment)
 
-- **An orchestrator, not a new checker.** Follow `claude-config:audit-pass`, which "adds no criteria
+- **An orchestrator, not a new checker.** Follow `harness-config:audit-pass`, which "adds no criteria
   of its own" (`SKILL.md:15`). Step 1 runs the deterministic checks already in CI, scoped to one
   plugin, and reads their output. Step 2 dispatches the existing judgment skills, presence-gated:
   `plugin-quality:audit` per component, `extract-ssot`, `audit-duplication`, `coupling:reduce` in

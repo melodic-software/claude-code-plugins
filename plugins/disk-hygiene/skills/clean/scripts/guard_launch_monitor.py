@@ -54,7 +54,7 @@ session length, the same shape of problem D-12 created a different way. So
 the read is incremental: a per-session cursor (``<session>.cursor`` beside the
 marker, holding ``b<offset>\\n<transcript_path>\\n``) records how far a clean
 scan got, and the next ``Stop`` seeks there and reads only what was appended
-since. The shape follows claude-ops ``hook-failure-audit.sh`` (#4408).
+since. The shape follows harness-ops ``hook-failure-audit.sh`` (#4408).
 
 The first scan of a session, and any reset, reads the WHOLE file: a guard
 failure anywhere in it must still warn (#1514), so there is no tail cap. That

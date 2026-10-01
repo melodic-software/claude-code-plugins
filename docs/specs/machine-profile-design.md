@@ -3,7 +3,7 @@
 Design for a re-runnable machine profile that discovers host facts once, stores them, and hands
 each plugin's `setup` the answers. Tracked by
 [#4666](https://github.com/melodic-software/claude-code-plugins/issues/4666). This document
-records the design and its rulings. The build adds a `claude-ops` skill and changes no setup
+records the design and its rulings. The build adds a `harness-ops` skill and changes no setup
 contract and no invocation-mode class.
 
 ## Contents
@@ -61,7 +61,7 @@ Discovery has three routes, in order of preference:
 1. **A model-invocable check skill.** Five plugins ship a `/<plugin>:check` that reads its own
    `setup/SKILL.md` and follows only the `check` section: `actionlint`, `biome-format`,
    `context7`, `go-format`, and `markdown-format`. The profile invokes these directly.
-2. **`claude-ops:prerequisites`.** It reads each enabled plugin's `prerequisites.json` and probes
+2. **`harness-ops:prerequisites`.** It reads each enabled plugin's `prerequisites.json` and probes
    the declared binaries. The profile invokes it once and reads its table.
 3. **Reproduction.** Every other `setup` skill is `disable-model-invocation: true`, and a hidden
    skill cannot be invoked by another skill (the invocation-reach invariant in
@@ -205,10 +205,10 @@ Warn, never silently re-assert.
 
 The profile reuses what exists instead of adding a parallel path:
 
-- The five wrapper `check` skills and `claude-ops:prerequisites` are its read route for binaries.
+- The five wrapper `check` skills and `harness-ops:prerequisites` are its read route for binaries.
   It adds no probe they already run.
 - The `prerequisites.json` manifest is the fleet's declaration of external tools. The profile
-  reads it and does not declare tools of its own. Two manifests today (`claude-ops` and
+  reads it and does not declare tools of its own. Two manifests today (`harness-ops` and
   `playwright`) still name a model-hidden `:setup check`, which the profile can only reproduce or
   relay.
 
@@ -234,8 +234,8 @@ profile's `diff` is the only consumer.
 
 ## Placement
 
-**Recommendation: a skill in `claude-ops`, not a new plugin.**
-**Basis:** `claude-ops` already owns fleet state and ships `prerequisites` and `inventory`, the two
+**Recommendation: a skill in `harness-ops`, not a new plugin.**
+**Basis:** `harness-ops` already owns fleet state and ships `prerequisites` and `inventory`, the two
 skills the profile reads; a new plugin would add a third owner of host facts beside
 `machine-health`. The owner ratified the placement. The decision is recorded in
 [ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md).
@@ -248,7 +248,7 @@ Not part of the build:
 - Amending invocation-mode class (ii) or adding a class, and any change to a `setup` skill's
   `disable-model-invocation` value.
 - Adding a model-invocable `check` skill for a plugin that lacks one.
-- Version bumps and CHANGELOG entries for any plugin other than `claude-ops`.
+- Version bumps and CHANGELOG entries for any plugin other than `harness-ops`.
 
 ## Acceptance criteria left for the build
 

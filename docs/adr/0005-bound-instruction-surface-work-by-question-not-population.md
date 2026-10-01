@@ -70,8 +70,8 @@ same files to answer orthogonal questions need no shared traversal to stay corre
 either of them from standing one up regardless. What the shared population does create is ordinary
 scheduling overlap between #1225 Part 2 and L2/L3: a coordination note, not a mechanism.
 
-The one genuine intersection is that `claude-config:audit-instructions` inventories agent-definition
-markdown as one of its surfaces (`plugins/claude-config/skills/audit-instructions/SKILL.md:78`,
+The one genuine intersection is that `harness-config:audit-instructions` inventories agent-definition
+markdown as one of its surfaces (`plugins/harness-config/skills/audit-instructions/SKILL.md:78`,
 `:82`, with `agents` as a scope argument at `:67`), so both efforts read `agents/*.md`:
 `audit-instructions` for instruction content versus current model capability, #1225 Part 2 for
 existence qualification and frontmatter conformance. Same files, orthogonal questions. Neither
@@ -80,9 +80,9 @@ effort waits on the other, and neither needs a router to reach those 7 files.
 ### 2. L2's novel scope is every contradiction pair C6 does not operationally cover
 
 **A partial incumbent exists, and the earlier "no incumbent" finding was wrong.**
-`claude-memory:audit` ships check **C6 Consistency [FAIL]**: *"Do any instructions contradict each
+`harness-memory:audit` ships check **C6 Consistency [FAIL]**: *"Do any instructions contradict each
 other across CLAUDE.md, CLAUDE.local.md, and rules files?"*, grading contradiction FAIL and
-redundancy WARN (`plugins/claude-memory/skills/audit/reference/criteria.md:107-119`), grounded in the
+redundancy WARN (`plugins/harness-memory/skills/audit/reference/criteria.md:107-119`), grounded in the
 official-docs line *"If two rules contradict each other, Claude may pick one arbitrarily"*. It is
 wired live, not a stray reference: the workflow carries a dedicated **"Step 3: Cross-file consistency
 check (C6)"** (`context/audit.md:61-67`) and the determinism contract places C6 in the judgment tier
@@ -125,22 +125,22 @@ pair C6 covers, and never re-implements it**. A routing rule that hands *all* me
 contradictions to C6 is wrong for the same reason the "cross-layer" framing is: C6 does not detect
 most of them. The routing predicate is *operationally covered by C6*, not *inside the memory layer*.
 
-**The reuse rule is presence-gated, because the incumbent is separately installable.** `claude-config`
-and `claude-memory` are independent plugins, so a consumer can install the first without the second.
+**The reuse rule is presence-gated, because the incumbent is separately installable.** `harness-config`
+and `harness-memory` are independent plugins, so a consumer can install the first without the second.
 Deferring the one covered pair unconditionally would then drop it on the floor in a supported
 configuration: the detector would silently omit root `CLAUDE.md` versus project `.claude/rules/`,
-which is the most common contradiction there is. **Route out only when `claude-memory` is installed;
+which is the most common contradiction there is. **Route out only when `harness-memory` is installed;
 when it is not, cover that pair here and say so in the report.**
 
 **Routing out is never dropping, and a mention is not a verdict.** A route is a pointer, not an
-execution: invoking `audit-instructions` alone does not run `claude-memory:audit`, so a pair handed
+execution: invoking `audit-instructions` alone does not run `harness-memory:audit`, so a pair handed
 to C6 and then forgotten produces no verdict from anyone. Naming the pair without grading it is
 better than silence and still leaves the question open, which is not what a conflict report claims to
 deliver.
 
 **So the rule is on the verdict, not on the plugin: whoever holds a result owns the pair, and absent
 a result the pass grades it.** When C6's verdict for that pair is in hand, because
-`claude-memory:audit` ran and its output is available, the pass reports that verdict and attributes
+`harness-memory:audit` ran and its output is available, the pass reports that verdict and attributes
 it. When it is not, the pass **grades the pair itself** and labels the finding as C6's to own on any
 subsequent remediation. Reuse-or-replace forbids re-implementing a shipped check; it does not require
 withholding a verdict nobody else produced. That keeps the coverage claim true under every
@@ -155,7 +155,7 @@ observable this pass does own, so declining would leave the finding with no owne
 **Reuse-or-replace forbids duplicating a check whose result is in hand; it does not license a hole
 when nobody produced one.**
 
-### 3. L2 lands as a new phase in `claude-config:audit-instructions` (Option A)
+### 3. L2 lands as a new phase in `harness-config:audit-instructions` (Option A)
 
 Three structural placements were live, and this ADR rules on them rather than leaving the call open:
 
@@ -164,14 +164,14 @@ Three structural placements were live, and this ADR rules on them rather than le
   Phase B's per-surface fan-out (`SKILL.md:92`) is structurally blind to a pair, so the comparison
   runs after those lanes and reads across them; and it widens the skill's advertised scope beyond the
   per-surface content audit its `description` (`:3`) and ownership line (`:33`) describe.
-- **Option B: a new sibling skill in `claude-config`.** Leaves `audit-instructions`' phase model and
+- **Option B: a new sibling skill in `harness-config`.** Leaves `audit-instructions`' phase model and
   advertised scope intact. Cost: it re-derives the surface list unless that enumeration is first
   extracted, and it adds a fifth skill to a listing budget already under pressure.
-- **Option C: extend C6 in `claude-memory:audit`.** Reuses the only shipped contradiction check.
+- **Option C: extend C6 in `harness-memory:audit`.** Reuses the only shipped contradiction check.
 
 **Option A is chosen.** The deciding datum is that **Option C does not satisfy D-3 for any
-non-memory surface**: `claude-memory`'s own scope table routes settings, hooks, MCP, agents and
-skills to `claude-config` (`plugins/claude-memory/skills/audit/SKILL.md:34`), so applying C to skill
+non-memory surface**: `harness-memory`'s own scope table routes settings, hooks, MCP, agents and
+skills to `harness-config` (`plugins/harness-memory/skills/audit/SKILL.md:34`), so applying C to skill
 bodies, agent definitions, hook text, READMEs or output styles would place the check in a plugin that
 explicitly disclaims the surface. **Option C is therefore not an independently valid whole-scope
 choice and must not be presented as one**: it is live only as a *memory-slice* placement, and taking
@@ -231,7 +231,7 @@ reading.
 
 ### 4. L3 folds into the incumbent catalog rather than building a new one
 
-`plugins/claude-config/skills/audit-instructions/reference/criteria.md` is already an evidence-tiered
+`plugins/harness-config/skills/audit-instructions/reference/criteria.md` is already an evidence-tiered
 criteria catalog, versioned `1.0.0` (`:1-4`), carrying **exactly the axes D-2 requires** (`:16-23`):
 evidence tier (`mechanical` / `behavioral`), authority (`ANTHROPIC-DOCS` / `TALK` / `OPINION`), and
 severity (`error` / `warning` / `info`). It ships eleven seeded checks I1–I11 (`:46-160`), a
@@ -266,8 +266,8 @@ catalog edit.
 
 ### 5. Deterministic findings follow #445's lane shape; report-only is a ceiling, not a gate
 
-`claude-config` and `claude-memory` are model-invoked, report-only skills: `audit-instructions`
-states *"There is no `--fix`"* (`SKILL.md:25-29`) and `claude-memory:audit` gates its `fix` action
+`harness-config` and `harness-memory` are model-invoked, report-only skills: `audit-instructions`
+states *"There is no `--fix`"* (`SKILL.md:25-29`) and `harness-memory:audit` gates its `fix` action
 behind a prior audit and approval (`SKILL.md:50-55`). **A finding that lands in either plugin is a
 report, never an enforced gate**, and nothing in this repository blocks a merge on it.
 
@@ -327,7 +327,7 @@ re-run the sweep rather than treating the row set as complete.
 | **#1258** fork subagents do not inherit conversation | No / No | A dependency, not a scope claim, and the incumbent already dodges it: `audit-instructions` Phase C specifies fresh-context, non-fork subagents and says why (`SKILL.md:112-114`) |
 | **#307** backlog-conformance sweep | No / No | Sweeps *tracker items*: a tracker-API population, not an instruction surface |
 | **#988** fleet conformance: setup skills | No / No | Setup-skill presence against the philosophy's setup contract; a per-plugin structural property |
-| **#1224** auto-mode-migration audit | No / No | Permission blocks: the permission plane, owned by `claude-config:audit-permission-grants` |
+| **#1224** auto-mode-migration audit | No / No | Permission blocks: the permission plane, owned by `harness-config:audit-permission-grants` |
 | **#912** guardrails + source-control hardening audit | No / No | Hook bypass gaps and convention-enforcement SSOT |
 | **#1271** skill metadata / listing budget | No / No | Already folded per D-7: corroborating evidence goes onto the existing ticket |
 | **#496**, **#551** runtime context economy | No / No | Runtime plane: see decision 6 |
@@ -335,13 +335,13 @@ re-run the sweep rather than treating the row set as complete.
 
 Per D-8, anything touching `plugins/skill-quality/scripts/check-skill.sh` or
 `docs/plugin-philosophy.md` sequences behind PR #1096, which claims **check 21**. The next free check
-number is **22**. Neither L2 nor L3 needs a `check-skill.sh` slot: L2 lands in `claude-config`, L3 is
+number is **22**. Neither L2 nor L3 needs a `check-skill.sh` slot: L2 lands in `harness-config`, L3 is
 a catalog edit, so #1096 is a constraint to respect, not a blocker either lane waits on.
 
 ### 8. One recommendation handed to #1225's owner, not a ruling by this effort
 
 Part 1 of #1225 defines an existence qualifier, and that qualifier has a partial incumbent.
-`claude-config:audit-automation-gaps` already treats subagents as an audited automation category
+`harness-config:audit-automation-gaps` already treats subagents as an audited automation category
 (`SKILL.md:3`, `:43`) and already asks the existence question: *"Would a subagent provide value over
 a hook or skill? Does context isolation actually help? Is there a plugin that already provides
 this?"* (`context/gap-analysis.md:21-25`). That qualifier should be reconciled against this incumbent
@@ -369,7 +369,7 @@ Three independent searches reproduced the same false negative on C6 because they
 `SKILL.md` bodies or frontmatter `description` lines. Of the 199 `description:` lines under
 `plugins/`, exactly three contain the words *conflict* or *contradict* and all three are unrelated
 senses: git merge-conflict resolution, glossary curation, and a planning setup check. **None
-advertises instruction-contradiction detection, `claude-memory:audit`'s own least of all**, which
+advertises instruction-contradiction detection, `harness-memory:audit`'s own least of all**, which
 sells an audit of the memory layer *"against a codified checklist derived from official Claude Code
 documentation"* and never mentions contradiction. Future D-1 searches read `reference/`
 catalogs at all depths, and this ADR treats a `SKILL.md`-scoped negative result as unproven rather

@@ -35,7 +35,7 @@ trigger tag).
 
 Decision: the skill adds no checks of its own beyond T3's scripts; it runs the existing CI scripts
 scoped to one plugin and dispatches the existing judgment skills presence-gated, following
-`claude-config:audit-pass`, which "adds no criteria of its own" (`audit-pass/SKILL.md:15`). It lives
+`harness-config:audit-pass`, which "adds no criteria of its own" (`audit-pass/SKILL.md:15`). It lives
 repo-local in `.claude/skills/` (the directory does not exist yet).
 
 Rationale: capability-matrix concerns 1-7 each already have a partial owner; re-implementing them
@@ -141,7 +141,7 @@ or beat:
 | `audit-fleet-conformance` | Matches the eight existing citations (T7 A needs the least rewording) | "fleet" also means the repo fleet (`repo-fleet-hygiene`) and the machine fleet (`/fleet:reach`) |
 | `audit-plugin-conformance` | Names the object; no "fleet" collision | Reads as one plugin; the skill also runs over all |
 | `audit-plugin-alignment` | Matches the topic slug and PR title | "alignment" is vaguer than "conformance" |
-| `audit-plugins` | Shortest | Collides in meaning with `plugin-quality:audit` and `claude-ops:plugins audit` |
+| `audit-plugins` | Shortest | Collides in meaning with `plugin-quality:audit` and `harness-ops:plugins audit` |
 
 Recommendation: run `/naming:name-it-better` with these four as the collision vocabulary, leaning
 toward `audit-plugin-conformance`; if chosen, T7's rewrites say "plugin conformance audit". A later
@@ -263,7 +263,7 @@ user 2026-09-27.
 Direction: argument is one plugin (default: plugins touched on the branch), or `all`. `all` runs the
 deterministic scripts once over the tree, then one judgment subagent per plugin, piloting one plugin
 before fanning out. Findings persist per plugin and lane so an interrupted run resumes, the
-`claude-config:audit-pass` shape, written to the memory tier, not tracked. Read-only; no `--fix`.
+`harness-config:audit-pass` shape, written to the memory tier, not tracked. Read-only; no `--fix`.
 
 Rationale: an `audit` verb is read-only (`:140`); the pilot guards against a usage limit stopping a
 wide fan-out mid-run; reusing `audit-pass`'s resume shape avoids a second persistence scheme.

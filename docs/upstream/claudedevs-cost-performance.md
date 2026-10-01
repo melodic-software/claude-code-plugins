@@ -26,7 +26,7 @@ Discovery complete (explore + research, both dispatched, gated, and independentl
 (ADOPT / REJECT with reason / TRACK on event / COVERED with evidence), and the accepted
 adoptions are implemented on this record's branch (see the interview queue section for the
 work list). The three native-overlap verdicts this effort produced (bundled `claude-api`
-against `claude-config:audit-instructions`, `evals:methodology`, and `playbooks:fable-5`) are
+against `harness-config:audit-instructions`, `evals:methodology`, and `playbooks:fable-5`) are
 baked as `## Boundary` sections in those skill bodies with detail in a same-skill reference
 file, per the amended native-references convention (1.1.0: a non-`defer` extraction-evidence
 row lands together with its Boundary section). Open TRACK triggers: the anthropics/skills repo
@@ -94,7 +94,7 @@ paths were independently re-verified against the repo the same day.
 Repo coverage today is Claude-Code-session-side doctrine only: the PLUGIN-PHILOSOPHY effort
 cache caveat, `audit-instructions` criteria row I17-b, the playbooks fable-5
 `context/orchestration.md` subagent-TTL records, `context-budget` (startup prefix cost),
-`claude-ops:observability` (cacheRead vs cacheCreation from local OTEL), and the
+`harness-ops:observability` (cacheRead vs cacheCreation from local OTEL), and the
 `extract-ssot` API-side byte-identical-prefix record
 (`plugins/docs-hygiene/skills/extract-ssot/context/anti-patterns.md`). API-application cache
 authoring guidance has no incumbent.
@@ -106,7 +106,7 @@ session-side coverage cross-referenced. One work item covers the chapter.
 
 | Article claim / practice | Ours | Verdict | Reasoning, basis, as-of |
 |---|---|---|---|
-| Monitor cache hit rate; diagnose misses via the cache diagnostics API (miss reasons: messages / system / tools / model changed) | `claude-ops:observability` covers Claude Code sessions only | ADOPT API half (chapter row, beta-qualified) + TRACK Console half; also ADOPT one boundary-pointer line in the observability skill's cache-health context (decided 2026-09-10) | Verified against `platform.claude.com/docs/en/build-with-claude/cache-diagnostics`, 2026-09-09. Console UI unverified (finding 2); TRACK trigger: a Console-access check or a docs page confirming the request-comparison UI |
+| Monitor cache hit rate; diagnose misses via the cache diagnostics API (miss reasons: messages / system / tools / model changed) | `harness-ops:observability` covers Claude Code sessions only | ADOPT API half (chapter row, beta-qualified) + TRACK Console half; also ADOPT one boundary-pointer line in the observability skill's cache-health context (decided 2026-09-10) | Verified against `platform.claude.com/docs/en/build-with-claude/cache-diagnostics`, 2026-09-09. Console UI unverified (finding 2); TRACK trigger: a Console-access check or a docs page confirming the request-comparison UI |
 | Keep volatile values (timestamps, IDs) out of the prefix; stable-first request layout; tool definitions render first and any change breaks cache | `extract-ssot` anti-patterns record states the byte-identical-prefix rule (verified 2026-08-04); no authoring-rule surface for request-building code | ADOPT (chapter rows; decided 2026-09-10) | Verified against `prompt-caching#structuring-your-prompt`, 2026-09-09 |
 | defer_loading rarely used tools; tool search appends them without breaking cache | `context-budget` levers.json engages defer_loading for Claude Code MCP tools only | ADOPT (chapter row; decided 2026-09-10) | Verified against `tool-use-with-prompt-caching#defer-loading-and-cache-preservation`, 2026-09-09 |
 | Apply system-prompt updates as mid-conversation messages (cache-preserving; certain models) | No coverage | ADOPT (chapter row; GA six-model list, not Sonnet 5; decided 2026-09-10) | Verified against `mid-conversation-system-messages`, 2026-09-09 |
@@ -121,7 +121,7 @@ session-side coverage cross-referenced. One work item covers the chapter.
 run (Claude Code 2.1.258 against Fable 5.1) covered 74 plugins, 241 skills, 798 files, about
 115k lines; 805 findings applied, 207 withheld, 694 files changed
 (`docs/specs/prompt-audit-skills-2026-09.md`, ADR-0028). ADR-0028 makes it a repeating lane
-per model change. The `claude-config:audit-instructions` criteria catalog maps one-to-one onto
+per model change. The `harness-config:audit-instructions` criteria catalog maps one-to-one onto
 the article's six anti-pattern families:
 
 | Article anti-pattern | Catalog row(s) in `audit-instructions/reference/criteria.md` |
@@ -134,13 +134,13 @@ the article's six anti-pattern families:
 | Dated configuration | I17 family, I25, I21 |
 
 Native-first gate row, decided at interview 2026-09-10: the (bundled claude-api,
-`claude-config:audit-instructions`) pair is recorded **complementary** in
+`harness-config:audit-instructions`) pair is recorded **complementary** in
 `docs/native-surfaces/records.json` with a composite posture: wrap or point to the bundled
 subcommand where it fits the use case, run our own processes where they fit; no on-paper
 routing restriction. The verdict is baked where the model reads it: a `## Boundary, the
 bundled claude-api skill` section in the `audit-instructions` body (routing, mutation gate,
 availability rule) with the four-part records in
-`plugins/claude-config/skills/audit-instructions/reference/bundled-claude-api.md`. Recheck
+`plugins/harness-config/skills/audit-instructions/reference/bundled-claude-api.md`. Recheck
 fires with the store row's trigger (subcommand set changes, or the public repo / docs page
 gains hillclimb).
 
@@ -166,7 +166,7 @@ economics and sweep tooling.
 
 ## Lane T4: API cost optimization and profiling
 
-Thin: local Claude Code cost telemetry (`claude-ops:observability`), startup-prefix
+Thin: local Claude Code cost telemetry (`harness-ops:observability`), startup-prefix
 measurement (`context-budget`), and the adjacent `rate-limit-guard` (subscription windows, not
 cost). Batch API, output bounding as a cost lever, and the usage/cost Admin API are uncovered.
 `cost-optimize` and `hillclimb` have zero in-repo references.
@@ -186,7 +186,7 @@ Decided at interview, 2026-09-10:
 | Question | Verdict | Reasoning, basis, as-of |
 |---|---|---|
 | Record shape | DECIDED: keep this file's shape. Only the row-schema FORMAT is borrowed from aihero-course.md (four-part rows, verdict vocabulary); this source is unrelated to AI Hero and this record stands alone | Owner interview, 2026-09-10 |
-| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/claude-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview. Amended 2026-09-11: a registry row alone is not the deliverable; each non-`defer` verdict lands as a `## Boundary` section in the skill body with detail in a same-skill reference file, and the native-references convention (1.1.0) now requires the pair | Owner interview, 2026-09-10 and 2026-09-11; PLUGIN-PHILOSOPHY Native-first section; ADR-0028 precedent |
+| Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/harness-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview. Amended 2026-09-11: a registry row alone is not the deliverable; each non-`defer` verdict lands as a `## Boundary` section in the skill body with detail in a same-skill reference file, and the native-references convention (1.1.0) now requires the pair | Owner interview, 2026-09-10 and 2026-09-11; PLUGIN-PHILOSOPHY Native-first section; ADR-0028 precedent |
 | Vendor-internal numbers and beta features | DECIDED: adopt mechanisms only; cite figures as vendor-reported and unreproduced; every adopted line touching a beta feature carries its beta qualifier and GA/model-list boundary | Owner interview, 2026-09-10 |
 | Citing hillclimb while the public repo lags | DECIDED: cite it as a bundled Claude Code command with a four-part record noting the public-repo lag; recheck trigger fires when the anthropics/skills repo or the skill's docs page gains the subcommand | Owner interview, 2026-09-10 |
 
@@ -195,7 +195,7 @@ Decided at interview, 2026-09-10:
 All five lanes interviewed and decided 2026-09-10, in order M, T2, T3, T1, T4; verdicts are
 in each lane's section above. Execution decision: implement the accepted adoptions on this
 branch in this effort (one branch, one draft PR). All five items below are implemented on this
-branch (playbooks 0.11.0, evals 0.2.3, claude-ops 0.48.0, claude-config 0.42.0; git history
+branch (playbooks 0.11.0, evals 0.2.3, harness-ops 0.48.0, harness-config 0.42.0; git history
 of this file's branch records the commits):
 
 1. New playbooks prompt-caching reference chapter (T1 chapter rows + T4 Batch/Admin/

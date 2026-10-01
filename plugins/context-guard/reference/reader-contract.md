@@ -224,7 +224,7 @@ The plugin itself ships hooks over the interface this contract defines, the firs
   fallback / `/compact`) and the presence-gated pointer to `session-flow:workflow`'s router.
   **Neither the menu nor the router pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under the instruction-audit catalog's I23 (`claude-config`, `reference/criteria.md`),
+  live finding under the instruction-audit catalog's I23 (`harness-config`, `reference/criteria.md`),
   whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
   the harness must surface a budget, pair it with a reassurance rather than with an exit menu. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model

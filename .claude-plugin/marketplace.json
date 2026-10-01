@@ -216,8 +216,8 @@
       }
     },
     {
-      "name": "claude-config",
-      "source": "./plugins/claude-config",
+      "name": "harness-config",
+      "source": "./plugins/harness-config",
       "category": "claude-code",
       "tags": ["maintenance", "configuration", "settings", "permissions", "mcp", "rules", "automation", "audit", "skill"],
       "relevance": {
@@ -228,8 +228,8 @@
       }
     },
     {
-      "name": "claude-memory",
-      "source": "./plugins/claude-memory",
+      "name": "harness-memory",
+      "source": "./plugins/harness-memory",
       "category": "claude-code",
       "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "stateless", "disable", "purge", "skill"]
     },
@@ -307,8 +307,8 @@
       "tags": ["evals", "evaluation", "success-criteria", "llm-judge", "grading", "rubric", "knowledge", "skill"]
     },
     {
-      "name": "claude-ops",
-      "source": "./plugins/claude-ops",
+      "name": "harness-ops",
+      "source": "./plugins/harness-ops",
       "category": "claude-code",
       "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "dashboard", "claude-code", "skill"]
     },
@@ -730,6 +730,9 @@
     "boris": "playbooks",
     "thariq-skills": "playbooks",
     "fable-5-playbook": "playbooks",
-    "re-anchor": "discipline"
+    "re-anchor": "discipline",
+    "claude-config": "harness-config",
+    "claude-memory": "harness-memory",
+    "claude-ops": "harness-ops"
   }
 }

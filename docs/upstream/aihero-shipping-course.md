@@ -231,13 +231,13 @@ given, and one disposal venue does not exist.
   the grounds that the invocation is already wired at 7 sites. That inverts the claim: wiring is a
   property of text, invocation is runtime behavior, and seven wired sites *plus* rare invocation
   are jointly evidence that wiring is not the lever. Wiring confirmed at 7 sites; the behavioral
-  claim stays unmeasured. Measurement routes to the instrument that exists — `claude-ops`'s
+  claim stays unmeasured. Measurement routes to the instrument that exists — `harness-ops`'s
   `SkillUse` telemetry hook — and **not** to an evals item: `plugins/evals/README.md:24-26` states
   "No command in this plugin executes model-graded evals," so an evals filing would produce JSON
   no runner executes. Stated limit: that hook records no caller attribution, so an implement→tdd
   co-occurrence reading is a proxy, not proof. **Measured, and the premise stays UNVERIFIED — now
-  with an instrument rather than a hand-wave.** `plugins/claude-ops/skills/audit-skill-visibility/
-  scripts/skill-pair-cooccurrence.sh` (`claude-ops` 0.35.0) is the repeatable reading; placement
+  with an instrument rather than a hand-wave.** `plugins/harness-ops/skills/audit-skill-visibility/
+  scripts/skill-pair-cooccurrence.sh` (`harness-ops` 0.35.0) is the repeatable reading; placement
   went to `audit-skill-visibility`, not `observability`, because `observability`'s own
   `context/read-routing.md:32` already assigns interpretation of skill-usage data to
   `audit-skill-visibility` and keeps only the store, the pipeline, and retention. Run against the
@@ -364,7 +364,7 @@ condition) belongs to the invocation-reach tracked strand in
 - **C22 ADOPTED**: the fleet audit of the invocation-reach invariant enumerated 57 skills
   carrying `disable-model-invocation: true` and found **zero** explicit "via the Skill tool"
   violations. A follow-up pass reworded operative slash-command instructions aimed at
-  user-invoked-only targets in `repo-fleet-hygiene:audit` and `claude-ops` (`inventory`,
+  user-invoked-only targets in `repo-fleet-hygiene:audit` and `harness-ops` (`inventory`,
   `audit-performance`, `audit-install-state`) to the canonical human-relay form, "tell the user
   to run /X". Standing `skill-quality:check` automation was deliberately deferred — cross-plugin
   target resolution is not cheap under the single skills-root model — so the doctrine lines in

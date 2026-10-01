@@ -1351,7 +1351,7 @@ repo-specific policy of their own:
   baseline permission families and exact patterns it blocks by default (today
   `block-dangerous-git` covering `destructive-bash-deny`) and the levers that
   narrow or switch it off (`block_dangerous_git_enabled`,
-  `block_dangerous_git_allow`). The `claude-config` plugin's `audit` skill reads
+  `block_dangerous_git_allow`). The `harness-config` plugin's `audit` skill reads
   it to demote a missing baseline deny pattern to `info` when the family is
   already blocked by a live hook, citing the manifest and naming the levers as
   the residual. It is data, never executed, and adds no per-call latency;

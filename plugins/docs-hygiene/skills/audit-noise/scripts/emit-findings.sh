@@ -163,7 +163,7 @@ DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # as `/tmp/t` matches neither. Every finding was declined as outside the root and
 # the counts said so in a section nothing downstream reads.
 #
-# Three anchors, same shape as the claude-config sibling: the caller's own `pwd`
+# Three anchors, same shape as the harness-config sibling: the caller's own `pwd`
 # spelling (derived by removing the sub-path git reports for it), git's
 # toplevel, and `cd`-then-`pwd`.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
