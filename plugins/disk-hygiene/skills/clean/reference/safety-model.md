@@ -830,8 +830,10 @@ Bash it registers one handler per `if` pattern, all running the same guard: `rm`
 (`Bash(*/rm *)`), plus an interpreter call of each bundled script by its plugin-relative path:
 `*py* */clean/scripts/hygiene.py *`, `*py* */setup/scripts/kill_switch_probe.py` and
 `*py* */clean/scripts/release_belt.py *`. A command that only mentions a script
-(`git commit -m 'hygiene.py'`, `git log -- .../hygiene.py README.md`) does not reach the belt; the
-plugin-level engine gate still sees every engine invocation shape. git, gh, the repo-hygiene
+(`git commit -m 'fix release_belt.py'`, `git log -- .../hygiene.py README.md`) does not reach the
+belt. The plugin-level engine gate still sees every engine invocation shape, and in every session
+it reads a quoted argument whose first word is `hygiene.py` (`git commit -m 'hygiene.py ...'`) as
+an engine call and denies it. git, gh, the repo-hygiene
 scripts and other commands reach the guard only when they contain `$()` or backticks, which run
 every handler whose pattern starts with a wildcard, or when Claude Code cannot split the command,
 which runs every handler. A non-exact release call that no pattern matches, such as a relative

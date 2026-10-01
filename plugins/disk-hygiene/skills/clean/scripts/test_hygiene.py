@@ -12711,6 +12711,10 @@ class GuardTests(unittest.TestCase):
                 f"--approval-token {'a' * 24} --report r"
             ),
             self._release_words(),
+            cast(
+                str,
+                guard._release_command(os.fspath(self._data_root), self._SESSION),
+            ),
             f'"{self.python_command()}" "{probe.resolve().as_posix()}"',
             '"C:/Windows/py.exe" "C:/p/skills/clean/scripts/release_belt.py" '
             '--data-root "C:/d" --session-id s',
