@@ -81,11 +81,11 @@ report() {
     }
     function pair(g, k, x, y) {
       if (x == "" || y == "") return
-      pn[g, k]++; if (x == y) po[g, k]++
+      cnt[g, k]++; if (x == y) po[g, k]++
       px[g, k, x]++; py[g, k, y]++
     }
     function kappa(g, k,   t, e, i, o) {
-      t = pn[g, k]
+      t = cnt[g, k]
       if (!t) return "NA"
       o = po[g, k] / t; e = 0
       for (i = 1; i <= 3; i++) e += px[g, k, L[i]] * py[g, k, L[i]]
@@ -96,7 +96,7 @@ report() {
     function show(g,   k, i, j, a, tp, jf, af) {
       print "stratum " g " n=" n[g]
       split("user-model judge-user judge-model", K, " ")
-      for (i = 1; i <= 3; i++) print "kappa " K[i] " " g " " kappa(g, K[i]) " (n=" pn[g, K[i]] + 0 ")"
+      for (i = 1; i <= 3; i++) print "kappa " K[i] " " g " " kappa(g, K[i]) " (n=" cnt[g, K[i]] + 0 ")"
       for (i = 1; i <= 3; i++) {
         printf "confusion %s judge=%s", g, L[i]
         for (j = 1; j <= 3; j++) printf " %s=%d", L[j], cm[g, L[i], L[j]]
