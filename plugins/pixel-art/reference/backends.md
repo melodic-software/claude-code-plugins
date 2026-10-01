@@ -44,8 +44,9 @@ skip that feature, continue with the documented reduced result.
   by position over the sheet cells, `null` cells dropped) and `meta.image` becomes `sheet.png`;
   `frameTags`, `layers` and `slices` stay as Aseprite wrote them. A frame count that differs from
   the sheet cell count, or an unreadable `sheet.json`, falls back to native with one line.
-- Status: best-effort and unverified against a real Aseprite install. Any failure (a non-zero exit,
-  missing or unreadable output, a frame-count mismatch) falls back to native with one line.
+- Status: best-effort and unverified against a real Aseprite install. A non-zero exit, missing or
+  unreadable output, or a frame-count mismatch falls back to native with one line; other
+  unexpected `sheet.json` shapes are not handled and fail the run.
 - Detect: `ASEPRITE` if set, otherwise `aseprite` on `PATH`, and `aseprite --version` exits 0.
   Missing: one line, then native.
 - The CLI page does not state a price. Do not quote one. A call does not spend a remote credit.
