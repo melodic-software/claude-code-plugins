@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.2] - 2026-10-01
+
+### Changed
+
+- **The interview page's deferred list records the addendum wording lint as parked.** The coined-term check on the interview addendum stays a model instruction and does not become a script check ([#4653](https://github.com/melodic-software/claude-code-plugins/issues/4653)).
+
 ## [0.55.1] - 2026-10-01
 
 ### Fixed
