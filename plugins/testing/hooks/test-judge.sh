@@ -110,14 +110,15 @@ state() {
 }
 for i in "${!KH[@]}"; do state "$i"; done
 
-# judge_now <file index> <key index>...: one run over the file's keys that
+# judge_now <file index> <run reservation> <key index>...: one run over the file's keys that
 # this process can lock, under a machine slot; in a subshell. The slot wait
 # ends at the deadline and the run's bound is what is left after it, so the
 # run ends by the deadline. A key left without a verdict at the deadline is
-# marked late, for a background job.
+# marked late, for a background job. A reservation the run did not use is
+# released.
 judge_now() {
-  local fx="$1" i t keys="" held=()
-  shift
+  local fx="$1" res="$2" i t keys="" held=()
+  shift 2
   for i in "$@"; do
     judge::lock "${KH[$i]}" || continue
     held+=("$DATA/locks/${KH[$i]}")
@@ -129,8 +130,12 @@ judge_now() {
     judge::now
     t=$((deadline - NOW))
     ((t <= JUDGE_RUN_TIMEOUT)) || t=$JUDGE_RUN_TIMEOUT
-    ((t < 1)) || judge::run "${INFOS[$fx]}" "$keys" "$t" "${HINTS[$fx]}"
+    if ((t >= 1)); then
+      judge::run "${INFOS[$fx]}" "$keys" "$t" "${HINTS[$fx]}" "$res"
+      res=""
+    fi
   fi
+  judge::release_run "$res"
   rm -f ${held[@]+"${held[@]}"}
   judge::now
   if ((NOW >= deadline)); then
@@ -139,7 +144,7 @@ judge_now() {
 }
 
 # start: judge every free key now, one run per file, up to 10 keys per Stop.
-used=0 planned=0
+used=0
 start() {
   local fx i t ids
   judge::now
@@ -152,8 +157,6 @@ start() {
         ST[i]=over
       elif ((t < 1)); then
         ST[i]=late
-      elif ! judge::runs_left "$planned"; then
-        ST[i]=limit
       else
         ST[i]=run
         ids+=("$i")
@@ -161,8 +164,14 @@ start() {
       fi
     done
     ((${#ids[@]})) || continue
-    planned=$((planned + 1))
-    judge_now "$fx" "${ids[@]}" </dev/null >/dev/null 2>&1 3>&- &
+    # Reserved here, before the run's slot wait, so this Stop and the
+    # background jobs cannot together pass the session's run limit.
+    if ! judge::reserve_run; then
+      for i in "${ids[@]}"; do ST[i]=limit; done
+      used=$((used - ${#ids[@]}))
+      continue
+    fi
+    judge_now "$fx" "$RUNRES" "${ids[@]}" </dev/null >/dev/null 2>&1 3>&- &
     for i in "${ids[@]}"; do RUNPID[i]=$!; done
   done
 }

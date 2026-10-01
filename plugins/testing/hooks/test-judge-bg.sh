@@ -91,9 +91,14 @@ while read -r kh rest; do
   judge::spent "$kh" && continue
   keys+="$kh $rest"$'\n'
 done <<<"$KEYS"
-[[ -n "$keys" ]] && judge::runs_left || exit 0
+# The run is reserved before the slot wait, so jobs for several files written
+# at once cannot all take the session's last run.
+[[ -n "$keys" ]] && judge::reserve_run || exit 0
 
 judge::now
-judge::slot $((NOW + JUDGE_STALE)) || exit 0
+if ! judge::slot $((NOW + JUDGE_STALE)); then
+  judge::release_run "$RUNRES"
+  exit 0
+fi
 HELD+=("$SLOT")
-judge::run "$info" "$keys" "$JUDGE_RUN_TIMEOUT" "$HINT"
+judge::run "$info" "$keys" "$JUDGE_RUN_TIMEOUT" "$HINT" "$RUNRES"

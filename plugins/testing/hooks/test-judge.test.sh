@@ -448,6 +448,18 @@ stub_reset
 stop sbash
 check "a Bash-written test file is judged at the Stop" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 bashmade"* && "$(field .reason)" == *"reviewed 1 test "* ]]'
 
+# The Stop reserves each run as the background jobs do: with a session limit
+# of 1 and three files to judge, one run starts and the rest are named.
+transcript cap1 claude-sonnet-5
+for i in 1 2 3; do
+  js_file "$REPO/src/stopcap$i.test.ts" "stopcap$i"
+  record cap1 "w$i" "$REPO/src/stopcap$i.test.ts" null
+done
+stub_reset
+out="$(payload cap1 stop "" '{"hook_event_name": "Stop"}' | CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS=1 bash "$HOOK" 2>/dev/null)"
+check "a session limit of 1 at the Stop: one run, the rest named as over the limit" \
+  '[[ "$(stub_calls)" == 1 && "$(field .systemMessage)" == *"judge-run limit is reached"* && "$(find "$DATA/runs/$PKEY/cap1" -type f | wc -l)" == 1 ]]'
+
 # A judge run whose parent died before splitting its output leaves a raw file
 # in the ledger directory; the next Stop harvests it instead of judging again.
 transcript h1 claude-sonnet-5

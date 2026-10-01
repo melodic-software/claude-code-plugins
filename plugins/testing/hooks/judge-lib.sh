@@ -341,14 +341,28 @@ judge::busy() {
   [[ -e "$DATA/locks/$2" ]] && ! judge::stale "$DATA/locks/$2" "$JUDGE_STALE"
 }
 
-# judge::runs_left [planned]: true while the session's optional judge-run
-# limit allows another run beyond the planned ones not yet started.
-judge::runs_left() {
-  local cap="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS:-}" n
-  [[ "$cap" =~ ^[0-9]+$ ]] || return 0
-  n="$(find "$DATA/runs/$PKEY/$SID" -type f 2>/dev/null | wc -l)"
-  ((n + ${1:-0} < cap))
+# judge::reserve_run: reserve one judge run for the session and set RUNRES to
+# its marker, or fail when the optional test_judge_session_runs limit is
+# reached. Under a limit the marker is runs/<pkey>/<sid>/<n>, the first free
+# n from 1 to the limit, created exclusively, so jobs that reach the check
+# together cannot all take the last run. A reservation is kept when the
+# judge starts and released (judge::release_run) when it does not; a job
+# killed in between keeps it, which errs toward spending less.
+judge::reserve_run() {
+  local cap="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS:-}" d="$DATA/runs/$PKEY/$SID" n
+  RUNRES=""
+  [[ -d "$d" ]] || mkdir -p "$d" || return 1
+  if [[ ! "$cap" =~ ^[0-9]{1,6}$ ]]; then
+    RUNRES="$d/$BASHPID-$RANDOM"
+    judge::excl "$RUNRES" "$BASHPID" || RUNRES=""
+    return 0
+  fi
+  for ((n = 1; n <= 10#$cap; n++)); do
+    judge::excl "$d/$n" "$BASHPID" && RUNRES="$d/$n" && return 0
+  done
+  return 1
 }
+judge::release_run() { [[ -z "${1:-}" ]] || rm -f -- "$1"; }
 
 judge::class() {
   case "$1" in
@@ -453,14 +467,17 @@ judge::section1() {
   awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f' "$HOOK_DIR/../skills/test-value/SKILL.md" 2>/dev/null
 }
 
-# judge::run <info> <keys> <seconds> <hint>: one judge run over the file's keys
+# judge::run <info> <keys> <seconds> <hint> <run reservation>: one judge run over the file's keys
 # (the caller holds their locks and a slot), writing verdicts under the ledger
 # of the file's last writer, so a successor that adopts that session finds
 # them and their relay markers. A key left without a verdict gets a failed
 # attempt.
 judge::run() {
-  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner writers n budget raw sys prompt rc kh here
-  testing::fields "$info" .file .repo .owner '.writers | tojson' || return 0
+  local info="$1" keys="$2" t="$3" hint="$4" res="${5:-}" dir file repo owner writers n budget raw sys prompt rc kh here
+  testing::fields "$info" .file .repo .owner '.writers | tojson' || {
+    judge::release_run "$res"
+    return 0
+  }
   file="${FIELDS[0]}" repo="${FIELDS[1]}" owner="${FIELDS[2]}" writers="${FIELDS[3]}"
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
   # The judge's reads are scoped to the repository; a test file in none is
@@ -469,7 +486,7 @@ judge::run() {
   n=0
   while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
   budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
-  mkdir -p "$dir" "$DATA/runs/$PKEY/$SID"
+  mkdir -p "$dir"
   raw="$dir/.run-$BASHPID-$RANDOM"
   judge::pick "$writers"
   jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" '
@@ -483,6 +500,7 @@ judge::run() {
     : >"$raw"
     judge::harvest "$raw" "$rc"
     rm -f "$raw" "$raw.keys"
+    judge::release_run "$res"
     return 0
   fi
   sys="$(cat "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)"$'\n\n'"$(judge::section1)"
@@ -491,10 +509,13 @@ judge::run() {
   if [[ "$sys" != *"## 1. "* ]]; then
     rc="the judge prompt or test-value section 1 is missing"
   else
-    touch "$DATA/runs/$PKEY/$SID/$BASHPID-$RANDOM"
     # The hang guard is the process-group watchdog, not coreutils timeout.
     here="$PWD"
-    cd "$repo" || return 0
+    cd "$repo" || {
+      judge::release_run "$res"
+      return 0
+    }
+    res="" # the judge starts: the run's reservation is kept
     testing::run_bounded "$t" "$raw" "$raw.err" env TEST_JUDGE_ACTIVE=1 "${TEST_JUDGE_CMD:-claude}" -p --model "$MODEL" \
       --system-prompt "$sys" --tools Read,Grep,Glob \
       --allowedTools "Read($repo/**)" "Grep($repo/**)" "Glob($repo/**)" \
@@ -516,6 +537,7 @@ judge::run() {
     [[ -n "$kh" && ! -f "$dir/$kh.json" ]] && judge::fail "$kh" "$rc"
   done <<<"$keys"
   rm -f "$raw" "$raw.keys" "$raw.err"
+  judge::release_run "$res"
 }
 
 # judge::label <verdict or info json fields: file name ordinal>: "<file>: <name>", with #n past the first.

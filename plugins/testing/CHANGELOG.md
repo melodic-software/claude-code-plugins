@@ -30,7 +30,8 @@ All notable changes to the `testing` plugin are documented here. Format follows
   asks Claude once to show the verdicts; `test-judge-start.sh` (SessionStart) names verdicts an
   earlier session never showed. The judge's model class differs from every model that wrote the
   tests: `test_judge_model` (default `opus`), `test_judge_fallback_model` (`sonnet`),
-  `test_judge_effort` (`medium`), and `test_judge_session_runs` (unset: no limit). Each judge run
+  `test_judge_effort` (`medium`), and `test_judge_session_runs` (unset: no limit; each run is reserved
+  before it waits for a judge slot, so jobs that start together cannot pass it). Each judge run
   is bounded at 150 s by the same process-group watchdog that bounds the scanner (the plan's
   "timeout 150" is that bound, not the coreutils binary, which stock macOS lacks and Git Bash may
   resolve to Windows' `timeout.exe`); the whole group gets TERM, then KILL, and a run cut at its

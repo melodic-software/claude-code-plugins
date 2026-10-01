@@ -219,6 +219,19 @@ for i in 1 2; do
   CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS=1 bg s3 "d$i" "$REPO/src/cap$i.test.ts"
 done
 check "a session cap of 1 allows one run" '[[ "$(stub_calls)" == 1 ]]'
+# Jobs for several files written in one turn reach the cap together: a run is
+# reserved before the slot wait, so a cap of 1 still starts exactly one.
+transcript s3p claude-sonnet-5
+stub_reset
+for i in 1 2 3 4; do
+  js_file "$REPO/src/par$i.test.ts" "par$i"
+  record s3p "p$i" "$REPO/src/par$i.test.ts" "$(blocks "par$i:1:3:5")"
+done
+for i in 1 2 3 4; do
+  payload s3p "p$i" "$REPO/src/par$i.test.ts" | STUB_SLEEP=1 CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS=1 bash "$HOOK" &
+done
+wait
+check "four parallel jobs under a cap of 1 start exactly one judge run" '[[ "$(stub_calls)" == 1 ]]'
 
 # The slot cap is honored: with three live runs on the machine, a job waits.
 stub_reset
