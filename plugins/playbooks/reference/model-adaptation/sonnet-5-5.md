@@ -43,16 +43,19 @@ for well-specified tasks, moving to `high` for harder or longer ones.
 Sonnet 4.6 level through the old comparison; the sources give no mapping for 5.5 against any
 earlier model. Check the session's actual level before assuming a default. In Claude Code the
 level resolves from `CLAUDE_CODE_EFFORT_LEVEL`, `--effort` or `/effort`, then saved settings, then
-the model default (model-config, "Adjust effort level"). That page states the top-level
-`effortLevel` caveat for Opus 5.5 and names no such caveat for Sonnet 5.5, so confirm with
-`/effort` rather than inferring.
+the model default (model-config, "Adjust effort level"). That page says a top-level
+`effortLevel` in the user settings file does not count for Opus 5.5 and the models released after
+it, which start at their own default until a level is chosen with `/effort` or the `/model`
+picker. It does not name Sonnet 5.5, which needs a later Claude Code release than Opus 5.5, so
+expect the same: a user-scope `effortLevel` may not reach you, and `/effort` shows the level in
+effect.
 
 The tested steers, quoted because rewording may weaken them: "Reserve `xhigh` and `max` for work
 where you've measured a quality gain" and "To get less thinking, lower the effort level." Also:
 "Asking it in the system prompt to think less doesn't reliably reduce its thinking." Remove "think
 less" lines from prompts you author; lower effort instead. `[CC: direct]`
 
-## Thinking: always on in Claude Code, and the harness controls changed
+## Thinking: it cannot be turned off, and the harness controls changed
 
 **Your default:** adaptive thinking is on by default, and effort controls its depth (what's new).
 From `medium` up you think briefly before almost every reply, even a greeting; at `low` you skip
@@ -60,11 +63,13 @@ thinking on most simple requests (guide, "Calibrate effort").
 
 **Correction:** the Sonnet 5 chapter's harness-side paragraph does not carry. In Claude Code, "You
 can't turn thinking off on Opus 5.5, Sonnet 5.5, or the Fable models." and a saved
-`MAX_THINKING_TOKENS=0` has no effect on you (model-config, "Thinking"). On the API, `thinking:
-{"type": "disabled"}` returns a 400; the lowest setting is `between_tools`, accepted at `low`,
-`medium` and `high` only: "At `xhigh` or `max` effort, a request with `between_tools` returns a
-400 error." Manual budgets (`budget_tokens`) still return a 400 (what's new). The what's-new page
-resolves the full request shapes; this chapter does not restate them. `[CC: API-side]`
+`MAX_THINKING_TOKENS=0` has no effect on you (model-config, "Thinking"). `[CC: direct]`
+
+On the API, `thinking: {"type": "disabled"}` returns a 400; the lowest setting is `between_tools`,
+accepted at `low`, `medium` and `high` only: "At `xhigh` or `max` effort, a request with
+`between_tools` returns a 400 error." Manual budgets (`budget_tokens`) still return a 400 (what's
+new). The what's-new page resolves the full request shapes; this chapter does not restate them.
+`[CC: API-side]`
 
 **`max_tokens` and the tokenizer.** Thinking counts toward `max_tokens` even when its content is
 not returned, so a limit sized for a request without thinking can cut the reply off (guide,
@@ -211,15 +216,13 @@ that category. `[CC: prompt-authoring]`
     API default only; Claude Code defaults to `medium` here.
   - The thinking controls. `MAX_THINKING_TOKENS=0` no longer turns thinking off for you in Claude
     Code, and `disabled` is a 400 on the API in favor of `between_tools`.
-  - The 30% tokenizer claim as a Sonnet 4.6 to Sonnet 5 change on this model: the 5.5 tokenizer
-    equals Sonnet 5's, so nothing moves relative to Sonnet 5.
   - The effort-scale comparison that equates Sonnet 5 at `medium` with Sonnet 4.6 at `high`. Levels
     are recalibrated again for 5.5 and the sources give no mapping, so chaining the two steps is
     unsupported. Match by observed behavior and a fresh sweep.
 - **Changed:**
-  - Scope. The Sonnet 5 chapter's literal-instruction hazard is not restated for 5.5. The guide
-    describes the opposite pressure: you add related work at higher effort, so the steers above
-    limit scope.
+  - Scope. The Sonnet 5 chapter's literal-instruction hazard is neither restated nor contradicted
+    in the 5.5 guide. The guide documents a separate pressure: you add related work at higher
+    effort, so the steers above limit scope.
   - Progress updates. Native updates now arrive as thinking blocks, and the guide supplies
     instruction and harness fixes the Sonnet 5 chapter did not have.
   - Review findings. The coverage-first rule is not restated in the 5.5 guide. This chapter makes
@@ -227,14 +230,17 @@ that category. `[CC: prompt-authoring]`
     finding everything and filtering in a separate pass.
 - **Design briefs, not restated, so not imported as a 5.5 finding.** The Sonnet 5 chapter's advice
   to propose several visual directions on an open brief, and its attribution of that advice to the
-  guide, rest on the Sonnet 5 guide. The 5.5 guide has no frontend or design section and does not
-  mention the advice. The sources still say non-default sampling parameters return a 400 on 5.5, so
-  there is no sampling knob behind variety. Treat proposing options as an unverified method, not a
-  documented 5.5 recommendation, and re-test before relying on it. The Opus 5.5 chapter's design
-  steer is calibrated for another model and does not transfer.
+  guide, rest on the Sonnet 5 guide. The 5.5 guide has no frontend or design section, so it
+  neither restates nor contradicts the advice; the general prompting best-practices page it links
+  was not read. The sources still say non-default sampling parameters return a 400 on 5.5, so
+  there is no sampling knob behind variety. Treat proposing options as a method this chapter has
+  not verified for 5.5, and re-test before relying on it. The Opus 5.5 chapter's design steer is
+  calibrated for another model and does not transfer.
 - **Not restated, so not imported:** the response-length calibration finding, the
   interactive-products front-loading finding, and the coupling of tool reach to disabled thinking.
   Front-loading the brief is still sound practice in the planning chapters.
+- **Carries as fact:** the tokenizer. The 5.5 tokenizer equals Sonnet 5's, so the Sonnet 5
+  finding of about 30% more tokens against Sonnet 4.6 still holds for budgets tuned on that model.
 - **Carries, as method:** raise effort rather than prompt around thin output; say so when thin
   output is all you can deliver; use positive instructions over lists of prohibitions.
 - **Do not read another version's chapter.** Meta-rule 3 in the skill body owns this routing.
@@ -262,6 +268,7 @@ All read 2026-10-01 as the raw `.md` form of each page. Sizes and MD5 are of tho
 | Claim | Basis | As of | Recheck trigger |
 | --- | --- | --- | --- |
 | Claude Code default effort for Sonnet 5.5 is `medium`; API default is `high` | model-config, "Adjust effort level"; what's new | 2026-10-01 | Either page naming a different default |
+| A top-level `effortLevel` in the user settings file does not apply to Opus 5.5 or later models; Sonnet 5.5 is not named | model-config, "Adjust effort level" | 2026-10-01 | A re-read naming Sonnet 5.5 either way |
 | Thinking cannot be turned off in Claude Code; `MAX_THINKING_TOKENS=0` has no effect | model-config, "Thinking" | 2026-10-01 | A re-read of that section diverging |
 | `between_tools` is accepted at `low` to `high` and returns a 400 at `xhigh` and `max`; `disabled` returns a 400 | what's new, "Turn off up-front thinking" | 2026-10-01 | A new Sonnet release or a what's-new revision |
 | Cybersecurity flag falls back to Sonnet 5; biology flag ends in a refusal | model-config, "Automatic model fallback" | 2026-10-01 | A re-read of that section naming different targets |
