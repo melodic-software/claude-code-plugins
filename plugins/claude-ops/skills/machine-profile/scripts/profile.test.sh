@@ -15,6 +15,9 @@ expect_has() { if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "$2" "$3"
 expect_lacks() { if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "no $2" "$3"; fi; }
 
 command -v jq >/dev/null 2>&1 || { echo "SKIP: jq is not installed"; exit 0; }
+# The byte-identical hash needs both; without them it would hash empty input and pass vacuously.
+command -v sha256sum >/dev/null 2>&1 || { echo "SKIP: sha256sum is not installed"; exit 0; }
+find . -maxdepth 0 -printf '' >/dev/null 2>&1 || { echo "SKIP: find -printf is not available"; exit 0; }
 
 # FIX is the fixture HOME and repository. OUT holds everything a probe could
 # write (data directory, npm cache and logs) so the fixture hash stays meaningful.
@@ -48,6 +51,8 @@ printf 'export GH_CONFIG_DIR="$(pwd)/.gh"\n' >"$HOME/lab/.envrc"
 printf 'tool\tplugin\tstatus\tcheck\tinstall\nfixture-present\tplug-a\tpresent\t/plug-a:check\tinstall a\nfixture-missing\tplug-b\tmissing\t/plug-b:setup check\t\nmissing=1 present=1\n' >"$FIX/prereq.tsv"
 git -C "$FIX/repo" init -q
 git -C "$FIX/repo" -c user.name=fixture -c user.email=fixture@example.invalid commit --allow-empty -q -m init
+git -C "$FIX/repo" config 'includeIf.gitdir:~/scratch/.path' "$HOME/.gitconfig-oss"
+printf '[includeIf "gitdir:~/decoy/"]\n\tpath = ~/.gitconfig-oss\n' >"$FIX/decoy"
 chmod 444 "$HOME/.gitconfig-work"
 
 tree_hash() {
@@ -69,6 +74,11 @@ expect_eq "discover exits 0" 0 "$rc"
 expect_eq "discover prints only a JSON document, with no prompt" "true" "$(jq -e 'type == "object"' <<<"$first" >/dev/null 2>&1 && echo true || echo false)"
 expect_eq "two discoveries of an unchanged fixture match" "$first" "$second"
 expect_eq "discover leaves the fixture HOME and repository byte-identical" "$before" "$(tree_hash "$FIX")"
+from_home="$(cd "$HOME" && bash "$SCRIPT" discover --prerequisites "$FIX/prereq.tsv" </dev/null)"
+with_decoy="$(GIT_CONFIG="$FIX/decoy" run discover --prerequisites "$FIX/prereq.tsv" </dev/null)"
+expect_eq "discovery gives the same document from another directory" "$first" "$from_home"
+expect_eq "discovery gives the same document under an exported GIT_CONFIG" "$first" "$with_decoy"
+expect_lacks "a repository-local includeIf is not a machine domain" "scratch" "$first"
 
 expect_eq "one domain per includeIf tree" "$HOME/lab $HOME/oss $HOME/work" "$(jq -r '.domains | keys | join(" ")' <<<"$first")"
 expect_eq "git_include resolves relative to the including file" "$HOME/.gitconfig-oss" "$(jq -r --arg d "$HOME/oss" '.domains[$d].identity.git_include.value' <<<"$first")"

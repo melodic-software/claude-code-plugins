@@ -28,7 +28,7 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 # Every record in a document is checked here. Prints one line per problem.
 # shellcheck disable=SC2016  # jq source, not shell expansion
 VALIDATE_JQ='
-def nz: type == "string" and (gsub("\\s"; "") | length > 0);
+def nz: type == "string" and test("[^[:space:]]");
 def locs:
   ((.machine.facts // []) | to_entries[] | {w: "machine.facts[\(.key)]", r: .value}),
   ((.machine.options // []) | to_entries[] | {w: "machine.options[\(.key)]", r: .value}),
@@ -227,7 +227,7 @@ discover() {
       --argjson f1 "$(dir_fact tree_present "$tree")" \
       --argjson f2 "$(file_fact "git_include_file:$inc" "$inc")" \
       '{tree: $tree, git_include: $gi, gh: $gh, facts: [$f1, $f2]}')")
-  done < <(git config --list --show-origin 2>/dev/null |
+  done < <(cd / && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git config --list --show-origin 2>/dev/null |
     jq -Rr 'capture("^(?<origin>[^\t]*)\t(?<key>includeif\\.gitdir(?:/i)?:(?<pat>.*)\\.path)=(?<inc>.*)$")? | [.origin, .pat, .inc] | @tsv')
 
   local m d doc

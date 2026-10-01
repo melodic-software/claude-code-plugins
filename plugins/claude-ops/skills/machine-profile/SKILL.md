@@ -62,6 +62,10 @@ Binary facts come only from the prerequisites table. Without `--prerequisites`, 
 
 `diff` compares facts and identity only. Option records are stored state that discovery does not observe, so a hand-edited or never-applied option does not show as drift.
 
+`record` replaces the whole document, so options recorded earlier survive a re-record only when they are merged into the document first.
+
+Discovery reads the effective user and system git configuration from a neutral directory, so the repository the session runs in does not add or hide a domain.
+
 A read-only include file is detected with `test -w`; an immutable attribute on a file that still looks writable is not.
 
 Do not reapply a stored value from a hook, a session start or a schedule. `apply` re-asserts a value only when the operator selects it in that run.
