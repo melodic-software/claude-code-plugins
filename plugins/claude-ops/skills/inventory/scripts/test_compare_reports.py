@@ -172,6 +172,17 @@ class TestAllow(unittest.TestCase):
         allow = [{"pointer": "/Explore", "reason": "fix"}]
         self.assertTrue(cr.compare(old, new, allow)["failed"])
 
+    def test_allow_pointers_keep_rfc_6901_meaning(self) -> None:
+        old, new = {"a": {"": 1, "b": 1}}, {"a": {"": 2, "b": 2}}
+        result = cr.compare(old, new, [{"pointer": "/a/", "reason": "empty key"}])
+        self.assertEqual(
+            {r["pointer"]: "allowed" in r for r in result["changes"]},
+            {"/a/": True, "/a/b": False},
+        )
+        result = cr.compare(old, new, [{"pointer": "/", "reason": "not all"}])
+        self.assertEqual(result["disallowed"], 2)
+        self.assertEqual(result["unused_allow"], ["/"])
+
     def test_a_narrower_entry_under_a_broader_one_is_used(self) -> None:
         allow = [
             {"pointer": AGENT, "reason": "broad"},

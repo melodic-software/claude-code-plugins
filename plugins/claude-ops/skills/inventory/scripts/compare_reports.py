@@ -137,7 +137,9 @@ def _change(
 
 
 def _covers(allowed: str, pointer: str) -> bool:
-    return pointer == allowed or pointer.startswith(allowed.rstrip("/") + "/")
+    # RFC 6901: `/a/` names the empty-key child of `/a`, and `/` is not the
+    # whole document, so the entry is matched as written.
+    return pointer == allowed or pointer.startswith(allowed + "/")
 
 
 def compare(old: Any, new: Any, allow: list[dict] | None = None) -> dict:
