@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.10] - 2026-10-01
+
+### Added
+
+- **`education` ships a plugin eval suite for the `quiz-me` non-obvious-behavior-keying case.** Run with `claude plugin eval`, no skill text changes ([#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589)).
+
 ## [0.11.9] - 2026-09-30
 
 ### Fixed
