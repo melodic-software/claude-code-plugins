@@ -26,6 +26,14 @@ All notable changes to the `testing` plugin are documented here. Format follows
   like `5.22809e-310` instead of `0`.
 - **calibration:** `raters.sh` dropped an answer whose reason quoted code containing braces; it now
   parses the outermost `{...}` object first, then falls back to the flat scan.
+- **calibration:** `raters.sh` runs Codex with `--ignore-user-config`, web search off and connected
+  apps off, so the user's MCP servers, plugins and `AGENTS.md` never reach the rater.
+
+## [0.15.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/testing:check`, which probes it.
 
 ## [0.15.0] - 2026-10-01
 

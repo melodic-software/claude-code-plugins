@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "node",
+      "check": "/disk-hygiene:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    }
+  ]
+}
