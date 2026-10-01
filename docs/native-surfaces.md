@@ -1126,7 +1126,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `EnterWorktree` → `source-control:worktree`
 
-- **Verdict:** `complementary`: The built-in tool creates a worktree by name in the in-repo `.claude/worktrees/`, or switches the session into an existing worktree by path; ours creates the worktree at an external root through its helper (never by name, to keep worktrees out of the repository) and then enters it with `EnterWorktree(path:)`, and also owns status, cleanup, and audit. Entering an existing worktree by path stays with the tool. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `complementary`: The built-in tool creates a worktree by name in the in-repo `.claude/worktrees/`, or switches the session into an existing worktree by path; ours creates the worktree at an external root through its helper (never by name, to keep worktrees out of the repository) and then enters it with `EnterWorktree(path:)`, and also owns status, cleanup, and audit. Entering an existing worktree also goes through ours, which runs its claim check before `EnterWorktree(path:)` so a worktree another live session claims is never entered. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
 - **Integration:** `route`
 - **Native surface:** `EnterWorktree` (built-in tool; markers: none)
 - **Our component:** `source-control:worktree` (skill)

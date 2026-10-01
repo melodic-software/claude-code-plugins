@@ -16,4 +16,6 @@ worth checking again.
 The tools move a session in and out of a worktree. This skill decides where a worktree is created
 (an external root, never inside the repository), claims it, and later inventories and removes it.
 `create` ends by calling `EnterWorktree(path:)`, so the two compose in sequence and neither
-replaces the other.
+replaces the other. Entering an existing worktree also runs through this skill: the tool alone
+does not check the claim another live session may hold, and the worktree lock does not block
+writes.

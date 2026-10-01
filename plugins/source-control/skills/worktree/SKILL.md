@@ -1,5 +1,5 @@
 ---
-description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer it to enter an existing worktree by path or to leave one; this skill to create, inventory, clean up, or audit worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
+description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer ExitWorktree to leave a worktree; this skill to create one, to enter an existing one (claim check, then EnterWorktree by path), and to inventory, clean up, or audit worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args]"
@@ -196,11 +196,14 @@ can reach either the tools or this skill.
 - **`ExitWorktree` (built-in tool)**: leaves a worktree session and restores the original
   directory. It removes nothing.
 - **This skill (marketplace plugin).** Creates the worktree at an external root through the
-  shared helper, then enters it with `EnterWorktree(path:)`; owns `status`, `cleanup`, and `audit`.
+  shared helper, then enters it with `EnterWorktree(path:)`; checks the session claim before
+  entering an existing worktree; owns `status`, `cleanup`, and `audit`.
 
-**Routing.** Use `EnterWorktree(path:)` to enter a worktree that already exists and `ExitWorktree`
-to leave one. Use this skill to create a worktree, and never `EnterWorktree(name:)`, which places
-it inside the repository (see the nesting invariant above). Removing a worktree is `cleanup`, not
+**Routing.** Use `ExitWorktree` to leave a worktree. Use this skill to create a worktree, and never
+`EnterWorktree(name:)`, which places it inside the repository (see the nesting invariant above).
+Entering a worktree that already exists also goes through this skill: run the claim gate above
+(`check-enter`), and only then call `EnterWorktree(path:)` as the final action, so a worktree
+another live session claims is never entered. Removing a worktree is `cleanup`, not
 `ExitWorktree`.
 
 **Mutation gate.** `EnterWorktree` and `ExitWorktree` change the session's working directory, so
