@@ -20,8 +20,9 @@ only after that version increases.
 
 ### Changed
 
-- The `fable-5` description and meta-rule 3 list Fable 5.1, Opus 5.5 and Sonnet 5.5 as current and
-  Opus 5, Opus 4.8 and Sonnet 5 as fallback-only, each still routed to its chapter. The fallback
+- The `fable-5` description and meta-rule 3 list Fable 5, Fable 5.1, Opus 5.5 and Sonnet 5.5 as
+  current (a Fable 5 session reads no chapter) and Opus 5, Opus 4.8 and Sonnet 5 as fallback-only,
+  each still routed to its chapter, with a pointer to Claude Code's model page. The fallback
   mechanism and the Fable 5 system-card finding are now pointers, and only evidence that reaches
   the context counts as a switch.
 - The `opus-5` thinking-and-effort decision, the `context-economy` thinking-retention probe
