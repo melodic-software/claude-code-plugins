@@ -112,18 +112,18 @@ assert_contains "provenance lists both, team last" "$(layers "$root")" "rule	bun
 # 4. On an additive key the team layer REPLACES the bundled default, and a
 #    personal layer only adds to what the team decided.
 root="$(new_root)"
-write_layer "$root/.claude/docs-hygiene.json" '{"exempt_paths": ["docs/frozen/**"]}'
-write_layer "$root/.claude/docs-hygiene.local.json" '{"exempt_paths": ["docs/mine/**"]}'
-out="$(resolve "$root" | jq -c '.file_names.exempt_paths')"
+write_layer "$root/.claude/docs-hygiene.json" '{"sweep_exclude": ["docs/frozen/**"]}'
+write_layer "$root/.claude/docs-hygiene.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
+out="$(resolve "$root" | jq -c '.file_names.sweep_exclude')"
 assert_contains "additive: the team entry survives the overlay" "$out" '"docs/frozen/**"'
 assert_contains "additive: the overlay entry is added" "$out" '"docs/mine/**"'
-assert_lacks "additive: the team layer replaced the bundled default" "$out" '"docs/topics/**"'
+assert_lacks "additive: the team layer replaced the bundled default" "$out" '".work/**"'
 
 # 4b. With no team layer, a personal layer adds to the bundled default.
 root="$(new_root)"
-write_layer "$root/.claude/docs-hygiene.local.json" '{"exempt_paths": ["docs/mine/**"]}'
-out="$(resolve "$root" | jq -c '.file_names.exempt_paths')"
-assert_contains "additive: the bundled default survives a personal addition" "$out" '"docs/topics/**"'
+write_layer "$root/.claude/docs-hygiene.local.json" '{"sweep_exclude": ["docs/mine/**"]}'
+out="$(resolve "$root" | jq -c '.file_names.sweep_exclude')"
+assert_contains "additive: the bundled default survives a personal addition" "$out" '".work/**"'
 assert_contains "additive: the personal entry is added to it" "$out" '"docs/mine/**"'
 
 # 5. A personal layer cannot shrink a policy-floor list: an overlay `tiers` that

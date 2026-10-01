@@ -114,8 +114,8 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    Project instructions default or which files count. Offer it; do not paste it anywhere.
 4. **hook-entry**: `none`, or a `.claude/settings.json` snippet for each consumer glob no shipped
    hook row matches. A settings hook receives no `CLAUDE_PLUGIN_ROOT` or `CLAUDE_PLUGIN_OPTION_*`
-   (probed on Claude Code 2.1.284, 2026-09-29, `docs/specs/tautological-tests/probes.md` in the
-   marketplace repository; recheck when a Claude Code release note says settings hooks receive
+   (probed on Claude Code 2.1.284, 2026-09-29, the rows in
+   <https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md>; recheck when a Claude Code release note says settings hooks receive
    plugin variables), so the entry runs the highest installed version under
    `~/.claude/plugins/cache/<marketplace>/testing` and passes `--enabled`: adding the entry is the
    opt-in. It pins the marketplace `check` runs from; when `check` runs outside the plugin cache the

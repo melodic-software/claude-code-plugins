@@ -3,8 +3,7 @@
 #
 # Proves WIRING: the hook fires only on *.go files (extension pre-filter),
 # runs goimports with no consumer-config opt-in gate (gitignored files aside; the one
-# deliberate shape difference from ruff-format/typos-format; see
-# docs/topics/832-go-ecosystem/PLAN.md Open Decision 1), skips files carrying
+# deliberate shape difference from ruff-format/typos-format), skips files carrying
 # Go's generated-code marker, autofixes imports/formatting in place, surfaces
 # a syntax error as an advisory finding (not a tool break), honors the kill
 # switch, and emits a schema-valid telemetry envelope.

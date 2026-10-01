@@ -1949,8 +1949,7 @@ PROJ_ENV=CLAUDE_PROJECT_DIR
 # tier is not in its allowlist), so exempting Bash redirects there would let
 # `printf '<secret>' >> .work/notes.md` reach disk unscanned while the identical
 # Write stayed blocked — the content-guard bypass this plugin's MCP lane exists
-# to close. The tension with docs/conventions/topic-docs/, which states raw
-# output including credentials belongs in the tier, is filed, not decided here.
+# to close.
 #
 # The first case is the reproduced false positive: `printf '*' >> .work/.gitignore`.
 # It still blocks because the memory tier is not exempt; write that file with

@@ -61,9 +61,7 @@ prescribed defaults, never auto-start, and no-op on decline or silence.
 The bundled defaults are repo-agnostic: detectors run against the repository
 they are invoked in, output destinations default to conventional locations
 (e.g. `.claude/rules/<topic>.md` for an extracted rule), and ephemeral-path
-detection follows the marketplace topic-docs convention (memory slices under
-`.work/<slug>/`, branch-pruned contract slices under `docs/topics/<slug>/`,
-retired `.claude/notes/`). Refine any of these through
+detection covers memory slices under `.work/<slug>/` and the retired `.claude/notes/`. Refine any of these through
 your own repository's `CLAUDE.md` / `.claude/rules`, the skills read the
 consuming project's context; nothing requires editing the plugin.
 

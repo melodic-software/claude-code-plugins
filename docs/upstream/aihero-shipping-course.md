@@ -292,7 +292,7 @@ withheld; three of five initial answers revised on evidence).
   `plugins/review/context/severity.md` — in this plugin `axis` means severity/confidence; a review
   perspective is a `lens`. Three incompatible senses were live before that note.
 - **C14 ADOPTED-corrected**: spec-source discovery ladder in `context/spec.md` — `--spec <path|id>`
-  → item refs harvested from branch commits / PR body → the topic's contract slice → ask → skip
+  → item refs harvested from branch commits / PR body → the topic's memory slice → ask → skip
   with a note. Corrections over the course's version: (1) the seam's normalized item object has
   **no `body` field**, so spec text comes from the **provider-mechanic read**; (2) a harvested bare
   `#N` is **validated** (strictly numeric; owner/repo to a repo-name shape) and then **promoted** to
@@ -307,7 +307,7 @@ withheld; three of five initial answers revised on evidence).
   is the operative path, the rung works with no tracker plugin installed, and parent linkage (whose
   authoritative source, `get-item`, is unreachable from here) degrades to best-effort or an explicit
   `--spec`.
-  Recorded limit: the contract slice is pruned before merge, so that rung goes empty post-merge and
+  Recorded limit: the memory slice is checkout-local and never committed, so that rung goes empty in any other checkout and
   recovery is best-effort — which is why the tracker item is the durable spec home.
 - **C15 PARTIAL**: `fanout`'s fail-fast preflight ported into `quality-gate`, which had none. Two
   costs the course's version omits and this port carries: the gate is **mode-scoped** (`criteria`

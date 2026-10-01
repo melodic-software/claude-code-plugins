@@ -42,10 +42,10 @@
       "id": 4,
       "name": "persist-resolves-destination-from-contract",
       "prompt": "Run the can't-fail audit and persist the findings so the review fix pass picks them up.",
-      "expected_output": "Reads the detector-findings contract by its raw URL, resolves the destination through the contract's rung order with the non-interactive collapse and self-ignore guard (never a hardcoded .work path assumed blindly), generates content via --findings, writes without overwriting any existing file, and does not write at all if the contract cannot be fetched.",
+      "expected_output": "Reads the detector-findings contract by its raw URL, resolves the destination as the contract's memory-slice findings directory with the self-ignore guard (never a hardcoded path assumed blindly), generates content via --findings, writes without overwriting any existing file, and does not write at all if the contract cannot be fetched.",
       "files": ["evals/fixtures/sanity/one-assertion-free.test.js"],
       "expectations": [
-        "Output resolves the findings destination via the detector-findings contract's rung order rather than assuming a hardcoded path",
+        "Output resolves the findings destination from the detector-findings contract's memory-slice directory rather than assuming a hardcoded path",
         "Output writes the --findings output to a timestamped file and never overwrites an existing path",
         "Output refuses to write when the producer contract cannot be read, rather than guessing a destination"
       ]

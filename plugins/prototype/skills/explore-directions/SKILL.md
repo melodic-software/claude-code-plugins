@@ -131,7 +131,7 @@ Constraints:
   `d=$(mktemp -d "${TMPDIR:-/tmp}/explore-directions-XXXXXX"); echo "$d"`, then writing to
   `<echoed dir>/explore-directions.html`. Echo it because shell state does not survive between Bash
   calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
-  the file. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable (per `docs/conventions/topic-docs/README.md` "The ephemeral tier" in the marketplace repository).
+  the file. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
   That is why the page takes a fixed name inside the generated directory rather than an
   `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows,
   a user-scoped temp under

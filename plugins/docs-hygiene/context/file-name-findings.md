@@ -20,17 +20,33 @@ point at a repository nobody has reviewed.
 
 ## Where it lives
 
-In the repository's memory tier, resolved through the plugin's topic-docs
-binding ([`../reference/topic-docs.md`](../reference/topic-docs.md)), never
-committed. Resolve the home; never hardcode the documented default's shape.
+In the repository's memory tier, never committed:
+`<memory_dir>/docs-hygiene/<branch-slug>/file-names.md`. `<memory_dir>` is
+`.work/` unless the project's instructions declare another root. A rename
+plan's axis is the **branch**, not a topic, so it sits under the memory root's
+`docs-hygiene/` concern name rather than inside a topic slice. `<branch-slug>`
+is the branch name with every character outside `[A-Za-z0-9._-]` replaced by
+`-`; a detached checkout has no branch, so it slugs as `detached-<short-sha>`.
+Compose the home exactly so: a skill that composes any other path gives the
+realign a clean "no plan found" stop indistinguishable from "no audit has been
+run".
 
-Two properties the contract fixes:
+Properties of the home:
 
 - **The `branch:` frontmatter proves which branch the artifact belongs to**,
   never the directory it sits in. Two branch names can slug to one directory. A
   consumer finding a mismatch refuses rather than proceeding.
 - **One stable filename per home, rewritten in place.** A re-audit merges into
   the existing file; the run timestamp lives in frontmatter.
+- **The plan is lane-local.** The memory tier is visible only in the checkout
+  that wrote it, so a sibling worktree or cloud clone never sees the plan.
+  Before the first write of a session, confirm the memory root is ignored by
+  the consumer's git (a `.gitignore` containing `*`, created and announced
+  when absent, never the consumer's root `.gitignore`). Where one governs the
+  destination and the root is not ignored, report the resolved destination and
+  persist nothing rather than committing a branch-local plan into the
+  consumer's history. A run that cannot ask the user or persist configuration
+  takes the same path and says so in its summary.
 
 ## Frontmatter
 

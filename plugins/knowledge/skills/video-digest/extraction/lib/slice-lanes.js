@@ -7,8 +7,7 @@
  *
  * The six lanes are an intentional, user-approved concern-layout — each owns its deliverable +
  * working trail + machine-state together (Common Closure Principle). `verification` is a
- * content-noun like the other five lanes and matches the marketplace topic-docs canon's
- * `verification/` folder name — the alignment is deliberate; keep the two in step.
+ * content-noun like the other five lanes.
  */
 
 import path from "node:path";

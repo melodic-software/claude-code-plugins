@@ -1171,7 +1171,7 @@ def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
     assert not (cwd / ".work").exists()
 
 
-def test_memory_root_outside_git_prints_the_plugin_data_topic_docs(tmp_path):
+def test_memory_root_outside_git_prints_the_plugin_data_artifacts(tmp_path):
     cwd = _outside_git(tmp_path)
     data = tmp_path / "plugin-data"
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}

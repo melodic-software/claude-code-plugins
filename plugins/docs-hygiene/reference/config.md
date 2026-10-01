@@ -88,10 +88,10 @@ names any declaration it ignored.
 | `rule` | string | `"lower-kebab"` | the transform that proposes a new name. `lower-kebab` lowercases the basename, turns underscores and spaces into single hyphens, and collapses runs |
 | `regex` | string | `^[a-z0-9]+([.-][a-z0-9]+)*\.[a-z0-9]+$` | the extended regular expression a basename must match to be legal. It is also inlined into an emitted gate, so it may not carry a single quote |
 | `exempt_basenames` | array of strings | `["README.md", "CHANGELOG.md", "INDEX.md"]` | basenames that are never renamed, anywhere under a root |
-| `exempt_paths` | array of strings | `["docs/topics/**"]` | pathspecs that are never renamed |
+| `exempt_paths` | array of strings | `[]` | pathspecs that are never renamed |
 | `exempt_extensions` | array of strings | `["py", "sh", "mjs", "js", "ps1"]` | extensions whose casing belongs to their language, never to this rule |
 | `tiers` | array of objects | see below | how a reference is rewritten, by where it lives |
-| `sweep_exclude` | array of strings | `[".work/**", "docs/topics/**", ...]` | pathspecs the reference sweep never reads and never edits |
+| `sweep_exclude` | array of strings | `[".work/**"]` | pathspecs the reference sweep never reads and never edits |
 | `sweep_exclude_sites` | array of strings | `[]` | `path:literal` pairs the sweep never edits, for a site whose text matches by accident |
 | `generated` | array of objects | the landscape record | files that are produced by a command rather than edited |
 | `redirect_map` | string or null | `null` | reserved for a site generator's old-to-new map; no version writes one yet |
@@ -149,8 +149,8 @@ differences are the clock rather than the change.
 
 - Plugin `userConfig` options. This plugin declares none, and a layer that names
   one is an inert unknown key.
-- The audit's findings artifact, whose home resolves through the topic-docs
-  binding at `plugins/docs-hygiene/reference/topic-docs.md`.
+- The audit's findings artifact, whose home is defined in
+  `plugins/docs-hygiene/context/file-name-findings.md`.
 - Version bumping for a renamed file's consumers. A repository whose plugins,
   packages, or modules are versioned bumps them itself after a realign run;
   no version of these skills writes a manifest.

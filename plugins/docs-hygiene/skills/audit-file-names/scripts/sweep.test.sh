@@ -98,7 +98,7 @@ assert_eq "no generated site is ever an edit" "0" "$(printf '%s\n' "$sites" | gr
 
 # --- sweep exclusions --------------------------------------------------------
 
-assert_lacks "an excluded path is never read or reported" "$sites" "docs/topics/t/PLAN.md"
+assert_lacks "an excluded path is never read or reported" "$sites" "docs/frozen/t/NOTES.md"
 
 # --- the substring hazard ----------------------------------------------------
 #
