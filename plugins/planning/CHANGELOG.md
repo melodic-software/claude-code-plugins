@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.0] - 2026-10-01
+
+### Changed
+
+- **`draft-goal-condition` proposes the drafted condition through the built-in `ProposeGoal`
+  tool when it resolves.** The proposal keeps `ask_user` true, so the person approves it with one
+  keypress; when the tool does not resolve or refuses, the skill offers the paste-ready `/goal`
+  line as before. The Boundary section and `reference/native-goal.md` record the tool.
+
 ## [0.54.0] - 2026-09-30
 
 ### Added

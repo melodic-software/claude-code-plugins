@@ -1,5 +1,5 @@
 ---
-description: "Manage git worktree lifecycle for parallel-session isolation: create (guided naming via EnterWorktree), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
+description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer it to enter an existing worktree by path or to leave one; this skill to create, inventory, clean up, or audit worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args]"
@@ -184,6 +184,31 @@ Upstream coverage: [#16600](https://github.com/anthropics/claude-code/issues/166
 
 - **Recheck triggers (event).** A Claude Code release note naming worktree rule-file loading or path-scoped rule resolution; `#16600` changing state; or the suppression rule above changing, since the placement convention rests on it.
 - **Unconditional expiry.** **2.1.305, or 2026-12-29. Whichever comes first.** Both event triggers are known to be incapable of firing on their own: `#16600` has not changed state since well before this as-of date, and an opaque release stanza ("Bug fixes and reliability improvements", 2.1.226) cannot fire an event-keyed trigger at all. An expiry is the only trigger that fires without upstream cooperation. On expiry, run `fixtures/nesting-invariant-probe.sh` under an **authenticated** CLI and refresh this stamp with the outcome. Drift or no drift. A zero-event run is a fixture failure, not a null.
+
+## Boundary, the built-in `EnterWorktree` and `ExitWorktree` tools
+
+Claude Code ships tools that create, enter, and leave worktrees, so a request to "make a worktree"
+can reach either the tools or this skill.
+
+- **`EnterWorktree` (built-in tool)**: creates a worktree by name in the in-repo
+  `.claude/worktrees/` and switches the session into it, or, given a `path`, switches into an
+  existing worktree. The model invokes it; the person does not.
+- **`ExitWorktree` (built-in tool)**: leaves a worktree session and restores the original
+  directory. It removes nothing.
+- **This skill (marketplace plugin).** Creates the worktree at an external root through the
+  shared helper, then enters it with `EnterWorktree(path:)`; owns `status`, `cleanup`, and `audit`.
+
+**Routing.** Use `EnterWorktree(path:)` to enter a worktree that already exists and `ExitWorktree`
+to leave one. Use this skill to create a worktree, and never `EnterWorktree(name:)`, which places
+it inside the repository (see the nesting invariant above). Removing a worktree is `cleanup`, not
+`ExitWorktree`.
+
+**Mutation gate.** `EnterWorktree` and `ExitWorktree` change the session's working directory, so
+each is the final action of its step. Only `cleanup` deletes a worktree, under its own confirmation.
+
+**Availability is never assumed.** This section states what to do when a tool resolves in this
+session, never that it is present. The four-part records live in
+[reference/native-worktree.md](reference/native-worktree.md).
 
 ## What this skill does NOT do
 

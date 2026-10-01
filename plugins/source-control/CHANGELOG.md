@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.69.0] - 2026-10-01
+
+### Changed
+
+- **`worktree` routes to the built-in `EnterWorktree` and `ExitWorktree` tools.** The description
+  and a new `## Boundary` section say to use the tools to enter an existing worktree by path or to
+  leave one, and this skill to create (never `EnterWorktree` by name), inventory, clean up, or
+  audit worktrees. The verification records are in `reference/native-worktree.md`.
+
 ## [0.68.0] - 2026-09-30
 
 ### Added

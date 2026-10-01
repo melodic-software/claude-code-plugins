@@ -91,30 +91,40 @@ Emit the final, counter-passed condition as a paste-ready invocation:
 /goal <condition>
 ```
 
+When the `ProposeGoal` tool resolves in this session, also propose the condition through it, as
+the Boundary section below says.
+
 Note for the user: `/goal` holds for the current session only. A goal survives `--resume` / `--continue` (though its turn count, timer, and token baseline reset), but running `/clear` removes it. So the goal must be re-set after any `/clear`.
 
-## Boundary, the built-in `/goal` command
+## Boundary, the built-in `/goal` command and `ProposeGoal` tool
 
-This skill exists to feed `/goal`, so the two are easy to mistake for one step.
+This skill exists to feed `/goal`, so the two are easy to mistake for one step. A built-in tool
+can also put a drafted condition in front of the person.
 
 - **`/goal` (built-in command)**: `/goal <condition>` sets a completion condition that a fresh
   evaluator checks before the session stops; `/goal clear` removes it, and bare `/goal` shows the
   current one. It is reserved for the person to run; the model does not invoke it.
+- **`ProposeGoal` (built-in tool)**: the model proposes a goal condition and the person approves
+  it with one keypress (`ask_user` true, the default); `ask_user` false sets it with no dialog.
+  It cannot clear a goal, and it is refused in subagents, outside interactive local sessions, and
+  in plan mode.
 - **This skill (marketplace plugin).** Picks the right repetition lever and, when `/goal` fits,
   drafts a transcript-demonstrable condition sourced from the live docs and passed through the
   deterministic length counter. It sets nothing.
 
-**Routing.** At the end of the run, offer it to the person: you can run `/goal <condition>` with
-the drafted text, instead of or alongside continuing by hand. When the lever check routes away
-from `/goal`, make no offer. An unattended run records the paste-ready line in its output instead
-of asking.
+**Routing.** At the end of the run, when `ProposeGoal` resolves in this session, propose the
+drafted condition with it and leave `ask_user` true. When it does not resolve or refuses the
+proposal, offer the paste-ready line: you can run `/goal <condition>` with the drafted text,
+instead of or alongside continuing by hand. When the lever check routes away from `/goal`, make
+no offer. An unattended run records the paste-ready line in its output instead of asking.
 
-**Mutation gate.** Only the person's `/goal` run arms a goal. This skill never sets, replaces, or
-clears one on the person's behalf.
+**Mutation gate.** Only the person's approval arms a goal: their `/goal` run or their keypress on
+a `ProposeGoal` dialog. This skill never sets `ask_user` false, and never sets, replaces, or
+clears a goal on the person's behalf.
 
 **Availability is never assumed.** This section states what to do when the person can run
-`/goal`, never that it is present in their host. The four-part records live in
-[reference/native-goal.md](reference/native-goal.md).
+`/goal` or `ProposeGoal` resolves, never that either is present in their host. The four-part
+records live in [reference/native-goal.md](reference/native-goal.md).
 
 ## Gotchas
 

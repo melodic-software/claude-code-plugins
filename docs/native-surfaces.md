@@ -22,7 +22,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 2 | 1 | route 2 | complementary 2 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
-| Built-in tools | 4 | 4 | route 4 | complementary 4 |
+| Built-in tools | 7 | 7 | route 7 | complementary 7 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
 
@@ -1124,6 +1124,58 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
+### `EnterWorktree` → `source-control:worktree`
+
+- **Verdict:** `complementary`: The built-in tool creates a worktree by name in the in-repo `.claude/worktrees/`, or switches the session into an existing worktree by path; ours creates the worktree at an external root through its helper (never by name, to keep worktrees out of the repository) and then enters it with `EnterWorktree(path:)`, and also owns status, cleanup, and audit. Entering an existing worktree by path stays with the tool. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `EnterWorktree` (built-in tool; markers: none)
+- **Our component:** `source-control:worktree` (skill)
+- **Evidence:**
+  - `EnterWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Creating worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'create an isolated git worktree and switch into it'
+  - native description: Creates an isolated worktree (via git or configured hooks) and switches the session into it
+  - detect: origin discovered, score 0.4339, invocable_by model-only, recommended integration route
+  - docs cross-check (tools reference, 2026-10-01): documented; 'Pass a `path` to switch into an existing worktree instead of creating a new one'
+  - our skill already calls the tool: `create` ends with `EnterWorktree(path: "<printed-path>")` and never falls back to `EnterWorktree(name:)`
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors) (2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `EnterWorktree` tool, drops its `path` argument, changes where a named worktree is created, or the tools reference stops documenting it (verified 2026-10-01)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `ExitWorktree` → `source-control:worktree`
+
+- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory; ours does not leave a session and tells the person to exit with the tool before creating another worktree. Leaving a worktree stays with the tool; removing one stays with ours (`cleanup`). Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `ExitWorktree` (built-in tool; markers: none)
+- **Our component:** `source-control:worktree` (skill)
+- **Evidence:**
+  - `ExitWorktree` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Exiting worktree', model_invocable true, user_invocable false, gated false, deferred true; search hint 'exit a worktree session and return to the original directory'
+  - native description: Exits a worktree session created by EnterWorktree and restores the original working directory
+  - detect: origin discovered, score 0.4063, invocable_by model-only, recommended integration route
+  - docs cross-check (tools reference, 2026-10-01): documented; not available to subagents that already run in their own working directory
+  - our skill already names the tool: the `create` pre-flight says to use `ExitWorktree` to leave the current worktree first
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors) (2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, makes it remove the worktree it exits, or the tools reference stops documenting it (verified 2026-10-01)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `ProposeGoal` → `planning:draft-goal-condition`
+
+- **Verdict:** `complementary`: The built-in tool proposes a session goal condition that the person approves with one keypress; ours drafts that condition (lever fit, live shape, length counter). When the tool resolves in this session, the drafted condition is proposed through it with `ask_user` left true, so the person still approves it; when it does not resolve, ours offers the paste-ready `/goal` line as before. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Integration:** `route`
+- **Native surface:** `ProposeGoal` (built-in tool; markers: gated)
+- **Our component:** `planning:draft-goal-condition` (skill)
+- **Evidence:**
+  - `ProposeGoal` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: model_invocable true, user_invocable false, gated true, deferred true; search hint 'propose a session goal condition for the user to approve with one keypress'
+  - native description: Propose a session goal condition, with one-keypress user approval; once set, Claude keeps working until a separate evaluator confirms it is met
+  - tool prompt in the same binary (string search 2026-10-01): `ask_user` true (the default) asks the user with a one-keypress dialog; `ask_user` false sets the goal directly and is allowed only when the user's own words stated the outcome; the condition is at most 500 characters; the tool cannot clear a goal; it is refused in agent contexts, outside interactive local sessions, and while plan mode is active
+  - settings key in the same binary: `modelProposedGoals` ('auto' default, 'alwaysAsk', 'disabled'), marked @internal
+  - detect: origin discovered, score 0.4289, invocable_by model-only, recommended integration route
+  - docs cross-check (tools reference, 2026-10-01): undocumented
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors), with a targeted string search of the same binary for the tool prompt (2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ProposeGoal` tool, changes its `ask_user` approval default, its condition limit, or its session restrictions, or the tools reference starts documenting it (verified 2026-10-01)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
 ### `WebFetch` → `firecrawl:firecrawl`
 
 - **Verdict:** `complementary`: The built-in tool fetches one unprotected page and returns a small model's extraction inline; ours scrapes, crawls, or renders pages WebFetch cannot reach (anti-bot, JS) and writes the full content to disk. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
@@ -1217,17 +1269,30 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | Native surface | Class | Component | Reason | As of | Date |
 |---|---|---|---|---|---|
 | `Agent` | builtin-tool | `docs-hygiene:write-for-agents` | The Agent tool launches a subagent; ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Bash` | builtin-tool | `bash-format:check` | Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing. | 2.1.285 | 2026-09-30 |
-| `Bash` | builtin-tool | `bash-format:setup` | The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Bash` | builtin-tool | `bash-format:check` | Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing. | 2.1.285 | 2026-10-01 |
+| `Bash` | builtin-tool | `bash-format:setup` | The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ClaudeDesign` | builtin-tool | `evals:design` | The ClaudeDesign tool edits claude.ai/design canvas projects; ours designs an LLM evaluation suite. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ClaudeDesign` | builtin-tool | `planning:design` | The ClaudeDesign tool edits claude.ai/design canvas projects; ours resolves types, contracts, and module boundaries before planning. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ClaudeDesign` | builtin-tool | `planning:design-handoff` | The ClaudeDesign tool edits claude.ai/design canvas projects (decks, prototypes, mockups); ours gates a finished software design for planning. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `DesignSync` | builtin-tool | `dometrain:sync` | DesignSync syncs a local component library with a claude.ai/design design-system project; ours checks the dometrain grounding skill's vendored content for upstream drift. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `DesignSync` | builtin-tool | `repo-fleet-hygiene:sync` | DesignSync syncs a local component library with a claude.ai/design design-system project; ours syncs repositories across a fleet. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `Explore` | builtin-agent | `prototype:explore-directions` | The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-30 |
 | `Plan` | builtin-agent | `planning:plan-reviewer (agent)` | The Plan agent drafts an implementation approach; this agent stress-tests a written plan for /planning:plan. The Plan pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Plan` | builtin-agent | `testing:plan` | The Plan agent drafts an implementation approach; ours plans tests for a change by regression risk. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `PowerShell` | builtin-tool | `powershell-format:check` | Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing. | 2.1.285 | 2026-09-30 |
-| `PowerShell` | builtin-tool | `powershell-format:setup` | The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `PowerShell` | builtin-tool | `powershell-format:check` | Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing. | 2.1.285 | 2026-10-01 |
+| `PowerShell` | builtin-tool | `powershell-format:setup` | The PowerShell tool runs PowerShell commands; ours sets up the PowerShell formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ProposeGoal` | builtin-tool | `performance:goal` | ProposeGoal proposes a session completion condition; ours sets a measured performance target with its floor. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `Read` | builtin-tool | `x:read` | The Read tool reads a local file; ours reads an X post through third-party converters. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `ReadNotifications` | builtin-tool | `desktop-notification:setup` | ReadNotifications reads queued external notifications (webhooks, triggers); ours verifies the desktop-notification hook's prerequisites and channels. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `ReportFindings` | builtin-tool | `improvement:find` | ReportFindings renders code-review findings in the host UI when review instructions ask for it; ours ranks improvement work across a codebase. Shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `SendUserMessage` | builtin-tool | `claude-ops:morning-brief` | SendUserMessage (alias Brief) sends the user a message; ours prints a repo's morning ops view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Workflow` | builtin-tool | `session-flow:workflow` | The Workflow tool runs a workflow script; ours routes the next stage of a staged workflow. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Workflow` | builtin-tool | `songwriting:workflow` | The Workflow tool runs a workflow script; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `TestingPermission` | builtin-tool | `claude-config:audit-permission-grants` | TestingPermission is an internal test tool that always asks for permission; ours audits permission rules for portability. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `TestingPermission` | builtin-tool | `claude-config:audit-permission-state` | TestingPermission is an internal test tool that always asks for permission; ours reports the effective permission rules. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `TestingPermission` | builtin-tool | `testing:test-value` | TestingPermission is an internal test tool that always asks for permission; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `TodoWrite` | builtin-tool | `work-items:scan-todos` | TodoWrite updates the session task checklist; ours sweeps source comments for TODO/FIXME markers. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `WaitForMcpServers` | builtin-tool | `discipline:wait-what` | WaitForMcpServers waits for connecting MCP servers; ours re-pitches a message the reader did not follow. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `Workflow` | builtin-tool | `session-flow:workflow` | The Workflow tool runs a workflow script; ours routes the next stage of a staged workflow. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `Workflow` | builtin-tool | `songwriting:workflow` | The Workflow tool runs a workflow script; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `Write` | builtin-tool | `bugs:write` | The Write tool writes a file; ours drafts a structured bug report. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Write` | builtin-tool | `docs-hygiene:write-for-agents` | The Write tool writes a file; ours authors agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Write` | builtin-tool | `docs-hygiene:write-for-humans` | The Write tool writes a file; ours authors human-facing prose. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
@@ -1243,10 +1308,11 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `brief` | builtin-command | `claude-ops:morning-brief` | /brief toggles brief-only output mode; ours prints a repository's morning operator view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `bug` | builtin-command | `bugs:setup` | /bug reports a Claude Code bug to Anthropic; ours configures the bugs plugin for a repository. The reporting overlap is recorded against bugs:write. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `claude-code-docs` | bundled-skill | `review:doc-drift-detector (agent)` | Answers questions about Claude Code features versus an agent that finds stale documentation in a repository. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `code-review` | bundled-skill | `review:security-review` | The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -\> review:security-review. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `code-review` | bundled-skill | `review:security-review` | The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -\> review:security-review. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `commit-push-pr` | builtin-command | `review:pr-explainer` | Commits, pushes, and opens a PR versus explaining an existing PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `config` | builtin-command | `claude-config:audit` | /config opens the preferences UI (theme, model, output style); ours audits settings files for correctness and drift. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `config` | builtin-command | `claude-config:audit-permission-state` | /config opens the preferences UI; ours reports the effective permission rules across scopes. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `config` | builtin-command | `claude-config:audit` | /config opens the preferences UI (theme, model, output style); ours audits settings files for correctness and drift. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `config` | builtin-command | `claude-config:audit-permission-grants` | /config opens the settings UI; ours audits permission grants for portability and auto-mode durability. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `config` | builtin-command | `claude-config:audit-permission-state` | /config opens the preferences UI; ours reports the effective permission rules across scopes. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `config` | builtin-command | `claude-config:draft-auto-mode-rules` | /config opens the preferences UI; ours drafts autoMode classifier rules. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `context` | builtin-command | `architecture:map-context` | /context shows context-window usage; ours charts a C4 system context from configuration. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `copy` | builtin-command | `discipline:point-dont-copy` | /copy puts the last response on the clipboard; ours is a pointer-over-copy writing discipline. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1270,7 +1336,7 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `mcp` | builtin-command | `mcp-tools:audit` | /mcp manages server connections and OAuth; ours audits MCP tool definition quality in source. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `mcp` | builtin-command | `mcp-tools:audit-posture` | /mcp manages server connections and OAuth; ours audits configured servers' supply-chain posture without connecting to any. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `memory` | builtin-command | `claude-memory:audit` | /memory opens CLAUDE.md files for editing; ours audits the instruction layer against a checklist. The auto-memory toggle overlap is recorded against claude-memory:stateless. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `memory_read` | builtin-tool | `claude-memory:audit` | memory_read reads a document from a session memory store; ours audits CLAUDE.md, rules, and auto-memory. Different memory. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `memory_read` | builtin-tool | `claude-memory:audit` | memory_read reads a document from a session memory store; ours audits CLAUDE.md, rules, and auto-memory. Different memory. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `output-style` | builtin-command | `animation:learn-style` | Shared word only: /output-style switches Claude Code's response style; learn-style studies an art style for the animation plugin. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `plan` | builtin-command | `planning:plan-reviewer (agent)` | /plan enters plan mode; the agent stress-tests a written plan for /planning:plan. The plan-mode pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `plan` | builtin-command | `testing:plan` | /plan enters plan mode; ours writes a test plan for a change. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1291,8 +1357,8 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `worker` | builtin-agent | `session-flow:tidy-work` | Name overlap only ('work'): tidy-work is a user-only skill that tidies the gitignored .work memory tiers; the built-in worker agent executes delegated tasks. Different jobs, no routing. | 2.1.285 | 2026-09-30 |
 | `worker` | builtin-agent | `work-items:work` | The worker agent executes a delegated task; ours picks and executes a tracker item end to end. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `worker` | builtin-agent | `work-items:work-loop` | The worker agent executes a delegated task; ours drains a tracker backlog as a loop. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `workflow-authoring` | bundled-skill | `playbooks:skill-authoring` | Reference for Workflow tool scripts versus SKILL.md authoring guidance. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `workflow-authoring` | bundled-skill | `songwriting:workflow` | Reference for Workflow tool scripts versus a songwriting situation router. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `workflow-authoring` | bundled-skill | `playbooks:skill-authoring` | Reference for Workflow tool scripts versus SKILL.md authoring guidance. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
+| `workflow-authoring` | bundled-skill | `songwriting:workflow` | Reference for Workflow tool scripts versus a songwriting situation router. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `workflows` | builtin-command | `session-flow:workflow` | /workflows browses Workflow tool runs; ours navigates staged engineering work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `workflows` | builtin-command | `songwriting:workflow` | /workflows browses Workflow tool runs; ours routes a songwriting session. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 
