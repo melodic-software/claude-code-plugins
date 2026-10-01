@@ -4,6 +4,15 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.6.1] - 2026-10-01
+
+**Patch, docs-only.** The rationale of `mutation-testing/audit/rule-survivor-productive` and
+`mutation-testing/audit/rule-survivor-unclassified` covers the audit's new exercised scope, where the
+mutated node is outside the change because the change is the tests. Both rows reach IMPORTANT there
+through the degradation limb, with the trigger "the first regression that changes the result for an
+input the changed tests do not use, in a function they exercise, ships green". Rule ids, tiers, and
+every consumer's reading of them are unchanged.
+
 ## [3.6.0] - 2026-09-30
 
 **Minor, additive.** One crosswalk row admits the `testing` plugin's task-end test judge:

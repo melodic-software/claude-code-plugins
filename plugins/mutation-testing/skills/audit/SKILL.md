@@ -1,11 +1,11 @@
 ---
-description: "Run diff-scoped mutation analysis and report surviving mutants. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per changed line, then a fresh-context reviewer judges productive versus arid versus equivalent; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--full` (whole configured scope, not the diff), `--paths <globs>`, `--max <n>`, `--no-suppress` (report suppressed arid mutants too), `--persist-findings` (write the survivors as a findings file the review fix pass consumes)."
-argument-hint: "[scope] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
+description: "Run mutation analysis and report surviving mutants: on the diff, or with `--exercised` on the production code the changed tests call, judged against those tests. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per line, then a fresh-context reviewer judges productive versus arid versus equivalent and says why each productive survivor lived; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--exercised [<test-path>]` (mutate what the changed tests call), `--full`, `--paths <globs>`, `--max <n>`, `--no-suppress`, `--persist-findings`."
+argument-hint: "[scope] [--exercised [<test-path>]] [--full] [--paths <globs>] [--max <n>] [--no-suppress] [--persist-findings]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
-  summary: Report surviving mutants on the diff, restoration verified or the run fails, survivors triaged
+  summary: Report surviving mutants on the diff or with --exercised, restoration verified, survivors triaged
 ---
 
 ## Repository context. Gather first
@@ -33,7 +33,13 @@ Arguments: `$ARGUMENTS`
 ## Argument parsing
 
 - **Scope** (optional): a path limiting which changed files are considered. Default: every changed
-  file inside the configured `mutate` globs.
+  file inside the configured `mutate` globs. Under `--exercised` it narrows the changed tests
+  considered, and it goes before the flag.
+- **`--exercised [<test-path>]`**: mutate the production code the changed tests call, judged
+  against those tests as one set ([The exercised scope](#the-exercised-scope---exercised)). The
+  scope runs only when this flag is passed. The token right after the flag is the test path when it
+  does not start with `--`, so `--exercised --max 5` takes no test path. Mutually exclusive with
+  `--full` and `--paths`: refuse the combination and name both flags.
 - **`--full`**: mutate the whole configured scope instead of the diff. Expensive and rarely correct,
   state the estimated cost from `baseline-suite-ms` and confirm before running.
 - **`--paths <globs>`**: mutate these paths regardless of the diff.
@@ -63,6 +69,78 @@ An effort-derived cap is a cap like any other, so Phase 1 step 5 already governs
 say what was dropped, because a truncated run must never read as a clean one. Nothing downstream
 moves. Phase 4 triage still runs in fresh context on every surviving mutant, at every effort level.
 
+## The exercised scope (`--exercised`)
+
+The diff scope asks whether the suite checks the changed code. `--exercised` asks whether the
+changed tests check the code they call. Each mutant runs against those tests only, so a strong
+existing test cannot kill it and hide a weak new one, and the verdict is for the tests as one set:
+a mutant is killed when any test in the set fails. Each paragraph below replaces the named step of
+the diff scope for this run only.
+
+**The test set.** The changed files are the committed range, `git diff --name-only
+<diff-target>...HEAD`, plus the working tree, `git status --porcelain --untracked-files=all`
+(tracked modified files and untracked files, each listed by path), so tests an agent has just
+written count before they are committed. A scope path narrows them. With `--exercised <test-path>`
+the files under that test file or folder replace the changed files, the mapping starts from them,
+and every step below that reads "the test set" means the tests under that path. That is not the
+scope path, which only narrows the changed files.
+
+**Which files are tests.** For each candidate file, invoke `/testing:audit --file <path>` through
+the Skill tool and read the `adapter:` line of its coverage block:
+
+- `adapter: <id>`: a test, in the set.
+- `adapter: none (no adapter claims this file)`: not a test.
+- `adapter: none (<id> claims this file and is off in the testing config)`: not in the set. The
+  report lists it as skipped with that reason, because the team turned that adapter off.
+
+When the `testing` plugin is not installed, refuse: `--exercised` needs the `testing` plugin to
+recognize test files. Never guess from file names. A set with no tests ends the run as `no changed
+tests: scope empty`, a result, never a clean run.
+
+**The mapping.** Read each test in the set and list the functions it calls directly that are defined
+in files inside the `mutate` globs. The mapped-line set is the bodies of those functions. Only direct
+calls from the test body count, not callees of callees, so a call through dependency injection, an
+interface, HTTP or a test helper maps nothing. The scope report lists the mapped functions. Zero
+functions ends the run as `no mapping: scope empty`, a result, never a clean run. The mapped-line
+set is the scope `--exercised` resolves to, so a mode that takes `--paths` can take `--exercised`
+or `--exercised <test-path>` instead and inherit these limits; the planned recording run,
+`--record-mutants` (#5604), is the consumer it is defined for.
+
+**Runner and regime.** Use the configured tool's own test restriction only where
+[`context/tool-test-restriction.md`](context/tool-test-restriction.md) reads `yes` in its
+no-coverage column, with that row's option and source cited in the scope report. Otherwise run the
+manual protocol ([Phase 2](#phase-2-generate)) with the config's `test-command`, replacing `{tests}`
+with each test path quoted as its own shell argument. No `test-command`, one without `{tests}`, or a
+runner that only filters by name: refuse, naming `/mutation-testing:setup apply`. This is decided
+in Phase 0 and never switched mid-run.
+
+**Phase 0, in this order:** config; tool availability; the test set; which files are tests; the
+mapping; runner and regime; the dirty-target stop, on the mapped files; the regime gate with its
+refusal rule; one baseline run of the test set alone, which replaces the full-suite baseline (red
+stops the run; its wall-clock is the cost base); then the Phase 0 snapshot. A red test outside the
+set cannot kill these mutants, so it does not stop the run.
+
+**Phase 1.** Steps 2 and 3 key on the mapped-line set instead of the changed lines, so an arid
+record on a mapped node still applies. Step 4's selection is the test set, not every covering test.
+The effort cap, `--max` and `max-mutants` apply unchanged, and the estimate is the restricted
+baseline times the mutant count.
+
+**Phase 3.** Each mutant runs against the whole test set. There is no rerun after the loop; the
+flaky-test gotcha below states that limit.
+
+**Phase 4.** The brief hands over the whole test set for every survivor, not only the tests that
+reached it.
+
+**Phase 5.** The report carries the scope line, coverage and gap labeled with the same tests, and
+the blind-spot line ([`templates/report.md`](templates/report.md)). Coverage and gap come from the
+tool's no-coverage state only where the restriction keeps it; under the manual protocol both print
+`unknown` and files are listed in path order, never ranked on an assumed coverage. The blind spot
+is the one stated in the `principles` skill's
+[`theory.md`](../principles/reference/theory.md) "What a mutation score is evidence for": a test
+that copies the production formula kills the same mutants as one that states a literal, so a clean
+run does not clear a restated or copied expected value. That check belongs to the `testing`
+plugin's task-end judge rule `testing/judge/rule-restated-expectation`.
+
 ## The contract this skill holds
 
 Three properties, stated first because everything below depends on them:
@@ -86,7 +164,8 @@ Three properties, stated first because everything below depends on them:
 
 ## Phase 0: Preflight
 
-Refuse to proceed, with the specific remediation, when any of these fail:
+Refuse to proceed, with the specific remediation, when any of these fail. Under `--exercised`, run
+them in the order [The exercised scope](#the-exercised-scope---exercised) gives.
 
 - **Config missing** → `/mutation-testing:setup apply`.
 - **Tool unavailable** → `/mutation-testing:setup check` names the install line.
@@ -119,6 +198,9 @@ tool offers neither per-mutant observability nor interrupt safety: the gate that
 cannot be run, and a check that cannot run is not a check.
 
 ## Phase 1: Scope
+
+Under `--exercised`, step 1 is the mapped-line set and steps 2 to 4 change as
+[The exercised scope](#the-exercised-scope---exercised) states.
 
 1. Resolve the changed lines: `git diff --unified=0 <diff-target>...HEAD` for the files inside the
    configured `mutate` globs, intersected with any `--paths` or scope argument.
@@ -196,6 +278,21 @@ removing it. Hand over the artifact, the mutated line, its surrounding code, and
 covered it, never the reasoning that produced the mutant. The brief says it is done when every
 handed-over survivor has one of the three verdicts or is marked unclassified, and that it returns
 early rather than guess when the handed-over code is not enough to decide.
+
+**Every productive survivor also gets a cause**, assigned in the same brief, in both scopes, with a
+quoted line as its evidence:
+
+| Cause | Meaning | Evidence to quote |
+|---|---|---|
+| `no-assertion` | No assertion in the handed-over tests reaches the mutated value | The test's line range and the absence, or the only assertions present |
+| `input-gap` | An independent oracle exists, but no input tells the mutant apart | The assertion line and the inputs it uses |
+| `unclassified` | No quotable evidence, or the expected value comes from the code under test | What was missing, or the assertion line whose expected side calls the mutated code |
+
+The brief's tie-breaks: a weak, inert or mock-only assertion on the mutated value is `no-assertion`;
+a mutated line no handed-over test reaches is `input-gap`, because no input takes that branch; an
+expected value that reaches the mutated function, directly or through a helper, is `unclassified`,
+never `input-gap`, and names `testing/judge/rule-restated-expectation`, so the fix goes to the
+oracle rather than to a new input; a cause without a quote is `unclassified`.
 
 For the **equivalence** call specifically, prefer a cross-vendor advisor when one is installed and
 set up (invoked per its own documentation), falling back to the same-vendor fresh-context subagent.
@@ -323,6 +420,7 @@ the consumer surfaces such a row to a human rather than auto-applying it. The sp
 
 - Survivors remain and the killing tests are due: `/testing:write`.
 - A survivor is about to be called arid or equivalent: `/mutation-testing:principles`.
+- A clean exercised run: /testing:test-value.
 
 ## Gotchas
 
