@@ -109,8 +109,9 @@ user, `--settings` or managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`, and w
 route's limits below); no background job starts for a Bash call, so the Stop hook judges those
 tests itself. Test files written through an MCP tool are not recorded, so they are not judged. A
 test file in no git repository is not judged: the judge's reads are scoped to the repository, so
-it is reported UNKNOWN, "no repository". Open: whether a symbolic link inside the repository that
-points outside it lets the judge's scoped Read follow it out is not yet probed. A
+it is reported UNKNOWN, "no repository". A symbolic link inside the repository that points outside
+it does not widen the judge's reach: its scoped Read is checked against the link's resolved target
+and refused, and its Grep does not follow a linked directory (probe R2-P15). A
 glob added only through the consumer settings entry `/testing:setup check` prints
 (`test-scan.sh --enabled`) is recorded in the same state, so with both options on the Stop hook
 judges those tests at the task end, again with no background job ahead of it.
