@@ -443,7 +443,7 @@ hook::require_jq() {
   local event="$1" plugin="$2" input="${3:-}"
   if hook::notice_once "${plugin}-jq" "$input"; then
     hook::emit_skip_notice "$event" \
-      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it."
+      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it. Run /claude-ops:prerequisites to list every missing prerequisite."
   fi
   exit 0
 }
@@ -484,6 +484,7 @@ hook::require_jq_blocking() {
   else
     echo "Install jq (https://jqlang.org/download/) to restore the guard." >&2
   fi
+  echo "Run /claude-ops:prerequisites to list every missing prerequisite." >&2
   exit 2
 }
 
