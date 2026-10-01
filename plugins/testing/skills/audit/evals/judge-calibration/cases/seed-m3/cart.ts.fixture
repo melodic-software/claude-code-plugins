@@ -1,0 +1,17 @@
+export class Cart {
+  private readonly lines: { sku: string; price: number }[] = [];
+  private subtotal = 0;
+
+  add(line: { sku: string; price: number }): void {
+    this.lines.push(line);
+    this.subtotal = this.recalculate();
+  }
+
+  total(): number {
+    return this.subtotal;
+  }
+
+  private recalculate(): number {
+    return this.lines.reduce((sum, l) => sum + l.price, 0);
+  }
+}

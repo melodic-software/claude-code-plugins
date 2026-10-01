@@ -1020,14 +1020,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
     if (!["accept", "alt", "own", "defer", "hedged"].includes(k)) return null;
     const a = (q.alternatives || []).find(x => x.key === d.alt);
+    if (k === "alt" && a && !altsOf(q).includes(a)) return {re: true, kind: "accept", alt: null, keep: d.text || "", label: "Reconfirm", text: "the recommendation"};
     if (k === "alt" && !a) return null; // a revise removed the kept alternative: nothing to reconfirm
     const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : "deferred";
     return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text};
   }
+  const normAlt = t => String(t).toLowerCase().replace(/\(recommended\)/g, " ").split(/\s+/).filter(Boolean).join(" ").replace(/[.,;:!?)]+$/, "").trim();
+  function altsOf(q){ // alternatives minus any that restate the recommendation: those fold into Accept
+    const rec = normAlt(String(q.recommendation || "").trim().split("\n")[0]);
+    return (q.alternatives || []).filter(a => !(/\(recommended\)/i.test(a.text) || (rec && normAlt(a.text) === rec)));
+  }
   function choicesOf(q){
     const r = reconfirmOf(q), c = r ? [r] : [];
     c.push({kind: "accept", label: "Rec", text: firstLine(q.recommendation) || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
-    (q.alternatives || []).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
+    altsOf(q).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
     c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
     return c.map((x, i) => Object.assign(x, {n: i + 1}));
   }
@@ -1081,7 +1087,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     let more = "";
     if (q.facts) more += '<section class="blk"><h4>What we know</h4>' + md(q.facts) + "</section>";
-    if (q.alternatives && q.alternatives.length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + q.alternatives.map(a =>
+    if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
       '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
     if (more) h += '<details class="more" id="more"' + (lsGet("moreOpen", false) ? " open" : "") + "><summary>Details: what we know, alternatives</summary>" + more + "</details>";
     const hist = historyOf(q).filter(x => x.by !== "claude" || !lc || x.at !== lc.at || x.text !== lc.text); // the latest Claude reply is shown above, not again here
@@ -1608,7 +1614,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   const reEsc = k => String(k).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   function refOf(q, text){ // the one option a note names by a label the card shows (Rec, #1, option 2, (a)), else null: none, or several
-    const alts = q.alternatives || [], hits = new Map(), t = String(text || "");
+    const alts = altsOf(q), hits = new Map(), t = String(text || "");
     if (/(?:^|[\s,;(])(?:#|option\s+)1\b/i.test(t) || /(?:^|\W)Rec\b/.test(t)) hits.set("", {label: "Accept with note", kind: "accept", alt: null});
     for (const m of t.matchAll(/(?:^|[\s,;(])(?:#|option\s+)([2-9])\b/gi)) { const a = alts[+m[1] - 2]; if (a) hits.set(a.key, {label: "(" + a.key + ")", kind: "alt", alt: a.key}); } // option 2 was (a) while the rows were numbered
     alts.forEach(a => { if (new RegExp("(?:^|[\\s,;])\\(" + reEsc(a.key) + "\\)", "i").test(t)) hits.set(a.key, {label: "(" + a.key + ")", kind: "alt", alt: a.key}); });

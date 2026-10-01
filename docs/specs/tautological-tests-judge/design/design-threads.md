@@ -48,6 +48,9 @@ session (assistant lines carry `"model":"claude-opus-5-5"`); undocumented format
 Superseded 2026-09-30 (user, accuracy first): the defaults are `opus` at `medium`, fallback
 `sonnet`, until the Phase 4 sweep picks the most accurate arm (plan.md Open questions).
 
+Superseded 2026-10-01 (Phase 4 sweep): the defaults are `sonnet` at `low`, fallback `opus`
+(calibration.md, Chosen default).
+
 Amended 2026-09-30 (#5605 review): the judge's class must differ from every writer, not only the
 main transcript's model. Subagent assistant lines live only in
 `<session>/subagents/agent-<agent_id>.jsonl` (probe R2-P2), so the writer classes are the main
@@ -148,6 +151,17 @@ Report: Cohen's kappa for human vs model rater, and the judge's confusion matrix
 recall on FLAG, prevalence and UNKNOWN handling (RESEARCH-judge-validation, 2606.00093). Labels are
 trusted at human-vs-model kappa of at least 0.6 (Tier 2 "substantial"). The judge stays advisory
 (Q7); any promotion goes through `/planning:interview`.
+
+Amended 2026-10-01 (user, spec Q12): the user labels every case and those labels are the ground
+truth; two model raters (`opus`, and GPT through Codex when installed) each get a label column and
+are scored against the user, so the adjudicated column is dropped and the 0.6 kappa bar judges a
+rater, not the labels. The 30 FLAG and 30 PASS target stands as the goal; the set reports its
+achieved FLAG n with intervals instead of padding (plan Phase 4).
+
+Amended 2026-10-01 (user), later the same day: the user delegated labeling to a blind three-model
+panel (Opus `high`, Opus `xhigh`, GPT through Codex at `high`), and its consensus is the ground
+truth (`reference_label`) in place of the user's labels. The rater kappas are therefore measured
+against a reference that two Opus panel members helped make (calibration.md, Reference labels).
 
 ### DT10. Proposed-fix output (resolved)
 

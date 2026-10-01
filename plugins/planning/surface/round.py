@@ -442,8 +442,21 @@ def warn_bare_issue_refs(doc, label, value):
         )
 
 
+def norm_alt(text):
+    """Casefolded, whitespace-collapsed text without a (recommended) marker or trailing punctuation."""
+    t = " ".join(str(text).casefold().replace("(recommended)", " ").split())
+    return t.rstrip(".,;:!?)").strip()
+
+
+def restates_recommendation(alt_text, recommendation):
+    rec = norm_alt(str(recommendation).strip().partition("\n")[0])
+    return "(recommended)" in str(alt_text).casefold() or bool(
+        rec and rec == norm_alt(alt_text)
+    )
+
+
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
+    """Warnings, never refusals: R12 length budget, an alternative that restates the recommendation, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -455,6 +468,12 @@ def lint_questions(doc, qs):
                 f"{q['id']} recommendation runs {first} characters before its first sentence "
                 f"break (budget {REC_BUDGET}, R12)"
             )
+        for alt in q.get("alternatives") or []:
+            if restates_recommendation(alt.get("text", ""), rec):
+                warn(
+                    f"{q['id']} alternative ({alt.get('key')}) restates the recommendation; "
+                    "alternatives exclude it"
+                )
         basis = (q.get("basis") or "").strip()
         n = len([s for s in re.split(r"(?<=[.!?])\s+", basis) if s]) if basis else 0
         if n > BASIS_SENTENCES:

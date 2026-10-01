@@ -1,0 +1,11 @@
+export class JobQueue {
+  items: string[] = [];
+
+  push(job: string): void {
+    this.items.push(job);
+  }
+
+  next(): string | undefined {
+    return this.items.shift();
+  }
+}

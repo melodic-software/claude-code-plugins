@@ -1,0 +1,10 @@
+using Platform.AI.Abstractions.Generations;
+
+namespace Platform.AI.Abstractions.Resources;
+
+public sealed record UsageRecord(
+    DateTimeOffset Timestamp,
+    string ModelId,
+    UsageReport Usage,
+    string? SessionId = null,
+    string? UserId = null);

@@ -4171,24 +4171,6 @@
     },
     {
       "native": {
-        "name": "plugin-types",
-        "class": "builtin-command"
-      },
-      "component": {
-        "plugin": "code-metrics",
-        "skill": "audit-type-debt",
-        "kind": "skill"
-      },
-      "reason": "Writes TypeScript declarations for typing a hooks module versus measuring how much of a codebase is typed. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
-      "fingerprint": {
-        "native": "2815700c8d49b9fd250af8e8e9c1ce93",
-        "component": "9b7f7ee7a81309962e80efff0d8adba9"
-      }
-    },
-    {
-      "native": {
         "name": "pr",
         "class": "bundled-skill"
       },

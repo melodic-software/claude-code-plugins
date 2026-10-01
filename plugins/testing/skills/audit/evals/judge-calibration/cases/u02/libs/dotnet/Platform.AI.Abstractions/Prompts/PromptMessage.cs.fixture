@@ -1,0 +1,5 @@
+using Platform.AI.Abstractions.Content;
+
+namespace Platform.AI.Abstractions.Prompts;
+
+public sealed record PromptMessage(PromptRole Role, IReadOnlyList<PromptContent> Content);

@@ -1,0 +1,15 @@
+using Platform.Core.Errors;
+
+namespace Platform.AI.Abstractions.Errors;
+
+public abstract record AiError(string Code, string Description) : Error(Code, Description);
+
+public sealed record BudgetExceededError(string Code, string Description) : AiError(Code, Description);
+
+public sealed record ContentPolicyError(string Code, string Description) : AiError(Code, Description);
+
+public sealed record ContextOverflowError(string Code, string Description) : AiError(Code, Description);
+
+public sealed record ProviderQuotaExceededError(string Code, string Description) : AiError(Code, Description);
+
+public sealed record AiUnavailableError(string Code, string Description) : AiError(Code, Description);

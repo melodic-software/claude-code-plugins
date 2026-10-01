@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+import { X_POST_CHARACTER_LIMIT } from '../src/post';
+
+describe('post limits', () => {
+  it('caps a post at 280 characters', () => {
+    // expected value from the spec: posts are capped at 280 characters
+    expect(X_POST_CHARACTER_LIMIT).toBe(280);
+  });
+});

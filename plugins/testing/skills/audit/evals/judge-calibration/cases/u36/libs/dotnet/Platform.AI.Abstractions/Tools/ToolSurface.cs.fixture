@@ -1,0 +1,8 @@
+namespace Platform.AI.Abstractions.Tools;
+
+[Flags]
+public enum ToolSurface
+{
+    Internal = 1,
+    Mcp = 2,
+}

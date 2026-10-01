@@ -1,0 +1,81 @@
+using Platform.Core.Errors;
+
+namespace Platform.Core.Results;
+
+public class Result
+{
+    private static readonly Result _cachedSuccess = new(true, []);
+
+    protected Result(bool isSuccess, IReadOnlyList<Error> errors)
+    {
+        if (isSuccess && errors.Count > 0)
+        {
+            throw new ArgumentException("A successful result cannot have errors.", nameof(errors));
+        }
+
+        if (!isSuccess && errors.Count == 0)
+        {
+            throw new ArgumentException("A failed result must have at least one error.", nameof(errors));
+        }
+
+        IsSuccess = isSuccess;
+        Errors = errors;
+    }
+
+    public bool IsSuccess { get; }
+
+    public bool IsFailure => !IsSuccess;
+
+    public Error Error => IsFailure
+        ? Errors[0]
+        : throw new InvalidOperationException("Cannot access Error on a successful result.");
+
+    public IReadOnlyList<Error> Errors { get; }
+
+    public static Result Success() => _cachedSuccess;
+    public static Result Failure(Error error) => new(false, [error]);
+    public static Result Failure(Error[] errors) => new(false, [.. errors]);
+    public static Result Failure(ReadOnlySpan<Error> errors) => new(false, [.. errors]);
+    public static Result<TValue> Success<TValue>(TValue value) => new(value, true, []);
+    public static Result<TValue> Failure<TValue>(Error error) => new(default, false, [error]);
+    public static Result<TValue> Failure<TValue>(Error[] errors) => new(default, false, [.. errors]);
+    public static Result<TValue> Failure<TValue>(ReadOnlySpan<Error> errors) => new(default, false, [.. errors]);
+
+    public static Result<TValue> Create<TValue>(TValue? value, Error? notFoundError = null)
+        where TValue : class =>
+        value is not null
+            ? Success(value)
+            : Failure<TValue>(notFoundError ?? Error.NotFound("General.NotFound", "The requested resource was not found."));
+}
+
+public sealed class Result<TValue> : Result
+{
+    internal Result(TValue? value, bool isSuccess, IReadOnlyList<Error> errors)
+        : base(isSuccess, errors) =>
+        Value = value!;
+
+    public TValue Value
+    {
+        get => IsSuccess
+            ? field
+            : throw new InvalidOperationException("Cannot access Value on a failed result.");
+
+        private init;
+    }
+
+    public static implicit operator Result<TValue>(TValue? value) =>
+        value is not null ? Success(value) : Failure<TValue>(Error.Failure("Result.NullValue", "Value cannot be null."));
+
+    public static implicit operator Result<TValue>(Error error) => Failure<TValue>(error);
+
+    public TResult Match<TResult>(Func<TValue, TResult> onSuccess, Func<Error, TResult> onFailure) =>
+        IsSuccess ? onSuccess(Value) : onFailure(Error);
+
+    public Result<TResult> Map<TResult>(Func<TValue, TResult> map) =>
+        IsSuccess ? Success(map(Value)) : PropagateFailure<TResult>();
+
+    public Result<TResult> Bind<TResult>(Func<TValue, Result<TResult>> bind) =>
+        IsSuccess ? bind(Value) : PropagateFailure<TResult>();
+
+    private Result<TResult> PropagateFailure<TResult>() => new(default, false, Errors);
+}
