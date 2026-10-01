@@ -103,7 +103,7 @@ START=${EPOCHREALTIME:-}
 # and the cardinality check behind it is what makes the array read safe.
 hook::buffer_stdin_to INPUT '.transcript_path' '.session_id' || exit 0
 
-# Advisory finding -> fail open, with the standard once-per-session notice.
+# Advisory finding -> fail open, with the standard once per session and agent notice.
 hook::require_jq Stop claude-ops "$INPUT"
 
 # An absent field arrives as the empty string rather than as a non-zero return,

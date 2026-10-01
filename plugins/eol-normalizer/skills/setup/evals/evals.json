@@ -8,7 +8,7 @@
       "expected_output": "Routes to check (the default action) and reports a PASS/FAIL/INFO table covering the Bash floor, jq, git, the consumer .gitattributes eol= policy, the eol_normalizer_enabled toggle, and hook registration — with the git row explicitly flagged as the only visibility into a failure mode that emits no notice.",
       "files": [],
       "expectations": [
-        "Reports the asymmetry between the two FAIL-class tools: a missing jq makes the hook skip with a visible once-per-session notice, while a missing git produces NO notice at all — check-attr and repo-root resolution silently fail and the hook no-ops",
+        "Reports the asymmetry between the two FAIL-class tools: a missing jq makes the hook skip with a visible once per session and agent notice, while a missing git produces NO notice at all — check-attr and repo-root resolution silently fail and the hook no-ops",
         "States that this probe is the only visibility into the missing-git case",
         "Reads both the entry script and the sourced normalize-eol library as the source of truth, since the check-attr calls, repo-root anchoring, and the NUL-byte binary guard live in the sourced library",
         "Modifies nothing and confirms hook registration via /plugin Installed rather than parsing settings files"
