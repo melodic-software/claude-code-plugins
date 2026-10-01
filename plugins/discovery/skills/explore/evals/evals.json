@@ -173,6 +173,32 @@
         "A payload that echoed the token but omitted preload: is an out-of-date agent definition, not a pass, the same class as a missing scope_as_received",
         "The artifact set is still graded off disk against the parent's own slice path; fallback provenance changes nothing about the gate's remaining steps"
       ]
+    },
+    {
+      "id": 14,
+      "name": "prose-return-with-no-payload-block-is-a-failed-dispatch",
+      "prompt": "Explore the item-service command and query handlers before I unify them. [The dispatched discovery:explorer returns only prose: 'I did not have the exploration instructions in my context, so I summarized the handlers from what I could see.' There is no YAML payload block, no preload_token, and no artifact pointer.]",
+      "files": [],
+      "expected_output": "Treats the return as a failed dispatch. A missing payload block and a missing token are a discard, whatever the prose claims, and the prose summary is not used as the exploration result. Does not accept the run, does not write an artifact from the prose, and continues from the resume or re-dispatch rung.",
+      "expectations": [
+        "The return is graded as a failed dispatch because the payload block, the token and the artifact pointer are all absent",
+        "The missing token is a discard, not a downgrade: the prose summary is not accepted as the exploration result",
+        "The parent does not write EXPLORE.md or any sidecar from the prose",
+        "The ladder continues from the resume or re-dispatch rung rather than finishing the exploration inline from the prose"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "delivered-explorer-hand-back-is-graded-without-waiting",
+      "prompt": "Explore the currency-conversion entry point and its callers. [The dispatched discovery:explorer's final report has been delivered to you as a message, not as a tool result. It is a well-formed payload: matching preload_token, preload: fired, matching scope_as_received, status: complete, persistence: written, artifact: <the slice>/EXPLORE.md. check-dispatch-artifact.sh --index-name EXPLORE.md has not been run yet.]",
+      "files": [],
+      "expected_output": "Treats the delivered message as the explorer's final report and runs the acceptance gate against the slice on disk now. Does not wait, poll, or ask the explorer for the report again, and does not accept the run on the payload alone before the gate has been run.",
+      "expectations": [
+        "The delivered message is treated as the explorer's final report and graded immediately",
+        "The parent does not wait, poll, or re-dispatch to obtain a report it already holds",
+        "The acceptance gate (check-dispatch-artifact.sh against the parent's own slice path) is run before the run is accepted; the payload's own status: complete is not enough",
+        "The artifact set is graded off disk, not from the payload's description of it"
+      ]
     }
   ]
 }

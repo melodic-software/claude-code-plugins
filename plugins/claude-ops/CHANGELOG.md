@@ -9,6 +9,18 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`/claude-ops:machine-profile` records what this machine has and reports when it changes.** It discovers machine facts and per-tree identity domains, stores them as a profile with the observation behind every value, and diffs the stored profile against the host. Read-only unless the operator confirms: `record --confirm` writes the profile and `apply --confirm` prints what to hand to each setup. It never installs and never reapplies a stored value on its own.
 
+## [0.79.1] - 2026-10-01
+
+### Fixed
+
+- **A local declaration shadows an imported name in the inventory.** A name the module imports
+  but the reader's own enclosing block declares now resolves as a runtime value, not through the
+  import to the exporting module's value.
+- **A `for` head's `let`/`const` shadows outer names in the loop body.** `for (const x of ...)`,
+  `for (let i = 0; ...)` and `for await` bind their names for the body only, so a same-named
+  outer binding no longer supplies the value. This includes an unbraced loop body and a binding
+  named `of` or `in`.
+
 ## [0.79.0] - 2026-10-01
 
 ### Added
