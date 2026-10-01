@@ -138,6 +138,45 @@ class TestCommandExtraction(unittest.TestCase):
         src = 'var e="wrong";function t1t(e,n){return{type:"local-jsx",name:e,description:n}}'
         self.assertEqual(self._extract(src), {})
 
+    def test_a_name_bound_to_a_conditional_is_not_resolved(self) -> None:
+        # The 2.1.286 skill loader: `Vt` is bound to a conditional in the
+        # loader's own scope, so an unrelated `Vt="string"` far ahead is not
+        # what the literal reads.
+        src = (
+            'var Vt="string";'
+            + "z" * 5000
+            + 'function ld(e,xe){let $t=xe==="syncedSkills",Vt=$t?smt(e):e,'
+            'Jt={type:"prompt",name:Vt,description:"d"};return Jt}'
+        )
+        self.assertEqual(self._extract(src), {})
+
+    def test_a_name_bound_to_a_call_is_not_resolved(self) -> None:
+        src = (
+            'var Vt="string";function ld(e){let Vt=smt(e);'
+            'return{type:"prompt",name:Vt,description:"d"}}'
+        )
+        self.assertEqual(self._extract(src), {})
+
+    def test_a_constant_in_another_module_is_not_resolved(self) -> None:
+        src = _modules(
+            'var Vt="string";',
+            'var x={type:"prompt",name:Vt,description:"d"};',
+        )
+        self.assertEqual(self._extract(src), {})
+
+    def test_a_constant_in_scope_or_imported_resolves(self) -> None:
+        local = (
+            'var Vt="string";function ld(){let Vt="review";'
+            'return{type:"prompt",name:Vt,description:"d"}}'
+        )
+        self.assertEqual(list(self._extract(local)), ["review"])
+        imported = _modules(
+            'var Vt="review";export{Vt};',
+            'import{Vt}from"/$bunfs/root/chunk-a.js";'
+            'var x={type:"prompt",name:Vt,description:"d"};',
+        )
+        self.assertEqual(list(self._extract(imported)), ["review"])
+
     def test_internal_names_are_marked(self) -> None:
         src = 'x={type:"prompt",name:"mcp__",description:"d"};'
         self.assertTrue(self._extract(src)["mcp__"]["internal"])
@@ -561,6 +600,17 @@ class TestNameLocality(unittest.TestCase):
         )
         skills, _ = self._skills(src)
         self.assertIn("simplify", skills)
+
+    def test_a_nearer_non_constant_binding_shadows_a_constant(self) -> None:
+        src = (
+            self.HEAD
+            + 'var kYe="simplify";'
+            + "z" * 500
+            + 'function f(e){let kYe=e?g(e):"x";eo({name:kYe,menuDescription:"D"})}'
+        )
+        skills, notes = self._skills(src)
+        self.assertEqual(skills, {})
+        self.assertEqual(notes["unresolved_dynamic_names"], ["kYe"])
 
     def test_a_binding_after_the_registration_does_not_resolve_it(self) -> None:
         src = self.HEAD + 'eo({name:zz,menuDescription:"D"});var zz="later";'
@@ -1117,7 +1167,7 @@ TOOL_SRC = (
     'var Qz="Bash",at="Read",xt="Edit",hn="Write",wr="WebFetch";'
     'var k1="SendUserFile";var m1="memory_read";'
     "var Kl={isEnabled:()=>!0,isConcurrencySafe:(e)=>!1};"
-    'k1="system_assigned_identity";'
+    'function Ku(){let k1="system_assigned_identity";return k1}'
     '$t({name:Qz,searchHint:"execute shell commands",'
     "get maxResultSizeChars(){return 1},"
     'async description({description:e}){return e||"Run"},isEnabled(){return!0}});'
@@ -1159,12 +1209,22 @@ class TestBuiltinTools(unittest.TestCase):
 
     def test_pascal_case_binding_wins_over_a_nearer_snake_case_one(self) -> None:
         # `k1` is rebound to a snake_case string nearer the definition, as
-        # unrelated modules rebind minified names; a snake_case value is taken
+        # unrelated code rebinds minified names; a snake_case value is taken
         # only when no PascalCase binding precedes (`m1`).
         tools = self._extract()[0]
         self.assertIn("SendUserFile", tools)
         self.assertIn("memory_read", tools)
         self.assertNotIn("system_assigned_identity", tools)
+
+    def test_a_snake_case_rebinding_the_definition_reads_is_not_skipped(self) -> None:
+        # The definition reads the nearer rebinding, so the PascalCase
+        # binding behind it is not its name: unresolved, never guessed.
+        src = TOOL_SRC.replace(
+            "$t({name:k1,", 'k1="system_assigned_identity";$t({name:k1,'
+        )
+        tools, notes = self._extract(src)
+        self.assertNotIn("SendUserFile", tools)
+        self.assertIn("k1", notes["unresolved_names"])
 
     def test_descriptions_hints_and_names(self) -> None:
         tools = self._extract()[0]
@@ -1196,11 +1256,11 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertEqual(notes["unresolved_names"], ["zzq"])
 
     def test_resolve_tool_ident_honors_short_locality(self) -> None:
-        index = {"e": [(0, "Bash")]}
-        self.assertIsNone(
-            inv.resolve_tool_ident("e", inv.SHORT_IDENT_LOCALITY_BYTES + 10, index)
-        )
-        self.assertEqual(inv.resolve_tool_ident("e", 10, index), "Bash")
+        src = 'var e="Bash";' + "z" * (inv.SHORT_IDENT_LOCALITY_BYTES + 10)
+        braces = inv.build_brace_map(src)
+        index = inv.build_const_index(src, None, inv.TOOL_NAME_RE)
+        self.assertIsNone(inv.resolve_tool_ident(src, braces, "e", len(src), index))
+        self.assertEqual(inv.resolve_tool_ident(src, braces, "e", 20, index), "Bash")
 
 
 def _tool(src: str, name: str) -> dict:
@@ -1529,6 +1589,15 @@ class TestModuleScopedResolution(unittest.TestCase):
             'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`Use ${e} here`});',
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Use … here")
+
+    def test_a_tool_name_bound_to_a_conditional_is_not_resolved(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function f(e){let Qz=e?"Probe":"Other";'
+            '$t({name:Qz,maxResultSizeChars:1,description:"d"})}'
+        )
+        tools, _ = inv.extract_builtin_tools(src, inv.build_brace_map(src))
+        self.assertEqual(tools, {})
 
     def test_a_later_binding_resolves_only_inside_a_function_body(self) -> None:
         src = _modules(
