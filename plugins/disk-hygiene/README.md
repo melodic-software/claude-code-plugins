@@ -204,10 +204,13 @@ move commands Claude issues in the main session's Bash and PowerShell lanes. It 
 - Bash: `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find`, bare or by absolute path, plus
   an interpreter call of `hygiene.py`, `kill_switch_probe.py` or `release_belt.py` by its bundled
   path; a command that only mentions one of them does not reach the belt. Other commands (`git`,
-  `gh`, the repo-hygiene scripts) are not denied unless they contain `$()` or backticks, which
-  Claude Code checks against every wildcard-led pattern. What reaches the belt is denied unless it is an
-  exact bundled engine call, the argument-free kill-switch probe, a read-only supporting command, or
-  the release lever.
+  `gh`, the repo-hygiene scripts) are not denied. Claude Code also runs the guard on a command with
+  `$()` or a backtick; the guard reads its words, those included, and lets it through unless
+  one of its commands is a deletion verb or a bundled-script call, or it cannot be read to the end
+  (an unterminated quote, `$(` or heredoc, an unquoted heredoc, a command name built by expansion).
+  The body of a quoted heredoc that `cat`, `git` or `gh` reads is data, so a commit message may name
+  `rm`. What is denied is denied unless it is an exact bundled engine call, the argument-free
+  kill-switch probe, a read-only supporting command, or the release lever.
 - PowerShell: known deletion spellings get `ask`; engine invocations are denied.
 
 **Accepted cost.** The Bash lane is a deny-list, so a wrapped deletion passes it: a script, an
@@ -254,9 +257,9 @@ the `Stop` detector, which is the only process that can observe a guard that nev
   most about 2 MiB and never needs pruning. `command` and `reason` are secret-scrubbed, then clipped
   to 400 characters.
 - **Command text is omitted on the catch-all arms.** A PowerShell call recorded as `none` (belt mode,
-  no flagged spelling) and a Bash deny-by-default (`not-exact-engine-command`) persist
-  `command_chars` (length only) instead of the command text. Those branches fire on arbitrary
-  session commands.
+  no flagged spelling), a Bash command the belt deferred (`none`, `belt-no-deletion-shape`) and a
+  Bash deny-by-default (`not-exact-engine-command`) persist `command_chars` (length only) instead of
+  the command text. Those branches fire on arbitrary session commands.
 - **Owner-only.** The directory is created `0700` and the live file `0600`. Mode is reapplied on
   every write so a leftover world-readable file is tightened.
 - **Never a factor in a verdict.** An unwritable data root, a full disk, or any other write failure

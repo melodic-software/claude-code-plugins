@@ -834,13 +834,37 @@ Bash it registers one handler per `if` pattern, all running the same guard: `rm`
 belt. The plugin-level engine gate still sees every engine invocation shape, and in every session
 it reads a quoted argument whose first word is `hygiene.py` (`git commit -m 'hygiene.py ...'`) as
 an engine call and denies it. git, gh, the repo-hygiene
-scripts and other commands reach the guard only when they contain `$()` or backticks, which run
-every handler whose pattern starts with a wildcard, or when Claude Code cannot split the command,
-which runs every handler. A non-exact release call that no pattern matches, such as a relative
-`python3 release_belt.py` after `cd`, goes to the normal permission system instead of the guard's
-`ask`; the release marker is a plain file, so the lever's prompt is a visibility aid, not a boundary.
+scripts and other commands reach the guard only when they contain `$()` or a backtick,
+which run every handler whose pattern starts with a wildcard, or when Claude Code cannot split the
+command, which runs every handler. A non-exact release call that no pattern matches, such as a
+relative `python3 release_belt.py` after `cd`, goes to the normal permission system instead of the
+guard's `ask`; the release marker is a plain file, so the lever's prompt is a visibility aid, not a
+boundary.
 
-What reaches the guard is denied unless it is one of these:
+**Deferral.** A command that reaches the guard only because the filters cannot read it is read by
+`lib/belt_scan.py` and deferred: the guard issues no decision, emits `ok` telemetry and records
+`none` with rule `belt-no-deletion-shape` (length only, no command text), whether or not execution
+is enabled. The reader follows quotes, `$()`, backticks, subshells, `${}`, process substitution and
+heredocs, and counts a word as a command at the start, after `;`, `&`, `|`, a newline, `(`, `$(`, a
+backtick, `{`, `!`, `then`, `do`, `else`, `elif`, `if`, `while`, `until` and `time`, skipping
+`NAME=value` words. It does not defer a command that:
+
+- names `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` or `find` as a command, bare or by path,
+  in any case, with or without `.exe`, quotes or a backslash removed, anywhere inside `$()`,
+  backticks or a group;
+- has a command name built by an unquoted expansion or a glob, or is `case`;
+- runs `xargs` with a deletion verb among its words;
+- calls a bundled script, directly or as the word after a `python*` or `py` head;
+- fails the engine gate's relevance check;
+- cannot be read to the end: an unterminated quote, `$(`, backtick or heredoc, an unbalanced `)`, an
+  unquoted heredoc, or a heredoc read by anything but `cat`, `git` or `gh` or with more on its
+  opening line.
+
+The body of a quoted-delimiter heredoc that `cat`, `git` or `gh` reads is data, so a commit message
+may name `rm`. A command that is not deferred is denied as below. The tests run each shape through
+real bash with the deletion verbs stubbed and require that nothing bash runs was deferred.
+
+What reaches the guard and is not deferred is denied unless it is one of these:
 
 - an exact bundled engine call through the hook's absolute interpreter: scan, inventory, preview,
   handoff-verify and catalog are allowed, and apply and handoff-apply get `ask` (deny in audit-only
@@ -888,8 +912,8 @@ handler; and `if` does not match a redirection or the `&` call operator. A patte
 command's words with their quotes removed, so `*py* */clean/scripts/release_belt.py *` matches
 `"<python>" "<root>/skills/clean/scripts/release_belt.py" --data-root ...` (with a `python3.14`,
 `python.exe` or `py.exe` head) and not `git commit -m 'release_belt.py'`; a pattern starting with
-a wildcard (`*/rm *`, the three script patterns) also runs on any command containing `$()`, while
-`Bash(rm *)` does not. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
+a wildcard (`*/rm *`, the three script patterns) also runs on any command containing `$()` or a
+backtick, while `Bash(rm *)` does not and `echo $HOME` ran none of them. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
 hooks use the same configuration format as settings hooks), the `if` field and its Bash matching
 table (patterns that specify more than the command name run on `$()`); the page does not say
 whether `if` applies in frontmatter or how quotes are treated, so the per-handler behavior and the

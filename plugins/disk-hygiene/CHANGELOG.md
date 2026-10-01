@@ -7,7 +7,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Changed
 
-- **The `clean` session belt governs deletion shapes only** ([#3856](https://github.com/melodic-software/claude-code-plugins/issues/3856)). The Bash lane registers one handler per deletion-shape `if` (`rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find`, bare or by absolute path) plus the bundled scripts, so `git`, `gh`, the repo-hygiene scripts and other commands are no longer denied for the rest of the session. What reaches the belt is still denied unless it is an exact engine call, the kill-switch probe, a read-only supporting command or the release lever. The Bash lane is now a deny-list, so a wrapped deletion (a script, an interpreter, `bash -c`, `env`, `git rm`) passes it; the owner accepted that cost. The PowerShell lane is unchanged and both lanes govern deletion shapes. Subagents are still not reached, a documented decision: widening the plugin gate to them is separate.
+- **The `clean` session belt governs deletion shapes only** ([#3856](https://github.com/melodic-software/claude-code-plugins/issues/3856)). The Bash lane registers one handler per deletion-shape `if` (`rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find`, bare or by absolute path) plus the bundled scripts, so `git`, `gh`, the repo-hygiene scripts and other commands are no longer denied for the rest of the session. Claude Code also runs the guard on any command that contains `$()` or a backtick, such as `git commit -m "$(cat <<'EOF' ...)"`; the guard reads those words, `$()` and backticks included, and defers the command unless one of its commands is a deletion verb or a bundled-script call, or it cannot be read to the end. What is denied is still denied unless it is an exact engine call, the kill-switch probe, a read-only supporting command or the release lever. The Bash lane is now a deny-list, so a wrapped deletion (a script, an interpreter, `bash -c`, `env`, `git rm`) passes it; the owner accepted that cost. The PowerShell lane is unchanged and both lanes govern deletion shapes. Subagents are still not reached, a documented decision: widening the plugin gate to them is separate.
 
 ### Added
 
@@ -15,7 +15,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **The belt's script filters match interpreter calls only.** The three script `if` patterns (`hygiene.py`, `kill_switch_probe.py`, `release_belt.py`) used to match any command containing the file name, so `git commit -m 'hygiene.py'` or `cat` of a script reached the belt. They now match only a `py*` interpreter calling the bundled script path. A command containing `$()` or backticks still reaches the belt through every wildcard-led filter and is denied; the README and safety model state this.
+- **The belt's script filters match interpreter calls only.** The three script `if` patterns (`hygiene.py`, `kill_switch_probe.py`, `release_belt.py`) used to match any command containing the file name, so `git commit -m 'hygiene.py'` or `cat` of a script reached the belt. They now match only a `py*` interpreter calling the bundled script path.
 - **The README, safety model and `clean` skill state the belt's threat model, governed shapes, accepted gaps and subagent behavior.** An earlier release note called the belt's subagent reach "inconsistent"; the 0.29.0 entry now says it does not reach subagents, as the 2.1.285 probe showed.
 
 ## [0.42.2] - 2026-09-30

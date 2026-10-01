@@ -63,6 +63,7 @@ if str(_LIB_DIR) not in sys.path:
 if str(Path(__file__).resolve().parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import belt_scan  # noqa: E402  (path set above; plugin-bundled module)
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import guard_decision_log  # noqa: E402  (path set above; plugin-bundled module)
 import hook_telemetry  # noqa: E402  (path set above; plugin-bundled module)
@@ -1107,7 +1108,9 @@ def resolve_mode() -> str:
     ``belt`` (default) is the skill-frontmatter deployment: the skill's ``if``
     filters send only deletion-shaped Bash commands here, and each one is denied
     unless it is an exact engine call, the small read-only supporting allowlist,
-    the release lever, or the session's belt is released; PowerShell keeps its
+    the release lever, or the session's belt is released. A command that
+    reaches it only because it carries ``$()`` or a backtick defers when no
+    command in it is a deletion verb (``belt_scan``). PowerShell keeps its
     deletion-spelling discipline. Claude Code registers skill-frontmatter
     ``PreToolUse`` hooks for the rest of the session after the skill is invoked
     (#2618). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
@@ -2432,10 +2435,12 @@ def _bash_denial_guidance(
         "truncate, mv and find, bare or by absolute path, and engine calls) are "
         "denied unless they are "
         + grammar
-        + " Other Bash commands, git and gh included, reach this belt only "
-        "when they run the engine, probe or release script through an "
-        "interpreter, contain $() or backticks, or cannot be split into their "
-        "parts by Claude Code; then they are denied too. "
+        + " Other Bash commands, git and gh included, are not denied. A "
+        "command with $() or backticks is read word by word, those "
+        "included, and denied only when one of its commands is a deletion "
+        "verb or a bundled-script call, or it cannot be read to the end (an "
+        "unterminated quote, $( or heredoc, an unquoted heredoc, a command "
+        "name built by expansion). "
         "For read-only listing, use the Glob or Grep tools or an absolute-path "
         "find without side-effect primaries. " + lever
     )
@@ -3111,6 +3116,22 @@ def _decide(
             f"{', '.join(readonly[:-1])}, and {readonly[-1]} invocations are "
             "permitted.",
         )
+    if (
+        belt
+        and belt_scan.defers(command)
+        and not _engine_gate_relevant(command, tool_name)
+    ):
+        # Reached here by an `if` filter that cannot tell a deletion verb from
+        # `$()` or a backtick (git, gh and the repo-hygiene scripts run
+        # those): no command in it is a deletion verb or a bundled-script call.
+        _emit_guard_telemetry(start, tool_name, "ok")
+        _record_decision(
+            command,
+            tool_name,
+            guard_decision_log.DECISION_NONE,
+            "belt-no-deletion-shape",
+        )
+        return 0
     if belt and _RELEASE_MARKER in command:
         if is_exact_release_invocation(command, authority, session_id) and enabled:
             return _settle(
