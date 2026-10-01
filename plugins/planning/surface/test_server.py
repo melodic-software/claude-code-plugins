@@ -599,6 +599,15 @@ class TestFinishAndPort(unittest.TestCase):
         self.assertNotIn("finished", second["questions"])
         self.assertNotEqual(first["instance"], second["instance"])
 
+    def test_a_new_server_drops_the_context_badge_and_handoff(self):
+        s = self.start()
+        self.ops({"op": "context", "percent": 72, "zone": "amber"}, {"op": "context", "handoff": "Resume from x"})
+        self.assertIn("context", self.state(s)["questions"])
+        run_round(self.dir, "stop")
+        second = self.state(self.start())["questions"]
+        self.assertNotIn("context", second)
+        self.assertNotIn("handoff", second)
+
     def test_add_round_withdraws_the_finish(self):
         self.ops({"op": "finish"})
         rc, out = self.ops({"op": "add", "question": {**FINISH_Q}})

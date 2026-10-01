@@ -58,7 +58,9 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .notice[hidden]{display:none}
 .notice span{overflow:hidden;text-overflow:ellipsis}
 #reBanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
-#reBanner[hidden],.ntoast[hidden]{display:none}
+#reBanner[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
+.ctx{font:500 12.5px/1 var(--mono);font-variant-numeric:tabular-nums;padding:6px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);white-space:nowrap}
+.handoff{margin-top:6px;padding:6px 10px;border:1px solid var(--accent);border-radius:6px;color:var(--ink);background:var(--accent-soft);font-size:13.5px;overflow-wrap:anywhere}
 .ntoast{position:fixed;left:16px;bottom:16px;z-index:40;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:min(440px,calc(100vw - 32px));border:1px solid var(--chg);background:var(--panel);border-radius:8px;padding:8px 12px;box-shadow:0 4px 18px rgba(0,0,0,.25);font-size:13.5px;pointer-events:none}
 .ntoast button{pointer-events:auto}
 .rediff .diff{white-space:pre-wrap;max-height:none}
@@ -387,10 +389,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     </div>
     <div class="hrow2">
       <span class="pill offline" id="pill" aria-live="off">Connecting</span>
+      <span class="ctx" id="ctxBadge" title="Context used" hidden></span>
       <button class="cline" id="claudeLine" aria-live="polite" title="Open the Activity panel (l)" hidden><span id="clText"></span><span class="age" id="clAge" aria-hidden="true"></span></button>
       <div class="notice" id="notice" hidden></div>
     </div>
     <div class="banner" id="reBanner" hidden></div>
+    <div class="handoff" id="hoBanner" role="status" hidden></div>
   </header>
   <div class="layout" id="layout">
     <nav class="rail" aria-label="Questions">
@@ -500,6 +504,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const lsGet = (k, d) => { try { const v = localStorage.getItem("iv2:" + S.session + ":" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
   const lsSet = (k, v) => { try { if (v === undefined || v === null) localStorage.removeItem("iv2:" + S.session + ":" + k); else localStorage.setItem("iv2:" + S.session + ":" + k, JSON.stringify(v)); } catch (e) {} };
   const finLoad = () => { try { return JSON.parse(localStorage.getItem("iv2:finish") || "null"); } catch (e) { return null; } }; // one key per origin, which is one data dir's port; it carries the data-dir id
+  const hoLoad = () => { try { return JSON.parse(localStorage.getItem("iv2:handoff") || "null"); } catch (e) { return null; } }; // keyed like the finish: one origin is one data dir's port
+  const hoSave = v => { try { if (v) localStorage.setItem("iv2:handoff", JSON.stringify(v)); else localStorage.removeItem("iv2:handoff"); } catch (e) {} };
   const finSave = v => { try { if (v) localStorage.setItem("iv2:finish", JSON.stringify(v)); else localStorage.removeItem("iv2:finish"); } catch (e) {} };
   function localSettings(){ try { return JSON.parse(localStorage.getItem("iv2:settings") || "{}") || {}; } catch (e) { return {}; } }
   function setLocal(k, v){ const o = localSettings(); if (v === undefined) delete o[k]; else o[k] = v; try { localStorage.setItem("iv2:settings", JSON.stringify(o)); } catch (e) {} applySettings(); }
@@ -853,6 +859,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("claudeLine").hidden = !ct;
     if ($("clText").textContent !== ct) $("clText").textContent = ct;
     if ($("clAge").textContent !== age) $("clAge").textContent = age;
+    const cx = S.doc.context, cb = $("ctxBadge"), cl = cx ? cx.percent + "% " + cx.zone : ""; // a display only: it feeds no Needs-you count, toast or title
+    cb.hidden = !cx; cb.textContent = cl; cb.setAttribute("aria-label", cx ? "Context used: " + cl : "Context used");
+    setHtml($("hoBanner"), S.handoff ? "<b>The interview continues:</b> " + esc(S.handoff.text) : ""); $("hoBanner").hidden = !S.handoff;
     renderNotice(); renderReBanner(); renderNeedToast();
     const na = openAssumptions(), ac = $("assumeCount"), u = uState(), sure = !!(u && u.alt === "confirm"), unticked = na + (na === 1 ? " commitment" : " commitments");
     ac.hidden = !na; ac.classList.toggle("long", sure); // confirming the understanding ticks no commitment: say so, so the count does not read as a failed Confirm
@@ -1841,6 +1850,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const kept = finLoad();
     if (S.finished) { if (!kept || kept.session !== S.session || (kept.finished || {}).at !== S.finished.at) finSave({session: S.session, finished: S.finished}); }
     else if (kept) finSave(null); // a resumed interview has no finish, and a finish kept for another data dir on this port is not this one's
+    S.handoff = S.doc.handoff || null; // kept like the finish: in memory while offline, in localStorage for a tab that loads offline
+    const keptHo = hoLoad();
+    if (S.handoff) { if (!keptHo || keptHo.session !== S.session || (keptHo.handoff || {}).at !== S.handoff.at) hoSave({session: S.session, handoff: S.handoff}); }
+    else if (keptHo) hoSave(null);
     Q = {}; S.doc.questions.forEach(q => Q[q.id] = q);
     const fresh = S.actKeys ? acts().filter(e => !S.actKeys.has(actKey(e)) && needsAct(e)) : []; // only what needs the user, and never what the first load already held
     S.actKeys = new Set(acts().map(actKey));
@@ -1881,7 +1894,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     showFinish();
     if (fresh.length) needToast(fresh);
   }
-  function restoreFinish(){ // the state call failed before the first state arrived: show the finish this browser kept
+  function restoreFinish(){ // the state call failed before the first state arrived: show the finish and handoff this browser kept
+    const h = hoLoad(); if (!S.loaded && h && h.handoff) { S.handoff = h.handoff; renderHeader(); }
     const k = finLoad(); if (S.loaded || !k || !k.finished) return;
     S.session = k.session || ""; S.finished = k.finished;
     $("answer").hidden = true; $("dscroll").innerHTML = finishedHtml(S.finished);

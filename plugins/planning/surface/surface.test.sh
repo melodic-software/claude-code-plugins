@@ -235,7 +235,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun() { pw run-code --filename "$(script_path "$tmp/uj$1.js")" >"$tmp/uj$1.out" 2>&1; }
   jrun 1
   jhandle
-  japply a '{"ops": [{"op": "reply", "id": "Q4", "text": "Slow means over five minutes per run."}]}'
+  japply a '{"ops": [{"op": "reply", "id": "Q4", "text": "Slow means over five minutes per run."}, {"op": "context", "percent": 78, "zone": "amber"}]}'
   japply b '{"ops": [{"op": "wait", "id": "Q3", "waitsOn": "the retry benchmark", "by": "claude"},
     {"op": "wait", "id": "Q5", "waitsOn": "whether the version must be pinned to the lock file or float with each new runner image release", "by": "user"},
     {"op": "set-status", "text": "Researching the retry benchmark for Q3"}]}'
@@ -319,7 +319,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   # starts it again on the same data dir, which must keep its port (phase 20 reads the restart).
   jrun 17
   japply o '{"ops": [{"op": "set-status", "text": "Done: the Brief is written"},
-    {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."}]}'
+    {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."},
+    {"op": "context", "handoff": "Resume from docs/handoff.md in a fresh session."}]}'
   jrun 18
   bash "$here/round.sh" --dir "$j" stop >/dev/null
   jrun 19
@@ -331,7 +332,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  browser=439 journey=214
+  browser=446 journey=221
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

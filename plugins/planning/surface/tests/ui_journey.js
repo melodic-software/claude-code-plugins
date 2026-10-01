@@ -40,6 +40,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the Claude line is its own polite live region showing the newest entry", /^Round 1 added: Q1, Q2, Q3, Q4, Q5/.test(await text("#claudeLine")) && await page.$eval("#claudeLine", el => el.getAttribute("aria-live")) === "polite" && await page.$eval("#pill", el => el.getAttribute("aria-live")) === "off", await text("#claudeLine"));
     ok("groups with open questions start expanded", await page.$$eval(".rail-list .sec", els => els.length === 2 && els.every(e => e.dataset.collapsed === "false")));
     ok("the first open question is selected", await sel() === "Q1", await sel());
+    ok("before any context op the context badge and the handoff banner are absent", await page.$eval("#ctxBadge", el => el.hidden) && await page.$eval("#hoBanner", el => el.hidden));
 
     // answer
     await arm("a"); await tap("[data-save]", 700);
@@ -114,10 +115,12 @@ async page => { // the user journey in order on one page, no reload after phase 
 
     // the seen marker, the notice and the reply to the ask
     ok("two unseen entries badge Activity and dot the rows they name", await badge() === 2 && await dot("Q4") && await dot("Q3") && await dot("Q5"), "badge " + await badge());
+    ok("the context badge reads the percent and the zone as sent, with a Context used label, and adds nothing to the Activity count or the tab title", await page.$eval("#ctxBadge", el => !el.hidden && el.textContent === "78% amber" && el.title === "Context used" && /^Context used/.test(el.getAttribute("aria-label"))) && await badge() === 2 && !/^\(/.test(await page.title()), await text("#ctxBadge") + " / " + await badge());
     ok("the notice digests the newest unseen entry and is not a live region", /Q3 pending research/.test(await text("#notice")) && /\+1 more/.test(await text("#notice")) && !(await page.$eval("#notice", el => el.getAttribute("aria-live"))), await text("#notice"));
     ok("Claude's reply shows as the rail preview on Q4", /^Claude: Slow means over five minutes per run/.test(await text('.qbtn[data-q="Q4"] .qprev')), await text('.qbtn[data-q="Q4"] .qprev'));
     await pick("Q4");
     ok("visiting Q4 clears its dot and lowers the badge by the entry naming it", !(await dot("Q4")) && await badge() === 1 && await dot("Q3"), "badge " + await badge());
+    ok("the context badge is unchanged when the Needs-you count falls", (await text("#ctxBadge")) === "78% amber" && await page.$eval("#ctxBadge", el => !el.hidden));
     ok("the detail shows Claude's reply above the recommendation", await page.evaluate(() => { const l = document.getElementById("latest"), r = document.querySelector(".recbox"); return !!l && !!r && /Slow means/.test(l.textContent) && !!(l.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING); }));
 
     // Claude researches
@@ -592,8 +595,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     await p2.route(/\/(api\/state|events)(\?.*)?$/, r => r.abort());
     await p2.goto(base);
     const kept = await p2.waitForFunction(() => document.getElementById("finDlg").open, null, {timeout: 8000}).then(() => true).catch(() => false);
-    const k2 = kept ? await p2.evaluate(() => ({body: document.getElementById("finBody").innerText, page: document.getElementById("dscroll").innerText, pill: document.getElementById("pill").textContent})) : null;
+    const k2 = kept ? await p2.evaluate(() => ({body: document.getElementById("finBody").innerText, page: document.getElementById("dscroll").innerText, pill: document.getElementById("pill").textContent, ho: document.getElementById("hoBanner").hidden ? "" : document.getElementById("hoBanner").innerText})) : null;
     await p2.close();
+    ok("a tab that loads while the server is unreachable shows the handoff this browser kept", !!k2 && /docs\/handoff\.md/.test(k2.ho), JSON.stringify(k2 && k2.ho));
+    ok("the handoff banner shows the handoff text", await page.$eval("#hoBanner", el => !el.hidden && /^The interview continues: Resume from docs\/handoff\.md in a fresh session\.$/.test(el.innerText)), await text("#hoBanner"));
     ok("a tab that cannot reach the server shows the finish this browser kept", !!k2 && /docs\/PLAN\.md/.test(k2.body) && /docs\/PLAN\.md/.test(k2.page) && k2.pill === "Interview finished: server stopped", JSON.stringify(k2));
     const d = await page.evaluate(() => { const el = document.getElementById("finDlg"); return {open: el.open, title: document.getElementById("finTitle").textContent, body: document.getElementById("finBody").innerText}; });
     ok("the finish opens a modal with the Brief path, the next step and that the tab can be closed", d.open && d.title === "Interview complete" && /docs\/PLAN\.md/.test(d.body) && /Run the plan with the next step/.test(d.body) && /You can close this tab/.test(d.body) && /The interview is complete/.test(d.body), JSON.stringify(d));
@@ -617,6 +622,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("after stop the pill reads Interview finished: server stopped, not a lost connection", off, await text("#pill"));
     ok("the pill is not a warning and says why on hover", await page.$eval("#pill", el => el.className === "pill rest" && /finished/.test(el.title)), await page.$eval("#pill", el => el.className + " | " + el.title));
     ok("the terminal status stays visible while offline", (await text("#clText")) === "Done: the Brief is written", await text("#clText"));
+    ok("the handoff banner and the context badge stay while the server is stopped", await page.$eval("#hoBanner", el => !el.hidden && /docs\/handoff\.md/.test(el.innerText)) && (await text("#ctxBadge")) === "78% amber", await text("#hoBanner"));
     await tap("#sumBtn", 300);
     ok("the finished state stays on the summary", !!(await page.$("#finished")) && /docs\/PLAN\.md/.test(await text("#finished")));
   }
@@ -625,6 +631,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("after a restart on the kept port the pill says the server restarted and to reload", re && await page.$eval("#pill", el => el.className === "pill offline"), await text("#pill"));
     ok("the new server carries no finish", !(await state()).questions.finished);
     ok("a resumed interview drops the finish this browser kept", await page.evaluate(() => localStorage.getItem("iv2:finish")) === null);
+    ok("a new server that sends no handoff drops the banner and the kept handoff", await until(() => document.getElementById("hoBanner").hidden && document.getElementById("ctxBadge").hidden && localStorage.getItem("iv2:handoff") === null, 8000), await text("#hoBanner"));
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/ERR_INTERNET_DISCONNECTED|ERR_CONNECTION_(REFUSED|RESET)/.test(e));
   ok("zero console errors in journey phase " + PHASE + " (besides the network lines for an intended 409, the offline step and the stopped server)", real.length === 0, errors.join(" | "));

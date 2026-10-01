@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.57.1] - 2026-10-01
+## [0.58.1] - 2026-10-01
 
 ### Fixed
 
 - **The interview page no longer says `Sent to Claude` while no session holds the watcher lease.** The chip, the rail receipt and the working line read `No session is listening; type next in the terminal` until a watcher is armed ([#5714](https://github.com/melodic-software/claude-code-plugins/issues/5714)).
+
+## [0.58.0] - 2026-10-01
+
+### Added
+
+- **A `context` op reports the session's context level, and the page header shows it as a badge.** The op carries a percent and a zone word, which the page prints as sent; the badge is absent until the first report, readable in both themes, and not a Needs-you item. A `handoff` field on the op raises a banner saying where the interview continues, and the page keeps that banner in the browser the same way it keeps the finish text ([#5713](https://github.com/melodic-software/claude-code-plugins/issues/5713)).
 
 ## [0.57.0] - 2026-10-01
 
