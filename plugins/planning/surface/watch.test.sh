@@ -7,7 +7,8 @@
 # skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
 # the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
 # (WAIT_FAILS=1), the one-watcher lease (a second watcher exits 3 naming the holder; a stale
-# lease is reclaimed after leaseTimeout), and the fallback watcher id and a release mid-wait.
+# lease is reclaimed after leaseTimeout), the fallback watcher id and a release mid-wait, and
+# round.sh stop ending the data dir's watch.sh (the lease records its pid).
 set -u
 # Every watcher in the suite is one session unless a case names another.
 export WATCH_ID=suite
@@ -28,6 +29,7 @@ abs_dir() { (cd "$1" 2>/dev/null && { pwd -W 2>/dev/null || pwd; }); }
 odd="$(abs_dir "$tmp")/odd \$(true) \`x\` it's"
 cleanup() {
   bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1
+  if [[ -d "$tmp/fast" ]]; then bash "$here/round.sh" --dir "$tmp/fast" stop >/dev/null 2>&1; fi
   if [[ -d "$tmp/lease" ]]; then bash "$here/round.sh" --dir "$tmp/lease" stop >/dev/null 2>&1; fi
   if [[ -d "$odd" ]]; then bash "$here/round.sh" --dir "$odd" stop >/dev/null 2>&1; fi
   case "$tmp" in
@@ -411,8 +413,55 @@ else
   bad "watcher id and release: not run (no lease server)"
 fi
 
-# (d) server gone: stop it, put the old env file back, and expect exit 2 after one failed poll
+# (n) item 15 AC3: round.sh stop ends this data dir's watch.sh within 10 s, and a process that is
+# not a watch.sh survives it (a lease pid is never trusted without the command line).
+bash "$here/watch.sh" "$d" >"$tmp/n.out" 2>"$tmp/n.err" &
+wpid=$!
+# An earlier case may leave a waiter on this server, so wait for this watcher's own pid.
+lease_pid=''
+end=$((SECONDS + 10))
+while [[ "$lease_pid" != "$wpid" && "$SECONDS" -lt "$end" ]]; do
+  lease_pid=$(curl -s "http://127.0.0.1:$PORT/api/state" | sed -n 's/.*"lease": {[^}]*"pid": \([0-9]*\).*/\1/p')
+  sleep 0.1
+done
+if [[ "$lease_pid" == "$wpid" ]]; then ok "the lease records the watcher pid"; else bad "lease pid '$lease_pid' != watcher $wpid"; fi
 if bash "$here/round.sh" --dir "$d" stop >/dev/null 2>&1; then ok "round.sh stop stops the server"; else bad "round.sh stop failed"; fi
+end=$((SECONDS + 10))
+while kill -0 "$wpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do sleep 0.1; done
+if kill -0 "$wpid" 2>/dev/null; then
+  bad "round.sh stop left watch.sh $wpid running after 10 s"
+  kill "$wpid" 2>/dev/null
+else
+  ok "round.sh stop ended the data dir's watch.sh"
+fi
+wait "$wpid" 2>/dev/null
+
+# (o) a refused poll after the env file is gone is a clean stop: exit 3 at once, not 12 retries
+# 5 s apart. The server is killed directly, so only watch.sh's own check can end the watcher.
+fast="$tmp/fast"
+mkdir -p "$fast"
+if bash "$here/round.sh" --dir "$fast" ensure-running --port 0 >/dev/null 2>&1; then
+  bash "$here/watch.sh" "$fast" >"$tmp/o.out" 2>"$tmp/o.err" &
+  wpid=$!
+  until_waiting "$(sed -n 's/^PORT=//p' "$fast/.interview-session.env" | tr -d '\r')"
+  spid=$(sed -n 's/.*"pid": *\([0-9]*\).*/\1/p' "$fast/.interview-session.json")
+  rm -f "$fast/.interview-session.env"
+  kill "$spid" 2>/dev/null
+  end=$((SECONDS + 10))
+  while kill -0 "$wpid" 2>/dev/null && [[ "$SECONDS" -lt "$end" ]]; do sleep 0.1; done
+  if kill -0 "$wpid" 2>/dev/null; then
+    bad "watch.sh kept retrying after a clean stop"
+    kill "$wpid" 2>/dev/null
+  else
+    wait "$wpid"
+    rc=$?
+    if [[ "$rc" -eq 3 ]] && grep -q "stopped" "$tmp/o.err"; then ok "watch.sh exits 3 at once on a refused poll after a clean stop"; else bad "clean stop: rc=$rc err=$(cat "$tmp/o.err")"; fi
+  fi
+else
+  bad "clean-stop case: no server"
+fi
+
+# (d) server gone: put the old env file back, and expect exit 2 after one failed poll
 cp "$tmp/env.saved" "$d/.interview-session.env"
 WAIT_FAILS=1 bounded 15 "$tmp/d.out" "$tmp/d.err" bash "$here/watch.sh" "$d"
 rc=$?

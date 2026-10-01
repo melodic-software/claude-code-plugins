@@ -26,6 +26,24 @@
       "additionalProperties": false,
       "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
     },
+    "context": {
+      "description": "How full the session's context is, set and cleared by the context op.",
+      "type": "object",
+      "required": ["percent", "zone", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "percent": {"type": "integer", "minimum": 0, "maximum": 100},
+        "zone": {"type": "string"},
+        "at": {"type": "string"}
+      }
+    },
+    "handoff": {
+      "description": "Where the interview continues, set by the context op's handoff and cleared by its clear.",
+      "type": "object",
+      "required": ["text", "at"],
+      "additionalProperties": false,
+      "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
+    },
     "activity": {
       "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched, `notes` marks a reply in Notes to Claude, `added` marks an `add` or `add-round`, `finished` marks the finish op, and `restate` carries the restatement rev a `restate` wrote.",
       "type": "array",
@@ -178,6 +196,7 @@
         "kind": {"type": ["string", "null"]},
         "text": {"type": "string"},
         "replyTo": {"type": "integer"},
+        "needsAnswer": {"type": "boolean", "description": "On a Notes line: Claude needs the user's answer, so the page pins it as a loose end with a reply box."},
         "affects": {"type": "array", "items": {"type": "string"}},
         "pageSeq": {
           "type": "integer",

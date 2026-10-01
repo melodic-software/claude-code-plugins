@@ -9,6 +9,11 @@
       "name": "jq",
       "check": "/actionlint:check",
       "install": "install jq from https://jqlang.org/download/"
+    },
+    {
+      "name": "node",
+      "check": "/actionlint:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
     }
   ]
 }

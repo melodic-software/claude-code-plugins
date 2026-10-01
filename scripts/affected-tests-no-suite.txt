@@ -134,3 +134,15 @@ LICENSE
 # fixture that does not resolve. A fixture that a shell suite genuinely names is
 # still selected by the reference rule before this line is consulted.
 plugins/*/evals/fixtures/*.txt
+
+# The task-end judge's calibration cases: test and production code copied
+# verbatim from other repositories' histories, read as data by the judge, never
+# run. The lane covering them is the testing plugin's shell lane: metrics.test.sh
+# checks that every case file has a labels.tsv row and every row's file exists.
+plugins/testing/skills/audit/evals/judge-calibration/cases/*
+
+# The calibration sweep's kept verdict, cost and wall-time files: recorded model
+# output, never run, from which `metrics.sh --table` reprints calibration.md's
+# sweep table. The lane covering the code that reads them is the testing
+# plugin's shell lane: metrics.test.sh tests --table and --rerun on stub sweeps.
+plugins/testing/skills/audit/evals/judge-calibration/sweep/*

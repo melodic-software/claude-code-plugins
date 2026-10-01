@@ -3,11 +3,53 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.56.4] - 2026-10-01
+## [0.58.4] - 2026-10-01
 
 ### Changed
 
 - Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+
+## [0.58.3] - 2026-10-01
+
+### Fixed
+
+- **The interview page no longer says `Sent to Claude` while no session holds the watcher lease.** The chip, the rail receipt and the working line read `No session is listening; type next in the terminal` until a watcher is armed, and the server pushes a frame when a lease expires so an open page does not keep a dead watcher's lease ([#5714](https://github.com/melodic-software/claude-code-plugins/issues/5714)).
+
+## [0.58.2] - 2026-10-01
+
+### Fixed
+
+- **`reply --rec` and `revise --rec` or `--alt` refuse a recommendation that an alternative equals, contains or is contained by.** Case, whitespace and trailing punctuation are folded and containment is whole-word. The refusal names the question and the alternative and writes nothing; pass revised alternatives in the same `revise` ([#5710](https://github.com/melodic-software/claude-code-plugins/issues/5710)).
+- **The interview page's event stream pushes a questions change that lands inside the same clock tick as the last push.** The change stamp carries size and inode with the mtime, and a state read that falls back to the last good state no longer advances it, so the next pass retries ([#5710](https://github.com/melodic-software/claude-code-plugins/issues/5710)).
+
+## [0.58.1] - 2026-10-01
+
+### Fixed
+
+- **An interview alternative that restates the recommendation is folded into Accept on the page, and `add` and `add-round` warn about it.** The page no longer lists the duplicate as its own `(a)` choice beside Rec, and the warning names the question and alternative key. The write still succeeds ([#5715](https://github.com/melodic-software/claude-code-plugins/issues/5715)).
+
+## [0.58.0] - 2026-10-01
+
+### Added
+
+- **A `context` op reports the session's context level, and the page header shows it as a badge.** The op carries a percent and a zone word, which the page prints as sent; the badge is absent until the first report, readable in both themes, and not a Needs-you item. A `handoff` field on the op raises a banner saying where the interview continues, and the page keeps that banner in the browser the same way it keeps the finish text ([#5713](https://github.com/melodic-software/claude-code-plugins/issues/5713)).
+
+## [0.57.0] - 2026-10-01
+
+### Added
+
+- **`round.sh stop` ends the data dir's `watch.sh`.** Each poll sends the watcher's process id, the lease records it, and `stop` signals it only when its command line is a `watch.sh` for that data dir (nothing is signaled on Windows). A poll refused after `stop` exits 3 at once instead of retrying ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`apply` warns when no watcher holds the lease.** It still writes and exits 0, and prints `no watcher armed; N unhandled events` to stderr ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`round.sh status` prints a `round drift:` line for a seeded question whose stored round differs from its ledger cell, and `repair-rounds` rewrites only those rounds** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`note-reply --needs-answer` pins a Notes line as a loose end with a reply box until you reply, however many Claude notes follow it** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The page shows a line diff of a changed restatement against the newest confirmed revision and keeps a `Restatement changed, needs your Confirm` banner until it gets a verdict.** Confirm says it ticks no commitment and links to the commitment list ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A note that names one option by its label (`Rec`, `#1`, `option 2`, `(a)`) asks `Did you mean Accept with note?` before it is saved** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **New Needs-you items raise a dismissible toast, including `Interview complete`, and a browser notification is offered only on a click.** The tab title counts Needs-you items only, and the page keeps the finish text in the browser so a tab that cannot reach the server still shows it, and a finish kept for another data dir on the same port is replaced, not shown ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+### Changed
+
+- **`add` and `add-round` give a question with no `stage` the newest question's stage and warn, naming the stage and round used** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **Page polish.** The rail preview skips hold bookkeeping, the id column has one width, the Pending filter covers every hold, Activity no longer relists ids its text links, and a note posted with no reply target reads `Claude posted in Notes` ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
 
 ## [0.56.3] - 2026-10-01
 

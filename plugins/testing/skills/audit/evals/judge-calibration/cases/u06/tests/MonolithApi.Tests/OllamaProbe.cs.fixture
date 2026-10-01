@@ -1,0 +1,141 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+
+namespace MonolithApi.Tests;
+
+/// <summary>
+/// Process-cached probe for a locally running Ollama server, used to gate the live integration
+/// tests. Queries the server's model catalogue once per endpoint and reports whether a chat model
+/// and an embedding model are available, so tests can skip cleanly (xUnit dynamic skip) when Ollama
+/// is unreachable or has no usable model installed.
+/// </summary>
+/// <remarks>
+/// The probe <see cref="Task{TResult}"/> is memoised in a <see cref="ConcurrentDictionary{TKey, TValue}"/>
+/// keyed by endpoint, so the network call runs at most once per endpoint per process and concurrent
+/// callers await the same task. The probe NEVER throws: any failure (connection refused, timeout,
+/// malformed response) resolves to an unreachable result with a reason, so an awaiting test skips
+/// rather than errors. The probe borrows an <see cref="IHttpClientFactory"/> (the <c>HttpClient</c>
+/// constructor is banned) and bounds the call with a short per-request timeout so an unreachable
+/// endpoint fails fast. Model selection prefers the smallest installed model (by on-disk size) to
+/// minimise cold-start latency; <c>MEDLEY_OLLAMA_CHAT_MODEL</c> / <c>MEDLEY_OLLAMA_EMBED_MODEL</c>
+/// override the choice.
+/// </remarks>
+internal static class OllamaProbe
+{
+    private static readonly TimeSpan _probeTimeout = TimeSpan.FromSeconds(2);
+
+    private static readonly ConcurrentDictionary<string, Task<OllamaAvailability>> _cache = new();
+
+    public static Task<OllamaAvailability> GetAvailabilityAsync(
+        IHttpClientFactory httpClientFactory, string endpoint) =>
+        _cache.GetOrAdd(endpoint, key => ProbeAsync(httpClientFactory, key));
+
+    private static async Task<OllamaAvailability> ProbeAsync(
+        IHttpClientFactory httpClientFactory, string endpoint)
+    {
+        try
+        {
+            string? chatOverride = Environment.GetEnvironmentVariable("MEDLEY_OLLAMA_CHAT_MODEL");
+            string? embedOverride = Environment.GetEnvironmentVariable("MEDLEY_OLLAMA_EMBED_MODEL");
+
+            using HttpClient client = httpClientFactory.CreateClient();
+            client.Timeout = _probeTimeout;
+
+            using HttpResponseMessage response =
+                await client.GetAsync($"{endpoint.TrimEnd('/')}/api/tags");
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return OllamaAvailability.Unreachable(endpoint, $"server returned HTTP {(int)response.StatusCode}");
+            }
+
+            List<OllamaModel> models = ParseModels(await response.Content.ReadAsStringAsync());
+
+            return new OllamaAvailability(
+                ServerReachable: true,
+                Endpoint: endpoint,
+                ChatModel: chatOverride ?? SmallestMatching(models, isEmbedding: false),
+                EmbedModel: embedOverride ?? SmallestMatching(models, isEmbedding: true),
+                InstalledModels: [.. models.Select(model => model.Name)],
+                UnreachableReason: null);
+        }
+#pragma warning disable CA1031 // A faulted probe task turns every awaiting test into an error instead of a clean skip; any probe failure must resolve to "unreachable".
+        catch (Exception exception)
+        {
+            return OllamaAvailability.Unreachable(endpoint, $"{exception.GetType().Name}: {exception.Message}");
+        }
+#pragma warning restore CA1031
+    }
+
+    private static List<OllamaModel> ParseModels(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+
+        if (!document.RootElement.TryGetProperty("models", out JsonElement modelsElement)
+            || modelsElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        List<OllamaModel> models = [];
+        foreach (JsonElement element in modelsElement.EnumerateArray())
+        {
+            if (element.TryGetProperty("name", out JsonElement nameElement)
+                && nameElement.GetString() is { Length: > 0 } name)
+            {
+                // Missing/absent size sorts last so a size-less entry is never picked as "smallest".
+                long size = element.TryGetProperty("size", out JsonElement sizeElement)
+                    && sizeElement.TryGetInt64(out long parsed)
+                        ? parsed
+                        : long.MaxValue;
+                models.Add(new OllamaModel(name, size));
+            }
+        }
+
+        return models;
+    }
+
+    // Ollama's /api/tags exposes no capability flag; an embedding model is identified by the "embed"
+    // marker its publishers put in the tag name (e.g. "qwen3-embedding", "nomic-embed-text"). Picking
+    // the smallest match by on-disk size keeps the live round-trip's cold-start load as light as possible.
+    private static string? SmallestMatching(List<OllamaModel> models, bool isEmbedding) =>
+        models
+            .Where(model => model.Name.Contains("embed", StringComparison.OrdinalIgnoreCase) == isEmbedding)
+            .OrderBy(model => model.Size)
+            .Select(model => model.Name)
+            .FirstOrDefault();
+
+    private readonly record struct OllamaModel(string Name, long Size);
+}
+
+/// <summary>Outcome of an <see cref="OllamaProbe"/> query against a single endpoint.</summary>
+internal sealed record OllamaAvailability(
+    bool ServerReachable,
+    string Endpoint,
+    string? ChatModel,
+    string? EmbedModel,
+    IReadOnlyList<string> InstalledModels,
+    string? UnreachableReason)
+{
+    public static OllamaAvailability Unreachable(string endpoint, string reason) =>
+        new(false, endpoint, ChatModel: null, EmbedModel: null, InstalledModels: [], UnreachableReason: reason);
+
+    /// <summary>Skip reason naming why no chat model is available.</summary>
+    public string ChatSkipReason => SkipReason("a non-embedding chat model", "MEDLEY_OLLAMA_CHAT_MODEL");
+
+    /// <summary>Skip reason naming why no embedding model is available.</summary>
+    public string EmbedSkipReason => SkipReason("an embedding model", "MEDLEY_OLLAMA_EMBED_MODEL");
+
+    private string SkipReason(string lookingFor, string overrideVariable)
+    {
+        if (!ServerReachable)
+        {
+            return $"Ollama not reachable at {Endpoint} ({UnreachableReason}). "
+                + "Start Ollama or set Ai:Ollama:Endpoint to run this integration test.";
+        }
+
+        string installed = InstalledModels.Count == 0 ? "none" : string.Join(", ", InstalledModels);
+        return $"Ollama reachable at {Endpoint} but no {lookingFor} is installed (found: {installed}). "
+            + $"Pull a suitable model or set {overrideVariable} to run this integration test.";
+    }
+}

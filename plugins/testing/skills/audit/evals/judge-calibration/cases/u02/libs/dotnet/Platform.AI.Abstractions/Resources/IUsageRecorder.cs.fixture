@@ -1,0 +1,8 @@
+using Platform.Core.Results;
+
+namespace Platform.AI.Abstractions.Resources;
+
+public interface IUsageRecorder
+{
+    Task<Result> RecordAsync(UsageRecord record, CancellationToken ct = default);
+}

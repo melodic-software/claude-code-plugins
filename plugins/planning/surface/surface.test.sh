@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js, tests/ui_live.js
 # (the user journey, run against tests/fixtures/journey), schema.py, and the JSON
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
 # schema/visual.schema.json and schema/ops.schema.json.
@@ -188,6 +188,31 @@ if command -v playwright-cli >/dev/null 2>&1; then
   sed "s/__PORT__/$eport/; s/__PHASE__/5/" tests/ui_c.js >"$tmp/ui_c5.js"
   pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
 
+  # ui_c phase 6 runs against a fifth server with one question and no events. A background
+  # handler waits for the page to arm a watcher (the lease shows in /api/state), then handles
+  # the answer as a handle-only apply while the page stays open.
+  f="$tmp/f3"
+  mkdir -p "$f"
+  cp tests/fixtures/ui_d/questions.json "$f/"
+  bash "$here/round.sh" --dir "$f" ensure-running --port 0 >/dev/null
+  fport=$(sed -n 's/^PORT=//p' "$f/.interview-session.env" | tr -d '\r')
+  sed "s/__PORT__/$fport/; s/__PHASE__/6/" tests/ui_c.js >"$tmp/ui_c6.js"
+  (
+    for _ in $(seq 1 120); do
+      if curl -fs "http://127.0.0.1:$fport/api/state" | grep -q '"watcher": *"w1"'; then
+        sleep 4
+        read -r -a late <<<"$(unhandled "$f")"
+        [[ "${#late[@]}" -gt 0 ]] && "$py" "$here/round.py" --dir "$f" handle --seq "${late[@]}"
+        break
+      fi
+      sleep 0.5
+    done
+  ) >/dev/null 2>&1 &
+  handler=$!
+  pw run-code --filename "$(script_path "$tmp/ui_c6.js")" >"$tmp/ui_c6.out" 2>&1
+  wait "$handler" 2>/dev/null
+  bash "$here/round.sh" --dir "$f" stop >/dev/null 2>&1
+
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
   # flow on one page in twenty phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
@@ -210,7 +235,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun() { pw run-code --filename "$(script_path "$tmp/uj$1.js")" >"$tmp/uj$1.out" 2>&1; }
   jrun 1
   jhandle
-  japply a '{"ops": [{"op": "reply", "id": "Q4", "text": "Slow means over five minutes per run."}]}'
+  japply a '{"ops": [{"op": "reply", "id": "Q4", "text": "Slow means over five minutes per run."}, {"op": "context", "percent": 78, "zone": "amber"}]}'
   japply b '{"ops": [{"op": "wait", "id": "Q3", "waitsOn": "the retry benchmark", "by": "claude"},
     {"op": "wait", "id": "Q5", "waitsOn": "whether the version must be pinned to the lock file or float with each new runner image release", "by": "user"},
     {"op": "set-status", "text": "Researching the retry benchmark for Q3"}]}'
@@ -231,6 +256,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
     {"op": "confirm-commitments", "id": "Q4", "reason": "Said yes in the terminal"},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging on their own.",
       "constraints": "Builds stop at ten minutes.", "planningOwned": "How the cache key is built."}}]}'
+  # A Notes reply lands after the restatement: the restate notice must stay shown over it (phase 4).
+  japply e2 '{"ops": [{"op": "note-reply", "text": "One more thing: what should the cache key include?"}]}'
   jrun 4
   jhandle
   bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --force >/dev/null
@@ -256,13 +283,14 @@ if command -v playwright-cli >/dev/null 2>&1; then
   jrun 7
   japply i '{"ops": [{"op": "activity", "text": "Checked the cache key while you were looking"}]}'
   jrun 8
-  japply j '{"ops": [{"op": "activity", "text": "Checked the cache key again while the tab was hidden"}]}'
+  # One log entry and one Notes reply: only the Notes reply counts in the title (phases 9, 11 and 13).
+  japply j '{"ops": [{"op": "activity", "text": "Checked the cache key again while the tab was hidden"}, {"op": "note-reply", "text": "Still on track."}]}'
   jrun 9
   jrun 10
-  japply k '{"ops": [{"op": "activity", "text": "Checked the cache key with the panel open"}]}'
+  japply k '{"ops": [{"op": "activity", "text": "Checked the cache key with the panel open"}, {"op": "note-reply", "text": "Nothing new yet."}]}'
   jrun 11
   jrun 12
-  japply l '{"ops": [{"op": "activity", "text": "Checked the cache key after the page loaded hidden"}]}'
+  japply l '{"ops": [{"op": "activity", "text": "Checked the cache key after the page loaded hidden"}, {"op": "note-reply", "text": "Checking again."}]}'
   jrun 13
   jhandle
   japply m '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview",
@@ -270,7 +298,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
     "commits": [], "alternatives": [{"key": "a", "text": "All of them"}, {"key": "b", "text": "None"}]}}]}'
   jrun 14
   read -r -a js <<<"$(unhandled "$j")"
-  bash "$here/round.sh" --dir "$j" revise Q9 --rec "All of them, since the lock file lists none." --affects none --seq "${js[${#js[@]} - 1]}" >/dev/null
+  bash "$here/round.sh" --dir "$j" revise Q9 --rec "All of them, since the lock file lists none." --alt "a:Only the ones in the lock file" --alt "b:Whatever the config names" --affects none --seq "${js[${#js[@]} - 1]}" >/dev/null
   jhandle
   jrun 15
   # Phase 16 runs after the wrap-up: a new open question, a range in a question's facts, and a
@@ -280,25 +308,59 @@ if command -v playwright-cli >/dev/null 2>&1; then
       "recommendation": "Only the jobs on the same runner image.", "commits": ["Shares one cache across jobs"], "alternatives": [{"key": "a", "text": "Every job"}, {"key": "b", "text": "None"}]}},
     {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
+  # A Notes reply after the restatement: the restate notice outranks it in phase 16.
+  japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
+  # An ordinary Claude note after it must not unpin the question.
+  sleep 1
+  japply n3 '{"ops": [{"op": "note-reply", "text": "The restatement is posted."}]}'
   jrun 16
   # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
   # phase 18 reads the modal, the shell stops the server (phase 19 reads the offline reason) and
   # starts it again on the same data dir, which must keep its port (phase 20 reads the restart).
   jrun 17
   japply o '{"ops": [{"op": "set-status", "text": "Done: the Brief is written"},
-    {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."}]}'
+    {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."},
+    {"op": "context", "handoff": "Resume from docs/handoff.md in a fresh session."}]}'
   jrun 18
   bash "$here/round.sh" --dir "$j" stop >/dev/null
   jrun 19
   bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
   [[ "$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
   jrun 20
+
+  # ui_live runs against a sixth server on the journey's first round. One tab stays open with a note
+  # half typed while the shell applies as Claude: reply with rec, revise, record-terminal, handle-only.
+  l="$tmp/live"
+  mkdir -p "$l/ops"
+  cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$l/"
+  bash "$here/round.sh" --dir "$l" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
+  bash "$here/round.sh" --dir "$l" ensure-running --port 0 >/dev/null
+  lport=$(sed -n 's/^PORT=//p' "$l/.interview-session.env" | tr -d '\r')
+  for n in 1 2 3 4; do
+    sed "s/__PORT__/$lport/; s/__PHASE__/$n/" tests/ui_live.js >"$tmp/ul$n.js"
+  done
+  lrun() { pw run-code --filename "$(script_path "$tmp/ul$1.js")" >"$tmp/ul$1.out" 2>&1; }
+  lrun 1
+  printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none"}]}' >"$l/ops/a.json"
+  bash "$here/round.sh" --dir "$l" apply --file "$l/ops/a.json" >/dev/null || bad "live: reply op refused"
+  lrun 2
+  bash "$here/round.sh" --dir "$l" revise Q1 --rec "Yes, every push on main and every tag." --alt "a:Only on tags" --alt "b:Only by hand" --affects none --force >/dev/null || bad "live: revise refused"
+  lrun 3
+  printf '%s' '{"ops": [{"op": "record-terminal", "id": "Q2", "decision": "accept"}]}' >"$l/ops/b.json"
+  bash "$here/round.sh" --dir "$l" apply --file "$l/ops/b.json" >/dev/null || bad "live: record-terminal op refused"
+  read -r -a ls <<<"$(unhandled "$l")"
+  [[ "${#ls[@]}" -gt 0 ]] || bad "live: the page's accept left no event to handle"
+  printf '%s' '{"ops": [{"op": "handle", "seqs": ['"${ls[*]// /, }"']}]}' >"$l/ops/c.json"
+  bash "$here/round.sh" --dir "$l" apply --file "$l/ops/c.json" >/dev/null || bad "live: handle op refused"
+  lrun 4
+  bash "$here/round.sh" --dir "$l" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
-  for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  for n in 1 2 3 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
+  for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
 else
-  browser=409 journey=189
+  browser=457 journey=221
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

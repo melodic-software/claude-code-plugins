@@ -268,9 +268,72 @@ class TestRefusals(DirCase):
         self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
 
     def test_short_recommendation_does_not_warn(self):
-        rc, _, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        rc, _, err = self.rp(
+            "add", "--file", self.file("q.json", question("Q4", stage="interview"))
+        )
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
+
+    def test_alternative_restating_the_recommendation_warns_and_still_writes(self):
+        q = question(
+            "Q4",
+            recommendation="Ship it now.\nReasons follow.",
+            alternatives=[
+                {"key": "a", "text": "Ship it now"},
+                {"key": "b", "text": "Wait"},
+            ],
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 alternative (a) restates the recommendation", err)
+        self.assertNotIn("alternative (b)", err)
+        self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
+
+    def test_add_alt_flag_with_recommended_marker_warns(self):
+        rc, out, err = self.rp(
+            "add",
+            "--file",
+            self.file("q.json", question("Q4", alternatives=[])),
+            "--alt",
+            "a:Yes (Recommended)",
+            "--alt",
+            "b:Later",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q4 alternative (a) restates the recommendation", err)
+
+    def test_add_round_duplicate_alternative_warns_naming_the_question(self):
+        dup = question(
+            "Q5",
+            alternatives=[
+                {"key": "a", "text": "YES. it keeps things simple"},
+                {"key": "b", "text": "Later"},
+            ],
+        )
+        spec = {"questions": [question("Q4"), dup]}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q5 alternative (a) restates the recommendation", err)
+        self.assertNotIn("Q4 alternative", err)
+
+    def test_distinct_alternatives_do_not_warn_about_restating(self):
+        rc, _, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        self.assertEqual(rc, 0)
+        self.assertNotIn("restates", err)
+
+    def test_alternative_containing_the_recommendation_is_distinct(self):
+        for qid, rec, alt in (
+            ("Q4", "No.", "Not yet"),
+            ("Q5", "Yes.", "Yes, but only for X"),
+        ):
+            q = question(
+                qid,
+                recommendation=rec,
+                alternatives=[{"key": "a", "text": alt}, {"key": "b", "text": "Later"}],
+            )
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn("restates", err)
 
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
@@ -374,6 +437,16 @@ class TestAffects(DirCase):
         rc, out, err = self.rp("reply", "Q1", "--text", "Thread only.")
         self.assertEqual(rc, 0, out + err)
 
+    def test_note_without_a_reply_target_says_posted_and_can_need_an_answer(self):
+        rc, out, err = self.rp("note-reply", "--text", "FYI.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Note posted", out)
+        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        self.assertEqual(rc, 0, out + err)
+        notes = self.doc()["notes"]
+        self.assertNotIn("needsAnswer", notes[0])
+        self.assertTrue(notes[1]["needsAnswer"])
+
     def test_newer_user_event_refuses_and_force_overrides(self):
         at = "2026-09-24T10:00:00Z"
         self.write_events(
@@ -443,6 +516,47 @@ class TestRevise(DirCase):
         rc, out, err = self.rp("revise", "Q1", "--alt", "a:One", "--alt", "b:Two")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
+
+
+class TestRecAlternativeCollision(DirCase):
+    def test_reply_rec_equal_or_containing_an_alternative_is_refused(self):
+        for rec in ("  no.", "Pick no, then ship it"):
+            out = self.assert_refused("reply", "Q1", "--rec", rec, "--affects", "none")
+            self.assertIn("Q1", out)
+            self.assertIn("(a)", out)
+            self.assertIn("revise", out)
+
+    def test_revise_rec_colliding_with_an_alternative_is_refused(self):
+        out = self.assert_refused("revise", "Q1", "--rec", "No", "--affects", "none")
+        self.assertIn("revise --alt", out)
+
+    def test_revise_rec_with_alt_that_removes_the_collision_saves(self):
+        rc, out, err = self.rp(
+            "revise",
+            "Q1",
+            "--rec",
+            "No",
+            "--affects",
+            "none",
+            "--alt",
+            "a:Yes",
+            "--alt",
+            "b:Later",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["recommendation"], "No")
+
+    def test_revise_alt_colliding_with_the_existing_rec_is_refused(self):
+        self.assert_refused(
+            "revise", "Q1", "--alt", "a:yes. it keeps things simple", "--alt", "b:Later"
+        )
+
+    def test_reply_rec_without_a_collision_saves(self):
+        rc, out, err = self.rp(
+            "reply", "Q1", "--rec", "Ship it now.", "--affects", "none"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["recommendation"], "Ship it now.")
 
 
 class TestReviseCommits(DirCase):
@@ -1112,6 +1226,38 @@ class TestClaudeActivity(DirCase):
         ):
             with self.subTest(extra=extra):
                 self.refused({"op": "set-status", **extra})
+
+    def test_context_sets_percent_and_zone_and_clear_removes_them(self):
+        self.apply({"op": "context", "percent": 0, "zone": "green"})
+        ctx = self.doc()["context"]
+        self.assertEqual((ctx["percent"], ctx["zone"]), (0, "green"))
+        self.assertTrue(ctx["at"])
+        self.assertNotIn("handoff", self.doc())
+        self.apply({"op": "context", "handoff": "continue from .work/handoff.md"})
+        self.assertEqual(
+            self.doc()["handoff"]["text"], "continue from .work/handoff.md"
+        )
+        self.assertEqual(self.doc()["context"]["percent"], 0)
+        self.apply({"op": "context", "clear": True})
+        self.assertNotIn("context", self.doc())
+        self.assertNotIn("handoff", self.doc())
+        self.assertEqual(self.entries(), [])
+
+    def test_context_refuses_bad_shapes(self):
+        for extra in (
+            {},
+            {"percent": 50},
+            {"zone": "amber"},
+            {"percent": 101, "zone": "z"},
+            {"percent": -1, "zone": "z"},
+            {"percent": "5", "zone": "z"},
+            {"percent": 5, "zone": "z" * 41},
+            {"handoff": "h" * 501},
+            {"clear": True, "percent": 5, "zone": "z"},
+            {"clear": True, "handoff": "h"},
+        ):
+            with self.subTest(extra=extra):
+                self.refused({"op": "context", **extra})
 
     def test_wait_then_clear(self):
         self.apply({"op": "wait", "id": "Q3", "waitsOn": "research on ghq"})
@@ -2236,6 +2382,74 @@ class TestRoundStamp(DirCase):
         self.assertNotIn("no meta.stages label", err)
 
 
+class TestApplyWatcherWarning(DirCase):
+    def test_apply_with_no_watcher_warns_with_the_unhandled_count_and_still_writes(
+        self,
+    ):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "ask",
+                    "text": "why",
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+        ops = {"ops": [{"op": "reply", "id": "Q2", "text": "plain"}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("no watcher armed; 1 unhandled events", err)
+        self.assertEqual(self.q("Q2")["history"][-1]["text"], "plain")
+
+
+class TestAddDefaultsToTheNewestStage(DirCase):
+    def test_an_add_with_no_stage_takes_the_newest_questions_stage_and_warns(self):
+        self.rp(
+            "add",
+            "--file",
+            self.file("a.json", question("Q4", stage="design", round=2)),
+        )
+        rc, _, err = self.rp("add", "--file", self.file("b.json", question("Q5")))
+        self.assertEqual(rc, 0, err)
+        self.assertEqual((self.q("Q5")["stage"], self.q("Q5")["round"]), ("design", 2))
+        self.assertIn("Q5 named no stage; used stage 'design', round 2", err)
+
+    def test_an_add_with_a_stage_does_not_warn(self):
+        _, _, err = self.rp(
+            "add", "--file", self.file("a.json", question("Q4", stage="design"))
+        )
+        self.assertNotIn("named no stage", err)
+
+
+class TestRepairRounds(DirCase):
+    def seed(self):
+        doc = self.doc()
+        doc["meta"]["seededFrom"] = {
+            "ledger": "l.md",
+            "at": "2026-01-01T00:00:00Z",
+            "rows": {},
+            "roundCells": {"Q1": "round 2 (was 12)", "Q2": "round 1 (design)"},
+        }
+        doc["questions"][0]["round"] = 12
+        self.write_doc(doc)
+
+    def test_status_lists_a_seeded_inflated_round_and_the_repair_fixes_only_it(self):
+        self.seed()
+        _, out, _ = self.rp("status")
+        self.assertIn("round drift: Q1 stored round 12", out)
+        self.assertIn("reads round 2", out)
+        self.assertNotIn("round drift: Q2", out)
+        rc, out, err = self.rp("repair-rounds")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual([q["round"] for q in self.doc()["questions"]], [2, 1, 1])
+        _, out, _ = self.rp("status")
+        self.assertNotIn("round drift", out)
+        rc, out, _ = self.rp("repair-rounds")
+        self.assertIn("no round drift", out)
+
+
 class TestReplyHintOnOwnAnswer(DirCase):
     def test_reply_without_rec_to_an_own_answer_hints_revise_or_wait(self):
         self.write_events(
@@ -2328,6 +2542,34 @@ class TestDoctor(DirCase):
         self.write_doc(doc)
         self.rp("add", "--file", self.file("q2.json", question("Q2")))
         self.assertEqual(self.doc()["meta"]["pluginVersion"], "0.1.0")
+
+
+@unittest.skipUnless(os.name == "posix", "stop signals a watcher on POSIX only")
+class TestEndWatcher(DirCase):
+    def spawn(self, argv):
+        proc = subprocess.Popen(argv)
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        time.sleep(0.3)  # bash must exec its script before a command line is read
+        return proc
+
+    def test_ends_a_watch_sh_for_this_data_dir(self):
+        script = self.tmp / "watch.sh"
+        script.write_text("sleep 30\n", encoding="utf-8")
+        proc = self.spawn(["bash", str(script), str(self.dir)])
+        sys.path.insert(0, str(HERE))
+        import round as r
+
+        r.end_watcher(self.dir, proc.pid)
+        self.assertIsNotNone(proc.wait(timeout=5))
+
+    def test_leaves_a_process_that_is_not_a_watcher(self):
+        proc = self.spawn(["sleep", "30"])
+        import round as r
+
+        r.end_watcher(self.dir, proc.pid)
+        time.sleep(0.3)
+        self.assertIsNone(proc.poll())
 
 
 if __name__ == "__main__":

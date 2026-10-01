@@ -1,0 +1,9 @@
+import { expect, it } from 'vitest';
+import { Cart } from './cart';
+
+it('recalculates the subtotal', () => {
+  const cart = new Cart();
+  cart.add({ sku: 'A1', price: 4 });
+  cart.add({ sku: 'B2', price: 6 });
+  expect((cart as any).recalculate()).toBe(10);
+});

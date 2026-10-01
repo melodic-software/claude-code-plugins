@@ -1,0 +1,9 @@
+using Platform.AI.Abstractions.Tools;
+
+namespace Platform.AI.Abstractions.Generations;
+
+public sealed record Generation(
+    string? Text,
+    FinishReason Reason,
+    UsageReport Usage,
+    IReadOnlyList<ToolInvocation>? ToolCalls = null);

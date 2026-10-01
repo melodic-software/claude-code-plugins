@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# Regression tests for .claude/hooks/git-safety.sh — global-option stripping
+# before subcommand matching: `=`-attached, space-separated, short -p/-P, and
+# boolean pathspec global flags.
+set -uo pipefail
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/git-safety-test-helpers.sh"
+
+# ---------------------------------------------------------------------------
+# git global options — strip before subcommand matching
+# ---------------------------------------------------------------------------
+#
+# Global-option stripping: `git -C path reset --hard` must not bypass destructive blocks.
+# the unconditional reset block because the regex required `git` immediately
+# followed by `reset`. After normalize_global_opts(), every destructive
+# subcommand is still caught regardless of which global options preceded it.
+
+run_assert_exit "git -C path reset --hard (global -C bypasses subcommand match)" \
+  "main" "git -C /tmp/repo reset --hard" 2
+run_assert_exit "git -c key=val reset --hard (global -c)" \
+  "main" "git -c core.safecrlf=false reset --hard" 2
+run_assert_exit "git --git-dir=path reset --hard" \
+  "main" "git --git-dir=/tmp/repo/.git reset --hard" 2
+run_assert_exit "git --work-tree=path reset --hard" \
+  "main" "git --work-tree=/tmp/repo reset --hard" 2
+# `--config-env=<name>=<envvar>` is a value-taking global option and must be stripped.
+# option (`git -h`) that was not stripped, so it bypassed destructive blocks.
+run_assert_exit "git --config-env=name=VAR reset --hard (blocked)" \
+  "main" "git --config-env=core.safecrlf=FOO reset --hard" 2
+run_assert_exit "git --config-env=name=VAR clean -fd (blocked)" \
+  "main" "git --config-env=core.safecrlf=FOO clean -fd" 2
+run_assert_exit "git --config-env=name=VAR branch -D feat (blocked)" \
+  "main" "git --config-env=core.safecrlf=FOO branch -D feat" 2
+run_assert_exit "compound: cd /tmp && git --config-env=name=VAR reset --hard (blocked)" \
+  "main" "cd /tmp && git --config-env=core.safecrlf=FOO reset --hard" 2
+run_assert_exit "git --config-env=name=VAR status (read-only — not blocked)" \
+  "main" "git --config-env=core.pager=PAGERVAR status" 0
+run_assert_exit "git -C path clean -fd" \
+  "main" "git -C /tmp/repo clean -fd" 2
+run_assert_exit "git -c key=val push --force" \
+  "feat/example" "git -c push.default=current push --force" 2
+run_assert_exit "git -C path branch -D feat" \
+  "main" "git -C /tmp/repo branch -D feat" 2
+run_assert_exit "git -C path restore ." \
+  "main" "git -C /tmp/repo restore ." 2
+run_assert_exit "git -C path checkout feature (global + checkout, blocked on main)" \
+  "main" "git -C /tmp/repo checkout feature" 2
+run_assert_exit "git -C path stash on main" \
+  "main" "git -C /tmp/repo stash" 2
+run_assert_exit "git -C path -c key=val reset --hard (stacked globals)" \
+  "main" "git -C /tmp/repo -c core.safecrlf=false reset --hard" 2
+run_assert_exit "git --no-pager reset --hard (boolean global)" \
+  "main" "git --no-pager reset --hard" 2
+# Non-destructive subcommand with global option — still no-op
+run_assert_exit "git -C path status (read-only — not blocked)" \
+  "main" "git -C /tmp/repo status" 0
+run_assert_exit "git -c key=val log (read-only — not blocked)" \
+  "main" "git -c core.pager=cat log" 0
+
+# ---------------------------------------------------------------------------
+# Space-separated value globals — `--work-tree <path>` (not just `=<path>`)
+# ---------------------------------------------------------------------------
+# Space-separated `--flag <value>` globals must strip the value token too.
+# `=`-attached form. Git also accepts the separate-argument form
+# (`git --work-tree . reset --hard`), which left the value token wedged between
+# `git` and the destructive subcommand and bypassed the blocks. Verified via
+# `git --work-tree . rev-parse` etc. accepting the space form.
+
+run_assert_exit "git --work-tree . reset --hard (space-form value global)" \
+  "main" "git --work-tree . reset --hard" 2
+run_assert_exit "git --work-tree . clean -fd (space-form value global)" \
+  "main" "git --work-tree . clean -fd" 2
+run_assert_exit "git --git-dir /tmp/r/.git reset --hard (space-form, non-.git path)" \
+  "main" "git --git-dir /tmp/r/.git reset --hard" 2
+run_assert_exit "git --namespace foo clean -fd (space-form value global)" \
+  "main" "git --namespace foo clean -fd" 2
+run_assert_exit "git --attr-source HEAD reset --hard (value-taking, not boolean)" \
+  "main" "git --attr-source HEAD reset --hard" 2
+run_assert_exit "git --config-env name=VAR reset --hard (space-form value global)" \
+  "main" "git --config-env core.safecrlf=FOO reset --hard" 2
+run_assert_exit "git --work-tree . branch -D feat (space-form value global)" \
+  "main" "git --work-tree . branch -D feat" 2
+run_assert_exit "compound: cd /tmp && git --work-tree . reset --hard (space-form)" \
+  "main" "cd /tmp && git --work-tree . reset --hard" 2
+# exec-path bare prints the exec path and never runs <cmd> — no bypass, stays no-op
+run_assert_exit "git --work-tree . status (read-only — not blocked)" \
+  "main" "git --work-tree . status" 0
+run_assert_exit "git --attr-source HEAD log (read-only — not blocked)" \
+  "main" "git --attr-source HEAD log" 0
+
+# ---------------------------------------------------------------------------
+# Short global options — -p / -P (paginate / no-pager)
+# ---------------------------------------------------------------------------
+# Short global flags `-p`/`-P` must be stripped before subcommand matching.
+# only handled long-form --paginate / --no-pager. Documented in `git -h`:
+# `[-p | --paginate | -P | --no-pager]` are accepted globally.
+
+run_assert_exit "git -p reset --hard (short paginate)" \
+  "main" "git -p reset --hard" 2
+run_assert_exit "git -P reset --hard (short no-pager)" \
+  "main" "git -P reset --hard" 2
+run_assert_exit "git -p clean -fd (short paginate)" \
+  "main" "git -p clean -fd" 2
+run_assert_exit "git -P branch -D feat (short no-pager)" \
+  "main" "git -P branch -D feat" 2
+run_assert_exit "compound: cd /tmp && git -p reset --hard" \
+  "main" "cd /tmp && git -p reset --hard" 2
+# Read-only with short global — not blocked
+run_assert_exit "git -p status (read-only — not blocked)" \
+  "main" "git -p status" 0
+
+# ---------------------------------------------------------------------------
+# Boolean pathspec global flags — `--literal-pathspecs`, `--glob-pathspecs`,
+# `--noglob-pathspecs`, `--icase-pathspecs`. Per `git -h` these are boolean
+# (no `=value`), so they were previously misplaced in the `--flag=<value>`
+# substitution and never matched.
+# ---------------------------------------------------------------------------
+
+run_assert_exit "git --literal-pathspecs reset --hard (blocked)" \
+  "main" "git --literal-pathspecs reset --hard" 2
+run_assert_exit "git --glob-pathspecs clean -fd (blocked)" \
+  "main" "git --glob-pathspecs clean -fd" 2
+run_assert_exit "git --noglob-pathspecs branch -D feat (blocked)" \
+  "main" "git --noglob-pathspecs branch -D feat" 2
+run_assert_exit "git --icase-pathspecs restore . (blocked)" \
+  "main" "git --icase-pathspecs restore ." 2
+run_assert_exit "compound: cd /tmp && git --literal-pathspecs reset --hard" \
+  "main" "cd /tmp && git --literal-pathspecs reset --hard" 2
+run_assert_exit "git --literal-pathspecs status (read-only — not blocked)" \
+  "main" "git --literal-pathspecs status" 0
+
+report

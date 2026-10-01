@@ -14,6 +14,11 @@
       "name": "jq",
       "check": "/bash-format:check",
       "install": "install jq from https://jqlang.org/download/"
+    },
+    {
+      "name": "node",
+      "check": "/bash-format:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
     }
   ]
 }

@@ -807,13 +807,27 @@ def bullets(text):
 def ledger_row(n, qid, status, title, res):
     """A brief row for a question only the ledger has, in the shape register() gives a page one."""
     lead = LEAD.match(res)
-    body = clean(lead.group(2) if lead else res)
+    text = lead.group(2) if lead else res
+    body = note = clean(text)
+    try:
+        named = parse_named(text, f"ledger row {n}")
+    except SystemExit:
+        named = None
+    if named:
+        fields, marked = named
+        body = clean(readable(status, fields, marked))
+        answer = fields.get("answer") or ""
+        note = clean(
+            answer.removeprefix("deferred: ")
+            if answer.startswith("deferred: ")
+            else fields.get("note") or body
+        )
     return {
         "n": n,
         "q": {"id": qid, "short": clean(title), "title": clean(title)},
         "status": status,
         "readable": body,
-        "note": body,
+        "note": note,
         "reserved": "USER-RESERVED" in body,
         "confirmed": [],
         "unconfirmed": [],
@@ -1129,6 +1143,17 @@ def round_of(cell):
         return int(m.group(1)), True
     m = re.search(r"[0-9]+", cell)
     return (int(m.group()) if m else 1), False
+
+
+def round_drift(doc):
+    """[(id, stored round, round its seeded ledger cell reads as, cell)] for each seeded question
+    whose round differs from its meta.seededFrom.roundCells entry read with round_of."""
+    cells = ((doc.get("meta") or {}).get("seededFrom") or {}).get("roundCells") or {}
+    return [
+        (q["id"], q.get("round", 1), round_of(cells[q["id"]])[0], cells[q["id"]])
+        for q in doc.get("questions") or []
+        if q["id"] in cells and q.get("round", 1) != round_of(cells[q["id"]])[0]
+    ]
 
 
 def scan_register(lines):

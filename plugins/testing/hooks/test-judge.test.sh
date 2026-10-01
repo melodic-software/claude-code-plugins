@@ -345,18 +345,25 @@ model_for() { # model_for <sid> <env...>: the --model the Stop hook's judge run 
   out="$(payload "$sid" stop "" '{"hook_event_name": "Stop"}' | env "$@" bash "$HOOK" 2>/dev/null)"
   stub_args 1 | sed -n '/^--model$/{n;p;}'
 }
-transcript ma claude-sonnet-5
-check "keys unset: opus" '[[ "$(model_for ma X=1)" == opus && "$(stub_args 1 | sed -n "/^--effort$/{n;p;}")" == medium ]]'
-transcript mb claude-opus-5-5
-check "keys unset, an opus writer: the sonnet fallback" '[[ "$(model_for mb X=1)" == sonnet ]]'
-transcript mc claude-sonnet-5
-check "an invalid alias falls back to opus, an invalid effort to medium" \
-  '[[ "$(model_for mc CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=gpt CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT=ultra)" == opus &&
+transcript ma claude-haiku-4-5-20251001
+check "keys unset: sonnet at medium" '[[ "$(model_for ma X=1)" == sonnet && "$(stub_args 1 | sed -n "/^--effort$/{n;p;}")" == medium ]]'
+transcript mb claude-sonnet-5
+check "keys unset, a sonnet writer: opus" '[[ "$(model_for mb X=1)" == opus ]]'
+transcript mh claude-haiku-4-5-20251001
+check "fallback unset, a haiku writer of a haiku judge: the opus fallback" \
+  '[[ "$(model_for mh CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=haiku)" == opus ]]'
+transcript mi claude-haiku-4-5-20251001
+check "an invalid fallback alias falls back to opus" \
+  '[[ "$(model_for mi CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=haiku CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL=gpt)" == opus ]]'
+transcript mc claude-haiku-4-5-20251001
+check "an invalid alias falls back to sonnet, an invalid effort to medium" \
+  '[[ "$(model_for mc CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=gpt CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT=ultra)" == sonnet &&
     "$(stub_args 1 | sed -n "/^--effort$/{n;p;}")" == medium ]]'
 transcript md claude-opus-5-5
 jq -cn '{type: "assistant", message: {model: "claude-opus-5-5", content: [{type: "tool_use", name: "Agent", input: {model: "haiku", prompt: "x"}}]}}' >>"$TDIR/md.jsonl"
 jq -cn '{type: "assistant", message: {model: "<synthetic>", content: []}}' >>"$TDIR/md.jsonl"
-check "Agent-call and <synthetic> lines do not change the session model" '[[ "$(model_for md X=1)" == sonnet ]]'
+check "Agent-call and <synthetic> lines do not change the session model" \
+  '[[ "$(model_for md CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=opus CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL=sonnet)" == sonnet ]]'
 transcript me claude-sonnet-5
 subagent me a1 claude-opus-5-5
 check "class collisions walk opus, sonnet, haiku" \

@@ -200,7 +200,14 @@ async page => {
     await restale({kind: "defer"}, {kind: "alt", alt: "b"});
     const radios = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("input").value + "=" + e.querySelector("b").textContent + (e.querySelector(".n") ? "#n" : "")));
     ok("stale with a decision: Reconfirm, Rec, Accept with note, then the alternatives; radio values count from 1; no number shown", radios.slice(0, 3).join() === "1=Reconfirm,2=Rec,3=Accept with note" && radios.every((r, i) => r.startsWith((i + 1) + "=") && !r.endsWith("#n")), radios.join(", "));
-    await page.click("main.detail h3"); await page.keyboard.press("2");
+    await pick("D1");
+    const dup = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("b").textContent + "=" + e.textContent + (e.classList.contains("rec") ? "#rec" : "")));
+    ok("an alternative restating the recommendation is folded into Accept: Rec is first with class rec and no (a) choice carries the duplicate", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\(a\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)) && dup.some(x => /^\(c\).*only on request/.test(x)), dup.join(" | "));
+    const nEv = (await events()).length;
+    await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await page.click("[data-save]"); await page.waitForTimeout(400);
+    const hid = await page.evaluate(() => ({open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent}));
+    ok("a note naming the hidden duplicate (a) is not offered as a choice and saves as typed", !hid.open && (await events()).length === nEv + 1, JSON.stringify(hid));
+    await pick("P2"); await page.click("main.detail h3"); await page.keyboard.press("2");
     const r3 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev3 = await last();
     ok("2 then save on a stale question picks again: Rec", /^Rec/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
@@ -463,6 +470,25 @@ async page => {
     ok("the header round comes from the newest question's stage only", lbl === "Round 1 · Design", lbl);
     const rounds = await page.$$eval(".qbtn", els => els.length);
     ok("both stages' questions are listed", rounds >= 3, String(rounds));
+  }
+  if (PHASE === 6) { // its own server, no events: an unhandled answer reads as not delivered until a watcher holds the lease, then a handle-only apply clears it without a reload
+    await page.setViewportSize({width: 1400, height: 860});
+    await page.goto(base);
+    await page.waitForSelector('.qbtn[data-q="D1"]', {state: "attached"});
+    await page.evaluate(() => { window.__marker = "same page"; });
+    await post({id: "D1", kind: "accept", alt: null, text: ""});
+    const chip = async () => page.textContent('.qbtn[data-q="D1"]');
+    await page.waitForFunction(() => /Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 5000}).catch(() => {});
+    ok("a fresh answer, with no watcher silent for 30 s yet, reads Sent to Claude", /Sent to Claude/.test(await chip()), await chip());
+    const quiet = await page.waitForFunction(() => /No session is listening; type next in the terminal/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 45000}).then(() => true).catch(() => false);
+    ok("with no watcher holding the lease, an unhandled answer reads as not delivered", quiet && !/Sent to Claude/.test(await chip()), await chip());
+    ok("the receipt line says the same", /No session is listening/.test(await page.textContent("#claudeLine")), await page.textContent("#claudeLine"));
+    // The watcher claims the lease; the shell handles the event a few seconds later.
+    const r = await page.request.get(base + "api/wait?after=handled&timeout=1&watcher=w1", {headers: {"X-Interview-Token": await token()}});
+    const back = await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 12000}).then(() => true).catch(() => false);
+    ok("once a watcher holds the lease the chip goes back to Sent to Claude", r.ok() && back, r.status() + " " + await chip());
+    const gone = await page.waitForFunction(() => !/Sent to Claude|No session is listening/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 20000}).then(() => true).catch(() => false);
+    ok("a handle-only apply clears the chip on the open page, no reload", gone && await page.evaluate(() => window.__marker === "same page"), await chip());
   }
   const real = errors.filter(e => !/status of 409 \(Conflict\)/.test(e) && !/status of 404 \(Not Found\) at \S*\/api\/visual-file\?id=vx$/.test(e));
   ok("AC37: zero console errors in phase " + PHASE + " (besides the network lines for an intended 409 and the missing file visual's 404)", real.length === 0, errors.join(" | "));

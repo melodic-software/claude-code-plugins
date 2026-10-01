@@ -21,7 +21,7 @@ arm it for delegation-heavy tasks.
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
-| `/session-flow:check` | Does jq resolve for the observer hook? Read-only; never installs. |
+| `/session-flow:check` | Do node and jq resolve for the observer hook? Read-only; never installs. |
 | `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 | `/session-flow:show-options` | Which skills fit this moment, and what am I forgetting I could run? |
 | `/session-flow:tidy-work` | What is piling up in `.work`, what is still in flight, and what is safe to remove? |

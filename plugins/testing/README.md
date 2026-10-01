@@ -13,7 +13,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
-| `/testing:check` | Read-only and model-invocable. Reports whether `jq` resolves for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
+| `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `test-scan` hook: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
 ## Works in any repo
@@ -58,7 +58,7 @@ below):
   or assertions.
 - `test_judge_enabled` (default `false`, and only effective with `test_guards_enabled`, whose scan
   records the tests it judges) turns on the task-end test judge, described below.
-  `test_judge_model` (default `opus`) and `test_judge_fallback_model` (default `sonnet`) name the
+  `test_judge_model` (default `sonnet`) and `test_judge_fallback_model` (default `opus`) name the
   judge's model class, and `test_judge_effort` (default `medium`) its effort.
   `test_judge_session_runs` (unset: no limit) caps the judge runs one session starts.
 - `stdin_read_timeout` (default `2` seconds) bounds how long a hook waits on its input before it
@@ -208,8 +208,8 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
 | `test_judge_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED` | At the end of each task, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default. |
-| `test_judge_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet or haiku. When a model of that class wrote the tests, the fallback or another class is used. |
-| `test_judge_fallback_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus, sonnet or haiku. |
+| `test_judge_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet or haiku. When a model of that class wrote the tests, the fallback or another class is used. |
+| `test_judge_fallback_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus, sonnet or haiku. |
 | `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge: low, medium, high, xhigh or max. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |

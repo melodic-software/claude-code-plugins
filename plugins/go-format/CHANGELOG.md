@@ -3,11 +3,17 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.17] - 2026-10-01
+## [0.4.18] - 2026-10-01
 
 ### Changed
 
 - Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.4.17] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/go-format:check`, which probes it.
 
 ## [0.4.16] - 2026-10-01
 

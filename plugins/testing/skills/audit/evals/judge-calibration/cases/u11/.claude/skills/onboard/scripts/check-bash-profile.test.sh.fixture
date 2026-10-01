@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+# Regression tests for .claude/skills/onboard/scripts/check-bash-profile.sh.
+#
+# Black-box tests. Each case sets up an isolated $HOME under TEST_TMPDIR,
+# populates the relevant rc files with known content, and invokes the gate.
+# Assertions check the row-per-block output shape + the per-file status line
+# that SKILL.md and context files rely on.
+#
+# The gate is detection-only — never writes to any file. That invariant is
+# asserted in case F by snapshotting mtime/contents before and after.
+#
+# Run: bash .claude/skills/onboard/scripts/check-bash-profile.test.sh
+# Or:  bash tools/run-shell-tests.sh
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$SCRIPT_DIR/check-bash-profile.sh"
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+
+# Caller-side monotonic counter — $(new_case_home) runs in a subshell so an
+# in-function increment would be lost. See the git-config tests for the same
+# gotcha.
+CASE_ID=0
+
+# shellcheck source=../../../../tests/shell/lib.sh
+source "${TEST_REPO_ROOT:-$(git rev-parse --show-toplevel)}/tests/shell/lib.sh"
+
+# Labels emitted by the gate, one per managed block. Kept in sync with the
+# script — drift here surfaces as a row-label assertion failure.
+EXPECTED_BLOCK_LABELS=(
+  "fnm eval"
+  "history tuning"
+  "git-prompt"
+  "git-completion"
+  ".bashrc.local hook"
+)
+
+# Sentinel strings the gate searches for. Identical to the script.
+SENTINEL_FNM="# fnm"
+SENTINEL_HISTORY="# history tuning — medley /onboard"
+SENTINEL_GIT_PROMPT="# git-prompt — medley /onboard"
+SENTINEL_GIT_COMPLETION="# git-completion — medley /onboard"
+SENTINEL_BASHRC_LOCAL="# .bashrc.local hook — medley /onboard"
+
+# Build a .bashrc with every managed sentinel present — baseline for case B.
+write_full_bashrc() {
+  local path="$1"
+  cat >"$path" <<EOF
+eval "\$(fnm env --use-on-cd --version-file-strategy=recursive)" $SENTINEL_FNM
+
+$SENTINEL_HISTORY
+HISTSIZE=10000
+HISTFILESIZE=20000
+HISTCONTROL=ignoreboth:erasedups
+shopt -s histappend
+PROMPT_COMMAND='history -a'
+
+$SENTINEL_GIT_PROMPT
+[ -f /mingw64/share/git/completion/git-prompt.sh ] && . /mingw64/share/git/completion/git-prompt.sh
+
+$SENTINEL_GIT_COMPLETION
+[ -f /mingw64/share/git/completion/git-completion.bash ] && . /mingw64/share/git/completion/git-completion.bash
+
+$SENTINEL_BASHRC_LOCAL
+[ -f ~/.bashrc.local ] && . ~/.bashrc.local
+EOF
+}
+
+new_case_home() {
+  local case_dir="$TEST_TMPDIR/case-$CASE_ID"
+  mkdir -p "$case_dir"
+  printf '%s' "$case_dir"
+}
+
+# Invoke the gate with a specific HOME and optional OS override.
+# $1 home, $2 os (empty = auto-detect via uname).
+run_check() {
+  local home="$1" os="${2-}"
+  HOME="$home" ONBOARD_OS="$os" bash "$SCRIPT" 2>&1
+}
+
+# --- Case A: empty HOME, no rc files ----------------------------------------
+
+CASE_ID=$((CASE_ID + 1))
+CASE_HOME=$(new_case_home)
+OUT_A=$(run_check "$CASE_HOME" "linux")
+RC_A=$?
+
+assert_contains "case A: header" "$OUT_A" "Phase 4: Shell profile"
+assert_exit "case A: exit non-zero (nothing present)" 1 "$RC_A"
+assert_contains "case A: bashrc NOT_FOUND" "$OUT_A" "NOT_FOUND"
+for block in "${EXPECTED_BLOCK_LABELS[@]}"; do
+  assert_contains "case A: row label '$block'" "$OUT_A" "$block"
+done
+
+# --- Case B: fully-provisioned .bashrc --------------------------------------
+
+CASE_ID=$((CASE_ID + 1))
+CASE_HOME=$(new_case_home)
+write_full_bashrc "$CASE_HOME/.bashrc"
+# .bash_profile that sources .bashrc — minimal convention.
+printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' >"$CASE_HOME/.bash_profile"
+OUT_B=$(run_check "$CASE_HOME" "linux")
+RC_B=$?
+
+assert_exit "case B: exit zero (all blocks present)" 0 "$RC_B"
+assert_not_contains "case B: no FAIL rows" "$OUT_B" "FAIL"
+
+# --- Case C: .bashrc as symlink to external file ----------------------------
+# Users with dotfiles repos often symlink ~/.bashrc to a managed file. The
+# gate must surface this (so fix-mode approval can warn before editing).
+#
+# Skipped on Git Bash / Windows: MSYS2's default `ln -s` behavior silently
+# copies the file instead of creating a real symlink (needs
+# MSYS=winsymlinks:nativestrict + developer mode or admin). Test exercises
+# the POSIX code path only — production Windows users who run real symlinks
+# (dotfiles repos with explicit config) get the correct symlink branch.
+
+case "$(uname -s 2>/dev/null)" in
+  MINGW* | MSYS* | CYGWIN*)
+    skip_case "case C (symlink detection) — MSYS2 ln -s copies instead of linking"
+    ;;
+  *)
+    CASE_NUM=0
+    CASE_ID=$((CASE_ID + 1))
+    CASE_HOME=$(new_case_home)
+    mkdir -p "$CASE_HOME/dotfiles"
+    write_full_bashrc "$CASE_HOME/dotfiles/bashrc"
+    ln -s "$CASE_HOME/dotfiles/bashrc" "$CASE_HOME/.bashrc"
+    OUT_C=$(run_check "$CASE_HOME" "linux")
+
+    assert_contains "case C: symlink flag in output" "$OUT_C" "symlink"
+    # Content still resolves through the symlink, so all sentinels match.
+    assert_not_contains "case C: no block FAILs (symlink contents match)" \
+      "$OUT_C" "fnm eval                                 FAIL"
+    ;;
+esac
+
+# --- Case D: macOS — target is ~/.zshrc, not ~/.bashrc ----------------------
+
+CASE_ID=$((CASE_ID + 1))
+CASE_HOME=$(new_case_home)
+write_full_bashrc "$CASE_HOME/.zshrc"
+OUT_D=$(run_check "$CASE_HOME" "macos")
+RC_D=$?
+
+assert_contains "case D: zshrc probed on macos" "$OUT_D" ".zshrc"
+# On macOS we should NOT probe .bashrc (zsh is the default — bash would be
+# a voluntary secondary).
+assert_exit "case D: exit zero (zshrc fully set up)" 0 "$RC_D"
+
+# --- Case E: partial — only fnm block present -------------------------------
+
+CASE_ID=$((CASE_ID + 1))
+CASE_HOME=$(new_case_home)
+cat >"$CASE_HOME/.bashrc" <<EOF
+eval "\$(fnm env --use-on-cd --version-file-strategy=recursive)" $SENTINEL_FNM
+EOF
+OUT_E=$(run_check "$CASE_HOME" "linux")
+RC_E=$?
+
+assert_exit "case E: exit non-zero (partial)" 1 "$RC_E"
+# fnm must PASS; the other four must FAIL.
+assert_contains "case E: fnm block PASS" "$OUT_E" "fnm eval"
+assert_contains "case E: history tuning FAIL" "$OUT_E" "history tuning"
+# Spot-check that at least one of the missing blocks shows FAIL.
+PRESENT_FNM_ROWS=$(grep -cE 'fnm eval *PASS' <<<"$OUT_E" || echo 0)
+CASE_NUM=$((CASE_NUM + 1))
+if ((PRESENT_FNM_ROWS >= 1)); then
+  printf 'PASS: [%d] case E: fnm block reports PASS exactly\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] case E: fnm block did not report PASS\n%s\n' \
+    "$CASE_NUM" "$OUT_E" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# --- Case F: gate is read-only ----------------------------------------------
+# Snapshot the contents + mtime of every file under HOME before the run,
+# then compare after. Any write is a contract violation.
+
+CASE_ID=$((CASE_ID + 1))
+CASE_HOME=$(new_case_home)
+write_full_bashrc "$CASE_HOME/.bashrc"
+printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' >"$CASE_HOME/.bash_profile"
+
+# Portable snapshot: sha256 of each file + list of files.
+snapshot() {
+  (cd "$CASE_HOME" && find . -type f -print0 | sort -z | xargs -0 sha256sum)
+}
+BEFORE=$(snapshot)
+_=$(run_check "$CASE_HOME" "linux")
+AFTER=$(snapshot)
+
+CASE_NUM=$((CASE_NUM + 1))
+if [[ "$BEFORE" == "$AFTER" ]]; then
+  printf 'PASS: [%d] case F: gate did not modify any file under $HOME\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] case F: files changed during check run\nbefore:\n%s\nafter:\n%s\n' \
+    "$CASE_NUM" "$BEFORE" "$AFTER" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# --- Report -------------------------------------------------------------------
+
+if ((FAILED == 0)); then
+  printf '\nAll checks passed in %d case(s).\n' "$CASE_ID"
+  exit 0
+fi
+printf '\n%d failure(s) across %d case(s).\n' "$FAILED" "$CASE_ID" >&2
+exit 1

@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that goimports resolves for the go-format hook. Use when a hook notice says goimports is missing, or before assuming Go formatting ran. Does not install."
+description: "Read-only check that goimports and node resolve for the go-format hook. Use when a hook notice says goimports or node is missing, or before assuming Go formatting ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether goimports is installed. Never installs.
+  summary: Report whether goimports and node are installed. Never installs.
 ---
 
 ## Purpose

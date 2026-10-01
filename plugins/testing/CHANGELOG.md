@@ -3,11 +3,44 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.1] - 2026-10-01
+## [0.16.1] - 2026-10-01
 
 ### Changed
 
 - **The test judge ignores `memory_dir` in `.claude/topic-docs.yaml`.** `judge-lib.sh` always writes the findings file under `<repo>/.work/reviews/<branch-slug>/`, so a consumer that set `memory_dir` there no longer gets findings in that root. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
+- **The judge calibration record moved beside its labels.** `calibration.md` now lives in `skills/audit/evals/judge-calibration/`, and `metrics.sh --check` reads its `holdout-only:` lines from there instead of `docs/specs/tautological-tests-judge/calibration.md`.
+
+## [0.16.0] - 2026-10-01
+
+### Changed
+
+- **judge:** the task-end judge defaults to `sonnet` at `medium` effort, with `opus` as the fallback
+  class, in `plugin.json` and in `judge-lib.sh`'s in-script defaults and invalid-value fallbacks.
+  The calibration sweep chose them: `sonnet` `medium` is tied-best under both the consensus labels
+  and GPT's labels (the tie-break alone picks `sonnet` `low`, which GPT's labels rate significantly
+  worse than `opus` `high`), at about $0.001 more per row. The table is in `docs/specs/tautological-tests-judge/calibration.md`.
+
+### Added
+
+- **calibration:** the judge calibration set under `skills/audit/evals/judge-calibration/`: 78
+  labeled cases, `raters.sh` (blind opus and Codex raters), `metrics.sh` (kappa, confusion matrix,
+  Wilson intervals, `--check`, a seven-arm `--sweep`, `--table` and `--rerun` for run-to-run
+  variance), and the sweep's verdict, cost and wall-time files under `sweep/`.
+
+### Fixed
+
+- **calibration:** `metrics.sh` printed `flag-n` for a stratum with no reference FLAG as a value
+  like `5.22809e-310` instead of `0`.
+- **calibration:** `raters.sh` dropped an answer whose reason quoted code containing braces; it now
+  parses the outermost `{...}` object first, then falls back to the flat scan.
+- **calibration:** `raters.sh` runs Codex with `--ignore-user-config`, web search off and connected
+  apps off, so the user's MCP servers, plugins and `AGENTS.md` never reach the rater.
+
+## [0.15.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/testing:check`, which probes it.
 
 ## [0.15.0] - 2026-10-01
 

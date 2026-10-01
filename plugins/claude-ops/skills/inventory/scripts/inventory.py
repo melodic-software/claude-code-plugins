@@ -55,7 +55,7 @@ MIN_PYTHON = (3, 11)
 # the skill's evals. Drift from it is not an error - the extraction is designed
 # to survive ordinary releases - but it downgrades every count from "verified"
 # to "believed", which the report has to say out loud.
-VALIDATED_AGAINST = "2.1.286"
+VALIDATED_AGAINST = "2.1.287"
 
 # Commands that have shipped in every build observed. Their absence means the
 # extraction broke, not that Anthropic deleted /help. This is the cheapest
@@ -1921,6 +1921,91 @@ def _binding_value(
     return found.end()
 
 
+def _spread_array(src: str, braces: BraceMap, ident: str, at: int) -> int | None:
+    """The `[` of the array literal `...ident` at `at` spreads, or None.
+
+    The binding is the one `at`'s module and scope see (`_binding_value`),
+    and another function must not write it: `var x=[a];function f(){x=[b]}`
+    reads b once f has run, so the list is not static.
+    """
+    try:
+        v = _binding_value(src, braces, ident, at, window=SHORT_IDENT_LOCALITY_BYTES)
+    except (ValueError, IndexError, RecursionError):
+        return None
+    if v is None or not src.startswith("[", v):
+        return None
+    head = re.search(
+        r"(?<![\w$.])" + re.escape(ident) + r"\s*=\s*$", src[max(0, v - 256) : v]
+    )
+    if head is None:
+        return None
+    if _written_elsewhere(src, braces, ident, max(0, v - 256) + head.start()):
+        return None
+    return v
+
+
+def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool:
+    """Whether the binding at `pos` may not hold its initializer when read:
+    it is a bare assignment rather than a declaration (`if(c)x=2`,
+    `c&&(x=2)`), it sits in an expression-bodied arrow (`()=>x=2`), or any
+    other code writes it, in the same block (`if(c)x=2;`), a nested block,
+    or a function. A write that a nearer declaration of `ident` shadows is
+    to that local instead.
+    """
+    ident_re = r"[A-Za-z_$][\w$]*"
+    simple = r"(?:" + _STR + r"|[\w$.]+|\[(?:" + _STR + r'|[^\[\]"])*\])'
+    chain = re.compile(
+        r"(?<![\w$.])(?:var|let|const)\s+(?:"
+        + ident_re
+        + r"\s*=\s*"
+        + simple
+        + r"\s*,\s*)*$"
+    )
+    # `_declares` misses a declarator whose statement follows a function
+    # declaration's `}`; a `var` reached back through simple declarators is
+    # one too.
+    if not (_declares(src, pos) or chain.search(src, max(0, pos - 4096), pos)):
+        return True
+    lo, hi = _chunk_span(src, pos)
+
+    def in_arrow(at: int) -> bool:
+        head = _statement_start(src, at)
+        head = max(lo, at - 4096) if head is None else head
+        return "=>" in _mask_strings(src[head:at])
+
+    if in_arrow(pos):
+        return True
+    home_fn = _function_block(src, braces, pos)
+    home_block = braces.enclosing(pos)
+
+    def separate(d: int) -> bool:
+        """Whether a declaration at `d` introduces its own binding: a `var`
+        in another function, or a `let`/`const` in another block. A `var`
+        in the same function is this binding again, and its initializer a
+        write."""
+        if d == pos or not _declares(src, d):
+            return False
+        if _is_var(src, d) or re.search(r"\bvar\s+$", src[max(0, d - 8) : d]):
+            return _function_block(src, braces, d) != home_fn
+        return braces.enclosing(d) != home_block
+
+    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    for m in _write_pattern(ident).finditer(src, lo, hi):
+        w = name.search(src, m.start(), m.end())
+        if w is None or w.start() == pos or separate(w.start()):
+            continue
+        w = w.start()
+        if not _visible(braces, pos, w, src):
+            continue
+        scope = _function_block(src, braces, w) or braces.enclosing(w)
+        if scope is None or not any(
+            separate(d.start()) and _visible(braces, d.start(), w, src)
+            for d in name.finditer(src, scope[0], scope[1])
+        ):
+            return True
+    return False
+
+
 def _function_pattern(ident: str) -> re.Pattern[str]:
     return re.compile(r"function\s+" + re.escape(ident) + r"\s*\(([^()]*)\)\s*\{")
 
@@ -3224,7 +3309,9 @@ def _array_names(
     """Tool names in the array literal at `open_i`, and whether all resolved.
 
     Elements are string literals, tool-name constants, or a `...spread` of
-    another array constant, which is followed `hops` deep.
+    another array constant, which is followed `hops` deep. The spread reads
+    the binding its own module and scope see (`_binding_value`), not the
+    nearest same-name binding in the bundle.
     """
     names: list[str] = []
     complete = True
@@ -3237,8 +3324,8 @@ def _array_names(
         if lit:
             names.append(_unescape(lit.group(1)))
         elif spread and hops > 0:
-            v = _nearest_binding(src, spread.group(1), at)
-            if v is not None and src.startswith("[", v):
+            v = _spread_array(src, braces, spread.group(1), start)
+            if v is not None:
                 more, ok = _array_names(src, braces, v, index, v, hops - 1)
                 names.extend(more)
                 complete = complete and ok

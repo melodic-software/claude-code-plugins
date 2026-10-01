@@ -60,7 +60,7 @@ does not itself invoke Node") and the [hooks reference](https://code.claude.com/
 /plugin install desktop-notification@<marketplace>
 ```
 
-Then verify prerequisites with `/desktop-notification:setup check`. `/desktop-notification:check` reports whether `jq` resolves.
+Then verify prerequisites with `/desktop-notification:setup check`. `/desktop-notification:check` reports whether `node` and `jq` resolve.
 
 ## Configuration
 

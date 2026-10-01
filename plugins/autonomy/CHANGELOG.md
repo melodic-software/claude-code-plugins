@@ -3,11 +3,17 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.25.1] - 2026-10-01
+## [0.25.2] - 2026-10-01
 
 ### Changed
 
 - Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
+## [0.25.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/autonomy:check`, which probes it.
 
 ## [0.25.0] - 2026-10-01
 

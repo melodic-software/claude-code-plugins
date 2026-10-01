@@ -1,0 +1,10 @@
+import axios from 'axios';
+import { expect, it, vi } from 'vitest';
+import { currentTemperature } from './weather';
+
+vi.mock('axios');
+
+it('reads the temperature in celsius', async () => {
+  vi.mocked(axios.get).mockResolvedValue({ data: { main: { temp: 293.15 } } });
+  expect(await currentTemperature('Paris')).toBe(20);
+});

@@ -1,12 +1,18 @@
 # Changelog: session-flow plugin
 
-## [0.43.1] - 2026-10-01
+## [0.43.2] - 2026-10-01
 
 ### Changed
 
 - Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 - **The fallback memory root moved from `<plugin data>/topic-docs` to `<plugin data>/artifacts`.** It applies outside a git work tree. Handoffs, ledgers and other files already under the old directory are no longer found and need moving by hand.
 - **No session-flow skill or hook reads `memory_dir` from `.claude/topic-docs.yaml` any more.** `observer-arm.sh` always uses `<project>/.work`, so a consumer with another root arms the observer manually and resolves it in-session. The handoff, retro, running-retro and tidy-work skills take a root documented in `CLAUDE.md` or `.claude/rules/`, else `.work`.
+
+## [0.43.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/session-flow:check`, which probes it.
 
 ## [0.43.0] - 2026-10-01
 
