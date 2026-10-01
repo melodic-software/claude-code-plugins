@@ -56,7 +56,6 @@ bullet of the worktrees page.
 | A compound command that contains git (`a && b`) | One command per Bash call, so each is screened alone |
 | When the command can run git: a path or command built from a variable or expansion (`$VAR`, `${VAR}`, `${!name}`, `${ cmd; }`) | A literal absolute path; a bare `$HOME` is the one expansion observed to pass |
 | `bash <script>` or `sh <script>` | The executable path, `<script>` itself |
-| When the command can run git: a file read through a shell pipeline (unprobed) | The Read tool |
 | `--body-file -` or any stdin heredoc whose text mentions git | A body file written first, passed by path |
 | A path containing `github` (the ghq layout `github.com/<org>/<repo>`) | Unverified: no documented rule; not probed; refusals reported on such paths were not attributed. Not an accepted rewrite |
 
