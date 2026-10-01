@@ -1967,6 +1967,32 @@ class TestRecChangeMarksUpstream(OpsCase):
         self.assertEqual(self.marks()["B"], ("open", None))
 
 
+class TestTerminalAnswerRightAfterARecChange(OpsCase):
+    """A terminal answer recorded after a recommendation change counts as the reconfirmation even
+    when both writes land in the same second."""
+
+    @classmethod
+    def prepare(cls):
+        earlier = {
+            "decision": "accept",
+            "alt": None,
+            "text": "",
+            "updatedAt": "2026-01-01T00:00:00Z",
+            "rev": 1,
+        }
+        seed_questions(
+            cls.dir, question("A"), question("B", dependsOn=["A"], terminal=earlier)
+        )
+
+    def test_1_the_later_write_wins_the_tie(self):
+        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "none")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["B"], "stale")
+        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.states()["B"], "open")
+
+
 class TestRepointAndRevisedDependencies(OpsCase):
     """The stale derivation reads dependsOn, so a repoint or a revise changes what goes stale on
     the next decision."""
@@ -2064,6 +2090,28 @@ class TestUserHoldClearsOnTheNextAnswer(OpsCase):
         self.apply_ops({"op": "wait", "id": "D", "waitsOn": "research"})
         self.decide("D")
         self.assertTrue(self.held("D"))
+
+
+class TestImportedUserHoldClearsOnTheNextAnswer(OpsCase):
+    """An imported `by: user` hold carries no setAsideSeq; the next answer still ends it."""
+
+    @classmethod
+    def prepare(cls):
+        hold = {
+            "waiting": True,
+            "waitsOn": "your answer",
+            "waitingBy": "user",
+            "waitingSince": "2026-01-01T00:00:00Z",
+        }
+        seed_questions(cls.dir, question("E", **hold))
+
+    def held(self):
+        return bool(self.state()["questions"]["questions"][0].get("waiting"))
+
+    def test_1_an_accept_ends_it(self):
+        self.assertTrue(self.held())
+        self.decide("E")
+        self.assertFalse(self.held())
 
 
 class TestDecisionEventsNameTheirContentRev(OpsCase):

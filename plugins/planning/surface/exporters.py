@@ -1193,6 +1193,7 @@ def import_hold(qid, title, rnd, hold, seeded, at, rev):
         "alternatives": [],
         "waiting": True,
         "waitsOn": hold["waitsOn"],
+        "waitingSince": at,
     }
     if hold["user"]:
         q["waitingBy"] = "user"
@@ -1367,7 +1368,7 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
             {"index": i, "reason": SEED_NOTE, "at": at} for i in ticked
         ]
     if hold is not None:
-        q.update(waiting=True, waitsOn=waits)
+        q.update(waiting=True, waitsOn=waits, waitingSince=at)
         if who == "user":
             q["waitingBy"] = "user"
     if "proposal" in fields:
@@ -1531,7 +1532,7 @@ def import_ledger(doc, text, ledger, at):
                 {"index": i, "reason": SEED_NOTE, "at": at} for i in range(len(commits))
             ]
         if held:
-            q.update(waiting=True, waitsOn=held.group(2))
+            q.update(waiting=True, waitsOn=held.group(2), waitingSince=at)
             if held.group(1) == "awaiting user":
                 q["waitingBy"] = "user"
         by = "claude" if status in UNSETTLED else "user-terminal"

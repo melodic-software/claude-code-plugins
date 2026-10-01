@@ -745,6 +745,7 @@ def op_reply(d, doc, a):
         )
         line["affects"] = affects
         line["pageSeq"] = snapshot.get("seq", 0)
+        line["rev"] = doc["rev"] + 1
     if a.handled:
         doc["handledSeq"] = max(doc.get("handledSeq") or 0, a.handled)
     mark_handled(doc, [a.seq])
@@ -853,6 +854,7 @@ def op_revise(d, doc, a):
             line["affects"] = affects
         if a.rec is not None:
             line["pageSeq"] = snapshot.get("seq", 0)
+            line["rev"] = doc["rev"] + 1
         lines.append(line)
     if moved:
         lines.append(

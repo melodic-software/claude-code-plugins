@@ -278,7 +278,8 @@ def derive_states(doc, r):
 
     Live decision events replay in seq order, with each question's terminal decision placed by its
     updatedAt against the events' `at` (before a same-second event, as the page decision wins that
-    tie in round.py's effective()). A decision on a question that is not stale marks
+    tie in round.py's effective(); a terminal decision and a recommendation change in the same
+    second fall in `rev` order). A decision on a question that is not stale marks
     its direct dependents that hold a live decision stale; a decision on a stale question clears
     it without re-staling its own dependents (that cascade is deferred). A recommendation change
     (a history line with `pageSeq`, placed after the events up to that seq) marks stale each
@@ -306,7 +307,12 @@ def derive_states(doc, r):
         key=lambda e: e.get("seq", 0),
     )
     terminal = [
-        {"id": q["id"], "kind": t["decision"], "at": t["updatedAt"]}
+        {
+            "id": q["id"],
+            "kind": t["decision"],
+            "at": t["updatedAt"],
+            "rev": t.get("rev") or 0,
+        }
         for q in qs
         if isinstance(t := q.get("terminal"), dict)
         and t.get("decision")
@@ -325,6 +331,7 @@ def derive_states(doc, r):
             "kind": "rec",
             "at": h.get("at") or "",
             "seq": h["pageSeq"],
+            "rev": h.get("rev") or 0,
             "hit": [*(h.get("affects") or []), *children.get(q["id"], [])],
         }
         for q in qs
@@ -337,11 +344,11 @@ def derive_states(doc, r):
             (i for i, e in enumerate(events) if e.get("seq", 0) > seq), len(events)
         )
 
-    replay = [(i, 1, "", e) for i, e in enumerate(events)]
-    replay += [(slot(t["at"]), 0, t["at"], t) for t in terminal]
-    replay += [(after(c["seq"]), 0, c["at"], c) for c in changes]
+    replay = [(i, 1, "", 0, e) for i, e in enumerate(events)]
+    replay += [(slot(t["at"]), 0, t["at"], t["rev"], t) for t in terminal]
+    replay += [(after(c["seq"]), 0, c["at"], c["rev"], c) for c in changes]
     live, stale, changed = {}, set(), {}
-    for *_, e in sorted(replay, key=lambda x: x[:3]):
+    for *_, e in sorted(replay, key=lambda x: x[:4]):
         qid = e["id"]
         if e["kind"] == "rec":
             hit = {c for c in e["hit"] if c != qid and live.get(c)}
@@ -539,19 +546,23 @@ def is_handled(doc, seq):
 
 def release_user_holds(doc, r):
     """Drop, in this loaded copy only, each `by: user` hold that the user has since answered: a
-    live accept, alt or own on the question with a seq above the hold's setAsideSeq. Claude's
+    live accept, alt or own on the question with a seq above the hold's setAsideSeq, or, on a hold
+    with none (an imported one), an event stamped after its waitingSince. Claude's
     `wait --clear` stays valid, and an undo of that answer brings the hold back."""
     for q in doc.get("questions") or []:
         if (
             isinstance(q, dict)
             and q.get("waiting")
             and q.get("waitingBy") == "user"
-            and q.get("setAsideSeq") is not None
             and any(
                 e.get("id") == q.get("id")
                 and e.get("kind") in ("accept", "alt", "own")
                 and not e.get("withdrawn")
-                and e.get("seq", 0) > q["setAsideSeq"]
+                and (
+                    e.get("seq", 0) > q["setAsideSeq"]
+                    if q.get("setAsideSeq") is not None
+                    else (e.get("at") or "") > (q.get("waitingSince") or "9")
+                )
                 for e in r.get("events") or []
             )
         ):

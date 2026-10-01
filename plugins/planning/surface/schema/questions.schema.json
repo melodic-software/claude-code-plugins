@@ -183,6 +183,10 @@
           "type": "integer",
           "description": "On a line that changed the recommendation: the page's event seq when it did. The server marks the decided questions in `affects` and the direct dependents stale for the events up to that seq."
         },
+        "rev": {
+          "type": "integer",
+          "description": "On a line that changed the recommendation: the questions.json rev that write produced. It orders the change against a terminal answer recorded in the same second."
+        },
         "alt": {"type": ["string", "null"]},
         "summary": {"type": "string"}
       }
