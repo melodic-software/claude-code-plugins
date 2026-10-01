@@ -1725,6 +1725,11 @@ def _declaration(
         return found
     lo, hi = _chunk_span(src, at)
     exported = _chunk_imports(src, lo, hi).get(ident)
+    if exported is not None and any(
+        braces.enclosing(m.start()) is not None and _visible(braces, m.start(), at, src)
+        for m in pattern_for(ident).finditer(src, lo, hi)
+    ):
+        exported = None
     if exported is not None:
         homes = _export_index(src).get(exported, [])
         if len(homes) != 1:

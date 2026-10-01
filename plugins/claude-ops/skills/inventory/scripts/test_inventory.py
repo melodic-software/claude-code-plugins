@@ -1507,6 +1507,15 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "Write a Workflow script")
 
+    def test_a_local_declaration_shadows_an_imported_name(self) -> None:
+        src = _modules(
+            'var jd="WRONG";export{jd};',
+            'import{jd}from"/$bunfs/root/chunk-a.js";var Qz="Probe";'
+            'function ff(){let jd="LOCAL";return jd}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});",
+        )
+        self.assertNotEqual(_tool(src, "Probe")["description"], "WRONG")
+
     def test_a_name_neither_imported_nor_declared_is_a_runtime_value(self) -> None:
         src = _modules(
             'var jd="host_exit";',
