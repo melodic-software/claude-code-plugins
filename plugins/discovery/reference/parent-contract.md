@@ -556,7 +556,8 @@ reaches the limit completes through resume. The recheck triggers above still app
 
 *Claim.* A `subagent_type: discovery:explorer` dispatch from a directory-source plugin gives the
 agent its own definition body and resolves the `skills:` preload, so the agent returns the YAML
-block on its first return, with or without a per-call `model:` and with or without `name:`. The
+block on its first return, with `model:` and `name:` together, with `name:` alone, and with `model:`
+alone. The
 two reported runs where an explorer behaved as if it had neither (no payload block, "I skipped the
 requested skills", a token expected in the dispatch prompt) did not reproduce.
 *Basis.* Four headless dispatches at commit `8f9a939b8`, `claude --version` 2.1.286, with
@@ -572,8 +573,8 @@ background subagents waits for their results before it finishes" and that backgr
 Claude as a completion notification in a later turn". *What this does not
 establish.* The reported runs' dispatch prompts, debug logs and checkouts were not reachable, so an
 intermittent harness fault, or a definition text that differed from this commit, is neither
-confirmed nor excluded. *Consequence.* No change to `agents/explorer.md` or the dispatch envelope
-rests on this record: the definition body loads, and the parent's acceptance gate
+confirmed nor excluded. The dispatch without `model:` and `name:` was not run. *Consequence.* The
+preload and payload half of this record changes nothing in the dispatch envelope: the definition body loads, and the parent's acceptance gate
 (`check-dispatch-artifact.sh`) stays the detector for a run that ignores it.
 *As of.* 2026-10-01.
 *Recheck trigger.* A dispatched explorer returns no payload block, or a `preload_token` of `none`,

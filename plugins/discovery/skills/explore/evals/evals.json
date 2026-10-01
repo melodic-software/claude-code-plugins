@@ -176,30 +176,28 @@
     },
     {
       "id": 14,
-      "name": "absent-skill-body-first-return-is-the-payload-block",
-      "prompt": "[You are the dispatched discovery:explorer. Your dispatch prompt carries the scope 'item-service command and query handlers' and a memory-slice path. Nothing from the discovery:explore skill body is in your context: no exploration dimensions, no outcome gate, no preload token.]",
+      "name": "prose-return-with-no-payload-block-is-a-failed-dispatch",
+      "prompt": "Explore the item-service command and query handlers before I unify them. [The dispatched discovery:explorer returns only prose: 'I did not have the exploration instructions in my context, so I summarized the handlers from what I could see.' There is no YAML payload block, no preload_token, and no artifact pointer.]",
       "files": [],
-      "expected_output": "The first return is the fenced YAML payload block, never bare prose. The agent either Reads the skill file from disk and returns preload: fallback with the token it found there, or, when no skill content reaches it by either route, returns preload_token: MISSING with no fabricated preload value and status: truncated. It does not reconstruct the workflow from memory.",
+      "expected_output": "Treats the return as a failed dispatch. A missing payload block and a missing token are a discard, whatever the prose claims, and the prose summary is not used as the exploration result. Does not accept the run, does not write an artifact from the prose, and continues from the resume or re-dispatch rung.",
       "expectations": [
-        "The first return is the YAML payload block, not bare prose and not a conversational message about missing instructions",
-        "The agent confirms whether the skill body is in context before any exploration and, when it is not, Reads the skill file from disk before the first dimension",
-        "After reading the skill file from disk the payload carries the token found there and preload: fallback, never preload: fired",
-        "When no skill content reaches the agent by either route the payload carries preload_token: MISSING, omits a fabricated preload value, and sets status: truncated",
-        "The agent does not reconstruct the exploration dimensions from memory or write an artifact under a remembered workflow"
+        "The return is graded as a failed dispatch because the payload block, the token and the artifact pointer are all absent",
+        "The missing token is a discard, not a downgrade: the prose summary is not accepted as the exploration result",
+        "The parent does not write EXPLORE.md or any sidecar from the prose",
+        "The ladder continues from the resume or re-dispatch rung rather than finishing the exploration inline from the prose"
       ]
     },
     {
       "id": 15,
-      "name": "nested-scout-hand-back-is-used-without-waiting",
-      "prompt": "[You are the dispatched discovery:explorer, already mid-exploration. You spawned a read-only scout to list the callers of the currency-conversion entry point, and its hand-back has been delivered to you as a message containing the caller list with file:line citations.]",
+      "name": "delivered-explorer-hand-back-is-graded-without-waiting",
+      "prompt": "Explore the currency-conversion entry point and its callers. [The dispatched discovery:explorer's final report has been delivered to you as a message, not as a tool result. It is a well-formed payload: matching preload_token, preload: fired, matching scope_as_received, status: complete, persistence: written, artifact: <the slice>/EXPLORE.md. check-dispatch-artifact.sh --index-name EXPLORE.md has not been run yet.]",
       "files": [],
-      "expected_output": "Treats the delivered hand-back as the scout's final report. Uses the caller list, Reads the cited files itself before any conclusion rests on them, and continues with the remaining dimensions and the EXPLORE.md write. Does not idle waiting for a report it already holds and does not re-request or re-dispatch the same hand-back.",
+      "expected_output": "Treats the delivered message as the explorer's final report and runs the acceptance gate against the slice on disk now. Does not wait, poll, or ask the explorer for the report again, and does not accept the run on the payload alone before the gate has been run.",
       "expectations": [
-        "The delivered hand-back is treated as the scout's final report and used immediately",
-        "The explorer does not wait, poll, or idle for a further report from the scout",
-        "The explorer does not re-request the hand-back or re-dispatch a scout for the same question",
-        "The explorer continues with the remaining exploration work and still writes EXPLORE.md itself, since a scout cannot write",
-        "A conclusion that rests on the scout's citations is verified by Reading the cited file, because a scout report alone supports verified: grep"
+        "The delivered message is treated as the explorer's final report and graded immediately",
+        "The parent does not wait, poll, or re-dispatch to obtain a report it already holds",
+        "The acceptance gate (check-dispatch-artifact.sh against the parent's own slice path) is run before the run is accepted; the payload's own status: complete is not enough",
+        "The artifact set is graded off disk, not from the payload's description of it"
       ]
     }
   ]
