@@ -5,6 +5,7 @@
 ### Changed
 
 - Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+- **The non-interactive no-project-root fallback for `/discovery:research` moved from `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` to `${CLAUDE_PLUGIN_DATA}/artifacts/<slug>/`.** Research output already written under the old directory is no longer found and needs moving by hand.
 
 ## [0.25.20] - 2026-10-01
 
