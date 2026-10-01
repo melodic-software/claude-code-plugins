@@ -26,6 +26,9 @@
 #     - mixed present/absent across the three files
 #     - cold tier `cold:<bytes>B (<n> files)` / `cold:absent`; `last-prune:` with
 #       hour or day age from the stamp, `never` when absent or unparsable
+#     - `prune-task:` from a stubbed schtasks: n/a off Windows, missing,
+#       provisioned, disabled, hand-registered, stale path (backslash and
+#       XML-quoted forms too), unrecognized action
 #   --pipeline
 #     - six fixed lines; guard ok / absent / operator-edited / not a checkout;
 #       newest session by mtime; shared count; prune-pending age WARN; option
@@ -210,11 +213,11 @@ assert_eq "CRLF toplevel is stripped (--otel-store)" "$WIRED_STORE_LINES" \
   "$(bash "$SCRIPT" --otel-store 2>/dev/null | head -n 3)"
 unset STUB_GIT_CRLF
 
-# Cold tier and last-prune lines follow the three original lines.
+# Cold tier, last-prune and prune-task lines follow the three original lines.
 export STUB_GIT_TOPLEVEL="$WIRED"
 assert_eq "no cold dir and no stamp → cold:absent, last-prune:never" \
-  "$(printf 'cold:absent\nlast-prune:never')" "$(bash "$SCRIPT" --otel-store 2>/dev/null | tail -n 2)"
-assert_eq "output is the three original lines plus two" "5" \
+  "$(printf 'cold:absent\nlast-prune:never')" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 4,5p)"
+assert_eq "output is the three original lines plus three" "6" \
   "$(bash "$SCRIPT" --otel-store 2>/dev/null | wc -l | tr -d ' ')"
 
 COLD="$TMP/coldstore"
@@ -233,6 +236,50 @@ assert_contains "5-day-old stamp ages as 5d" "(5d)" "$(bash "$SCRIPT" --otel-sto
 printf 'garbage\n' >"$COLD/.last-prune"
 assert_eq "unparsable stamp reads as never" "last-prune:never" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 5p)"
 unset CC_OTEL_STORE
+
+# The prune-task line. A stub schtasks prints $STUB_SCHTASKS_XML, or fails like a
+# missing task when that is unset; it refuses any other argv. It sits first on
+# PATH, so Git Bash finds it before System32's schtasks.exe.
+cat >"$STUB/schtasks" <<'SH'
+#!/usr/bin/env bash
+[[ "$*" == "/query /tn ClaudeCodeOtelPrune /xml" ]] || { echo "unexpected argv: $*" >&2; exit 9; }
+[[ -n "${STUB_SCHTASKS_XML:-}" ]] || { echo 'ERROR: The system cannot find the file specified.' >&2; exit 1; }
+printf '%s\r\n' "$STUB_SCHTASKS_XML"
+SH
+chmod +x "$STUB/schtasks"
+task_xml() { # <arguments-text> [settings-extra]
+  printf '<Task>\n  <Settings>%s\n  </Settings>\n  <Actions Context="Author">\n    <Exec>\n' "${2:-}"
+  printf '      <Command>C:\\Program Files\\PowerShell\\7\\pwsh.exe</Command>\n'
+  printf '      <Arguments>%s</Arguments>\n    </Exec>\n  </Actions>\n</Task>' "$1"
+}
+prune_task_line() { bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 6p; }
+HAND="$TMP/hand/claude-ops/0.62.4/skills/observability/otel/prune-otel-store.sh"
+mkdir -p "${HAND%/*}"
+: >"$HAND"
+
+HOST_OSTYPE="$OSTYPE"
+export OSTYPE=linux-gnu
+assert_eq "prune-task: not checked off Windows" "prune-task:n/a (not Windows)" "$(prune_task_line)"
+export OSTYPE=msys
+assert_eq "prune-task: no task" "prune-task:missing" "$(prune_task_line)"
+export STUB_SCHTASKS_XML
+STUB_SCHTASKS_XML="$(task_xml "-NoProfile -Command &quot;\$index = Join-Path \$root 'plugins/installed_plugins.json'&quot;")"
+assert_eq "prune-task: the provisioned launcher" "prune-task:provisioned" "$(prune_task_line)"
+STUB_SCHTASKS_XML="$(task_xml "x installed_plugins.json" '<Enabled>false</Enabled>')"
+assert_eq "prune-task: a disabled task" "prune-task:disabled" "$(prune_task_line)"
+STUB_SCHTASKS_XML="$(task_xml "\"$HAND\"")"
+assert_eq "prune-task: a hand-registered path that still exists" "prune-task:hand-registered ($HAND)" \
+  "$(prune_task_line)"
+rm "$HAND"
+assert_eq "prune-task: a hand-registered path the orphan sweep removed" "prune-task:stale path ($HAND)" \
+  "$(prune_task_line)"
+STUB_SCHTASKS_XML="$(task_xml "&quot;${HAND//\//\\}&quot;")"
+assert_eq "prune-task: an XML-quoted backslash path is normalized" "prune-task:stale path ($HAND)" \
+  "$(prune_task_line)"
+STUB_SCHTASKS_XML="$(task_xml "-File C:\\elsewhere.ps1")"
+assert_eq "prune-task: an action that runs neither" "prune-task:unrecognized action" "$(prune_task_line)"
+unset STUB_SCHTASKS_XML
+OSTYPE="$HOST_OSTYPE"
 
 # --- --pipeline ---------------------------------------------------------------
 export STUB_GIT_TOPLEVEL="$WIRED"
