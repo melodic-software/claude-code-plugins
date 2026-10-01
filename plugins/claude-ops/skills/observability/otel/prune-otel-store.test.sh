@@ -102,8 +102,8 @@ real_trace_line() { # <startTimeUnixNano> <span_name> <extra_attrs_fragment>
 
 readonly TOOL_EXTRA=',{"key":"tool_name","value":{"stringValue":"Bash"}},{"key":"tool_use_id","value":{"stringValue":"toolu-1"}},{"key":"duration_ms","value":{"stringValue":"42"}}'
 readonly TOOL_DECISION_SOURCE_EXTRA=',{"key":"tool_name","value":{"stringValue":"Bash"}},{"key":"tool_use_id","value":{"stringValue":"toolu-1"}},{"key":"decision","value":{"stringValue":"reject"}},{"key":"source","value":{"stringValue":"config"}}'
-readonly PROMPT_EXTRA=',{"key":"prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_length","value":{"stringValue":"22"}}'
-readonly SPAN_PROMPT_EXTRA=',{"key":"user_prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}}'
+readonly PROMPT_EXTRA=',{"key":"prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_text","value":{"stringValue":"SECRET_PROMPT_TEXT_SENTINEL"}},{"key":"prompt_length","value":{"stringValue":"22"}}'
+readonly SPAN_PROMPT_EXTRA=',{"key":"user_prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_text","value":{"stringValue":"SECRET_PROMPT_TEXT_SENTINEL"}}'
 readonly API_EXTRA=',{"key":"body","value":{"stringValue":"API_BODY_SENTINEL"}},{"key":"model","value":{"stringValue":"claude-x"}}'
 readonly DOUBLE_EXTRA=',{"key":"cost_usd","value":{"doubleValue":123.456}}'
 # The body-class classifier text INSIDE a JSON string value: every quote arrives escaped
@@ -444,6 +444,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "cold rows = structure + user_prompt" "2" "$(dq "SELECT count(*) FROM read_parquet('$glob');")"
   assert_eq "user_prompt kept with body NULL + join keys" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE event_name='user_prompt' AND body IS NULL AND session_id IS NOT NULL AND prompt_id IS NOT NULL;")"
   assert_eq "prompt text scrubbed from cold" "0" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_SENTINEL%';")"
+  assert_eq "prompt_text attribute scrubbed from cold" "0" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_TEXT_SENTINEL%';")"
   assert_eq "api body content absent from cold" "0" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%API_BODY_SENTINEL%';")"
   assert_eq "join keys populated on structure row" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE event_name='tool_decision' AND session_id IS NOT NULL AND prompt_id IS NOT NULL AND tool_use_id IS NOT NULL AND trace_id IS NOT NULL AND span_id IS NOT NULL;")"
   assert_eq "hot trimmed to the recent line" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
@@ -467,6 +468,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   glob="$(sql_path "$S")/cold/cc-logs-*.parquet"
   assert_eq "toggle run exits 0" "0" "$rc"
   assert_eq "toggle keeps prompt attribute + body in cold" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE event_name='user_prompt' AND body IS NOT NULL AND CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_SENTINEL%';")"
+  assert_eq "toggle keeps prompt_text attribute in cold" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_TEXT_SENTINEL%';")"
 else
   skip_case "duckdb not found — skipping prompt-keep toggle case"
 fi
@@ -708,6 +710,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "cold span row count" "1" "$(dq "SELECT count(*) FROM read_parquet('$tglob');")"
   assert_eq "cold user_prompt column NULLed" "1" "$(dq_macro "SELECT count(*) FROM cc_spans_cold('$(sql_path "$S")/cold/cc-traces-*.parquet') WHERE user_prompt IS NULL;")"
   assert_eq "cold prompt attribute scrubbed from raw" "0" "$(dq_macro "SELECT count(*) FROM cc_spans_cold('$(sql_path "$S")/cold/cc-traces-*.parquet') WHERE span_attributes_raw LIKE '%SECRET_PROMPT_SENTINEL%';")"
+  assert_eq "cold prompt_text attribute scrubbed from raw" "0" "$(dq_macro "SELECT count(*) FROM cc_spans_cold('$(sql_path "$S")/cold/cc-traces-*.parquet') WHERE span_attributes_raw LIKE '%SECRET_PROMPT_TEXT_SENTINEL%';")"
 else
   skip_case "duckdb not found — skipping traces cold compaction"
 fi

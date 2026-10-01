@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.80.1] - 2026-10-01
+
+### Security
+
+- **The observability prune scrubs `prompt_text` from cold OTEL rows.** Claude Code 2.1.287 adds
+  `prompt_text`, a copy of `prompt`, to the `user_prompt` event. Cold compaction stripped only the
+  `prompt` and `user_prompt` attribute keys, so prompt text reached the cold Parquet tier. It now
+  strips `prompt_text` from log and span attributes too, unless `CC_OTEL_COLD_KEEP_USER_PROMPTS=1`.
+
 ## [0.80.0] - 2026-10-01
 
 ### Added

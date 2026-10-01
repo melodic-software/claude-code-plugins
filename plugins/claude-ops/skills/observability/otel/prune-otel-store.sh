@@ -66,8 +66,9 @@
 #                          the cap drops its oldest lines until it fits, even inside the age windows.
 #   CC_OTEL_STORE          absolute store dir (default: <repo-root>/.claude/observability/otel)
 #   CC_OTEL_COLD_KEEP_USER_PROMPTS
-#                          =1 keeps user_prompt bodies + the `prompt` attribute in the cold
-#                          tier un-scrubbed (default: off — body NULLed, prompt scrubbed)
+#                          =1 keeps user_prompt bodies + the `prompt`/`prompt_text` attributes
+#                          in the cold tier un-scrubbed (default: off — body NULLed, prompt
+#                          attributes scrubbed)
 #   CC_OTEL_START_CMD      command that starts the Collector service — hermetic test seam
 #   CC_OTEL_STOP_CMD       command that stops the Collector service — hermetic test seam
 #   CC_OTEL_RUNNING_CMD    service query command: exit 0 = running/not Stopped, 1 = Stopped,
@@ -122,7 +123,7 @@ Env:
                                over the cap drops its oldest lines, via cold, until it fits
   CC_OTEL_STORE                absolute store dir (default: <repo-root>/.claude/observability/otel)
   CC_OTEL_COLD_KEEP_USER_PROMPTS
-                               =1 keeps user_prompt bodies + prompt attribute in cold (default: off)
+                               =1 keeps user_prompt bodies + prompt/prompt_text attributes in cold (default: off)
   Lifecycle                    Windows service: otelcol-contrib (requires provisioning's scoped
                                SERVICE_STOP and SERVICE_START grant for the runtime user)
 EOF

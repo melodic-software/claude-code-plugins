@@ -59,8 +59,8 @@ verify_temp() {
 #
 # Logs cross the B1 content boundary here: api_request_body/api_response_body rows are
 # excluded entirely; user_prompt rows survive (prompt frequency/timing analytics) but body is
-# NULLed and the prompt-bearing `prompt` attribute is scrubbed from the attribute list —
-# unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1. Metrics compact without exclusions. Join-key
+# NULLed and the prompt-bearing `prompt` and `prompt_text` attributes are scrubbed from the
+# attribute list — unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1. Metrics compact without exclusions. Join-key
 # columns (session_id, prompt_id, tool_use_id, trace_id, span_id) ride the shared
 # cc_logs_from projection (cc-otel.sql), bridging cold rows to on-disk transcript lookups.
 #
@@ -103,7 +103,7 @@ compact_dropped() {
       if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; then
         select_sql="SELECT * EXCLUDE (attributes_list), to_json(attributes_list) AS log_attributes_raw FROM cc_logs_from('$src_sql')"
       else
-        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (CASE WHEN event_name = 'user_prompt' THEN NULL ELSE body END AS body), to_json(list_filter(attributes_list, lambda x: x.key != 'prompt')) AS log_attributes_raw FROM cc_logs_from('$src_sql')"
+        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (CASE WHEN event_name = 'user_prompt' THEN NULL ELSE body END AS body), to_json(list_filter(attributes_list, lambda x: x.key != 'prompt' AND x.key != 'prompt_text')) AS log_attributes_raw FROM cc_logs_from('$src_sql')"
       fi
       # COALESCE: NOT IN over a NULL event_name yields NULL (row silently filtered) — keep
       # nameless rows instead of losing them to three-valued logic.
@@ -112,7 +112,7 @@ compact_dropped() {
       if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; then
         select_sql="SELECT * EXCLUDE (attributes_list), to_json(attributes_list) AS span_attributes_raw FROM cc_spans_from('$src_sql')"
       else
-        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (NULL AS user_prompt), to_json(list_filter(attributes_list, lambda x: x.key != 'user_prompt' AND x.key != 'prompt')) AS span_attributes_raw FROM cc_spans_from('$src_sql')"
+        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (NULL AS user_prompt), to_json(list_filter(attributes_list, lambda x: x.key != 'user_prompt' AND x.key != 'prompt' AND x.key != 'prompt_text')) AS span_attributes_raw FROM cc_spans_from('$src_sql')"
       fi
     else
       select_sql="SELECT * EXCLUDE (attributes_list), to_json(attributes_list) AS metric_attributes_raw FROM cc_metrics_from('$src_sql')"
