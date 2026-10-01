@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. Plan
 what needs testing, author tests at the right level, verify the running app
-end-to-end, diagnose failures to root cause, and catch tests that cannot fail. Seven
+end-to-end, diagnose failures to root cause, and catch tests that cannot fail. Eight
 skills, one concern: proving behavior with tests.
 
 | Skill | What it does |
@@ -13,6 +13,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved `.claude/testing.yaml`, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes `.claude/testing.yaml`. |
+| `/testing:check` | Read-only and model-invocable. Reports whether `jq` resolves for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `test-scan` hook: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
 ## Works in any repo
