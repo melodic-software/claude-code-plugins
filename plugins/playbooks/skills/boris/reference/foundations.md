@@ -57,7 +57,10 @@ Beyond the terminal, run additional sessions on claude.ai/code:
 
 ## 2. Model Selection
 
-> **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94).
+> **Superseded:** this tip names a model and a thinking toggle that no longer apply (Section 94
+> covers a later pick). For which model to run and how thinking works on it now, see
+> [Claude Code model config](https://code.claude.com/docs/en/model-config) and its
+> ["Extended thinking"](https://code.claude.com/docs/en/model-config#extended-thinking) section.
 
 ### Use Opus 4.5 with Thinking for Everything
 
@@ -86,6 +89,11 @@ Press `shift+tab` to cycle to plan mode. Pour energy into the plan so Claude can
 ---
 
 ## 4. CLAUDE.md Best Practices
+
+> **Amended:** adding a line after every correction grows the file without limit. Prune and
+> consolidate as you add: move part-of-the-codebase rules to path-scoped rules and procedures to
+> skills. For current size and review guidance, see
+> [How Claude remembers your project, "Write effective instructions"](https://code.claude.com/docs/en/memory#write-effective-instructions).
 
 ### Invest in Your CLAUDE.md
 

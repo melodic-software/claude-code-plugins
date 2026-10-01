@@ -4,12 +4,21 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.16.1] - 2026-10-01
+## [0.16.2] - 2026-10-01
 
 ### Changed
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.16.1] - 2026-10-01
+
+### Changed
+
+- The `boris` skill's Effort and xhigh rows, tips 67 and 79, and the `foundations`
+  model-selection note point at the current model config docs instead of naming a default or a
+  model. The CLAUDE.md quick-reference row and the `foundations` CLAUDE.md section say to prune as
+  you add, pointing at the memory docs.
 
 ## [0.16.0] - 2026-10-01
 
