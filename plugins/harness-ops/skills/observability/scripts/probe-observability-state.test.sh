@@ -272,6 +272,8 @@ assert_eq "prune-task: no task" "prune-task:missing" "$(prune_task_line)"
 export STUB_SCHTASKS_XML
 STUB_SCHTASKS_XML="$(task_xml "$PWSH" "$LAUNCHER")"
 assert_eq "prune-task: the provisioned launcher" "prune-task:provisioned" "$(prune_task_line)"
+STUB_SCHTASKS_XML="$(task_xml "$PWSH" "${LAUNCHER/claude-ops@/harness-ops@}")"
+assert_eq "prune-task: a launcher naming the harness-ops key" "prune-task:provisioned" "$(prune_task_line)"
 STUB_SCHTASKS_XML="$(task_xml "$PWSH" "$LAUNCHER" '<Enabled>false</Enabled>')"
 assert_eq "prune-task: a disabled task" "prune-task:disabled" "$(prune_task_line)"
 STUB_SCHTASKS_XML="$(task_xml "$GIT_BASH" "$LAUNCHER")"
