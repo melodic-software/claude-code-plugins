@@ -104,22 +104,22 @@ Machine provisioning registers the prune on each fleet host as `ClaudeCodeOtelPr
 run level `Limited`. The same apply converges the scoped `SERVICE_STOP | SERVICE_START` grant the
 prune needs; the grant includes no service-configuration or ACL-writing rights.
 
-The task runs a launcher, not a fixed path. On every run it reads the user-scope
-`claude-ops@melodic-software` entry of `installed_plugins.json` (under `CLAUDE_CONFIG_DIR`, else
-`~/.claude/plugins/`) and runs `skills/observability/otel/prune-otel-store.sh` from that
-`installPath` through `C:\Program Files\Git\bin\bash.exe`. A plugin update therefore needs no
-re-registration, and the 14-day orphan sweep of an old version directory cannot strand the task.
-The log is `%LOCALAPPDATA%\provisioning\logs\ClaudeCodeOtelPrune.log`: one UTC timestamp line per
-run, the prune's output, then `done: claude-ops@melodic-software <version>` or `failed: <reason>`.
-A missing plugin, a missing script and a failed prune each exit 1.
+The task runs a launcher, not a fixed path. On every run it reads the user-scope entry for this
+plugin (key `claude-ops@<marketplace>`) in `installed_plugins.json` (under `CLAUDE_CONFIG_DIR`,
+else `~/.claude/plugins/`) and runs `skills/observability/otel/prune-otel-store.sh` from that
+`installPath` through Git Bash (a machine or a user-scope Git for Windows install). A plugin
+update therefore needs no re-registration, and the 14-day orphan sweep of an old version directory
+cannot strand the task. The log is `%LOCALAPPDATA%\provisioning\logs\ClaudeCodeOtelPrune.log`: one
+UTC timestamp line per run, the prune's output, then `done: <plugin key> <version>` or
+`failed: <reason>`. A missing plugin, a missing script and a failed prune each exit 1.
 
-The contract between the two repositories is three names: the plugin
-`claude-ops@melodic-software`, the in-plugin path `skills/observability/otel/prune-otel-store.sh`,
-and `CC_OTEL_STORE`. Renaming or moving the script breaks the task. Basis: `Get-OtelStorePruneArgument`
-in provisioning's `common/Provisioning.psm1` and the `ClaudeCodeOtelPrune` rows of
-`hosts/*/Set-MachineConfiguration.ps1` (melodic-software/provisioning#669, merged as `16aefbe`),
-read 2026-10-01; recheck
-when either repository changes one of the three names.
+The contract between the two repositories is three names: the plugin key, the in-plugin path
+`skills/observability/otel/prune-otel-store.sh`, and `CC_OTEL_STORE`. Renaming or moving the
+script, or publishing the plugin from another marketplace, breaks the task. Basis:
+`Get-OtelStorePruneArgument` in provisioning's `common/Provisioning.psm1` and the
+`ClaudeCodeOtelPrune` rows of `hosts/*/Set-MachineConfiguration.ps1`
+(melodic-software/provisioning#669, merged as `16aefbe`), read 2026-10-01; recheck when either
+repository changes one of the three names.
 
 A task registered by hand from an earlier version of this page names a versioned cache path or a
 copied script. The next provisioning apply replaces it in place under the same name. On a machine
