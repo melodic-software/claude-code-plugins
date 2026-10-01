@@ -253,6 +253,18 @@ mark_cold_clean() {
   : >"$cold_dir/$COLD_CLEAN_MARKER"
 }
 
+# mark_cold_clean outside the prune's own lock hold: take the sentinel just long enough to
+# write the marker. A held sentinel skips silently, as does an absent cold/ (nothing to scan,
+# and a run that trims nothing must not create the directory).
+mark_cold_clean_briefly() {
+  local store_dir="$1"
+  [[ -n "$COLD_CLEAN_SNAPSHOT" && -d "$store_dir/cold" ]] || return 0
+  # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
+  take_sentinel || return 0
+  mark_cold_clean "$store_dir" || true
+  release_sentinel
+}
+
 # Rewrite each dirty cold logs/spans file with the compaction scrub: COPY to a .tmp in cold/,
 # verify the row count is unchanged and no dirty row remains, then mv over the original.
 # Clean files are left untouched. Always scans, whatever the marker says; a completed real

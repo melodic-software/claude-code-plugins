@@ -952,6 +952,19 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "held sentinel: no marker" "no" "$([[ -e "$marker" ]] && echo yes || echo no)"
   assert_eq "held sentinel left in place" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
   rmdir "$S/.prune-in-progress"
+
+  # Cold-only store (no hot files): the absent-hot return still writes the marker.
+  C="$(new_store coldonly)"
+  cp -R "$S/cold" "$C/cold"
+  rm -f "$C/cold/.prompt-scrub-clean"
+  out="$(run_prune_real "$C")"
+  rc=$?
+  assert_eq "cold-only run exits 0" "0" "$rc"
+  assert_contains "cold-only run takes the absent-hot path" "$out" "action=noop-store-absent"
+  assert_eq "cold-only run writes the marker" "yes" "$([[ -e "$C/cold/.prompt-scrub-clean" ]] && echo yes || echo no)"
+  rm -f "$TMP/duckdb-calls"
+  PATH="$WRAP:$PATH" run_prune_real "$C" >/dev/null
+  assert_eq "next cold-only run makes no duckdb call" "0" "$(duckdb_calls)"
 else
   skip_case "duckdb not found — skipping cold marker case"
 fi

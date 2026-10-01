@@ -339,6 +339,8 @@ main() {
     printf 'action=dry-run total_dropped=%s total_surgery=%s size_pruned_files=%s\n' "$total_dropped" "$total_surgery" "$size_pruned"
     return 0
   fi
+  # Every non-dry-run return below passes here first, so none can skip the clean marker.
+  mark_cold_clean_briefly "$store_dir"
 
   if ((${#present_files[@]} == 0)); then
     printf 'action=noop-store-absent\n'
@@ -348,14 +350,6 @@ main() {
   # Dry-check short-circuit: nothing below either cutoff => no Collector churn.
   if ((total_dropped == 0 && total_surgery == 0)); then
     stamp_last_prune "$store_dir"
-    # A clean scan still earns the marker: hold the sentinel just long enough to write it
-    # (mark_cold_clean rechecks the cold file set). A held sentinel skips it silently. With no
-    # cold/ yet the scan costs nothing, and a no-op run must not create the directory.
-    # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
-    if [[ -n "$COLD_CLEAN_SNAPSHOT" && -d "$store_dir/cold" ]] && take_sentinel; then
-      mark_cold_clean "$store_dir" || true
-      release_sentinel
-    fi
     printf 'action=noop-nothing-to-prune\n'
     return 0
   fi
@@ -370,6 +364,7 @@ main() {
   fi
   OWN_SENTINEL=true
   trap cleanup EXIT
+  # The first prune of a store had no cold/ for mark_cold_clean_briefly; it gets one here.
   mark_cold_clean "$store_dir"
 
   # Sweep stale cold temps left by a previous hard-killed run (safe: we hold the lock, so no
