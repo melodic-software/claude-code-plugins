@@ -7,8 +7,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Fixed
 
-- **`code-reviewer` reserves its report turns and always emits `Criteria read:` and `Coverage:`
-  lines.** A review that runs out of turns still reports what it read and what it covered.
+- **`code-reviewer` reserves its report turns and emits `Criteria read:` and `Coverage:`
+  lines.** A review that runs out of turns still reports what it read and what it covered. A caller that requires exact output with no other lines is exempt.
 - **`quality-gate` self mode detects a partial gate and labels it.** A self-review that did not
   cover every criterion says so instead of reporting a full pass.
 
