@@ -5,6 +5,9 @@
 # Hooks reference lifecycle table, so nothing here touches the network.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/gen-hook-event-registry.sh"
@@ -147,7 +150,7 @@ if ((disagree == 0)); then ok "registry categories agree with slog_category_to";
 
 # --- the under-25-rows refusal ---------------------------------------------------
 new_fixture f
-short="$(mktemp)"
+short="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 FIXTURES+=("$short")
 head -12 "$TABLE" >"$short"
 out=$(bash "$SCRIPT" --from "$short" --root "$f" 2>&1)
@@ -160,7 +163,7 @@ fi
 
 # --- an unknown event is excluded with a warning, never registered ------------------
 new_fixture f
-odd="$(mktemp)"
+odd="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 FIXTURES+=("$odd")
 cp "$TABLE" "$odd"
 # shellcheck disable=SC2016  # the backticks are markdown table text, not a substitution

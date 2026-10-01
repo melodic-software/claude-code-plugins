@@ -4,6 +4,9 @@
 # once under a PATH shim that makes gh/curl fail: every exercised path is pre-network.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
@@ -22,7 +25,7 @@ assert_eq "conformance --binding jira exit 0" "0" "$?"
 
 # Zero-network: a PATH shim makes gh + curl exit 1 and the suite must still pass
 # (no unshare -n on Git Bash).
-SHIM="$(mktemp -d)"
+SHIM="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 write_blocking_network_shim "$SHIM"
 PATH="$SHIM:$PATH" bash "$RUNNER" --binding jira >/dev/null 2>&1
 assert_eq "conformance --binding jira exit 0 under gh/curl-blocking shim" "0" "$?"

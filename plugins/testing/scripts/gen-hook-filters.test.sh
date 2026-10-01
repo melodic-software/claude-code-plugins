@@ -48,13 +48,12 @@ for event in PostToolUse PreToolUse; do
 done
 
 backup="$(mktemp)"
+trap 'cp "$backup" "$HOOKS"; rm -f "$backup"' EXIT
 cp "$HOOKS" "$backup"
 jq '.hooks.PostToolUse[0].hooks |= .[1:]' "$backup" >"$HOOKS"
 check "--check exits 1 on drift" '! bash "$GEN" --check 2>/dev/null'
 bash "$GEN"
 check "a regenerate restores sync" 'cmp -s "$HOOKS" "$backup"'
-cp "$backup" "$HOOKS"
-rm -f "$backup"
 
 echo
 echo "$PASS passed, $FAIL failed"

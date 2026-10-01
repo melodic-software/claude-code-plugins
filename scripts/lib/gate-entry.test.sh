@@ -6,6 +6,9 @@
 # shellcheck disable=SC2016  # child programs stay single-quoted so this shell does not expand $1 before bash -c
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/../.." && pwd)"
 # shellcheck source=changed-files.sh
@@ -102,7 +105,7 @@ else
 fi
 
 # --all and --paths must not consult a ref, even when git cannot resolve one.
-log="$(mktemp)"
+log="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 rc=0
 child 'source "$1"; git() { printf x >>"$2"; return 1; }; gate_entry::classify --all' "$log" || rc=$?
 if [[ "$rc" -eq 0 && ! -s "$log" ]]; then
@@ -229,7 +232,7 @@ fi
 
 # --- empty discovery is not a failed discovery ----------------------------
 
-repo="$(mktemp -d)"
+repo="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 git_init_test_repo "$repo" >/dev/null
 printf 'seed\n' >"$repo/f.txt"
 git_test_config "$repo" add -A >/dev/null
@@ -333,7 +336,7 @@ else
   fail "stale base-ref allowlist entries: $stale"
 fi
 
-scratch="$(mktemp -d)"
+scratch="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 printf '%s\n' 'git rev-parse -q --verify "$b^{commit}" >/dev/null || exit 2' >"$scratch/scratch.sh"
 if [[ -n "$(base_ref_predicate_hits "$scratch")" ]]; then
   ok "a scratch script hand-rolling the predicate is caught"
