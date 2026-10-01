@@ -9,6 +9,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`/claude-ops:check` reads whether `node` and `jq` resolve for the claude-ops hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, so the fleet report and the per-plugin check read the same list. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
 
+## [0.78.1] - 2026-10-01
+
+### Fixed
+
+- **A declined `ask` install gap stays in the report.** Re-entering with zero or partial picks
+  now lists the plugins left uninstalled under `Action needed`, and the plugins skill states that
+  a dismissed or unanswered multi-select re-enters with an empty id list.
+
 ## [0.78.0] - 2026-09-30
 
 ### Added
