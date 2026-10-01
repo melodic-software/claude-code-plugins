@@ -15,6 +15,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   the plugin's `partial` and degrades the lane. The lane has its own integrity entry, so
   `--self-check` covers it. On Claude Code 2.1.287 it reads 11 plugins. `audit-native-overlap
   detect` now scores each built-in plugin and its components as plugin-backed built-ins.
+- **A seeded overlap pair for the built-in `cc-plugin-agents-md` plugin.** `canonical-pairs.json`
+  proposes it against `/instruction-placement:migrate`.
 
 ## [0.80.1] - 2026-10-01
 

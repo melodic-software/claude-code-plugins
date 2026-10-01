@@ -2816,6 +2816,86 @@
         "suggest_sentence": false
       },
       "budget_caveat": true
+    },
+    {
+      "native": {
+        "name": "claude-test",
+        "class": "plugin-backed-builtin",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "run-e2e",
+        "kind": "skill"
+      },
+      "verdict": "defer",
+      "integration": "route",
+      "reason": "Deferred: both verify a running web app in a real browser and return screenshot evidence, so the overlap is real, but the native side is the `claude-test` skill of the built-in `cc-plugin-claude-test` plugin, whose availability gate tests the flag `tengu_mellow_hollerith` with a code default of false. A surface off by default in most sessions is not a basis for a routing line. Re-rule as complementary with integration route when the flag defaults on. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`claude-test` present in the extraction as plugin-backed-builtin (the `builtin_plugins` lane, plugin `cc-plugin-claude-test`, version 0.4.15)",
+        "markers: gated; gate flag `tengu_mellow_hollerith`, default false; the loader requires the plugin only outside the local-agent entrypoint",
+        "native description: Check that the web app in this repo still works, with Claude Test — plain-language specs in .claude-test/specs/ run in the background in a fenced headless browser against the local dev server, and a PASS / FAIL summary comes back with screenshots. On a first run it proposes a starter set of specs for the person to approve. Use when the user asks (\"test my app\", \"did I break anything?\", \"run claude test\").",
+        "invocation mode (2026-10-01, Claude Code 2.1.287): user-invocable (`userInvocable:!0`); model invocability not read for built-in plugin skills",
+        "detect: origin discovered, score 0.3777 from shared tokens test, app, run, screenshot, serv, start, work, check"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.287 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `claude-test` read in the builtin_plugins lane)",
+        "date": "2026-10-01"
+      },
+      "recheck": {
+        "trigger": "an extraction reads the `tengu_mellow_hollerith` gate default as true, drops the gate from `cc-plugin-claude-test`, or stops reporting the `claude-test` skill in the builtin_plugins lane",
+        "verified": "2026-10-01"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": false,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": false
+    },
+    {
+      "native": {
+        "name": "cc-plugin-agents-md",
+        "class": "plugin-backed-builtin",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "instruction-placement",
+        "skill": "migrate",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "Different jobs on the same file. The built-in `cc-plugin-agents-md` plugin is how Claude Code loads AGENTS.md as project instructions where no CLAUDE.md exists (its gate flag `tengu_agents_md_mod` defaults on); instruction-placement:migrate moves a repository's instruction content into AGENTS.md and keeps a one-line CLAUDE.md shim while the shim is what makes it load. The plugin is the loading mechanism the migration's shim decisions are judged against, not a replacement for the migration. Route: nothing invokes a plugin, so the migration reads the plugin's state (enabled in /plugin, the instructionFiles option) rather than calling it. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "evidence": [
+        "`cc-plugin-agents-md` present in the extraction as plugin-backed-builtin (the `builtin_plugins` lane), aliases: agents-md",
+        "markers: gated; gate flag `tengu_agents_md_mod`, default true; loaded unconditionally; default_enabled true (absent-default); declares userConfig",
+        "native description: AGENTS.md as project instructions: by default loaded where the project has no CLAUDE.md; by its instructionFiles option, loaded beside CLAUDE.md, left out, or with the project instructions dropped",
+        "our description: Move instruction content to AGENTS.md as the one content home, keeping a one-line CLAUDE.md shim while a shim is what makes it load",
+        "hand-seeded pair (canonical-pairs.json); not discovered by detect at the default threshold"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.287 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals; `cc-plugin-agents-md` read in the builtin_plugins lane)",
+        "date": "2026-10-01"
+      },
+      "recheck": {
+        "trigger": "an extraction stops reporting `cc-plugin-agents-md` in the builtin_plugins lane, reads its `tengu_agents_md_mod` gate default as false, or the plugin gains a skill or command; or the memory page changes which sessions read AGENTS.md directly",
+        "verified": "2026-10-01"
+      },
+      "baked": {
+        "description_phrase": false,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
     }
   ],
   "dismissals": [
@@ -2847,12 +2927,12 @@
         "skill": "check",
         "kind": "skill"
       },
-      "reason": "Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
-      "as_of": "2.1.285",
+      "reason": "Name overlap only: bash-format:check is a read-only check that shfmt, shellcheck and node resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing.",
+      "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "a7f67a9b12ebfca6f87a32ccdee185d9",
-        "component": "3f55bc9bc552095ce98645fab43fdec4"
+        "component": "dd6798c14d26edab70e9c138812da51e"
       }
     },
     {
@@ -3028,11 +3108,11 @@
         "kind": "skill"
       },
       "reason": "Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing.",
-      "as_of": "2.1.285",
+      "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "7e8a83657f5c47a86bcd429dbf18e53e",
-        "component": "f108c4244ee4f411177cd9f8cc0b9b9e"
+        "component": "3ea7d63b3f8a7f725c0afbc70c615504"
       }
     },
     {
@@ -3099,12 +3179,12 @@
         "skill": "check",
         "kind": "skill"
       },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
       "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "e782dd30b656e3a5d75d4859b5a42e64",
-        "component": "e054cb9a1335bc26748207ee81eddd70"
+        "component": "d9268c18bba640ca15777b1d186ee196"
       }
     },
     {
@@ -3159,6 +3239,24 @@
       "fingerprint": {
         "native": "f3db0db88a1cb3936369d6ca5e0eff57",
         "component": "9648b17d76a5aff222e60fc2704daa4b"
+      }
+    },
+    {
+      "native": {
+        "name": "TaskUpdate",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "update",
+        "kind": "skill"
+      },
+      "reason": "The TaskUpdate tool updates a task-list entry; ours drift-checks and syncs the playbooks plugin's vendored packs. Shared word only, surfaced by a change in scoring weights, not by the built-in plugin lane. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "364768a9ac903e97827256aa22eeccb4",
+        "component": "fcd86b079d31c37cf759c9241c5a4b42"
       }
     },
     {
@@ -3433,6 +3531,24 @@
     },
     {
       "native": {
+        "name": "author",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "skill-authoring",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's author agent drafts Claude Test spec files; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "5c35dc06f75249f6ba137207807f7218",
+        "component": "66139c7517bcdfb75782ebcb959181f4"
+      }
+    },
+    {
+      "native": {
         "name": "autofix-pr",
         "class": "builtin-command"
       },
@@ -3541,6 +3657,96 @@
     },
     {
       "native": {
+        "name": "cc-plugin-agents-md",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "docs-hygiene",
+        "skill": "write-for-agents",
+        "kind": "skill"
+      },
+      "reason": "The built-in agents-md plugin loads AGENTS.md as project instructions; ours writes agent-consumed markdown. Loader versus writer, shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "81af9030e8b33a36482dab4b10897c58",
+        "component": "e86f6506f34e1755f133f801bf57677e"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "pressure-test",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin runs plain-language specs against a local dev server in a browser; ours builds a throwaway terminal app to pressure-test logic before committing to it. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "bdca54a963f338f3d5b08615eb951993",
+        "component": "b1d0ebecb379ca7a6eb4cf82d701620d"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "setup",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin runs plain-language specs against a local dev server in a browser; ours configures the testing plugin's can't-fail checks for a repository. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "bdca54a963f338f3d5b08615eb951993",
+        "component": "8b8cd21dbd7f983ba478292d0305d6e6"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "test-value",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin runs plain-language specs against a local dev server in a browser; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "bdca54a963f338f3d5b08615eb951993",
+        "component": "ce076b3ced24d3c7b11594070f416336"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-plugin-authoring",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "skill-authoring",
+        "kind": "skill"
+      },
+      "reason": "The built-in plugin-authoring plugin teaches writing a mod, a plugin of function hooks; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "d5566e916298814900be7be1c6a09cf7",
+        "component": "66139c7517bcdfb75782ebcb959181f4"
+      }
+    },
+    {
+      "native": {
         "name": "claude-code-docs",
         "class": "bundled-skill"
       },
@@ -3555,6 +3761,60 @@
       "fingerprint": {
         "native": "f7ef76c12bd711469c24b071765b15af",
         "component": "9a5e3c9aa794d112f1b47e88d8909060"
+      }
+    },
+    {
+      "native": {
+        "name": "claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "pressure-test",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test skill runs plain-language specs against a local dev server in a browser; ours builds a throwaway terminal app to pressure-test logic before committing to it. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "2167546b6a0f6c522af542dc86243406",
+        "component": "b1d0ebecb379ca7a6eb4cf82d701620d"
+      }
+    },
+    {
+      "native": {
+        "name": "claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "testing",
+        "skill": "test-value",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test skill runs plain-language specs against a local dev server in a browser; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "2167546b6a0f6c522af542dc86243406",
+        "component": "ce076b3ced24d3c7b11594070f416336"
+      }
+    },
+    {
+      "native": {
+        "name": "claude-test-draft",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "claude-config",
+        "skill": "draft-auto-mode-rules",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test-draft skill drafts Claude Test spec files in the background; ours drafts autoMode classifier rules. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "01d7f8fef8bb3949d2a00784ebe2a6c2",
+        "component": "58045bbba7b06761bb21db2066ffe557"
       }
     },
     {
@@ -3819,12 +4079,12 @@
         "skill": "check",
         "kind": "skill"
       },
-      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that node and jq resolve for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
       "as_of": "2.1.287",
       "date": "2026-10-01",
       "fingerprint": {
         "native": "47f26aa289e2c8339a42d3523417d50f",
-        "component": "e054cb9a1335bc26748207ee81eddd70"
+        "component": "d9268c18bba640ca15777b1d186ee196"
       }
     },
     {
@@ -3915,6 +4175,60 @@
       "fingerprint": {
         "native": "976e49f9db0ca978f51b003f877b8935",
         "component": "98bd9bd8ad67cafeaf49243846b76c6e"
+      }
+    },
+    {
+      "native": {
+        "name": "explorer",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "explore",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's explorer agent maps an app's code for Claude Test runs only; ours explores a codebase before a change and persists EXPLORE.md. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "a5d087a297dfa763ec368ce81519b1a6",
+        "component": "68e55334818c0d1145a6a041d230cf1f"
+      }
+    },
+    {
+      "native": {
+        "name": "explorer",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "explorer",
+        "kind": "agent"
+      },
+      "reason": "The built-in claude-test plugin's explorer agent maps an app's code for Claude Test runs only; ours runs the /discovery:explore workflow in a fresh context. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "a5d087a297dfa763ec368ce81519b1a6",
+        "component": "89bdb13c2f43b4f0627f333b702b633f"
+      }
+    },
+    {
+      "native": {
+        "name": "explorer",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "prototype",
+        "skill": "explore-directions",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's explorer agent maps an app's code for Claude Test runs only; ours builds throwaway UI variations. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "a5d087a297dfa763ec368ce81519b1a6",
+        "component": "d090abd0eecc9421aaa6d7c4ed6ae681"
       }
     },
     {
@@ -4171,6 +4485,24 @@
     },
     {
       "native": {
+        "name": "plugin-authoring",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "skill-authoring",
+        "kind": "skill"
+      },
+      "reason": "The built-in plugin-authoring skill teaches writing a mod, a plugin of function hooks; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "54a82e5d65daadf6c4aef3abe7a511a1",
+        "component": "66139c7517bcdfb75782ebcb959181f4"
+      }
+    },
+    {
+      "native": {
         "name": "pr",
         "class": "bundled-skill"
       },
@@ -4275,6 +4607,24 @@
       "fingerprint": {
         "native": "d70acfcedf494ca9e65a44cf39476a7b",
         "component": "55c282b9936fe112e1a991bb5a8bff7a"
+      }
+    },
+    {
+      "native": {
+        "name": "runner",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "session-flow",
+        "skill": "running-retro",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test plugin's runner agent drives the app under test in a fenced browser; ours files mid-session retro findings. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "c3f5ec155af5477a49450ba7994d06fe",
+        "component": "8bbefc8bfd79d9dc7e245705b9458e5b"
       }
     },
     {

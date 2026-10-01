@@ -14,6 +14,18 @@ Every page below was fetched by the convention's rung-1 route (`curl` the `.md` 
 the file locally), slug confirmed against `https://code.claude.com/docs/llms.txt`, and quoted from
 the bytes rather than paraphrased.
 
+Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) ·
+[Feature-flag dependency](#the-documented-feature-flag-dependency) ·
+[Minimum CLI version](#the-minimum-cli-version) ·
+[`claude-code-action` releases](#claude-code-action-release-to-installed-cli-version) ·
+[CI canary](#the-ci-canary) · [Canary host](#canary-host-4282) ·
+[Fleet grade](#current-fleet-grade) ·
+[Other loaders](#loader-behavior-of-cursor-grok-build-and-muse-code) ·
+[Canary recipe](#the-canary-recipe) · [Shim removal cost](#what-shim-removal-costs) ·
+[Measuring the cutover](#what-the-loss-means-for-measuring-the-cutover) ·
+[Hook gap recheck](#page-recheck-of-the-hook-gap) ·
+[Built-in agents-md plugin](#the-built-in-agents-md-plugin)
+
 ## The remote flag, and how its code default is read
 
 - **Claim**: reading `AGENTS.md` directly is gated on the GrowthBook flag `tengu_agents_md_mod`. In
@@ -293,3 +305,21 @@ The 2026-09-20 measurement above was not repeated on this pass.
   `claude auth status` reported `loggedIn` false, so no new `claude -p` measurement was possible.
 - **As of**: 2026-09-28.
 - **Recheck trigger**: the same as the measurement record above.
+
+## The built-in agents-md plugin
+
+The record behind the skill body's `## Boundary` section for `cc-plugin-agents-md`.
+
+- **Claim**: Claude Code registers a built-in plugin `cc-plugin-agents-md@builtin` (alias
+  `agents-md`) whose description reads "AGENTS.md as project instructions: by default loaded where
+  the project has no CLAUDE.md; by its instructionFiles option, loaded beside CLAUDE.md, left out,
+  or with the project instructions dropped". The loader requires it in every session type, its
+  availability gate tests `tengu_agents_md_mod` with a code default of true, and it declares no
+  skill, agent or command. It loads the file; it does not move content or write a shim.
+- **Basis**: `/claude-ops:inventory` (`inventory.py --binary-only`) on the installed Claude Code
+  2.1.287 native build, `builtin_plugins.cc-plugin-agents-md`, integrity `ok` on every lane; the
+  native-surfaces store row for this pair (verdict `complementary`, integration `route`).
+- **As of**: 2026-10-01, Claude Code 2.1.287.
+- **Recheck trigger**: an extraction stops reporting the plugin, reads its gate default as false,
+  or reports a skill or command on it; or the memory page changes which sessions read `AGENTS.md`
+  directly.
