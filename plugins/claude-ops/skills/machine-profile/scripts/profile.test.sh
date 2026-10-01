@@ -110,15 +110,15 @@ expect_eq "an include path naming secret or token still discovers" 0 "$rc"
 expect_eq "both include trees are recorded" 2 "$(jq '.domains | length' <<<"$cred")"
 expect_eq "an include path with a credential word keeps its fact" "writable" "$(jq -r '.domains[] | .facts[] | select(.key | startswith("git_include_file:")) | .value' <<<"$cred" | head -n 1)"
 expect_eq "no include-path fact key matches the credential pattern" "0" "$(jq '[.domains[].facts[].key | select(test("token|secret|password|credential"; "i"))] | length' <<<"$cred")"
-expect_has "the include path stays readable in its key" "/home/[s]ecret-dir/gitconfig" "$(jq -r '.domains[].facts[].key' <<<"$cred")"
+expect_has "the include path stays readable in its key" "[T]oken_dir/gitconfig" "$(jq -r '.domains[].facts[].key' <<<"$cred")"
 
 printf 'tool\tplugin\tstatus\tcheck\tinstall\nsecret-tool\tplug-a\tpresent\t/plug-a:check\tx\ngit-credential-manager\tplug-a\tmissing\t/plug-a:check\tx\ndocker-credential-pass\tplug-b\tpresent\t/plug-b:check\t\nsecretoken\tplug-b\tpresent\t/plug-b:check\t\n' >"$OUT/credbin.tsv"
 CREDDATA="$OUT/creddata"
 credbin="$(run discover --prerequisites "$OUT/credbin.tsv" </dev/null)"
 rc=$?
 expect_eq "a declared binary named for a credential tool still discovers" 0 "$rc"
-expect_eq "each credential word in a binary key is bracketed, overlaps included" "binary.[s]ecre[t]oken binary.[s]ecret-tool binary.docker-[c]redential-pass binary.git-[c]redential-manager" "$(jq -r '[.machine.facts[].key | select(startswith("binary."))] | sort | join(" ")' <<<"$credbin")"
-expect_eq "a credential-named binary keeps its observed value" "present" "$(jq -r '.machine.facts[] | select(.key == "binary.[s]ecret-tool") | .value' <<<"$credbin")"
+expect_eq "each credential word in a binary key is bracketed, overlaps included" "binary.[s]ecre[t]oken binary.[s]ecret-tool binary.docker-[c]redential-pass binary.git-[c]redential-manager" "$(jq -r '[.machine.facts[].key | select(startswith("binary."))] | sort | join(" ")' <<<"$credbin")" # spellchecker:disable-line
+expect_eq "a credential-named binary keeps its observed value" "present" "$(jq -r '.machine.facts[] | select(.key == "binary.[s]ecret-tool") | .value' <<<"$credbin")" # spellchecker:disable-line
 expect_eq "no discovered key matches the credential pattern" "0" "$(jq '[.machine.facts[].key | select(test("token|secret|password|credential"; "i"))] | length' <<<"$credbin")"
 run record --data-dir "$CREDDATA" --confirm - <<<"$credbin" >/dev/null 2>&1
 expect_eq "record accepts the discovered document" 0 "$?"
@@ -126,7 +126,27 @@ out="$(run diff --data-dir "$CREDDATA" --prerequisites "$OUT/credbin.tsv" </dev/
 rc=$?
 expect_eq "diff of the stored credential-named keys exits 0" 0 "$rc"
 expect_eq "diff of the stored credential-named keys prints nothing" "" "$out"
-expect_has "explain resolves a bracketed key" '"verdict":"set"' "$(run explain --data-dir "$CREDDATA" 'binary.[s]ecret-tool' 2>&1)"
+expect_has "explain resolves a bracketed key" '"verdict":"set"' "$(run explain --data-dir "$CREDDATA" 'binary.[s]ecret-tool' 2>&1)" # spellchecker:disable-line
+
+# 1c. A drive-letter origin resolves a relative include against the including file,
+# and a tree reached through two origins keeps both observations.
+REAL_GIT="$(command -v git)"
+STUB="$OUT/stub"
+mkdir -p "$STUB"
+cat >"$STUB/git" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1 \$2 \$3" == "config --list --show-origin" ]]; then
+  printf 'file:C:/cfg/.gitconfig\tincludeif.gitdir:~/w/.path=.gitconfig-work\n'
+  printf 'file:/etc/gitconfig\tincludeif.gitdir:~/w/.path=/etc/gitconfig-corp\n'
+  exit 0
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$STUB/git"
+multi="$(PATH="$STUB:$PATH" run discover </dev/null)"
+expect_has "a drive-letter origin resolves a relative include against its file" 'git_include_file:C:/cfg/.gitconfig-work' "$(jq -r '.domains[].facts[].key' <<<"$multi")"
+expect_eq "a drive-letter include is not resolved against the repository" "0" "$(jq '[.domains[].facts[].key | select(contains("repo/"))] | length' <<<"$multi")"
+expect_eq "a tree reached through two origins names both in observed_by" "2" "$(jq '.domains[].identity.git_include.observed_by | split("; ") | length' <<<"$multi")"
 
 # 2. Store, then diff an unchanged fixture: an empty diff and no prompt.
 dry="$(run record --data-dir "$DATA" - <<<"$first")"
@@ -196,6 +216,16 @@ refuse "blocked without a guard is refused" '{"key":"k","value":"v","verdict":"b
 refuse "set without supplied_by is refused" '{"key":"k","value":"v","verdict":"set","observed_by":"ls","mode":"observed"}'
 refuse "a credential value is refused" '{"key":"k","value":"ghp_abcdefghijklmnopqrstuvwxyz0123","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
 refuse "a credential key is refused" '{"key":"api_token","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a sensitive userConfig key is refused" '{"key":"dometrain-mcp.dometrain_api_key","value":"x","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "an AWS access key value is refused" '{"key":"k","value":"AKIA'"IOSFODNN7EXAMPLE"'","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a Slack token value is refused" '{"key":"k","value":"xoxb-123456789012-abcdefghij","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a URL with an embedded password is refused" '{"key":"k","value":"postgres://admin:Sup3rPassw0rd@host/db","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+refuse "a private key block is refused" '{"key":"k","value":"-----BEGIN RSA PRIVATE KEY-----","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+accept "a path with sk- inside a word is accepted" '{"key":"k","value":"/work/task-management-system-notes-dir","verdict":"set","observed_by":"ls","mode":"observed","supplied_by":"host"}'
+dup_opts="$(jq -c '{machine: {facts: [], options: [{key:"o",value:"a",verdict:"set",observed_by:"ls",mode:"observed",supplied_by:"host"},{key:"o",value:"b",verdict:"set",observed_by:"ls",mode:"observed",supplied_by:"host"}]}, domains: {}}' <<<'{}')"
+msg="$(run record --data-dir "$DATA" --confirm - <<<"$dup_opts" 2>&1)"
+expect_eq "duplicate option keys are refused: exit 1" 1 "$?"
+expect_has "the refusal names the duplicate option key" "machine.options: duplicate key o" "$msg"
 accept "default-unexamined with skipped_because is accepted" '{"key":"k","verdict":"default-unexamined","skipped_because":"no discovery source is defined for it"}'
 accept "default-verified with an observation is accepted" '{"key":"k","value":"","verdict":"default-verified","observed_by":"ls /x","mode":"observed","observation":"directory not found"}'
 

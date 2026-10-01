@@ -27,7 +27,10 @@ command -v jq >/dev/null 2>&1 || die "jq is required"
 
 # Words a record key may not contain. The validator refuses them in a hand-supplied
 # key, and rec rewrites them in a key discovery derives, from this one pattern.
-CRED_RE='token|secret|password|credential'
+CRED_RE='token|secret|passw(?:or)?d|credential|api.?key|private.?key'
+# Value shapes the validator refuses in any string of a record: GitHub, AWS, Slack and
+# sk- API tokens, JWTs, private-key blocks, and a password embedded in a URL.
+VAL_RE='gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|\b(AKIA|ASIA)[0-9A-Z]{16}\b|\bxox[abprs]-[A-Za-z0-9-]{10,}|\bsk-[A-Za-z0-9_-]{20,}|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|://[^/[:space:]:@]+:[^/[:space:]@]+@'
 
 # Every record in a document is checked here. Prints one line per problem.
 # shellcheck disable=SC2016  # jq source, not shell expansion
@@ -69,7 +72,7 @@ def rp:
         (if $r.verdict == "blocked" and ($r.guard | nz | not) then "blocked requires guard" else empty end)
       end),
       (if ($r.key | type) == "string" and ($r.key | test($cred; "i")) then "key names a credential" else empty end),
-      ($r | .. | strings | select(test("gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}")) | "holds what looks like a credential")
+      ($r | .. | strings | select(test($val)) | "holds what looks like a credential")
     ] | .[] | "\($w): \(.)" end;
 def dupkeys($w): map(select(type == "object") | .key) | group_by(.) | map(select(length > 1)) | .[] | "\($w): duplicate key \(.[0])";
 if type != "object" then "document must be an object"
@@ -77,7 +80,10 @@ else ([shape] as $s
   | if ($s | length) > 0 then $s[]
     else (locs | rp),
          ((.machine.facts // []) | dupkeys("machine.facts")),
-         ((.domains // {}) | to_entries[] | .key as $d | (.value.facts // []) | dupkeys("domains[\($d)].facts"))
+         ((.machine.options // []) | dupkeys("machine.options")),
+         ((.domains // {}) | to_entries[] | .key as $d
+           | ((.value.facts // []) | dupkeys("domains[\($d)].facts")),
+             ((.value.options // []) | dupkeys("domains[\($d)].options")))
     end) end
 '
 
@@ -114,9 +120,9 @@ def side($t): "  \($t)";
 
 # rec KEY VALUE VERDICT [--arg FIELD VALUE ...] -> one compact JSON record. Every
 # key discovery derives from host text (a binary name, an include path) passes
-# through here, so a credential word in it is bracketed (secret-tool becomes
-# [s]ecret-tool) and no longer matches the validator's refusal. Hand-supplied
-# records never pass through here.
+# through here, so the first letter of a credential word in it is bracketed and the
+# key no longer matches the validator's refusal. Hand-supplied records never pass
+# through here.
 # shellcheck disable=SC2016  # jq source, not shell expansion
 rec() {
   jq -nc --arg cred "$CRED_RE" '$ARGS.named | del(.cred)
@@ -230,7 +236,9 @@ discover() {
     [[ -n "$pat" && -n "$inc" ]] || continue
     tree="$(expand_home "$pat")"; tree="${tree%/}"; tree="${tree%/\*\*}"; tree="${tree%/}"
     inc="$(expand_home "$inc")"
-    if [[ "$inc" != /* && "$origin" == file:/* ]]; then inc="$(dirname "${origin#file:}")/$inc"; fi
+    if [[ "$inc" != /* && ! "$inc" =~ ^[A-Za-z]:/ && ("$origin" == file:/* || "$origin" =~ ^file:[A-Za-z]:/) ]]; then
+      inc="$(dirname "${origin#file:}")/$inc"
+    fi
     pairs+=("$(jq -nc --arg tree "$tree" \
       --argjson gi "$(rec git_include "$inc" set --arg observed_by "git config --list --show-origin ($origin)" \
         --arg mode observed --arg supplied_by "git config includeIf gitdir")" \
@@ -249,7 +257,9 @@ discover() {
      domains: ($d | group_by(.tree) | map(. as $g | {key: $g[0].tree, value: {
         tree: $g[0].tree,
         identity: {
-          git_include: ($g[0].git_include | .value = ($g | map(.git_include.value) | unique | join(", "))),
+          git_include: ($g[0].git_include
+            | .value = ($g | map(.git_include.value) | unique | join(", "))
+            | .observed_by = ($g | map(.git_include.observed_by) | unique | join("; "))),
           gh_config_dir: $g[0].gh},
         facts: ($g | map(.facts[]) | unique_by(.key) | sort_by(.key)),
         options: []}}) | from_entries)}')"
@@ -260,7 +270,7 @@ discover() {
 validate() {
   local problems
   jq -e . >/dev/null 2>&1 <<<"$1" || { echo "profile.sh: refused: the document is not valid JSON" >&2; return 1; }
-  problems="$(jq -r --arg cred "$CRED_RE" "$VALIDATE_JQ" <<<"$1")" || return 1
+  problems="$(jq -r --arg cred "$CRED_RE" --arg val "$VAL_RE" "$VALIDATE_JQ" <<<"$1")" || return 1
   [[ -z "$problems" ]] && return 0
   printf 'profile.sh: refused:\n  %s\n' "${problems//$'\n'/$'\n'  }" >&2
   return 1

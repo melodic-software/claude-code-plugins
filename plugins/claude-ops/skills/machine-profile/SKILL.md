@@ -60,7 +60,7 @@ Discovery reads identity domains from the `includeIf "gitdir:..."` entries in `g
 
 Binary facts come only from the prerequisites table. Without `--prerequisites`, discovery records `binaries` as `default-unexamined` and adds no probe of its own, so a `diff` run without the table reports the per-tool rows as removed.
 
-The writer refuses a record whose key contains `token`, `secret`, `password` or `credential`. A key discovery derives from host text (a binary such as `secret-tool`, an include path under a `token` directory) gets the first letter of each such word bracketed, as `binary.[s]ecret-tool`, so the profile still records it. `explain` needs the bracketed key, and a hand-supplied record keyed `api_token` is still refused.
+The writer refuses a record whose key contains `token`, `secret`, `password`, `credential`, `api_key` or `private_key`, and a record whose value looks like a credential: a GitHub, AWS, Slack or `sk-` token, a JWT, a private-key block, or a URL with an embedded password. A key discovery derives from host text (a binary such as `docker-credential-pass`, an include path under a `token` directory) gets the first letter of each such word bracketed, as `binary.docker-[c]redential-pass`, so the profile still records it. `explain` needs the bracketed key, and a hand-supplied record keyed `api_token` is still refused.
 
 `diff` compares facts and identity only. Option records are stored state that discovery does not observe, so a hand-edited or never-applied option does not show as drift.
 
