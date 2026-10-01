@@ -704,19 +704,24 @@ inline_code_can_run() {
 # anywhere is a provable read call, no drive-root tmp path is left once those
 # calls are cut out, and no indirection that could write elsewhere appears.
 # Anything else fails closed. A read call proves only as a bare `open(` with
-# one argument (a single whole quoted literal, or an unquoted run free of
-# , ( ) quotes # and *), an optional read-mode literal (only r/b/t), optional
-# literal encoding=/errors=/newline=, then `)`, followed by `.read(` /
-# `.readline(` / `.readlines(` or wrapped whole in `json.load(`, so only the
-# file's content leaves the call. Any `.open(` (method form: its receiver can
-# be rebound), any identifier before `open(` (popen, fdopen) and any uncalled
-# `open` name (an alias, a getattr string) void the relief. So does any `\`,
-# `$` or backtick in the raw command: an escaped quote reads as a close quote
-# here, and a shell expansion can splice a write mode into a quoted literal.
-_DRIVE_TMP_PY_LIT="(\"[^\"]*\"|'[^']*')"
+# one argument that is a plain path (a single whole quoted literal of path
+# characters only, or a bare name with optional `.attr` and `[0]` subscripts),
+# an optional read-mode literal (only r/b/t), optional literal
+# encoding=/errors=/newline= of path characters, then `)`, followed by `.read(`
+# / `.readline(` / `.readlines(` or wrapped whole in `json.load(`, so only the
+# file's content leaves the call. The argument is limited to path characters
+# because the drive-root path inside an accepted call is never seen by the
+# leftover-`tmp` check or the redirect check, so an argument that can carry a
+# command (Ruby's `open('|cmd')`, `%x[cmd]`, `"#{cmd}"`, `%q[|cmd]`) must not
+# be accepted. Any `.open(` (method form: its receiver can be rebound), any
+# identifier before `open(` (popen, fdopen) and any uncalled `open` name (an
+# alias, a getattr string) void the relief. So does any `\`, `$` or backtick in
+# the raw command: an escaped quote reads as a close quote here, and a shell
+# expansion can splice a write mode into a quoted literal.
+_DRIVE_TMP_PY_LIT="(\"[[:alnum:]_./:~ -]*\"|'[[:alnum:]_./:~ -]*')"
 _DRIVE_TMP_PY_READ_MODE="(\"[rbt]+\"|'[rbt]+')"
 _DRIVE_TMP_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*${_DRIVE_TMP_PY_LIT}"
-_DRIVE_TMP_PY_OPEN_READ="^[[:space:]]*([rbu]*${_DRIVE_TMP_PY_LIT}|[^,()\"'#*]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_DRIVE_TMP_PY_READ_MODE})?(${_DRIVE_TMP_PY_READ_KWARG})*[[:space:]]*\)"
+_DRIVE_TMP_PY_OPEN_READ="^[[:space:]]*([rbu]*${_DRIVE_TMP_PY_LIT}|[[:alnum:]_.]+(\[[0-9]+\])*)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_DRIVE_TMP_PY_READ_MODE})?(${_DRIVE_TMP_PY_READ_KWARG})*[[:space:]]*\)"
 _DRIVE_TMP_PY_READ_CHAIN="^[[:space:]]*\.[[:space:]]*(read|readline|readlines)[[:space:]]*\("
 _DRIVE_TMP_PY_JSON_LOAD="(^|[^[:alnum:]_.])json[[:space:]]*\.[[:space:]]*load[[:space:]]*\([[:space:]]*$"
 # `import json` that starts a statement; `from x import json` rebinds the name.

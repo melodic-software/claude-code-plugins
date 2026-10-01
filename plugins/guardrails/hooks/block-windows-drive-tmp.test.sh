@@ -365,6 +365,38 @@ run_win "python open(/tmp) read with encoding= (allowed)" \
   "python3 -c \"print(open('/tmp/x', encoding='utf-8').read())\"" 0
 run_win "python open(/tmp,'r',encoding=) read (allowed)" \
   "python3 -c \"print(open('/tmp/x', 'r', encoding='utf-8').read())\"" 0
+run_win "python open(sys.argv[1]) read beside open(/tmp) read (allowed)" \
+  "python3 -c \"import sys; print(open(sys.argv[1]).read(), open('/tmp/x').read())\"" 0
+run_win "python open(/tmp) read beside a spaced path read (allowed)" \
+  "python3 -c \"print(open('/tmp/x').read(), open('/c/Users/a b/y.txt').read())\"" 0
+# A read call's argument must be a plain path. Ruby's Kernel#open runs an argument
+# that starts with `|` as a subprocess, and `%x[...]` and `"#{...}"` run code. The
+# drive-root path sits inside the accepted call, where neither the leftover-tmp
+# check nor the redirect check (the `>` is quoted) sees it.
+run_win "ruby open('|echo hi > /c/tmp/x').read() runs a subprocess (blocked)" \
+  "ruby -e \"open('|echo hi > /c/tmp/x').read()\"" 2
+run_win "ruby JSON.load(open('|echo hi > /c/tmp/x')) (blocked)" \
+  "ruby -e \"JSON.load(open('|echo hi > /c/tmp/x'))\"" 2
+run_win "ruby open('|cp a /c/tmp/x').readlines() (blocked)" \
+  "ruby -e \"open('|cp a /c/tmp/x').readlines()\"" 2
+run_win "ruby open(' |echo hi > /c/tmp/x') leading space before the pipe (blocked)" \
+  "ruby -e \"open(' |echo hi > /c/tmp/x').read()\"" 2
+run_win "ruby open(%q[|echo hi > /c/tmp/x]) unquoted operand (blocked)" \
+  "ruby -e \"open(%q[|echo hi > /c/tmp/x]).read()\"" 2
+run_win "ruby open(%x[echo hi > /c/tmp/x]) command literal (blocked)" \
+  "ruby -e \"open(%x[echo hi > /c/tmp/x]).read()\"" 2
+run_win "ruby open(\"#{%x(...)}\") interpolation (blocked)" \
+  "ruby -e 'open(\"#{%x(echo hi > /c/tmp/x)}\").read()'" 2
+run_win "ruby open(/c/tmp, encoding=\"#{...}\") interpolated kwarg (blocked)" \
+  "ruby -e 'open(\"/c/tmp/x\", encoding=\"#{%x(echo hi > /c/tmp/y)}\").read()'" 2
+run_win "ruby pipe command held in a variable, path outside the call (blocked)" \
+  "ruby -e \"x='|echo hi > /c/tmp/x'; open(x).read()\"" 2
+run_win_pwsh "PS: ruby open('|echo hi > /c/tmp/x').read() (blocked)" \
+  "ruby -e \"open('|echo hi > /c/tmp/x').read()\"" 2
+run_win_pwsh "PS: ruby open(%q[|echo hi > /c/tmp/x]) unquoted operand (blocked)" \
+  "ruby -e \"open(%q[|echo hi > /c/tmp/x]).read()\"" 2
+run_win_pwsh "PS: ruby open(%x[echo hi > /c/tmp/x]) command literal (blocked)" \
+  "ruby -e \"open(%x[echo hi > /c/tmp/x]).read()\"" 2
 # The method form is not provable: its receiver can be rebound, so it stays blocked.
 run_win "python Path(/tmp).open() method read (blocked)" \
   "python3 -c \"from pathlib import Path; print(Path('/tmp/x').open().read())\"" 2
