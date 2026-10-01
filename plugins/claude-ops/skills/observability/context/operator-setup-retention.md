@@ -25,7 +25,11 @@ bodies, so retention is also a privacy bound (see [operator-setup-emission-priva
   `prompt_text` to the OpenTelemetry `user_prompt` event, a copy of `prompt`"),
   <https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md>. Verified 2026-10-01
   against that file and the installed 2.1.287 binary; recheck when a release adds another
-  prompt-bearing attribute to `user_prompt`. Join keys (`session_id`, `prompt_id`,
+  prompt-bearing attribute to `user_prompt`. Cold files written by a prune under Claude Code
+  2.1.287 or later with claude-ops before 0.80.2 still carry `prompt_text`: the scrub applies
+  only to new compactions and never rewrites existing cold files. To close that exposure,
+  delete the `cold/*.parquet` files written since you installed 2.1.287 (cold is append-only,
+  so this loses only that span of structure history). Join keys (`session_id`, `prompt_id`,
   `tool_use_id`, `trace_id`, `span_id`) are always retained. They bridge cold rows to
   on-disk transcript lookups.
 
