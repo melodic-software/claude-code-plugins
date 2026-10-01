@@ -1,6 +1,11 @@
 {
   "tools": [
     {
+      "name": "node",
+      "check": "/autonomy:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    },
+    {
       "name": "jq",
       "check": "/autonomy:check",
       "install": "install jq from https://jqlang.org/download/"
