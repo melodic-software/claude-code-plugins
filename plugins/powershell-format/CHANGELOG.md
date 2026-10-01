@@ -9,6 +9,8 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 - **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/powershell-format:check`, which probes it.
 
+- **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
+
 ## [0.9.4] - 2026-09-30
 
 ### Changed

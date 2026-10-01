@@ -828,7 +828,7 @@ fi
 # --- SessionStart probe honors bash_format_enabled ----------------------------
 # Runs the hooks.json SessionStart row as the harness spawns it: `node` with the
 # row's args, ${CLAUDE_PLUGIN_ROOT} expanded, from an empty cwd, on a PATH that
-# holds the system tools and neither shfmt nor shellcheck. The gate is
+# holds the system tools and none of shfmt, shellcheck and jq. The gate is
 # `--run-if-unset-or-true` in exec-bash.mjs, so a row without it prints the
 # notice for a disabled plugin. A missing node fails the suite instead of
 # skipping the cases: every hook row launches through it.
@@ -841,7 +841,7 @@ else
   for dir in /usr/local/bin /usr/bin /bin; do
     for exe in "$dir"/*; do
       base="${exe##*/}"
-      [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && ! -e "$PG_WORK/sysbin/$base" ]] || continue
+      [[ -x "$exe" && "$base" != shfmt && "$base" != shellcheck && "$base" != jq && ! -e "$PG_WORK/sysbin/$base" ]] || continue
       ln -s "$exe" "$PG_WORK/sysbin/$base"
     done
   done

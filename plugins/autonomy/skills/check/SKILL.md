@@ -17,6 +17,12 @@ Run the read-only check. Do not run `apply`. Do not install jq, and do not downl
 
 Run `command -v jq` and `jq --version` through Bash. Report a PASS/FAIL row for jq, with the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` when it is missing. Stop.
 
+## Next
+
+/autonomy:setup apply
+
+Only when the user explicitly asked for it. A passing check has no successor.
+
 ## Gotchas
 
 This skill does not install. A hook notice is not permission to install.

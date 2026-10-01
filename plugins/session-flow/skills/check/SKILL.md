@@ -17,6 +17,12 @@ Run the read-only check. Do not install jq, and do not download anything.
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `jq` item. Run `command -v jq` and `jq --version` through Bash. Do not run setup's other probes. Report a PASS/FAIL row for jq, with the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json` when it is missing. Stop.
 
+## Next
+
+/session-flow:setup check
+
+Only when the user asked for the rest of the observer checks. This plugin's setup offers no `apply`.
+
 ## Gotchas
 
 This skill does not install. The observer hook skips arming silently when jq is absent, so no notice announces it.

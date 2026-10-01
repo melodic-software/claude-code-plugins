@@ -9,6 +9,8 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 
 - **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/go-format:check`, which probes it. `/go-format:check` runs its probes through Bash, jq included.
 
+- **The SessionStart probe reports every missing tool in one hook document.** With `jq` declared beside the formatter, a host missing both used to print two JSON documents, which Claude Code cannot read as one hook result.
+
 ## [0.4.15] - 2026-09-30
 
 ### Changed
