@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.1] - 2026-10-01
+
+### Fixed
+
+- **The plan and interview texts tell a session to write the reconfirm row in the named-field form.** Accepting a superseded-by-plan row now reads `proposal:: <new>; was:: <old>; answer:: accepted: <new>`, the row the exporter writes, so a hand-written row imports the same way; a test round-trips it. Ledgers already written in the older `reconfirmed at plan approval` form still import as plain own text ([#5534](https://github.com/melodic-software/claude-code-plugins/issues/5534)).
+
 ## [0.55.0] - 2026-10-01
 
 ### Added
