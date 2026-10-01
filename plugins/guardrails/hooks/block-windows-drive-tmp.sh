@@ -644,13 +644,96 @@ segment_writes_drive_root_tmp() {
     has_drive_root_tmp "$dest" && return 0
     return 1
   fi
-  # Inline python write opening a drive-root tmp path
-  local py_open="(open|write_text|write_bytes|makedirs)[[:space:]]*\\(|['\"]open['\"]\\)[[:space:]]*\\("
-  if [[ "$subject" =~ $py_open ]]; then
+  # Inline python write opening a drive-root tmp path. write_text, write_bytes
+  # and makedirs are always writes; an `open(` is relieved only when the whole
+  # command is proven read-only (command_opens_only_for_read).
+  if [[ "$subject" =~ (write_text|write_bytes|makedirs)[[:space:]]*\( ]]; then
     has_drive_root_tmp "$subject" && return 0
     return 1
   fi
+  local py_open="open[[:space:]]*\\(|['\"]open['\"]\\)[[:space:]]*\\("
+  if [[ "$subject" =~ $py_open ]]; then
+    has_drive_root_tmp "$subject" || return 1
+    if [[ -z "$_DRIVE_TMP_OPEN_RC" ]]; then
+      _DRIVE_TMP_OPEN_RC=0
+      command_opens_only_for_read "$NORM" && _DRIVE_TMP_OPEN_RC=1
+    fi
+    return "$_DRIVE_TMP_OPEN_RC"
+  fi
   return 1
+}
+
+# Inline python READ of a drive-root tmp path (#3951), judged on the WHOLE
+# unsplit command, never per segment: split_shell_segments cuts a heredoc body
+# at each `;`, so a per-segment exemption let a decoy read clear one segment
+# while the write in the next matched nothing. True only when every `open`
+# anywhere is a provable read call, no drive-root tmp path is left once those
+# calls are cut out, and no indirection that could write elsewhere appears.
+# Anything else fails closed. A read call proves only as a bare `open(` with
+# one argument (a single whole quoted literal, or an unquoted run free of
+# , ( ) quotes # and *), an optional read-mode literal (only r/b/t), optional
+# literal encoding=/errors=/newline=, then `)`, followed by `.read(` /
+# `.readline(` / `.readlines(` or wrapped whole in `json.load(`, so only the
+# file's content leaves the call. Any `.open(` (method form: its receiver can
+# be rebound), any identifier before `open(` (popen, fdopen) and any uncalled
+# `open` name (an alias, a getattr string) void the relief. So does any `\`,
+# `$` or backtick in the raw command: an escaped quote reads as a close quote
+# here, and a shell expansion can splice a write mode into a quoted literal.
+_DRIVE_TMP_PY_LIT="(\"[^\"]*\"|'[^']*')"
+_DRIVE_TMP_PY_READ_MODE="(\"[rbt]+\"|'[rbt]+')"
+_DRIVE_TMP_PY_READ_KWARG="[[:space:]]*,[[:space:]]*(encoding|errors|newline)[[:space:]]*=[[:space:]]*${_DRIVE_TMP_PY_LIT}"
+_DRIVE_TMP_PY_OPEN_READ="^[[:space:]]*([rbu]*${_DRIVE_TMP_PY_LIT}|[^,()\"'#*]+)([[:space:]]*,[[:space:]]*(mode[[:space:]]*=[[:space:]]*)?${_DRIVE_TMP_PY_READ_MODE})?(${_DRIVE_TMP_PY_READ_KWARG})*[[:space:]]*\)"
+_DRIVE_TMP_PY_READ_CHAIN="^[[:space:]]*\.[[:space:]]*(read|readline|readlines)[[:space:]]*\("
+_DRIVE_TMP_PY_JSON_LOAD="(^|[^[:alnum:]_.])json[[:space:]]*\.[[:space:]]*load[[:space:]]*\([[:space:]]*$"
+# `import json` that starts a statement; `from x import json` rebinds the name.
+_DRIVE_TMP_PY_IMPORT_JSON="(^|[;\"'"$'\n'"])[[:space:]]*import[[:space:]]+json([[:space:]]*[,;\"'"$'\n'"]|[[:space:]]*$)"
+_DRIVE_TMP_PY_INDIRECTION="(^|[^[:alnum:]_])(exec[a-z]*|eval|compile|getattr|setattr|globals|locals|vars|__import__|__builtins__|builtins|importlib|__dict__|system|popen[0-9]*|spawn[a-z]*|subprocess|shutil|rename|renames|replace|mknod|mkfifo|link|symlink|truncate|mkdir|makedirs|touch|write_text|write_bytes|copy[a-z0-9]*|move|io|codecs|tempfile|ctypes|pty|pickle|marshal|shelve|yaml|dill)([^[:alnum:]_]|$)"
+# Cached per command: "" = not computed, 0 = an open( counts as a write, 1 = read-only.
+_DRIVE_TMP_OPEN_RC=""
+command_opens_only_for_read() {
+  local rest="$1" before out="" call ws t
+  [[ "$COMMAND" == *[\\\$\`]* ]] && return 1
+  [[ "$rest" =~ $_DRIVE_TMP_PY_INDIRECTION ]] && return 1
+  # `json` may appear only as json.load( / json.loads( or a statement-start
+  # `import json`; any other spelling could rebind the name.
+  t="${rest//json.load(/ }"
+  t="${t//json.loads(/ }"
+  while [[ "$t" =~ $_DRIVE_TMP_PY_IMPORT_JSON ]]; do
+    t="${t/"${BASH_REMATCH[0]}"/ }"
+  done
+  [[ "$t" =~ (^|[^[:alnum:]_.])json([^[:alnum:]_]|$) ]] && return 1
+  while [[ "$rest" == *open* ]]; do
+    before="${rest%%open*}"
+    rest="${rest#*open}"
+    # Part of a longer name (opened, openssl): not the builtin.
+    if [[ "${rest:0:1}" == [[:alnum:]_] ]]; then
+      out+="${before}open"
+      continue
+    fi
+    ws="${rest%%[![:space:]]*}"
+    if [[ "${rest:${#ws}:1}" != '(' ]]; then
+      # A word ending in open (reopen) is not the builtin; a bare `open` is.
+      [[ "${before: -1}" == [[:alnum:]_] ]] || return 1
+      out+="${before}open"
+      continue
+    fi
+    # Python allows `x . open(`, so the method dot is judged past whitespace.
+    t="${before%"${before##*[![:space:]]}"}"
+    [[ "${before: -1}" == [[:alnum:]_] || "${t: -1}" == . ]] && return 1
+    rest="${rest:${#ws}+1}"
+    [[ "$rest" =~ $_DRIVE_TMP_PY_OPEN_READ ]] || return 1
+    call="${BASH_REMATCH[0]}"
+    rest="${rest:${#call}}"
+    if [[ ! "$rest" =~ $_DRIVE_TMP_PY_READ_CHAIN ]]; then
+      [[ "$before" =~ $_DRIVE_TMP_PY_JSON_LOAD && "$rest" =~ ^[[:space:]]*\) ]] || return 1
+      # `x . json.load(` is an attribute of x, not the json module.
+      t="${before%json*}"
+      t="${t%"${t##*[![:space:]]}"}"
+      [[ "${t: -1}" == . ]] && return 1
+    fi
+    out+="$before"
+  done
+  ! has_drive_root_tmp "$out$rest"
 }
 
 # Write-shaped signal: a known producer / destination utility whose write
@@ -697,6 +780,7 @@ if [[ -n "$COMMAND" ]]; then
   # on Windows, and both matchers it steers need `tmp` in the command, so a
   # command without it never pays for the probe.
   _DRIVE_TMP_SKIP_POSIX=0
+  _DRIVE_TMP_OPEN_RC=""
   if [[ "$TOOL_NAME" == "Bash" && "$NORM" == *tmp* ]] && posix_tmp_maps_to_usertemp; then
     _DRIVE_TMP_SKIP_POSIX=1
     _dt_lc="${COMMAND,,}"

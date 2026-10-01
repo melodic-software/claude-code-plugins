@@ -332,6 +332,29 @@ run_win "python open ( C:/tmp write (blocked)" "python3 -c \"open ('C:/tmp/x','w
 run_win "python getattr open C:/tmp write (blocked)" "python3 -c \"getattr(__builtins__,'open')('C:/tmp/x','w')\"" 2
 run_win "python open C:/tmp write (blocked)" "python3 -c \"open('C:/tmp/x','w').write('a')\"" 2
 run_win "python open C:/Temp write (allowed — tmp-only scope, twin of C:/tmp)" "python3 -c \"open('C:/Temp/x','w').write('a')\"" 0
+# A provable READ is relieved only when the WHOLE unsplit command proves it
+# (#3951): a heredoc body splits at each `;`, so a per-segment relief let a decoy
+# read clear its segment while the write in the next segment matched nothing.
+run_win "python heredoc json.load(open(/tmp)) read (allowed)" \
+  $'python3 - <<\'EOF\'\nimport json\nd = json.load(open(\'/tmp/retro-685.json\'))\nprint(d)\nEOF' 0
+run_win "python -c open(/tmp,'rb').read() (allowed)" "python3 -c \"print(open('/tmp/x', 'rb').read())\"" 0
+run_win "python heredoc decoy read then os.system to /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read(); import os; os.system(\'echo pwned > /tmp/evil\')\nEOF' 2
+run_win "python heredoc decoy read then shutil.copy to /tmp (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read(); import shutil; shutil.copy(\'a\',\'/tmp/y\')\nEOF' 2
+run_win "python heredoc read then write open in the next segment (blocked)" \
+  $'python3 - <<\'EOF\'\nd = open(\'/tmp/x\').read(); open(\'/tmp/y\', \'w\').write(d)\nEOF' 2
+# A shell expansion can splice a write mode into a quoted literal.
+# shellcheck disable=SC2016
+run_win "python read with \$m spliced into the literal (blocked)" \
+  'm="'"'"', '"'"'w"; python3 -c "open('"'"'/tmp/x$m'"'"').read()"' 2
+# A rebound receiver can create the file before .open fails.
+run_win "python rebound Path(/tmp).open().read() (blocked)" \
+  "python3 -c \"from logging import FileHandler as Path; Path('/tmp/x').open().read()\"" 2
+run_win "python json rebound by from-import (blocked)" \
+  "python3 -c \"from shelf import dump as json; json.load(open('/tmp/x'))\"" 2
+run_win "python spaced method form d . open(/tmp) creates the file (blocked)" \
+  "python3 -c \"import dbm.dumb as d; d . open('/tmp/x').read()\"" 2
 # Git for Windows resolves /usr/bin/mkdir to mkdir.exe under Program Files.
 # The verb regex stops at a space, so neither spelling matched and the write
 # was allowed (#4527). C:/tmp stays a drive root on a usertemp /tmp host.
@@ -362,7 +385,7 @@ run_win "redirect >%TEMP%/x literal (allowed)" 'echo x > %TEMP%/x' 0
 run_win "redirect >/var/tmp/x (allowed)" 'echo x > /var/tmp/x' 0
 run_win "mkdir /var/tmp/x (allowed)" 'mkdir -p /var/tmp/x' 0
 # shellcheck disable=SC2016
-run_win "mktemp under \$TEMP (allowed)" 'mktemp "$TEMP/tmp.XXXXXX"' 0
+run_win "mktemp under \$TEMP (allowed)" 'mktemp "$TEMP/tmp.XXXXXX"' 0 # portability-ok: payload data for the hook, not a mktemp call
 # shellcheck disable=SC2016
 run_win_pwsh "PS: Set-Content \$env:TEMP (allowed)" 'Set-Content -Path $env:TEMP\x -Value hi' 0
 # shellcheck disable=SC2016
