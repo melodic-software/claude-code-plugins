@@ -29,10 +29,11 @@
 # prints NA when no row has both labels or chance agreement is 1. Intervals
 # use z = 1.959964 and print to 4 decimals.
 #
-# A case file is cases/<id>.<real name>.fixture. The sweep copies it, and every
-# cases/<id>.*.fixture beside it (an implementation the case ships with), into
-# an empty temporary repository under its real name, so the judge sees no id,
-# label or other case. TEST_JUDGE_CMD (the hooks' seam) replaces `claude`.
+# A case is a directory cases/<id>/ holding the test file and the code it
+# tests, each at its repository path plus `.fixture`. The sweep copies that
+# directory, suffixes stripped, into an empty temporary repository, so the
+# judge can read the code under test and sees no id, label or other case.
+# TEST_JUDGE_CMD (the hooks' seam) replaces `claude`.
 set -uo pipefail
 
 # The sweep runs this script as the judge command to read each run's cost.
@@ -163,12 +164,12 @@ arm() {
     rm -rf "${t:?}" "$DATA/verdicts"
     mkdir -p "$t"
     git -C "$t" init -q
-    id="${fx##*/}" && id="${id%%.*}"
-    for s in "$dir/cases/$id".*.fixture; do
-      n="${s##*/}" && n="${n#*.}"
-      cp "$s" "$t/${n%.fixture}"
-    done
-    target="${fx##*/}" && target="${target#*.}" && target="$t/${target%.fixture}"
+    id="${fx#cases/}" && id="${id%%/*}"
+    while IFS= read -r -d '' s; do
+      n="${s#"$dir/cases/$id/"}" && n="${n%.fixture}"
+      mkdir -p "$(dirname "$t/$n")" && cp "$s" "$t/$n"
+    done < <(find "$dir/cases/$id" -type f -name '*.fixture' -print0)
+    target="${fx#cases/"$id"/}" && target="$t/${target%.fixture}"
     rows="$(awk -F'\t' -v f="$fx" 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
       $c["file"] == f { print $c["id"] "\t" $c["test"] "\t" $c["note"] }' "$labels")"
     names="$(cut -f2 <<<"$rows" | sed -E 's/^(.*) #([0-9]+)$/\2 \1/; t; s/^/1 /' | jq -Rsc 'split("\n") | map(select(. != ""))')"

@@ -1,0 +1,632 @@
+#!/usr/bin/env bash
+# Shared utility library for Claude Code hook scripts.
+# Sourced (not executed) by hooks in .claude/hooks/.
+#
+# Libraries have .sh extension and should NOT be executable (Google Shell Style Guide).
+# ShellCheck resolves this via source-path=SCRIPTDIR in .shellcheckrc.
+#
+# Usage in hook scripts:
+#   source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
+
+# Guard against double-sourcing
+[[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
+readonly _HOOK_UTILS_LOADED=1
+
+# --- Kill Switch ---
+
+# Check if a hook is enabled via HOOK_<NAME>_ENABLED env var.
+# Exits 0 (allow) if disabled. Place after source, before stdin parsing.
+#
+# Usage: hook::check_enabled "BASH_LINT"  # checks HOOK_BASH_LINT_ENABLED
+hook::check_enabled() {
+  local var_name="HOOK_${1}_ENABLED"
+  if [[ "${!var_name:-true}" != "true" ]]; then
+    exit 0
+  fi
+}
+
+# --- Path Normalization ---
+
+# Normalize a path for the membership comparison: backslashes → forward
+# slashes, and — only on Windows/MSYS, whose filesystem is case-insensitive —
+# fold a leading drive (POSIX `/c/...` or `c:/...`) to an upper-case drive
+# letter + lower-cased remainder so the byte-exact comparison is effectively
+# case-insensitive. The fold is gated on the host (OSTYPE), NOT on the path
+# shape: on a case-sensitive POSIX filesystem a real single-letter top-level
+# directory such as `/c/Repo` must pass through unchanged, otherwise it would
+# collapse with `/c/repo` and the membership guard would admit a sibling
+# outside CLAUDE_PROJECT_DIR. The result is used ONLY for comparison; the
+# emitted path is always the caller's original.
+hook::normalize_path() {
+  local p="${1//\\//}"
+  case "${OSTYPE:-}" in
+    msys* | cygwin* | win32)
+      if [[ "$p" =~ ^/([a-zA-Z])/ || "$p" =~ ^([a-zA-Z]):/ ]]; then
+        local rest="${p:2}"
+        printf '%s' "${BASH_REMATCH[1]^}:${rest,,}"
+        return
+      fi
+      ;;
+    *) ;; # POSIX hosts: case-sensitive FS, no drive fold — pass through below
+  esac
+  printf '%s' "$p"
+}
+
+# --- Formatter Guards ---
+
+# Parse file_path from PostToolUse JSON on stdin, validate existence
+# and project membership. Outputs the file path on success.
+# Returns 0 if file should be processed, 1 to skip.
+#
+# Usage:
+#   FILE=$(hook::read_file_path) || exit 0
+#   case "$FILE" in *.sh) ;; *) exit 0 ;; esac
+hook::read_file_path() {
+  local file
+  file=$(jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+  [[ -n "$file" ]] || return 1
+  [[ -f "$file" ]] || return 1
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    local norm_file norm_project
+    norm_file=$(hook::normalize_path "$file")
+    norm_project=$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")
+    norm_project="${norm_project%/}"
+    # Require a path-segment boundary: a bare "$norm_project"* prefix would admit
+    # a sibling like C:/repo2 under CLAUDE_PROJECT_DIR=C:/repo (reachable once the
+    # case fold erases case). Strip a trailing slash first, else a
+    # CLAUDE_PROJECT_DIR ending in "/" yields "…//*" and rejects every in-project
+    # file.
+    if [[ "$norm_file" != "$norm_project"/* ]]; then
+      return 1
+    fi
+  fi
+  printf '%s' "$file"
+}
+
+# Buffer stdin once (CR-stripped). Returns 1 on empty input.
+# Use when the hook needs 2+ fields from the same JSON payload.
+#
+# Consumes stdin — callers cannot read stdin again after this call. Use
+# this when subsequent jq calls extract more than one field from the same
+# payload (e.g. tool_name AND tool_input.command). Single-field hooks
+# should use hook::read_file_path_only or hook::read_command instead.
+#
+# Usage:
+#   INPUT=$(hook::buffer_stdin) || exit 0
+#   TOOL=$(hook::jq_field "$INPUT" '.tool_name') || exit 0
+#   CMD=$(hook::jq_field "$INPUT" '.tool_input.command') || exit 0
+hook::buffer_stdin() {
+  local input
+  input=$(tr -d '\r' 2>/dev/null)
+  [[ -n "$input" ]] || return 1
+  printf '%s' "$input"
+}
+
+# Extract a single jq field from a buffered input string. CR-stripped.
+# Returns 1 when the field is empty or jq fails.
+#
+# Usage: FIELD=$(hook::jq_field "$INPUT" '.tool_input.file_path') || exit 0
+hook::jq_field() {
+  local field
+  field=$(jq -r "(${2} // empty)"' | gsub("\r";"")' <<<"$1" 2>/dev/null)
+  [[ -n "$field" ]] || return 1
+  printf '%s' "$field"
+}
+
+# Read just the file_path field from PostToolUse JSON on stdin. Returns
+# empty (and exit 1) when the field is missing — caller decides whether
+# to silently skip or error. Strips \r for Git Bash.
+#
+# Use this when a hook needs the path but does its own existence /
+# project-scope checks (e.g., diff-only hooks that key off the original
+# Edit even if the file was renamed). Use hook::read_file_path when you
+# also want existence + project-scope guards.
+#
+# Consumes stdin — callers cannot read stdin again after this call.
+#
+# Usage:
+#   FILE=$(hook::read_file_path_only) || exit 0
+#   case "$FILE" in *.cs) ;; *) exit 0 ;; esac
+hook::read_file_path_only() {
+  local file
+  file=$(jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+  [[ -n "$file" ]] || return 1
+  printf '%s' "$file"
+}
+
+# Read just the command field from PreToolUse Bash JSON on stdin. Returns
+# empty (and exit 1) when the field is missing. Strips \r for Git Bash.
+#
+# Consumes stdin — callers cannot read stdin again after this call. Use
+# this when the hook only needs the command string. When the hook also
+# needs tool_name or other fields, buffer stdin once with `INPUT=$(cat)`
+# and parse with jq separately.
+#
+# Usage:
+#   CMD=$(hook::read_command) || exit 0
+#   [[ "$CMD" == *"git "* ]] || exit 0
+hook::read_command() {
+  local cmd
+  cmd=$(jq -r '(.tool_input.command // empty) | gsub("\r";"")' 2>/dev/null)
+  [[ -n "$cmd" ]] || return 1
+  printf '%s' "$cmd"
+}
+
+# Walk parent directories from $1 up to the project root, looking for
+# the nearest *.csproj. Outputs the matching path on stdout. Returns 0
+# when found, 1 when no .csproj exists in any ancestor inside the project.
+#
+# Stops at $CLAUDE_PROJECT_DIR (when set) so unrelated csproj files outside
+# the project (e.g. stale fixtures under /tmp from prior test runs, or
+# scratch projects in $HOME) cannot mis-resolve the owning project. When
+# the env var is unset, walks to the filesystem root as before.
+#
+# Bash 5+ glob loop — no GNU-only `find`, no `compgen` portability concerns.
+#
+# Usage:
+#   CSPROJ=$(hook::find_owning_csproj "$FILE") || exit 0
+hook::find_owning_csproj() {
+  local dir parent candidate boundary boundary_norm dir_norm
+  dir=$(dirname "$1")
+  boundary="${CLAUDE_PROJECT_DIR:-}"
+  # Normalize the boundary once for the loop comparison.
+  #
+  # Git Bash poses a path-form hazard: `CLAUDE_PROJECT_DIR` can be POSIX-form
+  # (`/tmp/...` resolving to a Windows mount) while `file_path` arriving via
+  # JSON is Windows-form (`C:/Users/<user>/Temp/...`). String comparison fails
+  # even though both paths point at the same directory. `cygpath -w` resolves
+  # both forms to canonical Windows form on Git Bash; on Linux/macOS no
+  # `cygpath` exists and the raw path is the only canonical form.
+  boundary_norm=$(_hook_canonical_path "$boundary")
+  while [[ -n "$dir" && "$dir" != "/" && "$dir" != "." ]]; do
+    for candidate in "$dir"/*.csproj; do
+      if [[ -f "$candidate" ]]; then
+        printf '%s' "$candidate"
+        return 0
+      fi
+    done
+    # Stop once we'd walk above the project root.
+    if [[ -n "$boundary_norm" ]]; then
+      dir_norm=$(_hook_canonical_path "$dir")
+      [[ "$dir_norm" == "$boundary_norm" ]] && break
+    fi
+    parent=$(dirname "$dir")
+    [[ "$parent" == "$dir" ]] && break
+    dir="$parent"
+  done
+  return 1
+}
+
+# Internal: resolve a path to canonical form for cross-platform comparison.
+# On Git Bash uses `cygpath -w` (handles POSIX mount maps like /tmp);
+# elsewhere falls back to `hook::normalize_path` (drive-letter + backslash
+# fix-ups only).
+_hook_canonical_path() {
+  local p="$1"
+  [[ -z "$p" ]] && return 0
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$p" 2>/dev/null || hook::normalize_path "$p"
+  else
+    hook::normalize_path "$p"
+  fi
+}
+
+# Resolve the cross-platform per-user cache directory for medley-scoped state.
+# Windows (Git Bash): %LOCALAPPDATA%\medley
+# Linux/macOS:        ${XDG_CACHE_HOME:-$HOME/.cache}/medley
+# Cache contents are derived/regenerable — distinct from XDG_STATE_HOME.
+# Caller is responsible for `mkdir -p`.
+#
+# Usage: CACHE_DIR=$(hook::cache_dir)
+hook::cache_dir() {
+  if [[ -n "${LOCALAPPDATA:-}" ]]; then
+    printf '%s' "${LOCALAPPDATA//\\//}/medley"
+  else
+    printf '%s' "${XDG_CACHE_HOME:-$HOME/.cache}/medley"
+  fi
+}
+
+# Resolve the per-clone "last origin/main fetch" marker path. Keyed by the
+# absolute git common dir so all worktrees of one clone share a single marker
+# (they share one origin/main ref), while separate clones on the same machine
+# get distinct markers (their origin/main refs are independent). Without the
+# key, a fetch in clone A would let clone B skip its own fetch and compare a
+# stale origin/main — making the branch-freshness warning unreliable.
+# Falls back to keying by the working-tree path when --git-common-dir cannot be
+# resolved (non-git dir, or git older than 2.31 lacking --path-format).
+# Caller is responsible for `mkdir -p "$(hook::cache_dir)"` before writing.
+#
+# Usage: MARKER=$(hook::fetch_marker_file "$REPO_DIR")
+hook::fetch_marker_file() {
+  local dir="${1:-${CLAUDE_PROJECT_DIR:-.}}"
+  local common token
+  common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')
+  [[ -n "$common" ]] || common="$dir"
+  token=$(printf '%s' "$common" | cksum | cut -d' ' -f1)
+  printf '%s' "$(hook::cache_dir)/last-fetch-${token}.ts"
+}
+
+# Resolve the per-worktree MSBuild metadata cache file path. Keyed by a cksum
+# of the working-tree top (`--show-toplevel`) so each worktree of a shared clone
+# gets a DISTINCT cache file — project metadata (TargetFramework, AOT readiness,
+# project set) is a property of the checked-out tree and differs by branch, so
+# sibling worktrees must NOT share one file: otherwise one worktree's refresh
+# satisfies another's TTL check and serves wrong-tree metadata.
+# Deliberately keyed by --show-toplevel, NOT --git-common-dir: this is the
+# mirror-opposite of hook::fetch_marker_file, which shares one marker across a
+# clone's worktrees BECAUSE origin/main freshness is shared, while msbuild
+# metadata is per-tree.
+# The cksum input is the git --show-toplevel OUTPUT, not the raw arg, on purpose:
+# git canonicalizes both POSIX pwd-form (/d/repos/...) and Windows form
+# (D:/repos/...) to one git-form, and cksum is byte-sensitive — so a caller
+# passing either form yields the SAME token only because both route through
+# --show-toplevel here. Do NOT "optimize" this to cksum the raw arg, and do NOT
+# switch to --git-common-dir (both break per-worktree isolation silently).
+# Falls back to keying by the passed dir when --show-toplevel cannot resolve.
+# Caller is responsible for `mkdir -p "$(hook::cache_dir)"` before writing.
+#
+# Usage: CACHE_FILE=$(hook::msbuild_cache_file "$REPO")
+hook::msbuild_cache_file() {
+  local dir="${1:-${CLAUDE_PROJECT_DIR:-.}}"
+  local top token
+  top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  [[ -n "$top" ]] || top="$dir"
+  token=$(printf '%s' "$top" | cksum | cut -d' ' -f1)
+  printf '%s' "$(hook::cache_dir)/msbuild-meta-${token}.json"
+}
+
+# --- Git Helpers ---
+
+# Returns 0 when dir is a bare repo root or inside a git worktree.
+# Git-dir alone is insufficient: bare-hub admin dirs with only `git-dir` (no worktree)
+# must not win over a linked worktree path — CC may send `.bare` as hook stdin cwd.
+hook::_git_context_valid() {
+  local dir="${1//\\//}"
+  [[ -n "$dir" ]] || return 1
+  # One rev-parse for both facts (the resolve_git_cwd loop probes up to 4
+  # candidates; collapses 2 spawns → 1 each). The exit code is IGNORED on
+  # purpose: `--show-toplevel` fails (exit 128) in a bare repo, which must NOT
+  # mask a `true` is-bare result — a real bare-repo root is valid. Parse line 1.
+  local out first rest
+  out=$(git -C "$dir" rev-parse --is-bare-repository --show-toplevel 2>/dev/null || true)
+  out=${out//$'\r'/}
+  first=${out%%$'\n'*}
+  [[ "$first" == "true" ]] && return 0
+  # A second (non-empty) line means `--show-toplevel` succeeded ⇒ inside a worktree.
+  rest=${out#*$'\n'}
+  [[ "$first" != "$out" && -n "$rest" ]]
+}
+
+# Project root of the production hook script that called resolve_git_cwd.
+hook::_hook_script_project_root() {
+  local i caller
+  for ((i = 1; i < ${#BASH_SOURCE[@]}; i++)); do
+    caller="${BASH_SOURCE[$i]//\\//}"
+    [[ "$caller" == */hook-utils.sh ]] && continue
+    [[ "$caller" =~ /.claude/hooks/[^/]+\.sh$ ]] || continue
+    [[ "$caller" == *.test.sh || "$caller" == *-test-helpers.sh ]] && continue
+    cd "$(dirname "$caller")/../.." && pwd
+    return 0
+  done
+  return 1
+}
+
+# Pick the first git-resolvable directory from hook stdin cwd, CLAUDE_PROJECT_DIR,
+# the calling hook's project root, and `.`. CC may send an unresolvable stdin cwd
+# and omit CLAUDE_PROJECT_DIR from the hook subprocess env.
+#
+# Usage: CWD=$(hook::resolve_git_cwd "$stdin_cwd") || { ...; exit 1; }
+hook::resolve_git_cwd() {
+  local stdin_cwd="${1:-}" candidate hook_project=""
+  hook_project=$(hook::_hook_script_project_root 2>/dev/null || true)
+  for candidate in "$stdin_cwd" "${CLAUDE_PROJECT_DIR:-}" "$hook_project" "."; do
+    [[ -z "$candidate" ]] && continue
+    candidate="${candidate//\\//}"
+    if hook::_git_context_valid "$candidate"; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Get the current git branch name. Uses CLAUDE_PROJECT_DIR for
+# CWD-drift safety. Strips \r for Git Bash on Windows.
+# Returns empty string on failure (caller decides fallback).
+#
+# Usage: BRANCH=$(hook::current_branch) || BRANCH="unknown"
+hook::current_branch() {
+  git -C "${CLAUDE_PROJECT_DIR:-.}" rev-parse --abbrev-ref HEAD 2>/dev/null \
+    | tr -d '\r'
+}
+
+# Strip quoted strings and heredoc bodies from a bash command string so
+# PreToolUse matchers scan executable tokens only — prose like
+# `echo "git reset --hard"` must not false-trigger git safety hooks.
+#
+# Usage: EXECUTABLE=$(hook::bash_strip_literals "$COMMAND")
+hook::bash_strip_literals() {
+  local cmd="$1" line result="" in_heredoc=0 delim=""
+  local heredoc_start_re='<<-?[[:space:]]*([^[:space:]]+)'
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if ((in_heredoc)); then
+      [[ "$line" =~ ^[[:space:]]*"$delim"[[:space:]]*$ ]] && in_heredoc=0
+      continue
+    fi
+    if [[ "$line" =~ $heredoc_start_re ]]; then
+      delim="${BASH_REMATCH[1]}"
+      delim="${delim#\'}"
+      delim="${delim%\'}"
+      delim="${delim#\"}"
+      delim="${delim%\"}"
+      line="${line%%<<*}"
+      in_heredoc=1
+    fi
+    line=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
+    result+="${line}"$'\n'
+  done <<<"$cmd"
+  printf '%s' "${result%$'\n'}"
+}
+
+# True when $1 contains a word-boundaried `git` executable token after stripping
+# literals. Matches compound separators and env-assignment prefixes.
+#
+# Usage: hook::bash_contains_git_token "$EXECUTABLE" || exit 0
+hook::bash_contains_git_token() {
+  [[ "$1" =~ (^|[[:space:];|&()]+)git[[:space:]]+ ]]
+}
+
+# Resolve the repository root (working-tree top) for the current worktree.
+# Single source of truth for "where to write project-local state" — used by
+# observability writers (record_event, statusline sampler) to ensure paths
+# anchor at the worktree root rather than nesting inside .claude/.
+#
+# Resolution order:
+#   1. `git -C "$hint" rev-parse --show-toplevel` — works for any path inside
+#      the working tree, including .claude/ subdirs
+#   2. Fallback: strip a trailing `/.claude` (or `\.claude`) segment from the
+#      hint. Handles the case where stdin/env supplied a path inside the
+#      .claude/ subdir AND git resolution failed (uninitialized repo, hint
+#      outside any git tree). Without the strip, the writer would nest as
+#      `.claude/.claude/observability/`.
+#
+# CWD note: hooks inherit session CWD, which can drift (plan mode, deleted
+# dirs — see hooks/quirks.md "Hook process CWD is NOT guaranteed"). The
+# explicit hint avoids relying on $PWD. Default hint is CLAUDE_PROJECT_DIR
+# for hooks; statusline passes stdin's `.cwd` since CLAUDE_PROJECT_DIR is
+# not injected into statusline scripts.
+#
+# Distinct from `git rev-parse --git-common-dir`-based resolution used by
+# tools/mcp-launcher/launcher.js (main repo across worktrees).
+#
+# Usage:
+#   ROOT=$(hook::repo_root)              # default hint = CLAUDE_PROJECT_DIR
+#   ROOT=$(hook::repo_root "$some_path") # explicit hint (statusline pattern)
+hook::repo_root() {
+  local hint="${1:-${CLAUDE_PROJECT_DIR:-.}}"
+  local root
+  root=$(git -C "$hint" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+  if [[ -z "$root" ]]; then
+    root="$hint"
+    root="${root%/.claude}"
+    root="${root%\\.claude}"
+  fi
+  printf '%s' "$root"
+}
+
+# --- Observability ---
+
+# Append a structured event line to the project-local hook event log.
+# Schema: ts, event, hook, tool, duration_ms, exit_code, subject, status,
+# session_id, branch, cwd. Concurrent-safe via flock with 1s timeout
+# where flock exists (on timeout, line dropped with a stderr note); on Git
+# Bash, which lacks flock, falls back to the plain unlocked append below.
+#
+# Honors HOOK_OBSERVABILITY_LOG_ENABLED (default false). All inputs are
+# treated as untrusted strings — jq -n --arg handles escaping. Subject
+# field captures only the user-supplied path / identifier; do NOT pass
+# raw command strings or stdin contents (privacy: may contain secrets).
+#
+# Usage:
+#   hook::record_event <event_type> <hook_name> <duration_ms> \
+#     <exit_code> [subject] [status]
+#
+# Args:
+#   event_type   PostToolUse | PreToolUse | SessionStart | Notification | ...
+#   hook_name    short hook identifier (e.g., "sarif-diagnostics")
+#   duration_ms  integer ms (use $EPOCHREALTIME deltas)
+#   exit_code    integer
+#   subject      optional — file path, command, or other context (path-only safe)
+#   status       optional — success | error | skipped (default: success)
+hook::record_event() {
+  [[ "${HOOK_OBSERVABILITY_LOG_ENABLED:-false}" == "true" ]] || return 0
+  local project_dir
+  project_dir=$(hook::repo_root)
+  local log_dir="${project_dir}/.claude/observability"
+  local log_file="${log_dir}/hook-events.jsonl"
+  mkdir -p "$log_dir" 2>/dev/null || return 0
+
+  local event="${1:-unknown}"
+  local hook="${2:-unknown}"
+  local duration_ms="${3:-0}"
+  local exit_code="${4:-0}"
+  local subject="${5:-}"
+  local status="${6:-success}"
+
+  local ts branch tool
+  ts=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ 2>/dev/null) || ts=""
+  branch=$(hook::current_branch) || branch="unknown"
+  tool="${HOOK_OBSERVABILITY_TOOL:-}"
+
+  # MSYS_NO_PATHCONV=1 prevents Git Bash from translating POSIX-style paths
+  # (e.g., `/foo/bar.cs`) in --arg values to Windows form before jq sees them.
+  local line
+  line=$(MSYS_NO_PATHCONV=1 jq -nc \
+    --arg ts "$ts" \
+    --arg event "$event" \
+    --arg hook "$hook" \
+    --arg tool "$tool" \
+    --argjson duration_ms "${duration_ms:-0}" \
+    --argjson exit_code "${exit_code:-0}" \
+    --arg subject "$subject" \
+    --arg status "$status" \
+    --arg session_id "${HOOK_OBSERVABILITY_SESSION_ID:-}" \
+    --arg branch "$branch" \
+    --arg cwd "$PWD" \
+    '{ts:$ts, event:$event, hook:$hook, tool:$tool,
+      duration_ms:$duration_ms, exit_code:$exit_code,
+      subject:$subject, status:$status,
+      session_id:$session_id, branch:$branch, cwd:$cwd}' 2>/dev/null) || return 0
+  [[ -n "$line" ]] || return 0
+
+  if command -v flock >/dev/null 2>&1; then
+    (
+      flock -x -w 1 9 || {
+        echo "hook::record_event: flock timeout, line dropped" >&2
+        exit 0
+      }
+      printf '%s\n' "$line" >>"$log_file"
+    ) 9>"${log_file}.lock" 2>/dev/null
+  else
+    printf '%s\n' "$line" >>"$log_file" 2>/dev/null
+  fi
+  return 0
+}
+
+# Compute milliseconds elapsed from a $EPOCHREALTIME start marker to "now".
+# EPOCHREALTIME format: <secs>.<6 microseconds>. Pure-bash arithmetic
+# avoids an awk fork on every event — important for hot-path hooks that
+# fire on every Write/Edit.
+#
+# Usage: DURATION_MS=$(hook::epoch_duration_ms "$START_EPOCH")
+hook::epoch_duration_ms() {
+  local start_epoch="$1"
+  local end_epoch=$EPOCHREALTIME
+  local s_int="${start_epoch%.*}" s_us="${start_epoch#*.}"
+  local e_int="${end_epoch%.*}" e_us="${end_epoch#*.}"
+  printf '%d' "$(((e_int - s_int) * 1000 + (10#$e_us - 10#$s_us) / 1000))"
+}
+
+# Extract a privacy-safe Bash subject for observability: "Bash:<first-token>"
+# (the CLI name with sudo/env-var prefixes stripped and basename'd) when the
+# tool is Bash, or the bare tool name otherwise. Never returns command args,
+# file paths, or stdin contents — see observability/conventions.md privacy rules.
+#
+# Args:
+#   $1  tool name (e.g. "Bash", "Write", "Edit")
+#   $2  raw command string (only used when tool == "Bash"; may be empty)
+#
+# Usage:
+#   TOOL=$(hook::jq_field "$INPUT" '.tool_name') || exit 0
+#   CMD=$(hook::jq_field "$INPUT" '.tool_input.command' || true)
+#   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")
+hook::extract_bash_subject() {
+  local tool="$1" cmd="${2:-}"
+  if [[ "$tool" != "Bash" ]]; then
+    printf '%s' "$tool"
+    return 0
+  fi
+  local first_token="${cmd%%[[:space:]]*}"
+  # Strip leading sudo / env VAR=val prefix tokens — they hide the real CLI.
+  while [[ "$first_token" == "sudo" || "$first_token" == *=* ]] \
+    && [[ -n "$cmd" && "$cmd" == *[[:space:]]* ]]; do
+    cmd="${cmd#*[[:space:]]}"
+    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+    first_token="${cmd%%[[:space:]]*}"
+  done
+  # basename in case of absolute path (e.g. /usr/bin/git → git)
+  first_token="${first_token##*/}"
+  if [[ -n "$first_token" ]]; then
+    printf 'Bash:%s' "$first_token"
+  else
+    printf '%s' "$tool"
+  fi
+}
+
+# Compute duration from a $EPOCHREALTIME start marker and emit an event
+# with a caller-supplied exit_code. Wraps the timing+record_event template
+# shared by blocking hooks (formatters/linters that exit 2 on violation,
+# safety hooks that exit 2 on block). Caller exits on the next line.
+#
+# Caller is responsible for parsing stdin and constructing $subject —
+# variants (single-field, two-field concat, Bash first-token stripping)
+# stay per-hook where they belong.
+#
+# Usage:
+#   START=$EPOCHREALTIME
+#   # ... parse stdin, build $SUBJECT ...
+#   hook::record_timed_event <event> <hook> "$START" <exit_code> <subject> <status>
+#   exit "<exit_code>"
+hook::record_timed_event() {
+  local event="$1" hook="$2" start_epoch="$3" exit_code="$4" subject="$5" status="$6"
+  local duration_ms
+  duration_ms=$(hook::epoch_duration_ms "$start_epoch")
+  hook::record_event "$event" "$hook" "$duration_ms" "$exit_code" "$subject" "$status"
+}
+
+# Advisory-hook variant: same as hook::record_timed_event with exit_code=0
+# hardcoded. Used by audit hooks (api-error, config-change, etc.) and
+# advisory PostToolUse diff/drift hooks.
+#
+# Usage:
+#   START=$EPOCHREALTIME
+#   # ... parse stdin, build $SUBJECT ...
+#   hook::emit_timed_event <event> <hook> "$START" <subject> <status>
+hook::emit_timed_event() {
+  hook::record_timed_event "$1" "$2" "$3" 0 "$4" "$5"
+}
+
+# Per-hook stdout context accumulator. Call hook::ctx_reset at hook entry when
+# using the buffer pattern; hook::ctx_append for each advisory line; flush once
+# at exit with hook::ctx_flush <hookEventName>.
+_HOOK_CTX_BUFFER=""
+
+hook::ctx_reset() {
+  _HOOK_CTX_BUFFER=""
+}
+
+hook::ctx_append() {
+  _HOOK_CTX_BUFFER+="$1"$'\n'
+}
+
+# Emit accumulated context as hookSpecificOutput JSON, then clear the buffer.
+# Optional $2 sets a SessionStart session title (co-emitted alongside any
+# accumulated additionalContext). Callers passing no title get byte-identical
+# output to the pre-title behavior.
+hook::ctx_flush() {
+  local event_name="$1"
+  local session_title="${2:-}"
+  local trimmed="${_HOOK_CTX_BUFFER%"${_HOOK_CTX_BUFFER##*[![:space:]]}"}"
+  trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
+  hook::emit_additional_context "$event_name" "$trimmed" "$session_title"
+  hook::ctx_reset
+}
+
+# Print cross-host hook JSON to stdout (exit 0). No-op when BOTH context and
+# session_title are empty.
+# Shape: { hookSpecificOutput: { hookEventName[, additionalContext][, sessionTitle] } }
+# additionalContext and sessionTitle are each included only when non-empty, so a
+# caller passing no session_title gets byte-identical output to the prior
+# context-only form. sessionTitle (SessionStart only, same effect as /rename) is
+# honored by CC on source startup/resume and ignored on clear/compact; CC does
+# NOT auto-skip a session that already has a title, so the emitting hook must
+# gate on the incoming session_title itself.
+# Ref: https://code.claude.com/docs/en/hooks — Cursor third-party maps the same
+# nested format (https://cursor.com/docs/reference/third-party-hooks).
+hook::emit_additional_context() {
+  local event_name="$1"
+  local context="$2"
+  local session_title="${3:-}"
+  [[ -n "$context" || -n "$session_title" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  jq -n \
+    --arg event "$event_name" \
+    --arg ctx "$context" \
+    --arg title "$session_title" \
+    '{hookSpecificOutput: (
+      {hookEventName: $event}
+      + (if $ctx != "" then {additionalContext: $ctx} else {} end)
+      + (if $title != "" then {sessionTitle: $title} else {} end)
+    )}'
+}

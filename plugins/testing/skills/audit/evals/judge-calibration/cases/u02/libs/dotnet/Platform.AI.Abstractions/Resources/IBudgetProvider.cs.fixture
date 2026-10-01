@@ -1,0 +1,12 @@
+using Platform.Core.Results;
+
+namespace Platform.AI.Abstractions.Resources;
+
+public interface IBudgetProvider
+{
+    Task<Result<TokenBudget>> GetBudgetAsync(
+        BudgetScope scope, string? scopeId = null, CancellationToken ct = default);
+
+    Task<Result<RateLimitState>> GetRateLimitStateAsync(
+        CancellationToken ct = default);
+}

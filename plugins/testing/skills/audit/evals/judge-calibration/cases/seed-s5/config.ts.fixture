@@ -1,0 +1,8 @@
+export interface Config {
+  retries: number;
+  timeoutMs: number;
+}
+
+export function loadConfig(overrides: Partial<Config>): Config {
+  return { retries: 3, timeoutMs: 5000, ...overrides };
+}

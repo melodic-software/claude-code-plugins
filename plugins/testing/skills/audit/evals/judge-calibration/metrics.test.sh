@@ -168,22 +168,22 @@ expect_check_fail "labels outside git history" "labels.tsv has no commit"
 
 # --- --sweep through the judge command function, stub only -----------------------
 SW="$TMP/sweep"
-mkdir -p "$SW/cases"
+mkdir -p "$SW/cases/case-1/test" "$SW/cases/case-1/src" "$SW/cases/case-2"
 printf 'it("adds", () => {\n  expect(add(1, 2)).toBe(3);\n});\n\nit("flag restates", () => {\n  expect(add(1, 2)).toBe(1 + 2);\n});\n' \
-  >"$SW/cases/case-1.add.test.ts.fixture"
-printf 'export const add = (a, b) => a + b;\n' >"$SW/cases/case-1.add.ts.fixture"
+  >"$SW/cases/case-1/test/add.test.ts.fixture"
+printf 'export const add = (a, b) => a + b;\n' >"$SW/cases/case-1/src/add.ts.fixture"
 # shellcheck disable=SC2016 # the case file holds a literal $(...)
-printf '#!/usr/bin/env bash\nfail() { exit 1; }\n[[ "$(echo a)" == a ]] || fail\n' >"$SW/cases/case-2.flag.test.sh.fixture"
+printf '#!/usr/bin/env bash\nfail() { exit 1; }\n[[ "$(echo a)" == a ]] || fail\n' >"$SW/cases/case-2/flag.test.sh.fixture"
 {
   header
-  row c1 seed tune "" "" PASS "" cases/case-1.add.test.ts.fixture adds
-  row c2 seed holdout "" "" FLAG "" cases/case-1.add.test.ts.fixture "flag restates"
-  row c3 in-use holdout "" "" FLAG "" cases/case-2.flag.test.sh.fixture flag.test.sh "changed 2-3"
+  row c1 seed tune "" "" PASS "" cases/case-1/test/add.test.ts.fixture adds
+  row c2 seed holdout "" "" FLAG "" cases/case-1/test/add.test.ts.fixture "flag restates"
+  row c3 in-use holdout "" "" FLAG "" cases/case-2/flag.test.sh.fixture flag.test.sh "changed 2-3"
 } >"$SW/labels.tsv"
 # Every stub answer costs $0.01.
 cat >"$TMP/cost-stub.sh" <<EOF
 #!/usr/bin/env bash
-ls >"\$STUB_DIR/ls-\$\$-\$RANDOM"
+find . -type f -not -path "./.git/*" >"\$STUB_DIR/ls-\$\$-\$RANDOM"
 "$TMP/judge-stub.sh" "\$@" | jq -c '. + {total_cost_usd: 0.01}'
 EOF
 chmod +x "$TMP/cost-stub.sh"
@@ -213,10 +213,24 @@ done
 assert_not_contains "the judge never sees the labels" "$args" "labels.tsv"
 assert_not_contains "the judge never sees a case id" "$args" "case-1"
 check "the judge reads the case under its real name" "grep -q 'Judge these test blocks in .*/add.test.ts (block' <<<\"\$args\""
-check "the implementation sibling sits beside the case" "grep -qx 'add.ts' \"\$STUB_DIR\"/ls-*"
-check "only the case's own files reach the judge's repo" "compgen -G \"\$STUB_DIR/ls-*\" >/dev/null && ! grep -qvx -e add.ts -e add.test.ts -e flag.test.sh \"\$STUB_DIR\"/ls-*"
+check "the code under test keeps its repository path" "grep -qx './src/add.ts' \"\$STUB_DIR\"/ls-*"
+check "only the case's own files reach the judge's repo" "compgen -G \"\$STUB_DIR/ls-*\" >/dev/null && ! grep -qvx -e ./src/add.ts -e ./test/add.test.ts -e ./flag.test.sh \"\$STUB_DIR\"/ls-*"
 check "per-arm verdicts are kept" "[[ -f \"\$SW/sweep/opus-medium.tsv\" ]]"
 assert_contains "verdicts map back to case ids" "$(cat "$SW/sweep/opus-medium.tsv" 2>/dev/null)" $'c2\tFLAG\topus\tmedium'
 check "no real claude was called" "[[ ! -e \"\$TMP/real-claude-called\" ]]"
+
+# --- the shipped set: labels.tsv and cases/ agree ---------------------------------
+SHIP="$HERE/labels.tsv"
+missing="$(awk -F'\t' 'NR > 1 { print $4 }' "$SHIP" | sort -u | while read -r f; do [[ -f "$HERE/$f" ]] || echo "$f"; done)"
+assert_empty "every row's case file exists" "$missing"
+unlabeled="$(for d in "$HERE"/cases/*/; do
+  d="${d%/}"
+  awk -F'\t' -v p="cases/${d##*/}/" 'index($4, p) == 1 { f = 1 } END { exit !f }' "$SHIP" || echo "${d##*/}"
+done)"
+assert_empty "every case directory has a row" "$unlabeled"
+straddle="$(awk -F'\t' 'NR > 1 { s[$4] = s[$4] " " $14 } END { for (f in s) if (s[f] ~ /tune/ && s[f] ~ /holdout/) print f }' "$SHIP")"
+assert_empty "no case file has rows in both tune and holdout" "$straddle"
+short="$(awk -F'\t' 'NR > 1 { n[$13]++; h[$13] += $14 == "holdout" } END { for (s in n) if (3 * h[s] < n[s]) print s }' "$SHIP")"
+assert_empty "each stratum holds out at least a third" "$short"
 
 finish
