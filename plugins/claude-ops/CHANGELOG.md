@@ -11,8 +11,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `prompt_text`, a copy of `prompt`, to the `user_prompt` event. Cold compaction stripped only the
   `prompt` and `user_prompt` attribute keys, so prompt text reached the cold Parquet tier. It now
   strips `prompt_text` from log and span attributes too, unless `CC_OTEL_COLD_KEEP_USER_PROMPTS=1`.
-  Cold files already written under 2.1.287 keep the attribute; delete the `cold/*.parquet` files
-  written since 2.1.287 was installed to remove it.
+  Cold files already written under 2.1.287 keep the attribute: run
+  `prune-otel-store.sh --scrub-cold` to rewrite them in place with the same scrub, keeping every
+  row (`--dry-run` lists them first). A normal prune prints a notice while any cold file still
+  holds prompt content. Deleting the affected `cold/*.parquet` files remains the fallback.
 
 ## [0.80.1] - 2026-10-01
 

@@ -825,5 +825,61 @@ rc=$?
 assert_eq "non-integer CC_OTEL_HOT_MAX_MB exits 2" "2" "$rc"
 assert_contains "CC_OTEL_HOT_MAX_MB validation message" "$out" "CC_OTEL_HOT_MAX_MB must be"
 
+# --- 29. --scrub-cold: dirty cold files rewritten in place, clean ones untouched, notice fires ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store scrubcold)"
+  # Dirty cold files: compacted with the keep knob on, so prompt, prompt_text and the
+  # user_prompt body/column all reach cold (a superset of a pre-fix pruner's output).
+  {
+    real_log_line "$OLD" user_prompt claude_code.user_prompt "$PROMPT_EXTRA"
+    real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+    real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+  } >"$S/cc-logs.json"
+  real_trace_line "$OLD" claude_code.interaction "$SPAN_PROMPT_EXTRA" >"$S/cc-traces.json"
+  CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" >/dev/null
+  dirty_logs="$(find "$S/cold" -name 'cc-logs-*.parquet')"
+  # A clean cold file: a later default-scrub compaction of a structure-only line.
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >>"$S/cc-logs.json"
+  out="$(run_prune_real "$S")"
+  assert_contains "prune notices cold files holding prompt content" "$out" "notice: 2 cold file(s) still hold prompt content; run prune-otel-store.sh --scrub-cold"
+  clean_logs="$(find "$S/cold" -name 'cc-logs-*.parquet' ! -path "$dirty_logs")"
+  clean_sum="$(cksum <"$clean_logs")"
+  cold_sum() { cat "$S"/cold/*.parquet | cksum; }
+  before="$(cold_sum)"
+
+  out="$(run_prune_real "$S" --scrub-cold --dry-run)"
+  assert_contains "scrub dry-run lists the dirty logs file" "$out" "cold/${dirty_logs##*/}: would_scrub rows=2 prompt_rows=1"
+  assert_contains "scrub dry-run counts affected files" "$out" "action=dry-run-scrub-cold affected_files=2"
+  assert_eq "scrub dry-run mutates nothing" "$before" "$(cold_sum)"
+
+  out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" --scrub-cold)"
+  assert_contains "keep knob makes the scrub a no-op" "$out" "action=noop-scrub-cold-keep-user-prompts"
+  assert_eq "keep-knob scrub mutates nothing" "$before" "$(cold_sum)"
+
+  out="$(run_prune_real "$S" --scrub-cold)"
+  rc=$?
+  lglob="$(sql_path "$S")/cold/cc-logs-*.parquet"
+  tglob="$(sql_path "$S")/cold/cc-traces-*.parquet"
+  assert_eq "scrub exits 0" "0" "$rc"
+  assert_contains "scrub rewrites both dirty files" "$out" "action=scrubbed-cold scrubbed_files=2"
+  assert_contains "scrub reports the clean file" "$out" "cold/${clean_logs##*/}: clean rows=1"
+  assert_eq "clean cold file byte-identical" "$clean_sum" "$(cksum <"$clean_logs")"
+  assert_eq "scrubbed logs file keeps its rows" "2" "$(dq "SELECT count(*) FROM read_parquet('$(sql_path "$dirty_logs")');")"
+  assert_eq "cold span row kept" "1" "$(dq "SELECT count(*) FROM read_parquet('$tglob');")"
+  assert_eq "prompt and prompt_text gone from cold logs" "0" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT%';")"
+  assert_eq "user_prompt body NULLed" "1" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE event_name='user_prompt' AND body IS NULL;")"
+  assert_eq "other user_prompt attributes kept" "1" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%\"prompt_length\"%';")"
+  assert_eq "structure attributes kept" "2" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%\"tool_use_id\"%';")"
+  assert_eq "prompt content gone from cold spans" "0" "$(dq "SELECT count(*) FROM read_parquet('$tglob') WHERE CAST(span_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT%' OR user_prompt IS NOT NULL;")"
+  assert_eq "scrub leaks no temps" "" "$(find "$S/cold" -name '*.tmp')"
+  assert_eq "scrub releases the sentinel" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+  out="$(run_prune_real "$S" --dry-run)"
+  assert_not_contains "no notice once cold is clean" "$out" "notice:"
+  out="$(run_prune_real "$S" --scrub-cold)"
+  assert_contains "second scrub finds nothing" "$out" "action=scrubbed-cold scrubbed_files=0"
+else
+  skip_case "duckdb not found — skipping --scrub-cold case"
+fi
+
 printf '\n%d passed, %d failed\n' "$((CASE_NUM - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]]

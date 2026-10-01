@@ -53,7 +53,16 @@
 # Usage:
 #   bash prune-otel-store.sh             # prune if needed (stop/trim/restart)
 #   bash prune-otel-store.sh --dry-run   # report only, never mutate
+#   bash prune-otel-store.sh --scrub-cold [--dry-run]
+#                                        # rewrite cold files that still hold prompt content
 #   bash prune-otel-store.sh --help
+#
+# --scrub-cold re-applies the compaction's prompt scrub to existing cold logs/spans Parquet
+# (files compacted before a key joined the scrub, or with the keep knob on): per dirty file it
+# COPYs to a temp in cold/, verifies the row count is unchanged and no prompt content remains,
+# then mv's over the original. Clean files are untouched. It holds the prune sentinel but does
+# not stop the Collector, which never writes cold/. A normal run prints a one-line notice when
+# a cold file still holds prompt content. CC_OTEL_COLD_KEEP_USER_PROMPTS=1 makes it a no-op.
 #
 # Env overrides:
 #   CC_OTEL_RETENTION_DAYS keep structure records newer than N days (default: 7).
@@ -100,7 +109,7 @@ source "$SCRIPT_DIR/prune-compact.sh"
 
 usage() {
   cat <<'EOF'
-Usage: prune-otel-store.sh [--dry-run] [--help]
+Usage: prune-otel-store.sh [--scrub-cold] [--dry-run] [--help]
 
 Age-based, per-class retention for the local Claude Code OTEL file store, stopping +
 restarting the machine-singleton Collector around an in-place trim. Structure records age
@@ -112,8 +121,11 @@ for logs) — a compaction or surgery failure aborts BEFORE the trim. Verify-bef
 store file is only ever replaced by a temp that parses.
 
 Options:
-  --dry-run   Report cutoffs, the size cap + per-file per-class counts; never stop the Collector or mutate.
-  --help      Show this help.
+  --dry-run     Report cutoffs, the size cap + per-file per-class counts; never stop the Collector or mutate.
+  --scrub-cold  Rewrite cold logs/spans files that still hold prompt content (prompt, prompt_text,
+                user_prompt) with the compaction scrub; row counts are verified before replace.
+                With --dry-run, list affected files and row counts only.
+  --help        Show this help.
 
 Env:
   CC_OTEL_RETENTION_DAYS       keep structure records newer than N days (default: 7)
@@ -200,10 +212,11 @@ parse_counts() {
 stamp_last_prune() { date -u +%Y-%m-%dT%H:%M:%SZ >"$1/.last-prune"; }
 
 main() {
-  local dry_run=false
+  local dry_run=false scrub_cold_mode=false
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --dry-run) dry_run=true ;;
+      --scrub-cold) scrub_cold_mode=true ;;
       --help | -h)
         usage
         return 0
@@ -251,6 +264,39 @@ main() {
   # awk and duckdb alike.
   [[ "$OS_KIND" == windows ]] && store_dir="${store_dir//\\//}"
   SENTINEL="$store_dir/.prune-in-progress"
+
+  if [[ "$scrub_cold_mode" == true ]]; then
+    printf 'store_dir=%s\n' "$store_dir"
+    if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; then
+      printf 'CC_OTEL_COLD_KEEP_USER_PROMPTS=1 keeps prompt content in cold; nothing scrubbed\n'
+      printf 'action=noop-scrub-cold-keep-user-prompts\n'
+      return 0
+    fi
+    if ! command -v duckdb >/dev/null 2>&1; then
+      err "duckdb not found — cannot scrub cold files"
+      printf 'action=error-duckdb-missing\n'
+      return 1
+    fi
+    if [[ "$dry_run" == true ]]; then
+      scrub_cold "$store_dir" true
+      return
+    fi
+    # The Collector writes only the hot files, so the scrub leaves it running; the sentinel
+    # alone keeps a concurrent prune from compacting into cold/ mid-scrub.
+    mkdir -p "$store_dir"
+    # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
+    if ! take_sentinel; then
+      err "a prune is already in progress ($SENTINEL) — exiting"
+      printf 'action=noop-locked\n'
+      return 0
+    fi
+    OWN_SENTINEL=true
+    trap cleanup EXIT
+    rm -f "$store_dir/cold/"*.tmp 2>/dev/null || true
+    scrub_cold "$store_dir" false
+    return
+  fi
+
   cutoff_seconds=$((EPOCHSECONDS - retention_days * SECONDS_PER_DAY))
   body_cutoff_seconds=$((EPOCHSECONDS - body_retention_days * SECONDS_PER_DAY))
 
@@ -285,6 +331,7 @@ main() {
     total_dropped=$((total_dropped + DROPPED))
     total_surgery=$((total_surgery + SURGERY))
   done
+  cold_prompt_notice "$store_dir"
 
   if [[ "$dry_run" == true ]]; then
     printf 'action=dry-run total_dropped=%s total_surgery=%s size_pruned_files=%s\n' "$total_dropped" "$total_surgery" "$size_pruned"
