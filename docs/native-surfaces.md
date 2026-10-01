@@ -1160,7 +1160,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `ProposeGoal` → `planning:draft-goal-condition`
 
-- **Verdict:** `complementary`: The built-in tool proposes a session goal condition that the person approves with one keypress; ours drafts that condition (lever fit, live shape, length counter). When the tool resolves in this session, the drafted condition is proposed through it with `ask_user` left true, so the person still approves it; when it does not resolve, ours offers the paste-ready `/goal` line as before. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `complementary`: The built-in tool proposes a session goal condition that the person approves with one keypress; ours drafts that condition (lever fit, live shape, length counter). Ours always offers the paste-ready `/goal` line; when the tool resolves in this session and the condition fits the tool's own cap, ours also proposes it through the tool with `ask_user` left true, so the person still approves it. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
 - **Integration:** `route`
 - **Native surface:** `ProposeGoal` (built-in tool; markers: gated)
 - **Our component:** `planning:draft-goal-condition` (skill)

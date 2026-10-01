@@ -92,7 +92,10 @@ Emit the final, counter-passed condition as a paste-ready invocation:
 ```
 
 When the `ProposeGoal` tool resolves in this session, also propose the condition through it, as
-the Boundary section below says.
+the Boundary section below says. The tool has its own, lower cap (500 characters on 2.1.285, per
+[reference/native-goal.md](reference/native-goal.md)): re-run the Step 3 counter with
+`--limit 500` first, and propose only a condition that passes it. The paste-ready line above is
+emitted either way.
 
 Note for the user: `/goal` holds for the current session only. A goal survives `--resume` / `--continue` (though its turn count, timer, and token baseline reset), but running `/clear` removes it. So the goal must be re-set after any `/clear`.
 
@@ -112,10 +115,10 @@ can also put a drafted condition in front of the person.
   drafts a transcript-demonstrable condition sourced from the live docs and passed through the
   deterministic length counter. It sets nothing.
 
-**Routing.** At the end of the run, when `ProposeGoal` resolves in this session, propose the
-drafted condition with it and leave `ask_user` true. When it does not resolve or refuses the
-proposal, offer the paste-ready line: you can run `/goal <condition>` with the drafted text,
-instead of or alongside continuing by hand. When the lever check routes away from `/goal`, make
+**Routing.** At the end of the run, always offer the paste-ready line: you can run
+`/goal <condition>` with the drafted text, instead of or alongside continuing by hand. When
+`ProposeGoal` resolves in this session and the condition passes the counter at the tool's own cap,
+also propose it with the tool and leave `ask_user` true. When the lever check routes away from `/goal`, make
 no offer. An unattended run records the paste-ready line in its output instead of asking.
 
 **Mutation gate.** Only the person's approval arms a goal: their `/goal` run or their keypress on
