@@ -4443,6 +4443,9 @@ def extract_builtin_plugins(
         load = loader.get(name)
         rec["load"] = load["load"] if load else None
         rec["load_guards"] = load["load_guards"] if load else None
+        # False: the loader was read and never requires this plugin, so the
+        # registration is not proven live. None: no loader was found.
+        rec["in_loader"] = (load is not None) if callees else None
 
         default = _merged_flag(src, fields, "defaultEnabled")
         if default is not None:
@@ -4548,7 +4551,8 @@ def extract_builtin_plugins(
         notes["unresolved_names"] = sorted(set(unresolved))
     notes["loader_callees"] = callees
     notes["loaded_not_registered"] = sorted(set(loader) - set(out))
-    notes["registered_not_loaded"] = sorted(set(out) - set(loader))
+    # Without a loader every plugin would land here; `loader_found` says that.
+    notes["registered_not_loaded"] = sorted(set(out) - set(loader)) if callees else []
     return out, notes
 
 
@@ -4783,6 +4787,13 @@ def check_integrity(
                 "the loader requires plugin(s) no registration was resolved for: "
                 + ", ".join(pnotes["loaded_not_registered"])
                 + "; the built-in plugin list is a floor, not a total"
+            )
+        if pnotes.get("registered_not_loaded"):
+            entry["advisories"].append(
+                "registration(s) the loader never requires: "
+                + ", ".join(pnotes["registered_not_loaded"])
+                + "; they are not proven live, carry `in_loader: false`, and are "
+                "left out of overlap detection"
             )
         partial = sorted(n for n, r in plugins.items() if r.get("partial"))
         if partial:

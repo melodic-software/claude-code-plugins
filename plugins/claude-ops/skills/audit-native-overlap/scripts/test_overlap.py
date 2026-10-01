@@ -1307,6 +1307,60 @@ class DetectTests(unittest.TestCase):
             )
         )
 
+    def _seed_builtin_plugin(self, plugins, **statuses):
+        self.pairs_path.write_text(
+            json.dumps(
+                {
+                    "schema": 1,
+                    "pairs": [
+                        {
+                            "native": {
+                                "name": "cc-plugin-agents-md",
+                                "class": "plugin-backed-builtin",
+                            },
+                            "component": {
+                                "plugin": "demo",
+                                "skill": "demo-audit",
+                                "kind": "skill",
+                            },
+                            "why": "seeded",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.write_inventory(
+            builtin_plugins=plugins,
+            integrity={
+                "status": "degraded",
+                "cli_version": FIXTURE_CLI_VERSION,
+                "validated_against": FIXTURE_CLI_VERSION,
+                "lanes": self.lanes(**statuses),
+            },
+        )
+        out = self.repo.root / "candidates.json"
+        self.detect(out)
+        report = json.loads(out.read_text(encoding="utf-8"))
+        [candidate] = [c for c in report["candidates"] if c["origin"] == "seeded"]
+        return candidate
+
+    def test_a_built_in_plugin_reads_its_own_lane_not_its_class_lane(self):
+        # Two lanes share the plugin-backed-builtin class; the lane the entry
+        # was read from decides, so a broken builtin_plugins lane marks it.
+        present = {"cc-plugin-agents-md": {"description": "Loads AGENTS.md"}}
+        candidate = self._seed_builtin_plugin(present, builtin_plugins="broken")
+        self.assertIs(candidate["re_derivable"], False)
+        self.assertTrue(
+            any("`builtin_plugins` lane" in item for item in candidate["evidence"])
+        )
+        candidate = self._seed_builtin_plugin(present, plugin_backed="broken")
+        self.assertIs(candidate["re_derivable"], True)
+
+    def test_an_absent_built_in_plugin_checks_every_lane_of_its_class(self):
+        candidate = self._seed_builtin_plugin({}, builtin_plugins="broken")
+        self.assertIs(candidate["re_derivable"], False)
+
     def test_a_healthy_lane_keeps_its_candidates_re_derivable(self):
         self.write_inventory(
             integrity={
@@ -2167,6 +2221,28 @@ class BuiltinPluginSurfaceTests(unittest.TestCase):
             {s.klass for s in surfaces}, {overlap.CLASS_OF_LANE["plugin_backed"]}
         )
         self.assertEqual({s.lane for s in surfaces}, {"builtin_plugins"})
+
+    def test_a_registration_the_loader_never_requires_is_not_fed(self) -> None:
+        plugins = {
+            **BUILTIN_PLUGINS,
+            "cc-plugin-dead": {
+                "description": "Never loaded",
+                "in_loader": False,
+                "skills": [{"name": "dead-skill", "description": "x"}],
+            },
+            "cc-plugin-unknown": {"description": "No loader read", "in_loader": None},
+        }
+        payload = overlap.plugin_component_payload(plugins)
+        self.assertNotIn("cc-plugin-dead", payload)
+        self.assertNotIn("dead-skill", payload)
+        self.assertIn("cc-plugin-unknown", payload)
+
+    def test_an_index_entry_carries_the_lane_it_was_read_from(self) -> None:
+        payloads = overlap._lane_payloads({"builtin_plugins": BUILTIN_PLUGINS})
+        index = overlap.build_native_index({"plugin_backed": {"scan": "s"}}, payloads)
+        self.assertEqual(index["author"]["lane"], "builtin_plugins")
+        self.assertEqual(index["scan"]["lane"], "plugin_backed")
+        self.assertEqual(overlap.lane_of({"class": "builtin-tool"}), "builtin_tools")
 
     def test_a_name_another_lane_holds_is_not_scored_twice(self) -> None:
         payloads = overlap._lane_payloads(

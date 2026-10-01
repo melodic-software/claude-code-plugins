@@ -1393,8 +1393,10 @@ def check_presence_mentions(repo: Path) -> list[str]:
 def build_native_index(
     inventory: dict[str, Any], lane_payloads: dict[str, Any]
 ) -> dict[str, dict[str, Any]]:
-    """Native name -> {class, entry}, first lane wins in workflow, skill,
-    command, agent, tool order; plugin-backed built-ins override."""
+    """Native name -> {class, lane, entry}, first lane wins in workflow, skill,
+    command, agent, tool, built-in plugin order; plugin-backed built-ins
+    override. `lane` is the lane the entry was read from: two lanes share the
+    plugin-backed-builtin class, so the class alone cannot name it."""
     native_index: dict[str, dict[str, Any]] = {}
     for lane in (
         "bundled_workflows",
@@ -1406,7 +1408,7 @@ def build_native_index(
     ):
         for name, entry in (lane_payloads.get(lane) or {}).items():
             native_index.setdefault(
-                name, {"class": CLASS_OF_LANE[lane], "entry": entry}
+                name, {"class": CLASS_OF_LANE[lane], "lane": lane, "entry": entry}
             )
     for name, plugin in (inventory.get("plugin_backed") or {}).items():
         # The extractor enriches a same-named command or skill with the plugin;
@@ -1414,11 +1416,24 @@ def build_native_index(
         enriched = native_index.get(name)
         native_index[name] = {
             "class": "plugin-backed-builtin",
+            "lane": "plugin_backed",
             "entry": enriched["entry"]
             if enriched
             else {"name": name, "plugin_name": plugin},
         }
     return native_index
+
+
+def lane_of(seen: dict[str, Any]) -> str | None:
+    """The lane an index entry was read from; the class's lane only for an
+    entry that carries none."""
+    return seen.get("lane") or LANE_OF_CLASS.get(seen.get("class"))
+
+
+def lanes_of_class(klass: Any) -> set[str]:
+    """Every lane that can carry a class: a seeded pair absent from the
+    extraction could have been read from any of them."""
+    return {lane for lane, c in CLASS_OF_LANE.items() if c == klass}
 
 
 def plugin_component_payload(
@@ -1429,7 +1444,9 @@ def plugin_component_payload(
     registration carrying the owning plugin as `plugin_name`."""
     out: dict[str, list[dict[str, Any]]] = {}
     for plugin, rec in plugins.items():
-        if not isinstance(rec, dict):
+        # `in_loader: false` is a registration the loader never requires: not
+        # proven live, so not a native surface to rule against.
+        if not isinstance(rec, dict) or rec.get("in_loader") is False:
             continue
         base = {"plugin_name": plugin, "gated": rec.get("gated") is True}
         out.setdefault(plugin, []).append(
@@ -1675,10 +1692,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
         # when the name is absent from the extraction, the observed class when
         # present, and both when the two disagree (a class collision), so a
         # broken lane on either side marks the candidate.
-        seeded_lane = LANE_OF_CLASS.get(native.get("class"))
-        observed_lane = LANE_OF_CLASS.get(seen["class"]) if seen else None
+        observed_lane = lane_of(seen) if seen else None
+        seeded_lanes = (
+            {observed_lane}
+            if seen and seen["class"] == native.get("class")
+            else lanes_of_class(native.get("class"))
+        )
         re_derivable, notes = broken_lane_evidence(
-            {lane for lane in (seeded_lane, observed_lane) if lane}
+            {lane for lane in (*seeded_lanes, observed_lane) if lane}
         )
         evidence.extend(notes)
         kind = component.get("kind", "skill")
@@ -1765,13 +1786,17 @@ def cmd_detect(args: argparse.Namespace) -> int:
         name, plugin, skill, kind = key
         component = {"plugin": plugin, "skill": skill, "kind": kind}
         if key in store_verdicts:
+            re_derivable, notes = broken_lane_evidence({surface.lane})
             existing.append(
                 {
                     "native": name,
                     "class": surface.klass,
+                    "lane": surface.lane,
                     "component": component,
                     "score": score,
                     "store_verdict": store_verdicts[key],
+                    "re_derivable": re_derivable,
+                    **({"evidence": notes} if notes else {}),
                 }
             )
             continue
@@ -1825,7 +1850,7 @@ def cmd_detect(args: argparse.Namespace) -> int:
         discovered_candidate(
             key,
             seen["class"],
-            LANE_OF_CLASS.get(seen["class"]),
+            lane_of(seen),
             registrations,
             score,
             matched,

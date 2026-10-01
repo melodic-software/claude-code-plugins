@@ -324,7 +324,9 @@ let i=a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"&&!c7r();if(i)L("cc-plugin-diff",â
 alias is expanded where `if(i)` reads it, and `if(x)return` adds `!(x)` to what follows unless it
 tests the loader's own latch. A call in any other position, or an `else` anywhere in the body,
 leaves `load` null. The guard text is minified code, kept verbatim: `c7r()` is a runtime check
-this reader does not evaluate.
+this reader does not evaluate. `in_loader` is false for a registration the loader never requires
+(listed in `registered_not_loaded`; not proven live, so overlap detection skips it), and null when
+no loader was found.
 
 Per plugin, from the merged fields:
 
@@ -385,7 +387,7 @@ as top-level advisories prefixed by the lane name. The exit mapping is `ok` 0, `
 | `bundled_workflows` | no `bundledWorkflows.push` registrar; a `WORKFLOW_CANARY` name absent | a registration whose name did not resolve |
 | `builtin_agents` | no definition resolved; an `AGENT_CANARY` name absent | a definition whose `agentType` did not resolve; the roster function not found |
 | `builtin_tools` | no definition resolved; a `TOOL_CANARY` name absent | a definition whose name constant did not resolve (a factory does not degrade: it is counted) |
-| `builtin_plugins` | no `builtinPlugins.set` registrar; no registration resolved; a `PLUGIN_CANARY` name absent | the loader not found; a registration name unresolved; a plugin the loader requires with no registration; a plugin with a non-empty `partial` |
+| `builtin_plugins` | no `builtinPlugins.set` registrar; no registration resolved; a `PLUGIN_CANARY` name absent | the loader not found; a registration name unresolved; a plugin the loader requires with no registration; a registration the loader never requires; a plugin with a non-empty `partial` |
 
 The CLI-version advisory is top-level, not a lane's. `integrity.undetermined` is informational: a
 runtime-decided field is a property of the build, not an extraction failure, so it never degrades

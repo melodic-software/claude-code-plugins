@@ -2672,6 +2672,27 @@ class TestBuiltinPlugins(unittest.TestCase):
         self.assertEqual(lane["status"], "degraded")
         self.assertEqual(len(lane["advisories"]), 2)
 
+    def test_a_registration_the_loader_never_requires_degrades_the_lane(self) -> None:
+        loader = _plugin_modules()[1].replace(
+            'if(i)Xue("cc-plugin-claude-test",()=>import.meta.require("/$bunfs/root/c5.js"))',
+            "",
+        )
+        plugins, notes = _plugins(loader=loader)
+        # The test-seat registration (`name:r`) is a factory, never listed here.
+        self.assertEqual(notes["registered_not_loaded"], ["cc-plugin-claude-test"])
+        self.assertEqual(notes["factory_registrations"], 1)
+        self.assertIs(plugins["cc-plugin-claude-test"]["in_loader"], False)
+        self.assertIs(plugins["cc-plugin-tips"]["in_loader"], True)
+        lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
+        self.assertEqual(lane["status"], "degraded")
+        self.assertTrue(any("never requires" in a for a in lane["advisories"]))
+
+    def test_without_a_loader_nothing_is_registered_not_loaded(self) -> None:
+        loader = _plugin_modules()[1].replace("builtinPluginsInitialized=!0", "x=!0")
+        plugins, notes = _plugins(loader=loader)
+        self.assertEqual(notes["registered_not_loaded"], [])
+        self.assertIsNone(plugins["cc-plugin-tips"]["in_loader"])
+
     def test_a_loaded_plugin_without_a_registration_degrades_the_lane(self) -> None:
         test = _plugin_modules()[6].replace("Z_({name:b,", "Y_({name:b,")
         plugins, notes = _plugins(test=test)
