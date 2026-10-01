@@ -428,6 +428,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     await tap("#sumBtn", 300);
     const ask = await page.$eval(".loose li:first-child .ask", el => ({ta: !!el.querySelector("textarea"), btn: !!el.querySelector("[data-looseans]"), text: el.innerText})).catch(() => null);
     ok("a Claude note flagged as needing an answer is the first Loose end, with a reply box", !!ask && ask.ta && ask.btn && /Anything else before the Brief/.test(ask.text), JSON.stringify(ask));
+    ok("a later ordinary Claude note leaves the flagged question pinned", (await state()).questions.notes.slice(-1)[0].needsAnswer !== true, JSON.stringify((await state()).questions.notes));
     // one label scheme
     await pick("Q10");
     const rows = await page.$$eval("#choices .choice", rs => rs.map(r => ({b: r.querySelectorAll("b").length, label: r.querySelector("b").textContent, n: !!r.querySelector(".n"), keys: r.querySelector("input").getAttribute("aria-keyshortcuts")})));
@@ -606,6 +607,10 @@ async page => { // the user journey in order on one page, no reload after phase 
     const needs = await page.$$eval("#fbody .act-list:first-of-type li", ls => ls.map(l => l.innerText));
     ok("the finish sits under Needs you in Activity", /Interview finished/.test(needs[0] || ""), (needs[0] || "").slice(0, 80));
     await page.click("#flyClose");
+    await page.evaluate(() => localStorage.setItem("iv2:finish", JSON.stringify({session: "another-data-dir", finished: {at: "2020-01-01T00:00:00Z", text: "Old interview."}})));
+    await page.reload(); await page.waitForSelector("#finished", {timeout: 8000});
+    const kept18 = await page.evaluate(() => JSON.parse(localStorage.getItem("iv2:finish") || "null"));
+    ok("a finish kept for another data dir is replaced by this one's", !!kept18 && kept18.session !== "another-data-dir" && /docs\/PLAN\.md/.test(JSON.stringify(kept18.finished)), JSON.stringify(kept18));
   }
   if (PHASE === 19) { // the shell ran round.sh stop
     const off = await until(() => /^Interview finished: server stopped$/.test(document.getElementById("pill").textContent), 15000);

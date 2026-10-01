@@ -285,6 +285,9 @@ if command -v playwright-cli >/dev/null 2>&1; then
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
   # A Notes reply after the restatement: the restate notice outranks it in phase 16.
   japply n2 '{"ops": [{"op": "note-reply", "needsAnswer": true, "text": "Anything else before the Brief?"}]}'
+  # An ordinary Claude note after it must not unpin the question.
+  sleep 1
+  japply n3 '{"ops": [{"op": "note-reply", "text": "The restatement is posted."}]}'
   jrun 16
   # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
   # phase 18 reads the modal, the shell stops the server (phase 19 reads the offline reason) and

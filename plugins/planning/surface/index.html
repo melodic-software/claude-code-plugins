@@ -1192,7 +1192,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     });
     const nt = noteThread();
     nt.filter(n => n.by === "you" && midSentence(n.text)).forEach(n => out.push("A note to Claude ends mid-sentence: <q>" + esc(trunc(n.text.trim().slice(-60), 60)) + "</q>"));
-    const ask = nt.length && nt[nt.length - 1].by === "claude" && nt[nt.length - 1].needsAnswer ? nt[nt.length - 1] : null;
+    const askAt = nt.map(n => n.by === "claude" && n.needsAnswer).lastIndexOf(true); // pinned until a note from you follows it
+    const ask = askAt >= 0 && !nt.slice(askAt + 1).some(n => n.by === "you") ? nt[askAt] : null;
     if (ask) out.unshift('<div class="ask"><div><b>Claude needs an answer in Notes:</b> ' + inline(trunc(ask.text, 300)) + '</div><textarea id="looseReply" rows="2" aria-label="Your answer to Claude"' + (S.api >= 2 ? "" : " disabled") + ">" + esc(S.looseDraft || "") + '</textarea><div class="arow"><button type="button" class="tbtn primary" data-looseans="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + ">Send answer</button></div></div>");
     else if (nt.length && nt[nt.length - 1].by === "claude") out.push('Claude replied in <button type="button" class="ref" data-panel="notes">Notes</button> and you have not answered.');
     return out;
@@ -1835,8 +1836,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.instance = data.instance || S.instance;
     S.finished = S.doc.finished || null; // kept in memory when the server goes away: its last frame is what the offline state reads
     const kept = finLoad();
-    if (S.finished) { if (!kept || (kept.finished || {}).at !== S.finished.at) finSave({session: S.session, finished: S.finished}); }
-    else if (kept && kept.session === S.session) finSave(null); // a resumed interview has no finish
+    if (S.finished) { if (!kept || kept.session !== S.session || (kept.finished || {}).at !== S.finished.at) finSave({session: S.session, finished: S.finished}); }
+    else if (kept) finSave(null); // a resumed interview has no finish, and a finish kept for another data dir on this port is not this one's
     Q = {}; S.doc.questions.forEach(q => Q[q.id] = q);
     const fresh = S.actKeys ? acts().filter(e => !S.actKeys.has(actKey(e)) && needsAct(e)) : []; // only what needs the user, and never what the first load already held
     S.actKeys = new Set(acts().map(actKey));
