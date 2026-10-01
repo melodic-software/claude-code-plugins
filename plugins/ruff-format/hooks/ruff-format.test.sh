@@ -41,15 +41,15 @@ ok() {
 
 # --- Notice text is bound to prerequisites.json --------------------------------
 # The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest has exactly one tool, ruff,
+# path), so this case is the binding: the manifest lists ruff and jq,
 # and the hook's missing-binary notice call and .venv walk state that tool's
 # name, check, install and local_bin, verbatim.
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | length) == 1 and .tools[0].name == "ruff" and .tools[0].local_bin == ".venv/bin/ruff"' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: exactly one tool, ruff, at .venv/bin/ruff"
+  if jq -e '(.tools | map(.name)) == ["ruff", "jq"] and .tools[0].local_bin == ".venv/bin/ruff"' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: declares exactly ruff (at .venv/bin/ruff) and jq"
   else
-    fail "manifest: expected one tool named ruff with local_bin .venv/bin/ruff: $(cat "$MANIFEST")"
+    fail "manifest: expected tools ruff and jq with local_bin .venv/bin/ruff: $(cat "$MANIFEST")"
   fi
   IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .local_bin, .check, .install] | @tsv' "$MANIFEST")
   NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to RUFF_NOTICE/,/[^\\]$/p' "$HOOK")"

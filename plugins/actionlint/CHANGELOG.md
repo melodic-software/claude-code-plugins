@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.6] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/actionlint:check`, which probes it. `/actionlint:check` runs its probes through Bash, jq included.
+
 ## [0.11.5] - 2026-09-30
 
 ### Changed

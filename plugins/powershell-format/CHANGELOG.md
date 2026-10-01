@@ -3,6 +3,12 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `jq`.** The hook skips without it, so `/claude-ops:prerequisites` and the SessionStart probe now report a missing `jq` and name `/powershell-format:check`, which probes it.
+
 ## [0.9.4] - 2026-09-30
 
 ### Changed
