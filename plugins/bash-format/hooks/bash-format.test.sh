@@ -798,9 +798,9 @@ MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.tools | map(.name) | sort) == ["jq", "node", "shellcheck", "shfmt"]' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: declares exactly shfmt, shellcheck jq and node"
+    ok "manifest: declares exactly shfmt, shellcheck, jq and node"
   else
-    fail "manifest: expected tools shfmt, shellcheck jq and node: $(cat "$MANIFEST")"
+    fail "manifest: expected tools shfmt, shellcheck, jq and node: $(cat "$MANIFEST")"
   fi
   # assert_hook_states <tool> <field> <needle> <haystack>
   assert_hook_states() {
