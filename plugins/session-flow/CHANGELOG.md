@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.42.0] - 2026-10-01
+
+### Added
+
+- **`/session-flow:check` reads whether `jq` resolves for the observer hook.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
 ## [0.41.2] - 2026-09-30
 
 ### Fixed
