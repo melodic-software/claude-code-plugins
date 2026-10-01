@@ -102,8 +102,8 @@ real_trace_line() { # <startTimeUnixNano> <span_name> <extra_attrs_fragment>
 
 readonly TOOL_EXTRA=',{"key":"tool_name","value":{"stringValue":"Bash"}},{"key":"tool_use_id","value":{"stringValue":"toolu-1"}},{"key":"duration_ms","value":{"stringValue":"42"}}'
 readonly TOOL_DECISION_SOURCE_EXTRA=',{"key":"tool_name","value":{"stringValue":"Bash"}},{"key":"tool_use_id","value":{"stringValue":"toolu-1"}},{"key":"decision","value":{"stringValue":"reject"}},{"key":"source","value":{"stringValue":"config"}}'
-readonly PROMPT_EXTRA=',{"key":"prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_length","value":{"stringValue":"22"}}'
-readonly SPAN_PROMPT_EXTRA=',{"key":"user_prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}}'
+readonly PROMPT_EXTRA=',{"key":"prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_text","value":{"stringValue":"SECRET_PROMPT_TEXT_SENTINEL"}},{"key":"prompt_length","value":{"stringValue":"22"}}'
+readonly SPAN_PROMPT_EXTRA=',{"key":"user_prompt","value":{"stringValue":"SECRET_PROMPT_SENTINEL"}},{"key":"prompt_text","value":{"stringValue":"SECRET_PROMPT_TEXT_SENTINEL"}}'
 readonly API_EXTRA=',{"key":"body","value":{"stringValue":"API_BODY_SENTINEL"}},{"key":"model","value":{"stringValue":"claude-x"}}'
 readonly DOUBLE_EXTRA=',{"key":"cost_usd","value":{"doubleValue":123.456}}'
 # The body-class classifier text INSIDE a JSON string value: every quote arrives escaped
@@ -444,6 +444,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "cold rows = structure + user_prompt" "2" "$(dq "SELECT count(*) FROM read_parquet('$glob');")"
   assert_eq "user_prompt kept with body NULL + join keys" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE event_name='user_prompt' AND body IS NULL AND session_id IS NOT NULL AND prompt_id IS NOT NULL;")"
   assert_eq "prompt text scrubbed from cold" "0" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_SENTINEL%';")"
+  assert_eq "prompt_text attribute scrubbed from cold" "0" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_TEXT_SENTINEL%';")"
   assert_eq "api body content absent from cold" "0" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%API_BODY_SENTINEL%';")"
   assert_eq "join keys populated on structure row" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE event_name='tool_decision' AND session_id IS NOT NULL AND prompt_id IS NOT NULL AND tool_use_id IS NOT NULL AND trace_id IS NOT NULL AND span_id IS NOT NULL;")"
   assert_eq "hot trimmed to the recent line" "1" "$(wc -l <"$S/cc-logs.json" | tr -d ' \r')"
@@ -467,6 +468,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   glob="$(sql_path "$S")/cold/cc-logs-*.parquet"
   assert_eq "toggle run exits 0" "0" "$rc"
   assert_eq "toggle keeps prompt attribute + body in cold" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE event_name='user_prompt' AND body IS NOT NULL AND CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_SENTINEL%';")"
+  assert_eq "toggle keeps prompt_text attribute in cold" "1" "$(dq "SELECT count(*) FROM read_parquet('$glob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT_TEXT_SENTINEL%';")"
 else
   skip_case "duckdb not found — skipping prompt-keep toggle case"
 fi
@@ -708,6 +710,7 @@ if [[ "$HAS_DUCKDB" == true ]]; then
   assert_eq "cold span row count" "1" "$(dq "SELECT count(*) FROM read_parquet('$tglob');")"
   assert_eq "cold user_prompt column NULLed" "1" "$(dq_macro "SELECT count(*) FROM cc_spans_cold('$(sql_path "$S")/cold/cc-traces-*.parquet') WHERE user_prompt IS NULL;")"
   assert_eq "cold prompt attribute scrubbed from raw" "0" "$(dq_macro "SELECT count(*) FROM cc_spans_cold('$(sql_path "$S")/cold/cc-traces-*.parquet') WHERE span_attributes_raw LIKE '%SECRET_PROMPT_SENTINEL%';")"
+  assert_eq "cold prompt_text attribute scrubbed from raw" "0" "$(dq_macro "SELECT count(*) FROM cc_spans_cold('$(sql_path "$S")/cold/cc-traces-*.parquet') WHERE span_attributes_raw LIKE '%SECRET_PROMPT_TEXT_SENTINEL%';")"
 else
   skip_case "duckdb not found — skipping traces cold compaction"
 fi
@@ -821,6 +824,150 @@ out="$(CC_OTEL_HOT_MAX_MB=abc bash "$SCRIPT" --dry-run 2>&1)"
 rc=$?
 assert_eq "non-integer CC_OTEL_HOT_MAX_MB exits 2" "2" "$rc"
 assert_contains "CC_OTEL_HOT_MAX_MB validation message" "$out" "CC_OTEL_HOT_MAX_MB must be"
+
+# --- 29. --scrub-cold: dirty cold files rewritten in place, clean ones untouched, notice fires ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store scrubcold)"
+  # Dirty cold files: compacted with the keep knob on, so prompt, prompt_text and the
+  # user_prompt body/column all reach cold (a superset of a pre-fix pruner's output).
+  {
+    real_log_line "$OLD" user_prompt claude_code.user_prompt "$PROMPT_EXTRA"
+    real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+    real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA"
+  } >"$S/cc-logs.json"
+  real_trace_line "$OLD" claude_code.interaction "$SPAN_PROMPT_EXTRA" >"$S/cc-traces.json"
+  CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" >/dev/null
+  dirty_logs="$(find "$S/cold" -name 'cc-logs-*.parquet')"
+  # A clean cold file: a later default-scrub compaction of a structure-only line.
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >>"$S/cc-logs.json"
+  out="$(run_prune_real "$S")"
+  assert_contains "prune notices cold files holding prompt content" "$out" "notice: 2 cold file(s) still hold prompt content; run prune-otel-store.sh --scrub-cold"
+  clean_logs="$(find "$S/cold" -name 'cc-logs-*.parquet' ! -path "$dirty_logs")"
+  clean_sum="$(cksum <"$clean_logs")"
+  cold_sum() { cat "$S"/cold/*.parquet | cksum; }
+  before="$(cold_sum)"
+
+  out="$(run_prune_real "$S" --scrub-cold --dry-run)"
+  assert_contains "scrub dry-run lists the dirty logs file" "$out" "cold/${dirty_logs##*/}: would_scrub rows=2 prompt_rows=1"
+  assert_contains "scrub dry-run counts affected files" "$out" "action=dry-run-scrub-cold affected_files=2"
+  assert_eq "scrub dry-run mutates nothing" "$before" "$(cold_sum)"
+
+  out="$(CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" --scrub-cold)"
+  assert_contains "keep knob makes the scrub a no-op" "$out" "action=noop-scrub-cold-keep-user-prompts"
+  assert_eq "keep-knob scrub mutates nothing" "$before" "$(cold_sum)"
+
+  out="$(run_prune_real "$S" --scrub-cold)"
+  rc=$?
+  lglob="$(sql_path "$S")/cold/cc-logs-*.parquet"
+  tglob="$(sql_path "$S")/cold/cc-traces-*.parquet"
+  assert_eq "scrub exits 0" "0" "$rc"
+  assert_contains "scrub rewrites both dirty files" "$out" "action=scrubbed-cold scrubbed_files=2"
+  assert_contains "scrub reports the clean file" "$out" "cold/${clean_logs##*/}: clean rows=1"
+  assert_eq "clean cold file byte-identical" "$clean_sum" "$(cksum <"$clean_logs")"
+  assert_eq "scrubbed logs file keeps its rows" "2" "$(dq "SELECT count(*) FROM read_parquet('$(sql_path "$dirty_logs")');")"
+  assert_eq "cold span row kept" "1" "$(dq "SELECT count(*) FROM read_parquet('$tglob');")"
+  assert_eq "prompt and prompt_text gone from cold logs" "0" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT%';")"
+  assert_eq "user_prompt body NULLed" "1" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE event_name='user_prompt' AND body IS NULL;")"
+  assert_eq "other user_prompt attributes kept" "1" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%\"prompt_length\"%';")"
+  assert_eq "structure attributes kept" "2" "$(dq "SELECT count(*) FROM read_parquet('$lglob') WHERE CAST(log_attributes_raw AS VARCHAR) LIKE '%\"tool_use_id\"%';")"
+  assert_eq "prompt content gone from cold spans" "0" "$(dq "SELECT count(*) FROM read_parquet('$tglob') WHERE CAST(span_attributes_raw AS VARCHAR) LIKE '%SECRET_PROMPT%' OR user_prompt IS NOT NULL;")"
+  assert_eq "scrub leaks no temps" "" "$(find "$S/cold" -name '*.tmp')"
+  assert_eq "scrub releases the sentinel" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+  out="$(run_prune_real "$S" --dry-run)"
+  assert_not_contains "no notice once cold is clean" "$out" "notice:"
+  out="$(run_prune_real "$S" --scrub-cold)"
+  assert_contains "second scrub finds nothing" "$out" "action=scrubbed-cold scrubbed_files=0"
+else
+  skip_case "duckdb not found — skipping --scrub-cold case"
+fi
+
+# --- 30. cold scan: one duckdb call per glob, clean marker skips it, keep-on compaction voids it ---
+if [[ "$HAS_DUCKDB" == true ]]; then
+  S="$(new_store coldmarker)"
+  marker="$S/cold/.prompt-scrub-clean"
+  # PATH wrapper counting duckdb invocations.
+  WRAP="$TMP/duckdb-wrap"
+  mkdir -p "$WRAP"
+  printf '#!/usr/bin/env bash\nprintf x >>"%s"\nexec "%s" "$@"\n' "$TMP/duckdb-calls" "$(command -v duckdb)" >"$WRAP/duckdb"
+  chmod +x "$WRAP/duckdb"
+  duckdb_calls() { if [[ -f "$TMP/duckdb-calls" ]]; then wc -c <"$TMP/duckdb-calls" | tr -d ' \r'; else printf 0; fi; }
+
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  real_trace_line "$OLD" claude_code.tool "" >"$S/cc-traces.json"
+  run_prune_real "$S" >/dev/null
+  assert_eq "clean scan under the lock writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  run_prune_real "$S" >/dev/null
+  real_log_line "$OLD" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  run_prune_real "$S" >/dev/null
+  assert_eq "keep-off compaction keeps the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  assert_eq "three cold logs files" "3" "$(find "$S/cold" -name 'cc-logs-*.parquet' | wc -l | tr -d ' ')"
+
+  rm -f "$marker" "$TMP/duckdb-calls"
+  out="$(PATH="$WRAP:$PATH" run_prune_real "$S" --dry-run)"
+  assert_eq "notice scan is one duckdb call per glob" "2" "$(duckdb_calls)"
+  assert_not_contains "clean cold prints no notice" "$out" "notice:"
+  assert_eq "dry-run writes no marker" "no" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  : >"$marker"
+  rm -f "$TMP/duckdb-calls"
+  PATH="$WRAP:$PATH" run_prune_real "$S" --dry-run >/dev/null
+  assert_eq "marker skips the notice scan" "0" "$(duckdb_calls)"
+
+  real_log_line "$OLD" user_prompt claude_code.user_prompt "$PROMPT_EXTRA" >"$S/cc-logs.json"
+  CC_OTEL_COLD_KEEP_USER_PROMPTS=1 run_prune_real "$S" >/dev/null
+  assert_eq "keep-on compaction removes the marker" "no" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  out="$(run_prune_real "$S" --dry-run)"
+  assert_contains "notice returns once the marker is gone" "$out" "notice: 1 cold file(s)"
+
+  : >"$marker"
+  rm -f "$TMP/duckdb-calls"
+  out="$(PATH="$WRAP:$PATH" run_prune_real "$S" --scrub-cold --dry-run)"
+  assert_contains "scrub dry-run ignores the marker" "$out" "action=dry-run-scrub-cold affected_files=1"
+  assert_eq "scrub discovery is one duckdb call per glob" "2" "$(duckdb_calls)"
+  rm -f "$marker"
+  out="$(run_prune_real "$S" --scrub-cold)"
+  assert_contains "scrub rewrites the dirty file" "$out" "action=scrubbed-cold scrubbed_files=1"
+  assert_eq "completed scrub writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+
+  # No-op path (nothing aged out): a clean scan still writes the marker under a brief sentinel.
+  rm -f "$marker"
+  real_log_line "$RECENT" tool_decision claude_code.tool_decision "$TOOL_EXTRA" >"$S/cc-logs.json"
+  : >"$S/cc-traces.json"
+  out="$(run_prune_real "$S")"
+  rc=$?
+  assert_eq "no-op run exits 0" "0" "$rc"
+  assert_contains "no-op run takes the no-op path" "$out" "action=noop-nothing-to-prune"
+  assert_eq "no-op run writes the marker" "yes" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  assert_eq "no-op run releases the sentinel" "no" "$([[ -e "$S/.prune-in-progress" ]] && echo yes || echo no)"
+  rm -f "$TMP/duckdb-calls"
+  PATH="$WRAP:$PATH" run_prune_real "$S" >/dev/null
+  assert_eq "next no-op run makes no duckdb call" "0" "$(duckdb_calls)"
+  rm -f "$marker"
+  mkdir "$S/.prune-in-progress"
+  out="$(run_prune_real "$S")"
+  rc=$?
+  assert_eq "held sentinel: no-op run exits 0" "0" "$rc"
+  assert_contains "held sentinel: still the no-op path" "$out" "action=noop-nothing-to-prune"
+  assert_not_contains "held sentinel: no error" "$out" "prune-otel-store.sh:"
+  assert_eq "held sentinel: no marker" "no" "$([[ -e "$marker" ]] && echo yes || echo no)"
+  assert_eq "held sentinel left in place" "yes" "$([[ -d "$S/.prune-in-progress" ]] && echo yes || echo no)"
+  rmdir "$S/.prune-in-progress"
+
+  # Cold-only store (no hot files): the absent-hot return still writes the marker.
+  C="$(new_store coldonly)"
+  cp -R "$S/cold" "$C/cold"
+  rm -f "$C/cold/.prompt-scrub-clean"
+  out="$(run_prune_real "$C")"
+  rc=$?
+  assert_eq "cold-only run exits 0" "0" "$rc"
+  assert_contains "cold-only run takes the absent-hot path" "$out" "action=noop-store-absent"
+  assert_eq "cold-only run writes the marker" "yes" "$([[ -e "$C/cold/.prompt-scrub-clean" ]] && echo yes || echo no)"
+  rm -f "$TMP/duckdb-calls"
+  PATH="$WRAP:$PATH" run_prune_real "$C" >/dev/null
+  assert_eq "next cold-only run makes no duckdb call" "0" "$(duckdb_calls)"
+else
+  skip_case "duckdb not found — skipping cold marker case"
+fi
 
 printf '\n%d passed, %d failed\n' "$((CASE_NUM - FAILED))" "$FAILED"
 [[ "$FAILED" -eq 0 ]]
