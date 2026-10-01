@@ -128,14 +128,13 @@ branch is rewriting this rule to pointer + as-of + trigger), `docs/migration-pla
 [design/design-resolution.md](design/design-resolution.md) (Tier B, early exit).
 
 Pointer shape for Phases 2 and 5, matching the peer branch's links-only shape so one convention
-lands after the rebase: our instruction in our own words, then
-`For <topic>, see [Claude Code model config, "<section>"](<url>#<anchor>) (checked <date>;
-recheck when that section is renamed, removed, or stops covering <topic>).` No values, lists or
-quotes. Candidate anchors read off the live page on 2026-09-30, confirmed again at edit time:
+lands after the rebase (confirmed by that session 2026-09-30): our instruction in our own words,
+then `For <topic>, see [Claude Code model config, "<section>"](<url>#<anchor>).`, an "As of"
+date and a "Recheck trigger" naming an observable event. No values, lists or quotes. Candidate anchors read off the live page on 2026-09-30, confirmed again at edit time:
 `#choose-an-effort-level` (effort levels and per-model defaults), `#extended-thinking` (models
 whose thinking cannot be turned off), `#default-auto-compact-thresholds` (native-1M compaction).
 
-### Phase 0: Commit the plan and confirm file ownership [DOING]
+### Phase 0: Commit the plan and confirm file ownership [DONE]
 
 1. Commit `docs/topics/sonnet-5-5-adoption/PLAN.md` and `design/design-resolution.md`, staging
    those two paths only (`.playwright-cli/` stays out of every commit).
@@ -149,7 +148,7 @@ whose thinking cannot be turned off), `#default-auto-compact-thresholds` (native
 - `git log -1 --name-only` lists exactly the two topic files.
 - `.work/sonnet-5-5-adoption/handoffs.md` records the ownership message and the peer's reply.
 
-### Phase 1: Usage-limit reset checker fix [TODO]
+### Phase 1: Usage-limit reset checker fix [DONE]
 
 Files: `plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.py`,
 `check-usage-limit-reset.test.py`, `plugins/session-flow/skills/keep-going/SKILL.md`.
@@ -222,7 +221,7 @@ Files: `prompts/loops/loop-lane-prompts.md`, `plugins/playbooks/skills/boris/ref
 - `grep -nE "Five levels|default is|xhigh|Opus 4\.7|Opus 5\.5" plugins/playbooks/skills/boris/reference/advanced.md` returns nothing.
 - `grep -nE "Opus 5\.5 starts at|Answer directly without deliberating|Opus 5\.5 and the Fable models" plugins/playbooks/skills/boris/reference/autonomy.md` returns nothing.
 - `grep -n "Sonnet 5, the Fable" plugins/context-guard/reference/reader-contract.md` returns nothing (plus the D1 grep below).
-- Each new pointer line matches `checked 2026-` and `recheck when`; `pointer-checks.md` has one row per pointer.
+- Each new pointer carries `As of 2026-` and `Recheck trigger`; `pointer-checks.md` has one row per pointer.
 - `git diff --name-only -- prompts plugins/playbooks plugins/context-guard` lists only the Phase 2 files.
 
 ### Phase 3: Slice correct-and-reverify [TODO]
