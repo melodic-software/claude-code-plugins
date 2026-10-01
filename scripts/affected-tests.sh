@@ -662,7 +662,7 @@ token_hits() {
       d = skill_dir($0)
       if (d == "") free[c[n]] = 1
       else {
-        k = ++nown[c[n]]
+        k = ++nowner[c[n]]
         odir[c[n], k] = d
         oskill[c[n], k] = c[4]
       }
@@ -675,9 +675,9 @@ token_hits() {
     }
     # owned: may this line in this file stand for a frontier file of that name?
     function owned(path, name, text,   hd, k, n, j, pt, q, named, plain) {
-      if ((name in free) || !(name in nown)) return 1
+      if ((name in free) || !(name in nowner)) return 1
       hd = skill_dir(path)
-      for (k = 1; k <= nown[name]; k++)
+      for (k = 1; k <= nowner[name]; k++)
         if (hd == odir[name, k]) return 1
       named = 0
       plain = 0
@@ -689,7 +689,7 @@ token_hits() {
         if (pt != name && substr(pt, length(pt) - length(name)) != "/" name) continue
         named = 1
         q = "/" pt
-        for (k = 1; k <= nown[name]; k++)
+        for (k = 1; k <= nowner[name]; k++)
           if (index(q, "/" oskill[name, k] "/")) return 1
         if (!index(q, "/skills/")) plain = 1
       }
