@@ -61,6 +61,7 @@ fi
 # --budget writes a 20-hop chain; give it its own scratch dir in mixed form so
 # the native interpreter reads the same path Git Bash printed (windows-path-emit).
 work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
 if command -v cygpath >/dev/null 2>&1; then
   work="$(cygpath -m "$work")"
 fi
@@ -70,7 +71,6 @@ if ! "$PY" -X utf8 hop_chain.py --budget --work-dir "$work"; then
   echo "FAIL: --budget projection"
   status=1
 fi
-rm -rf "$work"
 
 if [[ "$status" -eq 0 ]]; then
   echo "PASS: hop_chain.py contract tests"

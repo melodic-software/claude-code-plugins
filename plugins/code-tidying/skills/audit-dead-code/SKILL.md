@@ -1,5 +1,5 @@
 ---
-description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Orphaned files: listed source extensions and shebang scripts. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
+description: "Hunt dead code in four lanes (Knip, vulture, gopls, portable grep). Read-only. Use when: 'find dead code', 'audit dead code', 'what is unused in this repo', 'unused exports', 'unreferenced functions', 'orphaned files', 'is anything here still called', 'dead code sweep'. Not for applying the deletion (/code-tidying:tidy), diff-scoped simplification (/code-tidying:batch-simplify), or comment residue (/code-tidying:audit-comment-residue)."
 argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false

@@ -9,6 +9,9 @@
 # collapsed the two (#3161).
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=read-list.sh
 . "$SELF_DIR/read-list.sh"
@@ -19,7 +22,7 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # mk <content> -> path of a temp list file
 mk() {
   local f
-  f="$(mktemp)"
+  f="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   printf '%s' "$1" >"$f"
   printf '%s' "$f"
 }

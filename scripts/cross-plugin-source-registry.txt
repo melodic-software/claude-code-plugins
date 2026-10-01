@@ -178,3 +178,10 @@ hooks/exec-bash.mjs
 # Dedicated check: scripts/sync-exec-bash.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs
+
+# No dedicated check: the unreferenced plugin-cache-version reader carried by the
+# claude-ops audit-install-state and disk-hygiene deep-inventory engines. This
+# script's own --check is the gate. Canonical copy:
+# plugins/claude-ops/lib/plugin_cache_versions.py; copy it into
+# plugins/disk-hygiene/lib/ to fix a drift failure.
+lib/plugin_cache_versions.py

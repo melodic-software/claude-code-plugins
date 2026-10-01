@@ -135,11 +135,12 @@ is named explicitly or listed under `coverage.artifacts` in the configuration.
 ## Testing the plugin
 
 The Python suites are the `test_*.py` files beside the scripts they cover, and `python3 -m pytest -q`
-from this directory runs all of them. To measure them, run the same command under coverage.py from
-this directory:
+from this directory runs all of them. Add `-o tmp_path_retention_policy=none` so pytest deletes each
+test's `tmp_path` directories instead of keeping the last three runs under `$TMPDIR/pytest-of-<user>`.
+To measure them, run the same command under coverage.py from this directory:
 
 ```shell
-python3 -m coverage run -m pytest -q && python3 -m coverage json
+python3 -m coverage run -m pytest -q -o tmp_path_retention_policy=none && python3 -m coverage json
 ```
 
 The `.coveragerc` here sets `source = .`, so every module under the plugin is reported whether or

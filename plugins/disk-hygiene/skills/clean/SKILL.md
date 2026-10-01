@@ -43,7 +43,7 @@ optional execution lane. On Windows and macOS a run ends in a report plus the `e
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional `--deep` ([deep inventory](#deep-inventory)), optional `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--quiet`, optional `--root-children` with zero or more `--root-child <name>`, and one target
-directory. Remaining engine flags (`--output`, `--project-dir`, `--data-root` on scan;
+directory. Remaining engine flags (`--output`, `--project-dir`, `--in-flight-refs`, `--data-root` on scan;
 `--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and
 `--vcs-evidence` on the other subcommands) are supplied by this skill's command templates, not typed
 by the user. `--execute` means "deletion may be offered" on every platform, the gated engine lane
@@ -176,11 +176,12 @@ or `${CLAUDE_PLUGIN_ROOT}`. Run:
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
   [--max-depth <N>] [--confirmed-large-scan] [--sizes-only] [--quiet] \
+  [--in-flight-refs "<run-dir>/in-flight-refs.json"] \
   [--root-children [--root-child <name>]...]
 ```
 
 For exact per-child byte totals without a per-entry inventory or the entry cap, add `--sizes-only` (a known-large target still needs `--confirmed-large-scan` or `--max-depth`; [snapshot fields, entry-cap next steps](reference/scan-flags.md#--sizes-only)).
-Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md).
+Pasteable fan-out worker instructions: [fan-out-worker-brief.md](reference/fan-out-worker-brief.md). To leave paths that open issues, PRs or handoffs reference unticked, collect them first and pass `--in-flight-refs` ([how](reference/scan-flags.md#--in-flight-refs)).
 
 The guard validates `--data-root` against the plugin data directory it derives itself, and denies
 the call outright when it cannot recognize the install layout, so a run reporting that denial is a
@@ -399,14 +400,13 @@ it is, why removable, risk, whether it is an empty directory, the single tier, a
 Process another tier only with a new plan, preview, and question.
 
 A candidate a policy rule matched carries `policy_rule` (overlay `source`, rule `index`, matched
-`hint_id`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
+`hint_id`; a rule matches a hint by id or by the hint's `class`, and then `hint_source` names the layer that supplied the hint: show it when it differs from `source`; the last matching rule in layer order wins) and `preselected`. Show `preselected: true`
 rows ticked with the rule named beside them. A tick is a policy-file default, not a user message:
 the gate still needs the tier and path list named. Preview unticks a candidate with any blocker but
 `execution-platform-unsupported`, or whose plan tier ranks above the matched hint's
 `confidence_ceiling`; never raise a tier to keep a tick. Changing the ticked rows means a new plan,
-preview, and question. A rule with `min_age_days` (mtime basis) leaves an entry modified inside the
-window unticked, with `in_flight_reason` shown. A directory is as new as its newest inventoried
-descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight.
+preview, and question. A rule with `min_age_days` leaves an entry touched inside the
+window unticked, with `in_flight_reason` shown ([age basis](reference/scan-flags.md#rule-age-window)). A directory is as new as its newest inventoried descendant; incomplete coverage (not-walked, depth-cut, scan error) counts as in-flight. An entry named by `--in-flight-refs` is unticked the same way, whether or not a rule matched it.
 
 ## 6. Apply only the confirmed preview
 

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import {
   anchorFrameFileName,
@@ -29,6 +29,7 @@ describe("extractAnchorFrames heartbeat", () => {
     const timestamps = [1, 2, 3, 4, 5];
 
     const outputDir = fs.mkdtempSync(path.join(os.tmpdir(), "anchor-frames-"));
+    onTestFinished(() => fs.rmSync(outputDir, { recursive: true, force: true }));
     await extractAnchorFrames("video.mp4", outputDir, timestamps, {
       spawn,
       heartbeatInterval: 2,

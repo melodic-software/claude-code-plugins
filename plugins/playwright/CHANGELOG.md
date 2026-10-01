@@ -3,6 +3,12 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.8.0] - 2026-09-29
 
 ### Added

@@ -281,19 +281,19 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none. Always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only. Tier of explicit bare invocations | `safe` |
-| `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | repo convention, then squash |
 | `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only. Gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
 | `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
-| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | `--block-labels` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
-| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
+| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | deprecated fallback `--block-labels` (merge wrapper, autopilot merge tier); omit it when unset | tier refuses fail-closed when enabled and the target repository declares none |
+| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review); omit it when unset | review-trigger module dormant |
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review, merge gate) | review-trigger module dormant; merge gate's review-settle hold dormant |
-| `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
+| `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | deprecated fallback `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_review_settle_minutes` | `${user_config.babysit_review_settle_minutes}` | `--review-settle-minutes` (merge gate) | review-settle hold dormant. Pair it with `babysit_review_bot_logins`, which the gate requires alongside it |
-| `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
+| `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | deprecated fallback `--ci-gateway-context` (snapshot) | gateway check unused |
 | `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread, request_review) | structural bot detection only |
-| `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
-| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
+| `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | deprecated fallback `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
+| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | deprecated fallback `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
 | `babysit_stuck_check_age_seconds` | `${user_config.babysit_stuck_check_age_seconds}` | `--stuck-check-age-seconds` (snapshot) | `1800` |
@@ -301,6 +301,22 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_worker_concurrency_cap` | `${user_config.babysit_worker_concurrency_cap}` | prose only. Fan-out bound | `10` |
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
 | state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | n/a |
+
+Seven rows are repository policy: `babysit_merge_method`, `babysit_merge_block_labels`,
+`babysit_review_gate_context`, `babysit_ci_gateway_context`,
+`babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`, and
+`babysit_skip_downgrade_logins`. Each PR's repository resolves them from its tracked
+`.claude/source-control.md` on the default branch, merged per key with the flag on its row by the
+modes in
+[config-resolution.md](../../reference/config-resolution.md#babysit-prs-repository-policy-keys):
+hold lists union, `babysit_skip_downgrade_logins` is remove-only, and the rest take the repository
+value first. The flag is a deprecated fallback for every one of these except
+`babysit_skip_downgrade_logins`, whose flag stays its only additive source. The review pair
+(`babysit_review_bot_logins`, `babysit_review_settle_minutes`) and the trigger phrase
+(`babysit_review_trigger_phrase`) are `userConfig`-only: a repository declaration of any of them is
+ignored. A repository whose file cannot be read is refused by the merge
+gate and `request_review`, and its PRs are never merge-ready in the snapshot. The unset behavior
+above applies when neither source sets the key.
 
 Configure via the `/plugin` dialog, or headless at install time with `claude plugin install
 --config KEY=VALUE`; `/source-control:setup` documents both plus the environment probes.

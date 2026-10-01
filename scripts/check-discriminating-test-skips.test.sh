@@ -7,6 +7,9 @@
 # shellcheck disable=SC2016  # fixture bodies are literal test code in single quotes
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-discriminating-test-skips.sh"
@@ -98,7 +101,7 @@ fi
 rm -rf "$f"
 
 # --- runtime: fail_discriminating_skip fails the suite with marker -----------
-tmp_test="$(mktemp --suffix=.test.sh)"
+tmp_test="$(mktemp --suffix=.test.sh "$TMP_ROOT/f.XXXXXX")"
 write_runtime_suite "$tmp_test" \
   'fail_discriminating_skip "synthetic: git diff --cached --name-status has 0 C record(s), expected 1"'
 if out="$(bash "$tmp_test" 2>&1)"; then
@@ -143,7 +146,7 @@ fi
 rm -rf "$f"
 
 # --- runtime: optional skip_case still passes --------------------------------
-tmp_test="$(mktemp --suffix=.test.sh)"
+tmp_test="$(mktemp --suffix=.test.sh "$TMP_ROOT/f.XXXXXX")"
 write_runtime_suite "$tmp_test" 'skip_case "symlinks unsupported on this platform"'
 if out="$(bash "$tmp_test" 2>&1)"; then
   if grep -q '^SKIP:' <<<"$out" && ! grep -q '^DISCRIMINATING SKIP:' <<<"$out"; then

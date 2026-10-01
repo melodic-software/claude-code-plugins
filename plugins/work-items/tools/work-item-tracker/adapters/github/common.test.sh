@@ -4,6 +4,9 @@
 # its public helpers (no --help contract; it is sourced, never invoked).
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 # shellcheck source=common.sh
@@ -25,11 +28,11 @@ assert_eq "rate limit → unavailable (8)" "8" "$(wit_map_gh_error 'API rate lim
 
 # Bot-wrapper resolution (CONTRACT.md "Identity routing (GitHub adapter)"):
 # consumer-local-first, plugin-bundled fallback, regardless of adapter location.
-CONSUMER_ROOT="$(mktemp -d)"
+CONSUMER_ROOT="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 mkdir -p "$CONSUMER_ROOT/tools/github-auth"
 CONSUMER_WRAPPER="$CONSUMER_ROOT/tools/github-auth/gh-bot.sh"
 : >"$CONSUMER_WRAPPER"
-EMPTY_ROOT="$(mktemp -d)"
+EMPTY_ROOT="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 BUNDLED="$WIT_GH_ADAPTER_DIR/../../../github-auth/gh-bot.sh"
 
 RESOLVED="$(CLAUDE_PROJECT_DIR="$CONSUMER_ROOT" wit_gh_resolve_bot_wrapper)"
@@ -54,7 +57,7 @@ rm -rf "$CONSUMER_ROOT" "$EMPTY_ROOT"
 # The stub 403s every GraphQL-backed call (`issue view`, `repo view`) the way a
 # sandboxed session does and serves `gh api`; gh 2.94 reads through `issue view`.
 if command -v jq >/dev/null 2>&1; then
-  EMIT_STUB="$(mktemp -d)"
+  EMIT_STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   cat >"$EMIT_STUB/gh" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$1" == "--version" ]]; then
@@ -104,7 +107,7 @@ EOF
     "api repos/o/r/issues/1"
   assert_not_contains "wit_emit_item on gh 2.45 skips issue view" "$(<"$EMIT_STUB/calls.log")" "issue view"
 
-  PR_STUB="$(mktemp -d)"
+  PR_STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   cat >"$PR_STUB/gh" <<'EOF'
 #!/usr/bin/env bash
 [[ "$1" == "--version" ]] && { echo "gh version 2.45.0 (test)"; exit 0; }

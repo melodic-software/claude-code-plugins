@@ -403,7 +403,7 @@ resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fab
   non-interactive mode a Fable request that would bill usage credits bills them without a consent
   prompt, which is the shape every unattended lane runs in.
 - **strong binds `opus`.** The docs' own starting recommendation, "start with Claude Opus 5.5 for
-  most workloads". Opus 5.5 and Fable 5.1 share a June 2026 reliable knowledge cutoff, so cutoff
+  most workloads". Opus 5.5 and Fable 5.1 both have reliable knowledge through June 2026, so
   freshness does not separate them, and raw capability order (Fable above Opus) does not decide
   the binding alone.
 - **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jan

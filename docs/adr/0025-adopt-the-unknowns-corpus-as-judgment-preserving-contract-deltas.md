@@ -5,10 +5,10 @@
 
 ## Context
 
-A practitioner corpus on artifact-first development — Thariq Shihipar's "A field guide to
+A practitioner corpus on artifact-first development, Thariq Shihipar's "A field guide to
 Claude Fable 5: Finding your unknowns" (Anthropic blog, 2026-07-06), its X-article
 methodology substrate "The Unreasonable Effectiveness of HTML", and a 20-demo example
-collection — was ingested as 17 verified digest slices (byte-exact quoting, dual
+collection, was ingested as 17 verified digest slices (byte-exact quoting, dual
 verification) and worked through a full decision chain: a relentless interview, a
 read-only evidence pass grading every named-skill collision, dual fresh-context
 validators, external research grounding seven practice areas in primary sources,
@@ -18,7 +18,7 @@ topic-docs convention; the shipping PR (#3592) carries the full plan and verific
 record, and the corpus itself is the primary source a future auditor reads.
 
 The corpus's own author warns against exactly the move a plugin marketplace is tempted to
-make — turning the material into generator skills — and the marketplace's instruction
+make, turning the material into generator skills, and the marketplace's instruction
 economy separately requires observed, repeated stumble evidence before any standing
 instruction lands. Genuine alternatives existed: adopt the techniques as new skills,
 adopt them as standing instructions, or reject codification entirely.

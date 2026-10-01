@@ -166,6 +166,18 @@ class TestShippedSchemas(unittest.TestCase):
         missing = {**audit, "items": [{"id": "Q1"}]}
         self.assertIn("missing required 'contentRev'", schema.first_error(missing, s))
 
+    def test_a_hedged_event_and_its_response_validate(self):
+        e = {"seq": 1, "id": "Q1", "kind": "hedged", "text": "if cheap", "at": "t"}
+        self.assertIsNone(schema.first_error(e, schema.load("event")))
+        resp = {"decision": "hedged", "alt": None, "text": "if cheap"}
+        doc = {"seq": 1, "responses": {"Q1": resp}, "events": [e]}
+        self.assertIsNone(schema.first_error(doc, schema.load("responses")))
+        ops = schema.load("ops")
+        op = {"op": "record-terminal", "id": "Q1", "decision": "hedged", "text": "x"}
+        self.assertIsNone(
+            schema.first_error(op, ops["$defs"]["record-terminal"], "$", ops)
+        )
+
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         q = doc["questions"][0]

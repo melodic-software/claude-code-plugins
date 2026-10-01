@@ -19,6 +19,9 @@
 # shellcheck disable=SC2016  # fixture bodies are literal shell content in single quotes; expansion is never wanted
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-shell-portability.sh"
@@ -53,14 +56,14 @@ scan_paths() {
 # pattern, so a synthetic case is not coupled to any other class.
 one_token_list() {
   local f
-  f="$(mktemp)"
+  f="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   printf '%s\n' "$1" >"$f"
   printf '%s' "$f"
 }
 
 tmpsh() {
   local f
-  f="$(mktemp --suffix=.sh)"
+  f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
   printf '%s\n' "$1" >"$f"
   printf '%s' "$f"
 }
@@ -1254,7 +1257,7 @@ amp_clean 'a comment-only line naming the construct' '# never write ${var//pat/&
 # --- a QUOTE-JOINED record spans physical lines, and the hit is attributed to
 # the physical line it actually sits on — the same per-line attribution the ERE
 # classes get, reached through the shared report path.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'msg="opened here\nv=${v//X/&}"\n' >"$f"
 if out="$(scan_paths "$amptok" "$f" 2>&1)"; then
   fail "an & hit on the second physical line should fire, got success: $out"
@@ -1476,7 +1479,7 @@ rm -rf "$fx" "$tok"
 # Fail-closed behavior
 # =============================================================================
 
-BAD_TOKENS="$(mktemp)"
+BAD_TOKENS="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 printf '%s\n' '(unterminated' >"$BAD_TOKENS" # unmatched '(' -- invalid ERE, awk faults
 f="$(tmpsh 'grep -Eq foo bar')"
 SHELL_PORTABILITY_TOKENS="$BAD_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
@@ -1493,7 +1496,7 @@ rm -f "$f" "$BAD_TOKENS"
 # from the awk program into the shell when the list parsing was extracted, so it
 # is asserted here alongside the twin's — a regression in the shared path must
 # turn BOTH suites red, not just the one that was historically missing it.
-EMPTY_TOKENS="$(mktemp)"
+EMPTY_TOKENS="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
 f="$(tmpsh 'grep -Eq foo bar')"
 SHELL_PORTABILITY_TOKENS="$EMPTY_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
@@ -2893,7 +2896,7 @@ rm -f "$f"
 
 # --- a QUOTED WORD spanning physical lines is one command, so its option must
 # still be reached; the newline is data inside the quotes, not a separator.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat %s\nbar%s -c %%s\n' "'foo" "'" >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a quoted newline should not hide the option, got success: $out"
@@ -2907,7 +2910,7 @@ rm -f "$f"
 # --- a joined record is attributed per PHYSICAL line: the hit reports at its
 # own line, and an annotation excuses only the line carrying it. Without that,
 # one annotation anywhere inside a joined block would exempt all of it.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'x=%sopen\nstat -c %%s "$f"\ndate -d @0 +%%s # portability-ok: fixture\nclose%s\n' "'" "'" >"$f"
 out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
 if grep -q "PORTABILITY: ${f}:2:" <<<"$out" &&
@@ -2920,7 +2923,7 @@ rm -f "$f"
 
 # --- a HEREDOC body is data: a stray backquote or apostrophe in it must not
 # open a frame that swallows the lines after the heredoc ends.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'cat >/dev/null <<%sEOF%s\n"CustomRule%sPath" = %s./x%s\nEOF\ngrep -q %sneedle%s "$f"\nprintf "%%s" "x -Path y"\n' \
   "'" "'" '`' "'" "'" "'" "'" >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
@@ -2932,7 +2935,7 @@ rm -f "$f"
 
 # --- a heredoc body is still SCANNED: this corpus writes real scripts through
 # heredocs, and the gate deliberately matches inside literal text.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'cat >/tmp/gen.sh <<%sEOF%s\nstat -c %%s "$f"\nEOF\n' "'" "'" >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a heredoc body must still be scanned, got success: $out"
@@ -2943,7 +2946,7 @@ rm -f "$f"
 
 # --- a `#` opening a physical line inside a joined record is a real comment, so
 # a commented-out fallback there cannot excuse a hit above it.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'x=$(stat -c %%s "$f"\n# || stat -f %%z "$f"\n)\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a commented-out fallback in a joined record should not guard: $out"
@@ -3013,7 +3016,7 @@ rm -f "$f"
 
 # --- and if a token list somehow loads no active pattern at all, the run fails
 # CLOSED rather than reporting a corpus it never checked as clean.
-TOK="$(mktemp)"
+TOK="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 printf '# only a comment, no active pattern\n' >"$TOK"
 f="$(tmpsh 'grep -P x')"
 out="$(scan_paths "$TOK" "$f" 2>&1)"
@@ -3051,7 +3054,7 @@ fi
 # `PORTABILITY: <file>:` prefix belongs to the gate, which is what makes this a
 # different assertion from every one above rather than the same one twice. ---
 tok="$(one_token_list 'grep[[:space:]]+-P')"
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'echo first\ngrep -P x\n' >"$f"
 out="$(awk -f "$SCAN_AWK" "$tok" "$f" 2>&1)"
 rc=$?
@@ -3147,7 +3150,7 @@ rm -f "$f"
 # --- a structural NEWLINE ends a command inside a substitution, so the gap
 # between a matched call and a `||` must stop at one. Reachable only since
 # records join on an unterminated quote.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'x=$(stat -c %%s "$f"\ntrue) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a later command on a newline owns the status, so this is no ladder: $out"
@@ -3169,7 +3172,7 @@ rm -f "$f"
 # --- a `portability-scope:` line inside a HEREDOC BODY is generated data, not
 # this file declaring anything about itself, and must not exempt the file. A
 # grep pre-pass honored it wherever the characters appeared.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'cat >/tmp/gen.sh <<%sEOF%s\n# portability-scope: generated fixture\nEOF\nstat -c %%s "$f"\n' \
   "'" "'" >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -3179,7 +3182,7 @@ else
 fi
 rm -f "$f"
 # a real declaration still exempts the whole file, wherever in it it sits
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f"\n# portability-scope: this file is a fixture corpus\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a genuine portability-scope declaration still exempts the whole file"
@@ -3226,7 +3229,7 @@ for opener in "x='foo" 'y="foo' 'z=$(echo foo'; do
   'y="foo') closer='bar"' ;;
   *) closer=')' ;;
   esac
-  f="$(mktemp --suffix=.sh)"
+  f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
   printf '%s\n' "$opener" '# portability-scope: bogus' "$closer" 'date -d tomorrow' >"$f"
   if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
     fail "a scope marker inside an open construct ($opener) must exempt nothing: $out"
@@ -3238,7 +3241,7 @@ done
 
 # --- and a genuine declaration still grants whole-file scope from either side
 # of the hit, indented or not.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf '%s\n' 'date -d tomorrow' '  # portability-scope: this file is a fixture corpus' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "an indented declaration after the hit still exempts the whole file"
@@ -3268,7 +3271,7 @@ rm -f "$f"
 # next physical line can no longer promote it. POSIX removes `\<newline>`
 # during tokenization (2.2.1), so this spelling IS `$((` and the ladder is
 # guarded; committing the shorter reading reported it as an unguarded call.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s $(\\\n(1 | 2)) || stat -f %%z f\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a \$(( split by a line continuation is still one arithmetic expansion"
@@ -3278,7 +3281,7 @@ fi
 rm -f "$f"
 # ...and the same command written on ONE line is the control: the shell sees
 # the same tokens either way, so the gate must too.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s $((1 | 2)) || stat -f %%z f\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "the same ladder without the continuation is clean too"
@@ -3293,7 +3296,7 @@ rm -f "$f"
 # than re-decide a `#` that now sits behind the commit point. Forgetting it
 # hands the `||` back its control-operator meaning and a commented-out fallback
 # starts excusing an unguarded call again.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'v=$(true  # note\nstat -c %%s "$f" || stat -f %%z "$f")\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a ladder inside a comment's shadow should fire, got success: $out"
@@ -3306,7 +3309,7 @@ rm -f "$f"
 # ...with the comment removed the identical second line IS live code, so the
 # same ladder is a real one. This is the control that pins the difference on
 # the comment rather than on the join.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'v=$(true\nstat -c %%s "$f" || stat -f %%z "$f")\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "the same joined ladder without the comment is a real ladder"
@@ -3323,7 +3326,7 @@ rm -f "$f"
 # closes inside the one containing it), so a depth-keyed hold is exercised as
 # well as the count.
 tok="$(one_token_list '!subst-replacement-ampersand')"
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'a="${x//p/&} one\n${y//q/${z//r/&}} two"\n' >"$f"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "an & in a joined record should fire, got success: $out"
@@ -3339,7 +3342,7 @@ rm -f "$f" "$tok"
 # physical line has to be remembered: forget it and the next line's first `))`
 # closes the expansion early, after which the `||` behind it reads as a control
 # operator and a fallback that the shell never reaches starts guarding the call.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f" $(( (1 +\n2)) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a || inside an unterminated arithmetic expansion should not guard: $out"
@@ -3350,7 +3353,7 @@ else
 fi
 rm -f "$f"
 # ...same text on one line, same verdict: the join is not what decides it.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f" $(( (1 + 2)) || stat -f %%z "$f"\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   fail "the unjoined control must report the same unguarded call"
@@ -3361,7 +3364,7 @@ rm -f "$f"
 # ...and the depth is held per FRAME, so the same shape one frame deeper (the
 # expansion nested inside a `$( )` rather than sitting at the top level) has to
 # survive the boundary on its own stack slot.
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f" $(printf %%s $(( (1 +\n2)) ) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a nested arithmetic frame should keep its depth across the join: $out"
@@ -3371,7 +3374,7 @@ else
   fail "expected the line-1 call reported, got: $out"
 fi
 rm -f "$f"
-f="$(mktemp --suffix=.sh)"
+f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f" $(printf %%s $(( (1 + 2)) ) || stat -f %%z "$f"\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   fail "the unjoined nested control must report the same unguarded call"
@@ -3384,7 +3387,7 @@ rm -f "$f"
 # The mechanism cases run on two fake awks with distinct banners, so they hold on
 # any host. The fixture pair after them needs real gawk and mawk, the pair that
 # disagree on the escape.
-probe_dir="$(mktemp -d)"
+probe_dir="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 mkdir -p "$probe_dir/bin"
 printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo "fake-a 1"; exit 0; }\nexit 0\n' >"$probe_dir/bin/fake-a"
 printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo "fake-b 1"; exit 0; }\nexit 3\n' >"$probe_dir/bin/fake-b"

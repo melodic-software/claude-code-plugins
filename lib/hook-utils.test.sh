@@ -1538,7 +1538,7 @@ fi
 FAKEBIN17="$(make_stub_bin)"
 run17b() {
   local args="$1"
-  CLAUDE_PLUGIN_DATA="$(mktemp -d)" "$BASH" -c '
+  CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/data17b.XXXXXX")" "$BASH" -c '
     PATH="'"$FAKEBIN17"'"
     source "'"$HOOK_DIR"'/hook-utils.sh"
     hook::require_jq_blocking '"$args"'
