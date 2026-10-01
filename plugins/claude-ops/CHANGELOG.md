@@ -9,6 +9,18 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`/claude-ops:machine-profile` records what this machine has and reports when it changes.** It discovers machine facts and per-tree identity domains, stores them as a profile with the observation behind every value, and diffs the stored profile against the host. Read-only unless the operator confirms: `record --confirm` writes the profile and `apply --confirm` prints what to hand to each setup. It never installs and never reapplies a stored value on its own.
 
+## [0.79.4] - 2026-10-01
+
+### Fixed
+
+- **The inventory reads the Explore and Plan agents' full disallowed-tools list on Claude Code
+  2.1.286.** A `...spread` inside `tools` or `disallowedTools` now resolves to the binding its own
+  module and scope see, by the same rule name and field resolution use. Before, it took the
+  nearest same-name binding in the bundle, an unrelated call on 2.1.286, so the shared entries
+  (the Artifact tools among them) were dropped and the field read `partial`. A spread whose
+  binding is not an array literal, or is assigned anywhere else (a conditional write in the same
+  block, a nested block, another function, or an expression-bodied arrow), still reads `partial`.
+
 ## [0.79.3] - 2026-10-01
 
 ### Fixed
