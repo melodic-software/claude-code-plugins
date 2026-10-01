@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-10-01
+
+### Fixed
+
+- **`run-guards` no longer counts the body of a quoted-delimiter heredoc toward the substitution cap.** A `cat <<'EOF'` body (also `<<"EOF"`, `<<\EOF`, `<<-'EOF'`) holding more than 256 `$(`, `<(`, `>(` or backtick spellings was refused, though bash expands nothing there. The operator, delimiter and rest of its line still count. An unquoted or expanding heredoc, a heredoc the scan does not model, and any command that names a shell, `eval`, `su`, `env` or `alias` still count whole. `block-root-delete-target` is unchanged and still reads such a body as commands, so `bash <<'EOF'` with a `$(rm -rf /)` body is still refused. The full 10-guard row finishes in about 3 s on a 16,384-character quoted-heredoc body.
+
 ## [0.45.0] - 2026-09-30
 
 ### Added
