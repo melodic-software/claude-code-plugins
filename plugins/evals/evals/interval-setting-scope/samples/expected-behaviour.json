@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No, it's working as designed. `interval_method` changes only the pass-count line, the one that counts cases at or above the threshold. Every other interval in the noise report stays a normal interval, including the score intervals and the delta line. So a normal-looking interval on the delta is exactly what you should see with `wilson` set. To confirm the setting took effect, look at the pass-count line instead; that is the only place Wilson shows up.",
+      "why": "P-canonical: says it works as designed, the setting changes only the pass-count line, and every other interval including the delta stays normal."
+    },
+    {
+      "answer": "Your setting is fine; you are just looking at the wrong line. The Wilson option applies to one place in the noise report: the count of cases that reached the pass threshold. The paired delta, like the per-arm score intervals, is always reported with a normal interval whatever `interval_method` says. Nothing is being ignored and there is nothing to change. If you want to see Wilson at work, compare the pass-count line before and after the change: with a small suite its bounds shift noticeably, especially when nearly all or almost none of the cases pass.",
+      "why": "P-alt: same facts reworded: Wilson applies only to the count of cases at the threshold, the delta and score intervals always stay normal, nothing is ignored."
+    },
+    {
+      "answer": "That is expected, not a bug. `interval_method` changes only the pass-count line (cases at or above the threshold); the score intervals and the delta line stay normal by design.\n\nOne thing to expect on the pass-count line itself: Wilson and normal intervals differ most when the pass count is near zero or near all cases, or the suite is small. In the middle of the range they can look almost the same, so even there a small visual difference is normal.",
+      "why": "P-caveat: correct scope of the setting plus a separate note on when Wilson and normal intervals visibly differ on the pass-count line; it does not call the delta behaviour a bug."
+    },
+    {
+      "answer": "It isn't ignored. By design, `interval_method` only affects the pass-count line, which counts the cases at or above the threshold. Every other interval, the delta line included, stays normal no matter what you choose, so what you're seeing is correct. The pass-count line is where the Wilson interval appears; the delta and the per-arm score intervals use the normal interval whichever method you pick. Leave the setting as it is, and look at the pass-count line to see it working.",
+      "why": "P-plain: the minimal correct answer: by design, only the pass-count line changes and every other interval including the delta stays normal."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Probably, yes. Plugin options are read when the session starts, so changing `interval_method` mid-session leaves the old value cached and the noise report keeps using the default normal interval everywhere, including the delta line. Restart Claude Code, rerun the report, and the delta and score intervals should switch to Wilson. If they still don't after a restart, re-set the option through the plugin's config and file an issue with the evals plugin.",
+      "why": "F-wrong: says the setting is ignored, recommends restarting and re-setting, and says the delta should use Wilson."
+    },
+    {
+      "answer": "No, this is expected behaviour, not a bug. The delta line in the noise report is always built with a normal interval, whatever `interval_method` is set to, and the per-arm score intervals are normal too. Your `wilson` setting is still being read; it just applies to a different part of the report than the delta. There's nothing to restart or change. Regenerating the report will show the delta's bounds unchanged; that is the intended output, so read the delta as usual.",
+      "why": "F-partial: says it is expected and the delta and score intervals stay normal, but never says the setting changes only the pass-count line."
+    },
+    {
+      "answer": "Short answer: no. `interval_method` changes only the pass-count line, the count of cases at or above the threshold, and the other intervals stay normal.\n\nOn reflection, though, the delta line is meant to follow the setting too: with `wilson` selected it should switch to a Wilson interval on the next run. If it still shows a plain normal interval after you regenerate the report, the option isn't being picked up and it's worth filing an issue against the evals plugin.",
+      "why": "F-retract: states the correct scope, then retracts it by saying the delta should switch to Wilson and suggesting an issue."
+    },
+    {
+      "answer": "Your setting is working; the delta line just isn't in its scope. `interval_method` applies to the proportion-style intervals in the noise report: the pass-count line and the per-arm score intervals both switch to Wilson when you choose it. The paired delta is a difference of means, so it always keeps a normal interval. Check the pass-count line or the score intervals to see Wilson in effect. With a small suite the difference is visible: Wilson bounds stay inside 0 to 100 percent where a normal interval can overshoot.",
+      "why": "F-near: right that the delta stays normal, but says the score intervals switch to Wilson, which the rubric fails."
+    }
+  ]
+}

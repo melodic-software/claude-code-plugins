@@ -65,13 +65,30 @@ knowledge router with no decision contract, per the migration playbook's warrant
 
 ## Configuration
 
-Two `userConfig` keys, both read by `/evals:plugin-eval`:
+Eight `userConfig` keys. Two set the run's cost ceiling, read by `/evals:plugin-eval`:
 
 - **`max_cost_usd`** (number, default `5`): the ceiling passed to the CLI as `--max-cost-usd`. It
   bounds one invocation rather than a session's total, and a suite that reaches it stops partway
   with partial results, so raise it for a suite whose estimate is higher.
 - **`unlimited_cost`** (boolean, default `false`): removes the ceiling and nothing else. The
   estimate still prints before the run, so an expensive suite is still visible before it starts.
+
+Six set how evals are designed and read. Each default follows Anthropic's published eval guides;
+where this repository departs from a source, the record is in the methodology skill's
+`reference/local-decisions.md`.
+
+- **`split_policy`** (string, default `train-test`): `reporting-only` also holds back a split that
+  no keep-or-revert decision or final pick reads, used only to report the result.
+- **`interval_method`** (string, default `normal`): `wilson` or `jeffreys` changes the interval on
+  the count of passing cases. Score intervals stay normal.
+- **`review_format`** (string, default `markdown`): `html` renders the case review as one escaped
+  page instead.
+- **`grader_run_twice`** (boolean, default `true`): reports judge-vote agreement per `llm` grader
+  from votes the run already took.
+- **`same_model_warning`** (boolean, default `true`): warns when the tested model and the judge are
+  the same model.
+- **`labelled_grader_check`** (boolean, default `false`): adds a check of each grader against cases
+  you label.
 
 No hooks and no MCP servers. The methodology, design, and validate surfaces make no network calls
 and no model calls; a `claude plugin eval` run does, on your own account, which is what the estimate
@@ -91,6 +108,12 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `max_cost_usd` | number<br>*min 0* | `5` | `CLAUDE_PLUGIN_OPTION_MAX_COST_USD` | Ceiling /evals:plugin-eval passes to the CLI as --max-cost-usd. It bounds one invocation, not a session's total, and a run that reaches it stops mid-suite with partial results. Raise it for a suite whose estimate exceeds it. |
 | `unlimited_cost` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_UNLIMITED_COST` | Drop --max-cost-usd from the invocation so a suite always runs to completion. The estimate is still printed before the run; only the ceiling goes away. |
+| `split_policy` | string | `"train-test"` | `CLAUDE_PLUGIN_OPTION_SPLIT_POLICY` | How eval cases split when a skill or prompt is tuned against them. train-test (the default) splits train and test as the bundled hillclimb guide does; reporting-only also holds back a split that no keep-or-revert decision or final pick reads, used only to report the result. |
+| `interval_method` | string | `"normal"` | `CLAUDE_PLUGIN_OPTION_INTERVAL_METHOD` | Interval the noise report puts on the count of cases that pass the threshold. normal (the default) uses the normal approximation; wilson uses the Wilson score interval; jeffreys uses the Jeffreys interval. Score intervals and the with-versus-without difference always use normal. |
+| `review_format` | string | `"markdown"` | `CLAUDE_PLUGIN_OPTION_REVIEW_FORMAT` | Format /evals:design renders candidate eval cases in for your approval. markdown (the default) is a table plus one fenced block per case; html is one page with every field escaped. |
+| `grader_run_twice` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_GRADER_RUN_TWICE` | When on, /evals:plugin-eval's noise report shows how often the judge votes for each llm grader agreed, read from votes the run already took, at no extra spend. |
+| `same_model_warning` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SAME_MODEL_WARNING` | When on, /evals:plugin-eval's preflight warns when the tested model and the judge model resolve to the same model, and /evals:design repeats the reminder beside the build-eval route. |
+| `labelled_grader_check` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_LABELLED_GRADER_CHECK` | When on, /evals:design checks a grader against a set of cases you label, not only the handful-of-cases agreement check. |
 
 ### How to set these
 

@@ -526,17 +526,17 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `claude-api` → `evals:methodology`
 
-- **Verdict:** `complementary`: Different jobs on the same object. The bundled skill's hillclimb subcommand consumes an eval suite and searches model and effort for the cheapest configuration that holds the target (train/test split, one change per round, held-out scoring), and build-eval scaffolds the suite it needs; both run evals and change configuration. evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, hand it to the search. Recorded when the effort-axis note citing hillclimb landed in the methodology reference.
+- **Verdict:** `complementary`: Different jobs on the same object. The bundled skill's hillclimb and build-eval subcommands act on an eval suite, as their published guides describe; evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, then the user types the subcommand. Routing by repository kind and the hillclimb step map live in the methodology skill and its reference/hillclimb.md.
 - **Integration:** `route`
 - **Native surface:** `claude-api` (bundled skill; markers: gated)
 - **Our component:** `evals:methodology` (skill)
 - **Evidence:**
-  - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb; bundled shared/evals/eval-hillclimb.md read end to end (train/test split, one proposal per round, held-out scoring)
-  - hillclimb and build-eval absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the platform claude-api-skill docs page
+  - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb
+  - subcommand pointer: https://code.claude.com/docs/en/skills#work-on-claude-api-projects; published guides: https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md and build-eval.md at the same commit (as of 2026-10-01)
   - our description: 'Knowledge (WHY/WHAT of eval design), not a runner; ... for running and scoring a plugin's suite against a no-plugin baseline use /evals:plugin-eval'
-  - reference/eval-design.md 'Effort as an eval axis' cites the subcommand behind the presence gate
+  - reference/hillclimb.md names each hillclimb step by a link to its section and states only this repository's facts; reference/eval-design.md 'Effort as an eval axis' points to it behind the presence gate
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
-- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval (verified 2026-09-11)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, the platform claude-api-skill docs page lists build-eval and hillclimb, or a commit to anthropics/skills changes skills/claude-api/shared/evals/ (verified 2026-10-01)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

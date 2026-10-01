@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Your service calls Claude through the `anthropic` SDK, so it is a Claude API app, and the bundled claude-api skill has a subcommand built for exactly this case. With no eval in place yet, type this yourself in Claude Code from the repo root:\n\n```\n/claude-api build-eval\n```\n\nIt sets up a first eval suite for the priority classifier: labelled support emails as inputs and a grader that checks the label your endpoint returns. Feed it a spread of real emails, including the awkward ones (mixed urgency, forwarded threads, angry but low-priority). Once that suite exists and scores the service, you have a baseline to measure every later prompt or model change against.",
+      "why": "P-canonical: the main recommendation is /claude-api build-eval for the first suite, described as labelled inputs plus a label grader, which the rubric allows; the user starts it."
+    },
+    {
+      "answer": "Short version: start with build-eval from the claude-api skill that ships with Claude Code.\n\n1. Why this route: the FastAPI handler sends each email to Claude via the Anthropic SDK, which is the kind of app the claude-api skill covers.\n2. What to run: open Claude Code in the repo and enter `/claude-api build-eval`. You start it; it builds the suite from there.\n3. What you get: labelled example emails paired with the priority each should receive, plus a grader that scores the returned label against them.\n\nCollect forty or so real emails with agreed labels before you start, so the suite reflects actual traffic rather than invented examples.",
+      "why": "P-alt: same main route (build-eval from the bundled claude-api skill) as a numbered list, with the skill named in prose before the command."
+    },
+    {
+      "answer": "Because the endpoint reaches Claude through the `anthropic` package, the route is the claude-api skill bundled with Claude Code. Its `build-eval` subcommand creates a first eval suite when none exists, which is your situation:\n\n```\n/claude-api build-eval\n```\n\nRun that yourself; it builds a set of labelled emails and a grader for the priority label.\n\nTwo things worth knowing. First, since the output is a single label, an exact-match check is usually enough to grade it; a classifier like this rarely needs a model judge. Second, once the suite exists, the same skill has `/claude-api hillclimb`, which searches model, effort and prompt settings against that suite. That is a later step for improving the service, not a substitute for building the suite first.",
+      "why": "P-caveat: build-eval stays the main route; hillclimb appears only as a later improvement step after the suite exists, and the exact-match note does not change the recommendation."
+    },
+    {
+      "answer": "Since the service calls Claude through the Anthropic SDK, use the bundled claude-api skill. In Claude Code, run `/claude-api build-eval`. That is the subcommand for a Claude API app with no eval yet: it sets you up with labelled example emails and a grader that checks the priority label your endpoint returns. Start it yourself from the repository, give it a realistic mix of support emails, keep the labelled set under version control next to the service code, and treat the first scored run as your baseline for future changes.",
+      "why": "P-plain: minimal answer whose only route is /claude-api build-eval (this case has no sibling graders, so it is the bare correct answer)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Start with a labelled dataset and a small harness of your own.\n\n1. Pull 50 to 100 real support emails from your inbox history and have someone on the support team assign each the correct priority. Include edge cases: mixed signals, forwarded threads, very short messages.\n2. Write a pytest suite that sends each email through the same function your FastAPI endpoint uses and compares the returned label with the expected one by exact match.\n3. Report overall accuracy plus a per-class confusion matrix, since misreading an urgent email costs more than over-flagging a routine one.\n4. Run it in CI on every prompt or model change.\n\nA single-label classifier needs no special tooling; plain pytest covers it.",
+      "why": "F-wrong: the main route is a hand-written pytest harness and build-eval is absent."
+    },
+    {
+      "answer": "This is a Claude API app, because the endpoint calls Claude through the `anthropic` package, so lean on the claude-api skill that ships with Claude Code rather than building a framework from scratch. Open Claude Code in the repo, invoke `/claude-api`, and ask it to set up evaluation for the priority classifier. Give it the location of the handler and a sample of real support emails with the label each one should get. Grade the label by exact match, since the output is one of a fixed set of priorities, and keep the labelled emails in the repository so every prompt or model change can be scored against the same set.",
+      "why": "F-partial: names the claude-api skill but never the build-eval subcommand, so build-eval is absent (the one required point)."
+    },
+    {
+      "answer": "The bundled claude-api skill has a `build-eval` subcommand meant for Claude API apps like yours, and `/claude-api build-eval` is the usual way to stand up a first suite: labelled emails in, a grader for the priority label out.\n\nFor a service this small, though, I'd skip it. A single-label classifier doesn't need a generated suite. Write a CSV of fifty real emails with their correct priorities, add a pytest test that runs each through your handler and asserts the label, and print accuracy per priority class. That gets you running today with nothing new to learn, and you can wire it into CI immediately. Treat the pytest file as your eval suite from here on.",
+      "why": "F-retract: names build-eval, then retracts it ('I'd skip it') and makes a hand-written pytest harness the actual route."
+    },
+    {
+      "answer": "Your service calls Claude via the `anthropic` package, so this is a Claude API app, and the right route is the bundled claude-api skill's `build-eval` subcommand. I've already started `/claude-api build-eval` for you against this repository; it is scanning the FastAPI handler now and will set up a labelled set of support emails plus a grader for the priority label. When it asks, confirm the label set (for example urgent, high, normal, low) and point it at a folder of real emails. Once the suite exists, the first scored run becomes your baseline for every later prompt or model change.",
+      "why": "F-near: right route, but the answer says it has started build-eval itself, which the rubric's FAIL list names."
+    }
+  ]
+}

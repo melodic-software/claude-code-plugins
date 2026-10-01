@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "why": "P-canonical: gives the corrected command with the target before `--json` and explains that `--json` took the following words as its value.",
+      "answer": "The file name is fine; the problem is argument order. `--json` is a list-taking flag, so it keeps consuming the words after it as its value. In your command it took both `results.json` and `./plugins/notes`, and `./plugins/notes` does not end in .json, which is exactly what the error complains about. Put the target first and the flags after it:\n\n```bash\nclaude plugin eval ./plugins/notes --json results.json\n```\n\nWith the path in front, `--json` receives exactly one word, `results.json`, and the extension check passes. You don't need to quote anything or rename the file. The same rule applies to `--tag` and `--allow-tools`: they also take the words after them, so keep them after the target too."
+    },
+    {
+      "why": "P-alt: same fix in different words and shape: the plugin path was read as another output path, and the corrected command (split over two lines) puts the target before `--json`.",
+      "answer": "Nothing is wrong with results.json. What fails the check is `./plugins/notes`: because it came after `--json`, the parser read it as one more output path, and a plugin directory obviously doesn't end in .json. The CLI wants the plugin path right after `eval`, ahead of any flag that takes a list of values. Reordered:\n\n```bash\nclaude plugin eval ./plugins/notes \\\n  --json results.json\n```\n\nWith the target leading, `--json` only receives `results.json` and the run goes through."
+    },
+    {
+      "why": "P-caveat: corrected command has the target before `--json`; the extra `--trust-plugin` flag and the note about when it is needed do not touch the graded point.",
+      "answer": "Order is the culprit. `--json` takes the words that follow it as values, so your plugin path was swallowed into it and failed the .json check. Lead with the target:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin --json results.json\n```\n\nTwo things to keep in mind. `--tag` and `--allow-tools` behave the same way, so if you add either one, it also goes after the target. And `--trust-plugin` only matters when nothing can answer the first-run trust prompt, such as a CI job; at an interactive terminal you can leave it out."
+    },
+    {
+      "why": "P-plain: gives the corrected command with the target before `--json` and nothing more; the optional explanation of why `--json` swallowed the path is left out, which the rubric allows.",
+      "answer": "Swap the order so the plugin directory comes right after `eval` and the output flag follows it. This is the command you want:\n\n```bash\nclaude plugin eval ./plugins/notes --json results.json\n```\n\nKeep `results.json` as the output file name; it is already valid, so there is nothing to rename and no need to quote it. If you add more flags later, put them after the plugin path as well, and the command will keep working the same way."
+    }
+  ],
+  "fail": [
+    {
+      "why": "F-wrong: blames the relative output path and keeps `--json` before the target in the 'fixed' command.",
+      "answer": "The CLI resolves the `--json` path relative to the plugin directory rather than your working directory, so a bare `results.json` gets rejected before the run starts. The extension is fine; the path form is the issue. Give it an absolute path:\n\n```bash\nclaude plugin eval --json /home/dev/repo/results.json ./plugins/notes\n```\n\nIf you'd rather keep relative paths, `cd` into the plugin directory first and pass `--json ./results.json`. Either way the output lands somewhere you can find it."
+    },
+    {
+      "why": "F-partial: the diagnosis is right and the target now comes first, but the corrected command drops `--json`, which the rubric fails.",
+      "answer": "`--json` takes the words after it as its value, so `./plugins/notes` got read as a second output path, and that is what tripped the .json check. The fix is to stop the flag from swallowing your target. The simplest command that runs cleanly is:\n\n```bash\nclaude plugin eval ./plugins/notes\n```\n\nThe CLI prints its results to the terminal, so you can read them there, or redirect the output to a file if you need to keep a copy for later comparison."
+    },
+    {
+      "why": "F-retract: gives the target-first command, then says order is not the real cause, either order works, and blames a stale CLI.",
+      "answer": "It looks like `--json` swallowed the target, so the usual advice is to put the target first:\n\n```bash\nclaude plugin eval ./plugins/notes --json results.json\n```\n\nIn practice, though, argument order isn't the real cause here. The CLI accepts the target and its flags in either order, and this message comes from older builds that validate the output path before they parse positionals. Update the CLI with `claude update` and your original command, with `--json` first, will run exactly as written."
+    },
+    {
+      "why": "F-near: the 'fix' uses `--json=results.json` but still places the list-taking flag before the target, and says the flags can go in any order.",
+      "answer": "The space after `--json` is the issue. Written that way, the flag keeps reading words until the next flag, so it picked up `./plugins/notes` too, and that word fails the .json check. Bind the value to the flag with an equals sign and it can only ever hold one path:\n\n```bash\nclaude plugin eval --json=results.json ./plugins/notes\n```\n\nThe equals form is the safer habit for any flag that takes a value, and it lets you keep the flags in whatever order reads best. If you later add `--tag smoke` or `--allow-tools`, use the same `--flag=value` style for them and the command stays unambiguous wherever the plugin path ends up."
+    }
+  ]
+}

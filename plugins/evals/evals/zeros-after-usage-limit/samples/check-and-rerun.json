@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Probably neither. A usage or rate limit hit partway through the suite is not marked partial, so `partial: false` doesn't rule it out. Runs after the limit end with the error, are graded on what they produced, and score 0 on both arms.\n\nBefore you believe the drop, check `cases[].arms.with[].error` for those three cases. If it names the limit, rerun them once it resets, then compare with last week. Don't call it a regression or flaky cases until those reruns are in.",
+      "why": "P-canonical: tells the user to check each affected run's error field before believing the drop and to rerun the cases rather than call it a regression or flakiness."
+    },
+    {
+      "answer": "I wouldn't conclude anything from that score yet. Three cases going to zero on both the with and without arms usually means those runs never really got to work, and a mid-suite limit does that without setting `partial`.\n\nOpen the results JSON and read the `error` value on each run of the three cases. A limit message there means the zeros are an artefact; wait for the limit to reset, run those three cases again, and only then compare against last week.",
+      "why": "P-alt: same two actions in other words: read each run's error value first, then run the three cases again after the reset instead of concluding."
+    },
+    {
+      "answer": "Neither, most likely. A usage or rate limit reached mid-suite isn't marked partial, and the runs after it score 0 on both arms.\n\n- Check each affected run's `error` field (for example `cases[].arms.with[].error`) before trusting the drop.\n- Rerun those cases after the limit resets.\n- Expect some cost: rerunning three cases bills both arms again, so it is cheaper than a full suite but not free.\n\nIf the reruns come back clean, last week's comparison holds again.",
+      "why": "P-caveat: gives the error-field check and the rerun; the added note about rerun cost does not touch the graded point."
+    },
+    {
+      "answer": "Hold off on calling it a regression or flaky cases. Before you believe the drop, check each of those runs' `error` field in the JSON, for example `cases[].arms.with[].error`. If it records a usage or rate limit, the zeros come from runs that were cut off, not from the plugin. Rerun the three affected cases after the limit resets and see where the score lands. Comparing with last week before then mixes real results with cut-off runs.",
+      "why": "P-plain: has the error-field check and the rerun, and never mentions that a limit is not marked partial (the sibling's point)."
+    },
+    {
+      "answer": "Neither yet. A usage or rate limit partway through a suite is not marked partial, so `partial: false` and exit 1 don't rule it out.\n\nFor those three cases, read `cases[].arms.with[].error` and `cases[].arms.without[].error`:\n- If an error names a limit: wait for it to reset, then rerun only those cases with `--case`, and compare again.\n- If the errors are null: run `run-validity.py` and then `noise-report.py` on the result before drawing any conclusion about the cases.\n\nEither way, don't call it a regression or flaky cases from these zeros.",
+      "why": "P-branch: checks both arms' error fields, reruns the affected cases once the limit resets when an error names it, and on the null branch runs the gate and noise report before concluding anything; no regression or flakiness verdict on either branch."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Zeros on both arms for three cases in a row point to flaky cases rather than the plugin. If the plugin had regressed, you would see the with-arm fall while the without-arm held steady. When both collapse together, the usual culprit is a brittle grader, for example an llm rubric that is too strict or a regex that no longer matches. Tighten the rubrics on those three cases and raise `runs` so a single bad sample can't sink the score.",
+      "why": "F-wrong: concludes flaky cases and suggests changing the graders and runs instead of checking the error field and rerunning."
+    },
+    {
+      "answer": "Probably neither. A usage or rate limit hit partway through the suite isn't marked partial, so `partial: false` doesn't prove the runs completed. Later runs end with the error and are graded on what they produced, which gives 0 on both arms.\n\nBefore believing the drop, check `cases[].arms.with[].error` on those three cases. If it names a limit, you have your explanation: the zeros are an artefact of the limit, not a sign of a regression or of flaky cases.",
+      "why": "F-partial: tells the user to check the error field but never says to rerun the affected cases."
+    },
+    {
+      "answer": "Likely neither: a usage limit hit mid-suite isn't marked partial, so the false flag proves nothing, and the runs after the limit score 0 on both arms. Check `cases[].arms.with[].error` before believing the drop, then rerun the three cases once the limit resets.\n\nIn practice, though, the error field is almost always null even when a limit hit, so it isn't worth digging through; just rerun the cases and see whether the scores come back.",
+      "why": "F-retract: says to check the error field, then dismisses it as almost always null and not worth checking."
+    },
+    {
+      "answer": "Neither, probably. A usage or rate limit reached partway through the suite is not marked partial, so `partial: false` doesn't show the runs finished normally, and the later runs score 0 on both arms.\n\nBefore believing the drop, go through the run's logs and the kept traces for those three cases and look for a limit or 429 message. If you find one, rerun those cases after the limit resets and compare with last week again.",
+      "why": "F-near: points only at logs and traces, never at each run's error field, though it rerun-advises and gets the sibling's partial point right."
+    }
+  ]
+}

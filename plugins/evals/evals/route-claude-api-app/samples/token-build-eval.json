@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Type `/claude-api build-eval` to create the first suite.",
+      "why": "command form"
+    },
+    {
+      "answer": "Use the claude-api skill's build eval subcommand.",
+      "why": "spaced form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write a pytest suite over 50 labelled emails and check the label by exact match.",
+      "why": "harness only"
+    }
+  ]
+}

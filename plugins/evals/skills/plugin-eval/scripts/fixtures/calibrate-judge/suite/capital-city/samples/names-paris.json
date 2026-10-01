@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "why": "plain sentence",
+      "answer": "The capital of France is Paris."
+    },
+    {
+      "why": "markdown over two lines, with quotes and a backslash",
+      "answer": "**Paris** is the capital.\n\nIt has been the \"seat of government\" since 987 (see C:\\atlas)."
+    }
+  ],
+  "fail": [
+    {
+      "why": "empty answer",
+      "answer": ""
+    },
+    {
+      "why": "wrong city",
+      "answer": "The capital of France is Lyon."
+    },
+    {
+      "why": "wrong city, stated as fact",
+      "answer": "The capital of France is Marseille."
+    }
+  ]
+}
