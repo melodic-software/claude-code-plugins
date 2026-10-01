@@ -26,7 +26,7 @@ the same way the listing does (`check-skill.sh` combined-length check).
 ## Command
 
 ```shell
-# Schema, polarity, train/validation split, roughly-20 count
+# Schema, polarity, train/validation split, roughly-20 count, copied listing words
 bash plugins/skill-quality/scripts/measure-invocation.sh validate plugins/skill-quality/probes
 
 # Lexical floor, JSON on stdout, per-split rates on stderr
@@ -67,11 +67,12 @@ is two skills chosen for competitor density, not for a claimed starvation rank:
 Replace the seed when a starvation report is in hand. Fleet-wide description
 rewrites stay attended and are not filed from this harness.
 
-## Baseline (2026-09-28, listing-overlap)
+## Baseline (2026-10-01, listing-overlap)
 
 Committed at `probes/baselines/listing-overlap.json`. Positive trigger rate is 1.0
 on both skills and both splits: current descriptions already contain the request
-nouns the seed positives use. False-trigger rates are the gap the floor can see:
+nouns the seed positives use, even with no positive copying four or more
+consecutive listing words. False-trigger rates are the gap the floor can see:
 
 | Skill | Train false-trigger | Validation false-trigger |
 |---|---|---|
@@ -84,10 +85,12 @@ skill` scores as `skill-quality:check` because that listing contains `skill`. Th
 the floor is not a model-graded auto-invocation rate, and why a rewrite's exit criterion
 is a validation-split gain on a live plugin-eval or `claude -p` run.
 
-The positive rate is close to true by construction for `skill-quality:check`:
-`pos-train-02` and `pos-train-05` of `probes/skill-quality.check.json` are near-verbatim
-quoted triggers of the `check` description, so a 1.0 positive rate is not a saturation
-finding.
+## Probe wording
+
+Write should-trigger probes the way a user would ask, not in the description's words. A
+probe that quotes the listing measures the copy, so `validate` WARNs when a should-trigger
+probe shares 4 or more consecutive words with the target listing (`--copy-span N` changes
+the span). Should-not-trigger probes are exempt.
 
 ## emit-plugin-eval results
 
@@ -112,6 +115,17 @@ Per skill, per split: `n`, `n_positive`, `n_negative`, `trigger_rate`
 (positives that the method selected), `false_trigger_rate` (negatives it
 selected). `compare` prints treatment minus baseline for both rates on both
 splits so a rewrite cannot hide a validation drop behind a train gain.
+
+Each trigger-rate delta also carries `trigger_rate_delta_interval`, a 95%
+normal-approximation interval over the baseline and treatment `n_positive` for that split,
+clamped to [-1, 1] and null when either rate falls outside [0, 1], and
+`trigger_rate_within_noise`, true when that interval contains 0; stderr repeats it
+as one INFO line per split. With about 4 to 6 positives per split, only a large
+delta clears noise. When both rates are 0 or 1 the interval has zero width, so
+read the probe count before trusting it.
+
+`emit-plugin-eval` writes `runs: 3` per case, the CLI's default; `--runs N`
+changes it.
 
 ## Trigger-phrase preservation
 

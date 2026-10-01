@@ -149,7 +149,8 @@ configuration is needed:
 `validate-evals` checks a skill's `evals/evals.json` against the bundled
 `reference/evals.schema.json`. Every case requires `id`, `prompt`, and at least one non-empty
 grading criterion: `expected_output`, `expectations`, or `assertions` (a case that cannot be
-graded is not an eval); the rich form adds `name` (kebab-case) and `files`.
+graded is not an eval); the rich form adds `name` (kebab-case) and `files`. Any case may add
+`difficulty` (`hard` or `routine`), `why_hard` and `source`.
 Evals are warranted, not mandatory. A skill shipping none is not a failure.
 
 After the schema, `check-evals-quality.sh` (bash + jq) lints eval CONTENT deterministically.
@@ -159,8 +160,8 @@ carrying both `expectations` and `assertions`, identical prompt+files pairs, vag
 phrasing ("the output is good"), a thin sole-criterion `expected_output`, a set with no
 refusal/guardrail or anti-pattern case, and (Q4 prose) an empty `files` list with
 path-shaped tokens in `prompt`/`expected_output` that resolve nowhere (silence with
-`narration: true` or declare fixtures). It deliberately does not flag low case count. Run
-`--help` on the script for the full Q1-Q9 list; without `jq` it exits 2 and the schema verdict
+`narration: true` or declare fixtures), and a `difficulty: hard` case with no `why_hard`. It
+deliberately does not flag low case count. Run `--help` on the script for the full Q1-Q11 list; without `jq` it exits 2 and the schema verdict
 stands alone.
 
 ## Requirements
@@ -176,7 +177,10 @@ stands alone.
 
 `measure-invocation` scores whether a skill's listing text would win the requests it should
 (and stay quiet on the ones it should not). Default method is a deterministic lexical
-listing-overlap floor; `emit-plugin-eval` writes `claude plugin eval` cases for a live run.
+listing-overlap floor; `emit-plugin-eval` writes `claude plugin eval` cases for a live run, 3 runs
+per case by default. `validate` warns on a should-trigger probe that copies 4 or more consecutive
+listing words, and `compare` reports each trigger-rate delta with a 95% interval and says when it is
+within noise.
 Contract: [`reference/invocation-probes.md`](reference/invocation-probes.md).
 
 ```shell

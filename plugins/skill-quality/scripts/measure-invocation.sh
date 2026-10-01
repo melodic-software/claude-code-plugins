@@ -12,11 +12,17 @@
 # environment error (no jq, missing file).
 #
 # Usage:
-#   bash measure-invocation.sh validate <probes-dir>
+#   bash measure-invocation.sh validate [--copy-span N] <probes-dir>
 #   bash measure-invocation.sh score [--method listing-overlap] <probes-dir>
 #   bash measure-invocation.sh compare <baseline.json> <treatment.json>
-#   bash measure-invocation.sh emit-plugin-eval <probes-dir> <out-dir>
+#   bash measure-invocation.sh emit-plugin-eval [--runs N] <probes-dir> <out-dir>
 #   bash measure-invocation.sh --help
+#
+# validate WARNs when a should-trigger probe shares N or more consecutive
+# words (default 4) with the target listing. emit-plugin-eval writes N runs
+# per case (default 3, the CLI's own default). compare adds a 95%
+# normal-approximation interval on each trigger-rate delta and an INFO line
+# that says "within noise" when the interval contains 0.
 #
 # Probe files: <probes-dir>/*.json (not baselines/). Each file is one skill:
 #   skill, plugin, skill_dir (repo-relative), competitors[], queries[]
@@ -141,7 +147,31 @@ resolve_skill_md() {
   return 1
 }
 
+# positive_int <flag> <value>: exits 2 unless value is a positive integer.
+positive_int() {
+  if [[ ! "${2:-}" =~ ^[1-9][0-9]*$ ]]; then
+    printf 'Error: %s needs a positive integer\n' "$1" >&2
+    exit 2
+  fi
+}
+
+# copied_span <request> <listing> <n>: prints the first run of n consecutive
+# words the request shares with the listing (lowercase, alphanumeric words).
+copied_span() {
+  jq -nr --arg r "$1" --arg l "$2" --argjson n "$3" '
+    def words: ascii_downcase | [scan("[a-z0-9]+")];
+    def grams: . as $w | [range(0; ($w | length) - $n + 1) | $w[.:. + $n] | join(" ")];
+    ($l | words | grams) as $lg
+    | first(($r | words | grams)[] | select(IN($lg[]))) // empty'
+}
+
 cmd_validate() {
+  local span=4
+  if [[ "${1:-}" == "--copy-span" ]]; then
+    positive_int --copy-span "${2:-}"
+    span="$2"
+    shift 2
+  fi
   local dir="${1:-}"
   if [[ -z "$dir" || ! -d "$dir" ]]; then
     printf 'Error: validate needs a probes directory\n' >&2
@@ -219,6 +249,14 @@ cmd_validate() {
     if [[ -n "$rel" ]]; then
       if md="$(resolve_skill_md "$root" "$rel")"; then
         note "$skill: listing $md"
+        local listing qid request copied
+        listing="$(load_listing "$md")"
+        while IFS=$'\t' read -r qid request; do
+          copied="$(copied_span "$request" "$listing" "$span")"
+          if [[ -n "$copied" ]]; then
+            warn "$f ($skill): should-trigger probe $qid copies \"$copied\" from the listing; a probe that quotes the description measures the copy, not the trigger, so reword it"
+          fi
+        done < <(jq -r '.queries[] | select(.expect_trigger == true) | [.id, .request] | @tsv' "$f")
       else
         warn "$f ($skill): skill_dir '$rel' does not resolve under $root"
         unresolved=$((unresolved + 1))
@@ -417,8 +455,17 @@ cmd_compare() {
     printf 'Error: compare needs two reports over the same non-empty skill set\n' >&2
     return 2
   fi
-  jq -n --slurpfile b "$base" --slurpfile t "$treat" '
+  local report
+  report="$(jq -n --slurpfile b "$base" --slurpfile t "$treat" '
     def delta($t; $b): if $t == null or $b == null then null else $t - $b end;
+    def r3: . * 1000 | round / 1000;
+    # 95% normal-approximation interval on the difference of two trigger rates.
+    def interval($t; $b; $nt; $nb):
+      if $t == null or $b == null or ($nt // 0) == 0 or ($nb // 0) == 0
+        or $t < 0 or $t > 1 or $b < 0 or $b > 1 then null
+      else (($t * (1 - $t) / $nt) + ($b * (1 - $b) / $nb) | sqrt * 1.96) as $h
+        | [([$t - $b - $h, -1] | max | r3), ([$t - $b + $h, 1] | min | r3)] end;
+    def noise($i): if $i == null then null else ($i[0] <= 0 and $i[1] >= 0) end;
     ($b[0].skills) as $bs | ($t[0].skills) as $ts |
     {
       method_baseline: $b[0].method,
@@ -426,31 +473,38 @@ cmd_compare() {
       skills: [
         $ts[] as $t |
         ($bs[] | select(.skill == $t.skill)) as $bb |
-        {
-          skill: $t.skill,
-          train: {
-            trigger_rate_baseline: $bb.splits.train.trigger_rate,
-            trigger_rate_treatment: $t.splits.train.trigger_rate,
-            trigger_rate_delta: delta($t.splits.train.trigger_rate; $bb.splits.train.trigger_rate),
-            false_trigger_rate_baseline: $bb.splits.train.false_trigger_rate,
-            false_trigger_rate_treatment: $t.splits.train.false_trigger_rate,
-            false_trigger_rate_delta: delta($t.splits.train.false_trigger_rate; $bb.splits.train.false_trigger_rate)
-          },
-          validation: {
-            trigger_rate_baseline: $bb.splits.validation.trigger_rate,
-            trigger_rate_treatment: $t.splits.validation.trigger_rate,
-            trigger_rate_delta: delta($t.splits.validation.trigger_rate; $bb.splits.validation.trigger_rate),
-            false_trigger_rate_baseline: $bb.splits.validation.false_trigger_rate,
-            false_trigger_rate_treatment: $t.splits.validation.false_trigger_rate,
-            false_trigger_rate_delta: delta($t.splits.validation.false_trigger_rate; $bb.splits.validation.false_trigger_rate)
-          }
-        }
+        def split($s):
+          $bb.splits[$s] as $x | $t.splits[$s] as $y
+          | interval($y.trigger_rate; $x.trigger_rate; $y.n_positive; $x.n_positive) as $i
+          | {
+              trigger_rate_baseline: $x.trigger_rate,
+              trigger_rate_treatment: $y.trigger_rate,
+              trigger_rate_delta: delta($y.trigger_rate; $x.trigger_rate),
+              trigger_rate_delta_interval: $i,
+              trigger_rate_within_noise: noise($i),
+              false_trigger_rate_baseline: $x.false_trigger_rate,
+              false_trigger_rate_treatment: $y.false_trigger_rate,
+              false_trigger_rate_delta: delta($y.false_trigger_rate; $x.false_trigger_rate)
+            };
+        { skill: $t.skill, train: split("train"), validation: split("validation") }
       ]
     }
-  '
+  ')" || return 2
+  jq -r '.skills[] | .skill as $s | ("train", "validation") as $sp | .[$sp]
+    | select(.trigger_rate_delta_interval != null)
+    | "\($s) \($sp) trigger_rate delta \(.trigger_rate_delta * 1000 | round / 1000) 95% interval [\(.trigger_rate_delta_interval | join(", "))]"
+      + (if .trigger_rate_within_noise then ": within noise" else "" end)' <<<"$report" |
+    while IFS= read -r line; do note "$line"; done
+  printf '%s\n' "$report"
 }
 
 cmd_emit() {
+  local runs=3
+  if [[ "${1:-}" == "--runs" ]]; then
+    positive_int --runs "${2:-}"
+    runs="$2"
+    shift 2
+  fi
   local dir="${1:-}" out="${2:-}"
   if [[ -z "$dir" || ! -d "$dir" || -z "$out" ]]; then
     printf 'Error: emit-plugin-eval needs <probes-dir> <out-dir>\n' >&2
@@ -482,7 +536,7 @@ cmd_emit() {
       printf '%s\n' "---
 description: invocation probe ${skill} ${id} (${split}, expect_trigger=${expect})
 tags: [invocation-probe, ${split}]
-runs: 1
+runs: ${runs}
 max_turns: 8
 allowed_tools: [Skill]
 expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires; else echo does not fire; fi)
