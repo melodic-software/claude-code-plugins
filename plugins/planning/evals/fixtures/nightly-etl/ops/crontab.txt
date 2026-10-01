@@ -1,0 +1,1 @@
+0 1 * * * python -m etl.run_nightly
