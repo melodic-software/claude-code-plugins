@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.43.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/session-flow:check`, which probes it.
+
 ## [0.43.0] - 2026-10-01
 
 ### Added
