@@ -622,14 +622,22 @@ def _open_paren(src: str, close: int) -> int | None:
     return None
 
 
-def _opens_function(src: str, brace: int) -> bool:
+def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
     """Whether the `{` at `brace` opens a `function` body. The parameter
-    list is matched by depth, so a default holding a call (`a=g()`) counts."""
+    list is matched by depth with quoted text blanked, so a default holding
+    a call (`a=g()`) or a quoted paren (`s=")"`) counts. Raises ValueError
+    when the head cannot be read, so the caller's value stays unresolved."""
     j = brace - 1
     while j >= 0 and src[j] in " \t\r\n":
         j -= 1
-    k = _open_paren(src, j) if j >= 0 and src[j] == ")" else None
-    return k is not None and bool(_FUNCTION_KEYWORD_RE.search(src, max(0, k - 200), k))
+    if j < 0 or src[j] != ")":
+        return False
+    outer = braces.enclosing(brace - 1)
+    lo = outer[0] + 1 if outer else max(_chunk_span(src, brace)[0], j - 4096)
+    k = _open_paren(_mask_strings(src[lo : j + 1]), j - lo)
+    if k is None:
+        raise ValueError("unmatched function head")
+    return bool(_FUNCTION_KEYWORD_RE.search(src, max(0, lo + k - 200), lo + k))
 
 
 def _mask_strings(text: str) -> str:
@@ -981,7 +989,7 @@ def _scan(
                 and depth == 0
                 and (prev == ")" or prev_word in ("else", "try", "finally"))
                 # A nested function declaration is not a branch of this body.
-                and not _opens_function(src, i)
+                and not _opens_function(src, braces, i)
             ):
                 _scan(
                     src,
@@ -1616,6 +1624,25 @@ def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
     return False
 
 
+def _unset_between(src: str, braces: BraceMap, ident: str, lo: int, at: int) -> bool:
+    """Whether, after the binding at `lo`, the read at `at` sees a newer
+    declaration of `ident` with no initializer (`let x;`, `var a,x`) or a
+    `catch (x)` parameter: its value is not that binding's."""
+    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    for m in name.finditer(_mask_strings(src[lo:at]), 1):
+        pos = lo + m.start()
+        if re.search(r"catch\s*\(\s*$", src[max(0, pos - 12) : pos]):
+            if _visible(braces, pos, at):
+                return True
+        elif (
+            _declares(src, pos)
+            and not re.match(r"\s*=(?![=>])", src[m.end() + lo : m.end() + lo + 8])
+            and _visible(braces, pos, at, src)
+        ):
+            return True
+    return False
+
+
 def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> bool:
     """Whether a declaration at `pos` is visible from a reader at `at`: at
     the top level, or in a block that also holds the reader; with `src`, a
@@ -1729,7 +1756,9 @@ def _declaration(
 
 def _write_pattern(ident: str) -> re.Pattern[str]:
     """Any write to `ident`: plain or compound assignment, `++` or `--`, a
-    destructuring target (`[x]=`, `{a:x}=`), or a `for (x of|in ...)` head."""
+    destructuring target at any depth (`[x]=`, `{a:{b:x}}=`), or a
+    `for (x of|in ...)` head. A pattern is not parsed: `x` followed in its
+    statement by `]=` or `}=` counts, which can only over-report a write."""
     name = re.escape(ident)
     return re.compile(
         r"(?<![\w$.])(?:(?:\+\+|--)\s*"
@@ -1737,9 +1766,9 @@ def _write_pattern(ident: str) -> re.Pattern[str]:
         + r"(?![\w$])|"
         + name
         + r"\s*(?:\+\+|--|(?:\*\*|<<|>>>?|&&|\|\||\?\?|[-+*/%&|^])?=(?![=>])))"
-        + r"|[\[{][^\[\]{};]*(?<![\w$.])"
+        + r"|(?<![\w$.])"
         + name
-        + r"(?![\w$])[^\[\]{};]*[\]}]\s*=(?![=>])"
+        + r"(?![\w$])[^;]*?[\]}]\s*=(?![=>])"
         + r"|for\s*\(\s*"
         + name
         + r"\s+(?:of|in)\b"
@@ -1767,22 +1796,30 @@ def _binding_value(
     """
     if len(ident) == 1:
         lo = max(_chunk_span(src, at)[0], at - SHORT_VALUE_LOCALITY_BYTES)
-        v = None
+        found = None
         for m in _binding_pattern(ident).finditer(src, lo, at):
             if _visible(braces, m.start(), at, src):
-                v = m.end()
-        if v is not None and _redeclared_later(src, braces, ident, at):
-            return None
-        return v
-    m = _declaration(
-        src,
-        braces,
-        ident,
-        at,
-        _binding_pattern,
-        lambda later: deferred and braces.enclosing(later.start()) is None,
-    )
-    return m.end() if m else None
+                found = m
+    else:
+        found = _declaration(
+            src,
+            braces,
+            ident,
+            at,
+            _binding_pattern,
+            lambda later: deferred and braces.enclosing(later.start()) is None,
+        )
+    if found is None:
+        return None
+    # An imported binding lives in another module: what can shadow it is
+    # declared in the reader's own module.
+    home = _chunk_span(src, at)[0]
+    lo = found.start() if home <= found.start() < at else home
+    if _redeclared_later(src, braces, ident, at) or _unset_between(
+        src, braces, ident, lo, at
+    ):
+        return None
+    return found.end()
 
 
 def _function_pattern(ident: str) -> re.Pattern[str]:

@@ -1610,6 +1610,44 @@ class TestModuleScopedResolution(unittest.TestCase):
         )
         self.assertEqual(_tool(src, "Probe")["description"], "REAL")
 
+    def test_a_nested_function_with_a_quoted_paren_default_is_not_a_branch(
+        self,
+    ) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){return x;function inner(sep=")"){return"WRONG"}}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_declaration_without_initializer_shadows(self) -> None:
+        before = _modules(
+            'var Qz="Probe";var xx="WRONG";function ff(){let xx;return xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(before, "Probe")["description_source"], "unresolved")
+        after = _modules(
+            'var Qz="Probe";var xx="WRONG";function ff(){return xx;var xx}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertEqual(_tool(after, "Probe")["description_source"], "unresolved")
+
+    def test_a_catch_parameter_shadows(self) -> None:
+        src = _modules(
+            'var Qz="Probe";var xx="WRONG";'
+            'function ff(){try{throw"REAL"}catch(xx){return xx}}'
+            "$t({name:Qz,maxResultSizeChars:1,description:ff()});"
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "WRONG")
+
+    def test_a_nested_destructuring_write_unbinds_a_parameter(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            'function ff(x){({a:{b:x}}={a:{b:"LOCAL"}});return x}'
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
     def test_an_unsafe_integer_in_a_template_stays_unresolved(self) -> None:
         src = 'var Qz="Probe";$t({name:Qz,maxResultSizeChars:1,description:`n${9007199254740993}`});'
         self.assertNotEqual(_tool(src, "Probe").get("description"), "n9007199254740993")
