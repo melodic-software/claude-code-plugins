@@ -7,7 +7,7 @@ Full detail for the `git` action's branch-audit half (§4.2–§4.7). SKILL.md k
 Run the branch-audit script. Do not reimplement collection inline:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
+bash <skill-dir>/scripts/git-branch-audit.sh
 ```
 
 **Output contract**: a leading PR-map status line, exactly one of `PRCount: <n>` or `PRDataUnavailable: <why>`, optionally followed by `PRDataTruncated: <why>`; then the main-checkout block, `MainCheckout:`, `MainCheckoutDirty:`, any `MainCheckoutOperation:` and `OperationInProgress:` lines (see 4.6); then per branch `Branch:`, `Tip:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Loss:`, `Reason:`, `Landed: <proof>` (a landed branch only), `Family:` (a WORKTREE branch adds `Worktree: <path>`, the worktree that has it checked out); then the loss block, `LossBlock: <n> ...` through `LossBlockEnd: <n>` (always present, `0` when no branch loses work), with one `LossBranch:` per LOSSY branch followed by its `LossCommit:` lines; then exactly one of `TipCapture: <path>`, `TipCaptureError: <why>`, or `TipCaptureSkipped: <why>` (`--read-only`); trailing `Summary: protected=… worktree=… safe=… likely-safe=… lossy=… review=…`.
@@ -170,13 +170,13 @@ An answer to the first question is never carried over to the second, and a gener
 **Every deletion goes through the deletion script, never a bare `git branch -d`/`-D`.** The script is the enforcement point for tip capture: it refuses the whole batch (exit 3, nothing deleted) unless it is given the audit's `TipCapture:` file, every branch in the batch has a row in it, and every captured tip still equals the branch's current tip. Dry-run first, with exactly the set the user is about to confirm:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-delete.sh --capture <TipCapture path> --dry-run <branch>...
+bash <skill-dir>/scripts/git-branch-delete.sh --capture <TipCapture path> --dry-run <branch>...
 ```
 
 Show the `Planned:` lines (branch, tip, tier, and whether it is a safe delete, admitted only because the tip is merged into `origin/<default>`, or a force delete) in the confirmation. After the user confirms that exact set:
 
 ```bash
-CLEAN_GUARD_ACK=1 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-delete.sh --capture <TipCapture path> --apply <branch>...
+CLEAN_GUARD_ACK=1 bash <skill-dir>/scripts/git-branch-delete.sh --capture <TipCapture path> --apply <branch>...
 ```
 
 Per branch the script, in this order, re-checks the tip against the capture, pins it under `refs/repo-hygiene/deleted/<branch>` (so a later `gc` cannot prune the commits the record points at), appends the deletion to the ledger `<capture>.deleted.tsv` (beside the capture's real file, symlinks resolved), and only then deletes, with `git update-ref -d refs/heads/<branch> <captured tip>`: an atomic compare-and-delete inside git's ref lock, which refuses when the tip is no longer the captured one. The re-check closes the window between the batch check and the pin; the conditional delete closes the window between the pin and the delete, which a plain `git branch -D` leaves open. A SAFE-by-ancestry branch is a safe delete, admitted at the batch check only when its tip is merged into `origin/<default>` (the check `git branch -d` would have made). A SAFE row is a force delete only when its captured `pr` matches the audit's exact merged-PR format (`#<n> MERGED` or `#<n> MERGED (tip drift)`): a squash merge changes the SHA, so the ancestry check would refuse a branch whose merge `gh pr list` already confirmed, but both `tier` and `pr` are untrusted capture text, so a `pr` that merely contains the substring MERGED still takes the ancestry check. LIKELY-SAFE is a force delete. A capture whose `# common_dir:` is missing or the literal `unknown` is refused: that field is the only check that the capture describes this repository, so an unresolved value is a refusal, not a skipped check. A failure in any step before the delete aborts the batch there (exit 1): branches already deleted keep their pin and ledger row, the failing branch and everything after it are untouched, and the `Summary:` line counts each. A delete refused because the tip moved also aborts the batch: the branch stays at its new tip, its pin stays (harmless; it records the tip the audit saw), and the ledger gains a `# not deleted:` note. A refusal (a branch whose tip moved since the audit, a branch with no captured tip, a captured non-LOSSY row whose commits now exist on no remote ref and no tag (unless it is LIKELY-SAFE with a recorded `Landed` proof that still holds when the script runs it again), a SAFE-by-ancestry row whose tip is not merged, a foreign, unreadable, or unresolved-`common_dir` capture) stops the batch before the first deletion; re-run the audit for a fresh capture rather than deleting against a stale identifier. LOSSY branches need `--accept-loss`, and only after the user has confirmed the loss block as its own decision (the dry-run's `Planned:` line for a LOSSY branch restates the live count: `(LOSSY, force delete, loses N commits only on this branch)`); REVIEW branches need `--force-review`, and only after the user has confirmed the loss named in their `Unpushed:`/`Reason:` lines; neither flag admits the other tier. PROTECTED and WORKTREE branches are never deletable here.
@@ -192,7 +192,7 @@ Restore: git branch <branch> <tip> (tips in <capture> and <ledger>; pinned under
 
 Relay the `Restore:` line to the user verbatim after every deletion batch.
 
-After deletion, run `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-prune.sh --apply` to prune orphaned worktree metadata and compact loose objects. The pinned refs keep every deleted tip reachable through that step.
+After deletion, run `bash <skill-dir>/scripts/git-prune.sh --apply` to prune orphaned worktree metadata and compact loose objects. The pinned refs keep every deleted tip reachable through that step.
 
 ## 4.8 Restore a deleted branch
 

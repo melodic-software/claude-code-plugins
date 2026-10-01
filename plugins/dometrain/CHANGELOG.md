@@ -3,6 +3,12 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Fixed
+
+- **`sync` update context cites `<skill-dir>/scripts/update.sh` instead of the literal plugin-root token.** The context file reaches the model as plain bytes, so the token was never substituted. `SKILL.md` gains a `## Spoke paths` section defining `<skill-dir>`.
+
 ## [0.5.0]
 
 ### Changed

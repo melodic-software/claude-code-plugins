@@ -36,7 +36,7 @@ or excluded path, or delete text without a landing place (staging rule below).
 | **3** | Interface-creating move: Extract Function, Change Function Declaration, Extract Class, Introduce Parameter Object, Move Statements into Function, Replace Inline Code with Function Call, Inline Function | discovered test net, and **always a proposal in a non-interactive run** | Creates or renames an interface other code depends on. Ousterhout (APOSD §9.8) and Anthropic's own overeagerness guidance both warn against automating exactly this; the test net is necessary, not sufficient |
 
 `change-shape.py` is at `../../../scripts/change-shape.py` (relative to this file; the
-`${CLAUDE_PLUGIN_ROOT}` token is substituted in `SKILL.md` but **not** in a reference file, which
+plugin-root token is substituted in `SKILL.md` but **not** in a reference file, which
 arrives through the Read tool with the placeholder intact) and carries its verdict in
 the exit code: 0 COMMENT-ONLY, 10 RENAME-ONLY, 20 CODE-CHANGED, 21 UNPROVABLE, 3 tooling
 unavailable, **2 no grammar mapping for the file's extension, or no PowerShell host for a

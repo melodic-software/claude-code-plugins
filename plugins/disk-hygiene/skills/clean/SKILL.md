@@ -441,6 +441,15 @@ an execution request was made on one of those platforms and the human approved a
 path list in this session, read [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md)
 and follow it. It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
 
+## Spoke paths
+
+The `reference/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`. Put that path in place of the
+placeholder before running a command or writing it into a brief. Those files arrive through the Read
+tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the Bash
+tool's environment has no `CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Gotchas
 
 Harness mechanics live in one copy, in the safety model, so a fix there cannot leave a stale

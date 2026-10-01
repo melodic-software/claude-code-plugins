@@ -17,7 +17,7 @@ for an unset key and the validation that rejects a non-conforming id.
 ## Invocation
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/lane-telemetry-upsert.sh" \
+bash "<plugin-root>/scripts/lane-telemetry-upsert.sh" \
   --lane work-loop --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" --body-file "$BODY_FILE"
 ```
 

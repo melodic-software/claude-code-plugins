@@ -4,7 +4,7 @@ The plugin's `scripts/scope-code-files.sh` (`../../../scripts/scope-code-files.s
 resolves the ladder deterministically and prints the rung it landed on, the base it compared
 against, the count, and the paths:
 
-> Paths in this file are written relative to the plugin, not as `${CLAUDE_PLUGIN_ROOT}`. That token
+> Paths in this file are written relative to the plugin, not through the plugin-root variable. That token
 > is substituted in `SKILL.md`, which Claude Code loads as skill content, but **not** in a reference
 > file, which arrives through the Read tool with the placeholder intact.
 

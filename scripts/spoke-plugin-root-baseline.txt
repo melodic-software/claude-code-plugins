@@ -19,21 +19,13 @@ plugins/autonomy/skills/setup/context/prerequisite-resolution-slice.md 1
 plugins/autonomy/skills/setup/context/routine-slice.md 3
 plugins/autonomy/skills/setup/context/trigger-dispatch-slice.md 2
 plugins/autonomy/skills/setup/context/windows-surfaces.md 1
-plugins/bugs/skills/scan/context/findings-report.md 2
-plugins/bugs/skills/scan/context/lenses.md 1
 plugins/claude-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
 plugins/claude-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
 plugins/code-metrics/skills/principles/reference/measures.md 2
 plugins/code-metrics/skills/principles/reference/thresholds.md 1
-plugins/code-tidying/skills/dissolve-comments/reference/safety.md 1
-plugins/code-tidying/skills/dissolve-comments/reference/scope.md 1
 plugins/context-guard/skills/setup/reference/legacy-statusline-detect.md 2
 plugins/context-guard/skills/setup/reference/statusline-edit.md 3
 plugins/context-guard/skills/setup/reference/unwrap-before-compose.md 1
-plugins/disk-hygiene/skills/clean/reference/fan-out-worker-brief.md 1
-plugins/disk-hygiene/skills/clean/reference/safety-model.md 7
-plugins/disk-hygiene/skills/clean/reference/unsupported-platform-handoff.md 2
-plugins/dometrain/skills/sync/context/update.md 2
 plugins/guardrails/skills/setup/context/install-commit-msg.md 2
 plugins/guardrails/skills/setup/context/install-pre-commit-content.md 3
 plugins/instruction-placement/skills/migrate/reference/verification.md 4
@@ -52,13 +44,6 @@ plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1
 plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 1
 plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md 2
 plugins/rate-limit-guard/skills/setup/reference/unwrap-before-compose.md 1
-plugins/repo-hygiene/skills/clean/context/action-router.md 1
-plugins/repo-hygiene/skills/clean/context/clean-batch.md 4
-plugins/repo-hygiene/skills/clean/context/git-branch-cleanup.md 4
-plugins/repo-hygiene/skills/clean/context/git-tree-reset-batch.md 4
-plugins/repo-hygiene/skills/clean/context/git-tree-reset.md 1
-plugins/repo-hygiene/skills/clean/context/preflight.md 1
-plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 3
 plugins/review/skills/fanout/context/findings-normalization.md 2
 plugins/review/skills/quality-gate/context/close-out.md 2
 plugins/review/skills/quality-gate/context/criteria.md 3
@@ -70,14 +55,3 @@ plugins/review/skills/quality-gate/context/spec.md 4
 plugins/session-flow/skills/find-handoff/reference/rung-1-known-location.md 4
 plugins/session-flow/skills/retro/context/session.md 4
 plugins/session-flow/skills/running-retro/context/checkpoint.md 1
-plugins/work-items/skills/attend-queue/reference/telemetry-upsert.md 1
-plugins/work-items/skills/decompose/context/container-lifecycle.md 6
-plugins/work-items/skills/onboard-adapter/reference/live-exploration.md 2
-plugins/work-items/skills/setup/reference/capability-tier-axis-migration.md 2
-plugins/work-items/skills/setup/reference/capability-tier-backfill.md 1
-plugins/work-items/skills/setup/reference/check.md 6
-plugins/work-items/skills/setup/reference/providers.md 1
-plugins/work-items/skills/triage/context/apply-outcome.md 16
-plugins/work-items/skills/work-loop/reference/c3-ratification-queue.md 2
-plugins/work-items/skills/work-loop/reference/telemetry-upsert.md 1
-plugins/work-items/skills/work/context/candidate-discovery.md 10

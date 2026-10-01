@@ -10,7 +10,7 @@ usage surface. Upstream is advisory: watch for changes, evaluate, port anything 
 
 ```bash
 # Report drift (no changes made) — the only mode /dometrain:sync ever runs
-bash "${CLAUDE_PLUGIN_ROOT}/skills/sync/scripts/update.sh"
+bash "<skill-dir>/scripts/update.sh"
 ```
 
 The script does three things:
@@ -32,7 +32,7 @@ frontmatter). The human in the loop decides what to port.
   copy, which is an ephemeral cache overwritten on plugin update.
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
   (using the `--plugin-dir` local development loop), then refresh the baseline there, from the
-  clone root and by the clone-relative path (`${CLAUDE_PLUGIN_ROOT}` resolves to the installed
+  clone root and by the clone-relative path (`CLAUDE_PLUGIN_ROOT` resolves to the installed
   plugin cache in a normal session, which is exactly where this must not run):
 
   ```bash

@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.4] - 2026-09-30
+
+### Fixed
+
+- **`dissolve-comments` reference notes name the plugin-root variable in words.** The two notes explaining why a reference file uses relative paths no longer write the substitution token they say is not substituted.
+
 ## [0.25.3] - 2026-09-30
 
 ### Changed

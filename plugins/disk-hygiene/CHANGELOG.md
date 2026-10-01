@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.3] - 2026-09-30
+
+### Fixed
+
+- **`clean` reference files no longer name the plugin-root token literally.** The fan-out worker brief and the unsupported-platform handoff cite the engine as `<skill-dir>/scripts/...`, which `SKILL.md` defines in a new `## Spoke paths` section, and `safety-model.md` names the variable without the substitution syntax.
+
 ## [0.41.2] - 2026-09-30
 
 ### Changed
