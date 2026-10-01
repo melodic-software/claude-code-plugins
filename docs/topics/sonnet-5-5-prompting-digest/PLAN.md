@@ -384,7 +384,12 @@ system-prompt guidance landed in `/docs-hygiene:write-for-agents`.
 - **Sanity Check:** `grep -n 'skip' plugins/verification/skills/confirm/SKILL.md` shows no line letting an all-environment-skip run proceed to Stage 2, and `grep -nE 'ignore-scripts|frozen|locked-mode' plugins/toolchain/skills/check/SKILL.md plugins/verification/skills/confirm/SKILL.md` prints a line in each.
 - **Sanity Check:** `bash scripts/affected-tests.sh --run --base origin/main` exits 0, and `/skill-quality:check check` passes for each SKILL.md changed in this phase.
 
-### Phase 6: docpage-digest [TODO]
+### Phase 6: docpage-digest [DONE]
+
+Done 2026-10-01. Fresh-context verifier 10/10. The extractor's fixture test failed on the three
+flaws before the fix and passes after; the `library_dir` description now names the session's
+working tree. Three probe-based records that point at a docs section instead of the probe go to
+the Phase 7 conformance list.
 
 All of it is in `plugins/knowledge/skills/docpage-digest/`.
 

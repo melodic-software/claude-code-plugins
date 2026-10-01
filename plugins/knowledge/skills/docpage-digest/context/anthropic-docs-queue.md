@@ -58,11 +58,11 @@ Models:
   fails for exactly the facts already cited. A custody fact about this one page,
   not a decision to start a release-notes corpus; `whats-new-sonnet-5` carries no such citations and
   stays deferred
-- <https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5-5>
+- <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>
   and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
   The release notes and prompting guide for Opus 5.5, the current Opus, and the first-party
-  sources for the `playbooks` Opus 5.5 model-adaptation chapter. Both URLs follow the Opus 5 and Sonnet 5 page
-  patterns and are unverified until fetched; one page per run
+  sources for the `playbooks` Opus 5.5 model-adaptation chapter. Both resolved to their titled
+  pages on 2026-10-01; one page per run
 
 Claude Code companion docs (digest in this order):
 

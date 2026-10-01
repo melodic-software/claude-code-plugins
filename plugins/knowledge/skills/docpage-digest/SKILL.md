@@ -32,8 +32,17 @@ session reads it back instead of re-deriving it. Resolution rules for the render
 - **Unset**, an empty value, or a surviving literal `${user_config.library_dir}` token, means
   the option was never configured. Use the default `.`; never create a directory named after the
   token.
-- **Relative** (including the default `.`). Resolve against the project directory,
-  `${CLAUDE_PROJECT_DIR}/<value>`.
+- **Relative** (including the default `.`). Resolve against the session's own working tree:
+  `git rev-parse --show-toplevel` run in the session's working directory, or that directory itself
+  outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: a worktree-isolated
+  run that did resolved to the main checkout and could not write its slice. The slice stays
+  untracked either way, because the root self-ignores (below).
+  - **Pointer**: for where `CLAUDE_PROJECT_DIR` points after a session enters a worktree, see
+    <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree>; for the write
+    refusal, see <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>.
+  - **As of**: 2026-10-01
+  - **Recheck trigger**: either section changes where `CLAUDE_PROJECT_DIR` points inside a
+    worktree session or which writes the isolation checks refuse.
 - **Absolute**. Use verbatim, with no project-directory prefix.
 - **Leading `~`**, the home directory, with no project-directory prefix.
 - **`${NAME}` / `%NAME%` env-var reference**. Read the variable yourself (`printenv NAME` in
@@ -166,6 +175,17 @@ path stays inside `<work-root>/digests/` before writing.
   conditionally. "this brief assumes model X; if you are not X, note the mismatch in your output
   and continue", never "you are X" as fact.
 - Each brief carries the untrusted-source rule and ONLY the source section plus SOURCES.md context, not this conversation.
+  When the matched profile defines applicability evidence rules, the brief names them, including
+  the corpora an absence or blog-only claim must search, so no agent picks its own search set.
+- **Exact bytes:** the Edit and Write tools take their text through a JSON parameter, and a past
+  run found every agent edit writing a source's literal `\uXXXX` escape as the decoded
+  character, so do not use them for those bytes. Write those bytes with a script file run as
+  `python3 <script>.py` (the script spells the backslash as `\x5c`, never as a literal escape),
+  then confirm the bytes with `od -c`. The guardrails plugin's shell write guard
+  (`block-hook-bypass.sh`) refuses inline `python3 -c` and `python3 -` writes and
+  `echo`, `printf` or `cat` redirected into a file, and allows a script file run by path. A
+  write made that way skips the content guards that run on Edit and Write, so keep the route for
+  these bytes only.
 - **Verbatim means verbatim:** in "Key claims (verbatim)", a truncated quote carries an ellipsis,
   joined source lines declare their join convention, and no escaping may alter characters. Verifiers diff quotes character-for-character against the source.
 - **Fence mandate:** every verbatim quote, Key claims and Prompt snippets, lives in a
@@ -180,6 +200,11 @@ Read [context/dual-verification.md](context/dual-verification.md) once Phase 3's
 before presenting it: it owns both verification passes, what each one reads, the fence and snippet
 checks each one runs, the disagreement disposition, and what a failed pass does to the artifact. A
 digest presented without it is unverified, which is the state this phase exists to rule out.
+
+From the pin until every verifier arm has returned, nothing edits the slice, and that includes
+the orchestrating session itself. Hold corrections until the arms are back, apply them, re-pin,
+and re-verify what changed. A parent edit during a run leaves the arm auditing bytes that no
+longer exist, and its verdict comes back BLOCKED.
 
 ## Phase 5. Interview handoff
 
@@ -235,11 +260,15 @@ gate. Phrase-greps miss fluent-prose instances entirely.
 ## Spoke paths
 
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
-Put that path in place of the placeholder before running a command. Those files arrive through the
-Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the
-Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+Put that path in place of the placeholder before running a command. We write the placeholder
+instead of a `${…}` token because these files arrive through the Read tool, not as skill content,
+so nothing substitutes a token in them before it reaches the Bash tool.
+
+- **Pointer**: for which plugin surfaces substitute or export a `${…}` reference, see
+  <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that table adds supporting files read through the Read tool to where a
+  `${…}` reference resolves.
 
 ## Next
 
@@ -255,14 +284,22 @@ Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from. Basis: the 
 - **Verdicts are append-only.** Fixing a digest after verification means a corrections-applied
   file plus re-verification of the changed digests, never editing the verdict. A verdict file
   on disk is not a report.
-- **Pin on report, not presence.** Hash-manifest the tree after agents return; each arm restates
-  the hashes it audited.
+- **Pin on report, not presence.** Hash-manifest the tree after agents return, with
+  `python3 ${CLAUDE_SKILL_DIR}/scripts/pin-manifest.py <work-root>`; each arm restates the hashes
+  it audited, and `--check` on the same command names any file that moved since the pin.
 - **Model-pinned briefs drift.** The conditional framing above exists because a spawn-time model
   override silently invalidates "you are X" text; always condition, never assert.
 - **Applicability tags are claims.** A profile may define an applicability filter; its
   verification contract (what a tag asserts and what evidence each tag class needs) is owned by
   the profile. See the active profile's filter section. An inferred tag that skips the
   profile's evidence rule is exactly how stale guidance enters a corpus.
-- **Effort is session-inherited.** The Agent tool has no per-call effort override. Digest and
-  verifier subagents run at the session's effort. Verify the effort pin before relying on a
-  "high effort" verification claim, and record the effective effort in verification records.
+- **Know where each agent's effort comes from.** A plain Agent tool call carries no effort
+  setting, so that agent runs at its subagent definition's `effort` or, without one, the
+  session's. A Workflow `agent()` call can set its own effort per call (the `workflow-authoring`
+  reference documents the option). Check the route live before relying on a "high effort"
+  verification claim, and record the effective effort and its source in verification records.
+  - **Pointer**: for a subagent definition's `effort` field, see
+    <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>.
+  - **As of**: 2026-10-01
+  - **Recheck trigger**: the Agent tool gains a per-call effort parameter, or that field's
+    precedence over the session effort changes.

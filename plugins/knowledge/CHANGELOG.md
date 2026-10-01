@@ -17,6 +17,17 @@ only after that version increases.
 - **The Anthropic docs queue lists blog posts as digest targets, never pointers.** Each post entry
   names the docs page that serves as its pointer and keeps the post as a correlate, and the
   queue's custody notes state our finding rather than the page's wording.
+- **`docpage-digest` gains a claude.dev blog extractor and a pin-manifest script**, each with a
+  fixture-driven test suite. The extractor emits table separator rows, drops code-widget and
+  video-control labels, and never opens a code fence with a blank line.
+- **`docpage-digest` pipeline fixes.** The work root resolves against the session's worktree (the
+  `library_dir` description says so); the platform docs corpus is searched before a claim is
+  certified vendor-claimed or blog-only; one standard absence corpus; a split-applicability quote
+  rule; a tag-exempt blog-apparatus category; per-unit corrections files; an exact-byte write route
+  that the guardrails hook allows; no edits to the slice, the orchestrating session included, while
+  a verifier arm runs; the model-alias spawning gap and the Codex verifier's no-network limit are
+  recorded; the effort gotcha names where an agent's effort comes from; the hedge rule is
+  links-only.
 
 ## [0.14.13] - 2026-09-30
 
