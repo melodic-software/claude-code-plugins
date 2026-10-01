@@ -9,8 +9,8 @@ All notable changes to the `performance` plugin are documented here. Format foll
 
 - **`verify` reserves the verifier's final turns for its report**
   ([#5662](https://github.com/melodic-software/claude-code-plugins/issues/5662)). The dispatch brief
-  now states a turn cap, a turn to stop gathering by, and a `Coverage:` line naming what was not
-  reached; unreached checks stay NOT MET. New eval for the turn budget.
+  now states a turn budget, a turn to stop gathering by, and names what was not reached under
+  `Not covered:`; unreached checks stay NOT MET. New eval for the turn budget.
 
 ## [0.3.0] - 2026-09-29
 
