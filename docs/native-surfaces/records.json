@@ -3096,6 +3096,24 @@
       },
       "component": {
         "plugin": "desktop-notification",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the built-in ReadNotifications tool reads queued external notifications (webhooks, triggers). Different jobs, no routing.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "e782dd30b656e3a5d75d4859b5a42e64",
+        "component": "e054cb9a1335bc26748207ee81eddd70"
+      }
+    },
+    {
+      "native": {
+        "name": "ReadNotifications",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "desktop-notification",
         "skill": "setup",
         "kind": "skill"
       },
@@ -3798,6 +3816,24 @@
       },
       "component": {
         "plugin": "desktop-notification",
+        "skill": "check",
+        "kind": "skill"
+      },
+      "reason": "Name overlap only: desktop-notification:check is a read-only check that jq resolves for the desktop-notification hooks; the user-only /desktop command continues the current session in Claude Desktop. Different jobs, no routing.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
+      "fingerprint": {
+        "native": "47f26aa289e2c8339a42d3523417d50f",
+        "component": "e054cb9a1335bc26748207ee81eddd70"
+      }
+    },
+    {
+      "native": {
+        "name": "desktop",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "desktop-notification",
         "skill": "setup",
         "kind": "skill"
       },
@@ -3819,12 +3855,12 @@
         "skill": "setup",
         "kind": "skill"
       },
-      "reason": "Creates a document artifact versus configuring the docs-hygiene file-name skills. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "reason": "Creates a document artifact versus checking that markdownlint-cli2 resolves for /docs-hygiene:compress. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.287",
+      "date": "2026-10-01",
       "fingerprint": {
         "native": "cd41f53c6aab8b18117d35ccd710e0ef",
-        "component": "7b0d71a725fc37873f40f8c8a1ddb186"
+        "component": "78d055fe9abb495d629ebae49eaec227"
       }
     },
     {
