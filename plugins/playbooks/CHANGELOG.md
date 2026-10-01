@@ -4,13 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.15.6] - 2026-10-01
+## [0.16.1] - 2026-10-01
 
 ### Changed
 
 - The `boris` skill's Effort row and the `foundations` model-selection note point at the current
   model config docs instead of naming a default or a model; the `foundations` CLAUDE.md section
   gains an amendment to prune as you add, pointing at the memory docs.
+
+## [0.16.0] - 2026-10-01
+
+### Added
+
+- A Sonnet 5.5 model-adaptation chapter, `reference/model-adaptation/sonnet-5-5.md`. The `fable-5` skill's meta-rule 3 routes Sonnet 5.5 to it and names its fallback targets.
 
 ## [0.15.5] - 2026-10-01
 
