@@ -3,7 +3,7 @@ description: "Verify or configure the docs-naming file-name skills for this repo
 argument-hint: "check | apply [--defaults] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/setup-check.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/setup-apply.sh:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh:*)", "Bash(git check-ignore:*)", "Bash(git ls-files:*)", "Read"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/setup-check.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/setup-apply.sh:*)", "Bash(git check-ignore:*)", "Bash(git ls-files:*)", "Read"]
 shell: bash
 ---
 
