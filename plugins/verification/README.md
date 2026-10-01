@@ -8,7 +8,7 @@ green build into confirmed outcomes.
 |---|---|
 | `/verification:confirm` | Outcome verification, a mechanical prerequisite gate (delegated to build/lint) followed by intent-match + evidence + verdict, with the criterion auto-detected by change-type (feature / fix / refactor). |
 | `/verification:measure` | Measurable-improvement verification. Capture a baseline at planning time, re-measure after the change under the same conditions; no baseline → honest "cannot quantify", never fabricated numbers. |
-| `/verification:setup` | Configure where verification artifacts land. `check` (read-only, default) reports the effective topic-docs concern; `apply` persists the tracked `.claude/topic-docs.yaml`. Re-runnable. |
+| `/verification:setup` | Report where verification artifacts land. Check-only: nothing is configured or written. Re-runnable. |
 
 ## Works in any repo
 
@@ -22,15 +22,13 @@ green build into confirmed outcomes.
 - **Never fabricates a measurement.** `/verification:measure` requires a baseline
   captured before the change; with none, it reports an honest "cannot quantify" plus a
   current-state measurement, never an invented delta.
-- **Document placement, via the topic-docs seam.** Verification manifests and
-  baselines land per the marketplace-wide topic-docs convention
-  (`docs/conventions/topic-docs/README.md`; plugin binding: `reference/topic-docs.md`):
-  distilled, `verified_at_sha`-keyed manifests are contract-tier in
-  `<contract_dir>/<slug>/verification/`; baselines and raw captures are memory-tier in
-  the self-ignoring `<memory_dir>/<slug>/`. The tracked `.claude/topic-docs.yaml`
-  concern file is the consumer-side source of truth.
-- **Self-contained.** Criterion context files, the redaction bar, and the topic-docs
-  binding ship inside the plugin and are referenced via `${CLAUDE_PLUGIN_ROOT}`.
+- **Document placement, via the artifact protocol.** Verification manifests, baselines and
+  raw captures land per the plugin's lifecycle artifact protocol
+  (`reference/artifact-protocol.md`): in the self-ignoring `<memory_dir>/<slug>/` (default
+  `.work/<slug>/`), never committed. Distilled, `verified_at_sha`-keyed manifests are pasted into
+  the pull request body or the linked issue.
+- **Self-contained.** Criterion context files ship inside the plugin and
+  are referenced via `${CLAUDE_PLUGIN_ROOT}`.
 
 ## Install
 
@@ -41,9 +39,9 @@ green build into confirmed outcomes.
 
 ## Configuration
 
-The tracked `.claude/topic-docs.yaml` concern file governs artifact placement.
-`/verification:setup` interviews for that file and persists it: `check` reports the effective
-concern read-only, and `apply` writes it. This plugin declares no userConfig options.
+Artifact placement is fixed by the artifact protocol, so nothing needs configuring.
+`/verification:setup check` reports the effective memory root read-only. This plugin declares no
+userConfig options.
 
 ## License
 

@@ -130,8 +130,8 @@ Two conditions bind that write:
   still marked `Run status: in progress` fails the gate and is a failed dispatch.
 
 Why the mode exists and where its boundary sits:
-[`../../../reference/topic-docs.md`](../../../reference/topic-docs.md)
-("The contract's by-value boundary is the checkout, not the process").
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md)
+("Persistence by value").
 
 ## The post-dispatch boundary the parent still owns
 

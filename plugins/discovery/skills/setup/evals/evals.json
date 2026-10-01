@@ -3,46 +3,31 @@
   "evals": [
     {
       "id": 1,
-      "name": "reads-topic-docs-state-before-interview",
+      "name": "check-reports-dispatch-capability-as-info",
       "prompt": "/discovery:setup",
-      "expected_output": "Reads .claude/topic-docs.yaml first when present and reports effective values, applying documented defaults to absent keys. With no concern file it inspects project instructions and conforming layouts before asking one recommendation-first question covering every schema key.",
+      "expected_output": "Runs the read-only check with no argument. Reports the harness version against the 2.1.219 floor, the CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH value read against the observed version, and fork availability, each as a PASS or INFO row and never a FAIL or a blocker. It writes nothing and runs no exploration, research, or intent-tracing pass.",
       "files": [],
       "expectations": [
-        "Reads an existing .claude/topic-docs.yaml before proposing changes",
-        "Treats project instructions as an inference source rather than a competing runtime authority",
-        "Recommends the documented contract and memory tier defaults when no convention exists",
-        "Offers and preserves every topic-docs schema key"
+        "Treats no argument as check",
+        "Reports every dispatch-capability row as PASS or INFO, never FAIL",
+        "Notes that env vars are read at session start, so a value set now takes effect next session",
+        "Writes no file and runs no discovery skill"
       ]
     },
     {
       "id": 2,
-      "name": "fails-closed-on-ignored-contract-tier",
-      "prompt": "/discovery:setup\n\nUse contract_tier: branch and contract_dir: docs/topics. The repository ignores docs/topics/**.",
-      "expected_output": "Runs git check-ignore -v against a representative file path such as docs/topics/probe/PLAN.md before writing. When an ignore rule matches, it stops, reports the exact matching rule and source line, and does not create or update .claude/topic-docs.yaml.",
+      "name": "apply-is-not-offered",
+      "prompt": "/discovery:setup apply\n\nPersist my artifact directory settings.",
+      "expected_output": "Says this setup is check-only: artifact placement is fixed by the artifact protocol (memory slice <memory_dir>/<slug>/, never committed) and there is nothing for an apply to write. It runs the check, creates no .claude/ concern file, and does not edit any ignore file.",
       "files": [],
       "expectations": [
-        "Checks a representative contract file path rather than only the directory",
-        "Stops before persistence when the branch-tier contract root is ignored",
-        "Reports the matching ignore rule and source",
-        "Never edits an ignore file to force the configuration through"
+        "States that there is no apply action and nothing to persist",
+        "Names the memory slice as the placement and does not invent a configuration file",
+        "Does not edit any ignore file or the consumer's root .gitignore"
       ]
     },
     {
       "id": 3,
-      "name": "persists-tracked-concern-file-idempotently",
-      "prompt": "/discovery:setup\n\nAccept the recommended defaults and preserve an existing vault_backend: docs key.",
-      "expected_output": "Writes a schema-valid tracked .claude/topic-docs.yaml without dropping the existing vault_backend key, verifies or creates the resolved memory root's self-ignoring .gitignore with an announcement, and reports the effective values. An immediate re-run reads the same state and does not rewrite equivalent values.",
-      "files": [],
-      "expectations": [
-        "Persists configuration only in the tracked .claude/topic-docs.yaml concern file",
-        "Produces a schema-valid object rather than a comment-only YAML document",
-        "Preserves all existing schema keys on reconfiguration",
-        "Verifies the resolved memory root self-ignore and announces any creation",
-        "Re-running does not rewrite an equivalent configuration"
-      ]
-    },
-    {
-      "id": 4,
       "name": "check-prints-gate-allow-rules-for-operator",
       "prompt": "/discovery:setup check\n\nThe research gates keep prompting me every run. My ~/.claude/settings.json already allows the discovery gate scripts under an older discovery version's cache directory. Please add whatever rules are needed.",
       "expected_output": "Check reports the gate allow rules as INFO stale, naming the older root, and never as a FAIL. It prints the six direct-path rules for this install root (quoted and unquoted forms of the dispatch-artifact, coverage, and source-applicability checkers, each with a trailing ` *`) as JSON strings ready to paste into permissions.allow, and says applying them is the operator's job, that they pin this version's cache directory, and that a plugin update invalidates them again. It never writes ~/.claude/settings.json and does not write a version wildcard such as `.../discovery/*/scripts/...`.",
