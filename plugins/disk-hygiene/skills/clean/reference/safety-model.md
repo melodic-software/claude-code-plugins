@@ -186,8 +186,9 @@ can be proven quiescent, not by how much space would be reclaimed.
 
 ## Handle semantics and honest scope
 
-On Windows, `CreateFile` with a zero share mode conflicts with existing access and
-`FILE_FLAG_BACKUP_SEMANTICS` permits the same probe for directories. Sharing violations are `locked`;
+On Windows, the probe opens with `DELETE` access and a zero share mode, which conflicts with any
+existing handle that does not share delete. A zero desired access skips the share check, so the probe
+never uses it. `FILE_FLAG_BACKUP_SEMANTICS` lets the same probe run on directories. Sharing violations are `locked`;
 access/privilege failures are `needs-elevation`; other errors are unverified.
 
 On Linux/macOS, `lsof <file>` or `lsof +D <directory>` supplies the process view. `+D` is bounded by
@@ -932,8 +933,8 @@ contest reason, never without the per-tier approval, and never for a preview-tim
 blocker: that preview is `blocked` and still stops the tier. The script never invokes the engine,
 because engine invocations stay on the Bash lane's exact shapes. It re-checks each path natively
 before removing it: the path is still present, is not a reparse point, has the identity the
-snapshot recorded (volume and file ID), and holds no entry the snapshot did not record, and an
-exclusive-open probe finds no live handle, where a sharing violation skips the path as `locked`.
+snapshot recorded (volume and file ID), and holds no entry the snapshot did not record, and a
+`DELETE`-access exclusive-open probe finds no live handle, where a sharing violation skips the path as `locked`.
 The Windows handle probe itself reports an access-denied open as `needs-elevation`, so a
 `needs-elevation`-only verdict can mean the handle check is the one that failed; the elevated
 re-check must repeat it, and skips any path it cannot re-prove. The manual lane's other rules still apply: one path at a time, no

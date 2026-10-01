@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.5] - 2026-10-01
+
+### Fixed
+
+- **The Windows handle probe opens with `DELETE` access** ([#5756](https://github.com/melodic-software/claude-code-plugins/issues/5756)). The probe asked for zero desired access, which skips the share check, so a file another process held open read as clear. It now requests `DELETE` with a zero share mode, so any handle that does not share delete reads as `locked`; any other open error stays non-clear. `safety-model.md` states the corrected semantics.
+
 ## [0.42.4] - 2026-10-01
 
 ### Added
