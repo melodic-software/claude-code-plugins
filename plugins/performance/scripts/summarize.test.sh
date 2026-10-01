@@ -91,6 +91,7 @@ run_summarize "arm" 1 "$WORK/outlier"
 assert_contains "the outlier flag fires" "OUTLIER:" "$RUN_OUT"
 assert_contains "the flag names p95 with the max sample" "p95=345ms" "$RUN_OUT"
 assert_contains "the flag names p95 without the max sample" "without max sample 100ms" "$RUN_OUT"
+assert_contains "the flag is followed by the raw samples" "raw samples (ms): 100 100" "$RUN_OUT"
 
 # --- 9. a uniform fixture does not raise OUTLIER ---
 run_summarize "arm" 1 "$WORK/twenty"

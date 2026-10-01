@@ -145,17 +145,20 @@ def main() -> int:
         f"{' '.join(cells)} "
         f"min={ordered[0]}ms max={ordered[-1]}ms rc={dict(Counter(codes))}"
     )
+    outlier = False
     if count >= percentile_floor(95.0):
         full = percentile(ordered, 95.0)
         without_max = percentile(ordered[:-1], 95.0)
         if abs(full - without_max) > OUTLIER_SHIFT * full:
+            outlier = True
             print(
                 f"{'':<28} OUTLIER: one sample moves p95 (p95={full:.0f}ms, "
                 f"without max sample {without_max:.0f}ms); "
                 f"report the raw samples, not p95"
             )
-    if refused:
+    if refused or outlier:
         print(f"{'':<28} raw samples (ms): {' '.join(str(value) for value in ordered)}")
+    if refused:
         print(
             f"{'':<28} a percentile p needs 1/(1-p) samples to be expressible; "
             f"below that the printed value is the maximum wearing a percentile's name."
