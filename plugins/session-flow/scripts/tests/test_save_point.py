@@ -1252,6 +1252,23 @@ def test_new_refuses_predecessor_outside_handoffs_dir(tmp_path):
     assert missing.returncode == 1
 
 
+def test_a_live_entry_repeating_a_superseded_one_warns(tmp_path):
+    target = new_hop2_skeleton(tmp_path)
+    text = target.read_text(encoding="utf-8")
+    carried = "- [h1] The thing must stay green."
+    assert carried in text
+    target.write_text(
+        text.replace(
+            carried,
+            carried + "\n\nSuperseded:\n- [h2] The thing must stay green.",
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    warned = run("validate", str(target))
+    assert "WARN: Constraints that must hold: duplicate" in out(warned)
+
+
 def test_new_hop2_places_the_new_slot_above_a_carried_superseded_marker(tmp_path):
     repo = make_repo(tmp_path)
     handoffs = repo / ".work" / "handoffs"

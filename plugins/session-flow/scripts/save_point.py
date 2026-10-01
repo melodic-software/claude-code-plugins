@@ -812,14 +812,13 @@ def _check_cumulative(
         for entry in entries:
             if entry.exempt:
                 continue
-            if not entry.superseded:
-                key = entry.normalized.casefold()
-                if key in seen:
-                    f.warn(
-                        f"{title}: duplicate of an earlier entry (keep the oldest tag, "
-                        f"drop this copy): {entry.text[:60]!r}"
-                    )
-                seen.add(key)
+            key = entry.normalized.casefold()
+            if key in seen:
+                f.warn(
+                    f"{title}: duplicate of an earlier entry (keep the oldest tag, "
+                    f"drop this copy): {entry.text[:60]!r}"
+                )
+            seen.add(key)
             tag = entry.tag
             if tag is None:
                 f.fail(
