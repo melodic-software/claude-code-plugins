@@ -129,7 +129,7 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("Show: Open leaves out Q3, held for research after its accept, and lists the questions that need you", open2 === "Q4,Q5", open2);
     await pick("Q3");
     ok("the card shows the banner beside the kept decision", /Pending research: the retry benchmark/.test(await text("#dscroll .waitban")) && /Accepted/.test(await text("#cur")) && /Counts once Claude's research on Q3 returns/.test(await text("#cur")), await text("#cur"));
-    await arm("2");
+    await arm("3");
     ok("Save reads Answer anyway", /^Answer anyway: \(a\)/.test(await text("[data-save]")), await text("[data-save]"));
     await tap("[data-save]", 700);
     const aw = await last();
@@ -284,12 +284,14 @@ async page => { // the user journey in order on one page, no reload after phase 
     const ro = await last();
     ok("Reopen records a reopen", ro.kind === "reopen" && ro.id === "Q7", JSON.stringify(ro));
 
-    // Accept all per round in the Rounds view carries the kept note
+    ok("the reopened question keeps its note under Your earlier answer, not in the note box", (await page.inputValue("#note")) === "" && /My own take/.test(await text("#earlier")), (await page.inputValue("#note")) + " | " + await text("#earlier"));
+
+    // Accept all per round in the Rounds view carries only a note typed on the question
     await tap('.seg [data-view="rounds"]', 200);
     const rb = await text('[data-acceptround="interview:2"]');
     await tap('[data-acceptround="interview:2"]', 200);
     const rd = await page.evaluate(() => document.getElementById("dlg").open ? document.getElementById("dlgBody").innerText : "");
-    ok("Accept all per round lists Q7 with its kept note", rb === "Accept all (1)" && /Q7/.test(rd) && /Note: My own take/.test(rd), rb + " / " + rd.replace(/\s+/g, " ").slice(0, 160));
+    ok("Accept all per round lists Q7 without the reopened note", rb === "Accept all (1)" && /Q7/.test(rd) && !/Note:/.test(rd), rb + " / " + rd.replace(/\s+/g, " ").slice(0, 160));
     await page.click("#dlgCancel"); await tap('.seg [data-view="groups"]', 200);
 
     // offline, then the catch-up when the tab becomes visible
@@ -316,10 +318,23 @@ async page => { // the user journey in order on one page, no reload after phase 
     await tap('[data-understand="confirm"]', 800);
     const cu = await last();
     ok("Confirm posts confirm-understanding and the summary reads Confirmed with its time", cu.kind === "confirm-understanding" && cu.alt === "confirm" && cu.contentRev === 2 && /^Confirmed \S/.test(await text("#uDone")) && !(await page.$("#unconfWarn")), JSON.stringify(cu) + " " + await text("#uDone"));
-    const w0 = (await events()).length;
-    await tap("[data-wrapup]", 700);
+    const w0 = (await events()).length, chip = await text("#wrapChip");
+    ok("the header chip counts what is outstanding before wrap-up", /^\d+ before wrap-up$/.test(chip) && !(await page.$eval("#wrapChip", el => el.hidden)), chip);
+    await tap("#wrapChip", 300);
+    const viaChip = await page.$$eval("#dlgBody li", ls => ls.map(l => l.textContent));
+    ok("the chip opens the confirm list, with Wrap up anyway, and sends nothing", await page.$eval("#dlg", d => d.open) && viaChip.length === parseInt(chip, 10) && viaChip.some(x => /^\d+ questions? (is|are) still open: Q\d/.test(x)) && (await text("#dlgOk")) === "Wrap up anyway" && (await events()).length === w0, viaChip.join(" | "));
+    await tap("#dlgCancel", 300);
+    await tap("[data-wrapup]", 300);
+    const viaBtn = await page.$$eval("#dlgBody li", ls => ls.map(l => l.textContent));
+    ok("Wrap up lists the same items and sends nothing until the user confirms", await page.$eval("#dlg", d => d.open) && viaBtn.join("|") === viaChip.join("|") && (await events()).length === w0, viaBtn.join(" | "));
+    await tap("#dlgCancel", 300);
+    ok("Cancel sends no event and starts no freeze", (await events()).length === w0 && !(await page.$("dialog#dlg[open]")));
+    await tap("[data-wrapup]", 300);
+    await tap("#dlgOk", 700);
     const wr = await events();
     ok("Wrap up posts one wrapup event", wr.length === w0 + 1 && wr[wr.length - 1].kind === "wrapup");
+    ok("a forced wrap-up names every skipped item in its text", /^Skipped before wrap-up:\n/.test(wr[wr.length - 1].text) && viaBtn.every(x => wr[wr.length - 1].text.includes("- " + x)), wr[wr.length - 1].text);
+    ok("after the wrap-up the header chip is gone", await page.$eval("#wrapChip", el => el.hidden));
   }
   if (PHASE === 6) { // the shell settled Q5 and Q7 in the terminal, held Q3 on research again, and made Release depend on Build
     await page.waitForTimeout(900);
@@ -376,6 +391,67 @@ async page => { // the user journey in order on one page, no reload after phase 
     await arm("a"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const acc = await last();
     ok("Ctrl+Enter accepts the revised recommendation, not the old own text", acc.id === "Q9" && acc.kind === "accept" && acc.text === "", JSON.stringify(acc));
+  }
+  if (PHASE === 16) { // after the wrap-up: the shell added Q10, put "Q1-Q3" in Q6's facts and posted a third restatement
+    await page.waitForSelector('.qbtn[data-q="Q10"]', {state: "attached", timeout: 5000});
+    await page.waitForTimeout(600);
+    if (await page.$eval("#fly", el => el.classList.contains("open"))) { await page.click("#title"); await page.keyboard.press("l"); await page.waitForTimeout(300); }
+    // one label scheme
+    await pick("Q10");
+    const rows = await page.$$eval("#choices .choice", rs => rs.map(r => ({b: r.querySelectorAll("b").length, label: r.querySelector("b").textContent, n: !!r.querySelector(".n"), keys: r.querySelector("input").getAttribute("aria-keyshortcuts")})));
+    ok("every option has one visible label and no number; Rec leads and Accept with note is its own row", rows.every(r => r.b === 1 && !r.n) && rows.slice(0, 3).map(r => r.label).join() === "Rec,Accept with note,(a)", JSON.stringify(rows));
+    ok("number keys stay as shortcuts on every row", rows.every((r, i) => r.keys.startsWith(String(i + 1))), JSON.stringify(rows.map(r => r.keys)));
+    ok("the detail names the recommendation and the alternatives by the same labels", /Recommendation \(Rec\)/.test(await text("#dscroll")) && (await page.$$eval("#dscroll .alt .k", ks => ks.map(k => k.textContent))).join() === "(a),(b)");
+    // the note box
+    await arm("2");
+    ok("Accept with note needs a note: Save stays disabled until one is typed", await page.$eval("[data-save]", b => b.disabled) && /Accept with note needs a note/.test(await text("#decideRow")), await text("#decideRow"));
+    await page.fill("#note", "but check the cache key");
+    ok("with a note typed Save reads Accept with note", (await text("[data-save]")) === "Save: Accept with note" && !(await page.$eval("[data-save]", b => b.disabled)), await text("[data-save]"));
+    await tap("[data-save]", 800);
+    const an = await last();
+    ok("Accept with note records an accept carrying the note and stays on Q10", an.id === "Q10" && an.kind === "accept" && an.text === "but check the cache key" && await sel() === "Q10", JSON.stringify(an) + " " + await sel());
+    ok("the note box is empty after the save; the note shows read-only under Your earlier answer", (await page.inputValue("#note")) === "" && /^Your earlier answer/.test(await text("#earlier")) && /but check the cache key/.test(await text("#earlier")) && await page.$eval("#earlier q", q => !q.isContentEditable), await text("#earlier"));
+    await arm("a"); await tap("[data-save]", 800);
+    const a2 = await last();
+    ok("pressing Accept again sends an empty text", a2.id === "Q10" && a2.kind === "accept" && a2.text === "" && a2.seq > an.seq, JSON.stringify(a2));
+    await pick("Q5");
+    ok("a decision settled in the terminal opens with an empty note box and shows its text read-only", (await page.inputValue("#note")) === "" && /Pin it to the lock file\./.test(await text("#earlier")), (await page.inputValue("#note")) + " | " + await text("#earlier"));
+    await pick("Q10"); await arm("o");
+    await page.fill("#note", "look into this");
+    ok("a note ending in this is not flagged as cut off", !(await page.$("#cutNudge")), await text("#decideRow"));
+    await page.fill("#note", "look into this and");
+    ok("a note ending in and is flagged", !!(await page.$("#cutNudge")), await text("#decideRow"));
+    await tap("[data-clear]", 200);
+    // the range chip
+    await pick("Q6");
+    const rr = await page.$$eval("#more .rrange", r => r.map(x => [x.textContent, x.querySelectorAll(".ref").length]));
+    ok("Q1-Q3 renders as one chip-range and Q6 and Q9 stay separate chips", rr.length === 1 && rr[0][0] === "Q1–Q3" && rr[0][1] === 2 && (await page.$$eval("#more .ref", rs => rs.filter(r => !r.closest(".rrange")).map(r => r.dataset.q).join())) === "Q6,Q9", JSON.stringify(rr));
+    // the summary at 1024 px
+    await page.setViewportSize({width: 1024, height: 800});
+    await tap("#sumBtn", 500);
+    const sum = await page.evaluate(() => {
+      const broken = [], tbl = document.querySelector("table.sum");
+      tbl.querySelectorAll("td, th").forEach(c => {
+        const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = w.nextNode())) for (const m of n.nodeValue.matchAll(/[^\s-]+/g)) {
+          const r = document.createRange(); r.setStart(n, m.index); r.setEnd(n, m.index + m[0].length);
+          if (new Set([...r.getClientRects()].map(x => Math.round(x.top))).size > 1) broken.push(m[0]);
+        }
+      });
+      const rows = [...tbl.tBodies[0].rows];
+      return {broken, n: rows.length, empty: rows.filter(r => !r.cells[2].textContent.trim()).length, chip: Math.max(...[...tbl.querySelectorAll(".ref b")].map(b => b.getBoundingClientRect().height)),
+        q5: (rows.find(r => r.cells[0].textContent.startsWith("Q5")) || {cells: [{}, {}, {}]}).cells[2].textContent, q9: (rows.find(r => r.cells[0].textContent.startsWith("Q9")) || {cells: [{}, {}, {}]}).cells[2].textContent};
+    });
+    ok("at 1024 px no Decisions cell breaks inside a word and each id chip stays on one line", sum.n > 5 && sum.broken.length === 0 && sum.chip < 24, JSON.stringify(sum));
+    ok("every answered row shows what was decided", sum.empty === 0 && /Pin it to the lock file\./.test(sum.q5) && /^All of them/.test(sum.q9), JSON.stringify(sum));
+    ok("after the wrap-up the summary shows no Confirm, Something's off or Confirm all", !(await page.$("[data-understand]")) && !(await page.$("[data-confirmall]")) && (await page.$$("#toConfirm [data-confirm]")).length > 0 && /Not confirmed before wrap-up/.test(await text("#uDone")), await text("#restate"));
+    ok("only one control is labeled Wrap up, and it sends the event", await page.$$eval("button", bs => bs.filter(b => b.textContent.trim() === "Wrap up").map(b => b.hasAttribute("data-wrapup")).join()) === "true");
+    ok("each panel button has a name that is not a number", await page.$$eval(".strip button", bs => bs.every(b => /\D/.test(b.getAttribute("aria-label") || ""))));
+    // the header at 420 px
+    await page.setViewportSize({width: 420, height: 800}); await page.waitForTimeout(300);
+    const meter = await page.evaluate(() => ({h: [...document.querySelectorAll(".meter button")].filter(b => !b.hidden).map(b => Math.round(b.getBoundingClientRect().height)), page: document.scrollingElement.scrollWidth}));
+    ok("at 420 px the header counts each stay on one line", meter.h.length >= 2 && meter.h.every(h => h < 26) && meter.page <= 420, JSON.stringify(meter));
   }
   const setHidden = h => page.evaluate(h => {
     for (const [k, v] of [["hidden", h], ["visibilityState", h ? "hidden" : "visible"]]) Object.defineProperty(document, k, {configurable: true, get: () => v});

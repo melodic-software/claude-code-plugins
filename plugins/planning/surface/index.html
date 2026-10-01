@@ -60,7 +60,8 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 h1{font:600 26px/1.1 var(--display);margin:6px 0 0;text-wrap:balance}
 .hright{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;justify-content:flex-end}
-.meter{display:flex;align-items:center;gap:10px;font:500 13px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.meter{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font:500 13px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.meter button{white-space:nowrap}
 .bar{width:140px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ok);transition:width .3s}
 .pill{display:inline-flex;align-items:center;gap:7px;font:500 12.5px/1 var(--sans);padding:6px 10px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);background:var(--panel)}
@@ -174,6 +175,9 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .links span{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
 .ref{display:inline-flex;gap:5px;align-items:baseline;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:1px 6px;font:13px var(--sans);cursor:pointer;color:var(--ink)}
 .ref b{font:600 12px var(--mono)}
+.rrange{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap;border:1px solid var(--line-strong);background:var(--ground);border-radius:4px;padding:0 3px}
+.rrange .ref{border:0;background:none;padding:1px 3px}
+.rrange .ref:hover{border:0;text-decoration:underline}
 .ref:hover{border-color:var(--accent)}
 .sup-banner,.banner,.lockban{border-left:3px solid var(--chg);background:var(--chg-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 .sup-banner,.lockban{border-color:var(--wait);background:var(--wait-soft)}
@@ -227,15 +231,16 @@ section.answer[hidden]{display:none}
 .cur{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13.5px;min-height:22px}
 .cur q{color:var(--muted)}
 .cur .when{font-size:12.5px;color:var(--faint)}
+.cur .earlier{flex:1 0 100%;display:grid;gap:2px;max-height:9em;overflow-y:auto;overflow-wrap:anywhere}
+.cur .earlier q{white-space:pre-wrap;color:var(--ink)}
 .cur .aside-why{flex:1 1 20em}
 .agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;align-items:start}
 fieldset{border:1px solid var(--line);border-radius:6px;margin:0;padding:6px 10px 8px;min-width:0}
 legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:0 4px}
 .choices{display:grid;gap:4px;max-height:26vh;overflow-y:auto;padding:2px}
-.choice{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px;align-items:center;padding:4px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px}
+.choice{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;padding:4px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px}
 .choice:hover{border-color:var(--line-strong)}
 .choice input{margin:0;accent-color:var(--accent)}
-.choice .n{font:600 11.5px/1.5 var(--mono);min-width:1.6em;text-align:center;border:1px solid var(--line-strong);border-radius:4px;color:var(--muted)}
 .choice .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .choice.armed{border-color:var(--accent);background:var(--accent-soft)}
 .choice.rec .t b{color:var(--ok)}
@@ -315,7 +320,13 @@ aside.fly.open{display:grid;position:absolute;top:0;right:calc(var(--strip-w) + 
 .fsstage .md{background:var(--panel);padding:24px;max-width:90ch;margin:0 auto}
 
 .done-h{font:600 24px/1.2 var(--display);margin:0}
-table.sum{border-collapse:collapse;width:100%;max-width:90ch;font-size:13.5px}
+.sumwrap{overflow-x:auto}
+table.sum{border-collapse:collapse;width:100%;max-width:90ch;font-size:13.5px;overflow-wrap:normal}
+table.sum .ref b{flex:none;white-space:nowrap}
+table.sum td.dec,table.sum th{white-space:nowrap}
+table.sum td .kbd{display:block;overflow-wrap:break-word}
+#restate h5{font:600 16px var(--sans);margin:.8em 0 .3em}
+#sumRest{display:grid;gap:var(--gap)}
 table.sum th,table.sum td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 table.sum th{font:500 11.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 ul.loose{margin:0;padding-left:20px;display:grid;gap:4px}
@@ -357,8 +368,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <div class="hright">
         <div class="meter"><button class="mlink" id="meterText" title="Next item needing you (n)">0 of 0 answered</button><span class="bar"><i id="meterBar" style="width:0%"></i></span>
           <button class="mlink sep" id="pendBtn" title="Show the questions pending Claude's research" hidden></button>
-          <button class="mlink sep assume" id="assumeCount" hidden></button></div>
-        <button class="tbtn" id="sumBtn" title="Summary and wrap-up (w)" aria-keyshortcuts="w">Wrap up</button>
+          <button class="mlink sep assume" id="assumeCount" hidden></button>
+          <button class="mlink sep assume" id="wrapChip" hidden title="Open the list of what is still undone"></button></div>
+        <button class="tbtn" id="sumBtn" title="Summary and wrap-up (w)" aria-keyshortcuts="w">Summary</button>
       </div>
     </div>
     <div class="hrow2">
@@ -410,12 +422,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <div class="fbody" id="fbody"></div>
     </aside>
     <div class="strip" role="toolbar" aria-label="Panels" aria-orientation="vertical">
-      <button id="railBtn" title="Question list ([)" aria-pressed="true" aria-keyshortcuts="["><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+      <button id="railBtn" aria-label="Question list" title="Question list ([)" aria-pressed="true" aria-keyshortcuts="["><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
       <hr>
-      <button data-panel="visuals" title="Visuals (v)" aria-pressed="false" aria-keyshortcuts="v"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/></svg><span class="badge" id="visBadge" hidden></span></button>
-      <button data-panel="notes" title="Notes to Claude (m)" aria-pressed="false" aria-keyshortcuts="m"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><span class="badge" id="noteBadge" hidden></span></button>
-      <button data-panel="activity" title="Activity (l)" aria-pressed="false" aria-keyshortcuts="l"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span class="badge" id="actBadge" hidden></span></button>
-      <button data-panel="settings" title="Settings (,)" aria-pressed="false" aria-keyshortcuts=","><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+      <button data-panel="visuals" aria-label="Visuals" title="Visuals (v)" aria-pressed="false" aria-keyshortcuts="v"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/></svg><span class="badge" id="visBadge" hidden></span></button>
+      <button data-panel="notes" aria-label="Notes to Claude" title="Notes to Claude (m)" aria-pressed="false" aria-keyshortcuts="m"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><span class="badge" id="noteBadge" hidden></span></button>
+      <button data-panel="activity" aria-label="Activity" title="Activity (l)" aria-pressed="false" aria-keyshortcuts="l"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg><span class="badge" id="actBadge" hidden></span></button>
+      <button data-panel="settings" aria-label="Settings" title="Settings (,)" aria-pressed="false" aria-keyshortcuts=","><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
     </div>
   </div>
 </div>
@@ -453,8 +465,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
   const FREEZE_MS = 10000; // longest wrap-up freeze on decision saves
-  const KEYS = [["Ctrl/Cmd+Enter", "Save the armed choice with the note"], ["Ctrl/Cmd+Shift+Enter", "Ask Claude, no decision"], ["1 to 9", "Arm choice N as numbered on screen"],
-    ["a", "Arm Accept; on a stale question with a decision, Reconfirm it (choice 1)"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
+  const KEYS = [["Ctrl/Cmd+Enter", "Save the armed choice with the note"], ["Ctrl/Cmd+Shift+Enter", "Ask Claude, no decision"], ["1 to 9", "Arm the Nth row of Decide, counted from the top"],
+    ["a", "Arm Rec; on a stale question with a decision, Reconfirm it (the first row)"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
     ["Esc", "Leave the note and keep the draft; again to close the panel"], ["n / Shift+N", "Next / previous item needing you"], ["j / k, Alt+Down / Alt+Up", "Next / previous question"],
     ["[", "Hide or show the question list"], ["v / m / l / ,", "Visuals / Notes to Claude / Activity / Settings"], ["f", "Full-screen visual"], ["Left / Right", "Previous / next image in a gallery, while the visuals panel or full screen has focus"], ["w", "Summary and wrap-up"],
     ["u", "Undo, during the undo window"], ["/", "Filter"], ["?", "This sheet"]];
@@ -487,6 +499,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       const base = /^[\w.-]+\/[\w.-]+$/.test(S.doc.meta.repo || "") ? S.doc.meta.repo : "";
       if (base) e = e.replace(/(^|[^\w/&#-])#(\d+)\b/g, (m, pre, n) => pre + link("#" + n, base, n));
       e = e.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, "$1<em>$2</em>");
+      const end = id => '<button type="button" class="ref" data-q="' + id + '"><b>' + id + "</b></button>";
+      e = e.replace(/\b([A-Z]{1,3})(\d{1,4})\s?(?:-|&ndash;|–)\s?\1?(\d{1,4})\b/g, (m, p, a, b) => { // Qa-Qb: one chip-range, not two chips and a bare hyphen
+        if (!Q[p + a] || !Q[p + b]) return m;
+        keep.push('<span class="rrange" title="' + p + a + " to " + p + b + '">' + end(p + a) + "<span>&ndash;</span>" + end(p + b) + "</span>");
+        return "\u0000" + (keep.length - 1) + "\u0000";
+      });
       e = e.replace(/\b([A-Z]{1,3}\d{1,4})\b/g, (m, id) => Q[id] ? refHtml(id) : m);
       return e.replace(/\u0000(\d+)\u0000/g, (m, n) => keep[+n]);
     }).join("");
@@ -550,6 +568,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const isHandled = seq => seq <= (S.doc.handledSeq || 0) || (S.doc.handled || []).includes(seq);
   const delivered = e => !!e.deliveredAt || (S.watchSeq > 0 && e.seq <= S.watchSeq) || isHandled(e.seq);
   const events = () => S.resp.events || [];
+  const wrapSent = () => events().some(e => e.kind === "wrapup" && !e.withdrawn);
   function crev(q){ return (q.contentRev || 0) + events().filter(e => e.id === q.id && (DEC.has(e.kind) || e.kind === "undo")).length; }
   function pending(){ return events().filter(e => !isHandled(e.seq) && !e.withdrawn); }
   function lastEventSeq(id){ let s = 0; for (const e of events()) if (e.id === id && e.seq > s) s = e.seq; return s; }
@@ -804,15 +823,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     renderNotice();
     const na = openAssumptions(), ac = $("assumeCount");
     ac.hidden = !na; ac.textContent = na + " to confirm"; ac.title = na + (na === 1 ? " commitment" : " commitments") + " unconfirmed: open the list";
+    const wo = outstanding().length, wc = $("wrapChip");
+    wc.hidden = !wo || wrapSent(); wc.textContent = wo + " before wrap-up";
     $("sumBtn").setAttribute("aria-pressed", String(S.sel === SUMMARY));
     const notes = noteThread(), unread = notes.filter(n => n.by === "claude" && Date.parse(n.at) > S.noteSeen).length, nb = $("noteBadge");
     nb.hidden = !unread || S.fly === "notes"; nb.textContent = unread;
+    nb.parentNode.setAttribute("aria-label", "Notes to Claude" + (nb.hidden ? "" : ", " + unread + " unread"));
     const un = unseenActs().length, ab = $("actBadge");
     ab.hidden = !un || S.fly === "activity"; ab.textContent = un;
+    ab.parentNode.setAttribute("aria-label", "Activity" + (ab.hidden ? "" : ", " + un + " new"));
     const away = document.hidden && S.hiddenBase ? [...arrivalKeys()].filter(k => !S.hiddenBase.has(k)).length : 0; // what landed since the tab was hidden, whether or not a flyout marked it seen
     document.title = (away > 0 ? "(" + away + ") " : "") + (m.title || "Interview");
     const vb = $("visBadge"), vn = S.sel && S.sel !== SUMMARY && Q[S.sel] ? visualsFor(Q[S.sel]).length : 0;
     vb.hidden = !vn || S.fly === "visuals"; vb.textContent = vn;
+    vb.parentNode.setAttribute("aria-label", "Visuals" + (vb.hidden ? "" : ", " + vn));
   }
   function renderNotice(){ // digests unseen entries; not a live region, never takes focus
     const un = unseenActs(), e = un[un.length - 1], box = $("notice");
@@ -932,14 +956,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function choicesOf(q){
     const r = reconfirmOf(q), c = r ? [r] : [];
-    c.push({kind: "accept", label: "Accept", text: firstLine(q.recommendation) || "the recommendation"});
+    c.push({kind: "accept", label: "Rec", text: firstLine(q.recommendation) || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
     (q.alternatives || []).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
     c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
     return c.map((x, i) => Object.assign(x, {n: i + 1}));
   }
   function armedOf(cs){ // the armed choice by identity, never by the number it had when armed
     const a = S.armed;
-    return a ? cs.find(c => c.kind === a.kind && (c.alt ?? null) === a.alt && !!c.re === a.re) : undefined;
+    return a ? cs.find(c => c.kind === a.kind && (c.alt ?? null) === a.alt && !!c.re === a.re && !!c.wn === !!a.wn) : undefined;
   }
   function renderDetail(opts){
     opts = opts || {};
@@ -948,7 +972,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("answer").hidden = false;
     const q = Q[S.sel];
     if (!q) { el.innerHTML = '<p class="empty">' + (S.loaded ? "Pick a question." : "Loading questions.") + "</p>"; renderAnswer(); return; }
-    const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [], off = reconfirmOf(q) ? 1 : 0;
+    const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner();
     h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + (g ? "<span>" + esc(g.title) + "</span>" : "") +
@@ -962,7 +986,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
     if (links) h += '<div class="links">' + links + "</div>";
     if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + inline((q.archived || {}).why || "off the current path") + "</div>";
-    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(refHtml).join(" ") + " changed. ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (a, choice 1) or pick again." : "Pick an answer.") + "</div>";
+    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(refHtml).join(" ") + " changed. ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + upOf(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. You can still answer.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
@@ -974,7 +998,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";
     const lc = latestClaude(q);
     if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + md(lc.text) + "</div>";
-    if (q.recommendation) h += '<section class="blk"><h4>' + (marks ? "➡️ " : "") + (1 + off) + ' Recommendation</h4><div class="recbox">' + md(q.recommendation) +
+    if (q.recommendation) h += '<section class="blk"><h4>' + (marks ? "➡️ " : "") + 'Recommendation (Rec)</h4><div class="recbox">' + md(q.recommendation) +
       (q.basis ? '<details class="why"><summary>Why</summary>' + md(q.basis) + "</details>" : "") + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
@@ -987,8 +1011,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     }
     let more = "";
     if (q.facts) more += '<section class="blk"><h4>What we know</h4>' + md(q.facts) + "</section>";
-    if (q.alternatives && q.alternatives.length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + q.alternatives.map((a, i) =>
-      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">' + (i + 2 + off) + " (" + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
+    if (q.alternatives && q.alternatives.length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + q.alternatives.map(a =>
+      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
     if (more) h += '<details class="more" id="more"' + (lsGet("moreOpen", false) ? " open" : "") + "><summary>Details: what we know, alternatives</summary>" + more + "</details>";
     const hist = historyOf(q);
     h += '<section class="blk" id="thread"><h4>Thread</h4>' + (hist.length ? '<ol class="hist">' + hist.map(histLine).join("") + "</ol>" : '<p class="empty">No activity yet.</p>') + "</section>";
@@ -1002,9 +1026,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const n = +setting("checkpoint") || 0; if (!n) return "";
     const done = S.doc.questions.filter(q => live(q) && isAnswered(stateOf(q))).length;
     if (done < n || lsGet("cpDismissed", 0) >= n) return "";
-    return '<div class="banner"><b>' + done + " answered.</b> Past your checkpoint of " + n + '. Wrap up, or split what is left. <button class="tbtn small" data-sum="1">Wrap up</button> <button class="tbtn small" data-cpdismiss="' + n + '">Keep going</button></div>';
+    return '<div class="banner"><b>' + done + " answered.</b> Past your checkpoint of " + n + '. Wrap up, or split what is left. <button class="tbtn small" data-sum="1">Summary</button> <button class="tbtn small" data-cpdismiss="' + n + '">Keep going</button></div>';
   }
-  const DANGLING = /(?:[,\-(]|\b(?:and|but|or|so|the|a|an|to|of|with|for|that|which|because|if|then|like|in|on|at|as|is|are|was|we|i|it|my|our|your|this|these|about|from|into|than|when|where|while|just|maybe))$/i;
+  const DANGLING = /(?:[,\-(]|\b(?:and|but|or|so|the|a|an|to|of|with|for|that|which|because|if|then|like|in|on|at|as|is|are|was|about|from|into|than|when|where|while|just|maybe))$/i;
   const midSentence = s => { s = String(s || "").trim(); return s.length >= 12 && !/[.!?)\]"'”’`]$/.test(s) && DANGLING.test(s); };
   function renderAnswer(){
     const q = Q[S.sel], note = $("note");
@@ -1017,19 +1041,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
         (st === "need" ? " because it needs your decision." : ". It no longer counts.") + '</span><button class="act primary" data-again="1">Answer again</button>'
       : d && d.decision
-      ? '<span class="chip s-' + d.decision + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" + (d.text ? "<q>" + esc(trunc(d.text, 120)) + "</q>" : "") +
+      ? '<span class="chip s-' + d.decision + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
         '<span class="when">' + esc(fmt(d.updatedAt)) + (d.src === "terminal" ? ", in the terminal" : "") + "</span>" + (d.src === "page" && d.seq ? receipts(d.seq) : "") +
         (st === "wait" ? '<span class="kbd">Counts once Claude\'s research on ' + esc(q.id) + " returns.</span>" : "")
       : '<span class="kbd">No decision yet.' + (setting("shortcuts") ? " Number keys pick; Ctrl+Enter saves." : " Ctrl+Enter saves.") + "</span>" + (last ? receipts(last) : "");
+    if (d && !d.aside && d.text) $("cur").innerHTML += '<div class="earlier" id="earlier"><span class="kbd">Your earlier answer</span><q>' + esc(d.text) + "</q></div>"; // read-only; the note box never takes it
     const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt)) : null;
-    const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" ? " d" : c.kind === "hedged" ? " h" : "";
+    const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
-    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="n">' + c.n + '</span><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
-    const needText = armed && noteKind(armed.kind) && keptText(armed) === undefined && !text, frozen = wrapFreeze() > 0;
-    const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + armed.label + (withNote(q, armed) ? " with note" : "") : "Save";
+    $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
+    const needText = armed && needsNote(armed) && !text, frozen = wrapFreeze() > 0;
+    const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
+    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
@@ -1050,11 +1075,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function fillNote(){
     const q = Q[S.sel]; if (!q) { $("note").value = ""; grow($("note")); return; }
-    const draft = lsGet("draft:" + q.id, null), d = decisionOf(q);
-    $("note").value = draft !== null ? draft : ((d && !d.aside && d.text) || "");
+    const draft = lsGet("draft:" + q.id, null); // only what the user typed; a stored decision shows read-only under Your earlier answer
+    $("note").value = draft !== null ? draft : "";
     grow($("note"));
   }
-  function clearNote(){ // an empty draft, so the saved decision note is not put back
+  function clearNote(){
     const q = Q[S.sel]; if (!q) return;
     lsSet("draft:" + q.id, ""); $("note").value = ""; grow($("note")); renderAnswer(); $("note").focus();
   }
@@ -1112,6 +1137,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (nt.length && nt[nt.length - 1].by === "claude") out.push('Claude replied in <button type="button" class="ref" data-panel="notes">Notes</button> and you have not answered.');
     return out;
   }
+  function outstanding(){ // what is still undone before Wrap up, one plain line each; the chip, the confirm and the wrap-up event share it
+    const out = [], u = uState(), by = new Map(), nt = noteThread();
+    if (S.doc.restatement && !(u && u.alt === "confirm")) out.push(u ? "The understanding is not confirmed: you flagged something off" : "The understanding is not confirmed");
+    commitRows().filter(r => !r.on).forEach(r => by.set(r.q.id, (by.get(r.q.id) || 0) + 1));
+    by.forEach((n, id) => out.push(id + ": " + n + (n === 1 ? " commitment" : " commitments") + " not ticked"));
+    if (nt.length && nt[nt.length - 1].by === "claude") out.push("Claude posted in Notes and you have not answered");
+    const open = S.doc.questions.filter(q => live(q) && !isAnswered(stateOf(q)) && stateOf(q) !== "wait").map(q => q.id).sort(idCmp);
+    if (open.length) out.push(open.length + (open.length === 1 ? " question is" : " questions are") + " still open: " + open.join(", "));
+    return out;
+  }
   function uState(){ // the newest confirm-understanding on the current restatement
     const r = S.doc.restatement;
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
@@ -1123,6 +1158,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const u = uState(), body = USECT.filter(([k]) => String((r.sections || {})[k] || "").trim()).map(([k, t]) => "<h5>" + t + "</h5>" + md(r.sections[k])).join("");
     const foot = u && u.alt === "confirm" ? '<p id="uDone"><b>Confirmed</b> ' + esc(fmt(u.at)) + "</p>"
       : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + inline(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
+      : wrapSent() ? '<p class="kbd" id="uDone">Not confirmed before wrap-up.</p>'
       : '<div class="ustate"><textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
         '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
         '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>";
@@ -1135,8 +1171,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return '<section class="blk" id="toConfirm"><h4>To confirm</h4><p class="kbd">Things your answers commit you to</p>' + ids.map(id => '<div class="crows" id="tc-' + esc(id) + '"><div>' + refHtml(id) + "</div>" +
       rows.filter(r => r.q.id === id).map(r => { const k = "sc-" + esc(id) + "-" + r.i;
         return '<div class="crow"><input type="checkbox" id="' + k + '" data-confirm="' + r.i + '" data-cq="' + esc(id) + '"><label for="' + k + '">' + inline(r.c) + "</label><span></span></div>"; }).join("") + "</div>").join("") +
-      (rows.length ? '<div class="arow"><button class="act" data-confirmall="1" data-submit="1">Confirm all (' + rows.length + ")</button></div>" : '<p class="empty">All confirmed.</p>') + "</section>" +
+      (!rows.length ? '<p class="empty">All confirmed.</p>' : wrapSent() ? "" : '<div class="arow"><button class="act" data-confirmall="1" data-submit="1">Confirm all (' + rows.length + ")</button></div>") + "</section>" +
       (claude.length ? '<p class="kbd" id="byClaude">Confirmed by Claude: ' + claude.map(q => esc(q.id) + " (" + esc(q.commitsConfirmed[0].reason) + ")").join(", ") + "</p>" : "");
+  }
+  function decidedText(q, d){ // [what was decided, the note beside it]
+    const k = d.decision, rec = firstLine(q.recommendation) || "the recommendation", note = String(d.text || "").trim();
+    if (k === "accept") return [rec, note];
+    if (k === "hedged") return [rec, note ? "Condition: " + note : ""];
+    if (k === "alt") { const a = (q.alternatives || []).find(x => x.key === d.alt); return [a ? a.text : "alternative (" + d.alt + ")", note]; }
+    if (k === "own") { const r = q.resolution; return r && r.decidedAt === d.updatedAt && (r.seq ?? null) === (d.seq ?? null) ? [r.text, note] : [note, ""]; } // the accepted reading, else the user's own words
+    return [note || "Decide later", ""];
   }
   function renderSummary(){ // regions rebuild only when their markup changes
     const el = $("dscroll"), l = S.doc.questions.filter(live).sort(byIdCmp), waits = l.filter(q => stateOf(q) === "wait"), open = l.filter(q => !isAnswered(stateOf(q)) && stateOf(q) !== "wait");
@@ -1148,9 +1192,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (waits.length) h += '<section class="blk"><h4>Pending research</h4><p>' + waits.map(q => refHtml(q.id)).join(" ") + "</p></section>";
     setHtml($("sumTop"), h); setHtml($("uBox"), uBoxHtml()); setHtml($("cBox"), cBoxHtml());
     const ta = $("offText"); if (ta && document.activeElement !== ta && ta.value !== (S.offDraft || "")) ta.value = S.offDraft || "";
-    h = '<section class="blk"><h4>Decisions</h4><table class="sum"><thead><tr><th>Question</th><th>Decision</th><th>Note</th></tr></thead><tbody>' +
-      l.filter(q => isAnswered(stateOf(q))).map(q => { const d = decisionOf(q) || {}; return "<tr><td>" + refHtml(q.id) + "</td><td>" + esc(LABEL[d.decision] || "") + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.src === "terminal" ? ", terminal" : "") + "</td><td>" + esc(trunc(d.text, 110)) + "</td></tr>"; }).join("") +
-      "</tbody></table></section>";
+    h = '<section class="blk"><h4>Decisions</h4><div class="sumwrap"><table class="sum"><thead><tr><th>Question</th><th>Decision</th><th>Decided</th></tr></thead><tbody>' +
+      l.filter(q => isAnswered(stateOf(q))).map(q => { const d = decisionOf(q) || {}, [what, note] = decidedText(q, d); return "<tr><td>" + refHtml(q.id) + '</td><td class="dec">' + esc(LABEL[d.decision] || "") + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.src === "terminal" ? ", terminal" : "") + "</td><td>" + esc(trunc(what, 200)) + (note ? '<span class="kbd">Note: ' + esc(trunc(note, 160)) + "</span>" : "") + "</td></tr>"; }).join("") +
+      "</tbody></table></div></section>";
     const le = looseEnds();
     h += '<section class="blk"><h4>Loose ends</h4>' + (le.length ? '<ul class="loose">' + le.map(x => "<li>" + x + "</li>").join("") + "</ul>" : '<p class="empty">None.</p>') + "</section>";
     const next = (S.doc.meta || {}).next || "Claude records your decisions in the ledger and answers any loose ends. Wrap-up then exports the decisions, and this session can be discarded.";
@@ -1413,18 +1457,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function arm(n){
     const q = Q[S.sel]; if (!q || S.busy) return;
     const c = choicesOf(q).find(x => x.n === n); if (!c) return;
-    S.armed = {kind: c.kind, alt: c.alt ?? null, re: !!c.re}; renderAnswer();
-    if (noteKind(c.kind) && keptText(c) === undefined) $("note").focus();
+    S.armed = {kind: c.kind, alt: c.alt ?? null, re: !!c.re, wn: !!c.wn}; renderAnswer();
+    if (needsNote(c)) $("note").focus();
   }
   const noteKind = k => k === "own" || k === "hedged"; // decisions whose note is the answer itself
+  const needsNote = c => (noteKind(c.kind) || !!c.wn) && keptText(c) === undefined; // Accept with note is empty without a note
   function keptText(c){ // Reconfirm sends a note typed over the kept one, else the kept note; never an empty own answer or condition
     if (!c.re || (!c.keep && noteKind(c.kind))) return undefined;
     const t = $("note").value.trim();
     return t && t !== c.keep.trim() ? t : c.keep;
   }
-  function withNote(q, c){ // an Accept whose note is new text, not the kept decision's note
-    const t = $("note").value.trim(), d = decisionOf(q);
-    return !!c && c.kind === "accept" && !c.re && !!t && t !== String((d && d.text) || "").trim();
+  function withNote(q, c){ // an Accept whose note was typed in this edit
+    return !!c && c.kind === "accept" && !c.re && !!$("note").value.trim();
   }
   function textFocused(){ const a = document.activeElement; return !!a && (a.tagName === "TEXTAREA" || a.tagName === "SELECT" || (a.tagName === "INPUT" && !/^(radio|checkbox|button|submit|range)$/.test(a.type)) || a.isContentEditable); }
 
@@ -1457,20 +1501,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function toast(msg, bad, undo){ S.toast = msg; S.toastBad = !!bad; if (!undo) S.undo = null; renderToast(); }
   let undoTimer = null;
-  function offerUndo(seq, id){
+  function offerUndo(seq, id, note){
     const secs = +setting("undoSeconds") || 0; clearTimeout(undoTimer);
     if (!secs || S.api < 2) { S.undo = null; return; }
-    S.undo = {seq, id, note: $("note").value}; undoTimer = setTimeout(() => { S.undo = null; renderToast(); }, secs * 1000);
+    S.undo = {seq, id, note}; undoTimer = setTimeout(() => { S.undo = null; renderToast(); }, secs * 1000);
   }
   async function submitArmed(){
     const q = Q[S.sel]; if (!q) return;
     const c = armedOf(choicesOf(q));
     if (!c && S.armed) { S.armed = null; toast("Pick a choice again: the choices changed.", true); renderAnswer(); return; }
-    if (!c) { toast("Pick a choice first (1 to " + choicesOf(q).length + ").", true); const el = $("choices"); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); return; }
+    if (!c) { toast("Pick a choice first.", true); const el = $("choices"); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); return; }
     const keep = keptText(c);
     if (c.kind === "accept" && waitingReply(q) && !await confirmAccept()) return;
     const note = keep !== undefined ? keep : $("note").value.trim();
-    if (noteKind(c.kind) && !note) { toast(c.kind === "hedged" ? "Hedged needs a condition in the note." : "Own answer needs a note.", true); $("note").focus(); return; }
+    if ((noteKind(c.kind) || c.wn) && !note) { toast(c.kind === "hedged" ? "Hedged needs a condition in the note." : c.wn ? "Accept with note needs a note." : "Own answer needs a note.", true); $("note").focus(); return; }
     if (c.kind === "hedged" && note.length > LINE_CAP) { toast("The condition is too long: at most " + LINE_CAP + " characters.", true); $("note").focus(); return; }
     await send(c.kind, c.alt, undefined, keep, withNote(q, c));
   }
@@ -1486,12 +1530,30 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       dlg.showModal(); $("dlgCancel").focus();
     });
   }
+  function confirmWrapUp(out){ // sends nothing and starts no freeze until the user says so
+    const dlg = $("dlg");
+    $("dlgTitle").textContent = "Wrap up with " + out.length + (out.length === 1 ? " item" : " items") + " outstanding?";
+    $("dlgBody").innerHTML = "<p>Claude exports the decisions as they stand. Still undone:</p><ul>" + out.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul>";
+    $("dlgOk").textContent = "Wrap up anyway"; $("dlgOk").disabled = false;
+    return new Promise(res => {
+      dlg.onclose = () => res(dlg.returnValue === "ok");
+      $("dlgOk").onclick = () => dlg.close("ok");
+      $("dlgCancel").onclick = () => dlg.close("cancel");
+      dlg.showModal(); $("dlgCancel").focus();
+    });
+  }
+  async function wrapUp(){ // the one control that sends the wrap-up event; a forced one names what it skipped in its text
+    if (S.api < 2 || S.busy) return;
+    const out = outstanding();
+    if (out.length && !await confirmWrapUp(out)) return;
+    if (await sendFree("wrapup", out.length ? "Skipped before wrap-up:\n" + out.map(x => "- " + x).join("\n") : "")) { toast("Wrapping up. Claude exports the decisions; saves pause until it handles the wrap-up."); renderDetail(); }
+  }
   async function send(kind, alt, force, keep, noted){
     const q = Q[S.sel]; if (!q || S.busy) return;
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
-    const snap = S.snap[q.id] || snapOf(q);
+    const snap = S.snap[q.id] || snapOf(q), typed = $("note").value;
     S.busy = true; toast("Saving.");  renderAnswer();
     try {
       const body = {id: q.id, kind, alt: alt || null, text};
@@ -1503,7 +1565,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }
       if (!res.ok) throw new Error(data.error || res.status);
       S.conflict = null;
-      lsSet("draft:" + q.id, kind === "own" ? "" : null); // an own answer shows in the decision line, so the composer starts empty
+      lsSet("draft:" + q.id, null);
       await refresh();
       S.busy = false; S.snap[q.id] = snapOf(Q[q.id]);
       if (!isDec) {
@@ -1513,8 +1575,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         return;
       }
       S.armed = null;
-      if (kind === "reopen") { toast("Reopened. Your note is kept."); fillNote(); renderAll(); return; }
-      offerUndo(data.seq, q.id);
+      if (kind === "reopen") { toast("Reopened. Your note is kept under Your earlier answer."); fillNote(); renderAll(); return; }
+      offerUndo(data.seq, q.id, typed);
       if (held || noted) { // stays on the question: the answer waits on research, or Claude answers the note
         toast(held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread.", false, true);
         fillNote(); renderAll(); return;
@@ -1591,10 +1653,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!text) { $("noteToast").textContent = "Write a note first."; return; }
     if (await sendFree("note", text)) { lsSet("noteDraft", null); if (S.fly === "notes") renderFly(); const t = $("noteToast"); if (t) t.textContent = "Sent. Claude's reply lands here."; }
   }
-  function carried(q){ // what a single Accept would send: the draft, else the kept note
-    const dr = lsGet("draft:" + q.id, null), d = decisionOf(q);
-    return String(dr !== null ? dr : (d && !d.aside && d.text) || "").trim();
-  }
+  const carried = q => String(lsGet("draft:" + q.id, null) || "").trim(); // what a single Accept would send: the note typed on it
   function openedRev(q){ // the revision the user last opened q at, with the decisions made since
     const base = lsGet("openedRev", {})[q.id];
     return typeof base === "number" ? crev(q) - (q.contentRev || 0) + base : crev(q);
@@ -1683,8 +1742,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q && !S.conflict && !S.armed && !$("note").value.trim()) S.snap[q.id] = snapOf(q); // not answering yet: follow the latest wording
     renderHeader(); renderRail(changed);
     const typing = document.activeElement === $("note");
-    const dn = q && lsGet("draft:" + q.id, null) === null ? decisionOf(q) : null, prefilled = !!dn && dn.aside && !!dn.text && $("note").value.trim() === String(dn.text).trim();
-    if (!S.busy && q && lsGet("draft:" + S.sel, null) === null && (!typing || prefilled)) fillNote(); // a prefill of a decision Claude set aside clears even while the note has focus
+    if (!S.busy && q && lsGet("draft:" + S.sel, null) === null && !typing) fillNote();
     renderDetail({flash: changed.includes(S.sel)});
     if (S.fly && (S.fly !== "settings")) {
       const nt = $("noteText"), keep = nt && document.activeElement === nt;
@@ -1761,7 +1819,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       else { S.conflict = null; send(c.kind, c.alt, c.data.contentRev, c.keep, c.noted); }
       return;
     }
-    if (t.closest("[data-wrapup]")) { sendFree("wrapup", "").then(ok => { if (ok) { toast("Wrapping up. Claude exports the decisions; saves pause until it handles the wrap-up."); renderDetail(); } }); return; }
+    if (t.closest("[data-wrapup], #wrapChip")) { wrapUp(); return; }
     if (t.closest("[data-sendnote]")) { sendNote(); return; }
     const p = t.closest("[data-panel]"); if (p) { if (p.closest("#tabs") || p.closest(".loose")) showFly(p.dataset.panel); else openPanel(p.dataset.panel); return; }
     if (t.closest("#railBtn")) { S.railHidden = !S.railHidden; lsSet("railHidden", S.railHidden); renderFly(); return; }

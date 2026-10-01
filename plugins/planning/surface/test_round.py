@@ -712,6 +712,24 @@ class TestStatus(DirCase):
         self.assertEqual(lines[head + 2], "  #3 - note: " + json.dumps(text))
         self.assertEqual(len(lines), head + 3, out)
 
+    def test_a_forced_wrapup_prints_the_items_it_skipped(self):
+        text = "Skipped before wrap-up:\n- The understanding is not confirmed\n- Q2: 1 commitment not ticked"
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": None,
+                    "kind": "wrapup",
+                    "alt": None,
+                    "text": text,
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("  #1 - wrapup: " + json.dumps(text), out.splitlines())
+
     def test_a_waiting_question_is_open_on_its_own_line(self):
         doc = base_doc()
         doc["questions"][0].update(waiting=True, waitsOn='your "confirmation" of X')

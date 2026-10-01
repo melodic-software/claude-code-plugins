@@ -133,12 +133,14 @@ A decision event names the content revision it answered: the `contentRev` the pa
 | `cancel-research` | question | no | `wait` with `clear` and `set-status` with `clear`; ignore the pending result, and `handle` both seqs |
 | `note` | none | no | `note-reply` with its `seq`, or `reply` on a question |
 | `undo` | question, `undoSeq` | withdraws `undoSeq` | Drop that decision from the ledger; `handle` both seqs |
-| `wrapup` | none | no | Run [Wrap-up](#wrap-up), then `handle` |
+| `wrapup` | none; a forced one carries `text` | no | Run [Wrap-up](#wrap-up), then `handle`. A `text` starting `Skipped before wrap-up:` lists, one `- ` line each, what the user left outstanding when they pressed Wrap up anyway (an unconfirmed understanding, unticked commitments by question, an unanswered Notes post, open questions); `round.sh status` prints it, and the wrap-up report names each item |
 | `confirm` | question, `alt` is the commitment index | no; ticks one commitment | `handle` |
 | `accept-audit` | none; `alt` is the round id, `items` lists the accepted questions | yes, once per listed question (each has its own `accept` event carrying `auditSeq`) | Record each accepted question, `handle` the `accept-audit` seq and every fanned-out accept seq with no reply, then run `/planning:audit-answers` on the event's `items` only, so questions outside the round stay open. The audit returns only the doubtful ones as human questions |
 | `confirm-understanding` | none; `alt` is `confirm` or `off`, `contentRev` is the restatement `rev` | no | `confirm`: the gate passed, `handle`. `off`: `note-reply` to its `text` with its `seq`, see [Confirmation gate](#confirmation-gate) |
 
 "Accept all and have agents check them" arrives as one `accept-audit` event plus its accepts; the page holds no validation logic, so the skill routes the round to `/planning:audit-answers`. The page leaves a question that carries a note out of that event, so every fanned-out accept is plain.
+
+The page labels each option once. `Rec` is the recommendation (an `accept`, ledger `accepted:`), `Accept with note` is its own row (an `accept` whose `text` is the note), and each alternative is its key, `(a)`, `(b)` (an `alt`, ledger `alt <key>:`). Number keys are shortcuts only, counted from the top row, and are never shown. Name an option in a reply by that label, not by a number. The note box starts empty and never takes a stored decision's text: a recorded note shows read-only under `Your earlier answer`, and an `accept` carries `text` only when the user typed it in that edit.
 
 An accept whose note conditions the acceptance ("before we lock it in") is recorded as hedged, headline only, per SKILL.md "A hedged reply resolves only the headline": the page's Hedged choice records it directly, and a terminal reply is mirrored with `record-terminal` as `hedged`, the condition in `text`. An accepted or hedged row with an unticked commitment exports `open`, so the register gate holds it until each commitment is ticked. Accept all, per group and per round section in the Rounds view, arrives as one `accept` event per question, each with its own note `text`, usually in one wake; treat each as a single accept.
 
@@ -162,7 +164,7 @@ On the page surface, SKILL.md Step 3's confirmation gate runs through the page:
 2. Wait for a `confirm-understanding` event. `alt: confirm` whose `contentRev` equals the current restatement `rev` passes the gate: `handle` it. The server refuses a Confirm on an older `rev` as stale, so a passing event always names the current restatement.
 3. `alt: off` means the gate has not passed. `note-reply` to its `text` with its `seq`, fix the understanding (re-ask or revise questions as needed), and post a new `restate`; the page shows the new one unconfirmed.
 
-`lock` stays exempt, as in Step 3. An unattended run cannot pass this gate: only the user's Confirm does. Wrap-up stays the user's call (R4): the page warns when Wrap up is pressed before the understanding is confirmed, and does not block it. Confirming the understanding never ticks commitments.
+`lock` stays exempt, as in Step 3. An unattended run cannot pass this gate: only the user's Confirm does. Wrap-up stays the user's call (R4): when anything is outstanding, including an unconfirmed understanding, the page lists it in a confirm and sends the event only on Wrap up anyway; a header chip, `N before wrap-up`, opens the same list. Confirming the understanding never ticks commitments.
 
 ## Rules
 
