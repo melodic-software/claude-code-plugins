@@ -3,6 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.57.0] - 2026-10-01
+
+### Added
+
+- **`round.sh stop` ends the data dir's `watch.sh`.** Each poll sends the watcher's process id, the lease records it, and `stop` signals it only when its command line is a `watch.sh` for that data dir (nothing is signaled on Windows). A poll refused after `stop` exits 3 at once instead of retrying ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`apply` warns when no watcher holds the lease.** It still writes and exits 0, and prints `no watcher armed; N unhandled events` to stderr ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`round.sh status` prints a `round drift:` line for a seeded question whose stored round differs from its ledger cell, and `repair-rounds` rewrites only those rounds** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`note-reply --needs-answer` pins a Notes line as a loose end with a reply box until you reply, however many Claude notes follow it** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The page shows a line diff of a changed restatement against the newest confirmed revision and keeps a `Restatement changed, needs your Confirm` banner until it gets a verdict.** Confirm says it ticks no commitment and links to the commitment list ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A note that names one option by its label (`Rec`, `#1`, `option 2`, `(a)`) asks `Did you mean Accept with note?` before it is saved** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **New Needs-you items raise a dismissible toast, including `Interview complete`, and a browser notification is offered only on a click.** The tab title counts Needs-you items only, and the page keeps the finish text in the browser so a tab that cannot reach the server still shows it, and a finish kept for another data dir on the same port is replaced, not shown ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+### Changed
+
+- **`add` and `add-round` give a question with no `stage` the newest question's stage and warn, naming the stage and round used** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **Page polish.** The rail preview skips hold bookkeeping, the id column has one width, the Pending filter covers every hold, Activity no longer relists ids its text links, and a note posted with no reply target reads `Claude posted in Notes` ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
 ## [0.56.3] - 2026-10-01
 
 ### Fixed

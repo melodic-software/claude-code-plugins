@@ -268,7 +268,9 @@ class TestRefusals(DirCase):
         self.assertIn("Q4", {x["id"] for x in self.doc()["questions"]})
 
     def test_short_recommendation_does_not_warn(self):
-        rc, _, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        rc, _, err = self.rp(
+            "add", "--file", self.file("q.json", question("Q4", stage="interview"))
+        )
         self.assertEqual(rc, 0)
         self.assertNotIn("warning", err)
 
@@ -373,6 +375,16 @@ class TestAffects(DirCase):
     def test_reply_without_rec_needs_no_affects(self):
         rc, out, err = self.rp("reply", "Q1", "--text", "Thread only.")
         self.assertEqual(rc, 0, out + err)
+
+    def test_note_without_a_reply_target_says_posted_and_can_need_an_answer(self):
+        rc, out, err = self.rp("note-reply", "--text", "FYI.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Note posted", out)
+        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        self.assertEqual(rc, 0, out + err)
+        notes = self.doc()["notes"]
+        self.assertNotIn("needsAnswer", notes[0])
+        self.assertTrue(notes[1]["needsAnswer"])
 
     def test_newer_user_event_refuses_and_force_overrides(self):
         at = "2026-09-24T10:00:00Z"
@@ -2236,6 +2248,74 @@ class TestRoundStamp(DirCase):
         self.assertNotIn("no meta.stages label", err)
 
 
+class TestApplyWatcherWarning(DirCase):
+    def test_apply_with_no_watcher_warns_with_the_unhandled_count_and_still_writes(
+        self,
+    ):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "ask",
+                    "text": "why",
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+        ops = {"ops": [{"op": "reply", "id": "Q2", "text": "plain"}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("no watcher armed; 1 unhandled events", err)
+        self.assertEqual(self.q("Q2")["history"][-1]["text"], "plain")
+
+
+class TestAddDefaultsToTheNewestStage(DirCase):
+    def test_an_add_with_no_stage_takes_the_newest_questions_stage_and_warns(self):
+        self.rp(
+            "add",
+            "--file",
+            self.file("a.json", question("Q4", stage="design", round=2)),
+        )
+        rc, _, err = self.rp("add", "--file", self.file("b.json", question("Q5")))
+        self.assertEqual(rc, 0, err)
+        self.assertEqual((self.q("Q5")["stage"], self.q("Q5")["round"]), ("design", 2))
+        self.assertIn("Q5 named no stage; used stage 'design', round 2", err)
+
+    def test_an_add_with_a_stage_does_not_warn(self):
+        _, _, err = self.rp(
+            "add", "--file", self.file("a.json", question("Q4", stage="design"))
+        )
+        self.assertNotIn("named no stage", err)
+
+
+class TestRepairRounds(DirCase):
+    def seed(self):
+        doc = self.doc()
+        doc["meta"]["seededFrom"] = {
+            "ledger": "l.md",
+            "at": "2026-01-01T00:00:00Z",
+            "rows": {},
+            "roundCells": {"Q1": "round 2 (was 12)", "Q2": "round 1 (design)"},
+        }
+        doc["questions"][0]["round"] = 12
+        self.write_doc(doc)
+
+    def test_status_lists_a_seeded_inflated_round_and_the_repair_fixes_only_it(self):
+        self.seed()
+        _, out, _ = self.rp("status")
+        self.assertIn("round drift: Q1 stored round 12", out)
+        self.assertIn("reads round 2", out)
+        self.assertNotIn("round drift: Q2", out)
+        rc, out, err = self.rp("repair-rounds")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual([q["round"] for q in self.doc()["questions"]], [2, 1, 1])
+        _, out, _ = self.rp("status")
+        self.assertNotIn("round drift", out)
+        rc, out, _ = self.rp("repair-rounds")
+        self.assertIn("no round drift", out)
+
+
 class TestReplyHintOnOwnAnswer(DirCase):
     def test_reply_without_rec_to_an_own_answer_hints_revise_or_wait(self):
         self.write_events(
@@ -2328,6 +2408,34 @@ class TestDoctor(DirCase):
         self.write_doc(doc)
         self.rp("add", "--file", self.file("q2.json", question("Q2")))
         self.assertEqual(self.doc()["meta"]["pluginVersion"], "0.1.0")
+
+
+@unittest.skipUnless(os.name == "posix", "stop signals a watcher on POSIX only")
+class TestEndWatcher(DirCase):
+    def spawn(self, argv):
+        proc = subprocess.Popen(argv)
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        time.sleep(0.3)  # bash must exec its script before a command line is read
+        return proc
+
+    def test_ends_a_watch_sh_for_this_data_dir(self):
+        script = self.tmp / "watch.sh"
+        script.write_text("sleep 30\n", encoding="utf-8")
+        proc = self.spawn(["bash", str(script), str(self.dir)])
+        sys.path.insert(0, str(HERE))
+        import round as r
+
+        r.end_watcher(self.dir, proc.pid)
+        self.assertIsNotNone(proc.wait(timeout=5))
+
+    def test_leaves_a_process_that_is_not_a_watcher(self):
+        proc = self.spawn(["sleep", "30"])
+        import round as r
+
+        r.end_watcher(self.dir, proc.pid)
+        time.sleep(0.3)
+        self.assertIsNone(proc.poll())
 
 
 if __name__ == "__main__":

@@ -10,8 +10,9 @@
 # rejected (the server restarted), or when the server stays unreachable for WAIT_FAILS polls
 # (default 12, 5 s apart).
 # Exits 3 when another watcher holds the server's lease (one session watches a data dir at a
-# time), or when this watcher's lease was released while it waited; it prints why to stderr and
-# does not retry.
+# time), when this watcher's lease was released while it waited, or when a poll fails after
+# round.sh stop removed the env file; it prints why to stderr and does not retry. Each poll sends
+# this process's pid (&pid=$$), which the lease records so round.sh stop can end this watcher.
 # Each poll names this watcher: WATCH_ID, else CLAUDE_CODE_SESSION_ID (Claude Code exports it to
 # every shell a session runs, so every re-arm shares it), else <hostname>-<parent pid>. A parent
 # pid of 1 (a Claude Code Bash shell on Windows reports it, for every session) names no one, so
@@ -84,7 +85,7 @@ fails=0
 while :; do
   # The body comes back on stdout (no file path reaches curl), with the status on a last line.
   resp=$("$curl_bin" -s -w '\n%{http_code}' --noproxy '*' --max-time $((WAIT_TIMEOUT + 10)) \
-    -H "X-Interview-Token: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT&watcher=$watcher")
+    -H "X-Interview-Token: $TOKEN" "http://127.0.0.1:$PORT/api/wait?after=handled&replayed=$replayed&timeout=$WAIT_TIMEOUT&watcher=$watcher&pid=$$")
   code=${resp##*$'\n'}
   out=${resp%$'\n'*}
   if [[ "$code" == 409 && "$out" == *'"lease held"'* ]]; then
@@ -102,6 +103,12 @@ while :; do
       exit 2
       ;;
     *)
+      # round.sh stop removes the env file once the server is down: a refused poll after that is a
+      # clean stop, not an outage to retry.
+      if [[ ! -f "$env_file" ]]; then
+        echo "the interview server was stopped (round.sh stop): not re-arming" >&2
+        exit 3
+      fi
       fails=$((fails + 1))
       if [[ "$fails" -ge "$max_fails" ]]; then
         echo "server unreachable on $PORT" >&2

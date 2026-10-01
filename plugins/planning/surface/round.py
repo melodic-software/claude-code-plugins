@@ -7,11 +7,14 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   reply           append a Claude line to a question's thread; optional revised recommendation
   revise          change a question's wording, recommendation, alternatives, commitments or dependencies
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
-  note-reply      reply in the Notes to Claude thread
+  note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
   record-terminal record an answer the user gave in the terminal
   archive         archive off-path questions with a reason (the server derives their state)
-  apply           run a list of ops from one JSON file, as one atomic write
+  apply           run a list of ops from one JSON file, as one atomic write; warns on stderr when no
+                  watcher holds the lease
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
+                  and each seeded question whose round differs from its ledger round cell
+  repair-rounds   rewrite those rounds to the ledger cell's round and nothing else
   bump            bump the file rev (and one question's rev with --id)
   validate        check questions.json and responses.json against the shipped schemas
   export-ledger   write the interview ledger (decision tree and open-question register);
@@ -315,7 +318,10 @@ def add_question(doc, q, repoint=False):
         sys.exit(
             f"unknown group in {q['id']}: {q['group']} (add it with: round.py group)"
         )
-    q.setdefault("stage", "interview")
+    defaulted = "stage" not in q
+    if defaulted:
+        newest = doc["questions"][-1] if doc["questions"] else {}
+        q["stage"] = newest.get("stage", "interview")
     q.setdefault(
         "round",
         max(
@@ -327,6 +333,11 @@ def add_question(doc, q, repoint=False):
             or [1]
         ),
     )
+    if defaulted and doc["questions"]:
+        warn(
+            f"{q['id']} named no stage; used stage {q['stage']!r}, round {q['round']}, "
+            "the newest question's (pass --stage to choose)"
+        )
     q.setdefault("history", []).append({"at": now(), "by": "claude", "text": "Asked."})
     touched, notes = [q], []
     if q.get("supersedes"):
@@ -883,9 +894,11 @@ def op_note_reply(d, doc, a):
     line = {"at": now(), "by": "claude", "text": a.text}
     if a.seq is not None:
         line["replyTo"] = a.seq
+    if a.needsAnswer:
+        line["needsAnswer"] = True
     doc.setdefault("notes", []).append(line)
     mark_handled(doc, [a.seq])
-    return [], "note reply saved"
+    return [], "note reply saved" if a.seq is not None else "Note posted"
 
 
 def op_record_terminal(d, doc, a):
@@ -1246,7 +1259,7 @@ OP_ARGS = {
         {"id": None, "title": None, "summary": None, "dependsOn": None},
     ),
     "meta": (op_meta, {"set": None}),
-    "note-reply": (op_note_reply, {"seq": None, "text": None}),
+    "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
     "archive": (op_archive, {"ids": None, "why": None}),
     "replace-visual": (op_replace_visual, {"visual": None}),
@@ -1265,6 +1278,29 @@ OP_ARGS = {
     ),
     "restate": (op_restate, {"sections": None}),
 }
+
+
+def unhandled_events(doc, r):
+    return [
+        e
+        for e in r.get("events", [])
+        if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
+    ]
+
+
+def watcher_lease(d):
+    """The lease the data dir's running server shows, or None when the server is down or none is held."""
+    s = read_session(d)
+    if not (s and running(d, s)):
+        return None
+    conn = http.client.HTTPConnection("127.0.0.1", int(s["port"]), timeout=10)
+    try:
+        conn.request("GET", "/api/state")
+        return json.loads(conn.getresponse().read())["listener"].get("lease")
+    except (OSError, ValueError, KeyError):
+        return None
+    finally:
+        conn.close()
 
 
 def cmd_apply(d, a):
@@ -1326,6 +1362,12 @@ def cmd_apply(d, a):
     for line in lines:
         print(line)
     print(f"applied {len(lines)} ops (rev {doc['rev']})")
+    if not watcher_lease(d):
+        r = load_json(d / "responses.json", EMPTY_RESPONSES)
+        print(
+            f"no watcher armed; {len(unhandled_events(doc, r))} unhandled events",
+            file=sys.stderr,
+        )
 
 
 def effective(q, resp):
@@ -1382,12 +1424,15 @@ def cmd_status(d, a):
             f"meta last set in {'round ' + str(stamp) if stamp is not None else 'an unrecorded round'}, "
             f"newest question in round {newest_round(doc)}"
         )
+    drift = exporters.round_drift(doc)
+    for qid, stored, parsed, cell in drift:
+        print(
+            f"round drift: {qid} stored round {stored}, ledger cell {cell!r} reads round {parsed}"
+        )
+    if drift:
+        print("repair with: round.sh repair-rounds (rewrites only these rounds)")
     hs = doc.get("handledSeq") or 0
-    pending = [
-        e
-        for e in r.get("events", [])
-        if not e.get("withdrawn") and not is_handled(doc, e.get("seq", 0))
-    ]
+    pending = unhandled_events(doc, r)
     print(
         f"rev {doc['rev']}; page seq {r.get('seq', 0)}; handledSeq {hs}; unhandled events {len(pending)}"
     )
@@ -1584,6 +1629,22 @@ def cmd_import_ledger(d, a):
     print(
         f"seeded {len(doc['questions'])} questions from {a.ledger} (rev {doc['rev']})"
     )
+
+
+def cmd_repair_rounds(d, a):
+    """Rewrite each seeded question's round to the one its ledger round cell reads as; nothing else changes."""
+    with sidecar_lock(d):
+        doc = load(d)
+        drift = exporters.round_drift(doc)
+        if not drift:
+            print("no round drift")
+            return
+        for qid, _, parsed, _ in drift:
+            find(doc, qid)["round"] = parsed
+        save(d, doc, [find(doc, qid) for qid, *_ in drift])
+    for qid, stored, parsed, _ in drift:
+        print(f"{qid}: round {stored} -> {parsed}")
+    print(f"repaired {len(drift)} rounds (rev {doc['rev']})")
 
 
 def lock_seconds():
@@ -1864,6 +1925,29 @@ def finish_on_stop(d):
     time.sleep(FINISH_SECONDS)
 
 
+def end_watcher(d, pid):
+    """TERM the lease's watcher PID, only when its command line is this data dir's watch.sh.
+
+    Where the OS shows no command line (Windows), nothing is signaled: a recorded PID there is
+    not a native PID, so it could name any process.
+    """
+    if not isinstance(pid, int) or pid <= 1 or os.name != "posix":
+        return
+    try:
+        cmd = (Path("/proc") / str(pid) / "cmdline").read_bytes().replace(b"\0", b" ")
+        text = cmd.decode("utf-8", "replace")
+    except OSError:
+        try:
+            text = subprocess.run(
+                ["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True
+            ).stdout
+        except OSError:
+            return
+    if "watch.sh" in text and d.name in text:
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGTERM)
+
+
 def cmd_stop(d, a):
     """Kill the recorded PID only when its port answers with that PID; otherwise just clear the files."""
     if not d.is_dir():
@@ -1875,7 +1959,9 @@ def cmd_stop(d, a):
             clear_session(d)
             print("not running")
             return
+        watcher = (watcher_lease(d) or {}).get("pid")
         finish_on_stop(d)
+        end_watcher(d, watcher)
         os.kill(s["pid"], signal.SIGTERM)
         deadline = time.monotonic() + START_SECONDS
         while time.monotonic() < deadline and ping(s["port"], timeout=0.5):
@@ -1905,10 +1991,9 @@ def cmd_lease(d, a):
             resp.read()
             if resp.status != 200:
                 sys.exit(f"release refused: HTTP {resp.status}")
-        conn.request("GET", "/api/state")
-        lease = json.loads(conn.getresponse().read())["listener"].get("lease")
     finally:
         conn.close()
+    lease = watcher_lease(d)
     if not lease:
         print("no lease")
         return
@@ -2061,10 +2146,16 @@ def main(argv=None):
     s.add_argument("--seq", type=int, nargs="+", required=True)
     s.set_defaults(fn=write_op(op_handle, "handle"))
 
-    s = sub.add_parser("note-reply", help="reply in the Notes to Claude thread")
+    s = sub.add_parser("note-reply", help="post or reply in the Notes to Claude thread")
     s.add_argument("--text", required=True)
     s.add_argument(
         "--seq", type=int, help="note event seq this answers; marks it handled"
+    )
+    s.add_argument(
+        "--needs-answer",
+        dest="needsAnswer",
+        action="store_true",
+        help="flag the note as needing the user's answer; the page pins it as a loose end with a reply box",
     )
     s.set_defaults(fn=write_op(op_note_reply, "note-reply"))
 
@@ -2132,6 +2223,13 @@ def main(argv=None):
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_import_ledger)
+
+    s = sub.add_parser(
+        "repair-rounds",
+        help="set each seeded question's round to the one its ledger round cell reads as",
+    )
+    add_dir(s)
+    s.set_defaults(fn=cmd_repair_rounds)
 
     s = sub.add_parser(
         "sync-ledger", help="rewrite only a ledger's register rows from page state"

@@ -178,6 +178,7 @@
         "kind": {"type": ["string", "null"]},
         "text": {"type": "string"},
         "replyTo": {"type": "integer"},
+        "needsAnswer": {"type": "boolean", "description": "On a Notes line: Claude needs the user's answer, so the page pins it as a loose end with a reply box."},
         "affects": {"type": "array", "items": {"type": "string"}},
         "pageSeq": {
           "type": "integer",

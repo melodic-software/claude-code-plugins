@@ -178,6 +178,7 @@
       "properties": {
         "op": {"enum": ["note-reply"]},
         "seq": {"type": "integer"},
+        "needsAnswer": {"type": "boolean"},
         "text": {"$ref": "#/$defs/markdown"}
       }
     },
