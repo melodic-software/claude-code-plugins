@@ -16501,6 +16501,65 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
                 self.assertEqual(0, code, payload)
 
 
+class WindowsEscapingEntryTests(unittest.TestCase):
+    """A snapshot-relative path must not leave the target when joined on Windows."""
+
+    ESCAPING = (
+        "C:/Users/victim",
+        "C:\\Users\\victim",
+        "C:victim",
+        "\\Users\\victim",
+        "//server/share/victim",
+        "\\\\server\\share\\victim",
+        "..\\outside\\victim",
+        "sub\\..\\..\\outside\\victim",
+    )
+
+    @staticmethod
+    def snapshot_with(path: str) -> dict[str, Any]:
+        return {"entries": [{"path": "ok.tmp"}, {"path": path}]}
+
+    def test_escaping_forms_really_leave_a_windows_target(self) -> None:
+        for value in self.ESCAPING:
+            with self.subTest(path=value):
+                joined = ntpath.normpath(
+                    ntpath.join("D:\\target", *PurePosixPath(value).parts)
+                )
+                self.assertFalse(joined.startswith("D:\\target\\"), joined)
+
+    def test_snapshot_entry_that_can_leave_the_target_is_refused_on_windows(
+        self,
+    ) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            for value in self.ESCAPING:
+                with self.subTest(path=value):
+                    with self.assertRaisesRegex(hygiene.HygieneError, "leave the target"):
+                        hygiene.entry_map(self.snapshot_with(value))
+            self.assertEqual(
+                {"ok.tmp", "a/b.txt"}, set(hygiene.entry_map(self.snapshot_with("a/b.txt")))
+            )
+
+    def test_vcs_evidence_repository_path_cannot_leave_the_approved_path(
+        self,
+    ) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="windows"):
+            for value in ("checkout/..\\..\\outside", "checkout/C:\\Users", "checkout/\\x"):
+                with self.subTest(path=value):
+                    payload = {
+                        "version": 1,
+                        "repositories": [
+                            {"path": value, "remote": None, "stash_copies": []}
+                        ],
+                    }
+                    with self.assertRaisesRegex(hygiene.HygieneError, "outside approved"):
+                        hygiene.validate_vcs_evidence(payload, ["checkout"])
+
+    def test_the_same_names_stay_legal_on_linux(self) -> None:
+        with mock.patch.object(hygiene, "os_key", return_value="linux"):
+            entries = hygiene.entry_map(self.snapshot_with("C:\\Users\\victim"))
+        self.assertIn("C:\\Users\\victim", entries)
+
+
 class InventoryCommandTests(unittest.TestCase):
     """The read-only ``inventory`` subcommand and the report it writes."""
 

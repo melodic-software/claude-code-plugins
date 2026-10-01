@@ -23,7 +23,7 @@ import tempfile
 import time
 from collections import Counter
 from collections.abc import Callable, Iterable
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
@@ -3057,6 +3057,24 @@ def annotate_tracked(
                 )
 
 
+def windows_escaping_path(relative: str) -> bool:
+    """True on Windows when joining ``relative`` onto the target can leave it.
+
+    Every lane joins a snapshot-relative path with ``target.joinpath(*
+    PurePosixPath(relative).parts)``. A Windows join discards the target for a
+    drive, UNC or rooted part and follows a backslash ``..`` the POSIX split
+    never sees, so a scan-produced "/"-separated relative path is the only
+    form that stays inside it.
+    """
+    if os_key() != "windows":
+        return False
+    for part in PurePosixPath(relative).parts:
+        pure = PureWindowsPath(part)
+        if pure.drive or pure.root or ".." in pure.parts:
+            return True
+    return False
+
+
 def entry_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     entries = snapshot.get("entries")
     if not isinstance(entries, list):
@@ -3065,6 +3083,10 @@ def entry_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for entry in entries:
         if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
             raise HygieneError("every snapshot entry must be an object with a path")
+        if windows_escaping_path(entry["path"]):
+            raise HygieneError(
+                f"snapshot entry path can leave the target: {entry['path']}"
+            )
         if entry["path"] in result:
             raise HygieneError(f"duplicate snapshot entry: {entry['path']}")
         result[entry["path"]] = entry
@@ -3288,6 +3310,7 @@ def validate_vcs_evidence(
             or relative in {".", "/"}
             or pure.is_absolute()
             or ".." in pure.parts
+            or windows_escaping_path(relative)
             or not any(path == pure or path in pure.parents for path in approved_paths)
         ):
             raise HygieneError(
