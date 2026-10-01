@@ -518,6 +518,47 @@ class TestRevise(DirCase):
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
 
 
+class TestRecAlternativeCollision(DirCase):
+    def test_reply_rec_equal_or_containing_an_alternative_is_refused(self):
+        for rec in ("  no.", "Pick no, then ship it"):
+            out = self.assert_refused("reply", "Q1", "--rec", rec, "--affects", "none")
+            self.assertIn("Q1", out)
+            self.assertIn("(a)", out)
+            self.assertIn("revise", out)
+
+    def test_revise_rec_colliding_with_an_alternative_is_refused(self):
+        out = self.assert_refused("revise", "Q1", "--rec", "No", "--affects", "none")
+        self.assertIn("revise --alt", out)
+
+    def test_revise_rec_with_alt_that_removes_the_collision_saves(self):
+        rc, out, err = self.rp(
+            "revise",
+            "Q1",
+            "--rec",
+            "No",
+            "--affects",
+            "none",
+            "--alt",
+            "a:Yes",
+            "--alt",
+            "b:Later",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["recommendation"], "No")
+
+    def test_revise_alt_colliding_with_the_existing_rec_is_refused(self):
+        self.assert_refused(
+            "revise", "Q1", "--alt", "a:yes. it keeps things simple", "--alt", "b:Later"
+        )
+
+    def test_reply_rec_without_a_collision_saves(self):
+        rc, out, err = self.rp(
+            "reply", "Q1", "--rec", "Ship it now.", "--affects", "none"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["recommendation"], "Ship it now.")
+
+
 class TestReviseCommits(DirCase):
     def revise_commits(self, *commits):
         args = [a for c in commits for a in ("--commit", c)]
