@@ -248,8 +248,8 @@ Limitations:
   bound of 0.61 or less.
 - 78 rows cannot separate accuracy 0.9 from 0.8 (Power above), so close arms tie and the
   tie-breaks decide.
-- Run-to-run churn: the chosen arm's verdict changed on 10% of rows across three runs (Model
-  sweep), the same size as most accuracy gaps in the table.
+- Run-to-run churn: the chosen arm's verdict changed on 8 of 78 rows across three runs (Model
+  sweep), more than every accuracy gap in the table (at most 5 rows, 66 to 71).
 
 ### Rater agreement
 
