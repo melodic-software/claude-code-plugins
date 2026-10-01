@@ -296,31 +296,22 @@ summarized by the harness) must treat the session as **evidence-degraded regardl
 including a green `smart` reading. The snapshot cannot tell you compaction happened; only the
 session itself can know.
 
-**No published default auto-compaction threshold grounds the bands.** Verified 2026-09-28
-(model-config, "Default auto-compact thresholds"; the how-Claude-Code-works, context-window,
-settings `autoCompactEnabled`, costs, and statusline pages, checked 2026-07-23 and 2026-08-10,
-say only that compaction triggers "when approaching context limits"). With no window configured,
-compaction fires **at the model's context limit**, with enumerated exceptions that fire earlier:
-cloud sessions compact as the conversation *approaches* the limit; Sonnet 4.6 / Opus 4.6 without
-extended context, and Opus 4.8 and later running on a 200K window (such as on Bedrock, Agent
-Platform, and Foundry), compact at the 200K boundary; a `CLAUDE_CODE_DISABLE_1M_CONTEXT=1`
-session on a native-1M model likewise; **models on a native 1M window (Sonnet 5, the Fable
-models, and Opus 4.7 and later on the Anthropic API) compact before the window fills, at "about
-967K tokens by default"**; an unrecognized model ID compacts at whatever window Claude Code
-assumes for it. That 967K figure is the one published number in the set, and it sits at about
-97% of the window, comfortably above the shipped `dumb` band, so it does not disturb the margin that the
-bands-below-the-trigger rule protects, the way a lowered window does. A *percentage* default is
-implied by `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`'s "values above the default percentage are ignored"
-but is not published as a number. The empirical check (2026-07-24, execution session): no
-auto-compact event exists in the producing machine's entire transcript history; the largest
-session ran to 308k total input tokens uncompacted on a 1M-class window. So the shipped bands keep
-the provenance stated under "Band provenance" above, with a declared margin: if compaction triggers
-at 90% or above, as its phrasing implies, the dumb band leads it by 15 points or more. The trigger
-is **model- and environment-dependent**, so no single band set is correct everywhere; `zones.json`
-is the correction path if compaction is ever observed earlier. Claude Code 2.1.260's
-"shortly before the 1M-token limit" for Opus and Fable is this page's "about 967K tokens by
-default" for native 1M models, re-fetched 2026-09-28 from model-config "Default auto-compact
-thresholds".
+**No published default auto-compaction threshold grounds the bands.** With no window configured,
+compaction fires at or near the model's context limit; the cases that fire earlier depend on the
+model, the window it runs with, and the environment. For the current thresholds, see
+[Claude Code model config, "Default auto-compact thresholds"](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds).
+**As of:** 2026-09-30, the one number that section publishes, for native 1M windows, sits above
+the shipped `dumb` band, so it does not disturb the margin that the bands-below-the-trigger rule
+protects, the way a lowered window does. **Recheck trigger:** that section is renamed or removed,
+or publishes a default at or below the `dumb` band's lower edge. `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`
+implies a percentage default that no page publishes as a number; for that variable, see
+[Claude Code environment variables](https://code.claude.com/docs/en/env-vars). The empirical
+check (2026-07-24, execution session): no auto-compact event exists in the producing machine's
+entire transcript history; the largest session ran to 308k total input tokens uncompacted on a
+1M-class window. So the shipped bands keep the provenance stated under "Band provenance" above,
+with a declared margin: if compaction triggers at 90% or above, the dumb band leads it by 15
+points or more. The trigger is **model- and environment-dependent**, so no single band set is
+correct everywhere; `zones.json` is the correction path if compaction is ever observed earlier.
 
 Two adjacent caveats, same fetch: the doc warns the statusline percentage "may differ from
 `/context` output due to when each is calculated", so the value is as-of the last API response, not

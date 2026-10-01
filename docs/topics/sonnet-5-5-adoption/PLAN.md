@@ -193,7 +193,15 @@ Files: `plugins/session-flow/skills/keep-going/scripts/check-usage-limit-reset.p
 - `git diff --name-only -- plugins/session-flow` lists exactly the three Phase 1 files; ruff via
   the pinned wrapper is clean on the two `.py` files.
 
-### Phase 2: Doc pointers, each live-checked [TODO]
+### Phase 2: Doc pointers, each live-checked [DONE]
+
+Deviations (2026-09-30): `autonomy.md`'s 2026-08-02 effort Amended block (~:236-251), which the
+2026-09-29 block amends, became part of the same single pointer. `plugins/context-guard/README.md`
+:75-77 said the reader contract owns the exception list and repeated the figure; it now says the
+contract points at the thresholds section. The always-thinking pointer adds the Opus 5.5
+prompting guide's "Thinking instructions in chat system prompts" section (anchor verified live)
+as the basis for dropping "think carefully" lines. The `reader-contract.md` paragraph after D1's
+(~:325, statusline caveats) keeps its quotes; D1 did not cover it.
 
 Files: `prompts/loops/loop-lane-prompts.md`, `plugins/playbooks/skills/boris/reference/advanced.md`,
 `plugins/playbooks/skills/boris/reference/autonomy.md`,
