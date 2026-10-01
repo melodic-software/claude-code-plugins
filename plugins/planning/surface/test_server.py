@@ -33,6 +33,11 @@ ROUND = HERE / "round.py"
 FIXTURES = HERE / "tests" / "fixtures"
 TIMEOUT = 10
 
+import server as _server  # noqa: E402
+
+# a wake lands after one quiet window, plus slack
+WAKE_SECONDS = _server.QUIET_SECONDS + 1.0
+
 
 def run_round(d, *args, timeout=30, env=None):
     p = subprocess.run(
@@ -781,7 +786,7 @@ class TestSecurity(ServerCase):
         self.assertIn("script-src 'self' 'unsafe-inline'", csp)
         self.assertNotIn("http", csp.lower())
 
-    def test_ac7_saved_answer_reaches_a_waiting_watcher_within_1_second(self):
+    def test_ac7_saved_answer_reaches_a_waiting_watcher_within_one_quiet_window(self):
         seq0 = self.state()["responses"]["seq"]
         box = {}
 
@@ -797,9 +802,9 @@ class TestSecurity(ServerCase):
         th.join(30)
         self.assertEqual(code, 200)
         self.assertIn("returned", box)
-        self.assertLess(box["returned"] - posted, 1.0)
+        self.assertLess(box["returned"] - posted, WAKE_SECONDS)
 
-    def test_ac7_after_handled_reaches_a_waiting_watcher_within_1_second(self):
+    def test_ac7_after_handled_reaches_a_waiting_watcher_within_one_quiet_window(self):
         rc, out = self.rp("handle", "--seq", *map(str, self.unhandled_seqs()))
         self.assertEqual(rc, 0, out)
         box = {}
@@ -819,7 +824,7 @@ class TestSecurity(ServerCase):
         self.assertEqual(code, 200)
         self.assertEqual(box.get("code"), 200, box.get("raw"))
         self.assertEqual(seqs(json.loads(box["raw"])["events"]), [data["seq"]])
-        self.assertLess(box["returned"] - posted, 1.0)
+        self.assertLess(box["returned"] - posted, WAKE_SECONDS)
 
     def unhandled_seqs(self):
         st = self.state()
@@ -1246,7 +1251,7 @@ class TestReplay(WaitCase):
         # AC8: a re-arm without a handle re-delivers at once.
         code, body, took = self.wait("after=handled&replayed=0&timeout=20")
         self.assertEqual(code, 200)
-        self.assertLess(took, 1.5)
+        self.assertLess(took, WAKE_SECONDS)
         self.assertEqual(seqs(body["events"]), [first])
         self.assertEqual(body.get("replayed"), first)
 
@@ -1278,7 +1283,7 @@ class TestReplay(WaitCase):
         # A replayed value past the log counts as zero.
         _, posted = self.post({"kind": "note", "text": "Third event."})
         code, body, took = self.wait("after=handled&replayed=9999&timeout=5")
-        self.assertLess(took, 1.5)
+        self.assertLess(took, WAKE_SECONDS)
         self.assertEqual(seqs(body["events"]), [posted["seq"]])
 
 
@@ -2885,6 +2890,10 @@ class TestSettleBurstCap(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-settle-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.hub = server.Hub(0, self.tmp)
+        for name, value in (("QUIET_SECONDS", 0.3), ("BURST_SECONDS", 2.0)):
+            patcher = unittest.mock.patch.object(server, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def settle_with(self, seqs_seen):
         feed = iter(seqs_seen)

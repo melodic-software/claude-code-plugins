@@ -86,8 +86,8 @@ def runtime_path(rel):
 
 
 WAIT_MAX = 120
-QUIET_SECONDS = 0.3  # a found event waits this long for more before the watcher wakes
-BURST_SECONDS = 2.0  # never holding it longer than this in all
+QUIET_SECONDS = 3.0  # a found event waits this long for more before the watcher wakes
+BURST_SECONDS = 12.0  # never holding it longer than this in all
 PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
 READING_WINDOW = 180  # seconds Claude is shown as reading after an answer was delivered
