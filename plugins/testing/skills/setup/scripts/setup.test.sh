@@ -297,6 +297,12 @@ printf '# Testing\n\n```yaml config\npaths:\n  excludes: [x]\n```\n' >"$G/docs/c
 run_g --exclude 'y/**'
 assert_eq "a docs block that does not parse is refused, not overwritten" 2 "$rc"
 assert_contains "naming the .md line" "$out" "testing.md:5: unknown key: paths.excludes"
+unclosed='# Testing\n\n```bash\nnpm test\n'
+rm -f "$G/.claude/testing.yaml"
+printf '%b' "$unclosed" >"$G/docs/conventions/testing.md"
+run_g --exclude 'z/**'
+assert_eq "an append hidden by an unclosed fence is refused and the file restored" "2:$(printf '%b' "$unclosed")" "$rc:$(cat "$G/docs/conventions/testing.md")"
+assert_contains "naming the unclosed fence" "$out" "unclosed code fence"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
 assert_eq "apply wrote no file but the docs convention file" "docs/conventions/testing.md" \

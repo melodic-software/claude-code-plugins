@@ -164,9 +164,10 @@ apply() {
     } >"$tmp"
   fi
   mv -f "$tmp" "$f" || die "cannot write $f"
-  if ! env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home" >/dev/null; then
+  if ! got="$(env -u CLAUDE_PROJECT_DIR bash "$RESOLVER" --root "$ROOT" --home "$ROOT/.claude/nonexistent-home")" ||
+    ! grep -qxF "layer"$'\t'"$f" <<<"$got"; then
     if [[ -n "$bak" ]]; then mv -f "$bak" "$f"; else rm -f "$f"; fi
-    die "the answers do not resolve (see above); $f is unchanged"
+    die "the answers do not resolve as a layer (see above, or an unclosed code fence hides the block); $f is unchanged"
   fi
   [[ -z "$bak" ]] || rm -f "$bak"
   printf 'wrote %s\n' "$f"
