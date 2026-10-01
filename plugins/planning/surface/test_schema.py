@@ -198,6 +198,55 @@ class TestShippedSchemas(unittest.TestCase):
             schema.first_error(op, ops["$defs"]["record-terminal"], "$", ops)
         )
 
+    def test_revise_dependson_add_repoint_and_the_decision_event_content_rev(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        self.assertIsNone(check({"op": "revise", "id": "Q1", "dependsOn": ["Q2"]}))
+        self.assertIsNone(check({"op": "revise", "id": "Q1", "dependsOn": []}))
+        self.assertIn(
+            "dependsOn", check({"op": "revise", "id": "Q1", "dependsOn": "Q2"})
+        )
+        self.assertIsNone(check({"op": "add", "question": {}, "repoint": True}))
+        self.assertIsNotNone(check({"op": "add", "question": {}, "repoint": "yes"}))
+        self.assertIsNone(check({"op": "add-round", "repoint": True}))
+        accept = {"seq": 2, "id": "Q1", "kind": "accept", "at": "t", "contentRev": 3}
+        self.assertIsNone(schema.first_error(accept, schema.load("event")))
+
+    def test_finish_op_and_finished_document_field(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        self.assertIsNone(check({"op": "finish"}))
+        self.assertIsNone(
+            check({"op": "finish", "brief": "PLAN.md", "next": "n", "text": "t"})
+        )
+        self.assertIn("text", check({"op": "finish", "text": "x" * 501}))
+        self.assertIn("other", check({"op": "finish", "other": 1}))
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        doc["finished"] = {"at": "t", "by": "stop", "text": "Stopped"}
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["finished"]["by"] = "nobody"
+        self.assertIn("by", schema.first_error(doc, schema.load("questions")))
+
+    def test_a_recommendation_history_line_carries_page_seq(self):
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        line = {
+            "at": "t",
+            "by": "claude",
+            "kind": "revise",
+            "affects": [],
+            "pageSeq": 4,
+        }
+        doc["questions"][0]["history"] = [line]
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        line["pageSeq"] = "4"
+        self.assertIn("pageSeq", schema.first_error(doc, schema.load("questions")))
+
     def test_question_holds_and_restatement_fields(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         q = doc["questions"][0]
@@ -213,6 +262,33 @@ class TestShippedSchemas(unittest.TestCase):
         self.assertIsNone(schema.first_error(doc, schema.load("questions")))
         doc["restatement"]["sections"]["other"] = "o"
         self.assertIn("other", schema.first_error(doc, schema.load("questions")))
+
+    def test_ops_text_caps_match_round_py(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        for op, cap in (
+            ({"op": "activity", "text": ""}, 500),
+            ({"op": "set-status", "text": ""}, 500),
+            ({"op": "wait", "id": "Q1", "waitsOn": ""}, 500),
+            ({"op": "archive", "ids": ["Q1"], "why": ""}, 500),
+            ({"op": "revise", "id": "Q1", "title": ""}, 500),
+            ({"op": "revise", "id": "Q1", "facts": ""}, 20000),
+            ({"op": "note-reply", "text": ""}, 20000),
+            ({"op": "group", "id": "g1", "summary": ""}, 20000),
+        ):
+            field = next(k for k, v in op.items() if v == "")
+            with self.subTest(op=op["op"], field=field):
+                self.assertIsNone(check({**op, field: "x" * cap}))
+                self.assertIn(f"at most {cap}", check({**op, field: "x" * (cap + 1)}))
+        alt = {
+            "op": "revise",
+            "id": "Q1",
+            "alternatives": [{"key": "a", "text": "x" * 501}],
+        }
+        self.assertIn("at most 500", check(alt))
 
 
 if __name__ == "__main__":

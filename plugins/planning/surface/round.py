@@ -5,7 +5,7 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   add-round       add several groups, questions and visuals from one JSON file, in one write
   group           add or update a question group
   reply           append a Claude line to a question's thread; optional revised recommendation
-  revise          change a question's wording, recommendation, alternatives or commitments
+  revise          change a question's wording, recommendation, alternatives, commitments or dependencies
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
   note-reply      reply in the Notes to Claude thread
   record-terminal record an answer the user gave in the terminal
@@ -14,12 +14,18 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   status          open and answered counts per group, plus unhandled page events (--latency: p50/p95)
   bump            bump the file rev (and one question's rev with --id)
   validate        check questions.json and responses.json against the shipped schemas
-  export-ledger   write the interview ledger (decision tree and open-question register)
-  export-brief    write the PLAN.md Brief sections
+  export-ledger   write the interview ledger (decision tree and open-question register);
+                  --ledger F merges into F's register, --diff F prints what that would change
+  export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows
   export-report   write one self-contained HTML report
   import-ledger   seed an empty data dir from an existing ledger
+  sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
+                  --ledger merges
+  doctor          report what the running version needs and --ledger F or the page lacks (writes nothing;
+                  exit 1 on a missing element)
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
-  stop            stop the data dir's server (only the recorded PID) and clear its session files
+  stop            stop the data dir's server (only the recorded PID), post a finish when none was
+                  posted, and clear its session files but the port
   lease           print the watcher holding the server's lease, or `no lease`; --release clears it
 
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
@@ -70,6 +76,7 @@ from server import (  # noqa: E402
     is_handled,
     load_json,
     rebuild_responses,
+    release_user_holds,
     repo_root,
     save_json,
     write_private,
@@ -80,6 +87,8 @@ SESSION_FILES = (".interview-session.json", ".interview-session.env")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
+# The server pushes a state frame within 0.3 s of a write; stop waits this long so open tabs get the finish.
+FINISH_SECONDS = 1
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
@@ -108,10 +117,10 @@ LOGGED_OPS = {
     "wait",
     "confirm-commitments",
     "restate",
+    "finish",
 }
 BASIS_SENTENCES = 3
-ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
-VERSION_LABEL = re.compile(r"V[0-9]+")
+ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
@@ -160,9 +169,20 @@ def load(d):
     return doc
 
 
+def plugin_version():
+    """The planning plugin's version from its manifest, or None when the manifest is not beside this file."""
+    try:
+        manifest = HERE.parent / ".claude-plugin" / "plugin.json"
+        return json.loads(manifest.read_text(encoding="utf-8")).get("version")
+    except (OSError, ValueError):
+        return None
+
+
 def save(d, doc, touched=()):
-    """Bump rev, stamp the schema version, validate, then write; a schema failure writes nothing."""
+    """Bump rev, stamp the schema version and, on a file's first write, the plugin version that wrote it, validate, then write; a schema failure writes nothing."""
     doc["schemaVersion"] = SCHEMA_VERSION
+    if not doc.get("rev") and plugin_version():
+        doc["meta"]["pluginVersion"] = plugin_version()
     doc["rev"] = doc.get("rev", 0) + 1
     for q in touched:
         q["rev"] = doc["rev"]
@@ -261,8 +281,9 @@ def set_aside_own(r, doc, q):
         )
 
 
-def add_question(doc, q):
-    """Validate and append one question; returns the questions whose rev must bump. Exits before any write."""
+def add_question(doc, q, repoint=False):
+    """Validate and append one question; returns (the questions whose rev must bump, notes about
+    the dependents of a question it supersedes). Exits before any write."""
     for req in ("id", "short", "title"):
         if not q.get(req):
             sys.exit(f"missing {req}")
@@ -307,7 +328,7 @@ def add_question(doc, q):
         ),
     )
     q.setdefault("history", []).append({"at": now(), "by": "claude", "text": "Asked."})
-    touched = [q]
+    touched, notes = [q], []
     if q.get("supersedes"):
         old = find(doc, q["supersedes"])
         old["supersededBy"] = q["id"]
@@ -315,8 +336,76 @@ def add_question(doc, q):
             {"at": now(), "by": "claude", "text": f"Superseded by {q['id']}."}
         )
         touched.append(old)
+        notes, moved = repoint_dependents(doc, q, old, repoint)
+        touched += moved
     doc["questions"].append(q)
-    return touched
+    return touched, notes
+
+
+def repoint_dependents(doc, new, old, repoint):
+    """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
+    supersedes. With `repoint` each moves to `new`; one that `new` itself depends on, directly or
+    not, only loses `old` (moving it would make a cycle). Without it they are only named."""
+    users = [
+        x
+        for x in doc["questions"]
+        if old["id"] in (x.get("dependsOn") or [])
+        and not x.get("archived")
+        and not x.get("supersededBy")
+    ]
+    if not users:
+        return [], []
+    names = ", ".join(x["id"] for x in users)
+    if not repoint:
+        return [
+            f"{names} still depend on {old['id']}, which {new['id']} supersedes; "
+            "--repoint moves them"
+        ], []
+    by_id = {x["id"]: x for x in doc["questions"]}
+    below, todo = set(), list(new.get("dependsOn") or [])
+    while (
+        todo
+    ):  # what `new` already waits on: pointing one of those at `new` would be a cycle
+        p = todo.pop()
+        if p not in below:
+            below.add(p)
+            todo += (by_id.get(p) or {}).get("dependsOn") or []
+    moved, dropped = [], []
+    for x in users:
+        cycle = x["id"] in below
+        x["dependsOn"] = list(
+            dict.fromkeys(
+                p
+                for p in (
+                    new["id"] if p == old["id"] and not cycle else p
+                    for p in x["dependsOn"]
+                )
+                if not (cycle and p == old["id"])
+            )
+        )
+        if not x["dependsOn"]:
+            del x["dependsOn"]
+        (dropped if cycle else moved).append(x)
+        x.setdefault("history", []).append(
+            {
+                "at": now(),
+                "by": "claude",
+                "kind": "depends",
+                "text": f"Dependencies: {old['id']} dropped, {new['id']} depends on this question."
+                if cycle
+                else f"Dependencies: {old['id']} -> {new['id']}.",
+            }
+        )
+    notes = []
+    if moved:
+        notes.append(
+            f"repointed {', '.join(x['id'] for x in moved)} from {old['id']} to {new['id']}"
+        )
+    if dropped:
+        notes.append(
+            f"dropped {old['id']} from {', '.join(x['id'] for x in dropped)} ({new['id']} depends on it)"
+        )
+    return notes, moved + dropped
 
 
 def strings(v):
@@ -343,7 +432,7 @@ def warn_bare_issue_refs(doc, label, value):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, bare ids (not version labels like V1) that name no question here, and bare #N with no meta.repo."""
+    """Warnings, never refusals: R12 length budget, bare Q<N> and C<N> ids that name no question here, and bare #N with no meta.repo. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -362,11 +451,7 @@ def lint_questions(doc, qs):
         for field in ("title", "recommendation", "basis"):
             seen = set()
             for tok in ID_TOKEN.findall(q.get(field) or ""):
-                if (
-                    tok not in ids
-                    and tok not in seen
-                    and not VERSION_LABEL.fullmatch(tok)
-                ):
+                if tok not in ids and tok not in seen:
                     seen.add(tok)
                     warn(
                         f"{q['id']} {field} names {tok}, which is not a question id in this "
@@ -434,35 +519,76 @@ def set_meta(doc, m):
     doc["meta"].update(m)
 
 
+def newest_round(doc):
+    return max([q.get("round", 1) for q in doc["questions"]] or [0])
+
+
+def stamp_meta(doc):
+    doc["meta"]["setInRound"] = newest_round(doc)
+
+
+def warn_stale_meta(doc, before):
+    """Warn when a write opened a round above every earlier one while meta was last set in an older one."""
+    now_round = newest_round(doc)
+    stamp = doc["meta"].get("setInRound", 0)
+    if before and now_round > before and stamp < now_round:
+        warn(
+            f"meta was last set in round {stamp}, but this adds round {now_round}; the header "
+            "(eyebrow) and next still describe the older round; refresh them with "
+            "a meta op (apply) or add-round meta"
+        )
+
+
 def op_meta(d, doc, a):
     set_meta(doc, a.set)
+    stamp_meta(doc)
     return [], f"meta set {', '.join(sorted(a.set))}"
 
 
 def op_add(d, doc, a):
-    touched = add_question(doc, a.question)
+    doc.pop("finished", None)
+    before = newest_round(doc)
+    touched, notes = add_question(doc, a.question, a.repoint)
+    warn_stage(doc, [a.question])
+    warn_stale_meta(doc, before)
     warn_stale_summaries(doc, [a.question])
     check_primaries(doc)
-    return touched, f"added {a.question['id']}"
+    return touched, "; ".join([f"added {a.question['id']}", *notes])
 
 
 def op_add_round(d, doc, a):
     """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}: meta, groups, then questions in file order."""
-    if a.meta is not None:
-        set_meta(doc, a.meta)
+    doc.pop("finished", None)
+    before = newest_round(doc)
+    meta = a.meta
+    if meta is not None:
+        old = doc["meta"].get("title")
+        if "title" in meta and old and meta["title"] != old and not a.replaceTitle:
+            warn(
+                f"meta.title {meta['title']!r} differs from the interview title {old!r}; "
+                "kept the existing title (pass --replace-title to replace it)"
+            )
+            meta = {k: v for k, v in meta.items() if k != "title"}
+        set_meta(doc, meta)
     for g in a.groups or []:
         if not g.get("id"):
             sys.exit("a group needs an id")
         put_group(doc, g)
-    touched = []
+    touched, notes = [], []
     for q in a.questions or []:
         if a.round is not None:
             q.setdefault("round", a.round)
-        touched += add_question(doc, q)
+        t, n = add_question(doc, q, a.repoint)
+        touched += t
+        notes += n
     for g in a.groups or []:
         if g.get("summary") is not None:
             record_summary_of(doc, g["id"])
     warn_stale_summaries(doc, a.questions or [])
+    warn_stage(doc, a.questions or [])
+    if meta is not None:
+        stamp_meta(doc)
+    warn_stale_meta(doc, before)
     known = {v.get("id") for v in doc["visuals"]}
     for v in a.visuals or []:
         if not v.get("id"):
@@ -480,7 +606,19 @@ def op_add_round(d, doc, a):
             touched,
             f"added {len(a.groups or [])} groups, {len(a.visuals or [])} visuals",
         )
-    return touched, (f"round {a.round} added: " if a.round else "added ") + ids
+    head = (f"round {a.round} added: " if a.round else "added ") + ids
+    return touched, "; ".join([head, *notes])
+
+
+def warn_stage(doc, qs):
+    """One warning per stage a new question introduces with no meta.stages label."""
+    labels = doc["meta"].get("stages") or {}
+    for st in dict.fromkeys(q.get("stage") for q in qs):
+        if st and st not in labels and st != "interview":
+            warn(
+                f"stage {st!r} has no meta.stages label, so the page splits its tag into words; "
+                f'label it with a meta op: {{"stages": {{"{st}": "..."}}}}'
+            )
 
 
 def check_primaries(doc):
@@ -540,14 +678,51 @@ def op_group(d, doc, a):
     return [], f"group {a.id} saved"
 
 
+def set_resolution(d, q, text):
+    """Record `text` as the accepted reading of the question's counted `own` answer; exits unless
+    one counts."""
+    text = " ".join(text.split())
+    if not text:
+        sys.exit("refused: reply --resolution needs text")
+    snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
+    own = exporters.latest_decision(q, snapshot.get("responses", {}))
+    if not own or own.get("decision") != "own":
+        sys.exit(f"refused: {q['id']} has no counted own answer to resolve")
+    q["resolution"] = {
+        "text": text,
+        "at": now(),
+        **({"seq": own["seq"]} if "seq" in own else {}),
+        "decidedAt": own["updatedAt"],
+    }
+
+
 def op_reply(d, doc, a):
     q = find(doc, a.id)
     for field, val, cap in (
         ("text", a.text, TEXT_CAP),
         ("rec", a.rec, LINE_CAP),
         ("why", a.why, TEXT_CAP),
+        ("resolution", a.resolution, LINE_CAP),
     ):
         capped(f"reply {field}", val, cap)
+    if a.resolution is not None:
+        if a.rec:
+            sys.exit(
+                "refused: reply takes --rec or --resolution, not both (a revised "
+                "recommendation sets the own answer aside)"
+            )
+        set_resolution(d, q, a.resolution)
+    if not a.rec and a.resolution is None:
+        latest = exporters.latest_decision(
+            q, load_json(d / "responses.json", EMPTY_RESPONSES).get("responses", {})
+        )
+        if latest and latest.get("decision") == "own":
+            print(
+                f"hint: {a.id} is answered with the user's own text and this reply sets no "
+                "recommendation, so the card still shows the old one; use revise, or "
+                "wait --by user to show that Claude waits on the user's pick",
+                file=sys.stderr,
+            )
     line = {
         "at": now(),
         "by": "claude",
@@ -559,7 +734,8 @@ def op_reply(d, doc, a):
     if a.rec:
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
-        set_aside_own(guard_revision(d, doc, a.id, a.seq, a.force), doc, q)
+        snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
+        set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
         q["revised"] = a.why or "Recommendation revised."
@@ -568,11 +744,37 @@ def op_reply(d, doc, a):
             (a.text + " " if a.text else "") + "Revised recommendation: " + a.rec
         )
         line["affects"] = affects
+        line["pageSeq"] = snapshot.get("seq", 0)
+        line["rev"] = doc["rev"] + 1
     if a.handled:
         doc["handledSeq"] = max(doc.get("handledSeq") or 0, a.handled)
     mark_handled(doc, [a.seq])
     q.setdefault("history", []).append(line)
     return [q], f"replied on {a.id}"
+
+
+def checked_depends(doc, qid, deps):
+    """`deps` without repeats, or a refusal: every id must be a known question, none the question
+    itself, and none may already depend on it (a cycle). ["none"] alone is the empty list."""
+    deps = list(dict.fromkeys([] if deps == ["none"] else deps))
+    by_id = {x["id"]: x for x in doc["questions"]}
+    unknown = [p for p in deps if p not in by_id]
+    if unknown:
+        sys.exit(f"unknown reference in {qid}: {', '.join(unknown)}")
+    if qid in deps:
+        sys.exit(f"refused: {qid} cannot depend on itself")
+    for p in deps:
+        seen, todo = set(), [p]
+        while todo:
+            x = todo.pop()
+            if x == qid:
+                sys.exit(
+                    f"refused: {p} already depends on {qid}, so {qid} cannot depend on {p}"
+                )
+            if x not in seen:
+                seen.add(x)
+                todo += by_id.get(x, {}).get("dependsOn") or []
+    return deps
 
 
 def op_revise(d, doc, a):
@@ -594,6 +796,7 @@ def op_revise(d, doc, a):
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
+    deps = None if a.dependsOn is None else checked_depends(doc, a.id, a.dependsOn)
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
     changed = []
     for field, val in (
@@ -629,20 +832,43 @@ def op_revise(d, doc, a):
             "seq", 0
         )
         changed.append("commitments")
-    if not changed:
+    moved = None
+    if deps is not None and deps != (q.get("dependsOn") or []):
+        moved = f"{', '.join(q.get('dependsOn') or []) or 'none'} -> {', '.join(deps) or 'none'}"
+        if deps:
+            q["dependsOn"] = deps
+        else:
+            q.pop("dependsOn")
+    if not changed and not moved:
         sys.exit("nothing to revise")
-    q["contentRev"] = (q.get("contentRev") or 0) + 1
-    line = {
-        "at": now(),
-        "by": "claude",
-        "kind": "revise",
-        "text": a.text or "Revised " + ", ".join(changed) + ".",
-    }
+    lines = []
+    if changed:
+        q["contentRev"] = (q.get("contentRev") or 0) + 1
+        line = {
+            "at": now(),
+            "by": "claude",
+            "kind": "revise",
+            "text": a.text or "Revised " + ", ".join(changed) + ".",
+        }
+        if affects is not None:
+            line["affects"] = affects
+        if a.rec is not None:
+            line["pageSeq"] = snapshot.get("seq", 0)
+            line["rev"] = doc["rev"] + 1
+        lines.append(line)
+    if moved:
+        lines.append(
+            {
+                "at": now(),
+                "by": "claude",
+                "kind": "depends",
+                "text": f"Dependencies: {moved}.",
+            }
+        )
+        changed.append(f"dependencies ({moved})")
     if a.seq is not None:
-        line["replyTo"] = a.seq
-    if affects is not None:
-        line["affects"] = affects
-    q.setdefault("history", []).append(line)
+        lines[0]["replyTo"] = a.seq
+    q.setdefault("history", []).extend(lines)
     mark_handled(doc, [a.seq])
     return [q], f"revised {a.id}: {', '.join(changed)}"
 
@@ -738,6 +964,21 @@ def op_set_status(d, doc, a):
     return [], "status set"
 
 
+def op_finish(d, doc, a):
+    """The closing event: the page shows it in a dismissible modal and keeps it once the server is gone."""
+    done = {"at": now(), "by": "claude"}
+    for key, val, cap in (
+        ("brief", a.brief, LINE_CAP),
+        ("next", a.next, TEXT_CAP),
+        ("text", a.text, LINE_CAP),
+    ):
+        val = capped(f"finish {key}", (val or "").strip(), cap)
+        if val:
+            done[key] = val
+    doc["finished"] = done
+    return [], "interview finished"
+
+
 HOLD_LABELS = {"claude": "pending research", "user": "needs your answer"}
 
 
@@ -811,13 +1052,15 @@ RESTATE_SECTIONS = (
     "constraints",
     "decisions",
     "acceptance",
+    "outOfScope",
     "deferred",
     "planningOwned",
 )
 
 
 def op_restate(d, doc, a):
-    """Replace the shared-understanding restatement; its rev increments so an old confirm is stale."""
+    """Post a new shared-understanding restatement: it joins `restatements` and is mirrored as
+    `restatement`, and its rev increments so an old confirm is stale."""
     s = a.sections
     if not isinstance(s, dict):
         sys.exit("refused: restate needs a sections object")
@@ -830,8 +1073,10 @@ def op_restate(d, doc, a):
         sys.exit("refused: restate needs at least one non-empty section")
     for k, v in s.items():
         capped(f"restate section {k}", v if isinstance(v, str) else "", TEXT_CAP)
-    rev = (doc.get("restatement") or {}).get("rev", 0) + 1
+    kept = exporters.restatement_revs(doc)
+    rev = max((r["rev"] for r in kept), default=0) + 1
     doc["restatement"] = {"rev": rev, "at": now(), "sections": dict(s)}
+    doc["restatements"] = [*kept, doc["restatement"]]
     return [], "restated the shared understanding"
 
 
@@ -858,7 +1103,7 @@ def log_activity(doc, text, ids, **marks):
 
 def summarize(doc, logged):
     """One feed entry for the (op name, message, touched) of one write's logged ops; none when
-    there are none. `notes`, `added` and `restate` (the new rev) mark what the page links to."""
+    there are none. `notes`, `added`, `finished` and `restate` (the new rev) mark what the page links to."""
     if not logged:
         return
     names = {name for name, _, _ in logged}
@@ -873,6 +1118,7 @@ def summarize(doc, logged):
         notes="note-reply" in names,
         added=bool(names & {"add", "add-round"}),
         restate=doc["restatement"]["rev"] if "restate" in names else None,
+        finished="finish" in names,
     )
 
 
@@ -957,6 +1203,7 @@ OP_ARGS = {
             "kind": None,
             "rec": None,
             "why": None,
+            "resolution": None,
             "affects": None,
             "handled": None,
             "force": False,
@@ -975,12 +1222,13 @@ OP_ARGS = {
             "text": None,
             "alternatives": None,
             "commits": None,
+            "dependsOn": None,
             "seq": None,
             "affects": None,
             "force": False,
         },
     ),
-    "add": (op_add, {"question": None}),
+    "add": (op_add, {"question": None, "repoint": False}),
     "add-round": (
         op_add_round,
         {
@@ -989,6 +1237,8 @@ OP_ARGS = {
             "groups": None,
             "questions": None,
             "visuals": None,
+            "repoint": False,
+            "replaceTitle": False,
         },
     ),
     "group": (
@@ -1006,6 +1256,7 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
+    "finish": (op_finish, {"brief": None, "next": None, "text": None}),
     "wait": (op_wait, {"id": None, "waitsOn": None, "by": None, "clear": False}),
     "activity": (op_activity, {"text": None, "ids": None}),
     "confirm-commitments": (
@@ -1087,6 +1338,7 @@ def cmd_status(d, a):
         return print_latency(d)
     doc = load(d)
     r = load_json(d / "responses.json", EMPTY_RESPONSES)
+    release_user_holds(doc, r)
     resp = r.get("responses", {})
     groups = {g["id"]: g for g in doc["groups"]}
     order = [g["id"] for g in doc["groups"]] + [None]
@@ -1124,6 +1376,12 @@ def cmd_status(d, a):
         )
         for line in waits:
             print(line)
+    if doc["questions"]:
+        stamp = doc["meta"].get("setInRound")
+        print(
+            f"meta last set in {'round ' + str(stamp) if stamp is not None else 'an unrecorded round'}, "
+            f"newest question in round {newest_round(doc)}"
+        )
     hs = doc.get("handledSeq") or 0
     pending = [
         e
@@ -1180,6 +1438,58 @@ def print_latency(d):
             print(f"{name} n=0 p50=- p95=-")
 
 
+LEDGER_VERSION = re.compile(r"^Planning version: *(\d+\.\d+\.\d+\S*)", re.M)
+
+
+def cmd_doctor(d, a):
+    """Report what the running version needs and the ledger or page lacks; write nothing. Exit 1 on any missing element."""
+    running = plugin_version() or "unknown"
+    text = Path(a.ledger).read_text(encoding="utf-8")
+    missing = [
+        f"{a.ledger} has no `{heading}` section"
+        for heading in ("## Constraint ledger", "## Open-question register")
+        if not re.search(rf"^{re.escape(heading)}\s*$", text, re.M)
+    ]
+    has_page = (d / "questions.json").is_file()
+    doc = load(d) if has_page else {"questions": [], "meta": {}}
+    resp = load_json(d / "responses.json", EMPTY_RESPONSES).get("responses", {})
+    live = [
+        q
+        for q in doc["questions"]
+        if not q.get("archived")
+        and not q.get("supersededBy")
+        and not effective(q, resp)
+    ]
+    for label, absent in (
+        ("a Basis", lambda q: not (q.get("basis") or "").strip()),
+        (
+            "a `Checked against:` line",
+            lambda q: "Checked against:" not in (q.get("facts") or ""),
+        ),
+    ):
+        ids = [q["id"] for q in live if absent(q)]
+        if ids:
+            missing.append(f"open questions without {label}: {', '.join(ids)}")
+    for line in missing:
+        print(f"missing: {line}")
+    m = LEDGER_VERSION.search(text)
+    wrote = {"ledger": m and m.group(1)}
+    if doc["questions"]:
+        wrote["page"] = doc["meta"].get("pluginVersion")
+    for where, version in wrote.items():
+        if version != running:
+            print(
+                f"note: the {where} was written by planning "
+                f"{version or 'an unrecorded version'}; running {running}"
+            )
+    print(
+        "not checked (no file records it): the mechanism-tripwire question and "
+        "whether the assumption sweep ran"
+    )
+    if missing:
+        sys.exit(1)
+
+
 def cmd_validate(d, a):
     """Both files against the shipped schemas, then the event-log rebuild check; exit 1 on the first error."""
     checks = (
@@ -1214,13 +1524,51 @@ def write_text(path, text):
 
 
 def cmd_export(d, a):
-    fn = {
-        "ledger": exporters.export_ledger,
-        "brief": exporters.export_brief,
-        "report": exporters.export_report,
-    }[a.what]
-    write_text(a.out, fn(d))
+    if a.what == "brief":
+        ledger = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+        text = exporters.export_brief(d, ledger)
+    else:
+        text = exporters.export_report(d)
+    write_text(a.out, text)
     print(f"wrote {a.out}")
+
+
+def report_notes(notes, kinds):
+    """Print the merge notes of the given kinds; exit 1 when any is a change or a conflict."""
+    shown = [(k, line) for k, line in notes if k in kinds]
+    for _, line in shown:
+        print(line)
+    if any(k != "kept" for k, _ in shown):
+        sys.exit(1)
+
+
+def cmd_export_ledger(d, a):
+    if a.diff:
+        text = Path(a.diff).read_text(encoding="utf-8")
+        report_notes(
+            exporters.merged_register(d, text)[2], ("change", "conflict", "kept")
+        )
+        print(f"no change to {a.diff}")
+        return
+    if not a.out:
+        sys.exit("export-ledger needs --out (or --diff LEDGER)")
+    text = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+    write_text(a.out, exporters.export_ledger(d, text))
+    print(f"wrote {a.out}")
+    if text is not None:
+        report_notes(exporters.merged_register(d, text)[2], ("conflict",))
+
+
+def cmd_sync_ledger(d, a):
+    path = Path(a.ledger)
+    # Read untranslated so a CRLF ledger keeps its line endings.
+    with open(path, encoding="utf-8", newline="") as f:
+        text, notes = exporters.sync_ledger(d, f.read(), a.ledger)
+    tmp = path.with_name(f".{path.name}.sync")
+    write_text(tmp, text)
+    os.replace(tmp, path)
+    print(f"synced the register rows of {a.ledger}")
+    report_notes(notes, ("conflict",))
 
 
 def cmd_import_ledger(d, a):
@@ -1304,6 +1652,10 @@ def running(d, s):
 
 def port_free(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if os.name == "posix":
+            # The server binds with SO_REUSEADDR, so a port a stopped server's connections hold in
+            # TIME_WAIT is free for it; without the option the kept port would never read as free.
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind(("127.0.0.1", port))
         except OSError:
@@ -1440,10 +1792,11 @@ def cmd_ensure_running(d, a):
         if not live:
             # --port first, then the recorded port (the page's origin), then the resolved setting;
             # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
-            ports = [a.port, (s or {}).get("port")]
+            ports = [a.port, kept_port(d)]
             if a.port is None:
                 ports.append(settings["port"]["value"])
             port = next((p for p in ports if p and port_free(p)), 0)
+            clear_finished(d)
             nonce = secrets.token_hex(8)
             proc = start_server(d, port, nonce)
             s = wait_started(d, nonce, proc)
@@ -1463,9 +1816,52 @@ def cmd_ensure_running(d, a):
         open_browser(url, read_user_settings(user).get("browserCommand"))
 
 
+def kept_port(d):
+    """The port the session file records, running or not, else None."""
+    try:
+        port = json.loads((d / SESSION_FILES[0]).read_text(encoding="utf-8"))["port"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    ok = isinstance(port, int) and not isinstance(port, bool) and 0 < port < 65536
+    return port if ok else None
+
+
 def clear_session(d):
+    """Remove the session files but leave the port, so the next start keeps the page's origin."""
+    port = kept_port(d)
     for name in SESSION_FILES:
         (d / name).unlink(missing_ok=True)
+    if port:
+        write_private(d / SESSION_FILES[0], json.dumps({"port": port}) + "\n")
+
+
+def clear_finished(d):
+    """A new server means a resumed interview: drop the finish an earlier stop or skill left."""
+    if not (d / "questions.json").exists():
+        return
+    try:
+        doc = load(d)
+        if doc.pop("finished", None):
+            save(d, doc)
+    except (SystemExit, OSError, ValueError):
+        pass  # an unreadable file is the server's and the gate's to report, not this start's
+
+
+def finish_on_stop(d):
+    """Post a finish when the skill posted none, then wait so open tabs receive it before the server goes."""
+    if (d / "questions.json").exists():
+        try:
+            doc = load(d)
+            if "finished" not in doc:
+                doc["finished"] = {
+                    "at": now(),
+                    "by": "stop",
+                    "text": "The interview server was stopped by Claude.",
+                }
+                save(d, doc)
+        except (SystemExit, OSError, ValueError):
+            pass  # a file the schema refuses must not keep the server running
+    time.sleep(FINISH_SECONDS)
 
 
 def cmd_stop(d, a):
@@ -1479,6 +1875,7 @@ def cmd_stop(d, a):
             clear_session(d)
             print("not running")
             return
+        finish_on_stop(d)
         os.kill(s["pid"], signal.SIGTERM)
         deadline = time.monotonic() + START_SECONDS
         while time.monotonic() < deadline and ping(s["port"], timeout=0.5):
@@ -1563,6 +1960,11 @@ def main(argv=None):
     s.add_argument("--depends", action="append", help="question id, repeatable")
     s.add_argument("--follow-up-of", dest="followUpOf")
     s.add_argument("--supersedes")
+    s.add_argument(
+        "--repoint",
+        action="store_true",
+        help="with --supersedes: move every live question that depends on the superseded one to this one",
+    )
     s.add_argument("--waiting", action="store_true")
     s.set_defaults(fn=cmd_add)
 
@@ -1575,6 +1977,17 @@ def main(argv=None):
         help='{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}',
     )
     s.add_argument("--round", type=int, help="round for questions that do not set one")
+    s.add_argument(
+        "--replace-title",
+        dest="replaceTitle",
+        action="store_true",
+        help="let the file's meta.title replace the interview title (otherwise it is kept)",
+    )
+    s.add_argument(
+        "--repoint",
+        action="store_true",
+        help="for a question that supersedes another: move the live questions that depend on the superseded one to it",
+    )
     s.set_defaults(fn=cmd_add_round)
 
     s = sub.add_parser("group", help="add or update a group")
@@ -1594,6 +2007,11 @@ def main(argv=None):
     s.add_argument("--text", default="")
     s.add_argument("--rec", help="revised recommendation")
     s.add_argument("--why", help="one line shown in the Revised banner")
+    s.add_argument(
+        "--resolution",
+        help="the accepted reading of the question's counted own answer; exports give it as "
+        "the answer and keep the user's words as its note",
+    )
     s.add_argument("--affects", help=affects_help)
     s.add_argument("--kind", choices=("reply", "rephrase", "note"))
     s.add_argument(
@@ -1624,6 +2042,12 @@ def main(argv=None):
         "--commit",
         action="append",
         help="repeatable; replaces all commitments; `--commit none` alone clears them",
+    )
+    s.add_argument(
+        "--depends",
+        dest="dependsOn",
+        action="append",
+        help="question id, repeatable; replaces all dependencies; `--depends none` alone clears them",
     )
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"
@@ -1676,14 +2100,44 @@ def main(argv=None):
     add_dir(s)
     s.set_defaults(fn=cmd_validate)
 
-    for what in ("ledger", "brief", "report"):
-        s = sub.add_parser(f"export-{what}", help=f"write the {what} export")
-        s.add_argument("--out", required=True, help="output file")
-        s.set_defaults(fn=cmd_export, what=what)
+    s = sub.add_parser("export-brief", help="write the brief export")
+    s.add_argument("--out", required=True, help="output file")
+    s.add_argument(
+        "--ledger",
+        help="number the questions as this ledger's register does and carry the deferred and "
+        "blocked rows only the ledger has",
+    )
+    s.set_defaults(fn=cmd_export, what="brief")
+
+    s = sub.add_parser("export-report", help="write the report export")
+    s.add_argument("--out", required=True, help="output file")
+    s.set_defaults(fn=cmd_export, what="report")
+
+    s = sub.add_parser("export-ledger", help="write the ledger export")
+    s.add_argument("--out", help="output file")
+    s.add_argument(
+        "--ledger",
+        help="merge into this ledger's register: keep its ledger-only rows, titles and round "
+        "labels, and keep (and print) a row it settled that the page shows otherwise with no "
+        "decision of its own",
+    )
+    s.add_argument(
+        "--diff",
+        metavar="LEDGER",
+        help="print each row and column the merge would change in LEDGER, plus status "
+        "conflicts and the text it keeps, and write nothing; exit 1 on any change or conflict",
+    )
+    s.set_defaults(fn=cmd_export_ledger)
 
     s = sub.add_parser("import-ledger", help="seed an empty data dir from a ledger")
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_import_ledger)
+
+    s = sub.add_parser(
+        "sync-ledger", help="rewrite only a ledger's register rows from page state"
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.set_defaults(fn=cmd_sync_ledger)
 
     s = sub.add_parser(
         "ensure-running",
@@ -1712,6 +2166,14 @@ def main(argv=None):
     add_dir(s)
     s.set_defaults(fn=cmd_stop)
 
+    s = sub.add_parser(
+        "doctor",
+        help="report what the running version needs and a ledger or the page lacks; "
+        "writes nothing, exits 1 on any missing element",
+    )
+    s.add_argument("--ledger", required=True, help="ledger markdown file")
+    s.set_defaults(fn=cmd_doctor)
+
     s = sub.add_parser("lease", help="print the watcher holding the lease")
     add_dir(s)
     s.add_argument(
@@ -1727,7 +2189,7 @@ def main(argv=None):
     if not a.dir:
         p.error("--dir DATA_DIR is required (the data dir holding questions.json)")
     d = Path(a.dir).resolve()
-    if not d.is_dir() and a.fn not in (cmd_ensure_running, cmd_stop):
+    if not d.is_dir() and a.fn not in (cmd_ensure_running, cmd_stop, cmd_doctor):
         sys.exit(f"no such data dir: {d}")
     a.fn(d, a)
 
