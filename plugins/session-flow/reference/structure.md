@@ -111,6 +111,10 @@ state of now).
   resolved entry moved into a committed doc: `- [hN] Promoted to <path or URL>: <opening words>`,
   keeping the entry's own tag and quoting at least its first 20 characters (or all of a shorter
   entry) verbatim. The pointer is then an ordinary entry that later hops carry.
+- **A new entry never duplicates a carried one.** When the text matches an entry already in the
+  section (ignoring the `[hN]` tag, an `UNVERIFIED` prefix, spacing and case), keep the oldest
+  tagged entry, re-tagging it to the current hop if this session re-verified it, and write no
+  second copy. `validate` warns on a duplicate.
 - **One entry per line**, continuation lines indented. A section with nothing to carry and nothing
   new reads `None.` plus a half-line of reason; `None.` lines are exempt from the tag rule.
 - Legacy (shape-1) predecessor entries arrive untagged; `new` tags them `[h1]`. A predecessor that

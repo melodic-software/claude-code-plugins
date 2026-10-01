@@ -1560,6 +1560,33 @@ def test_a_predecessor_constraint_attestation_entry_carries_forward(tmp_path):
     assert run("validate", str(target), "--strict-transcript").returncode == 0
 
 
+def test_carrying_a_rule_already_in_the_predecessor_adds_no_second_copy(tmp_path):
+    """A new entry whose text matches a carried one (tag, UNVERIFIED prefix,
+    spacing and case aside) is a duplicate: validate warns and the oldest tag
+    stays the only copy once the writer drops it."""
+    target = new_hop2_skeleton(tmp_path)
+    carried = "- [h1] The thing must stay green."
+    text = target.read_text(encoding="utf-8")
+    assert carried in text
+    slot = next(
+        line for line in text.splitlines() if line.startswith("<!-- FILL: constraints-new")
+    )
+    copy = "- [h2] UNVERIFIED (predecessor failed validation): the  THING must stay green."
+    payload = required_slots(text)
+    target.write_text(text.replace(slot, copy), encoding="utf-8", newline="\n")
+    run("fill", str(target), "--slots", slots_file(tmp_path, payload)).check_returncode()
+    warned = run("validate", str(target), "--strict-transcript")
+    assert warned.returncode == 0, out(warned) + err(warned)
+    assert "WARN: Constraints that must hold: duplicate" in out(warned)
+
+    filled = target.read_text(encoding="utf-8")
+    target.write_text(filled.replace(copy + "\n", ""), encoding="utf-8", newline="\n")
+    clean = run("validate", str(target), "--strict-transcript")
+    assert clean.returncode == 0, out(clean) + err(clean)
+    assert "WARN" not in out(clean)
+    assert target.read_text(encoding="utf-8").count("must stay green") == 1
+
+
 def test_fill_multi_line_value_lands_as_lines_in_place(tmp_path):
     target = new_skeleton(tmp_path)
     payload = required_slots(target.read_text(encoding="utf-8"))
