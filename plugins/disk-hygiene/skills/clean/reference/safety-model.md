@@ -866,8 +866,9 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
   identity (device, inode, kind) and descendant set still hold matches the same entry when another
   scan target reaches it, whatever path that scan gives it, so the answer is not asked again. The
   scan annotates the entry, or sets `target_prior_disposition` when the scan target itself is the
-  answered entry. Matching looks at the record under this target and path first, then at answers
-  recorded under other targets. An engine record is reused only under its own target and path.
+  answered entry. A record under this target and path whose identity holds decides, unless it still
+  has an open question: then an answer recorded under another target replaces it. An engine record
+  is reused only under its own target and path.
   A matched answer is not copied: the next answer recorded under this target becomes its own record
   and wins here. The `catalog` report lists a matched entry under `unchanged` as `<path> |
   <disposition> | <owner> | answered under <target>`.
@@ -887,7 +888,7 @@ file (`{"answers": [...]}`, `source: human`) into the catalog. Both take snapsho
   Give one record per owning tool or product instead of one per file: a finding or answer with an
   `owner` and `"owner_level": true` covers every entry below its path while its identity holds. The
   `catalog` output lists each in-scope entry with no record and no owner-level ancestor under
-  `uncatalogued`, with its `reasons`; report every one, so nothing that looks out of place is skipped.
+  `uncataloged`, with its `reasons`; report every one, so nothing that looks out of place is skipped.
   The catalog reads only snapshot fields and walks nothing.
 - The scan sets `prior_disposition` on an entry whose record still holds. Report new or changed
   entries first, one line for each unchanged entry, and end with the questions. Records for entries

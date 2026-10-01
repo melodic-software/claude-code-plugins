@@ -5640,7 +5640,7 @@ def main(argv: list[str] | None = None) -> int:
                         "A catalog record is a hint. It does not authorize deletion, "
                         "skip a preview, or shorten approval. Report new_or_changed "
                         "first, then one line per unchanged entry, then every "
-                        "uncatalogued in-scope entry, and end with the questions."
+                        "uncataloged in-scope entry, and end with the questions."
                     ),
                 }
             )

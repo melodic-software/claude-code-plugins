@@ -116,8 +116,16 @@ def _other_target_answer(
     target: str,
     entry: dict[str, Any],
     entries: list[dict[str, Any]],
+    local: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
-    """An operator answer recorded under another scan target for this same entry."""
+    """An operator answer recorded under another scan target for this same entry.
+
+    ``local`` is this target's record for the entry when its identity holds. It
+    settles the entry unless it still has an open question, which an answer from
+    another target retires.
+    """
+    if local is not None and not local["question"]:
+        return None
     identity = identity_of(entry)
     for record in index.get(
         (identity["device"], identity["inode"], identity["kind"]), []
@@ -154,7 +162,7 @@ def catalog_scope(snapshot: dict[str, Any], positional: bool) -> dict[str, list[
     return scope
 
 
-def _uncatalogued(
+def _uncataloged(
     target: str,
     scope: dict[str, list[str]],
     records: dict[tuple[str, str], dict[str, Any]],
@@ -337,7 +345,13 @@ def sync_catalog(
     reused: dict[str, dict[str, Any]] = {}
     for path, entry in by_path.items():
         previous = records.get((target, path))
-        if previous is not None and identity_holds(previous, entry, entries):
+        holds = previous is not None and identity_holds(previous, entry, entries)
+        if answer := _other_target_answer(
+            answers_elsewhere, target, entry, entries, previous if holds else None
+        ):
+            records.pop((target, path), None)
+            reused[path] = answer
+        elif holds:
             stored = previous["descendant_set"]
             records[(target, path)] = {
                 **previous,
@@ -349,9 +363,6 @@ def sync_catalog(
                 "last_verified": run_id,
             }
             state[path] = "unchanged"
-        elif answer := _other_target_answer(answers_elsewhere, target, entry, entries):
-            records.pop((target, path), None)
-            reused[path] = answer
         elif previous is not None:
             records[(target, path)] = _unresolved_record(
                 target, entry, entries, run_id, previous
@@ -386,10 +397,10 @@ def sync_catalog(
         "version": CATALOG_VERSION,
         "records": [records[key] for key in sorted(records)],
     }
-    uncatalogued = _uncatalogued(
+    uncataloged = _uncataloged(
         target, catalog_scope(snapshot, positional), records, reused
     )
-    return catalog, _report(target, records, state, reused, unmatched, uncatalogued)
+    return catalog, _report(target, records, state, reused, unmatched, uncataloged)
 
 
 def _report(
@@ -398,7 +409,7 @@ def _report(
     state: dict[str, str],
     reused: dict[str, dict[str, Any]],
     unmatched: list[str],
-    uncatalogued: list[dict[str, Any]],
+    uncataloged: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """New or changed entries first, unchanged entries one line each.
 
@@ -441,7 +452,7 @@ def _report(
         "new_or_changed": new_or_changed,
         "unchanged": [line for _, line in sorted(unchanged)],
         "questions": questions,
-        "uncatalogued": uncatalogued,
+        "uncataloged": uncataloged,
         "unmatched": unmatched,
     }
 
@@ -449,10 +460,10 @@ def _report(
 def annotate_entries(snapshot: dict[str, Any], catalog: dict[str, Any]) -> None:
     """Set ``prior_disposition`` on entries whose record identity still holds.
 
-    The record under this target and path decides first. Otherwise an operator
-    answer recorded under another scan target matches the same entry by
-    identity, and the scan target itself, which is not an entry, gets
-    ``target_prior_disposition``.
+    The record under this target and path decides first, unless it still has an
+    open question. An operator answer recorded under another scan target
+    matches the same entry by identity and decides in its place, and the scan
+    target itself, which is not an entry, gets ``target_prior_disposition``.
 
     The field is a report hint. It is not an approval and no plan copies it.
     ``prior_unresolved`` marks a record that still has an open question, so an
@@ -466,8 +477,12 @@ def annotate_entries(snapshot: dict[str, Any], catalog: dict[str, Any]) -> None:
         entry.pop("prior_disposition", None)
         entry.pop("prior_unresolved", None)
         record = records.get((target, entry["path"]))
-        if record is None or not identity_holds(record, entry, entries):
-            record = _other_target_answer(answers_elsewhere, target, entry, entries)
+        if record is not None and not identity_holds(record, entry, entries):
+            record = None
+        record = (
+            _other_target_answer(answers_elsewhere, target, entry, entries, record)
+            or record
+        )
         if record is None:
             continue
         entry["prior_disposition"] = record.get("disposition")
@@ -511,10 +526,10 @@ def render_markdown(catalog: dict[str, Any], report: dict[str, Any]) -> str:
         ]
     lines += ["### Unchanged", ""]
     lines += [f"- {line}" for line in report["unchanged"]] or ["None."]
-    lines += ["", "### Uncatalogued", ""]
+    lines += ["", "### Uncataloged", ""]
     lines += [
         f"- `{item['path']}` ({', '.join(item['reasons'])})"
-        for item in report["uncatalogued"]
+        for item in report["uncataloged"]
     ] or ["None."]
     lines += ["", "### Questions", ""]
     lines += [

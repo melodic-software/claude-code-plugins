@@ -7,11 +7,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Added
 
-- **Catalog scope and an `uncatalogued` report**
+- **Catalog scope and an `uncataloged` report**
   ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). `catalog` now
   accounts for every immediate child of the target, every hinted or empty entry at any depth, and,
   at a user-home or `--root-children` target, every out-of-place immediate child. Entries with no
-  record and no owner-level ancestor are listed under `uncatalogued`; a record marked
+  record and no owner-level ancestor are listed under `uncataloged`; a record marked
   `owner_level` covers everything below its path while its identity holds.
 - **Required ownership investigation** (`reference/ownership-investigation.md`). Each entry is
   checked against nine local sources, each evidence item names its source, `/discovery:research`
@@ -22,7 +22,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 - **Operator answers follow the entry, not the scan target.** A `source: human` record whose identity
   and descendant set still hold is reused when another scan target reaches the same entry, so it is
-  not asked again. The scan sets `target_prior_disposition` when the scan target itself was answered,
+  not asked again, even where this target holds an engine record with an open question. The scan sets `target_prior_disposition` when the scan target itself was answered,
   and the `catalog` report lists a reused entry under `unchanged` as `answered under <target>`.
 
 ## [0.40.0] - 2026-09-30

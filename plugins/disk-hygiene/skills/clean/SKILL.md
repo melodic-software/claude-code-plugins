@@ -263,10 +263,8 @@ module name. The file's entry carries a `stdlib-module-shadow` advisory, and the
 advisory is not a hint and adds no tier. When a shadowing file has a `bytecode_cache`, recommend
 renaming or moving the source file, since deleting the cache alone is undone by the next import.
 
-For each hinted or suspicious entry, and each entry the catalog lists as `uncatalogued`, first run the required
-local procedure in [ownership investigation](reference/ownership-investigation.md). It enumerates the sources
-to check and how evidence is recorded, and it governs the `/discovery:research` escalation when no owner is
-found. Then inspect enough neighboring content and metadata to answer:
+For each hinted or suspicious entry, and each entry the catalog lists as `uncataloged`, first run the required local procedure in [ownership investigation](reference/ownership-investigation.md) (its sources, how evidence is recorded, and the `/discovery:research` escalation when no owner is found).
+Then inspect enough neighboring content and metadata to answer:
 
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning
    tool over an age/name guess.

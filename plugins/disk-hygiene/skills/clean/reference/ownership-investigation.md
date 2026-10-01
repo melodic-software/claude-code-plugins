@@ -1,7 +1,7 @@
 # Ownership investigation
 
 Run this procedure for every entry the [investigated catalog](safety-model.md#investigated-catalog)
-has to account for (hinted, suspicious, or listed under `uncatalogued`) before classifying it. It
+has to account for (hinted, suspicious, or listed under `uncataloged`) before classifying it. It
 answers section 2 question 1 (what created it) and question 2 (is the owner active) from evidence on
 this machine. Every command is read-only; none kills, pauses or modifies anything.
 
@@ -13,7 +13,7 @@ recorded as checked with no result, not skipped.
 1. **Manifests and READMEs.** `package.json`, `pyproject.toml`, `Cargo.toml`, `*.csproj`, `README*`,
    `LICENSE` and similar files in the entry or its nearest parent directories.
 2. **Config file contents.** Open the entry's own config files and the owning tool's config
-   (`~/.config/<tool>`, `%APPDATA%\<tool>`, `~/Library/Application Support/<tool>`). Look for the
+   (`~/.config/<tool>`, the tool's folder under `%APPDATA%`, `~/Library/Application Support/<tool>`). Look for the
    entry's path or name.
 3. **Command resolution.** Whether a command named like the entry resolves: `Get-Command <name>` on
    Windows, `command -v <name>` or `which <name>` on Linux and macOS.

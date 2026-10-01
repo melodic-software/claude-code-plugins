@@ -229,7 +229,7 @@ class CatalogRulesTest(unittest.TestCase):
         again, report = catalog.sync_catalog(reached, answered, [], [], "run-u")
         line = "esupport | keep | eSupport | answered under /root"
         self.assertEqual([line], report["unchanged"])
-        for key in ("new_or_changed", "questions", "uncatalogued"):
+        for key in ("new_or_changed", "questions", "uncataloged"):
             self.assertEqual([], report[key])
         self.assertIn(f"- {line}", catalog.render_markdown(again, report))
         _, local = catalog.sync_catalog(
@@ -241,6 +241,49 @@ class CatalogRulesTest(unittest.TestCase):
         )
         self.assertEqual([], local["unchanged"])
         self.assertEqual(["new"], [item["state"] for item in local["new_or_changed"]])
+
+    def test_an_open_question_yields_to_an_answer_from_another_target(self) -> None:
+        asked, first = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/a"),
+            None,
+            [_finding("esupport", owner=None)],
+            [],
+            "run-w",
+        )
+        self.assertEqual(["esupport"], [item["path"] for item in first["questions"]])
+        answered, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/b"),
+            asked,
+            [],
+            [{"path": "esupport", "owner": "eSupport", "disposition": "keep"}],
+            "run-x",
+        )
+        rescan = _snapshot(_entry("esupport", inode=20), target="/a")
+        catalog.annotate_entries(rescan, answered)
+        self.assertEqual("keep", rescan["entries"][0]["prior_disposition"])
+        self.assertNotIn("prior_unresolved", rescan["entries"][0])
+        again, report = catalog.sync_catalog(
+            rescan, answered, [_finding("esupport", owner=None)], [], "run-y"
+        )
+        self.assertEqual([], report["questions"])
+        self.assertEqual(
+            ["esupport | keep | eSupport | answered under /b"], report["unchanged"]
+        )
+        self.assertEqual(["/b"], [record["target"] for record in again["records"]])
+
+    def test_an_open_question_stays_when_no_other_target_has_an_answer(self) -> None:
+        asked, _ = catalog.sync_catalog(
+            _snapshot(_entry("esupport", inode=20), target="/a"),
+            None,
+            [_finding("esupport", owner=None)],
+            [],
+            "run-z",
+        )
+        rescan = _snapshot(_entry("esupport", inode=20), target="/a")
+        catalog.annotate_entries(rescan, asked)
+        self.assertTrue(rescan["entries"][0]["prior_unresolved"])
+        _, report = catalog.sync_catalog(rescan, asked, [], [], "run-aa")
+        self.assertEqual(["esupport"], [item["path"] for item in report["questions"]])
 
     def test_identity_change_under_another_target_invalidates_the_answer(self) -> None:
         first = _snapshot(_entry("esupport", inode=20), target="/root")
@@ -395,9 +438,9 @@ class CatalogScopeTest(unittest.TestCase):
         )
         self.assertEqual(
             ["Library", "tool/data/cache", "tool/empty"],
-            [item["path"] for item in report["uncatalogued"]],
+            [item["path"] for item in report["uncataloged"]],
         )
-        self.assertEqual(["hinted"], report["uncatalogued"][1]["reasons"])
+        self.assertEqual(["hinted"], report["uncataloged"][1]["reasons"])
 
     def test_an_owner_level_record_covers_its_descendants(self) -> None:
         stored, report = catalog.sync_catalog(
@@ -408,7 +451,7 @@ class CatalogScopeTest(unittest.TestCase):
             "run-b",
         )
         self.assertTrue(stored["records"][1]["owner_level"])
-        self.assertEqual([], report["uncatalogued"])
+        self.assertEqual([], report["uncataloged"])
         self.assertIn("owner level", catalog.render_markdown(stored, report))
 
     def test_an_owner_level_marker_needs_an_owner(self) -> None:
@@ -422,7 +465,7 @@ class CatalogScopeTest(unittest.TestCase):
         self.assertNotIn("owner_level", stored["records"][1])
         self.assertEqual(
             ["tool/data/cache", "tool/empty"],
-            [item["path"] for item in report["uncatalogued"]],
+            [item["path"] for item in report["uncataloged"]],
         )
 
     def test_a_record_that_lost_identity_stops_covering(self) -> None:
@@ -432,7 +475,7 @@ class CatalogScopeTest(unittest.TestCase):
         )
         snapshot["entries"][0]["inode"] = 99
         _, report = catalog.sync_catalog(snapshot, stored, [], [], "run-e")
-        self.assertIn("tool/empty", [item["path"] for item in report["uncatalogued"]])
+        self.assertIn("tool/empty", [item["path"] for item in report["uncataloged"]])
 
     def test_a_human_answer_from_another_target_counts_as_a_record(self) -> None:
         elsewhere = {**self.snapshot(), "target": "/other"}
@@ -440,7 +483,7 @@ class CatalogScopeTest(unittest.TestCase):
             elsewhere, None, [], [{"path": "tool", "disposition": "keep"}], "run-f"
         )
         _, report = catalog.sync_catalog(self.snapshot(), stored, [], [], "run-g")
-        self.assertNotIn("tool", [item["path"] for item in report["uncatalogued"]])
+        self.assertNotIn("tool", [item["path"] for item in report["uncataloged"]])
 
 
 class CatalogCommandTest(unittest.TestCase):
@@ -510,7 +553,7 @@ class CatalogCommandTest(unittest.TestCase):
         self.assertEqual("remove", annotated["prior_disposition"])
         self.assertTrue(self.item.is_file())
 
-    def test_catalog_output_lists_the_uncatalogued_in_scope_entries(self) -> None:
+    def test_catalog_output_lists_the_uncataloged_in_scope_entries(self) -> None:
         snapshot = self.scan("snapshot.json")
         code, result = self.run_main(
             "catalog", "--snapshot", str(snapshot), "--run-id", "run-1"
@@ -518,10 +561,10 @@ class CatalogCommandTest(unittest.TestCase):
         self.assertEqual(0, code)
         self.assertEqual(
             [{"path": "loose.txt", "reasons": ["immediate-child"]}],
-            result["uncatalogued"],
+            result["uncataloged"],
         )
         self.assertIn(
-            "### Uncatalogued\n\n- `loose.txt`",
+            "### Uncataloged\n\n- `loose.txt`",
             (self.data / "CATALOG.md").read_text(encoding="utf-8"),
         )
 
@@ -533,7 +576,7 @@ class CatalogCommandTest(unittest.TestCase):
             )
         self.assertEqual(0, code)
         self.assertEqual(
-            ["immediate-child", "out-of-place"], result["uncatalogued"][0]["reasons"]
+            ["immediate-child", "out-of-place"], result["uncataloged"][0]["reasons"]
         )
 
     def test_operator_answer_file_is_persisted_as_human_source(self) -> None:
