@@ -12,7 +12,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   module and scope see, by the same rule name and field resolution use. Before, it took the
   nearest same-name binding in the bundle, an unrelated call on 2.1.286, so the shared entries
   (the Artifact tools among them) were dropped and the field read `partial`. A spread whose
-  binding is not an array literal still reads `partial`.
+  binding is not an array literal, or is assigned inside another function, still reads `partial`.
 
 ## [0.79.2] - 2026-10-01
 

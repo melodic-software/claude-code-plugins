@@ -1921,6 +1921,54 @@ def _binding_value(
     return found.end()
 
 
+def _spread_array(src: str, braces: BraceMap, ident: str, at: int) -> int | None:
+    """The `[` of the array literal `...ident` at `at` spreads, or None.
+
+    The binding is the one `at`'s module and scope see (`_binding_value`),
+    and another function must not write it: `var x=[a];function f(){x=[b]}`
+    reads b once f has run, so the list is not static.
+    """
+    try:
+        v = _binding_value(src, braces, ident, at, window=SHORT_IDENT_LOCALITY_BYTES)
+    except (ValueError, IndexError, RecursionError):
+        return None
+    if v is None or not src.startswith("[", v):
+        return None
+    head = re.search(
+        r"(?<![\w$.])" + re.escape(ident) + r"\s*=\s*$", src[max(0, v - 256) : v]
+    )
+    if head is None:
+        return None
+    if _written_elsewhere(src, braces, ident, max(0, v - 256) + head.start()):
+        return None
+    return v
+
+
+def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool:
+    """Whether a function other than the one declaring `ident` at `pos`
+    writes that binding: `var x=1;function f(){x=2}` leaves x's value to
+    whether and when f runs. A write in a function that declares its own
+    `ident` is to that local, not to this binding."""
+    home = _function_block(src, braces, pos)
+    lo, hi = _chunk_span(src, pos)
+    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    for m in _write_pattern(ident).finditer(src, lo, hi):
+        w = name.search(src, m.start(), m.end())
+        if w is None or w.start() == pos or _declares(src, w.start()):
+            continue
+        w = w.start()
+        fn = _function_block(src, braces, w)
+        if fn is None or fn == home or not _visible(braces, pos, w, src):
+            continue
+        if not any(
+            _declares(src, fn[0] + d.start())
+            and _visible(braces, fn[0] + d.start(), w, src)
+            for d in name.finditer(src, fn[0], fn[1])
+        ):
+            return True
+    return False
+
+
 def _function_pattern(ident: str) -> re.Pattern[str]:
     return re.compile(r"function\s+" + re.escape(ident) + r"\s*\(([^()]*)\)\s*\{")
 
@@ -3239,17 +3287,8 @@ def _array_names(
         if lit:
             names.append(_unescape(lit.group(1)))
         elif spread and hops > 0:
-            try:
-                v = _binding_value(
-                    src,
-                    braces,
-                    spread.group(1),
-                    start,
-                    window=SHORT_IDENT_LOCALITY_BYTES,
-                )
-            except (ValueError, IndexError, RecursionError):
-                v = None
-            if v is not None and src.startswith("[", v):
+            v = _spread_array(src, braces, spread.group(1), start)
+            if v is not None:
                 more, ok = _array_names(src, braces, v, index, v, hops - 1)
                 names.extend(more)
                 complete = complete and ok
