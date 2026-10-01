@@ -7,12 +7,11 @@ gap." The Brief (Q1-Q13) and amendments A1-A14 are the contract and are not reop
 split this scope off Release 2 on 2026-09-29 (`docs/topics/tautological-tests-judge/PLAN.md:15` on
 that plan's branch).
 
-Form: light (one module, one skill). Unattended run on 2026-09-30: no one answered questions, so
-each thread records the recommended answer as taken. Every answer is open to the user at plan
-approval, which is still pending. The user decided DT2, DT3, DT4, DT8, DT9, DT10, DT13, DT14, DT15
+Form: light (one module, one skill). The user approved every thread and the plan on 2026-10-01.
+The user decided DT2, DT3, DT4, DT8, DT9, DT10, DT13, DT14, DT15
 and DT16 on 2026-09-30; each such line starts "Decided 2026-09-30 (user)". On 2026-10-01 the user
 narrowed 2b to what Release 3's cleanup gate needs; DT4, DT5, DT6 and DT9 carry a line starting
-"Decided (user) 2026-10-01". Lines marked "Recommended, awaiting user" (DT2, DT5) are open.
+"Decided (user) 2026-10-01". Every other thread carries "Decided (user) 2026-10-01: recommendation approved".
 
 Evidence read this session:
 
@@ -38,10 +37,10 @@ Evidence read this session:
 | ID | Thread | Status |
 |---|---|---|
 | DT1 | Which tests run against each mutant | resolved |
-| DT2 | How changed test files are recognized | resolved (one item awaiting user) |
+| DT2 | How changed test files are recognized | resolved |
 | DT3 | Mapping changed tests to the production code they exercise | resolved |
 | DT4 | Trigger: the `--exercised` flag, cost | resolved |
-| DT5 | Survivor cause classification (Q11) | resolved (one item awaiting user) |
+| DT5 | Survivor cause classification (Q11) | resolved |
 | DT6 | The copied-logic blind spot | resolved |
 | DT7 | Metrics under the new scope | resolved |
 | DT8 | Tool support for running a named test set | directional |
@@ -65,7 +64,7 @@ Options:
 - A. Every test covering the mutated line, as Phase 1 step 4 does today (SKILL.md:149-151).
 - B. Only the changed tests.
 
-Recommended answer taken unattended (2026-09-30): B. Under the new scope each mutant runs against
+Decided (user) 2026-10-01: recommendation approved: B. Under the new scope each mutant runs against
 the changed tests only. Under A, an existing strong test kills the mutant and hides the weak new
 test, which is the one being judged. This is a deliberate divergence from Phase 1 step 4 for this
 scope only; the diff scope keeps A. A survivor under B means "the changed tests do not check this",
@@ -130,7 +129,7 @@ Found 2026-10-01: `/testing:audit` takes no file argument (`plugins/testing/skil
 `${CLAUDE_PLUGIN_ROOT}` resolves only the calling plugin, and cross-plugin use goes through the
 Skill tool (SKILL.md:97, :306).
 
-Recommended, awaiting user (2026-10-01): a file claimed by an adapter that is off in the testing
+Decided (user) 2026-10-01: recommendation approved: a file claimed by an adapter that is off in the testing
 config prints `adapter: none (<id> claims this file and is off in the testing config)`
 (`cant-fail-scan.sh:981`), where an unclaimed file prints `adapter: none (no adapter claims this
 file)` (:983). The audit tells them apart by the parenthetical: the disabled-adapter file is not a
@@ -152,7 +151,7 @@ Options:
   the `mutate` globs, and scope to the bodies of those functions.
 - C. Import-graph resolution: mutate whole imported files.
 
-Recommended answer taken unattended (2026-09-30): B. A needs a per-ecosystem coverage command the
+Decided (user) 2026-10-01: recommendation approved: B. A needs a per-ecosystem coverage command the
 config does not hold today. C over-scopes to whole files and multiplies mutants. B is universal and
 cheap. It follows direct calls from the test body only, not callees of callees; indirection (DI,
 interfaces, HTTP-level tests, helpers) can map to nothing. One mutant per line and the cap rules stay
@@ -219,7 +218,7 @@ under any scope gains one cause:
 | `input-gap` | An independent oracle exists, but no input distinguishes the mutant | The assertion line and the inputs used |
 | `unclassified` | The triage could not quote evidence for a cause, or the expected value comes from the code under test (judge rule) | What was missing, or the assertion line whose expected side calls the mutated code |
 
-Recommended answer taken unattended (2026-09-30): the same fresh-context triage that assigns the
+Decided (user) 2026-10-01: recommendation approved: the same fresh-context triage that assigns the
 disposition assigns the cause, in the same brief, with quoted evidence; a cause without a quote is
 `unclassified`. No new rule id and no new findings column: the cause leads the persisted `Finding`
 text and selects the `Action` wording (add an assertion; add an input case; for `unclassified`,
@@ -234,7 +233,7 @@ cause boundaries are soft):
 - A weak, inert or mock-only assertion on the mutated value counts as `no-assertion`.
 - A mutated line no changed test reaches is `input-gap`: no input takes that branch (DT13, decided
   2026-09-30 by the user; this replaces the old rule that gave a cause only to a reached mutant).
-- Recommended, awaiting user (2026-10-01): an expected value that reaches the mutated function,
+- Decided (user) 2026-10-01: recommendation approved: an expected value that reaches the mutated function,
   directly or through a helper, is `unclassified`, never `input-gap`, and the finding names
   `testing/judge/rule-restated-expectation`. Why: such a test has an assertion, so without this rule
   the triage could call it `input-gap`, and Release 3's cleanup would add an input case to a
@@ -250,7 +249,7 @@ and Action text, "never invent a column"); Q11 (spec:98-100); `taut.py` (calls-S
 
 ### DT6: The copied-logic blind spot
 
-Recommended answer taken unattended (2026-09-30): every exercised-scope report prints one fixed
+Decided (user) 2026-10-01: recommendation approved: every exercised-scope report prints one fixed
 line: a killed mutant does not clear a copied-logic oracle, because a test that copies the
 production formula kills the same mutants as a spec literal. The principles skill states the limit
 once; the audit body cites it.
@@ -267,7 +266,7 @@ Basis: `taut.py` output (copied logic 3/3, literal 3/3); RESEARCH.md "What mutat
 
 ### DT7: Metrics under the new scope
 
-Recommended answer taken unattended (2026-09-30; its reachability source is superseded by the
+Decided (user) 2026-10-01: recommendation approved (answer 2026-09-30; its reachability source is superseded by the
 decision below): coverage in the oracle gap is the changed tests'
 line coverage over the scoped lines: scoped lines whose mutant DT13 marked reached, over scoped
 lines. The ranking at SKILL.md:234-243 stays meaningful because both terms describe the same tests.
@@ -310,7 +309,7 @@ The audit is skill prose plus one script (`scripts/suppression-lint.sh`). Existi
 prose-graded `skills/audit/evals/evals.json` (14 cases) and `*.test.sh` files run by
 `scripts/run-plugin-tests.sh`.
 
-Recommended answer taken unattended (2026-09-30): one fixture project with one scenario per
+Decided (user) 2026-10-01: recommendation approved: one fixture project with one scenario per
 expected outcome, and the existing evals seam. The kill unit is the changed-test set (DT12), so each
 scenario changes only its own test file; six tests changed together would let the literal test kill
 every mutant and hide the rest.
@@ -322,7 +321,7 @@ every mutant and hide the rest.
   imports them. Decided (user) 2026-10-01: three scenarios. `no_assertion` (`no-assertion`);
   `boundary`, a literal oracle at an input far above the discount threshold, so the
   relational-inversion mutant on the threshold line is reached and survives (`input-gap`); and
-  `calls_sut`, whose expected cause is `unclassified` under DT5's tie-break (awaiting user).
+  `calls_sut`, whose expected cause is `unclassified` under DT5's tie-break (approved 2026-10-01).
   `copied_logic` is cut (DT6: the judge rule owns copied expectations). The 2026-09-30 decisions
   had already cut `relation`, `literal` and `unreached_branch` (DT13 folds an unreached line into
   `input-gap`).
@@ -358,7 +357,7 @@ requires v2.1.269 or later); SKILL.md:123.
 
 ### DT11: What stays out of 2b
 
-Recommended answer taken unattended (2026-09-30): out, each already recorded elsewhere:
+Decided (user) 2026-10-01: recommendation approved: out, each already recorded elsewhere:
 
 - `tooling.md` refresh and Rust/Go rows (spec:158-159, "Separate maintenance").
 - ACH-style LLM semantic mutants (RESEARCH.md open decision 4, no open-tool primary).
@@ -378,7 +377,7 @@ Options:
 - B. Per mutant per changed test: attribute each kill to each test, multiplying runs by the number of
   changed tests.
 
-Recommended answer taken unattended (2026-09-30): A. Q11 asks "why each mutant lived", which is a
+Decided (user) 2026-10-01: recommendation approved: A. Q11 asks "why each mutant lived", which is a
 per-mutant question; B changes the cost model by the number of changed tests. A weak test beside a
 strong one is the `testing:audit` scanner's and the Release 2 judge's concern, not mutation's. The
 report's scope line says the verdict is for the changed tests as a set. Switch condition for B: the
@@ -395,7 +394,7 @@ Basis: SKILL.md:167 (one state per mutant against the cached covering tests); Q1
 Found by the devils-advocate pass (HIGH). Under the manual protocol a mutant on a line the changed
 tests never run passes those tests and would read as survived.
 
-Recommended answer taken unattended (2026-09-30; superseded by the decision below): every survivor
+Decided (user) 2026-10-01: recommendation approved (answer 2026-09-30; superseded by the decision below): every survivor
 gets one sentinel run before triage,
 under the same per-mutant apply-and-restore gate.
 
@@ -437,7 +436,7 @@ Basis: SKILL.md:125-126 (no-coverage only when a coverage report exists); restor
 Found by the devils-advocate pass (HIGH). The config's `command` invokes the mutation tool
 (config-template.md:18-22); nothing holds the project's test command or its per-file filter.
 
-Recommended answer taken unattended (2026-09-30): a new optional key `test-command`, a command with
+Decided (user) 2026-10-01: recommendation approved: a new optional key `test-command`, a command with
 a `{tests}` placeholder that the audit fills with the changed test paths, for runners that take a
 path list (`python -m pytest {tests}`, `python -m unittest {tests}`, `npx vitest run {tests}`,
 `npx jest {tests}`). `setup apply` proposes it per ecosystem. The exercised scope under the manual
@@ -470,7 +469,7 @@ Found by the devils-advocate pass (HIGH and MEDIUM). Phase 0 resolves the write 
 dirty-target stop before Phase 1 knows which files the exercised scope will mutate, and its
 baseline runs the whole suite.
 
-Recommended answer taken unattended (2026-09-30): under the exercised scope Phase 0 runs in this
+Decided (user) 2026-10-01: recommendation approved: under the exercised scope Phase 0 runs in this
 order: config, tool availability, changed tests (DT1), mapping (DT3), effective runner and regime
 (a tool with a verified restriction, else manual, DT8), dirty-target stop on the mapped files,
 regime gate including the refusal rule, restricted baseline run (once, per the user's decision
@@ -503,7 +502,7 @@ Found by the plan-reviewer (CRITICAL). The detector-findings contract argues IMP
 change under review" (`docs/conventions/detector-findings/README.md:234`). Under the exercised
 scope the mutated node is outside the change; the change is the tests.
 
-Recommended answer taken unattended (2026-09-30): keep the rule ids and the IMPORTANT tier, and
+Decided (user) 2026-10-01: recommendation approved: keep the rule ids and the IMPORTANT tier, and
 amend the rationale of two rows, `rule-survivor-productive` (README.md:234) and
 `rule-survivor-unclassified` (README.md:235, which argues from "a mutant survived inside the
 diff"), to cover both scopes. Under the exercised scope IMPORTANT's degradation-with-a-named-trigger

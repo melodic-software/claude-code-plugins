@@ -16,9 +16,8 @@ Design: `design/design-threads.md` beside this file (DT1-DT16; handoff gate PASS
 re-read after the stress-test revision: every thread is resolved, directional with a research tag,
 or deferred with a research tag or switch condition). The user decided DT2, DT3, DT4, DT8, DT9, DT10, DT13, DT14, DT15 and DT16
 on 2026-09-30; those lines read "Decided 2026-09-30 (user)". On 2026-10-01 the user narrowed 2b to
-what Release 3's cleanup gate needs (DT4, DT5, DT6 read "Decided (user) 2026-10-01"). Two items wait
-on the user, each marked "Recommended, awaiting user": DT2's disabled-adapter rule and DT5's
-`unclassified` tie-break.
+what Release 3's cleanup gate needs (DT4, DT5, DT6 read "Decided (user) 2026-10-01"). The user approved every other thread on 2026-10-01,
+including DT2's disabled-adapter rule and DT5's `unclassified` tie-break.
 
 Goal: an agent that passes `--exercised` gets a mutation signal on the production code the changed
 tests exercise, judged against those tests as a set, and each surviving mutant says whether it lived
@@ -89,7 +88,7 @@ The fixture, `plugins/mutation-testing/skills/audit/evals/fixtures/exercised-sco
   `python -m unittest <path>` imports them: `no_assertion` (survivors, `no-assertion`), `boundary`
   (the threshold-line mutant survives, `input-gap`), and `calls_sut` (survivors, `unclassified`:
   the expected value comes from the code under test, so the triage must not call it `input-gap`;
-  DT5, awaiting user). An unreached mutated line is `input-gap` (DT13), so no scenario tests
+  DT5, approved 2026-10-01). An unreached mutated line is `input-gap` (DT13), so no scenario tests
   reachability separately.
 - `.claude/mutation-testing.md`: an instance of the existing config file, `tool: manual`,
   `diff-target: main`, `mutate: [app.py]`, `test-command: python -m unittest {tests}`. No `tests`
@@ -404,7 +403,7 @@ Fully sequential: Phase 1 gates Phase 4's effective-runner wiring; Phase 2's fix
 
 ## Open questions
 
-Recommended, awaiting user:
+Decided (user, 2026-10-01): recommendations approved:
 
 - DT2: a changed file whose adapter is off in the testing config (`adapter: none (<id> claims this
   file and is off in the testing config)`, `cant-fail-scan.sh:981`) is not a test for `--exercised`
@@ -438,14 +437,12 @@ Decided (user, 2026-09-30), no longer open:
 
 ## Handoff to implementation
 
-Approval: pending the user (unattended run, recommended answers taken; the user decided DT2, DT3,
+Approval: approved by the user 2026-10-01 (the user decided DT2, DT3,
 DT4, DT8, DT9, DT10, DT13, DT14, DT15 and DT16 on 2026-09-30, and DT4, DT5 and DT6 on 2026-10-01)
 
 ### User-approval gates
 
-- Plan approval itself, including each "Recommended answer taken unattended (2026-09-30)" in
-  `design/design-threads.md` that no "Decided" line replaces, and each "Recommended, awaiting
-  user" item (Open questions).
+- Plan approval itself, approved by the user 2026-10-01.
 - Phase 5: each user-scope plugin toggle, asked at run time.
 
 ### Execution shape ([EXEC-SHAPE] tagged)
