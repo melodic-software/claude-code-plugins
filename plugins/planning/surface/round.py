@@ -1093,7 +1093,7 @@ def log_activity(doc, text, ids, **marks):
 
 def summarize(doc, logged):
     """One feed entry for the (op name, message, touched) of one write's logged ops; none when
-    there are none. `notes`, `added` and `restate` (the new rev) mark what the page links to."""
+    there are none. `notes`, `added`, `finished` and `restate` (the new rev) mark what the page links to."""
     if not logged:
         return
     names = {name for name, _, _ in logged}
@@ -1108,6 +1108,7 @@ def summarize(doc, logged):
         notes="note-reply" in names,
         added=bool(names & {"add", "add-round"}),
         restate=doc["restatement"]["rev"] if "restate" in names else None,
+        finished="finish" in names,
     )
 
 
@@ -1589,6 +1590,10 @@ def running(d, s):
 
 def port_free(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if os.name == "posix":
+            # The server binds with SO_REUSEADDR, so a port a stopped server's connections hold in
+            # TIME_WAIT is free for it; without the option the kept port would never read as free.
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind(("127.0.0.1", port))
         except OSError:

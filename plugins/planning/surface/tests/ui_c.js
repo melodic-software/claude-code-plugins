@@ -454,7 +454,7 @@ async page => {
     const reopened = await page.waitForFunction(() => window.__streams >= 2, null, {timeout: 14000}).then(() => true).catch(() => false);
     const streams = await page.evaluate(() => window.__streams);
     ok("a stream silent past the ping window is dropped for polling and reopened", reopened, "streams " + streams);
-    ok("the page stays online through the fallback", await page.evaluate(() => !/Offline|Reconnecting/.test(document.getElementById("pill").textContent)), await page.textContent("#pill"));
+    ok("the page stays online through the fallback", await page.evaluate(() => !/Connection lost|Reconnecting/.test(document.getElementById("pill").textContent)), await page.textContent("#pill"));
   }
   if (PHASE === 5) { // the same server, after the shell added D2 (interview, round 3) and then E1 (design, round 1)
     await page.goto(base);

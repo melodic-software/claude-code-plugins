@@ -27,7 +27,7 @@
       "properties": {"text": {"type": "string"}, "at": {"type": "string"}}
     },
     "activity": {
-      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched, `notes` marks a reply in Notes to Claude, `added` marks an `add` or `add-round`, and `restate` carries the restatement rev a `restate` wrote.",
+      "description": "Claude's activity feed, oldest first; round.py keeps the newest 200. `ids` names the questions an entry touched, `notes` marks a reply in Notes to Claude, `added` marks an `add` or `add-round`, `finished` marks the finish op, and `restate` carries the restatement rev a `restate` wrote.",
       "type": "array",
       "maxItems": 200,
       "items": {
@@ -44,6 +44,7 @@
           "ids": {"type": "array", "items": {"type": "string"}},
           "notes": {"type": "boolean"},
           "added": {"type": "boolean"},
+          "finished": {"type": "boolean"},
           "restate": {"type": "integer"}
         }
       }

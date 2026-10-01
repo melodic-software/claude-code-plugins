@@ -189,13 +189,13 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
 
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
-  # flow on one page in sixteen phases; the shell writes as Claude between them.
+  # flow on one page in twenty phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
   cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
   bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
   bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
   jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')
-  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
     sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
   done
   jhandle() {
@@ -281,12 +281,24 @@ if command -v playwright-cli >/dev/null 2>&1; then
     {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
       "constraints": "Builds stop at ten minutes and share one cache."}}]}'
   jrun 16
+  # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
+  # phase 18 reads the modal, the shell stops the server (phase 19 reads the offline reason) and
+  # starts it again on the same data dir, which must keep its port (phase 20 reads the restart).
+  jrun 17
+  japply o '{"ops": [{"op": "set-status", "text": "Done: the Brief is written"},
+    {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."}]}'
+  jrun 18
+  bash "$here/round.sh" --dir "$j" stop >/dev/null
+  jrun 19
+  bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
+  [[ "$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
+  jrun 20
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
-  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  browser=387 journey=167
+  browser=409 journey=189
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

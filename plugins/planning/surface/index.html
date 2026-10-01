@@ -62,6 +62,7 @@ h1{font:600 26px/1.1 var(--display);margin:6px 0 0;text-wrap:balance}
 .hright{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;justify-content:flex-end}
 .meter{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font:500 13px var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
 .meter button{white-space:nowrap}
+.meter button.long{white-space:normal;text-align:left;max-width:100%}
 .bar{width:140px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ok);transition:width .3s}
 .pill{display:inline-flex;align-items:center;gap:7px;font:500 12.5px/1 var(--sans);padding:6px 10px;border-radius:999px;border:1px solid var(--line-strong);color:var(--muted);background:var(--panel)}
@@ -152,6 +153,9 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .act-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .act-list li{display:grid;gap:2px;font-size:13.5px;border-left:2px solid var(--line);padding-left:10px}
 .act-list li.unseen{border-color:var(--chg)}
+.act-h,#actLog>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:12px 0 8px}
+#actLog>summary{cursor:pointer}
+#actLog[open]>summary{margin-bottom:10px}
 .nudge-q{font-size:13px;color:var(--chg);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .ustate textarea{display:block;width:100%;margin-top:8px;min-height:56px}
 .chip.plain{color:var(--muted);background:transparent;border:1px solid var(--line-strong)}
@@ -443,6 +447,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 </div>
 <dialog id="dlg"><h3 id="dlgTitle"></h3><div id="dlgBody"></div>
   <div class="arow"><button class="act primary" id="dlgOk" data-submit="1">Accept these</button><button class="act" id="dlgCancel">Cancel</button></div></dialog>
+<dialog id="finDlg" aria-labelledby="finTitle"><h3 id="finTitle">Interview complete</h3><div id="finBody"></div>
+  <div class="arow"><button class="act primary" id="finClose">Close</button></div></dialog>
 <dialog id="keysDlg" aria-labelledby="keysTitle"><h3 id="keysTitle">Keyboard shortcuts</h3><div class="keys" id="keysBody"></div>
   <p class="kbd">Single keys work only outside text boxes and only when shortcuts are on. Plain Enter never saves.</p>
   <div class="arow"><button class="act" id="keysClose" aria-keyshortcuts="Escape">Close</button></div></dialog>
@@ -475,6 +481,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const S = {doc: {meta: {}, groups: [], questions: [], visuals: [], notes: []}, resp: {seq: 0, responses: {}, history: {}, events: []},
     listener: {state: "idle"}, online: false, session: "", sel: null, busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", fly: null, pinned: false, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
+    instance: "", restarted: false, finished: null,
     armed: null, snap: {}, conflict: null, undo: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
@@ -638,6 +645,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const acts = () => S.doc.activity || [];
   const actKey = e => { if (e.seq != null) return "s" + e.seq; let h = 5381; for (const ch of String(e.text)) h = (h * 33 + ch.charCodeAt(0)) | 0; return e.at + "|" + (h >>> 0).toString(36); }; // the entry's seq, else the time and a hash; never the text
   function unseenActs(){ const s = new Set(lsGet("actSeen", [])); return acts().filter(e => !s.has(actKey(e))); }
+  // "Needs you": a new round, a Notes reply, a restatement to confirm, the finish, or a question that still waits on the user (a reply to an ask, a hold on their answer); the rest is the log
+  const needsAct = e => !!(e.notes || e.added || e.finished || e.restate || (e.ids || []).some(id => Q[id] && needsYou(Q[id])));
   function markSeen(pred){
     const s = new Set(lsGet("actSeen", [])), keys = new Set(acts().map(actKey));
     acts().forEach(e => { if (!pred || pred(e)) s.add(actKey(e)); });
@@ -784,8 +793,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = pending().find(delivered);
     return !!d && !!d.deliveredAt && Date.now() - Date.parse(d.deliveredAt) > 600000 && !((S.listener || {}).waiters > 0);
   }
-  function conn(){ // the connection dot's one word
-    if (!S.online) return ["offline", "Offline"];
+  function conn(){ // the connection dot's one word; offline says why
+    if (S.restarted) return ["offline", "Server restarted: reload"];
+    if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
+    if (S.finished) return ["rest", "Finished"];
     if (deaf() || stalled()) return pending().length ? ["idle", "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
     return ["listening", "Live"];
   }
@@ -800,7 +811,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function ago(iso){ const s = (Date.now() - Date.parse(iso)) / 1000; return isNaN(s) ? "" : s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + " min ago" : Math.floor(s / 3600) + " h ago"; }
   function claudeLine(){ // [text, age]: the status with its age, else the working text, else the newest entry with its time
     const st = S.doc.status, w = working(), a = acts()[acts().length - 1];
-    if (st && st.text) return [st.text, ago(st.at)];
+    if (st && st.text) return [st.text, ago(st.at)]; // a terminal status such as "Done: the Brief is written" stays visible offline
+    if (S.finished) return [S.finished.text || "Interview finished", ago(S.finished.at)];
     if (w) return [w, ""];
     return a ? [a.text, fmtT(a.at)] : ["", ""];
   }
@@ -817,21 +829,23 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const [cls, word] = conn(), pill = $("pill");
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
-    pill.title = cls === "idle" ? "Claude is not listening: type next in the terminal" : cls === "rest" ? "Nothing is waiting on Claude" : "";
+    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? "Claude is not listening: type next in the terminal" : cls === "rest" ? "Nothing is waiting on Claude" : "";
     const [ct, age] = claudeLine(); // text and age update apart, so a new age is never announced
     $("claudeLine").hidden = !ct;
     if ($("clText").textContent !== ct) $("clText").textContent = ct;
     if ($("clAge").textContent !== age) $("clAge").textContent = age;
     renderNotice();
-    const na = openAssumptions(), ac = $("assumeCount");
-    ac.hidden = !na; ac.textContent = na + " to confirm"; ac.title = na + (na === 1 ? " commitment" : " commitments") + " unconfirmed: open the list";
+    const na = openAssumptions(), ac = $("assumeCount"), u = uState(), sure = !!(u && u.alt === "confirm"), unticked = na + (na === 1 ? " commitment" : " commitments");
+    ac.hidden = !na; ac.classList.toggle("long", sure); // confirming the understanding ticks no commitment: say so, so the count does not read as a failed Confirm
+    ac.textContent = sure ? "Understanding confirmed · " + unticked + " unticked; they become named risks unless ticked" : na + " to confirm";
+    ac.title = unticked + " unconfirmed: open the list";
     const wo = outstanding().length, wc = $("wrapChip");
     wc.hidden = !wo || wrapSent(); wc.textContent = wo + " before wrap-up";
     $("sumBtn").setAttribute("aria-pressed", String(S.sel === SUMMARY));
     const notes = noteThread(), unread = notes.filter(n => n.by === "claude" && Date.parse(n.at) > S.noteSeen).length, nb = $("noteBadge");
     nb.hidden = !unread || S.fly === "notes"; nb.textContent = unread;
     nb.parentNode.setAttribute("aria-label", "Notes to Claude" + (nb.hidden ? "" : ", " + unread + " unread"));
-    const un = unseenActs().length, ab = $("actBadge");
+    const un = unseenActs().filter(needsAct).length, ab = $("actBadge"); // only what needs the user badges Activity; log entries wait in the panel
     ab.hidden = !un || S.fly === "activity"; ab.textContent = un;
     ab.parentNode.setAttribute("aria-label", "Activity" + (ab.hidden ? "" : ", " + un + " new"));
     const away = document.hidden && S.hiddenBase ? [...arrivalKeys()].filter(k => !S.hiddenBase.has(k)).length : 0; // what landed since the tab was hidden, whether or not a flyout marked it seen
@@ -841,7 +855,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     vb.parentNode.setAttribute("aria-label", "Visuals" + (vb.hidden ? "" : ", " + vn));
   }
   function renderNotice(){ // digests unseen entries; not a live region, never takes focus
-    const un = unseenActs(), e = un[un.length - 1], box = $("notice");
+    const un = unseenActs().filter(needsAct), e = un[un.length - 1], box = $("notice");
     box.hidden = !e;
     if (!e) { setHtml(box, ""); return; }
     const more = un.length > 1 ? " (+" + (un.length - 1) + " more)" : "", tgt = actTarget(e);
@@ -1139,6 +1153,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (nt.length && nt[nt.length - 1].by === "claude") out.push('Claude replied in <button type="button" class="ref" data-panel="notes">Notes</button> and you have not answered.');
     return out;
   }
+  function finishedBody(f){ // the closing event: what ended, where the Brief is, what happens next
+    const next = f.next || (S.doc.meta || {}).next || "";
+    return "<p>" + esc(f.text || "The interview is complete.") + ' <span class="kbd">' + esc(fmt(f.at)) + "</span></p>" +
+      (f.brief ? "<p>Brief: <code>" + esc(f.brief) + "</code></p>" : "") + (next ? md(next) : "") + '<p class="kbd">You can close this tab.</p>';
+  }
+  const finishedHtml = f => '<section class="blk" id="finished"><h4>Interview finished</h4>' + finishedBody(f) + "</section>";
+  function showFinish(){ // once per finish: a dismissible modal, never over another dialog
+    const f = S.finished, dlg = $("finDlg");
+    if (!f || dlg.open || lsGet("finSeen", null) === f.at || document.querySelector("dialog[open]")) return;
+    $("finBody").innerHTML = finishedBody(f);
+    dlg.dataset.at = f.at; dlg.showModal(); $("finClose").focus();
+  }
   function outstanding(){ // what is still undone before Wrap up, one plain line each; the chip, the confirm and the wrap-up event share it
     const out = [], u = uState(), by = new Map(), nt = noteThread();
     if (S.doc.restatement && !(u && u.alt === "confirm")) out.push(u ? "The understanding is not confirmed: you flagged something off" : "The understanding is not confirmed");
@@ -1202,10 +1228,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const next = (S.doc.meta || {}).next || "Claude records your decisions in the ledger and answers any loose ends. Wrap-up then exports the decisions, and this session can be discarded.";
     h += '<section class="blk"><h4>What Claude does next</h4>' + (p.length ? "<p>" + esc(st) + ".</p>" : "") + md(next) + "</section>";
     const u = uState(), unconf = S.doc.restatement && !(u && u.alt === "confirm"), nOpen = openAssumptions();
-    h += '<section class="blk"><div class="arow"><button class="act primary" data-wrapup="1" data-submit="1"' + (S.api >= 2 && !S.busy ? "" : " disabled") + ">Wrap up</button>" +
+    if (S.finished) h += finishedHtml(S.finished);
+    else h += '<section class="blk"><div class="arow"><button class="act primary" data-wrapup="1" data-submit="1"' + (S.api >= 2 && !S.busy ? "" : " disabled") + ">Finish: export and end the session</button>" +
       (unconf ? '<span class="kbd" id="unconfWarn" style="color:var(--chg)">Understanding not confirmed yet.</span>' : "") +
       (nOpen ? '<span class="kbd" id="openAssumeWarn" style="color:var(--chg)">' + nOpen + (nOpen === 1 ? " assumption" : " assumptions") + " not confirmed yet.</span>" : "") +
-      (S.api < 2 ? '<span class="kbd">' + RESTART + "</span>" : lastWrap ? '<span class="kbd">Wrap-up sent ' + esc(fmt(lastWrap.at)) + "</span>" + receipts(lastWrap.seq) : '<span class="kbd">Tells Claude you are done. Nothing is locked.</span>') + "</div>" +
+      (S.api < 2 ? '<span class="kbd">' + RESTART + "</span>" : lastWrap ? '<span class="kbd">Finish sent ' + esc(fmt(lastWrap.at)) + "</span>" + receipts(lastWrap.seq) : '<span class="kbd">Claude exports the decisions and ends the session. Nothing is locked until then.</span>') + "</div>" +
       '<div class="toast' + (S.toastBad ? " bad" : "") + '">' + esc(S.toast) + "</div></section>";
     setHtml($("sumRest"), h);
     restoreFocus(f);
@@ -1319,12 +1346,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     body.innerHTML = h;
     const fr = body.querySelector("iframe"); if (fr) fr.srcdoc = frameDoc(vb.frame);
   }
-  function renderActivity(body){ // newest first; opening the panel marks every entry seen
-    const un = new Set(unseenActs().map(actKey)), list = acts().slice().reverse();
+  function renderActivity(body){ // newest first, split into what needs the user and a collapsed log; opening the panel marks every entry seen
+    const un = new Set(unseenActs().map(actKey)), list = acts().slice().reverse(), need = list.filter(needsAct), log = list.filter(e => !needsAct(e));
+    const rows = es => '<ol class="act-list">' + es.map(e => '<li class="' + (un.has(actKey(e)) ? "unseen" : "") + '"><div class="hl"><time>' + esc(fmt(e.at)) + "</time>" + (un.has(actKey(e)) ? '<span class="kbd">new</span>' : "") + "</div><div>" + inline(e.text) + "</div>" +
+      ((e.ids || []).length ? '<div class="links">' + e.ids.filter(id => Q[id]).map(refHtml).join(" ") + "</div>" : "") + (e.notes ? '<div><button type="button" class="ref" data-panel="notes">Notes</button></div>' : "") + "</li>").join("") + "</ol>";
+    const open = body.querySelector("#actLog") ? body.querySelector("#actLog").open : false; // a re-render keeps the log as the user left it
     body.innerHTML = '<div class="fscope">What Claude did, newest first. Question ids open the question.</div>' +
-      (list.length ? '<ol class="act-list">' + list.map(e => '<li class="' + (un.has(actKey(e)) ? "unseen" : "") + '"><div class="hl"><time>' + esc(fmt(e.at)) + "</time>" + (un.has(actKey(e)) ? '<span class="kbd">new</span>' : "") + "</div><div>" + inline(e.text) + "</div>" +
-        ((e.ids || []).length ? '<div class="links">' + e.ids.filter(id => Q[id]).map(refHtml).join(" ") + "</div>" : "") + (e.notes ? '<div><button type="button" class="ref" data-panel="notes">Notes</button></div>' : "") + "</li>").join("") + "</ol>"
-        : '<p class="empty">No activity yet.</p>');
+      '<h4 class="act-h" id="actNeeds">Needs you (' + need.length + ")</h4>" + (need.length ? rows(need) : '<p class="empty">Nothing needs you.</p>') +
+      (log.length ? '<details id="actLog"' + (open ? " open" : "") + '><summary>Log (' + log.length + ")</summary>" + rows(log) + "</details>" : "");
     if (un.size) { markSeen(); renderHeader(); renderRail(); }
   }
   function renderNotes(body){
@@ -1716,6 +1745,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.doc = Object.assign({meta: {}, groups: [], questions: [], visuals: [], notes: []}, data.questions || {});
     S.resp = Object.assign({seq: 0, responses: {}, history: {}, events: []}, data.responses || {});
     S.listener = data.listener || S.listener;
+    if (S.instance && data.instance && data.instance !== S.instance) S.restarted = true; // a new server holds a new token: this page cannot save any more
+    S.instance = data.instance || S.instance;
+    S.finished = S.doc.finished || null; // kept in memory when the server goes away: its last frame is what the offline state reads
     Q = {}; S.doc.questions.forEach(q => Q[q.id] = q);
     S.replies = {};
     S.doc.questions.forEach(q => (q.history || []).forEach(h => { if (h.by === "claude" && h.replyTo) S.replies[h.replyTo] = h; }));
@@ -1736,7 +1768,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       const pick = saved === SUMMARY || (saved && Q[saved]) ? saved : allDone() ? SUMMARY : firstNeeding();
       if (pick) select(pick); else { renderRail(); renderDetail(); }
       if (document.hidden) S.hiddenBase = arrivalKeys(); // a tab opened in the background fires no visibilitychange
-      renderHeader(); renderFly();
+      renderHeader(); renderFly(); showFinish();
       return;
     }
     if (S.sel && S.sel !== SUMMARY && !Q[S.sel]) S.sel = railOrder()[0] || null;
@@ -1751,6 +1783,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (!keep) renderFly();
     }
     restoreFocus(f); // a state push keeps focus on the same control
+    showFinish();
   }
   function renderAll(){ renderHeader(); renderRail(); renderDetail(); if (S.fly) renderFly(); }
   let thawTimer = null;
@@ -1778,6 +1811,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function startPoll(){ if (pollTimer) return; pollTimer = setInterval(() => refresh().then(() => { setOnline(true); if (!es || es.readyState === 2) connect(); }).catch(() => setOnline(false)), 3000); }
   function stopPoll(){ if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
   setInterval(() => { if (es && Date.now() - lastFrame > SILENT_MS) { es.close(); es = null; startPoll(); } }, 5000);
+  $("finDlg").addEventListener("close", () => lsSet("finSeen", $("finDlg").dataset.at)); // closing by the button or Escape both count as seen
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { S.hiddenBase = arrivalKeys(); return; }
     S.hiddenBase = null; renderHeader();
@@ -1802,6 +1836,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const ch = t.closest("[data-challenge]"); if (ch) { challenge(+ch.dataset.challenge); return; }
     if (t.closest("[data-sheet]")) { openSheet(); return; }
     if (t.closest("#keysClose")) { $("keysDlg").close(); return; }
+    if (t.closest("#finClose")) { $("finDlg").close(); return; }
     if (t.closest("[data-sum]")) { select(SUMMARY, {animate: true}); return; }
     const ref = t.closest(".ref[data-q], .qbtn"); if (ref) { select(ref.dataset.q, {animate: true}); return; }
     const au = t.closest("[data-auditround]"); if (au) { const s = sections().secs.find(x => x.round === au.dataset.auditround); if (s) acceptAllDialog(s.items, s.title, s.round); return; }
@@ -1859,7 +1894,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   document.addEventListener("keydown", e => {
     if (e.isComposing || e.keyCode === 229) return; // IME composition, including Safari
     const inText = textFocused();
-    const modal = $("dlg").open || $("keysDlg").open, fullScreen = !$("fs").hidden;
+    const modal = $("dlg").open || $("keysDlg").open || $("finDlg").open, fullScreen = !$("fs").hidden;
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
       if (modal || fullScreen) return; // never save behind a dialog or a full-screen visual

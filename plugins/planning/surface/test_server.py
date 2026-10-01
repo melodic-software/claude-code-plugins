@@ -552,7 +552,8 @@ class TestFinishAndPort(unittest.TestCase):
                 "text": "Done",
             },
         )
-        self.assertEqual(self.doc()["activity"][-1]["text"], "Interview finished")
+        last = self.doc()["activity"][-1]
+        self.assertEqual((last["text"], last["finished"]), ("Interview finished", True))
 
     def test_finish_op_over_the_cap_is_refused_and_writes_nothing(self):
         rc, out = self.ops({"op": "finish", "text": "x" * 501})
