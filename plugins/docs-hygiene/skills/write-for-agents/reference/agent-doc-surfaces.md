@@ -59,8 +59,7 @@ system prompt, and the cli-reference cell does not restrict it to `-p`.
 subagent system prompt except a fork, only in non-interactive `-p` mode; the file form requires
 Claude Code v2.1.261 or later and cannot be combined with the text form; the text form requires
 v2.1.205 or later. **Basis:**
-[cli-reference](https://code.claude.com/docs/en/cli-reference), the three flag rows, fed by rows 26-28
-of `docs/specs/agent-doc-surfaces.md`. **As of:** 2026-09-28. **Recheck trigger:** one of those rows drops its `-p` restriction, changes
+[cli-reference](https://code.claude.com/docs/en/cli-reference), the three flag rows. **As of:** 2026-09-28. **Recheck trigger:** one of those rows drops its `-p` restriction, changes
 whether the two subagent flags combine, or leaves the table.
 
 ## Other-ecosystem analogues

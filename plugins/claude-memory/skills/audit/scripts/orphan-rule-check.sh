@@ -23,7 +23,7 @@ Usage: orphan-rule-check.sh [--count|--help]
 Orphan = no `paths:` frontmatter (always-loaded), no `description:` frontmatter,
 and no tracked file referencing it. A rule that describes itself is not an orphan;
 path-scoped rules are exempt. Reference search is git-grep over tracked files,
-excluding the in-repo memory tier (topic-docs `memory_dir`, default `.work/`) and
+excluding the in-repo memory tier (`.work/`) and
 the rule's own file. Each finding names the file's provenance (local or synced).
 Advisory — always exits 0.
 EOF
@@ -41,9 +41,7 @@ fi
 cd "$repo_root" || exit 1
 
 # The in-repo memory tier, not the auto-memory dir resolve-memory-dir.sh derives.
-# Unset falls straight to `.work`; the inferred and interactive rungs are the skill's job.
-seam=$("$SCRIPT_DIR/parse-concern-value.sh" "${repo_root}/.claude/topic-docs.yaml" memory_dir)
-memory_dir="${seam:-.work}"
+memory_dir=".work"
 
 is_always_loaded() {
   ! rule_frontmatter_declares "$1" paths

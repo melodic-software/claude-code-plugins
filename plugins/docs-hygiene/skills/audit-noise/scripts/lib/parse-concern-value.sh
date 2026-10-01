@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Resolve a single scalar value from a topic-docs concern file the way every
+# Resolve a single scalar value from a concern file the way every
 # consuming plugin must: quote-aware, comment-safe, whitespace-trimmed,
 # trailing-slash-normalized — with a caller-supplied fallback for the case the
 # key is absent.
@@ -7,7 +7,7 @@
 # Why this exists: a naive `val="${val%%#*}"` FIRST strip truncates a
 # legitimately-quoted value that contains `#` (`"a#b"` -> `"a`) because it
 # removes comments before quotes are resolved. This helper is the single
-# quote-aware parse for the topic-docs seam (`.claude/topic-docs.yaml`
+# quote-aware parse for concern files (`.claude/<concern>.yaml`
 # `memory_dir` and siblings); consumers share it instead of each carrying an
 # inline parse that can re-fork that bug.
 #
@@ -20,7 +20,7 @@
 # Usage:
 #   parse-concern-value.sh <concern-file> <key> [fallback]
 #
-#   <concern-file>  path to the concern file (e.g. .claude/topic-docs.yaml)
+#   <concern-file>  path to the concern file (e.g. .claude/<concern>.yaml)
 #   <key>           scalar key to read (e.g. memory_dir)
 #   [fallback]      value to emit when the key is absent/empty — the caller's
 #                   already-resolved rung-2 location (a save-point convention
@@ -32,7 +32,7 @@
 # caller applies the documented default, e.g. `.work`). Always exits 0 for a
 # well-formed invocation.
 #
-# Resolution order (mirrors the topic-docs contract's non-interactive degrade):
+# Resolution order:
 #   1. key present and non-empty in the concern file -> its parsed value
 #   2. else the caller-supplied fallback (if non-empty)
 #   3. else empty  (interactive/inferred-layout rungs are the caller's job)
@@ -40,7 +40,7 @@ set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
-parse-concern-value.sh — resolve a scalar value from a topic-docs concern file.
+parse-concern-value.sh — resolve a scalar value from a concern file.
 
 Usage:
   parse-concern-value.sh <concern-file> <key> [fallback]

@@ -55,9 +55,9 @@
       "name": "no-prior-artifact-routes-out",
       "prompt": "/instruction-placement:delta — first time running this here.",
       "narration": true,
-      "expected_output": "Resolves the memory-tier home through the plugin's topic-docs binding, finds no stored spine baseline and no findings artifact, and says so plainly — then routes to the full audit as the skill that produces one. It does not silently run a full audit under the delta name: this skill reports movement, and with no baseline there is no movement to report. The distinction is stated rather than papered over, and nothing is written.",
+      "expected_output": "Looks in the memory-tier home for this branch, finds no stored spine baseline and no findings artifact, and says so plainly — then routes to the full audit as the skill that produces one. It does not silently run a full audit under the delta name: this skill reports movement, and with no baseline there is no movement to report. The distinction is stated rather than papered over, and nothing is written.",
       "expectations": [
-        "Resolves the home through the topic-docs binding rather than a machine-global key",
+        "Reads the branch's memory-tier home rather than a machine-global key",
         "Reports the absent baseline rather than treating it as an error",
         "Routes to the full audit instead of silently becoming one",
         "Writes nothing"

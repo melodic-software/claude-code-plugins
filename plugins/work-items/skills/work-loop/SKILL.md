@@ -16,7 +16,7 @@ Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--shard <i>/<n>] 
 ## Shared tracker context
 
 The seam, operation routing, label taxonomy, canonical-role remapping, recurring schedule, and
-topic-docs binding that every work-items skill relies on live in
+memory-tier write rule that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Coordination goes through the
 seam; provider mechanics route through the bound adapter's operations reference; the core inlines no

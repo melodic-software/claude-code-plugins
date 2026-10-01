@@ -560,7 +560,7 @@ contract's own rule: a new adopter row and additive crosswalk rows, no obligatio
 
 Docs-only: the self-ignore-guard bullet's consequence sentence was universally
 true only where a checkout governs the destination. Where none is detected, the
-[topic-docs convention](../topic-docs/README.md) "Runtime guards" now says the
+[topic-docs convention](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/conventions/topic-docs/README.md) "Runtime guards" now says the
 guard does not run, and a producer bound to leave tracked content unmodified
 withholds the findings file there too. That destination may be an index-tracked
 deletion in the checkout the detection missed, where writing modifies tracked

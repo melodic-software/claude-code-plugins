@@ -130,7 +130,7 @@ to redo the one thing it just proved it cannot do, and a re-dispatch pays for th
 again to reproduce the same refusal at full cost.
 
 So the parent does the writing, which it can: this is the checkout-not-process boundary
-`reference/topic-docs.md` draws:
+`reference/parent-contract.md` draws ("Persistence by value"):
 
 1. **Check every filename before writing anything.** The payload carries the index and every sidecar
    as verbatim bodies, each introduced by a filename, and this is the only place in the contract
@@ -164,7 +164,7 @@ take. It is not an acceptance value, and treating it as one would let a run be b
 agent's own word, the exact thing the gate exists to refuse. An index body written back must carry
 `Run status: complete` or no marker; one still marked `Run status: in progress` fails the gate and
 is a failed dispatch. Why the mode exists and where its boundary sits:
-[`../../../reference/topic-docs.md`](../../../reference/topic-docs.md).
+[`../../../reference/parent-contract.md`](../../../reference/parent-contract.md) ("Persistence by value").
 
 **Exit 1 with the agent still live: resume it, do not re-dispatch it.** A resume costs one message;
 a re-dispatch pays the full six dimensions over again. Address the agent by the **agent ID**, not by

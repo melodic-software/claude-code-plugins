@@ -10,7 +10,7 @@
       "expectations": [
         "The skill runs an in-flight checkpoint, not the end-of-session 5-phase scored retrospective",
         "The main agent contributes a 2-3 line subjective-state note and delegates the transcript analysis to a fresh subagent",
-        "Findings are appended to a running ledger resolved through the plugin's topic-docs binding (<memory_dir>/running-retros/), one file per session chain"
+        "Findings are appended to a running ledger at <memory_dir>/running-retros/, one file per session chain"
       ]
     },
     {

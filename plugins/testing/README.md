@@ -71,8 +71,7 @@ changed: where did its expected value come from? It answers FLAG (the value rest
 implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
 waits for any run still going, judges what is left (10 tests per task end, the rest at the next
-one), writes a review-findings file (under `.work/reviews/<branch>/`, or the `memory_dir` that
-`.claude/topic-docs.yaml` names), and shows the counts. In an interactive session it also asks
+one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an interactive session it also asks
 Claude once to show you each verdict and proposed diff and wait; unattended sessions get the
 counts and the file only. A session that ended before its verdicts were shown gets them named at
 the next session start. The writing agent never supplies the judge's prompt, model or output, and
@@ -156,7 +155,7 @@ paths. The user-global and `.claude/testing.local.yaml` layers do not change.
 
 `~/.claude/testing.yaml` and `.claude/testing.local.yaml` stay where they are; only the team layer
 moves. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
-[latency probes](../../docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
+[latency probes](https://github.com/melodic-software/claude-code-plugins/blob/927a5305d238874ce006eaad6b3fa5c3cb07ebc1/docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
 and `plugins/testing/scripts/time-config.sh` reproduces them.
 
 ### Test files written through Bash
@@ -171,7 +170,7 @@ payload of a Bash call:
   variable `CLAUDE_CODE_BASH_EDIT_DIFF=1`. Without one of these the field was absent in every mode
   probed (`default`, `acceptEdits`, `auto` and `bypassPermissions`), and the hook finds nothing to
   scan. The probe rows are in
-  [probes.md](../../docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30).
+  [probes.md](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30).
 - **Scope.** A created test file reports every test block. A modified file reports only the blocks
   its hunks touch, the same as an Edit. A file the repository ignores is skipped.
 - **Limits.** The payload carries hunks for the first five changed files only, so a modified test

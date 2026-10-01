@@ -21,7 +21,7 @@ where artifacts land in the consuming repo.
 | `/planning:design-handoff` | Design→plan gate | Gates a finished design for `/planning:plan`. The gate is a binary check that every `design-threads.md` thread is RESOLVED, directional, or TAGGED-DEFERRED. Then it packages the plan-ready summary and resume prompt, or FAILs and routes back to `/planning:design`. On PASS and FAIL alike it also emits an advisory six-dimension coverage table (what, how, where, who, when, why) that never contributes to the verdict; uncovered dimensions ride along in the handoff summary and the resume prompt. |
 | `/planning:devils-advocate` | Adversarial review | Stress-tests plans via assumption extraction, evidence checks, failure scenarios, and operational-gotcha sweeps. Every finding evidence-backed, never generic warnings. An `incumbent` mode turns the same lens on the status quo: an Alternatives Sweep that stress-tests keeping an incumbent tool/approach against alternatives (native > official > vetted ladder, coupling priced, KEEP / MIGRATE / RESEARCH verdict), exploring the incumbent first-hand in a fresh sub-agent. |
 | `/planning:plan` | Implementation plan | Produces a structured plan (goal, approach, test strategy, blast radius, parallelism analysis, tagged unilateral decisions) with a mandatory fresh-context `plan-reviewer` stress-test and a user approval gate, persisted to PLAN.md. |
-| `/planning:setup` | Configuration | `check` inspects the topic-docs seam and standards index read-only; `apply` interviews the consumer and persists the tracked `.claude/topic-docs.yaml` concern file that governs where every pipeline skill writes its per-topic artifacts, and bootstraps the standards index (idempotent; re-run to reconfigure). |
+| `/planning:setup` | Configuration | `check` inspects the standards index read-only; `apply` interviews the consumer and bootstraps the standards index (idempotent; re-run to reconfigure). |
 
 The pipeline composes end-to-end. `wayfind` charts the fog upstream when an effort
 is too big to hold at once, then `brainstorm → prd → interview → design →
@@ -43,10 +43,8 @@ themselves. Every skill also works standalone.
   session handoff (`session-flow`).
   Missing plugins get inline guidance; no step blocks.
 - **Self-contained assets.** Templates and reference files ship inside the plugin;
-  planning artifacts land per the topic-docs convention. Contract documents go in
-  `<contract_dir>/<topic-slug>/` (default `docs/topics/`) on the task branch, working
-  memory in the self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`). Never
-  in plugin-internal paths.
+  planning artifacts land in the self-ignoring memory slice
+  `<memory_dir>/<topic-slug>/` (default `.work/`). Never in plugin-internal paths.
 
 ## Install
 
@@ -57,15 +55,13 @@ themselves. Every skill also works standalone.
 
 ## Configuration
 
-Where artifacts land is governed by the marketplace-wide **topic-docs convention**
-(`docs/conventions/topic-docs/` in this repository): contract documents (`PRD.md`,
-`PLAN.md`, `design/`) go to `<contract_dir>/<topic-slug>/` (default `docs/topics/`) on
-the task branch; working memory (checklists, baselines, scratch) goes to the
-self-ignoring `<memory_dir>/<topic-slug>/` (default `.work/`). Run
-`/planning:setup check` to inspect the effective values read-only, or
-`/planning:setup apply` to interview and persist the tracked
-concern file `.claude/topic-docs.yaml` (`contract_dir`, `memory_dir`,
-`contract_tier: branch | local`); absent keys mean those documented defaults.
+Where artifacts land is set by the plugin's lifecycle artifact protocol
+(`reference/artifact-protocol.md`): every working artifact (`PRD.md`, `PLAN.md`,
+`design/`, checklists, baselines, scratch) goes to the self-ignoring
+`<memory_dir>/<topic-slug>/` (default `.work/`) and is never committed. Durable
+content is published to the pull request body and the linked issue. Run
+`/planning:setup check` to inspect the standards index read-only, or
+`/planning:setup apply` to bootstrap it.
 
 The **format acceptance criteria are written in** is a separate, optional team-shared
 choice. `/planning:interview` and `/planning:prd` read

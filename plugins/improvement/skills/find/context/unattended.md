@@ -35,8 +35,8 @@ ${CLAUDE_PLUGIN_DATA}/find/<state-key>/dismissed.jsonl
 ```
 
 This is consumer-repo-agnostic by design: the report never goes into the target repository, and
-the recipe NEVER assumes any particular docs layout in the consuming repo (no topic-docs tree,
-no `docs/` conventions, because a consumer repo has none of that).
+the recipe NEVER assumes any particular docs layout in the consuming repo (no
+`docs/` conventions, because a consumer repo has none of that).
 
 **`${CLAUDE_PLUGIN_DATA}` unset:** some environments do not provide the variable. Do not invent
 a substitute directory and do not write into the target repo: emit the complete report as the

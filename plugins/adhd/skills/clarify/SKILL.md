@@ -148,7 +148,7 @@ sessions and absent in others. Detect it: if the Artifact tool is available, tha
 is the top rung; otherwise degrade down the ladder. Never claim a decision table
 was rendered when only prose was produced.
 
-Write any local HTML file to the **ephemeral tier**, one file created through
+Write any local HTML file to the OS temp directory, one file created through
 the platform's temp API, and hand back that path. A clarified view is
 transient generated state, so it never lands in the consumer's repository tree.
 Do **not** delete the file before returning: the path is the delivery

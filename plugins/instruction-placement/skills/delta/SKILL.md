@@ -39,26 +39,25 @@ gets approved. Reporting only movement keeps the signal survivable on a cadence.
 
 | Read | For |
 |---|---|
-| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | Status vocabulary, re-run merge semantics, the baseline-capture obligation, and the finding-id constituents a suppression entry is keyed by |
-| [`../../reference/topic-docs.md`](../../reference/topic-docs.md) | Where the spine baseline and the findings artifact resolve, and what survives what |
+| [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | Where the spine baseline and the findings artifact live, the status vocabulary, re-run merge semantics, the baseline-capture obligation, and the finding-id constituents a suppression entry is keyed by |
 | [`../../reference/consumer-config.md`](../../reference/consumer-config.md) | The suppression surface: its layers, its per-key merge, the policy-floor inversion, and the report obligations |
 | [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | Only when a genuinely new candidate needs classifying |
 
 This skill does **not** restate the merge semantics, the baseline's shape, the suppression entry
-format, or the resolution rungs. Those documents own them; a second statement is a second drift.
+format, or the home. Those documents own them; a second statement is a second drift.
 
 ## Two inputs, two homes, and the reason they are different files
 
 **The spine baseline** is the comparison input: a snapshot of the previous run's detector spine, in
 the `baselines/` slot the lifecycle artifact protocol names
 ([`../../reference/artifact-protocol.md`](../../reference/artifact-protocol.md)), branch-keyed, at
-the home the topic-docs binding resolves. Memory tier and checkout-local, which is right for it: a
+the home `findings-artifact.md` defines. Memory tier and checkout-local, which is right for it: a
 spine is recomputed next run, and one from another checkout describes a tree this one lacks.
 
 **The suppression surface** is where an operator's decline lives: the tracked
 `.claude/instruction-placement.md`, resolved across the three cascade layers. It is tracked because
-that is the only mechanism that crosses checkouts: git moves the file, and the topic-docs contract
-refuses to carry a baseline into a worktree at all. Read it, honor every entry it merges to, and
+that is the only mechanism that crosses checkouts: git moves the file, and a memory-tier baseline
+never reaches another worktree. Read it, honor every entry it merges to, and
 **never write it**: `realign` owns that write, behind its per-item gate.
 
 A decline in the baseline would be a per-checkout fact, and the operator gets asked again from the
@@ -96,7 +95,7 @@ else noticing between `check` runs.
 
 Each step names what "done" looks like, so a partial run is visible rather than assumed complete.
 
-1. Resolve the home through the binding, read this branch's spine baseline and findings artifact,
+1. Resolve the home, read this branch's spine baseline and findings artifact,
    and resolve the suppression surface across its three layers; a missing surface is the ordinary
    no-suppressions state. All four baseline/artifact combinations resolve explicitly, none an error:
 
@@ -162,7 +161,7 @@ Each step names what "done" looks like, so a partial run is visible rather than 
    `Suppression key`, every `changed` finding's line range is the one this run derived, and no
    `changed` finding is left `accepted`.
 9. Capture this run's spine over the stored baseline. The run must have reached this step to earn
-   the capture; the slice scaffolding the binding requires (the memory root's `.gitignore`, the
+   the capture; the slice scaffolding `findings-artifact.md` requires (the memory root's `.gitignore`, the
    slice `INDEX.md`, the branch home and its `baselines/` directory) is created by the same first
    memory-tier write when absent.
    *Done when:* the capture is written, or the run stopped early and the stored baseline is
@@ -179,7 +178,7 @@ Never pad a quiet run by re-listing standing findings to look useful.
 ## Hard rules
 
 - **Read-only on the repository.** Every write is memory tier and never committed: the refreshed
-  findings artifact, the spine baseline, and the slice scaffolding the binding requires. It writes
+  findings artifact, the spine baseline, and the slice scaffolding. It writes
   **records, never a `Status`** (bar the one reset the artifact contract fixes), and **never writes
   the suppression surface**, a tracked file `realign` owns behind the per-item gate. Every change to
   the repository belongs to `realign`.

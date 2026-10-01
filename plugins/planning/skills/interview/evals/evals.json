@@ -327,15 +327,15 @@
     },
     {
       "id": 24,
-      "name": "contract-slice-not-offered-as-durable-home",
-      "prompt": "/planning:interview Add retry budgets to the webhook sender. Before we start: I want a durable trail of what we decide here that survives after this branch merges. Can we keep it in docs/topics/webhook-retry-budgets/?",
-      "expected_output": "Says plainly that the contract slice is not a durable home: it is pruned before the branch merges, after durable outcomes graduate, and the topic-docs convention's required check fails a PR that leaves any path under it. The memory slice is not one either, since it never reaches git. Names a graduated destination for what should persist: an ADR or spec for decisions, a tracker item for follow-ups. The Brief still lands in the contract slice as the working contract until that graduation.",
+      "name": "memory-slice-not-offered-as-durable-home",
+      "prompt": "/planning:interview Add retry budgets to the webhook sender. Before we start: I want a durable trail of what we decide here that survives after this branch merges. Can we keep it in .work/webhook-retry-budgets/?",
+      "expected_output": "Says plainly that the memory slice is not a durable home: it self-ignores, never reaches git, and is lost with the checkout. Names a destination for what should persist: the pull request body or the linked issue for the Brief, an ADR for decisions that pass the admission test, a tracker item for follow-ups. The Brief still lands in the memory slice as the working contract until it is published there.",
       "files": [],
       "expectations": [
-        "Does NOT recommend docs/topics/<slug>/ (or the .work/ memory slice) as the place to keep the decisions after merge",
-        "States that the contract slice is pruned before merge and that a PR leaving a path under it fails the prune check",
-        "Points to a graduated destination for durable content (ADR, spec, or tracker item), noting that /planning:plan's close-out does the graduation",
-        "Still writes the Brief into the contract slice as the working contract for the branch"
+        "Does NOT recommend the .work/ memory slice as the place to keep the decisions after merge",
+        "States that the memory slice never reaches git and is lost with the checkout",
+        "Points to a destination for durable content (PR body, linked issue, ADR, or tracker item), noting that /planning:plan's close-out does the publishing",
+        "Still writes the Brief into the memory slice as the working contract for the branch"
       ]
     },
     {
@@ -360,7 +360,7 @@
       "expected_output": "Runs the scope path and stops after returning the decisions. No PLAN.md is created or edited and no Brief is written. The open-question ledger is written to the memory slice, and the register gate runs on the ledger alone, with no --brief cross-check because there is no Brief. The reply carries a `Scope decisions:` section: the resolved row (Q1, the two tables the job reads today) as an answer line, Q2 as a `Deferred:` line led by its Q2 id and carrying the default arbiter `/planning:plan`, and Q3 as a `Blocked:` line led by its Q3 id and carrying `arbiter: USER-RESERVED`. The Q3 line tells the caller to stop and ask the user, so the spend decision is visible to the caller and never assumed. No /planning:plan handoff or other next-step recommendation is offered.",
       "files": [],
       "expectations": [
-        "No PLAN.md is created or edited and no Brief section is written; the contract slice is untouched",
+        "No PLAN.md is created or edited and no Brief section is written; the memory slice holds no PLAN.md",
         "A `Scope decisions:` section is returned, and it lists Q1 as resolved with the answer that the warmup covers the two tables the job reads today",
         "Q2 appears as a `Deferred:` line that leads with its Q2 id and carries the arbiter `/planning:plan`; it is not omitted and not folded into the resolved lines",
         "Q3 appears as a `Blocked:` line that leads with its Q3 id and carries `arbiter: USER-RESERVED`; it is not omitted, not recorded as an assumption, and not resolved to the paid cache tier or to its absence",

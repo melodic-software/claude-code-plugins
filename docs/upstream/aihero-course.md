@@ -72,18 +72,16 @@ update signal.
 
 **Re-fetch basis for course-lesson claims (deliberate, maintainer-decided):** the lesson pastes
 are NOT durably committed — course pages are account-gated, and the maintainer authorized
-committing the verbatim texts only on the contract branch's topic slice, pruned before any
-merge to this public default branch. A future re-fetch therefore compares against the live
+committing the verbatim texts only on a working branch, never on the public default
+branch. A future re-fetch therefore compares against the live
 course (account required) or, as the durable proxy, the companion skills repo pinned per the
 SSOT — the same regime the sibling
-[aihero-shipping-course.md](aihero-shipping-course.md) records. Where a row's basis names a
-lesson file under `docs/topics/pocock-course-lanes/lessons/`, that citation is provenance (what
-the lane graded, with its as-of date), not a promise the file exists on this branch.
+[aihero-shipping-course.md](aihero-shipping-course.md) records.
 
 ## Lane 1: handoff (issue #2899, decided 2026-08-17)
 
 Basis for all lane 1 rows: the course handoff lesson as captured in the lane contract
-(`docs/topics/pocock-course-lanes/PLAN.md`, 2026-08-17) plus upstream
+(2026-08-17) plus upstream
 `skills/productivity/handoff/SKILL.md` read live at `068b6e0` (2026-08-17). Our side read live
 the same day: `plugins/session-flow/skills/handoff/SKILL.md`,
 `plugins/session-flow/reference/save-point.md`, `plugins/session-flow/reference/structure.md`
@@ -146,8 +144,7 @@ context-guard reader-contract drift are filed as their own items. Filed:
 
 ## Lane 3: compaction doctrine (issue #2901, decided 2026-08-17)
 
-Basis: the merged Compaction and Auto-Compaction lessons (source:
-`docs/topics/pocock-course-lanes/lessons/03-compaction-and-auto-compaction.md`), graded against
+Basis: the merged Compaction and Auto-Compaction lessons, graded against
 the verified harness verdicts C1-C6 in the contract's table, the context-guard evidence-degraded
 marker and reader contract, and the handoff skill's fork-beats-compaction doctrine. Register
 Q24-Q29; answers locked under the user's standing acceptance of this session's recommendations
@@ -188,8 +185,7 @@ stance, its figures held as named anchors never adopted numbers.
 
 ## Lane 4: plan mode / asset rush (issue #2902, decided 2026-08-17)
 
-Basis: the "Why Plan Mode Sucks" lesson (source:
-`docs/topics/pocock-course-lanes/lessons/04-why-plan-mode-sucks.md`), graded against
+Basis: the "Why Plan Mode Sucks" lesson, graded against
 `planning:interview` (pre-clarity stance, auto-detect, auto-guard, `lock` STOP-on-gap, the
 general-domain shared-understanding terminal) and `planning:plan` (approval gate, Open Decisions
 before the plan body, devils-advocate dispatch, decision confidence gate), plus verdicts C7-C9.
@@ -236,10 +232,7 @@ are recorded in "Dual provenance" above. Lane-6 parcels are the three term candi
 
 ## Lane 5: grilling-interview parity (issue #2903, decided 2026-08-17)
 
-Basis: "The Grill-Execute-Clear Loop" lesson (source:
-`docs/topics/pocock-course-lanes/lessons/05-grill-execute-clear.md`, the verbatim paste the
-maintainer committed to the contract-branch topic slice — pruned when that slice merges, so the
-as-of date is the durable anchor), graded against `planning:interview` and against his CURRENT
+Basis: "The Grill-Execute-Clear Loop" lesson (the as-of date is the durable anchor), graded against `planning:interview` and against his CURRENT
 repo texts read from a live clone at HEAD `068b6e0` (`skills/productivity/grilling/SKILL.md`,
 `grill-me/SKILL.md`) — which match the SSOT-recorded baseline verbatim in substance, confirming
 the 2026-08-17 recheck's cosmetic-only-drift finding. Register Q36-Q37 under the user's
@@ -308,8 +301,7 @@ Lesson key: 1 The Steering Map · 2 Steering With A Pointer · 3 What Are Agent 
 
 ### Lane 7: authoring doctrine (issue #2909, closed 2026-08-17)
 
-Interview-first per contract; register gate clean (12/12); user confirmed. Design contract:
-`docs/specs/write-for-agents-brief.md`. Lessons 1, 2, 4 (authoring half), 7. As-of 2026-08-17.
+Interview-first per contract; register gate clean (12/12); user confirmed. Lessons 1, 2, 4 (authoring half), 7. As-of 2026-08-17.
 
 | Claim / concern (lesson) | Verdict | Detail |
 |---|---|---|
@@ -324,15 +316,14 @@ Interview-first per contract; register gate clean (12/12); user confirmed. Desig
 | Pruning doctrine (L7) | PARITY — no work | Three pruning tests confirmed covered at parity or stronger (SSOT decomposition table: extract-ssot, audit-derivability, audit-instructions/unhobble) |
 | Cross-skill invocation phrasing (upstream `.agents/invocation.md`) | ROUTE | Handed to lane 6; decided there — see the term-adoption and doctrine section below |
 
-Lane 7 closed with Brief locked (`docs/specs/write-for-agents-brief.md`), surface enumeration
-committed (`docs/specs/agent-doc-surfaces.md`), build filed as
+Lane 7 closed with the Brief locked, the surface enumeration
+committed, build filed as
 [#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) and
 [#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), SSOT annotated.
 
 ### Lane 8: invocation mode (issue #2910, closed 2026-08-17)
 
-Interview-first per contract; register gate clean (8/8); user confirmed. Contract:
-`docs/specs/invocation-mode-doctrine-brief.md`. Rubric (the doctrine artifact):
+Interview-first per contract; register gate clean (8/8); user confirmed. Rubric (the doctrine artifact):
 `docs/conventions/invocation-mode/README.md`. Lessons 3, 4 (invocation half), 5. As-of
 2026-08-17.
 
@@ -386,7 +377,7 @@ harness-claims verdicts below.
 
 Research run gated clean (artifact + coverage gates exit 0); fresh-context verifier graded
 corroboration; parent cured C3 with a binary-schema probe. Graduated verbatim from
-`docs/topics/pocock-course-lanes/PLAN.md` ("Harness-claims verdicts", branch
+the lane contract's "Harness-claims verdicts" table (branch
 `claude/plan-mode-discussion-55kszx`) so the citable record survives that branch's lifecycle.
 **Caveat carried at graduation:** C8's confirmation rests on this table alone (the memory-tier
 research artifacts are disposable and the verdict was not re-reproduced by the later audit

@@ -54,11 +54,10 @@ spec mode, a verdict is only as good as the artifact it judged against.
 2. **The invoking route's argument**: `/work-items:ship` and `/work-items:decompose` both route
    here with the container already in hand; when they pass it, use it.
 3. **The recorded pointer**: the `**Spec container:** <qualified-id>` line under the `## Brief`
-   heading of the topic's PLAN.md, resolved through
-   [`reference/topic-docs.md`](../../../reference/topic-docs.md).
-   **Expect this rung to be empty at close-out time.** The contract slice is pruned before merge,
-   so by the moment this review runs the file is usually gone from the default branch. It is listed
-   because close-out also runs at PR time on an unmerged branch, where the slice still exists.
+   heading of the topic's PLAN.md in the memory slice `<memory_dir>/<slug>/` (default `.work/`).
+   **Expect this rung to be empty at close-out time.** The slice is never committed, so unless
+   close-out runs in the checkout that wrote it the file is absent. When it is absent, the plan
+   pasted in the PR body or linked issue carries the same line.
 4. **A tracker query**: an item carrying the binding-resolved container label whose body cites the
    topic slug. Ambiguous (more than one hit) → present the candidates and ask; never pick.
 5. **Ask**, interactive only. One question, then proceed.
@@ -73,8 +72,8 @@ grammar before it is used for anything.
 ## Step 2: Read the container body
 
 The container body **is** the spec, and it is the only durable spec source at this moment: the
-topic's contract slice is pruned before merge, so at close-out the tracker item is all that is
-left. Read it exactly as [spec.md](spec.md) Rung 2 prescribes: a documented public reader if the
+topic's memory slice is never committed, so at close-out in another checkout the tracker item is
+all that is left. Read it exactly as [spec.md](spec.md) Rung 2 prescribes: a documented public reader if the
 consumer exposes one, otherwise the **provider mechanic**, never by reaching into a sibling
 plugin's CLI.
 
@@ -406,8 +405,8 @@ re-decompose) and the container stays open. `scope-creep` and observations do no
 Write the findings artifact to the findings location (SKILL.md "Shared inputs") as
 `<UTC-timestamp>-close-out.md`. **A clean pass still writes it.**
 
-**And post the verdict to the container.** The findings location lives in the contract slice, which
-is pruned, so the artifact that survives is the one on the tracker item. The close-out verdict
+**And post the verdict to the container.** The findings location is checkout-local, so the
+artifact that survives is the one on the tracker item. The close-out verdict
 goes as a comment on the container itself, alongside the shipping-PR links the close ritual
 records. That ritual
 ([`work-items/skills/decompose/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/work-items/skills/decompose/SKILL.md),

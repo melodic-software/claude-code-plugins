@@ -39,7 +39,7 @@ Learning state is the user's own study material. User documents, not machine int
 │   └── 0002-<slug>.md
 └── concepts/                per-concept slices
     └── <concept-slug>/      ONE tightly-scoped thing — things that change together, together
-        ├── lesson.html      the teaching unit — pedagogically ephemeral (rarely revisited, regenerable), NOT the topic-docs ephemeral tier; `lesson.md` where the host can't render HTML (ONE lesson file per concept — format decision + replacement rules: context/lessons.md)
+        ├── lesson.html      the teaching unit — pedagogically ephemeral (rarely revisited, regenerable), yet kept in the concept slice rather than OS temp; `lesson.md` where the host can't render HTML (ONE lesson file per concept — format decision + replacement rules: context/lessons.md)
         ├── reference.md     durable compressed cheat-sheet (revisited; the rot-relevant artifact)
         └── exercise.md      colocated practice (optional)
 ```

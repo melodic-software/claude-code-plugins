@@ -114,7 +114,6 @@ plugins/miro/server/*
 # prose. Ships to no one; the hooks under .claude/hooks/ are NOT covered by
 # this line — they carry their own *.test.sh and are selected normally.
 .work/*
-docs/topics/*
 
 # Repository top-level prose and licensing, already covered by *.md above; the
 # bare LICENSE file has no extension, so it needs its own line.

@@ -11,10 +11,10 @@ evidence earns its keep**.
 
 | Skill | What it does |
 |---|---|
-| `/overengineering:audit` | Read-only walk of the enforcement surface. Reconstructs what each mechanism was built to solve, re-solves the problem fresh with a bias toward native and built-in mechanisms, and returns a verdict argued in cost of carry. KEEP / RETIRE / DOWNGRADE / CONSOLIDATE / UNPROVEN, with security-class artifacts capped at FLAG-FOR-HUMAN. Emits a diffable findings artifact to the memory tier plus an inline summary; its one tracked write, persisting the resolved home to the concern file, needs explicit confirmation. |
+| `/overengineering:audit` | Read-only walk of the enforcement surface. Reconstructs what each mechanism was built to solve, re-solves the problem fresh with a bias toward native and built-in mechanisms, and returns a verdict argued in cost of carry. KEEP / RETIRE / DOWNGRADE / CONSOLIDATE / UNPROVEN, with security-class artifacts capped at FLAG-FOR-HUMAN. Emits a diffable findings artifact to the memory tier plus an inline summary; it writes nothing tracked. |
 | `/overengineering:realign` | The only skill that changes the surface under scrutiny. Consumes the findings artifact and, per accepted finding, drives interview → explore/research → plan → implement through presence-gated skill composition. Nothing is touched without explicit per-item acceptance. |
 | `/overengineering:delta` | The recurring lane. Re-runs the audit, compares its findings spine against the baseline the previous cycle left behind, and reports **only what moved** since that run. Above a configurable noise budget, so a repeat cycle is a short delta instead of the whole surface again. Read-only always; it never enters `realign`, and verdict changes queue for the human. |
-| `/overengineering:justify` | The pointed lane. Takes one artifact you name, a decision record, a document, a component, a dependency, or a code construct, and asks whether a reason existed for it and whether that reason still holds today. Every row says how much evidence the verdict rests on. Read-only: it reports, then discusses, and hands any remedy to the skill that owns it; its findings go to the memory tier, and its one tracked write, persisting the resolved home to the concern file, needs explicit confirmation. A target the enforcement lane already covers routes to `audit` instead. It never sweeps the repository. |
+| `/overengineering:justify` | The pointed lane. Takes one artifact you name, a decision record, a document, a component, a dependency, or a code construct, and asks whether a reason existed for it and whether that reason still holds today. Every row says how much evidence the verdict rests on. Read-only: it reports, then discusses, and hands any remedy to the skill that owns it; its findings go to the memory tier, and it writes nothing tracked. A target the enforcement lane already covers routes to `audit` instead. It never sweeps the repository. |
 
 The shared method every skill applies lives once, in
 [`context/scrutiny-method.md`](context/scrutiny-method.md); no skill restates it. The artifact that
@@ -55,10 +55,7 @@ requires, so it queues verdict changes instead of acting on them.
 
 Every change to the surface under scrutiny happens through `/overengineering:realign`, which is
 invoked deliberately, consumes the findings artifact rather than scanning on its own, and stops at a
-per-item acceptance gate before every remediation. The one tracked write either producer makes is
-not a change to that surface: on the resolution rungs, `audit` and `justify` alike may offer to
-persist the resolved artifact home into the consumer's concern file, and do it only on explicit
-confirmation. Declining is a valid answer and the run proceeds either way.
+per-item acceptance gate before every remediation.
 
 `/overengineering:realign`'s execution order is the method's rollback ladder:
 **config-disable first, observe for a window, only then delete with a recorded rationale**. Nothing
@@ -166,7 +163,7 @@ intent needs an authorization an unattended cycle has nobody to give. The operat
 The files the plugin writes without asking, the findings artifact, the memory root's own `.gitignore` that the self-ignore guard creates on first write, and the spine baseline the delta lane captures
 at the end of each cycle for the next one to compare against, are memory tier, concern-scoped,
 branch-keyed, and never committed;
-[`reference/topic-docs.md`](reference/topic-docs.md) owns the resolution and the placement of each.
+[`context/findings-artifact.md`](context/findings-artifact.md) "Where it lives" owns the placement of each.
 Both are ephemeral by design: the findings artifact is rewritten in place on every re-audit, with
 operator judgments carried forward by stable finding id so a decision is never wiped and re-reported,
 and the baseline is recaptured each cycle. Judgments that must outlive the branch are persisted as

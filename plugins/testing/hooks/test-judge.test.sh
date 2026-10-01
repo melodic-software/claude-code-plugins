@@ -269,29 +269,6 @@ assert_contains "2 failed attempts give judge not run" "$(field .systemMessage)"
 STUB_MODE=fail stop s9
 check "no third attempt" '[[ "$(stub_calls)" == 2 ]]'
 
-# The findings file follows .claude/topic-docs.yaml's memory_dir, but only to a
-# root strictly inside the checkout; `..` or an outside path falls back to the
-# plugin data directory and writes nothing outside.
-mkdir -p "$REPO/.claude" "$TMP/outside"
-for mem in notes '../escape' "$TMP/outside"; do
-  sid="mem${#mem}"
-  transcript "$sid" claude-sonnet-5
-  W="$REPO/src/mem$sid.test.ts"
-  js_file "$W" "mem$sid"
-  record "$sid" w1 "$W" null
-  printf 'memory_dir: %s\n' "$mem" >"$REPO/.claude/topic-docs.yaml"
-  stop "$sid"
-  f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
-  case "$mem" in
-  notes) check "memory_dir inside the checkout is used" '[[ "$f" == "$REPO/notes/reviews/feat-judge-test/"* && -f "$REPO/notes/.gitignore" ]]' ;;
-  ../escape) check "memory_dir ../escape (a .. component) is replaced by .work" \
-    '[[ "$f" == "$REPO/.work/reviews/"* && ! -e "$REPO/../escape" ]]' ;;
-  *) check "memory_dir $mem outside the checkout: the plugin data directory" \
-    '[[ "$f" == "$DATA/findings/"* && ! -e "$REPO/../escape" && ! -e "$TMP/outside/.gitignore" ]]' ;;
-  esac
-done
-rm -rf "$REPO/.claude" "$REPO/notes"
-
 # Relay validation: a quote not in the file, and a diff touching another
 # file, are relayed as UNKNOWN.
 for mode in badquote otherfile; do
@@ -698,36 +675,42 @@ out="$(jq -cn --arg t "$WT" --arg c "$WC" '{hook_event_name: "SessionStart", ses
 check "Windows: SessionStart writes the successor marker under the same project key" '[[ -f "$DATA/successors/$WPK/wsucc" ]]'
 
 # Security review of the findings write and the relayed text.
-# sec_stop <sid> <memory_dir> <file name>: one ready verdict, then a Stop with
-# that memory_dir; sets out and SF, the findings path the Stop reports.
+# sec_stop <sid> <file name>: one ready verdict, then a Stop; sets SF, the
+# findings path the Stop reports.
 sec_stop() {
   transcript "$1" claude-sonnet-5
-  local f="$REPO/src/$3"
+  local f="$REPO/src/$2"
   js_file "$f" "sec$1"
   record "$1" w1 "$f" null
-  mkdir -p "$REPO/.claude"
-  printf 'memory_dir: %s\n' "$2" >"$REPO/.claude/topic-docs.yaml"
   stop "$1"
   SF="$(field .systemMessage | sed -n 's/.*Findings: //p' | head -1)"
-  rm -f "$REPO/.claude/topic-docs.yaml"
 }
 # 1. A symlink under the memory root must not carry the findings write, or the
 # self-ignoring .gitignore, out of the checkout.
-mkdir -p "$TMP/out1" "$TMP/out3" "$REPO/sec1" "$REPO/sec2" "$REPO/sec3/reviews"
-ln -s "$TMP/out1" "$REPO/sec1/reviews"
-ln -s "$TMP/planted" "$REPO/sec2/.gitignore"
-ln -s "$TMP/out3" "$REPO/sec3/reviews/feat-judge-test"
-sec_stop sec1 sec1 sec1.test.ts
+mkdir -p "$TMP/out1" "$TMP/out3" "$TMP/out4"
+rm -rf "$REPO/.work"
+mkdir -p "$REPO/.work"
+ln -s "$TMP/out1" "$REPO/.work/reviews"
+sec_stop sec1 sec1.test.ts
 check "a reviews/ symlink out of the checkout: nothing is written through it" \
   '[[ -z "$(ls -A "$TMP/out1")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
-sec_stop sec2 sec2 sec2.test.ts
+rm -rf "$REPO/.work"
+mkdir -p "$REPO/.work"
+ln -s "$TMP/planted" "$REPO/.work/.gitignore"
+sec_stop sec2 sec2.test.ts
 check "a dangling .gitignore symlink: no file appears at its target" '[[ ! -e "$TMP/planted" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
-sec_stop sec3 sec3 sec3.test.ts
+rm -rf "$REPO/.work"
+mkdir -p "$REPO/.work/reviews"
+ln -s "$TMP/out3" "$REPO/.work/reviews/feat-judge-test"
+sec_stop sec3 sec3.test.ts
 check "a <branch> symlink out of the checkout: nothing is written through it" \
   '[[ -z "$(ls -A "$TMP/out3")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
-# 3. memory_dir free text never reaches the findings path or the block reason.
-sec_stop sec4 'notes"; echo pwned' sec4.test.ts
-check "a memory_dir outside [A-Za-z0-9._/-] is replaced by .work" '[[ "$SF" == "$REPO/.work/reviews/"* && "$(field .reason)" != *pwned* ]]'
+rm -rf "$REPO/.work"
+ln -s "$TMP/out4" "$REPO/.work"
+sec_stop sec4 sec4.test.ts
+check "a .work symlink out of the checkout: nothing is written through it" \
+  '[[ -z "$(ls -A "$TMP/out4")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+rm -f "$REPO/.work"
 # 2. Judge text in the findings file cannot forge headings or close the diff
 # fence, and a verdict that failed validation shows only why.
 S5="$REPO/src/sec5.test.ts"
@@ -763,39 +746,36 @@ check "a test file in no repository: no judge run, UNKNOWN 'no repository'" \
 # the branch in the frontmatter.
 # fdir <repo> <branch>: FDIR as judge::findings_dir resolves it, within 5 s.
 fdir() { timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" R="$1" B="$2" bash -c "$(declare -f lib); lib linux-gnu 'judge::findings_dir \"\$R\" \"\$B\"; printf %s \"\$FDIR\"'"; }
-newrepo() { # newrepo <dir> <memory_dir>
-  mkdir -p "$1/.claude"
+newrepo() { # newrepo <dir>
+  mkdir -p "$1"
   git -C "$1" init -q
-  printf 'memory_dir: %s\n' "$2" >"$1/.claude/topic-docs.yaml"
 }
 SEC="$TMP/sec"
-newrepo "$SEC/a/reviews" x
-ln -s .. "$SEC/a/reviews/x"
-check "a memory root linked out of the checkout (x -> .., in a checkout named reviews): no .gitignore outside" \
+newrepo "$SEC/a/reviews"
+ln -s .. "$SEC/a/reviews/.work"
+check "a memory root linked out of the checkout (.work -> .., in a checkout named reviews): no .gitignore outside" \
   '[[ "$(fdir "$SEC/a/reviews" main)" == "$DATA/findings" && ! -e "$SEC/a/.gitignore" ]]'
 mkdir -p "$SEC/b/sib" "$SEC/b/victim/inner"
-newrepo "$SEC/b/victim" x
-ln -s ../sib "$SEC/b/victim/x"
+newrepo "$SEC/b/victim"
+ln -s ../sib "$SEC/b/victim/.work"
 ln -s ../victim/inner "$SEC/b/sib/reviews"
 check "a memory root in a sibling whose reviews/ links back in: no .gitignore in the sibling" \
   '[[ "$(fdir "$SEC/b/victim" main)" == "$DATA/findings" && ! -e "$SEC/b/sib/.gitignore" ]]'
-newrepo "$SEC/c" .work
+newrepo "$SEC/c"
 mkdir -p "$SEC/c/real"
 ln -s real "$SEC/c/.work"
 check ".work linked to a directory inside the checkout still works" '[[ "$(fdir "$SEC/c" main)" == "$SEC/c/.work/reviews/main" && -f "$SEC/c/real/.gitignore" ]]'
-newrepo "$SEC/d" "$SEC/d/notes"
-check "an absolute memory_dir inside the checkout still works" '[[ "$(fdir "$SEC/d" main)" == "$SEC/d/notes/reviews/main" ]]'
-newrepo "$SEC/e" .work
+newrepo "$SEC/e"
 mkdir -p "$SEC/e/.work"
 mkfifo "$SEC/e/.work/.gitignore"
 check "a FIFO at .gitignore: returns at once, nothing written, the plugin data directory" '[[ "$(fdir "$SEC/e" main)" == "$DATA/findings" ]]'
-newrepo "$SEC/f" .work
+newrepo "$SEC/f"
 mkdir -p "$SEC/f/.work" "$SEC/fout"
 mkfifo "$SEC/fout/fifo"
 ln -s "$SEC/fout/fifo" "$SEC/f/.work/.gitignore"
 check "a link to a FIFO at .gitignore: returns at once, nothing written" '[[ "$(fdir "$SEC/f" main)" == "$DATA/findings" ]]'
 # A findings name taken by a link to a FIFO is skipped, not written through.
-newrepo "$SEC/g" .work
+newrepo "$SEC/g"
 git -C "$SEC/g" checkout -q -b main 2>/dev/null
 mkdir -p "$SEC/g/.work/reviews/main"
 printf '*\n' >"$SEC/g/.work/.gitignore"
@@ -811,7 +791,7 @@ check "a findings name taken by a link to a FIFO is skipped: no hang, written un
   '[[ "$gout" == "$SEC/g/.work/reviews/main/"*-test-judge-2.md && -f "$gout" && ! -L "$gout" ]]'
 # The directory is checked again just before the file takes its name: one
 # swapped for a link out after the first check is not written through.
-newrepo "$SEC/h" .work
+newrepo "$SEC/h"
 git -C "$SEC/h" checkout -q -b main 2>/dev/null
 mkdir -p "$SEC/hout"
 jq -cn --arg f "$SEC/h/t.test.ts" --arg r "$SEC/h" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
@@ -825,7 +805,7 @@ check "a findings directory swapped for a link out after the check: nothing land
 # The branch in the frontmatter parses back to itself: quoted exactly when its
 # plain YAML form would misparse (the predicate testing:audit shares), so
 # a"b#c stays plain and #x, which plain would read as a comment, is quoted.
-newrepo "$SEC/i" .work
+newrepo "$SEC/i"
 git -C "$SEC/i" checkout -q -b 'a"b#c'
 jq -cn --arg f "$SEC/i/t.test.ts" --arg r "$SEC/i" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
   evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/i-verdict.json"

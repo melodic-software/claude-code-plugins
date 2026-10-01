@@ -28,7 +28,7 @@ as a range.
 | Model ladder: `fable` resolves to Fable 5.1; gateway sessions still resolve to Fable 5 | 257-001, 257-090, 260-015 | `docs/plugin-philosophy.md`; playbooks boris | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
 | On Fable 5.1, an effort change keeps the prompt cache | 260-049, 257-005 | `docs/plugin-philosophy.md` | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
 | Opus 5.5 starts at `medium` unless an explicit choice (`CLAUDE_CODE_EFFORT_LEVEL`, `--effort`, `/effort`) or a saved level sets one; a top-level `effortLevel` in the user settings file does not count for Opus 5.5 and still applies on Opus 5, Fable 5.1 and earlier; `effortLevel` in project, local or managed settings or via `--settings` applies to every model | 257-083 | playbooks boris autonomy | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
-| Bundled `claude-api`: prompt-audit steps held through the 2.1.282 read; model-migration gained an eval section and refreshed samples in 2.1.260 | 260-050 | audit-instructions criteria; `docs/specs/prompt-audit-skills-2026-09.md` | this file |
+| Bundled `claude-api`: prompt-audit steps held through the 2.1.282 read; model-migration gained an eval section and refreshed samples in 2.1.260 | 260-050 | audit-instructions criteria; ADR-0028 | this file |
 | 1M-context compact happens shortly before the limit | 260-047 | context-guard README | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | Read/Edit deny covers redirect targets; the reverted 2.1.259 Bash-argument widening stays out | 257-052, 259-007, 260-040 | claude-config `required-permissions.md` | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | Project `defaultMode: "bypassPermissions"` is ignored, like `"auto"` | 257-089 | audit-permission-state C2 | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
@@ -42,7 +42,7 @@ as a range.
 | `/reload-plugins` runs in `-p` and SDK sessions; an in-context loop is unprobed | 260-003 | lanes `refresh.md` | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | Worktree isolation is four named checks; the `$`-free precompute rule holds for git blocks | 257-054, 259-029 | worktree `gather-block.md`; skill-authoring precompute | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | `/context` counts with the token-counting API, or a local estimate from 2.1.261 | 261-041, 261-018 | context-budget | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
-| CLI instruction surfaces include the append-system-prompt file flags | 261-003 | `docs/specs/agent-doc-surfaces.md` | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
+| CLI instruction surfaces include the append-system-prompt file flags | 261-003 | `docs-hygiene:write-for-agents` | [#5154](https://github.com/melodic-software/claude-code-plugins/pull/5154) |
 | Permission rules may contain `)`; text after the close is `Malformed Tool(content) rule`; an unusable deny guards the literal path | 260-007, 260-008, 260-046, 260-052 | permission-plane lint C6; permission-rule-check | [#5159](https://github.com/melodic-software/claude-code-plugins/pull/5159) |
 | Auto mode prompts once before a read outside the working directories; Read, Grep, Glob, and LSP can be fenced | 257-007 | `required-permissions.md` | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 

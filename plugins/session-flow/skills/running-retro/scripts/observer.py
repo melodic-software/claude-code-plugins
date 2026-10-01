@@ -52,7 +52,7 @@ def now_iso() -> str:
 
 
 def now_ts() -> str:
-    """ISO-basic UTC, matching the topic-docs filename spec."""
+    """ISO-basic UTC, e.g. 20260101T000000Z."""
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
@@ -615,7 +615,7 @@ class Observer:
     def _ensure_memory_root_ignored(self) -> bool:
         """Self-ignore the resolved memory root; return whether it is safe to write.
 
-        Mirrors the topic-docs contract's self-ignore guard: the memory root
+        The memory-tier self-ignore guard: the memory root
         (default `.work`, the parent of `running-retros/`) must contain a
         `.gitignore` with a bare `*` so the memory-tier output is never committed.
         Returns True only when that is guaranteed. Returns False -- and the caller

@@ -105,9 +105,7 @@ a compact findings block only; the verbose transcript stays in its context.
 
 ### 4. Append to the running ledger
 
-Resolve the ledger location through the plugin binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
-`<memory_dir>/running-retros/` (default `.work/running-retros/`).
+The ledger lives at `<memory_dir>/running-retros/` (default `.work/running-retros/`).
 
 **One ledger file per session, appended. Discover before creating.** Name it
 `<TS>-running-retro-<topic>.md` (`TS = date -u +%Y%m%dT%H%M%SZ`, topic = argument or inferred),
@@ -181,9 +179,9 @@ default), the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses are NOT set in a s
   `false` to avoid autonomous spend must NOT get a `claude -p` run from a manual arm
 - `OBS_BARE` ← `${user_config.observer_analysis_bare}` (default `false`)
 - `DECLARED_MEMORY_DIR` ← a `memory_dir` the consuming repo documents in prose (its `CLAUDE.md` /
-  rules) but not in `.claude/topic-docs.yaml`. Retro's rung-2 inference; empty otherwise. Being
-  in-session, the manual arm CAN honor this (and cross-session continuity below); the headless hook
-  resolves `memory_dir` only from the concern file + default and cannot infer a prose-documented root.
+  rules). Retro's rung-2 inference; empty otherwise. Being in-session, the manual arm CAN honor this
+  (and cross-session continuity below); the headless hook uses the `.work` default and cannot infer a
+  prose-documented root.
 - `PREV_LEDGER` / `PREV_SID` ← for cross-session continuity, if this session resumed from a handoff
   chain or an earlier running-retro ledger: resolve the prior ledger and its session id under retro's
   Phase 1.0 continuity gate (same as the checkpoint flow's step 2). A detached/headless observer cannot
@@ -196,9 +194,7 @@ consumer repo, not the plugin cache.
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 TRANSCRIPT="$SESSION_DATA_DIR/${CLAUDE_CODE_SESSION_ID}.jsonl"   # SESSION_DATA_DIR per retro's "Paths"
-MEMORY_DIR=$(bash "$PLUGIN_ROOT/skills/retro/scripts/parse-concern-value.sh" \
-  .claude/topic-docs.yaml memory_dir "${DECLARED_MEMORY_DIR:-}")
-MEMORY_DIR="${MEMORY_DIR:-.work}"
+MEMORY_DIR="${DECLARED_MEMORY_DIR:-.work}"
 PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}"
 WORK_DIR="${PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 

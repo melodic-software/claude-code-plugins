@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.3] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+
 ## [0.8.2] - 2026-09-30
 
 ### Added

@@ -204,7 +204,7 @@ in full.
 
 - **55 citations dissolve with no edit**, including all 16 plugin READMEs. **34 remain**, none of
   them applied as of this record. They are inventoried, with `path:line` and citation form, in
-  [`docs/specs/docs-hygiene-sweep-unapplied-remediations.md`](../specs/docs-hygiene-sweep-unapplied-remediations.md).
+  [`docs/specs/docs-hygiene-sweep-unapplied-remediations.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/docs-hygiene-sweep-unapplied-remediations.md).
 - **The detector was not changed.**
   `plugins/docs-hygiene/skills/audit-encapsulation/scripts/detect.sh` and the skill's filter
   taxonomy are untouched, so a raw run still surfaces all 65 dissolved citations as candidates. The

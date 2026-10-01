@@ -212,7 +212,7 @@ invocation:
 
 - Current branch, `git branch --show-current`
 
-The branch is only a topic fallback: the topic-docs convention derives the topic from an explicit argument first and the branch last, so a run with a topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+The branch is only a topic fallback: the topic comes from an explicit argument first and the branch last, so a run with a topic argument makes no `git branch` call. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
 contains git. The dated record for that composition claim is the worktree skill's
@@ -244,7 +244,7 @@ Present research findings as, and if invoked standalone present them directly, w
 
 ## Final step: persist artifact for handoff
 
-Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier artifact, never committed, and the authoritative summary of the stage: a fresh session must be able to resume planning reading only it. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). **No project root** (no git toplevel or project marker, such as a session started in the home directory): an interactive run asks before writing (create under the current directory, or an explicit path); a non-interactive run writes under `${CLAUDE_PLUGIN_DATA}/topic-docs/<slug>/` and announces the absolute path. Never create a `.work/` under the home directory unasked.
+Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier artifact, never committed, and the authoritative summary of the stage: a fresh session must be able to resume planning reading only it. Destination and slug resolve per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)). **No project root** (no git toplevel or project marker, such as a session started in the home directory): an interactive run asks before writing (create under the current directory, or an explicit path); a non-interactive run writes under `${CLAUDE_PLUGIN_DATA}/artifacts/<slug>/` and announces the absolute path. Never create a `.work/` under the home directory unasked.
 
 **`RESEARCH.md` is always an INDEX**, at every size, not only past an overflow threshold. It carries the Task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the Next-stage-handoff. The Output Format's content lives in sibling `RESEARCH-<section>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers, then read exactly one file.
 

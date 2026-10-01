@@ -15,7 +15,7 @@ Usage:
 `report` lists the first-level items of the current repo's memory root and of
 `$HOME/.work`, each with its path, age, size, kind and whether it is in flight.
 A relative `--memory-dir` resolves against the repository top level. Kinds come
-from the layout in `reference/topic-docs.md`:
+from the memory-root layout:
 
     handoff        a `<TS>-handoff-<topic>.md` file, with its `.slots.json`
                    sidecar as part of the same item. `handoffs/` is its place;
