@@ -54,7 +54,17 @@ baseline-suite-ms: <n>
 # against an unexpectedly large diff. Omit for no cap. When a run hits the cap it
 # reports what it dropped -- a truncated run must never read as a clean one.
 max-mutants: <n>
+
+# Optional. The project's own test command for runs restricted to named test
+# files, used by `audit --exercised` under the manual protocol. `{tests}` is
+# replaced with the test paths, each quoted as its own argument, so the runner
+# must take file paths (`python -m pytest {tests}`, `npx vitest run {tests}`).
+# A runner that only filters by name (`dotnet test --filter`) cannot use it.
+test-command: <command containing {tests}>
 ```
+
+There is no key listing test files. `audit --exercised` asks the `testing` plugin's scanner which
+changed files are tests, so the pattern list stays the one that plugin owns.
 
 ## Deliberately absent
 

@@ -67,7 +67,10 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    FAIL; unlike an inference-speeding config, this one is required.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
-   scopes a run to nothing or to everything.
+   scopes a run to nothing or to everything. A `test-command` that does not contain `{tests}` →
+   FAIL: `audit --exercised` substitutes the test paths there, and without the placeholder it would
+   run the whole suite against every mutant. Absent `test-command` → INFO; only the exercised scope
+   under the manual protocol needs it.
 8. **Suppression record**. Report presence and entry count of `.claude/mutation-testing-arid.md`
    across layers. Absent is a valid state (no suppressions) → INFO. Present → validate **every**
    entry against the full contract in
@@ -131,8 +134,15 @@ unambiguous; ask only where the answer is genuinely the user's.
    experimental operators raise the mutant count and the unproductive rate together. Offer the
    narrowed set only if the user asks for a cheaper run.
 5. **Settle the timeout** from the measured baseline suite time in `check`, not from a guess.
-6. **Settle the mutate paths.** Propose source roots, excluding generated code, vendored
-   directories, and test code itself. Mutating tests measures nothing.
+6. **Settle the mutate paths and the test command.** Propose source roots, excluding generated
+   code, vendored directories, and test code itself. Mutating tests measures nothing. Then propose
+   `test-command` for the detected ecosystem when its runner takes test file paths, with `{tests}`
+   where the paths go: `python -m pytest {tests}`, `python -m unittest {tests}`,
+   `npx vitest run {tests}`, `npx jest --runTestsByPath {tests}`, `vendor/bin/phpunit {tests}`. The
+   audit fills `{tests}` with each path quoted as its own argument. Propose nothing for a runner
+   that only filters by name (`dotnet test --filter`, Maven `-Dtest`, Gradle `--tests`) and say
+   that `audit --exercised` refuses for that ecosystem. The forms and their sources are in the
+   audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).
 8. **Create the suppression record empty**, with its header comment and an empty `suppressions:`
