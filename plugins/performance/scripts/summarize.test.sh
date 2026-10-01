@@ -77,6 +77,30 @@ capture env BENCH_CONC=1 BENCH_TIMES="$WORK/twenty" "$HARNESS_PYTHON" "$SUMMARIZ
 assert_eq "a missing BENCH_LABEL is refused" "2" "$RUN_RC"
 assert_contains "the refusal explains why there is no default" "no defaults" "$RUN_OUT"
 
+# --- 7. both percentiles print the interpolated and the nearest-rank value ---
+run_summarize "arm" 1 "$WORK/twenty"
+assert_contains "p50 pairs interpolated with nearest-rank" "p50=10ms(nearest-rank=10ms)" "$RUN_OUT"
+assert_contains "p95 pairs interpolated with nearest-rank" "p95=19ms(nearest-rank=19ms)" "$RUN_OUT"
+
+# --- 8. one sample dominating p95 raises OUTLIER naming both p95 values ---
+{
+  for ((i = 0; i < 19; i++)); do printf '100 0\n'; done
+  printf '5000 0\n'
+} >"$WORK/outlier"
+run_summarize "arm" 1 "$WORK/outlier"
+assert_contains "the outlier flag fires" "OUTLIER:" "$RUN_OUT"
+assert_contains "the flag names p95 with the max sample" "p95=345ms" "$RUN_OUT"
+assert_contains "the flag names p95 without the max sample" "without max sample 100ms" "$RUN_OUT"
+
+# --- 9. a uniform fixture does not raise OUTLIER ---
+run_summarize "arm" 1 "$WORK/twenty"
+assert_not_contains "uniform samples are not flagged" "OUTLIER" "$RUN_OUT"
+
+# --- 10. a refused p95 prints neither nearest-rank nor OUTLIER ---
+run_summarize "arm" 1 "$WORK/nineteen"
+assert_not_contains "a refused p95 has no nearest-rank" "p95=REFUSED(n=19<20)(nearest-rank" "$RUN_OUT"
+assert_not_contains "a refused p95 has no outlier line" "OUTLIER" "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: summarize percentile floor"
 exit 0
