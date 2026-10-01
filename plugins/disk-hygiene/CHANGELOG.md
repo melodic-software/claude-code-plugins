@@ -3,11 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.41.3] - 2026-09-30
+## [0.41.4] - 2026-09-30
 
 ### Fixed
 
 - **The engine gate accepts braces inside a quoted word** ([#5641](https://github.com/melodic-software/claude-code-plugins/issues/5641)). A `--target` such as `'C:/Users/me/AppData/Local/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}'` now forms an exact engine call, so the WSL distro folders can be snapshotted. `{` and `}` are literal inside a whole-word single or double quote and are accepted only there; every other expansion or operator character, `$` included, is still refused wherever it sits, and an unquoted brace is still refused. The denial no longer names a quoted brace as the culprit.
+## [0.41.3] - 2026-09-30
+
+### Changed
+
+- **A Windows `detached` answer does not mean unused for WSL and Docker disks** ([#5642](https://github.com/melodic-software/claude-code-plugins/issues/5642)). `Get-DiskImage` reads a running distro's root `ext4.vhdx`, Docker Desktop's `docker_data.vhdx` and WSL's `swap.vhdx` as `detached`, because WSL2 and Docker hold them open through their own virtual machine. The image keeps `virtual-disk` and the block, so nothing becomes deletable and reclaimable bytes stay 0. The `Get-DiskImage` record in `skills/clean/reference/safety-model.md` is now observed on Windows: `attached` plus the drive letter for a host-mounted VHDX, `detached` for those disks, and an error for an `initrd.img`. No code changes.
 
 ## [0.41.2] - 2026-09-30
 
