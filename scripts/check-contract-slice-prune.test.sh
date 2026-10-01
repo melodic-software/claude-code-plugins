@@ -6,6 +6,9 @@
 # convention requires.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-contract-slice-prune.sh"
 PARSE_LIB="$SELF_DIR/../lib/parse-concern-value.sh"
@@ -412,7 +415,7 @@ rm -rf "$repo"
 # proving that would mean spawning a real detached maintenance child, i.e.
 # re-creating the very race this suite exists to keep out.
 mk_repo repo
-trace="$(mktemp)"
+trace="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 printf 'edit\n' >>"$repo/README.md"
 (
   cd "$repo" || exit 1

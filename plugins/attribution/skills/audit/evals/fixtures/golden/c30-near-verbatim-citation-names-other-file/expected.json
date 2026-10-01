@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 8, "end_line": 8 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://raw.githubusercontent.com/microsoft/playwright-cli/main/skills/playwright-cli/references/test-generation.md"
+  },
+  "notes": {
+    "shape": "One long unwrapped line carrying a lifted definition and a condensed warning among original steps. The file's only upstream citation sits below, names a different page of the same documentation set, and covers a different flow.",
+    "carve_outs": "None apply. The citation is not a quotation context: nothing on the line is quoted.",
+    "rubric": "C1 holds: the definition of a baseline job corresponds word for word to the source's definition, and the closing warning condenses the source's 'Important' note. C2 holds: the parenthetical list of what the baseline sets up, and the reason opening the dashboard URL directly is wrong, are the source's. C3 holds, which is the point of the case: the file does cite upstream, but the citation names the debugging reference and is scoped to the debug flow, so it does not reach this line. C4 holds for the definition.",
+    "measured": "fingerprint.mjs at k=5: containment 0.157, jaccard 0.093, longest matched span 22 words, all on local line 8. Containment is far under the threshold and the span limb fires alone.",
+    "tier_reason": "The span limb fires against an identity-checked source. A one-line lift in a mostly original file is exactly the shape that low containment hides.",
+    "carries": "This case fails a run that clears a line because the file cites upstream somewhere. The citation has to name the source of the span."
+  }
+}

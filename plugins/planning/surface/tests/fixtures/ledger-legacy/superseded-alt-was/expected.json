@@ -1,0 +1,24 @@
+{
+  "Q1": {
+    "title": "Who writes?",
+    "round": 1,
+    "commits": [],
+    "terminal": {
+      "decision": "alt",
+      "alt": "was",
+      "text": "",
+      "seeded": false
+    },
+    "recommendation": null,
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "any enrolled user"
+      }
+    ],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": null
+  }
+}

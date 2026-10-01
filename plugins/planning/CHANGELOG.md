@@ -3,6 +3,33 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.53.0] - 2026-09-30
+
+### Added
+
+- **The interview surface records a hedged decision, and an accepted or hedged row with an unticked commitment exports as open.** The page has a Hedged choice that takes a required condition; it exports as `answer:: hedged: <recommendation>` with the condition in `note::` and imports back as `hedged`. A row whose counting decision is an accept or a hedge while any commitment is unticked, including after a revise replaces the commitment list, now grades `open` in the ledger, so `check-open-questions.sh` fails it under `lock` instead of passing it with the commitments only named as risks in the Brief ([#5471](https://github.com/melodic-software/claude-code-plugins/issues/5471)).
+
+## [0.52.2] - 2026-09-30
+
+### Fixed
+
+- **The interview page drives its Open filter, counters and first pick from one "needs you" state.** The revising chip names the upstream question it waits on, "Sent to Claude" clears once the question is answered, and the composer has a Clear button. An answered question shows the chosen option and an answered-after marker. The `reply` op stamps `kind: "reply"` on its history line by default, and only Claude's reply, rephrase, note and revise lines count as replies, so a hold or a confirm-commitments line does not put a settled question back in Show: Open. Muted text and the Archived chip meet WCAG AA contrast, question titles render through `inline()`, and `surface.md` documents the `meta.stages` shape. The 510px sidebar check now covers cards with 0, 1, 2 and 4 dependencies ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+## [0.52.1] - 2026-09-30
+
+### Changed
+
+- **`reference/standards-contract.md` is the standards contract at 1.0.1.** The contract's prose
+  drops its em dashes; nothing else in it changes. An index at 1.0.0 is older than the bundled
+  contract, so `setup` offers the guided migration.
+
+## [0.52.0] - 2026-09-30
+
+### Changed
+
+- **Every interview ledger row exports in one escaped named-field grammar.** Hold, proposal, was, answer, note, aside and commitments each get a named field, so export followed by import restores the question state, except two held-row cases the fields cannot name (a seeded blocked row comes back deferred, and the seed text of a row whose held accept or alternative is set aside is lost). The importer still reads every earlier row form ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+- **The Brief words two imported rows differently.** A plain answer that a ledger seeded now reads `free-text: ...`, and a seeded withdrawal reads `archived: superseded by X` ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+
 ## [0.51.0] - 2026-09-30
 
 ### Added

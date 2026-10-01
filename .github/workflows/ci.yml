@@ -1866,7 +1866,7 @@ jobs:
               py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
               rest=$(printf '%s\n' "$notrun" | grep -Ev '(^$|\.py$)' || true)
               if [ -n "$py" ]; then
-                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q --
+                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q -o tmp_path_retention_policy=none --
               fi
               if [ -n "$rest" ]; then
                 printf '%s\n' "$rest" >"$RUNNER_TEMP/outside-node-paths.txt"

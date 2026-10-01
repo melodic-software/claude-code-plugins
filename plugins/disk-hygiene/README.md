@@ -39,8 +39,9 @@ contract); it never follows links or recursively deletes an unvalidated tree.
 - A live-handle preflight runs immediately before deletion. Windows uses an exclusive `CreateFile`
   probe for every entry. Linux/macOS require `lsof`; absence, incomplete authority, or diagnostics
   produce `handle_state_unverified` and block the tier. The plugin never elevates itself.
-- Managed state is always a report-only handoff to the owning product's documented cleanup/GC command.
-  A dry-run result is evidence for the report, never authorization for this engine to remove it.
+- Managed state with no registry match is always a report-only handoff to the owning product's
+  documented cleanup/GC command. A dry-run result is evidence for the report, never authorization for
+  this engine to remove it. A registry match follows `skills/clean/reference/managed-state-report.md`.
 - The skill-scoped guard is a fail-closed allowlist. It permits only canonical bundled scan/preview
   calls made from literal shell words, returns `ask` for the two exact mutating shapes, `apply` and
   `handoff-apply`, and denies every other Bash command. Brace, tilde, parameter, command, arithmetic, process, word-splitting,
@@ -102,8 +103,9 @@ at preview. Backups remain the recovery boundary for user data.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
   descriptor-anchoring proof for its execution lane.
 
-Verify this machine's prerequisites and platform posture with `/disk-hygiene:setup check`;
-`/disk-hygiene:setup apply` resolves anything the check reports with guidance.
+Check this machine's prerequisites read-only with `/disk-hygiene:check`; Claude can run that on its own,
+for example when a hook notice says Python is missing. `/disk-hygiene:setup check` runs the same check,
+and `/disk-hygiene:setup apply` resolves anything it reports with guidance.
 
 ## How the guard is registered
 
@@ -257,6 +259,12 @@ gets the relaxed directory listing.
 confirmation as an unbounded walk, sums through VCS and protected directories read-only, and has no
 entry cap.
 
+`--deep`, and a home-directory target without it, runs the read-only deep inventory before any
+scan: every entry with its producer, a disposition and a reason, where each `KEEP` names who
+produced the entry and what still uses it. It reports only and prepares no deletion; removing
+anything it lists still goes through scan, preview and the removal approval. Columns and
+categories: `skills/clean/reference/scan-flags.md`.
+
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
 
@@ -299,9 +307,13 @@ Version 2 adds preselect `rules`, an age threshold, and an elevation opt-in
 
 A rule ticks matching candidates in the approval list; it never approves. The approval question still
 names one tier and its path list, and a tick never raises a candidate above its hint's
-`confidence_ceiling` or past a blocker. With `min_age_days`, an entry modified inside the window (or
-a directory whose newest descendant is, or whose coverage is incomplete) stays unticked and is
-labeled in-flight. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
+`confidence_ceiling` or past a blocker. A rule matches by `hint_id`, `hint_ids`, or `class`
+(`superseded-version`, `backup`, `empty`, `temp`, `crash-dump`). Only the baseline temp hints carry
+a class; the other classes match only hints an operator adds through `additional_hints` with that
+`class`. With `min_age_days`, an entry touched inside the window (or a directory whose newest descendant is, or
+whose coverage is incomplete) stays unticked; `min_age_basis` picks the timestamp: `mtime` by
+default, `atime`, or `ctime`. The entry is labeled in-flight. Paths that open issues, PRs, or handoffs
+reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
 project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
 that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
 elevation lane has not been proven in a Windows UAC pilot; see the

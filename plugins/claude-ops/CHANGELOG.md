@@ -30,6 +30,27 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   beside the description (it does not join the dismissal fingerprint), so a surface without a
   resolvable description is still paired on its name, user-facing name and search hint.
 
+## [0.77.4] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` reads unreferenced plugin-cache versions through a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `disk-hygiene`, and `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge. The report is unchanged.
+
+## [0.77.3] - 2026-09-30
+
+### Changed
+
+- **`observability` and `inventory` descriptions fit the 500-character listing budget.** `observability` keeps its `explain-usage` route phrase and its sibling boundaries ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.77.2] - 2026-09-30
+
+### Fixed
+
+- **`audit-native-overlap generate` marks a `native description:` evidence line that carries an
+  em dash with an `ai-slop-ignore` comment.** The description is quoted verbatim, so the dash stays
+  and the ai-slop audit skips that line instead of reporting it. A multi-line description is marked
+  on each physical line that carries a dash. Authored evidence lines are never marked.
+
 ## [0.77.1] - 2026-09-30
 
 ### Changed

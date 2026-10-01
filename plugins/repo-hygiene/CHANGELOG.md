@@ -3,6 +3,21 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.18.1] - 2026-09-30
+
+### Changed
+
+- **`clean` points machine-level listing at the disk-hygiene deep inventory**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)).
+  `skills/clean/SKILL.md` names `/disk-hygiene:clean` deep mode for a whole home directory and states
+  this skill adds no scanner for it.
+
 ## [0.18.0] - 2026-09-30
 
 ### Added

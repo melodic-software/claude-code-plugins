@@ -4,6 +4,7 @@
 
 - [Trust boundaries](#trust-boundaries)
 - [Tidiness, not emergency](#tidiness-not-emergency)
+- [Deep inventory is report-only](#deep-inventory-is-report-only)
 - [Non-overridable checks](#non-overridable-checks)
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
@@ -50,6 +51,22 @@ rules under pressure is when a wrong deletion is most likely. The no-proportiona
 the current defaults rather than funding a proportionality rebuild. **As of:** 2026-09-28.
 **Recheck:** reopening #3855, or a funded design that names which rule yields and under what
 bounded conditions.
+
+## Deep inventory is report-only
+
+The `inventory` subcommand (the [deep inventory](../SKILL.md#deep-inventory) mode) is attended and
+read-only. It writes only its own JSONL report and summary under the data root. Neither is a
+snapshot or a plan, so `preview` refuses them and no approval token can derive from them. A
+`CANDIDATE` disposition is a finding: it grants no tier, and the guard admits the subcommand
+because it cannot mutate, not because its output authorizes anything.
+
+Every `KEEP` row must carry a specific reason (who produced the entry and what still uses it). The
+validator rejects an empty reason, and a bare category phrase unless it names a tool and `evidence`
+shows that tool still references the entry. A rejected row fails the report with exit 5.
+
+`--execute`, the low-signal rule (Low is kept unless the human separately reviews exact paths), and
+every confirmation gate apply exactly as before. Removing anything the inventory lists goes through
+`scan`, a fresh `preview`, and the removal approval.
 
 ## Non-overridable checks
 
@@ -766,7 +783,8 @@ read-only, for exact totals), keeps no per-path entries, and has no entry cap. I
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
-or cleanup contract.
+or cleanup contract. The report each registry match produces is specified in
+[managed-state-report.md](managed-state-report.md).
 
 The baseline policy therefore ships no discovery hint for another product's managed state. A hint
 for a class the engine will never act on tells the operator to look for residue the plugin has

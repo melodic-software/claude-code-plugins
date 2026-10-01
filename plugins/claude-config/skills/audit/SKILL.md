@@ -1,5 +1,5 @@
 ---
-description: "When the bundled update-config skill resolves in this session, prefer it for making a settings change the person requested; this skill for auditing what is configured. Audit Claude Code configuration files, including settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and environment variables, for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update, or when permissions, hooks, plugins, or MCP servers may be misconfigured; pass --fix to apply auto-correctable findings with confirmation."
+description: "When the bundled update-config skill resolves in this session, prefer it to make a requested settings change; this skill to audit what is configured. Audit settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and env vars for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update; pass --fix to apply auto-correctable findings with confirmation."
 argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|all]"
 user-invocable: true
 disable-model-invocation: false
@@ -48,7 +48,7 @@ Parse `$ARGUMENTS` for:
   - `mcp`: MCP server definitions, commands, env vars, connectivity
   - `hooks`: hook scripts exist, timeouts, matchers
   - `plugins`: enabled/disabled status, marketplace availability
-  - `issues`: recheck known GitHub issues only
+  - `issues`: recheck known GitHub issues only (Category J and Phase 3.2)
   - `all`: run everything (default)
 
 ## Division of labor: the engine decides, the model judges
@@ -59,14 +59,15 @@ the document and does only what needs judgment:
 
 | Engine (deterministic, emitted once) | Model (judgment, on the engine's output) |
 | --- | --- |
-| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level and `permissions.*` key is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one), and the `A/consent-receipt` label for an undocumented top-level key `reference/consent-receipts.json` records (gates in validation-categories.md Category A) | A: nothing |
+| A: `$schema` presence and URL, misplaced `mcpServers`, personal `hooks` in the local file, whether each top-level key and each key inside an object the page documents children of (such as `permissions`, `sandbox`, `worktree` or `statusLine`) is documented or deprecated on the fetched `settings-reference` (the installed binary settles an undocumented one), and the `A/consent-receipt` label for an undocumented top-level key `reference/consent-receipts.json` records (gates in validation-categories.md Category A) | A: nothing |
 | B: presence of each baseline pattern, deny rules in the local file, blanket `Bash(git *)`, the allow-completeness rows at `info`, narrowing 3 where a hook plugin ships a coverage manifest, suppression-record matching | B: narrowings 1 and 2 (a documented exemption, a documented hook convention), narrowing 3 for hooks with no manifest, the consuming repo's extra required patterns |
 | C: command resolution, `${VAR}` syntax, URL shape, `enableAllProjectMcpServers`, enabled/disabled coverage and name validity | C: documented reasons for disabled servers, launcher-wrapper conventions |
-| D: path resolution and readability, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo, event validity against the live hooks page |
+| D: path resolution and readability, event names against the fetched `hooks` page, millisecond-shaped timeouts, matcher class and anchoring, placeholder quoting in shell form, duplicates, lever state, cache-versus-loaded divergence | D: whether a timeout is reasonable for its tool, exec-form resolution on a Windows-targeting repo |
 | E: marketplace membership, every `false` key as an inventory row (a finding only when an enabled plugin depends on it), ORPHAN / RENAME drift, catalog plugins with no entry in any scope as one inventory row per marketplace, keys the drift check did not diff, `strict` versus `plugin.json` | E: the fix for a disabled dependency, orphan-`true` review, rename confirmation |
 | F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log; `skillOverrides` keys that name a known plugin (inert, `warning`), colon keys whose prefix names no plugin (`skip`), and entries in the user dir's `settings.local.json` (`info`) | G: the levers, scoped to the roster's composition, and what an undecided colon key names |
-| H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values and the version `enforceAvailableModels` requires come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
+| H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values, the version `enforceAvailableModels` requires, the `fallbackModel` cap and the values of every other string key whose Type bullet lists them come from the fetched `settings-reference` | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
+| J: each `Fixed in vX.Y.Z` a `reference/known-issues.md` row records, compared with the installed Claude Code version (the form is that file's "Recording a fix version") | J: the live status of each issue (Phase 3.2), and whether a workaround an `info` row flags is still needed |
 
 A row the engine marks `skip` or `not-inspectable` is exactly that in the report: never clean.
 
@@ -129,10 +130,11 @@ The `docs` object in the document is the coverage record, built from the fetcher
 index and each page with its URL or path, byte count, line count, `sha256`, content type, read time,
 and one `state`: `read`; `unread`, with a `reason` such as `fetch-failed`, `http-404`,
 `unexpected-content-type`, `not-in-index`, `off-origin`, or `redirected-off-origin`; or `unparsed`, for a
-settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins` (a soft
-404, a reshaped page). Only `read` means the engine decided anything from the page; every row resting
-on an `unread` or `unparsed` page is `not-inspectable`. The pages this covers today are `settings-reference` and `env-vars`; every
-other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
+settings-reference that downloaded but has no heading for `permissions` or `enabledPlugins`, or a
+hooks page with no Event table (a soft 404, a reshaped page). Only `read` means the engine decided
+anything from the page; every row resting on an `unread` or `unparsed` page is `not-inspectable`.
+The pages this covers today are `settings-reference`, `env-vars`, and `hooks`, which the engine
+requests only when `settings-reference` links it; every other page is Phase 3's. `--docs-dir` is optional reuse: a page already fetched there is read
 instead of fetched again, and a page missing from it is fetched as usual.
 
 Run it with `--json` instead when you want the whole document; `--table` prints the version and
@@ -197,11 +199,12 @@ category; **full per-check criteria in
 - **A, Schema & Structure**: engine-decided
 - **B, Permissions**: for each baseline row the engine left at full severity, check narrowing 1 (a documented exemption in the consuming repo's rules) and narrowing 2 (a documented project hook convention); for a hook with no coverage manifest, take narrowing 3 by hand against the three preconditions in [reference/required-permissions.md](reference/required-permissions.md); add any patterns the consuming repo's own rules declare as required
 - **C, MCP Servers**: documented reasons for disabled servers; launcher conventions
-- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row), event validity against the live hooks page
+- **D, Hooks**: timeout reasonableness, exec-form resolution on Windows-targeting repos (the four-part record is the Category D checklist row). Event names are the engine's; for a `hook-event-page-not-read` row it left `not-inspectable`, read the live hooks page
 - **E, Plugins**: for each `dependency-disabled` finding, whether to enable the dependency or disable the plugins that need it; orphan-`true` and rename review. The engine merges `enabledPlugins` from the user, project and local files only (managed settings are not merged) and checks direct dependencies only
 - **F, Environment Variables**: whether a variable the engine reports as not on the env-vars page is documented elsewhere or justified by the repo
 - **G, Skill-listing budget**: the levers, scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`). The engine already reports `skillOverrides` entries that cannot take effect: a key naming a known plugin (`G/skill-override-plugin`, `warning`) and entries in the user dir's `settings.local.json` (`G/skill-override-home-local`, `info`); a colon key it left as `skip` is yours to name or leave undecided. When the engine reports `not measured`, name the routes (`/doctor` interactively, a `--debug` relaunch headless) and never report clean
 - **H, Model and effort settings** and **I, Deep-link registration**: engine-decided; Phase 3 confirms the behavior each finding rests on before it is reported
+- **J, Known-issues fix versions**: engine-decided (`known-issue-fixed` rows); for an `info` finding, Phase 3.2 confirms the workaround is retired only if the live issue agrees
 
 ---
 
@@ -258,8 +261,11 @@ route that works, and never let a route that does not work block the run:
    that column of the table, so the report states how old the recorded state is instead of an
    unqualified "unverified".
 
-For any issue whose upstream fix has shipped at or below the installed Claude Code version, confirm
-the settings-specific workaround is still needed and recommend retiring it if not.
+The engine has already compared each fix version `known-issues.md` records with the installed Claude
+Code version (Category J, `known-issue-fixed` rows). For each `finding` row, confirm the
+settings-specific workaround is still needed and recommend retiring it if not. Compare versions by
+hand only for an issue whose live thread names a fix release the file does not record, or when the
+engine's row is a `skip` because the installed version was unreadable.
 
 ### 3.3 Model configuration verification
 

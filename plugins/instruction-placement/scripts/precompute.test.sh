@@ -17,6 +17,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/precompute.sh"
+SCRATCH="$(mktemp -d)"
+trap 'rm -rf "$SCRATCH"' EXIT
 
 FAILED=0
 CASE_NUM=0
@@ -41,7 +43,7 @@ assert_contains() {
 # as one set: the root tree, a nested package tree, and a symlinked shared set.
 build_fixture() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d "$SCRATCH/fx.XXXXXX")"
   mkdir -p "$dir/.claude/rules" "$dir/packages/api/.claude/rules" \
     "$dir/shared-rules" "$dir/libs/.claude"
   : >"$dir/.claude/rules/root.md"
@@ -138,7 +140,7 @@ assert_contains "an untracked nested file is not counted inside a repository" \
 # This output lands in a skill header, so every mode must exit 0 and print a
 # usable value even where the probes have nothing to read.
 # --------------------------------------------------------------------------
-empty="$(mktemp -d)"
+empty="$(mktemp -d "$SCRATCH/fx.XXXXXX")"
 for mode in audit check realign; do
   out="$(run_in "$empty" "$mode")"
   rc=$?
@@ -163,8 +165,6 @@ run_in "$repo" check >/dev/null
 run_in "$repo" realign >/dev/null
 assert_eq "the probes leave the working tree untouched" \
   "$before" "$(git -C "$repo" status --porcelain)"
-
-rm -rf "$repo" "$empty"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

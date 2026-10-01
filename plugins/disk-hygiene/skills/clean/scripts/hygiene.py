@@ -35,12 +35,13 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
+import deep_inventory  # noqa: E402  (path set above; sibling module)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 # Overlay versions the loader accepts; version 2 adds the `rules` array.
 OVERLAY_VERSIONS = (1, 2)
-RULE_MIN_AGE_BASES = ("mtime",)
+RULE_MIN_AGE_BASES = ("mtime", "atime", "ctime")
 ELEVATION_VALUES = ("never", "uac-prompt")
 MAX_SNAPSHOT_ENTRIES = 250_000
 # The temp-zone size walk runs on every scan whose target overlaps the temp
@@ -987,6 +988,7 @@ def baseline_policy() -> dict[str, Any]:
         "os_temp_recommendation_threshold_bytes": threshold,
         "hints": list(baseline.get("hints", [])),
         "additional_protected_path_globs": [],
+        "hint_sources": {},
         "rules": [],
         "elevation": "never",
         "policy_sources": ["baseline"],
@@ -1063,6 +1065,20 @@ def load_policy(
     )
     for path in overlays:
         apply_policy_overlay(result, path, project_scope=path == project_layer)
+    # A class rule covers every hint carrying the class across all layers, so a
+    # later layer's hint joins an earlier layer's rule; `hint_sources` records
+    # which layer supplied each hint so a match can be traced to it.
+    for rule in result["rules"]:
+        if "class" in rule:
+            rule["hint_ids"] = [
+                hint["id"]
+                for hint in result["hints"]
+                if hint.get("class") == rule["class"]
+            ]
+            rule["hint_sources"] = {
+                hint_id: result["hint_sources"].get(hint_id, "baseline")
+                for hint_id in rule["hint_ids"]
+            }
     return result
 
 
@@ -1112,8 +1128,12 @@ def apply_policy_overlay(
             )
         known_ids.add(hint["id"])
     disabled_set = set(disabled)
-    merged_ids = known_ids - disabled_set
-    rules = validate_rules(overlay.get("rules", []), merged_ids, overlay_path)
+    merged_hints = [
+        hint
+        for hint in (*result["hints"], *additions)
+        if hint["id"] not in disabled_set
+    ]
+    rules = validate_rules(overlay.get("rules", []), merged_hints, overlay_path)
     elevation = overlay.get("elevation", result["elevation"])
     if not isinstance(elevation, str) or elevation not in ELEVATION_VALUES:
         raise HygieneError(
@@ -1128,6 +1148,7 @@ def apply_policy_overlay(
         hint for hint in result["hints"] if hint.get("id") not in disabled_set
     ]
     result["hints"].extend(additions)
+    result["hint_sources"].update({hint["id"]: str(overlay_path) for hint in additions})
     result["additional_protected_path_globs"].extend(protections)
     result["rules"].extend(rules)
     result["elevation"] = elevation
@@ -1135,18 +1156,20 @@ def apply_policy_overlay(
 
 
 HINT_ENTRY_TYPES = ("file", "directory", "link", "other")
+HINT_CLASSES = ("superseded-version", "backup", "empty", "temp", "crash-dump")
 MAX_EMPTY_DIRECTORY_PATHS = 200
 
 
 def validate_rules(
-    rules: Any, hint_ids: set[Any], overlay_path: Path
+    rules: Any, hints: list[dict[str, Any]], overlay_path: Path
 ) -> list[dict[str, Any]]:
     """Validate an overlay's `rules` and normalize each `match` to `hint_ids`.
 
-    Rules match on hint id: an entry carries no class, only the hints that
-    matched it. A rule naming an id missing from the merged hint set is
-    rejected so a typo cannot silently preselect nothing.
+    A rule matches on hint id or on a hint class, which resolves to the ids of
+    the merged hints carrying it. A rule naming an id or a class that no merged
+    hint carries is rejected so a typo cannot silently preselect nothing.
     """
+    hint_ids = {hint["id"] for hint in hints}
     if not isinstance(rules, list):
         raise HygieneError(f"rules must be an array: {overlay_path}")
     normalized = []
@@ -1163,9 +1186,20 @@ def validate_rules(
         match = rule.get("match")
         if not isinstance(match, dict) or len(match) != 1:
             raise HygieneError(
-                f"rule match must be an object with exactly one of hint_id or hint_ids: {overlay_path}"
+                f"rule match must be an object with exactly one of hint_id, hint_ids or class: {overlay_path}"
             )
-        if "hint_id" in match:
+        match_class = match.get("class")
+        if "class" in match:
+            if match_class not in HINT_CLASSES:
+                raise HygieneError(
+                    f"rule match class must be one of {', '.join(HINT_CLASSES)}: {overlay_path}"
+                )
+            ids = [h["id"] for h in hints if h.get("class") == match_class]
+            if not ids:
+                raise HygieneError(
+                    f"rule match class matches no hint ({overlay_path}): {match_class}"
+                )
+        elif "hint_id" in match:
             ids = [match["hint_id"]]
         elif (
             "hint_ids" in match
@@ -1175,7 +1209,7 @@ def validate_rules(
             ids = match["hint_ids"]
         else:
             raise HygieneError(
-                f"rule match must be a hint_id string or a non-empty hint_ids array: {overlay_path}"
+                f"rule match must be a hint_id string, a non-empty hint_ids array or a class: {overlay_path}"
             )
         if not all(isinstance(value, str) and value for value in ids):
             raise HygieneError(
@@ -1194,6 +1228,8 @@ def validate_rules(
             "source": str(overlay_path),
             "index": index,
         }
+        if match_class is not None:
+            entry["class"] = match_class
         if "min_age_days" in rule:
             days = rule["min_age_days"]
             if isinstance(days, bool) or not isinstance(days, int) or days < 0:
@@ -1211,10 +1247,17 @@ def validate_rules(
     return normalized
 
 
+def entry_age_ns(entry: dict[str, Any], key: str) -> int:
+    """An entry's timestamp on one basis; a snapshot without it falls back to mtime."""
+    return entry.get(key, entry["mtime_ns"])
+
+
 def rule_age_facts(
-    entries: list[dict[str, Any]], unknown_paths: Iterable[str]
+    entries: list[dict[str, Any]],
+    unknown_paths: Iterable[str],
+    basis: str = "mtime",
 ) -> tuple[dict[str, int], set[str]]:
-    """Newest descendant mtime per directory, and every path with a coverage gap.
+    """Newest descendant timestamp per directory, and every path with a coverage gap.
 
     An ancestor of an unknown path is itself unknown: the walk never saw what
     changed beneath it. Not-walked entries count as unknown alongside
@@ -1222,6 +1265,7 @@ def rule_age_facts(
     """
     newest: dict[str, int] = {}
     incomplete: set[str] = set()
+    key = f"{basis}_ns"
     unknown = set(unknown_paths) | {
         entry["path"]
         for entry in entries
@@ -1231,7 +1275,7 @@ def rule_age_facts(
         parent = entry["path"]
         while "/" in parent:
             parent = parent.rsplit("/", 1)[0]
-            newest[parent] = max(newest.get(parent, 0), entry["mtime_ns"])
+            newest[parent] = max(newest.get(parent, 0), entry_age_ns(entry, key))
     for path in unknown:
         incomplete.add(path)
         while "/" in path:
@@ -1242,16 +1286,19 @@ def rule_age_facts(
 
 def rule_in_flight_reason(
     entry: dict[str, Any],
-    days: int,
+    rule: dict[str, Any],
     facts: tuple[dict[str, int], set[str]],
     now_ns: int,
 ) -> str | None:
     newest, incomplete = facts
     path = entry["path"]
-    reason = f"in-flight: modified within {days} days"
+    days = rule["min_age_days"]
+    basis = rule.get("min_age_basis", "mtime")
+    verb = {"mtime": "modified", "atime": "accessed", "ctime": "changed"}[basis]
+    reason = f"in-flight: {verb} within {days} days"
     if path in incomplete:
         return f"{reason} (coverage incomplete, age unknown)"
-    modified = max(entry["mtime_ns"], newest.get(path, 0))
+    modified = max(entry_age_ns(entry, f"{basis}_ns"), newest.get(path, 0))
     if modified > now_ns - days * 86_400 * 10**9:
         return reason
     return None
@@ -1271,17 +1318,21 @@ def apply_rules(
     it from live blockers and the plan tier, because a snapshot is editable.
 
     A rule with `min_age_days` does not preselect an entry modified inside the
-    window (mtime basis). A directory is as new as its newest inventoried
+    window (the rule's `min_age_basis`, default mtime). A directory is as new as its newest inventoried
     descendant, and one whose coverage is incomplete is treated as new: unknown
     is not old. Such an entry keeps its tier and carries `in_flight_reason`.
     """
     if now_ns is None:
         now_ns = time.time_ns()
-    facts = (
-        rule_age_facts(entries, unknown_paths)
-        if any("min_age_days" in rule for rule in rules)
-        else ({}, set())
-    )
+    unknown_paths = list(unknown_paths)
+    facts = {
+        basis: rule_age_facts(entries, unknown_paths, basis)
+        for basis in {
+            rule.get("min_age_basis", "mtime")
+            for rule in rules
+            if "min_age_days" in rule
+        }
+    }
     for entry in entries:
         hint_ids = [hint["id"] for hint in entry.get("hints", [])]
         match = None
@@ -1297,23 +1348,119 @@ def apply_rules(
             "index": rule["index"],
             "hint_id": hint_id,
         }
+        if "class" in rule:
+            entry["policy_rule"]["class"] = rule["class"]
+            entry["policy_rule"]["hint_source"] = rule.get("hint_sources", {}).get(
+                hint_id, rule["source"]
+            )
         entry["preselected"] = rule["preselect"] and not entry["protected_reasons"]
         if entry["preselected"] and "min_age_days" in rule:
-            reason = rule_in_flight_reason(entry, rule["min_age_days"], facts, now_ns)
+            reason = rule_in_flight_reason(
+                entry, rule, facts[rule.get("min_age_basis", "mtime")], now_ns
+            )
             if reason:
                 entry["preselected"] = False
                 entry["in_flight_reason"] = reason
+
+
+def load_in_flight_refs(path: Path) -> list[dict[str, str]]:
+    """Read and validate the `--in-flight-refs` file.
+
+    The file is `{"references": [{"path": "<absolute>", "reason": "<text>"}]}`.
+    The engine stays offline: whoever assembles the file (an open issue or PR,
+    a handoff) names the reference in `reason`.
+    """
+    data = load_json(path)
+    if set(data) != {"references"} or not isinstance(data["references"], list):
+        raise HygieneError(
+            f"in-flight refs file must be an object with only a references array: {path}"
+        )
+    refs: list[dict[str, str]] = []
+    for ref in data["references"]:
+        if not isinstance(ref, dict) or set(ref) != {"path", "reason"}:
+            raise HygieneError(
+                f"each in-flight reference must contain exactly path and reason: {path}"
+            )
+        for field in ("path", "reason"):
+            if not isinstance(ref[field], str) or not ref[field].strip():
+                raise HygieneError(
+                    f"in-flight reference {field} must be a non-empty string: {path}"
+                )
+        if not Path(ref["path"]).is_absolute():
+            raise HygieneError(
+                f"in-flight reference path must be absolute: {ref['path']}"
+            )
+        refs.append({"path": ref["path"], "reason": ref["reason"].strip()})
+    return refs
+
+
+def _ref_key(path: str) -> str:
+    return os.path.normcase(path).replace("\\", "/").strip("/")
+
+
+def apply_in_flight_refs(
+    entries: list[dict[str, Any]], target: Path, refs: list[dict[str, str]]
+) -> None:
+    """Mark entries at, under, or holding a referenced path as in-flight.
+
+    An entry keeps its tier but is not preselected and carries
+    `in_flight_reason`. A reference outside the target affects nothing; one
+    above it covers every entry. An ancestor of a referenced path is marked
+    too, because removing it would remove the referenced path.
+    """
+    root = _ref_key(str(target))
+    below = root + "/" if root else ""
+    covered: dict[str, str] = {}
+    holders: dict[str, str] = {}
+    for ref in refs:
+        key = _ref_key(str(Path(ref["path"]).resolve(strict=False)))
+        if key == root or below.startswith(key + "/"):
+            relative = ""
+        elif key.startswith(below):
+            relative = key[len(below) :]
+        else:
+            continue
+        covered.setdefault(relative, ref["reason"])
+        parent = relative
+        while "/" in parent:
+            parent = parent.rsplit("/", 1)[0]
+            holders.setdefault(parent, ref["reason"])
+    if not covered:
+        return
+    for entry in entries:
+        key = _ref_key(entry["path"])
+        parts = key.split("/")
+        reason = covered.get("") or next(
+            (
+                covered["/".join(parts[:i])]
+                for i in range(1, len(parts) + 1)
+                if "/".join(parts[:i]) in covered
+            ),
+            None,
+        )
+        if reason is None and key in holders:
+            reason = f"contains a referenced path ({holders[key]})"
+        if reason is None:
+            continue
+        reason = f"in-flight: {reason}"
+        entry["in_flight_reason"] = "; ".join(
+            filter(None, [entry.get("in_flight_reason"), reason])
+        )
+        if "preselected" in entry:
+            entry["preselected"] = False
 
 
 def validate_hint(hint: Any) -> None:
     if not isinstance(hint, dict):
         raise HygieneError("each additional hint must be an object")
     required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
-    if not required <= set(hint) or set(hint) - required - {"entry_types"}:
+    if not required <= set(hint) or set(hint) - required - {"entry_types", "class"}:
         raise HygieneError(
             "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason "
-            "and optionally entry_types"
+            "and optionally entry_types and class"
         )
+    if "class" in hint and hint["class"] not in HINT_CLASSES:
+        raise HygieneError(f"hint class must be one of {', '.join(HINT_CLASSES)}")
     if "entry_types" in hint:
         entry_types = hint["entry_types"]
         if (
@@ -1383,6 +1530,7 @@ def metadata(
     logical_size: int | None = 0,
     *,
     walked: bool = True,
+    info: os.stat_result | None = None,
 ) -> dict[str, Any]:
     """Per-entry facts for the snapshot, including what QUALIFIES its byte count.
 
@@ -1405,7 +1553,8 @@ def metadata(
     entry this function produces, but not for the target record, which is
     assembled there rather than here.
     """
-    info = path.lstat()
+    if info is None:
+        info = path.lstat()
     attributes = int(getattr(info, "st_file_attributes", 0))
     nlink = int(info.st_nlink)
     allocated = allocated_size_from_stat(info)
@@ -1439,6 +1588,8 @@ def metadata(
         "allocated_size": allocated,
         "nlink": nlink,
         "mtime_ns": info.st_mtime_ns,
+        "atime_ns": info.st_atime_ns,
+        "ctime_ns": info.st_ctime_ns,
         "device": info.st_dev,
         "inode": info.st_ino,
         "mode": stat.S_IFMT(info.st_mode),
@@ -2405,6 +2556,7 @@ def scan_tree(
     *,
     root_children: list[str] | None = None,
     sizes_only: bool = False,
+    in_flight_refs: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
     # A sizes-only walk keeps no per-path record: each path folds straight into
@@ -2479,6 +2631,9 @@ def scan_tree(
                 elif child.is_dir(follow_symlinks=False):
                     kind = "directory"
                     walked = True
+                    # Stat before any read of the directory: listing it can move
+                    # its atime, which an atime-basis rule must not see.
+                    info = path.lstat()
                     if not sizes_only and path.name.casefold() in VCS_NAMES:
                         subtotal: int | None = None
                         walked = False
@@ -2519,7 +2674,7 @@ def scan_tree(
                             # scandir failed inside this child: unknown, not empty.
                             walked = False
                             unwalked_reasons[relative] = "scan-error"
-                    data = metadata(path, kind, subtotal, walked=walked)
+                    data = metadata(path, kind, subtotal, walked=walked, info=info)
                     # Truncated children contribute unknown, not zero: adding
                     # null as 0 was what made a truncated subtree look empty.
                     if subtotal is not None:
@@ -2602,6 +2757,7 @@ def scan_tree(
                 if isinstance(item, dict) and isinstance(item.get("path"), str)
             },
         )
+        apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
     target_identity = metadata(target, "directory", total_size)
     # The target itself was walked, but any truncated child means the target's
@@ -4048,8 +4204,8 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 and TIER_RANK[plan["tier"]] <= TIER_RANK[ceiling]
                 and set(blockers) <= {PLATFORM_BLOCKER},
             }
-            if isinstance(candidate_entry.get("in_flight_reason"), str):
-                rule_fields["in_flight_reason"] = candidate_entry["in_flight_reason"]
+        if isinstance(candidate_entry.get("in_flight_reason"), str):
+            rule_fields["in_flight_reason"] = candidate_entry["in_flight_reason"]
         results.append(
             {
                 "path": relative,
@@ -4914,6 +5070,82 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     }
 
 
+INVENTORY_REPORT_KIND = "deep-inventory-report"
+# Distinct from 2 (invalid), 3 (blocked) and 4 (apply skipped paths).
+INVENTORY_VALIDATION_FAILED = 5
+
+
+def run_inventory(target_arg: str, deep_flag: bool) -> int:
+    """List a target into a JSONL report under the data root, then validate it.
+
+    Report only: nothing here deletes, and the summary is neither a snapshot
+    nor a plan, so preview and apply refuse it. Rows stream to a temporary
+    file, so no entry cap applies, and it replaces the report name only when
+    the walk finishes: an interrupted walk leaves no partial report. Deep is
+    the default when the target is the home directory.
+    """
+    target_input = Path(target_arg).expanduser().absolute()
+    if not target_input.is_dir() or has_linkish_component(target_input):
+        raise HygieneError(
+            "target must be an existing directory with no link or reparse-point component"
+        )
+    target = target_input.resolve(strict=True)
+    if is_os_managed_target(target):
+        raise HygieneError("OS-managed roots are not valid inventory targets")
+    home = Path.home().resolve()
+    deep = deep_flag or target == home
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    rows_path = state_output_path(
+        Path(DATA_ROOT_OVERRIDE or "") / "inventory" / f"inventory-{stamp}.jsonl"
+    )
+    summary_path = state_output_path(rows_path.with_suffix(".json"))
+    rows_path.parent.mkdir(parents=True, exist_ok=True)
+    dispositions: dict[str, int] = {}
+    failures: list[str] = []
+    partial = rows_path.with_name(f"{rows_path.name}.{secrets.token_hex(4)}.tmp")
+    mount_points, mount_error = linux_mount_points()
+    mounts = frozenset(str(p) for p in mount_points)
+    try:
+        with partial.open("w", encoding="utf-8") as out:
+            for row in deep_inventory.inventory_rows(
+                target,
+                deep=deep,
+                home=home,
+                tmp_dir=deep_inventory.tmp_root(),
+                now=dt.datetime.now(dt.timezone.utc).timestamp(),
+                running=deep_inventory.running_paths(),
+                skip=frozenset({str(rows_path), str(summary_path), str(partial)}),
+                mounts=mounts,
+            ):
+                out.write(json.dumps(row, sort_keys=True) + "\n")
+                key = str(row.get("disposition"))
+                dispositions[key] = dispositions.get(key, 0) + 1
+                failures.extend(deep_inventory.validate_report([row]))
+        os.replace(partial, rows_path)
+    finally:
+        partial.unlink(missing_ok=True)
+    summary = {
+        "kind": INVENTORY_REPORT_KIND,
+        "status": "inventory-failed" if failures else "inventory-complete",
+        "target": str(target),
+        "deep": deep,
+        "rows": str(rows_path),
+        "row_count": sum(dispositions.values()),
+        "dispositions": dispositions,
+        "validation_failures": failures,
+        "mount_state_error": mount_error,
+        "note": (
+            "Report only: rows are findings, never a deletion plan, and preview "
+            "and apply do not accept this report. Removing a candidate goes "
+            "through scan, preview and apply with their confirmation gates."
+        ),
+    }
+    write_text_atomic(
+        summary_path, json.dumps(summary, indent=2, sort_keys=True) + "\n"
+    )
+    return emit(summary, INVENTORY_VALIDATION_FAILED if failures else 0)
+
+
 def handoff_apply_report(
     target: Path,
     relative: str,
@@ -5274,6 +5506,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
             if args.max_depth is not None and args.max_depth < 1:
                 raise HygieneError("--max-depth must be a positive integer")
+            in_flight_refs = (
+                load_in_flight_refs(Path(args.in_flight_refs).expanduser().absolute())
+                if args.in_flight_refs
+                else []
+            )
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target, policy)
             sizes_only = bool(args.sizes_only)
@@ -5363,6 +5600,7 @@ def main(argv: list[str] | None = None) -> int:
                         args.max_depth,
                         root_children=resolved_children,
                         sizes_only=sizes_only,
+                        in_flight_refs=in_flight_refs,
                     )
                 except HygieneError as exc:
                     return emit(
@@ -5435,7 +5673,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
             try:
                 snapshot = scan_tree(
-                    target, policy, args.max_depth, sizes_only=sizes_only
+                    target,
+                    policy,
+                    args.max_depth,
+                    sizes_only=sizes_only,
+                    in_flight_refs=in_flight_refs,
                 )
             except HygieneError as exc:
                 return emit(
@@ -5496,6 +5738,8 @@ def main(argv: list[str] | None = None) -> int:
                     args.quiet,
                 )
             )
+        if args.command == "inventory":
+            return run_inventory(args.target, args.deep)
         snapshot = load_json(Path(args.snapshot))
         if args.command == "catalog":
             entries = snapshot.get("entries")

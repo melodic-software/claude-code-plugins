@@ -1,5 +1,5 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for a quick plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and anything the local telemetry stores hold. Read and report on locally captured Claude Code telemetry, OTEL DuckDB store, collector, optional Aspire dashboard, the per-session hook event log and hook-event JSONL, ccusage, with cross-session trend reports, a per-session report, and store pruning. Use when: 'claude observability', 'OTEL', 'collector', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'hook event log', 'which hooks fired'; read-only except the explicit clean action."
+description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session trends, cost, hooks, and the local telemetry stores (OTEL DuckDB, hook event log, ccusage). Use when: 'claude observability', 'OTEL', 'token burn rate', 'hook latency', 'cost breakdown', 'how am I doing', 'what did this session do', 'which hooks fired'; read-only except the explicit clean action."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency] [--write] [--dry-run] [--days N]"

@@ -5,6 +5,26 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-09-30
+
+### Added
+
+- **Standards alignment covers discipline postures and the standards repository
+  ([#4239](https://github.com/melodic-software/claude-code-plugins/issues/4239)).** The auditor
+  checks a component against the `discipline:*` correctors the session lists (skipped and stated
+  when absent) and against the `standards` repository where one resolves, and cites each in the
+  Standards alignment ledger. `reference/categories.md` accepts `discipline:<name>` and
+  `<standards path>:<line>` as the convention value.
+
+### Changed
+
+- **Research covers every finding's claim, and tier records are checked.** Every Errors,
+  Improvements and Quality of life finding carries a research line, not only those with a
+  remediation, and a claim that cannot meet the bar is an open question. A tier record names the
+  fetched bytes as `<url> saved=<path> span=<span>`, and `collect-categories.sh` checks that the
+  saved file resolves inside the ledger's directory, exists, is non-empty and holds a non-empty span, for the primary and each distinct
+  corroborator. The effort table says which claims get research at `low`, `medium` and `high`.
+
 ## [0.10.0] - 2026-09-29
 
 ### Added
