@@ -8,6 +8,13 @@
 # maximum_object_size matches cc-otel.sql (32 MiB — generous over the ~224 KB largest inline-body record).
 readonly DUCKDB_MAX_OBJECT_SIZE=33554432
 
+# Prompt-bearing attribute keys the cold tier scrubs (SQL list items). Compaction and
+# --scrub-cold both read these, so a new key added here reaches both.
+readonly COLD_LOG_PROMPT_KEYS="'prompt', 'prompt_text'"
+readonly COLD_SPAN_PROMPT_KEYS="'user_prompt', 'prompt', 'prompt_text'"
+# from_json shape of a serialized attributes list; value stays raw JSON so it round-trips.
+readonly COLD_ATTR_SHAPE='[{"key":"VARCHAR","value":"JSON"}]'
+
 # Convert a path for embedding in a SQL string literal (or as a duckdb CLI arg). Native
 # duckdb.exe cannot resolve an MSYS path (/tmp/..., /d/...); cygpath -m yields a forward-slash
 # Windows path (C:/...) — safe in a SQL string literal and idempotent on an already-Windows
@@ -59,8 +66,8 @@ verify_temp() {
 #
 # Logs cross the B1 content boundary here: api_request_body/api_response_body rows are
 # excluded entirely; user_prompt rows survive (prompt frequency/timing analytics) but body is
-# NULLed and the prompt-bearing `prompt` attribute is scrubbed from the attribute list —
-# unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1. Metrics compact without exclusions. Join-key
+# NULLed and the prompt-bearing `prompt` and `prompt_text` attributes are scrubbed from the
+# attribute list — unless CC_OTEL_COLD_KEEP_USER_PROMPTS=1. Metrics compact without exclusions. Join-key
 # columns (session_id, prompt_id, tool_use_id, trace_id, span_id) ride the shared
 # cc_logs_from projection (cc-otel.sql), bridging cold rows to on-disk transcript lookups.
 #
@@ -86,6 +93,11 @@ compact_dropped() {
     n=$((n + 1))
   done
   local cold_tmp="$cold_file.tmp"
+  # A keep-on compaction writes prompt content to cold, voiding the clean marker. Removed
+  # before the write so a crash after it never leaves a stale marker.
+  if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" && "$base" != cc-metrics ]]; then
+    rm -f "$cold_dir/$COLD_CLEAN_MARKER"
+  fi
   if [[ -n "${CC_OTEL_COMPACT_CMD:-}" ]]; then
     if ! "$CC_OTEL_COMPACT_CMD" "$dropped" "$cold_tmp"; then
       rm -f "$cold_tmp"
@@ -103,7 +115,7 @@ compact_dropped() {
       if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; then
         select_sql="SELECT * EXCLUDE (attributes_list), to_json(attributes_list) AS log_attributes_raw FROM cc_logs_from('$src_sql')"
       else
-        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (CASE WHEN event_name = 'user_prompt' THEN NULL ELSE body END AS body), to_json(list_filter(attributes_list, lambda x: x.key != 'prompt')) AS log_attributes_raw FROM cc_logs_from('$src_sql')"
+        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (CASE WHEN event_name = 'user_prompt' THEN NULL ELSE body END AS body), to_json(list_filter(attributes_list, lambda x: x.key NOT IN ($COLD_LOG_PROMPT_KEYS))) AS log_attributes_raw FROM cc_logs_from('$src_sql')"
       fi
       # COALESCE: NOT IN over a NULL event_name yields NULL (row silently filtered) — keep
       # nameless rows instead of losing them to three-valued logic.
@@ -112,7 +124,7 @@ compact_dropped() {
       if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; then
         select_sql="SELECT * EXCLUDE (attributes_list), to_json(attributes_list) AS span_attributes_raw FROM cc_spans_from('$src_sql')"
       else
-        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (NULL AS user_prompt), to_json(list_filter(attributes_list, lambda x: x.key != 'user_prompt' AND x.key != 'prompt')) AS span_attributes_raw FROM cc_spans_from('$src_sql')"
+        select_sql="SELECT * EXCLUDE (attributes_list) REPLACE (NULL AS user_prompt), to_json(list_filter(attributes_list, lambda x: x.key NOT IN ($COLD_SPAN_PROMPT_KEYS))) AS span_attributes_raw FROM cc_spans_from('$src_sql')"
       fi
     else
       select_sql="SELECT * EXCLUDE (attributes_list), to_json(attributes_list) AS metric_attributes_raw FROM cc_metrics_from('$src_sql')"
@@ -140,6 +152,168 @@ compact_dropped() {
     return 1
   fi
   mv -f "$cold_tmp" "$cold_file"
+}
+
+# Cold files compacted before a key joined the scrub lists (or with the keep knob on) still
+# hold prompt content. A row is dirty when its attribute list carries a scrubbed key or its
+# prompt column (logs: user_prompt body; spans: user_prompt) is non-NULL. Arg: cc-logs|cc-traces.
+cold_dirty_predicate() {
+  if [[ "$1" == cc-logs ]]; then
+    printf '%s' "COALESCE(list_has_any(json_extract_string(log_attributes_raw, '\$[*].key'), [$COLD_LOG_PROMPT_KEYS]), false) OR (event_name = 'user_prompt' AND body IS NOT NULL)"
+  else
+    printf '%s' "COALESCE(list_has_any(json_extract_string(span_attributes_raw, '\$[*].key'), [$COLD_SPAN_PROMPT_KEYS]), false) OR user_prompt IS NOT NULL"
+  fi
+}
+
+# The compaction scrub, re-applied to an existing cold file (SQL-literal path). Every other
+# column passes through unchanged; NULLIF(x, x) NULLs a column without changing its type.
+cold_scrub_select() {
+  local kind="$1" src_sql="$2"
+  if [[ "$kind" == cc-logs ]]; then
+    printf '%s' "SELECT * REPLACE (CASE WHEN event_name = 'user_prompt' THEN NULLIF(body, body) ELSE body END AS body, to_json(list_filter(from_json(log_attributes_raw, '$COLD_ATTR_SHAPE'), lambda x: x.key NOT IN ($COLD_LOG_PROMPT_KEYS))) AS log_attributes_raw) FROM read_parquet('$src_sql')"
+  else
+    printf '%s' "SELECT * REPLACE (NULLIF(user_prompt, user_prompt) AS user_prompt, to_json(list_filter(from_json(span_attributes_raw, '$COLD_ATTR_SHAPE'), lambda x: x.key NOT IN ($COLD_SPAN_PROMPT_KEYS))) AS span_attributes_raw) FROM read_parquet('$src_sql')"
+  fi
+}
+
+# Print "<rows>,<dirty rows>" for one cold Parquet file.
+cold_counts() {
+  local kind="$1" file="$2" out
+  out="$(duckdb -csv -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind")) FROM read_parquet('$(sql_path "$file")');" 2>&1 </dev/null)" || {
+    err "duckdb could not read $file: $out"
+    return 1
+  }
+  printf '%s\n' "${out//$'\r'/}"
+}
+
+# Print "<rows>|<dirty rows>|<file name>" for every cold file of one kind, in ONE duckdb call
+# over the kind's glob (cold history is unbounded; a process per file does not scale).
+# Prints nothing when the kind has no cold files.
+cold_glob_counts() {
+  local kind="$1" cold_dir="$2" out
+  compgen -G "$cold_dir/$kind-*.parquet" >/dev/null || return 0
+  out="$(duckdb -list -noheader -c "SELECT count(*), count(*) FILTER (WHERE $(cold_dirty_predicate "$kind")), parse_filename(filename) FROM read_parquet('$(sql_path "$cold_dir")/$kind-*.parquet', filename = true, union_by_name = true) GROUP BY filename ORDER BY filename;" 2>&1)" || {
+    err "duckdb could not read $cold_dir/$kind-*.parquet: $out"
+    return 1
+  }
+  printf '%s\n' "${out//$'\r'/}"
+}
+
+# Count cold files holding prompt content (one duckdb call per kind).
+cold_dirty_file_count() {
+  local cold_dir="$1" kind counts rows dirty name n=0
+  for kind in cc-logs cc-traces; do
+    counts="$(cold_glob_counts "$kind" "$cold_dir")" || return 1
+    while IFS='|' read -r rows dirty name; do
+      [[ -n "$name" && "$dirty" != 0 ]] && n=$((n + 1))
+    done <<<"$counts"
+  done
+  printf '%s\n' "$n"
+}
+
+# Sorted cold file set; the clean marker is written only if it still matches the clean scan.
+cold_snapshot() {
+  {
+    compgen -G "$1/cc-logs-*.parquet" || true
+    compgen -G "$1/cc-traces-*.parquet" || true
+  } | sort | cksum
+}
+
+# cold/.prompt-scrub-clean asserts no cold file holds prompt content, so routine prunes skip
+# the scan. Keep-off compaction writes clean files, so it stays valid; a keep-on compaction
+# deletes it (compact_dropped). It is only written under the prune sentinel.
+readonly COLD_CLEAN_MARKER=.prompt-scrub-clean
+COLD_CLEAN_SNAPSHOT=""
+
+# One-line notice when cold files still hold prompt content. Detection only, best-effort:
+# silent with the keep knob on, with the clean marker present, without duckdb, or when the
+# scan fails. A clean scan records the cold file set for mark_cold_clean.
+cold_prompt_notice() {
+  local cold_dir="$1/cold" snapshot dirty_files
+  COLD_CLEAN_SNAPSHOT=""
+  [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]] && return 0
+  [[ -e "$cold_dir/$COLD_CLEAN_MARKER" ]] && return 0
+  command -v duckdb >/dev/null 2>&1 || return 0
+  snapshot="$(cold_snapshot "$cold_dir")"
+  dirty_files="$(cold_dirty_file_count "$cold_dir" 2>/dev/null)" || return 0
+  if ((dirty_files > 0)); then
+    printf 'notice: %s cold file(s) still hold prompt content; run prune-otel-store.sh --scrub-cold\n' "$dirty_files"
+  else
+    COLD_CLEAN_SNAPSHOT="$snapshot"
+  fi
+}
+
+# Under the sentinel: write the clean marker when the earlier scan was clean and no cold file
+# has appeared or gone since (a prune that ran between the scan and the lock voids the scan).
+mark_cold_clean() {
+  local cold_dir="$1/cold"
+  [[ -n "$COLD_CLEAN_SNAPSHOT" ]] || return 0
+  [[ "$(cold_snapshot "$cold_dir")" == "$COLD_CLEAN_SNAPSHOT" ]] || return 0
+  mkdir -p "$cold_dir"
+  : >"$cold_dir/$COLD_CLEAN_MARKER"
+}
+
+# mark_cold_clean outside the prune's own lock hold: take the sentinel just long enough to
+# write the marker. A held sentinel skips silently, as does an absent cold/ (nothing to scan,
+# and a run that trims nothing must not create the directory).
+mark_cold_clean_briefly() {
+  local store_dir="$1"
+  [[ -n "$COLD_CLEAN_SNAPSHOT" && -d "$store_dir/cold" ]] || return 0
+  # shellcheck disable=SC2310  # failure IS the handled branch; set -e suppression is intended
+  take_sentinel || return 0
+  mark_cold_clean "$store_dir" || true
+  release_sentinel
+}
+
+# Rewrite each dirty cold logs/spans file with the compaction scrub: COPY to a .tmp in cold/,
+# verify the row count is unchanged and no dirty row remains, then mv over the original.
+# Clean files are left untouched. Always scans, whatever the marker says; a completed real
+# run writes the marker. dry_run=true reports only. Returns 1 on the first failure, leaving
+# that file and every later one as they were.
+scrub_cold() {
+  local store_dir="$1" dry_run="$2"
+  local cold_dir="$1/cold" kind file name counts rows dirty base tmp after affected=0 scrubbed=0
+  for kind in cc-logs cc-traces; do
+    counts="$(cold_glob_counts "$kind" "$cold_dir")" || return 1
+    while IFS='|' read -r rows dirty base; do
+      [[ -n "$base" ]] || continue
+      file="$cold_dir/$base"
+      name="cold/$base"
+      if [[ "$dirty" == 0 ]]; then
+        printf '%s: clean rows=%s\n' "$name" "$rows"
+        continue
+      fi
+      affected=$((affected + 1))
+      if [[ "$dry_run" == true ]]; then
+        printf '%s: would_scrub rows=%s prompt_rows=%s\n' "$name" "$rows" "$dirty"
+        continue
+      fi
+      tmp="$file.scrub.tmp"
+      if ! run_reporting duckdb -c "COPY ($(cold_scrub_select "$kind" "$(sql_path "$file")")) TO '$(sql_path "$tmp")' (FORMAT PARQUET, COMPRESSION ZSTD);" </dev/null; then
+        rm -f "$tmp"
+        return 1
+      fi
+      after="$(cold_counts "$kind" "$tmp")" || {
+        rm -f "$tmp"
+        return 1
+      }
+      if [[ "$after" != "$rows,0" ]]; then
+        rm -f "$tmp"
+        err "scrub verification failed for $name: expected $rows,0 got $after (original untouched)"
+        return 1
+      fi
+      mv -f "$tmp" "$file"
+      scrubbed=$((scrubbed + 1))
+      printf '%s: scrubbed rows=%s prompt_rows=%s\n' "$name" "$rows" "$dirty"
+    done <<<"$counts"
+  done
+  if [[ "$dry_run" == true ]]; then
+    printf 'action=dry-run-scrub-cold affected_files=%s\n' "$affected"
+  else
+    mkdir -p "$cold_dir"
+    : >"$cold_dir/$COLD_CLEAN_MARKER"
+    printf 'action=scrubbed-cold scrubbed_files=%s\n' "$scrubbed"
+  fi
 }
 
 # Strip api_*_body logRecords from each surgery-routed line (records past the body window
