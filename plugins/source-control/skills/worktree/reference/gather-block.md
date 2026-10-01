@@ -53,7 +53,7 @@ bullet of the worktrees page.
 
 | Refused shape | Accepted rewrite |
 |---|---|
-| A compound command that contains git (`a && b`, `;`, a pipe into or out of git) | One command per Bash call, so each is screened alone |
+| A compound command that contains git (`a && b`) | One command per Bash call, so each is screened alone |
 | When the command can run git: a path or command built from a variable or expansion (`$VAR`, `${VAR}`, `${!name}`, `${ cmd; }`) | A literal absolute path; a bare `$HOME` is the one expansion observed to pass |
 | `bash <script>` or `sh <script>` | The executable path, `<script>` itself |
 | When the command can run git: a file read through a shell pipeline (unprobed) | The Read tool |
