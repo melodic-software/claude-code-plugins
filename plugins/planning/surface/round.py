@@ -1253,7 +1253,9 @@ def cmd_export_ledger(d, a):
 
 def cmd_sync_ledger(d, a):
     path = Path(a.ledger)
-    text, notes = exporters.sync_ledger(d, path.read_text(encoding="utf-8"), a.ledger)
+    # Read untranslated so a CRLF ledger keeps its line endings.
+    with open(path, encoding="utf-8", newline="") as f:
+        text, notes = exporters.sync_ledger(d, f.read(), a.ledger)
     tmp = path.with_name(f".{path.name}.sync")
     write_text(tmp, text)
     os.replace(tmp, path)

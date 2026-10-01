@@ -609,8 +609,10 @@ def merged_register(d, text=None):
             x.get("updatedAt") for x in (responses.get(q["id"]), q.get("terminal")) if x
         ]
         stamps.append((q.get("archived") or {}).get("at"))
+        # A hold counts from the wait op's stamp; an imported hold carries none.
+        stamps.append(q.get("waiting") and q.get("waitingSince"))
         return any(s and s > seeded.get("at", "") for s in stamps) or bool(
-            q.get("supersededBy") or q.get("waiting")
+            q.get("supersededBy")
         )
 
     rows = []
@@ -707,7 +709,8 @@ def sync_ledger(d, text, where):
     at = min(drop) if drop else heads[0] + 1
     if not drop and at < len(lines) and not lines[at].strip():
         at += 1
-    new = [row_line(r) + "\n" for r in rows]
+    eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    new = [row_line(r) + eol for r in rows]
     keep = [line for i, line in enumerate(lines) if i not in drop]
     return "".join(keep[:at] + new + keep[at:]), notes
 

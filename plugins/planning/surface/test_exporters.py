@@ -3403,6 +3403,36 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp("export-ledger", "--diff", str(ledger))
         self.assertEqual(rc, 0, out)
 
+    def test_a_ledger_answer_after_an_import_is_a_conflict_the_sync_keeps(self):
+        seed = [
+            "- Q1 | deferred | round 1 | Later? | deferred: to planning",
+            "- Q2 | open | round 1 | Held? | hold:: user checking the tracker",
+        ]
+        rc, out = self.rp("import-ledger", "--ledger", str(self.ledger(seed)))
+        self.assertEqual(rc, 0, out)
+        answered = [
+            "- Q1 | answered | round 1 | Later? | free-text: decided after all",
+            "- Q2 | answered | round 1 | Held? | free-text: the tracker says yes",
+        ]
+        ledger = self.ledger(answered)
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Q1 status: conflict, kept the ledger's 'answered'", out)
+        self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(register_rows(ledger), answered)
+
+    def test_sync_ledger_keeps_crlf_line_endings(self):
+        self.decided()
+        ledger = self.tmp / "crlf.md"
+        text = self.export("ledger").read_text(encoding="utf-8")
+        ledger.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        data = ledger.read_bytes()
+        self.assertEqual(data, text.replace("\n", "\r\n").encode("utf-8"))
+
     def test_sync_ledger_refuses_two_registers(self):
         self.decided()
         ledger = self.ledger(["- Q1 | open | round 1 | Question Q1? |"])
