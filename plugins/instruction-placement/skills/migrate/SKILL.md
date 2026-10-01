@@ -390,8 +390,8 @@ One native Claude Code surface works on the same file, and the two are easy to c
 
 - **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin that loads `AGENTS.md`
   as project instructions where the project has no `CLAUDE.md`, and by its `instructionFiles`
-  option beside `CLAUDE.md`, not at all, or in place of the project instructions. It moves no file
-  and writes no shim.
+  option beside `CLAUDE.md`, not at all (`claude-md`), or with every project and user instruction
+  file dropped (`managed-only`). It moves no file and writes no shim.
 - **This skill**: moves a repository's instruction content into `AGENTS.md`, keeps the one-line
   `CLAUDE.md` shim, and decides when the shim can go.
 
@@ -401,6 +401,9 @@ carries `AGENTS.md` into the sessions the plugin does not reach; never treat the
 presence on one machine as proof every session reads `AGENTS.md`. Verdict `complementary`,
 integration `route`; the four-part record is in
 [`reference/sources.md`](reference/sources.md), "The built-in agents-md plugin".
+
+**Mutation gate:** the plugin changes no file. This skill's moves and shim edits run only behind
+its per-write operator gate.
 
 ## Hard rules
 
