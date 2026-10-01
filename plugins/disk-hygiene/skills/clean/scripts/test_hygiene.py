@@ -79,6 +79,7 @@ def load_module(name: str, filename: str):
 
 hygiene = load_module("hygiene", "hygiene.py")
 guard = load_module("destructive_guard", "destructive_guard.py")
+release_belt = guard.release_belt
 
 
 def candidate(path: str, tier: str = "high") -> dict[str, object]:
@@ -9300,7 +9301,12 @@ class GuardTests(unittest.TestCase):
         )
 
     def _invoke_guard(
-        self, command: str, *, tool_name: str = "Bash", enabled: bool = True
+        self,
+        command: str,
+        *,
+        tool_name: str = "Bash",
+        enabled: bool = True,
+        session_id: str | None = None,
     ) -> dict[str, object] | None:
         self._set_kill_switch(enabled)
         argv = [str(SCRIPT_DIR / "destructive_guard.py")]
@@ -9309,6 +9315,8 @@ class GuardTests(unittest.TestCase):
         payload: dict[str, object] = {"tool_input": {"command": command}}
         if tool_name:
             payload["tool_name"] = tool_name
+        if session_id is not None:
+            payload["session_id"] = session_id
         stdin = io.StringIO(json.dumps(payload))
         stdout = io.StringIO()
         with (
@@ -10439,9 +10447,11 @@ class GuardTests(unittest.TestCase):
         self.assertNotIn("was invoked in this session", gated)
 
         self.assertIn("/disk-hygiene:clean was invoked in this session", belt)
-        self.assertIn("persists until the session ends", belt)
-        self.assertIn("Bash is restricted", belt)
-        self.assertIn("start a new session", belt)
+        self.assertIn("deletion-shaped Bash commands", belt)
+        self.assertIn("git and gh included, do not reach this belt", belt)
+        self.assertIn("release lever", belt)
+        self.assertNotIn("persists until the session ends", belt)
+        self.assertNotIn("start a new session", belt)
         self.assertNotIn("subagent does not inherit", belt)
         self.assertNotIn("this specific engine invocation", belt)
         self.assertNotIn("need not have been invoked", belt)
@@ -12351,43 +12361,39 @@ class GuardTests(unittest.TestCase):
         return raw
 
     @classmethod
-    def _skill_hook(cls) -> dict:
-        """The clean skill's frontmatter guard hook, as a hook mapping.
+    def _skill_hooks(cls) -> list[tuple[str, dict]]:
+        """Every frontmatter guard handler of the clean skill, with its matcher.
 
-        Returned in the same shape `hooks.json` entries have so the skill
-        surface can be asserted through the very same form-agnostic
-        `_hook_argv()` the wired hooks use — one reading path for both
-        surfaces, in either launch form. Reading it form-specifically (keying
-        on an `args:` line) is what issue #2568 had to unwind: it raises the
-        moment the hook moves to shell form.
+        Each handler is one JSON flow mapping on its own line (``- {...}``),
+        which is valid YAML and parses here with ``json.loads``, so every key
+        is read whatever the launch form. A handler written any other way
+        fails here instead of being skipped.
         """
         lines = (
             (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8").splitlines()
         )
         frontmatter = lines[1 : lines.index("---", 1)]
-        start = next(
-            index
-            for index, line in enumerate(frontmatter)
-            if line.strip() == "- type: command"
-        )
-        entry_indent = len(frontmatter[start]) - len(frontmatter[start].lstrip())
-        key_indent = entry_indent + len("- ")
-        hook: dict = {}
-        for offset, line in enumerate(frontmatter[start:]):
-            if not line.strip():
-                continue
-            indent, body = len(line) - len(line.lstrip()), line.strip()
-            if body.startswith("- "):
-                if offset or indent != entry_indent:
-                    break
-                body = body[len("- ") :]
-            elif indent != key_indent:
-                break
-            key, _, value = body.partition(":")
-            hook[key.strip()] = cls._yaml_flow_scalar(value)
-        if "args" in hook:
-            hook["args"] = json.loads(hook["args"])
-        return hook
+        handlers: list[tuple[str, dict]] = []
+        matcher = ""
+        for line in frontmatter:
+            body = line.strip()
+            if body.startswith("- matcher:"):
+                matcher = cls._yaml_flow_scalar(body.partition(":")[2])
+            elif body.startswith("- ") and matcher:
+                handlers.append((matcher, json.loads(body[len("- ") :])))
+        return handlers
+
+    @classmethod
+    def _skill_hook(cls) -> dict:
+        """The clean skill's first frontmatter guard hook, as a hook mapping.
+
+        Returned in the same shape `hooks.json` entries have so the skill
+        surface can be asserted through the very same form-agnostic
+        `_hook_argv()` the wired hooks use. Every handler launches the guard
+        identically (see `test_belt_registers_deletion_shape_filters_on_bash_only`),
+        so the first speaks for all of them.
+        """
+        return cls._skill_hooks()[0][1]
 
     @classmethod
     def _substitute_plugin_root(cls, value: object, root: str) -> object:
@@ -12608,6 +12614,213 @@ class GuardTests(unittest.TestCase):
             ],
             [hook.get("if") for hook in by_matcher["PowerShell"]],
         )
+
+    # The clean skill's belt `if` list: deletion heads bare and by absolute
+    # path, plus the three bundled scripts whose calls the belt adjudicates.
+    _BELT_BASH_IFS = [
+        f"Bash({form})"
+        for head in ("rm", "rmdir", "unlink", "shred", "truncate", "mv", "find")
+        for form in (f"{head} *", f"*/{head} *")
+    ] + [
+        "Bash(*hygiene.py*)",
+        "Bash(*kill_switch_probe.py*)",
+        "Bash(*release_belt.py*)",
+    ]
+
+    def test_belt_registers_deletion_shape_filters_on_bash_only(self) -> None:
+        handlers = self._skill_hooks()
+        self.assertEqual(
+            self._BELT_BASH_IFS,
+            [hook.get("if") for matcher, hook in handlers if matcher == "Bash"],
+        )
+        self.assertEqual(
+            [None],
+            [hook.get("if") for matcher, hook in handlers if matcher == "PowerShell"],
+        )
+        self.assertEqual({"Bash", "PowerShell"}, {matcher for matcher, _ in handlers})
+        launches = {
+            json.dumps({key: value for key, value in hook.items() if key != "if"})
+            for _, hook in handlers
+        }
+        self.assertEqual(1, len(launches), launches)
+        self.assertIn("destructive_guard.py", " ".join(handlers[0][1]["args"]))
+
+    def test_belt_filters_skip_git_gh_and_helper_scripts(self) -> None:
+        """The owner-approved scope: deletion heads reach the belt, git and gh do not.
+
+        ``fnmatchcase`` over the whole command stands in for the harness's
+        per-subcommand ``if`` match; it does not model splitting on ``&&``.
+        """
+        globs = [rule[len("Bash(") : -1] for rule in self._BELT_BASH_IFS]
+
+        def reaches(command: str) -> bool:
+            return any(fnmatch.fnmatchcase(command, glob) for glob in globs)
+
+        for command in (
+            "git --version",
+            "git log --format=%H",
+            "git commit -m 'remove the rm handling'",
+            "gh pr merge 5 --delete-branch",
+            "bash /p/repo-hygiene/skills/clean/scripts/git-branch-audit.sh",
+            "bash /p/discovery/scripts/check-dispatch-artifact.sh --help",
+            "npm run format",
+        ):
+            with self.subTest(command=command):
+                self.assertFalse(reaches(command))
+        for command in (
+            "rm -rf x",
+            "/bin/rm -rf x",
+            "rmdir x",
+            "unlink x",
+            "shred -u x",
+            "truncate -s 0 x",
+            "mv a b",
+            "find . -delete",
+            "/usr/bin/find . -name x",
+        ):
+            with self.subTest(command=command):
+                self.assertTrue(reaches(command))
+
+    _SESSION = "3f9c2a10-belt-session"
+
+    def _release_words(
+        self, *, session: str | None = None, data_root: str | None = None
+    ) -> str:
+        script = (SCRIPT_DIR / "release_belt.py").resolve().as_posix()
+        root = data_root or self._data_root.resolve().as_posix()
+        return (
+            f'"{self.python_command()}" "{script}" --data-root "{root}" '
+            f"--session-id {session or self._SESSION}"
+        )
+
+    def _belt(
+        self,
+        command: str,
+        *,
+        session_id: str | None = _SESSION,
+        tool_name: str = "Bash",
+        enabled: bool = True,
+    ) -> dict[str, object] | None:
+        return self._invoke_guard(
+            command, tool_name=tool_name, enabled=enabled, session_id=session_id
+        )
+
+    def _release(self, session: str | None = None) -> Path:
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(
+                0,
+                release_belt.main(
+                    [
+                        "--data-root",
+                        os.fspath(self._data_root),
+                        "--session-id",
+                        session or self._SESSION,
+                    ]
+                ),
+            )
+        return release_belt.marker_path(
+            os.fspath(self._data_root), session or self._SESSION
+        )
+
+    def _permission(self, result: dict[str, object] | None) -> str | None:
+        if result is None or "hookSpecificOutput" not in result:
+            return None
+        return cast(str, result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_unreleased_belt_denies_deletion_and_prints_the_lever(self) -> None:
+        self.authorize_data_root()
+        for command in ("rm -rf /tmp/x", "mv a b", "find . -delete", "ls x | rm y"):
+            with self.subTest(command=command):
+                result = self._belt(command)
+                self.assertEqual("deny", self._permission(result))
+        reason = self._belt("rm -rf /tmp/x")["hookSpecificOutput"][
+            "permissionDecisionReason"
+        ]
+        self.assertIn(self._release_words(), reason)
+        self.assertIn("asks for your confirmation every time", reason)
+
+    def test_exact_release_invocation_asks_and_any_other_form_denies(self) -> None:
+        self.authorize_data_root()
+        self.assertEqual("ask", self._permission(self._belt(self._release_words())))
+        elsewhere = (Path(self._cfg.name) / "elsewhere").as_posix()
+        for label, command, kwargs in (
+            ("other session", self._release_words(session="other-session"), {}),
+            ("other data root", self._release_words(data_root=elsewhere), {}),
+            ("extra argument", self._release_words() + " --force", {}),
+            ("bare python", "python3 release_belt.py --session-id x", {}),
+            ("no payload session", self._release_words(), {"session_id": None}),
+            (
+                "invalid payload session",
+                self._release_words(session="../x"),
+                {"session_id": "../x"},
+            ),
+            ("audit-only mode", self._release_words(), {"enabled": False}),
+            ("PowerShell lane", self._release_words(), {"tool_name": "PowerShell"}),
+        ):
+            with self.subTest(label):
+                self.assertEqual(
+                    "deny", self._permission(self._belt(command, **kwargs))
+                )
+
+    def test_released_belt_defers_logs_and_announces(self) -> None:
+        self.authorize_data_root()
+        self._release()
+        command = "rm -rf /tmp/belt-released-example"
+        result = self._belt(command)
+        assert result is not None
+        self.assertNotIn("hookSpecificOutput", result)
+        self.assertIn("belt is released for this session", result["systemMessage"])
+        record = self.decision_records()[-1]
+        self.assertEqual("released", record["decision"])
+        self.assertEqual("belt-released", record["rule"])
+        self.assertEqual(command, record["command"])
+
+    def test_released_belt_still_denies_what_it_must(self) -> None:
+        self.authorize_data_root()
+        self._release()
+        script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
+        for label, command, kwargs in (
+            ("other session", "rm x", {"session_id": "other-session"}),
+            ("no session", "rm x", {"session_id": None}),
+            ("non-exact engine call", f"python3 {script} scan --target t", {}),
+            ("unbalanced quote", "rm 'x", {}),
+            ("audit-only mode", "rm x", {"enabled": False}),
+        ):
+            with self.subTest(label):
+                self.assertEqual(
+                    "deny", self._permission(self._belt(command, **kwargs))
+                )
+        self.assertEqual(
+            "allow",
+            self._permission(
+                self._belt(self._engine_words("scan --target t --output s"))
+            ),
+        )
+
+    def test_release_marker_must_be_a_regular_file(self) -> None:
+        self.authorize_data_root()
+        marker = release_belt.marker_path(os.fspath(self._data_root), self._SESSION)
+        marker.parent.mkdir(parents=True)
+        marker.mkdir()
+        self.assertEqual("deny", self._permission(self._belt("rm x")))
+        marker.rmdir()
+        target = Path(self._cfg.name) / "target"
+        target.write_text("", encoding="utf-8")
+        try:
+            marker.symlink_to(target)
+        except OSError:
+            self.skipTest("symlinks unavailable")
+        self.assertEqual("deny", self._permission(self._belt("rm x")))
+
+    def test_release_script_rejects_an_invalid_session_id(self) -> None:
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(
+                2,
+                release_belt.main(
+                    ["--data-root", os.fspath(self._data_root), "--session-id", "../x"]
+                ),
+            )
+        self.assertFalse((self._data_root / release_belt.RELEASE_DIRNAME).exists())
 
     _IF_STATEMENT_SPLIT = re.compile(r"\r?\n|\u2028|\u2029|;|\|\||&&|\|")
 
@@ -13755,16 +13968,9 @@ class GuardTests(unittest.TestCase):
         self.assertGreaterEqual(len(declared), 2, declared)
         self.assertEqual({guard._DECLARED_HOOK_TIMEOUT_SECONDS}, set(declared))
 
-        skill_text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
-        timeout_lines = [
-            line
-            for line in skill_text.splitlines()
-            if line.strip().startswith("timeout:")
-        ]
-        self.assertEqual(1, len(timeout_lines), timeout_lines)
         self.assertEqual(
-            guard._DECLARED_HOOK_TIMEOUT_SECONDS,
-            float(timeout_lines[0].split(":", 1)[1].strip()),
+            {guard._DECLARED_HOOK_TIMEOUT_SECONDS},
+            {float(hook["timeout"]) for _, hook in self._skill_hooks()},
         )
 
     def test_main_denies_at_exit_2_when_watchdog_cannot_be_constructed(self) -> None:
@@ -15442,8 +15648,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertIn("never trusted", belt)
         self.assertIn("claude plugin marketplace add", belt)
         self.assertNotIn("start Claude Code from a shell", belt)
-        self.assertIn("persists until the session ends", belt)
-        self.assertIn("start a new session", belt)
+        self.assertIn("release lever is unavailable", belt)
 
     # --- AC15: memoized per process -----------------------------------------
 

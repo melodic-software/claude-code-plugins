@@ -49,6 +49,7 @@ import json
 import math
 import os
 import re
+import shlex
 import stat
 import sys
 import threading
@@ -59,11 +60,14 @@ from typing import NamedTuple
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
 import guard_decision_log  # noqa: E402  (path set above; plugin-bundled module)
 import hook_telemetry  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
+import release_belt  # noqa: E402  (path set above; bundled sibling script)
 
 
 _SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
@@ -527,6 +531,7 @@ _MODE_FLAG = "--mode"
 _MODE_BELT = "belt"
 _MODE_ENGINE_GATE = "engine-gate"
 _ENGINE_MARKER = "hygiene.py"
+_RELEASE_MARKER = "release_belt.py"
 
 
 @functools.lru_cache(maxsize=1)
@@ -608,6 +613,11 @@ def _probe_script_path() -> Path:
         / "scripts"
         / "kill_switch_probe.py"
     )
+
+
+def _release_script_path() -> Path:
+    """The one bundled belt-release lever path."""
+    return Path(__file__).resolve().with_name(_RELEASE_MARKER)
 
 
 def _display_path(path: Path) -> str:
@@ -1094,11 +1104,12 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
 def resolve_mode() -> str:
     """Resolve which registration surface launched this guard.
 
-    ``belt`` (default) is the skill-frontmatter deployment: deny-by-default Bash
-    (with a small read-only supporting allowlist) and deletion-spelling PowerShell
-    discipline. Claude Code registers skill-frontmatter ``PreToolUse`` hooks for
-    the rest of the session after the skill is invoked — not only while cleanup is
-    the active work — so this mode stays armed session-wide once registered
+    ``belt`` (default) is the skill-frontmatter deployment: the skill's ``if``
+    filters send only deletion-shaped Bash commands here, and each one is denied
+    unless it is an exact engine call, the small read-only supporting allowlist,
+    the release lever, or the session's belt is released; PowerShell keeps its
+    deletion-spelling discipline. Claude Code registers skill-frontmatter
+    ``PreToolUse`` hooks for the rest of the session after the skill is invoked
     (#2618). ``engine-gate`` is the plugin-level deployment: it cares ONLY about
     engine invocations (kill switch + data-root authority must hold in every
     session), so any command that does not reference the engine defers instantly
@@ -1397,6 +1408,59 @@ def is_exact_kill_switch_probe(command: str) -> bool:
     return _script_path_key(tokens[1]) == _script_path_key(str(_probe_script_path()))
 
 
+def _release_command(authority: str | None, session_id: str | None) -> str | None:
+    """The exact release-lever command for this session, or None if unavailable."""
+    if not authority or not release_belt.valid_session_id(session_id):
+        return None
+    return (
+        f'"{_display_python()}" "{_display_path(_release_script_path())}" '
+        f'--data-root "{_display_data_root(authority)}" --session-id {session_id}'
+    )
+
+
+def is_exact_release_invocation(
+    command: str, authority: str | None, session_id: str | None
+) -> bool:
+    """True only for the bundled release lever, this hook's data root, this session."""
+    if not authority or not release_belt.valid_session_id(session_id):
+        return False
+    tokens = _literal_shell_words(command)
+    return (
+        tokens is not None
+        and len(tokens) == 6
+        and _is_current_python(tokens[0])
+        and _script_path_key(tokens[1]) == _script_path_key(str(_release_script_path()))
+        and tokens[2] == "--data-root"
+        and _is_authorized_data_root(tokens[3], authority)
+        and tokens[4] == "--session-id"
+        and tokens[5] == session_id
+    )
+
+
+def belt_released(authority: str | None, session_id: str | None) -> bool:
+    """True when a regular release marker exists for this session.
+
+    A missing authority or session id, an invalid id, a marker that is not a
+    regular file (a symlink, a directory), and any filesystem error all leave
+    the belt in force.
+    """
+    if not authority or not release_belt.valid_session_id(session_id):
+        return False
+    try:
+        mode = os.lstat(release_belt.marker_path(authority, session_id)).st_mode
+    except (OSError, ValueError):
+        return False
+    return stat.S_ISREG(mode)
+
+
+def _shlex_parses(command: str) -> bool:
+    try:
+        shlex.split(command)
+    except ValueError:
+        return False
+    return True
+
+
 # Narrow belt-mode Bash allowlist for cleanup inspection (#2591). Bare names are
 # denied outright (exported shell functions shadow them; #2618); a head is
 # accepted only as an absolute path resolving under a trusted system directory
@@ -1690,7 +1754,7 @@ def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
 def is_exact_readonly_supporting_command(command: str) -> bool:
     """Return True for one literal-form read-only supporting Bash command (#2591).
 
-    The belt remains deny-by-default; this opens only the small inspection set
+    The belt denies whatever reaches it by default; this opens only the small inspection set
     needed after the skill-frontmatter hook stays armed for the rest of the
     session (#2618). Engine containment is still the deletion authority.
     Heads must be absolute paths under a trusted system directory — bare names
@@ -2313,19 +2377,23 @@ _ENGINE_GATE_SCOPE = (
 
 
 def _bash_denial_guidance(
-    authority: str | None, mode: str | None = None, command: str | None = None
+    authority: str | None,
+    mode: str | None = None,
+    command: str | None = None,
+    session_id: str | None = None,
 ) -> str:
     """Explain a Bash deny in the words of the surface that issued it.
 
     ``engine-gate`` (the plugin-level always-on hook) gates this engine
     invocation only: the rest of the Bash lane is unaffected, and
     ``/disk-hygiene:clean`` need not have been invoked. ``belt`` (the
-    skill-frontmatter registration, and the default) is session-wide after
-    that skill is invoked, and names how it clears. Both bodies disclose the
-    same classifier allow-list so the denial cannot teach a grammar the
-    classifier does not implement. Unrecognized ``mode`` values fall back to
-    ``belt``, matching ``resolve_mode``. ``command`` is read only by the
-    ``engine-gate`` body, to name what failed in the denied command.
+    skill-frontmatter registration, and the default) covers deletion-shaped
+    Bash commands after that skill is invoked, and names the release lever.
+    Both bodies disclose the same classifier allow-list so the denial cannot
+    teach a grammar the classifier does not implement. Unrecognized ``mode``
+    values fall back to ``belt``, matching ``resolve_mode``. ``command`` is
+    read only by the ``engine-gate`` body, to name what failed in the denied
+    command; ``session_id`` only by the ``belt`` body, to print the lever.
     """
     resolved = resolve_mode() if mode is None else mode
     grammar = _bash_allowlist_disclosure(authority)
@@ -2348,14 +2416,27 @@ def _bash_denial_guidance(
             "Bash allowlist or non-Bash read-only tools; any other shape of "
             "this engine invocation stays denied."
         )
+    release = _release_command(authority, session_id)
+    lever = (
+        f"Release lever: {release} lifts this belt for this session only. It "
+        "asks for your confirmation every time; after it, deletion-shaped "
+        "commands go to the normal permission system, each one is logged, and "
+        "exact engine calls stay gated."
+        if release
+        else "The release lever is unavailable for this call: it needs an "
+        "authorized data root and a valid session id, and this call lacks one."
+    )
     return (
         "Disk-hygiene session belt: /disk-hygiene:clean was invoked in this "
-        "session, and this belt persists until the session ends. Bash is "
-        "restricted to "
+        "session, so deletion-shaped Bash commands (rm, rmdir, unlink, shred, "
+        "truncate, mv and find, bare or by absolute path, and engine calls) are "
+        "denied unless they are "
         + grammar
-        + " Supporting inspection may use that small Bash allowlist or "
-        "non-Bash read-only tools; everything else stays denied. Recovery: "
-        "start a new session."
+        + " Other Bash commands, git and gh included, do not reach this belt, "
+        "except a command Claude Code cannot split into its parts, which does "
+        "and is denied. "
+        "For read-only listing, use the Glob or Grep tools or an absolute-path "
+        "find without side-effect primaries. " + lever
     )
 
 
@@ -2633,8 +2714,7 @@ def _watchdog_fire(deadline: float) -> None:
       outcome the guard would have reached (a defer emits no decision at all
       and lets the command run) and strictly less blocking than ``exit 2``;
     * ``belt`` mode denies, always. Belt is the skill-frontmatter deployment,
-      where Bash is deny-by-default and ``_engine_gate_relevant`` is never
-      consulted — a marker-free ``rm -rf`` would have been DENIED there, not
+      where a Bash command that reaches the guard is denied by default — a marker-free ``rm -rf`` would have been DENIED there, not
       deferred, so downgrading it to a prompt on "the host was slow" would
       convert a deny-by-default guard into one the operator is invited to
       wave through. Belt is also the DEFAULT (``resolve_mode`` falls back to
@@ -2769,8 +2849,8 @@ def _watchdog_fire(deadline: float) -> None:
         # MODE GATE. The `ask` downgrade rests on "the completed verdict would
         # have been the plugin-level defer", and that holds ONLY in engine-gate
         # mode. The skill-frontmatter registration passes no `--mode` and
-        # `resolve_mode()` defaults to `belt`, where Bash is deny-by-default and
-        # `_engine_gate_relevant` is never consulted at all — so in belt mode a
+        # `resolve_mode()` defaults to `belt`, where a Bash command that reaches
+        # the guard is denied by default — so in belt mode a
         # marker-free `rm -rf /some/dir` would have been DENIED, not deferred.
         # Downgrading that to `ask` would turn a deny-by-default guard into a
         # prompt the operator is invited to approve, on nothing more than "the
@@ -2914,7 +2994,9 @@ _MUTATION_PROMPTS = {
 }
 
 
-def _decide(command: str, tool_name: str, start: float) -> int:
+def _decide(
+    command: str, tool_name: str, start: float, session_id: str | None = None
+) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
     Every branch prints its decision (or nothing, for an instant plugin-level
@@ -2922,14 +3004,24 @@ def _decide(command: str, tool_name: str, start: float) -> int:
     fail-closed boundary around this call, so nothing in here needs its own
     exception handling to keep the exit-1 contract in the module docstring.
     """
-    if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(
-        command, tool_name
-    ):
+    belt = resolve_mode() != _MODE_ENGINE_GATE
+    if not belt and not _engine_gate_relevant(command, tool_name):
         # Plugin-level gate: no engine invocation in the command — defer with no
         # output so unrelated work in every consumer session is untouched.
         return 0
 
     enabled = resolve_disk_hygiene_enabled()
+
+    if tool_name == "PowerShell" and belt and _RELEASE_MARKER in command:
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "deny",
+            "belt-release-not-exact",
+            "The disk-hygiene belt release lever runs only through the Bash "
+            "tool, in the exact form the belt's Bash denial prints.",
+        )
 
     if tool_name == "PowerShell":
         verdict = powershell_decision(command, enabled)
@@ -3018,13 +3110,64 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             f"{', '.join(readonly[:-1])}, and {readonly[-1]} invocations are "
             "permitted.",
         )
+    if belt and _RELEASE_MARKER in command:
+        if is_exact_release_invocation(command, authority, session_id) and enabled:
+            return _settle(
+                command,
+                tool_name,
+                start,
+                "ask",
+                "belt-release",
+                "Release the disk-hygiene session belt for this session? "
+                "Deletion-shaped Bash commands will then go to the normal "
+                "permission system instead of being denied, each one is "
+                "logged, and exact engine calls stay gated. Confirm only if "
+                "you asked for this.",
+            )
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "deny",
+            "belt-release-not-exact",
+            "The disk-hygiene belt release lever runs only in its exact form, "
+            "for this session, while execution is enabled. "
+            + (
+                f"Exact form: {_release_command(authority, session_id)}"
+                if _release_command(authority, session_id)
+                else "It needs an authorized data root and a valid session id."
+            ),
+        )
+    if (
+        belt
+        and enabled
+        and belt_released(authority, session_id)
+        and not _engine_gate_relevant(command, tool_name)
+        and _shlex_parses(command)
+    ):
+        _emit_decision(
+            {
+                "systemMessage": "disk-hygiene: the /disk-hygiene:clean session "
+                "belt is released for this session, so this deletion-shaped "
+                "command was not denied; it goes to the normal permission "
+                "system and is logged."
+            }
+        )
+        _emit_guard_telemetry(start, tool_name, "ok")
+        _record_decision(
+            command,
+            tool_name,
+            guard_decision_log.DECISION_RELEASED,
+            "belt-released",
+        )
+        return 0
     return _settle(
         command,
         tool_name,
         start,
         "deny",
         "not-exact-engine-command",
-        _bash_denial_guidance(authority, command=command),
+        _bash_denial_guidance(authority, command=command, session_id=session_id),
     )
 
 
@@ -3102,7 +3245,7 @@ def main() -> int:
             _record_decision("", str(tool_name), "deny", "unparsable-payload", reason)
             result = 0
             return result
-        result = _decide(command, tool_name, start)
+        result = _decide(command, tool_name, start, payload.get("session_id"))
         return result
     except BaseException as exc:
         _emit_guard_telemetry(start, "", "error")

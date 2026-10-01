@@ -9,6 +9,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Session belt](#session-belt)
 - [Windows hint claims](#windows-hint-claims)
 - [Investigated catalog](#investigated-catalog)
 - [Opt-in elevation](#opt-in-elevation)
@@ -569,7 +570,8 @@ is easy to misread and is worth naming: a skill's `allowed-tools` and `disallowe
 on the user's next message, but its `hooks` do not, so "skill-scoped" is true of the tool grants and
 false of the belt. Consequences in both directions: the belt keeps enforcing over unrelated later work in
 the same session (a later `Remove-Item` is still prompted long after cleanup ended), and it cannot be
-retracted by finishing the cleanup. Only the session's end clears it.
+retracted by finishing the cleanup. Only the session's end or the [release lever](#session-belt)
+clears it.
 An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
 active and forces a human prompt before every mutation **it sees**, meaning every Bash engine `apply`
 and `handoff-apply` and, on PowerShell, only the flagged spellings above, so an unreadable toggle never silently disables
@@ -627,6 +629,10 @@ on a plugin hook, `${CLAUDE_PLUGIN_DATA}` as plain strings before spawn. The bel
 tighter of the two: a skill-frontmatter hook receives only `${CLAUDE_PLUGIN_ROOT}`, so that is the
 sole placeholder its `args` carry and the `--authorized-data-root` channel stays out of it.
 `hooks/run-python-hook.test.sh` asserts the `hooks.json` shape. `test_hygiene.py` asserts the belt.
+**Claim:** exec form spawns `command` with `args` and no shell, and a skill-frontmatter hook
+substitutes only `${CLAUDE_PLUGIN_ROOT}`. **Basis:** https://code.claude.com/docs/en/hooks, "Exec
+form and shell form" and "Command hook fields". **As of:** 2026-09-28. **Recheck:** that page
+stops ignoring `shell` when `args` is set, or a skill hook gains another placeholder.
 
 **Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
 `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
@@ -805,6 +811,60 @@ already decided to hand off. For that reason the `.pulumi-write-test-*` hint was
 rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
+
+## Session belt
+
+The clean skill's frontmatter registers the guard in `belt` mode for the rest of the session. On
+Bash it registers one handler per `if` pattern, all running the same guard: `rm`, `rmdir`,
+`unlink`, `shred`, `truncate`, `mv` and `find`, each bare (`Bash(rm *)`) and by absolute path
+(`Bash(*/rm *)`), plus `*hygiene.py*`, `*kill_switch_probe.py*` and `*release_belt.py*`. git, gh,
+the repo-hygiene scripts and every other command match none of them and never reach the guard.
+
+What reaches the guard is denied unless it is one of these:
+
+- an exact bundled engine call through the hook's absolute interpreter: scan, inventory, preview,
+  handoff-verify and catalog are allowed, and apply and handoff-apply get `ask` (deny in audit-only
+  mode);
+- the argument-free kill-switch probe;
+- a literal-form read-only supporting command whose head is an absolute path under a trusted
+  system directory: `[`, `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test`
+  (`[` only as a complete `/usr/bin/[ ... ]` expression; `find` without
+  `-delete`/`-exec`/`-ok`/`-fprint`). Bare names are denied because exported shell functions
+  shadow them;
+- the release lever, or any command once the session's belt is released (both below).
+
+The denial text is the source if this list and the guard diverge. Shell expansions, globs,
+splitting and escape forms, operators, redirections, aliases and exported functions fail closed.
+
+**Release lever.** The belt's Bash denial prints the exact command:
+`"<hook python>" "<plugin root>/skills/clean/scripts/release_belt.py" --data-root "<authorized data root>" --session-id <this session's id>`.
+The guard answers that form with `ask` every time, so the user confirms each release. Any other
+form, another session's id, another data root, the PowerShell tool, and audit-only mode are
+denied. The script writes `<data root>/belt-release/<session id>`. While that marker is a regular
+file, a deletion-shaped command in that session gets no `permissionDecision` from the belt: it goes
+to the normal permission system, the guard decision record logs it with its command text (decision
+`released`), and a `systemMessage` says the belt is released. Exact engine calls are still
+classified first, and any other engine-shaped command or a command `shlex` cannot split is still
+denied; the plugin-level engine gate is unaffected. A missing or invalid session id, no
+authorized data root, or a marker that is a symlink or directory leaves the belt in force. The
+PowerShell lane does not change on release: its deletion spellings already get `ask`. Known gap: a
+tool that can write files (the Write tool, `touch`) can create a marker without the prompt; the
+`systemMessage` on every released command keeps that visible.
+
+**Accepted gaps.** The Bash lane is a deny-list of command heads, so a wrapped deletion passes the
+belt: `command rm`, `env`, `timeout`, `nohup`, `sudo`, `bash -c`, `sh -c`, `eval`, an
+interpreter call (`python3 -c "shutil.rmtree(...)"`), `git rm` and `git clean`, and overwrite by
+redirect, `tee`, `dd` or `sed -i`. Subagents do not inherit the belt either. The engine's own
+containment stays the authority for engine work.
+
+**Claim:** `if` is honored per handler on skill-frontmatter hooks, and `Bash(rm *)` matches `rm`
+after `&&`, `;`, `|`, `xargs`, `$( )` and a `VAR=value` prefix but not `/bin/rm`, `command rm`,
+`env`, `timeout`, `nohup`, `bash -c` or `eval`; a command Claude Code cannot split runs every
+handler. **Basis:** https://code.claude.com/docs/en/hooks, "Hooks in skills and agents" (frontmatter
+hooks use the same configuration format as settings hooks) and the `if` field; the page does not
+say whether `if` applies in frontmatter, so the per-handler behavior and the match table rest on a
+probe on Claude Code 2.1.285 (Linux). **As of:** 2026-10-01. **Recheck:** the page starts scoping
+`if` by hook location, or changes how `if` splits or normalizes a Bash command.
 
 ## Windows hint claims
 

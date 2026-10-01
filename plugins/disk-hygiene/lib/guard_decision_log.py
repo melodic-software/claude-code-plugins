@@ -73,6 +73,10 @@ _OFF_VALUES = frozenset({"0", "off", "false", "no"})
 # produced a decision at all, which only a separate observer can record.
 DECISION_NONE = "none"
 DECISION_NOT_RUN = "not-run"
+# A deletion-shaped command the released session belt let through to the
+# normal permission system. Its command text is kept: it is what the release
+# log exists to show.
+DECISION_RELEASED = "released"
 
 # Branches that fire on arbitrary session commands. Persist length, not text.
 OMIT_COMMAND_RULES = frozenset(

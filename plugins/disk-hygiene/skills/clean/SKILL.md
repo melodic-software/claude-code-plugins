@@ -5,23 +5,30 @@ user-invocable: true
 disable-model-invocation: true
 hooks:
   PreToolUse:
-    - matcher: "Bash|PowerShell"
+    # Exec form, one Bash handler per deletion-shape `if`, no `if` on PowerShell. Why, gaps and
+    # verification records: reference/safety-model.md, "Hook launch form" and "Session belt".
+    - matcher: "Bash"
       hooks:
-        # Exec form. `command` is `node` (a real executable). exec-bash.mjs
-        # finds Git Bash and never System32\bash.exe, then runs
-        # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
-        # launch that fails open on Windows.
-        # Claim: exec form spawns `command` with `args` and no shell, and a
-        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
-        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
-        # and "Command hook fields".
-        # As of: 2026-09-28.
-        # Recheck: that page stops ignoring `shell` when `args` is set, or a
-        # skill hook gains another placeholder.
-        - type: command
-          command: node
-          args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
-          timeout: 60
+        - {"if": "Bash(rm *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*/rm *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(rmdir *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*/rmdir *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(unlink *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*/unlink *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(shred *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*/shred *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(truncate *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*/truncate *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(mv *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*/mv *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(find *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*/find *)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*hygiene.py*)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*kill_switch_probe.py*)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+        - {"if": "Bash(*release_belt.py*)", "type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
+    - matcher: "PowerShell"
+      hooks:
+        - {"type": "command", "command": "node", "timeout": 60, "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]}
 metadata:
   workflow-stage: anytime
   summary: Audit a directory tree for stale leftovers and remove validated paths
@@ -420,7 +427,7 @@ After an affirmative answer in this interactive session, run only:
 ```
 
 Never use `rm`, `rmdir`, `Remove-Item`, `del`, `find -delete`, or an ad-hoc Python deletion call. The
-skill-frontmatter belt blocks those bypasses and returns a hook-issued `ask`
+skill-frontmatter belt blocks the shell spellings (never a Python call) and returns a hook-issued `ask`
 (`permissionDecision: "ask"`) for the exact engine apply command, the same mechanism as the
 PowerShell deletion lane below, including the `dontAsk` / `permissions.ask` caveats. Confirm that
 prompt only when it matches the tier and paths just approved. If the plan, snapshot,
@@ -466,17 +473,10 @@ and what the guard does when no Python resolves → "Hook launch form".
   snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
-- The Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
-  handoff-verify, catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
-  runtime's own absolute interpreter. The same denial text also admits literal-form read-only
-  supporting commands whose heads are absolute paths under a trusted system directory: `[`,
-  `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete
-  `/usr/bin/[ ... ]` expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names
-  are denied because exported shell functions shadow them. Engine-gate mode answers those
-  supporting commands with `ask`; belt mode `allow`s them. The denial text is the source if this
-  list and the guard diverge. Do supporting inspection with non-Bash read-only tools when the
-  command is not in that set. Shell expansions, globs, splitting/escape forms, operators,
-  redirections, aliases, and exported functions fail closed.
+- The Bash belt denies deletion shapes (`rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find`)
+  for the rest of the session, except exact engine calls and a read-only allowlist; git and gh never
+  reach it. Run the release lever its denial prints only when the user asks. Scope, lever and gaps:
+  [Session belt](reference/safety-model.md#session-belt).
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
   (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool
