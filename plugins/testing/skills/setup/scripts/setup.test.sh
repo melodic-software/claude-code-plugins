@@ -293,10 +293,10 @@ paths:
 After." "$rc:$(cat "$G/docs/conventions/testing.md")"
 assert_eq "and the .claude file, shadowed by the block, is untouched" "paths:
   exclude: [claude-file]" "$(cat "$G/.claude/testing.yaml")"
-printf '# Testing\n\n```yaml config\npaths:\n  exclud: [x]\n```\n' >"$G/docs/conventions/testing.md"
+printf '# Testing\n\n```yaml config\npaths:\n  excludes: [x]\n```\n' >"$G/docs/conventions/testing.md"
 run_g --exclude 'y/**'
 assert_eq "a docs block that does not parse is refused, not overwritten" 2 "$rc"
-assert_contains "naming the .md line" "$out" "testing.md:5: unknown key: paths.exclud"
+assert_contains "naming the .md line" "$out" "testing.md:5: unknown key: paths.excludes"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
 assert_eq "apply wrote no file but the docs convention file" "docs/conventions/testing.md" \
