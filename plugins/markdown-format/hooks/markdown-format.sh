@@ -214,10 +214,10 @@ resolve_repo_root_to() {
 ROOT_FROM_PROJECT_DIR_FALLBACK=0
 
 # jq is required to parse Claude Code's hook payload and to emit structured
-# PostToolUse context. Absent → visible once-per-session skip notice on both
-# the agent and user channels, exit 0 — but only for a repository that opted
-# in, so the opt-in is decided FIRST. hook::begin calls this immediately before
-# its jq gate with the raw path as $1. The authoritative gate is still the one
+# PostToolUse context. Absent → visible skip notice once per session and agent
+# on both the agent and user channels, exit 0 — but only for a repository that
+# opted in, so the opt-in is decided FIRST. hook::begin calls this immediately
+# before its jq gate with the raw path as $1. The authoritative gate is still the one
 # on the jq-parsed path further down; this pre-check exists solely to suppress
 # the notice, and runs only when jq is actually missing so the normal path
 # costs nothing.
