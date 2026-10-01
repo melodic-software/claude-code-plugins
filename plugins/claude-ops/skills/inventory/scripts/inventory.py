@@ -651,7 +651,7 @@ def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
 
 
 _FOR_KEYWORD_RE = re.compile(r"(?<![\w$.])for\s*(?:await\s*)?$")
-_FOR_DECL_RE = re.compile(r"\s*(?:let|const)(?![\w$])\s*((?:(?!\b(?:of|in)\b)[^;])*)")
+_FOR_DECL_RE = re.compile(r"\s*(?:let|const)(?![\w$])([^;]*)")
 
 
 def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
@@ -662,6 +662,17 @@ def _for_params(src: str, braces: BraceMap, brace: int) -> Scope:
         j -= 1
     if j < 0 or src[j] != ")":
         return NO_SCOPE
+    return _for_head_names(src, braces, j)
+
+
+def _for_head_names(src: str, braces: BraceMap, close: int) -> Scope:
+    """The `let`/`const` names of the `for (...)` head closing at `close`.
+
+    The whole head after the keyword is taken, iterable included: shadowing
+    extra names only leaves more unresolved, and a binding named `of` or `in`
+    is still caught.
+    """
+    j = close
     k = _head_open(src, braces, j)
     if not _FOR_KEYWORD_RE.search(src[max(0, k - 24) : k]):
         return NO_SCOPE
@@ -986,6 +997,7 @@ def _scan(
     active = at_value = not block
     depth = 0
     prev, prev_word = "", ""
+    loop = NO_SCOPE
     n = min(end, len(src))
     while i < n:
         c = src[i]
@@ -1011,7 +1023,7 @@ def _scan(
                 acc,
                 hops=hops,
                 anchor=anchor,
-                shadow=shadow,
+                shadow=shadow | loop,
                 deferred=deferred,
             )
             at_value, prev, prev_word = False, "x", ""
@@ -1055,7 +1067,16 @@ def _scan(
             if depth == 0:
                 break
             depth -= 1
+            if depth == 0 and c == ")" and block:
+                # An unbraced loop body is no block, so its head binds here.
+                nxt = _skip_ws(src, i + 1, n)
+                loop = (
+                    NO_SCOPE
+                    if src.startswith("{", nxt)
+                    else _for_head_names(src, braces, i)
+                )
         elif depth == 0 and c in ",;":
+            loop = NO_SCOPE
             if not block:
                 break
             if c == ";":

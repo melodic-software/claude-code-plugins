@@ -1709,6 +1709,32 @@ class TestModuleScopedResolution(unittest.TestCase):
                 )
                 self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
 
+    def test_an_unbraced_for_body_sees_the_head_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x){for(const x of a)return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
+    def test_an_unbraced_for_body_ends_at_its_statement(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x){for(const x of a)g(x);return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
+    def test_a_for_head_binding_named_of_shadows_a_bound_parameter(self) -> None:
+        for head in ("const of of a", "const{of}of a"):
+            with self.subTest(head=head):
+                src = _modules(
+                    'var Qz="Probe";'
+                    f"function ff(of){{for({head}){{return of}}}}"
+                    '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+                )
+                self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
+
     def test_a_for_head_binding_shadows_an_outer_binding(self) -> None:
         src = _modules(
             'var Qz="Probe";var xx="WRONG";'
