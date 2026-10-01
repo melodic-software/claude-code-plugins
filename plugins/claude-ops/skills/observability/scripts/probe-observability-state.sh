@@ -40,15 +40,21 @@
 #   EMPTY (no hook-event emitter wired, or no hooks fired yet)
 #   INVALID root (<value>): the hooks write nothing
 #
-# --otel-store output (stdout, five lines — one per store file, in order
-# cc-logs.json, cc-metrics.json, cc-traces.json, then the cold tier and the
-# last prune):
+# --otel-store output (stdout, six lines: one per store file, in order
+# cc-logs.json, cc-metrics.json, cc-traces.json, then the cold tier, the last
+# prune, and the scheduled prune task):
 #   <name>:<bytes>B
 #   <name>:absent
 #   cold:<bytes>B (<n> files) | cold:absent
 #   last-prune:<ISO-8601 UTC> (<age, e.g. 3h or 2d>) | last-prune:never
+#   prune-task:provisioned | missing | disabled | stale path | hand-registered
+#            | unrecognized action | n/a (not Windows) | unknown (schtasks not found)
 # The stamp is <store>/.last-prune, written by prune-otel-store.sh at the end of
-# every successful non-dry run.
+# every successful non-dry run. The task is the Windows ClaudeCodeOtelPrune task:
+# `provisioned` is machine provisioning's pwsh launcher, which finds this plugin at
+# run time; a hand-registered action names a prune script path, which is stale once
+# a plugin update's orphan sweep removes it. No text from the task is printed: the
+# line lands in model context.
 #
 # --pipeline output (stdout, six lines, fixed order and labels; read-only, it
 # never heals the guard):
@@ -194,6 +200,52 @@ hook_files() {
   return 0
 }
 
+# The ClaudeCodeOtelPrune task's state, read from its exported XML (locale-free,
+# unlike the labels of the verbose list output). A disabled task or trigger carries
+# <Enabled>false</Enabled>; an enabled one omits the element.
+prune_task_state() {
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win*) ;;
+  *)
+    printf 'n/a (not Windows)'
+    return 0
+    ;;
+  esac
+  if ! command -v schtasks >/dev/null 2>&1; then
+    printf 'unknown (schtasks not found)'
+    return 0
+  fi
+  local xml command arguments path
+  # MSYS would rewrite the /-style options into paths.
+  if ! xml="$(MSYS2_ARG_CONV_EXCL='*' schtasks /query /tn ClaudeCodeOtelPrune /xml 2>/dev/null | tr -d '\r')"; then
+    printf 'missing'
+    return 0
+  fi
+  if [[ "$xml" == *'<Enabled>false</Enabled>'* ]]; then
+    printf 'disabled'
+    return 0
+  fi
+  command="$(sed -n 's:.*<Command>\(.*\)</Command>.*:\1:p' <<<"$xml" | head -n 1)"
+  arguments="$(sed -n 's:.*<Arguments>\(.*\)</Arguments>.*:\1:p' <<<"$xml" | head -n 1)"
+  # The provisioning launcher: pwsh reading the plugin index for this plugin's key
+  # and running the in-plugin prune script from the install it records.
+  if [[ "$command" == *pwsh.exe && "$arguments" == *installed_plugins.json* &&
+    "$arguments" == *claude-ops@* && "$arguments" == *skills/observability/otel/prune-otel-store.sh* ]]; then
+    printf 'provisioned'
+    return 0
+  fi
+  path="$(grep -o '[^";]*prune-otel-store\.sh' <<<"$arguments" | head -n 1)"
+  path="${path//\\//}"
+  # A UNC path is never tested: [[ -f ]] on one contacts a remote host.
+  if [[ -z "$path" || "$path" == //* ]]; then
+    printf 'unrecognized action'
+  elif [[ -f "$path" ]]; then
+    printf 'hand-registered'
+  else
+    printf 'stale path'
+  fi
+}
+
 case "$MODE" in
 --hook-events)
   if ((!ROOT_VALID)); then
@@ -246,6 +298,7 @@ case "$MODE" in
   else
     printf 'last-prune:never\n'
   fi
+  printf 'prune-task:%s\n' "$(prune_task_state)"
   ;;
 --pipeline)
   PROJECT="$(repo_root)"

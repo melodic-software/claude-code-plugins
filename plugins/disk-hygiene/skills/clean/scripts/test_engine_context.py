@@ -92,7 +92,7 @@ class EngineContextTest(unittest.TestCase):
         assert python and data_root, text
         engine = SCRIPT_DIR / "hygiene.py"
         command = (
-            f'"{python.group(1)}" "{engine}" scan --target t --output s '
+            f'"{python.group(1)}" "{engine}" scan --target t --output "{data_root.group(1)}/runs/r/snapshot.json" '
             f'--data-root "{data_root.group(1)}"'
         )
         self.assertEqual("allow", self.guard_decision(command))
