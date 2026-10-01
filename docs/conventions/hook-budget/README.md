@@ -159,7 +159,8 @@ Setup:
 - **Runs:** A, B, A, B, A, B per plugin, each with `CLAUDE_CONFIG_DIR` pointing at a config that
   enables only that plugin. All 18 runs were valid.
 
-Each figure is the median of the three run medians, in ms. The guardrails `SessionStart` row is
+Each figure is the median of the three run medians, in ms. The S figure in the last column is the
+difference divided by the plugin's median S over all six runs. The guardrails `SessionStart` row is
 shell form in both arms, so it is the control.
 
 | Plugin (S per arm, ms) | Row | Arm A (`node` launcher) | Arm B (shell form) | A − B, ms (S) |
