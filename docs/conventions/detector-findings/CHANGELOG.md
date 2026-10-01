@@ -4,6 +4,17 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.6.0] - 2026-09-30
+
+**Minor, additive.** One crosswalk row admits the `testing` plugin's task-end test judge:
+`testing/judge/rule-restated-expectation`, SUGGESTION, `Confidence` omitted, not auto-applicable.
+It is argued on the same walk as `testing/audit/rule-recomputed-derived`, and like
+`attribution/audit/rule-restated-upstream-fact` it admits a model judgment through a declared
+outcome: a FLAG reaches the relay only when its quoted lines are in the test file or another file
+of its repository and its proposed diff applies to the test file alone; every other verdict stays
+on the human report and is counted in `## Surfaces`. No producer-owned field's rule, coexistence obligation, or enforceability verdict
+moves.
+
 ## [3.5.0] - 2026-09-29
 
 **Minor, additive.** One crosswalk row admits `attribution:audit`'s restated-fact lane:

@@ -113,6 +113,10 @@
 #                list its equalities with a literal side, judged with the
 #                adapter and config of the --file path; the test-weaken hook
 #                compares the old and new side of an edit this way
+#   --blocks     with the default mode: also print `block <file>:<start>-<end>
+#                <ordinal> <name>` per examined test block (in --lines scope);
+#                the ordinal tells same-named blocks apart and is the block's
+#                identity with its name, since line numbers drift
 #   --help
 #
 # Scan-root resolution: $CANT_FAIL_SCAN_ROOT (sanctioned operator lever, not a
@@ -139,7 +143,7 @@ usage() {
   cat <<'EOF'
 cant-fail-scan.sh — detect tests that cannot fail.
 
-Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--check [--strict] | --findings | --count | --help]
+Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--blocks | --check [--strict] | --findings | --count | --help]
        cant-fail-scan.sh --file <path> --inventory <text> [--inventory <text>...]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
@@ -154,6 +158,8 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--check [--strict] | 
   --file <p>  scan exactly one test file instead of the tree; same modes and exit codes
   --lines <l> with --file: report only findings whose test block overlaps these lines
               (a list like 12,20-24), for an edit hook scoped to what the edit changed
+  --blocks    also print `block <file>:<start>-<end> <ordinal> <name>` per examined test
+              block (within --lines); the ordinal tells same-named blocks apart
   --inventory <text>
               with --file, repeatable: no rules; for the n-th <text>, one record per line
               `n<TAB>test|assertion|skip<TAB><count><TAB><line>`, one per equality with a
@@ -180,12 +186,15 @@ strict=0
 FILE=""
 LINES=""
 INV_TEXTS=()
+list_blocks=0
+blk_lines=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
     usage
     exit 0
     ;;
+  --blocks) list_blocks=1 ;;
   --check) mode="check" ;;
   --findings) mode="findings" ;;
   --count) mode="count" ;;
@@ -245,6 +254,10 @@ LOADER="$SCRIPT_DIR/adapter-load.awk"
 require_readable "$LOADER" 'adapter loader'
 ADAPTER_DIR="$SCRIPT_DIR/../adapters"
 
+if ((list_blocks)) && [[ "$mode" != report ]]; then
+  printf 'ERROR: --blocks lists blocks in the report mode only\n' >&2
+  exit 2
+fi
 if [[ (-n "$LINES" || "$mode" == inventory) && -z "$FILE" ]]; then
   printf 'ERROR: --lines and --inventory need --file\n' >&2
   exit 2
@@ -664,6 +677,7 @@ scan_one() {
     fi
     case "$kind" in
     B) blocks=$((blocks + slug)) ;;
+    K) blk_lines+=("block $rel:$slug $line $detail") ;;
     L) lost=$((lost + 1)) ;;
     F)
       if [[ ${#rule_level[@]} -gt 0 ]]; then
@@ -713,7 +727,7 @@ scan_one() {
     E) printf 'engine: %s %s\n' "${slug:-}" "${line:-}" >>"$WALK_ERR" ;;
     *) printf 'engine drift: unrecognized record kind %s\n' "$kind" >>"$WALK_ERR" ;;
     esac
-  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" \
+  done < <(awk -v ADAPTER="${file_adapter[$file]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" -v BLOCKS="$list_blocks" \
     -f "$MASK_AWK" -f "$AWK_PROG" "$file" 2>>"$WALK_ERR")
 }
 
@@ -1179,6 +1193,7 @@ report)
   else
     print_findings_lines
   fi
+  for b in ${blk_lines[@]+"${blk_lines[@]}"}; do printf '%s\n' "$b"; done
   coverage_block
   if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then exit 2; fi
   exit 0

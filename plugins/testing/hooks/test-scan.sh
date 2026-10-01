@@ -12,6 +12,12 @@
 # the lines the call wrote, read from tool_response.structuredPatch. An Edit
 # whose payload carries no patch reports nothing rather than the whole file.
 #
+# Session state: every scanned write leaves one file,
+# $DATA/sessions/<pkey>/<session_id>/<tool_use_id>.json, naming the test
+# blocks it created or changed (blocks:null when that is unknown: the whole
+# file), for the task-end judge. Only a gitignored path and a file the config
+# excludes write nothing.
+#
 # Test seams: TEST_SCAN_SCANNER replaces the scanner, TEST_SCAN_TIMEOUT
 # (seconds, default 8, below the hooks.json timeout of 10) bounds it.
 
@@ -46,7 +52,7 @@ fi
 # shellcheck disable=SC2016  # jq programs, not shell expansions
 # shellcheck disable=SC2016  # jq programs, not shell expansions
 hook::jq_fields "$INPUT" '.tool_name' '.session_id' '.agent_id // ""' '.tool_use_id' \
-  '.tool_response.type? // ""' \
+  '.cwd' '.transcript_path' '.tool_response.type? // ""' \
   '.tool_response | objects | has("structuredPatch") | tostring' \
   '[(.tool_response | objects | .structuredPatch)[]?
     | reduce .lines[] as $l ({n: .newStart, out: []};
@@ -54,13 +60,53 @@ hook::jq_fields "$INPUT" '.tool_name' '.session_id' '.agent_id // ""' '.tool_use
         elif ($l | startswith(" ")) then .n += 1 else . end)
     | .out[] | tostring] | join(",")' || exit 0
 tool="${HOOK_JQ_FIELDS[0]}" session="${HOOK_JQ_FIELDS[1]}" agent="${HOOK_JQ_FIELDS[2]}"
-call="${HOOK_JQ_FIELDS[3]}" wtype="${HOOK_JQ_FIELDS[4]}" has_patch="${HOOK_JQ_FIELDS[5]}"
-lines="${HOOK_JQ_FIELDS[6]}"
+call="${HOOK_JQ_FIELDS[3]}" pcwd="${HOOK_JQ_FIELDS[4]}" tpath="${HOOK_JQ_FIELDS[5]}"
+wtype="${HOOK_JQ_FIELDS[6]}" has_patch="${HOOK_JQ_FIELDS[7]}" lines="${HOOK_JQ_FIELDS[8]}"
 
 testing::data_dir
 mkdir -p "$DATA/marks" 2>/dev/null
 # No -type: markers are files now, and directories the earlier mkdir scheme left.
 find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
+# Session state and the judge's state, at every depth. An empty directory goes
+# only once it is an hour old, so a parallel run's fresh mkdir keeps its
+# directory until it writes.
+find "$DATA"/{sessions,verdicts,locks,relayed,attempts,slots,successors,pending,runs,findings,derive} -mindepth 1 \
+  \( -type f -mtime +7 -o -type d -empty -mmin +60 \) -delete 2>/dev/null
+
+out_file="$(mktemp)"
+trap 'rm -f "$out_file"' EXIT
+
+# state_write blocks|null: record this write for the task-end judge, one file
+# per call so parallel writers never share one, renamed into place so a reader
+# never sees half of it. A block the lexer lost is never listed, so a scan that
+# lost one records null too. `lines` are the lines the patch wrote (null for a
+# create or when unknown), the judge's hint for a whole-file bash harness.
+state_write() {
+  local repo="$REPO_ROOT" dir
+  [[ "$session" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
+  testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$tpath" || return 0
+  dir="$DATA/sessions/$PKEY/$session"
+  ((${HOOK_REPO_ROOT_UNRESOLVED:-0} == 0)) || repo=""
+  mkdir -p "$dir" 2>/dev/null || return 0
+  if jq -n --arg mode "$1" --rawfile out "$out_file" --rawfile text "$FILE" --arg file "$FILE" \
+    --arg repo "$repo" --arg agent "$agent" --argjson create "$create" --arg lines "$lines" '{
+        file: $file,
+        repo: (if $repo == "" then null else $repo end),
+        agent_id: (if $agent == "" then null else $agent end),
+        create: $create,
+        blocks: (if $mode == "null" or ($out | test("lost sync \\(not judged\\): [1-9]")) then null else [$out | splits("\n")
+          | capture("^block .*?:(?<start>[0-9]+)-(?<end>[0-9]+) (?<ordinal>[0-9]+) (?<name>.*)$")
+          | {name, ordinal: (.ordinal | tonumber), start: (.start | tonumber), end: (.end | tonumber)}] end),
+        lines: (if $lines == "" then null else $lines | split(",") | map(tonumber) end),
+        ok_markers: ([$text | match("cant-fail-ok:"; "g")] | length),
+        written_at: (now | todate)}' >"$dir/.$call.tmp" 2>/dev/null; then
+    mv -f "$dir/.$call.tmp" "$dir/$call.json"
+  else
+    rm -f "$dir/.$call.tmp"
+  fi
+}
+create=false
+[[ "$tool" == Write && "$wtype" == create ]] && create=true
 
 # mark <path>: create a marker file exclusively (noclobber opens with O_EXCL),
 # so exactly one of several racing runs succeeds. mkdir is not atomic under
@@ -72,25 +118,30 @@ mark() { (set -o noclobber && : >"$1") 2>/dev/null; }
 # reports.
 if [[ -n "$call" ]] && ! mark "$DATA/marks/call-$call"; then exit 0; fi
 
+# A deletion-only patch or an edit with no patch names no written line, so
+# no block can be scoped: its state says the whole file.
 scope=()
-if [[ "$tool" == Write && "$wtype" == create ]]; then
+if [[ "$create" == true ]]; then
   :
 elif [[ "$has_patch" == true ]]; then
-  [[ -n "$lines" ]] || hook::finish skipped findings array '[]'
+  if [[ -z "$lines" ]]; then
+    state_write null
+    hook::finish skipped findings array '[]'
+  fi
   scope=(--lines "$lines")
 elif [[ "$tool" != Write ]]; then
+  state_write null
   hook::finish skipped findings array '[]'
 fi
 
 # ponytail: patch line numbers go stale if another PostToolUse hook reformats
 # the file before this read; the scan then scopes to shifted blocks.
 SCANNER="${TEST_SCAN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
-out_file="$(mktemp)"
-trap 'rm -f "$out_file"' EXIT
-testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$out_file" --file "$FILE" "${scope[@]}"
+testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$out_file" --file "$FILE" "${scope[@]}" --blocks
 rc=$SCAN_RC
 
 if ((rc != 0)); then
+  state_write null
   why="scanner exited $rc"
   ((rc > 128)) && why="scanner timed out after ${TEST_SCAN_TIMEOUT:-8}s"
   # A config the scanner refuses is the agent's to fix: log the resolver's or
@@ -111,6 +162,7 @@ fi
 if grep -q '^  test files: 0 examined' "$out_file"; then
   hook::finish skipped findings array '[]'
 fi
+state_write blocks
 
 findings="$(grep '^finding \[' "$out_file")"
 ctx=""
