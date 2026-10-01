@@ -1,0 +1,4 @@
+WORKERS = 1
+BATCH_SIZE = 1
+SOURCE_DSN = "postgresql://orders-replica.internal.example/orders"
+WAREHOUSE_DSN = "warehouse://analytics.internal.example/prod"

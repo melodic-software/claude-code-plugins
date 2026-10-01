@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: already-built-disconnected-scan
+description: An improvement sweep scoped to an admin-export fixture must report the built-but-disconnected export as a ranked candidate ahead of any greenfield build
+tags: [find, disconnected-scan]
+expected_outcome: The answer names the unused exportRowsToCsv import, the false adminBulkExport flag gating POST /admin/orders/export, and the never-read export_audit table, ranks the disconnected export ahead of any new build, and edits nothing.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/improvement:find before we build a new admin export, check whether something already in the repo could be wired up instead. Scope the scan to the files under evals/fixtures/disconnected-admin-export/ and ignore everything outside that directory."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: dead-import-exportRowsToCsv
+    type: regex
+    pattern: '(?=[\s\S]*exportRowsToCsv)(?=[\s\S]*routes\.js)(?=[\s\S]*csv-exporter\.js)(?=[\s\S]*(?:never (?:called|used|invoked)|not (?:called|used|invoked)|unused|unreferenced|imported but|dead import|no call))'
+    flags: i
+    arm: both
+  - name: dark-flag-adminBulkExport
+    type: regex
+    pattern: '(?=[\s\S]*adminBulkExport)(?=[\s\S]*flags\.json)(?=[\s\S]*(?:false|off|disabled|dark))(?=[\s\S]*/admin/orders/export)'
+    flags: i
+    arm: both
+  - name: unread-table-export-audit
+    type: regex
+    pattern: '(?=[\s\S]*export_audit)(?=[\s\S]*(?:never (?:read|queried|selected)|not (?:read|queried)|nothing (?:reads|queries)|no (?:reader|query|queries|consumer)|unread|write-only|only (?:written|inserted)))'
+    flags: i
+    arm: both
+  - name: no-edits-claimed
+    type: regex
+    pattern: '\bI(?: have|''ve)? (?:edited|modified|changed|created|wrote|written|updated|deleted)\b'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: ranked-ahead-of-greenfield
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer presents the disconnected export capability (wiring the unused exportRowsToCsv, enabling the adminBulkExport flag, and using the export_audit table) as a ranked candidate that comes BEFORE any greenfield admin-export build, each supported by a file citation. FAIL if a new build is ranked first, if the disconnected export is only a footnote, or if it is not offered as a candidate at all."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:improvement:)?find"'
