@@ -184,6 +184,17 @@ cg_load_utils() {
   source "$CG_DIR/hook-utils.sh"
   CG_UTILS=1
 }
+# One telemetry record per fire that reaches a zone decision, carrying how the
+# decision was made: fast (no resolver ran), coalesced (the last word reused
+# for a snapshot that only moved captured_at within one band), or resolving
+# (the resolver ran). With no sink configured nothing is loaded and nothing
+# runs. $1 status, $2 data JSON.
+CG_PATH="fast"
+cg_fire_telemetry() {
+  [[ -n "${HOOK_TELEMETRY_SINK:-}" ]] || return 0
+  cg_load_utils
+  hook::emit_telemetry "zone-crossing-inject" "$EVENT" "$1" "$START_EPOCH" "$2"
+}
 CG_REQUIRED=0
 cg_require_utils() {
   cg_load_utils
@@ -513,7 +524,10 @@ if [[ -n "${HOME:-}" && -e "$HOME/.claude/context-guard/context/$SESSION.json" &
   [[ -e "$HOME/.claude/context-guard/zones.json" ]] && zones_now=1
   compacted_now=0
   [[ -e "$COMPACTED_FILE" ]] && compacted_now=1
-  [[ "$seen_flags" == "z=$zones_now c=$compacted_now" ]] && exit 0
+  if [[ "$seen_flags" == "z=$zones_now c=$compacted_now" ]]; then
+    cg_fire_telemetry ok '{"path":"fast"}'
+    exit 0
+  fi
 fi
 
 # Read BEFORE the resolver rather than at the stamp below, because what the mark
@@ -714,7 +728,10 @@ if [[ -n "$COMPACTED_FILE" && -e "$COMPACTED_FILE" ]]; then
   zone="dumb"
 elif [[ -n "${HOME:-}" && -r "$HOME/.claude/context-guard/context/$SESSION.json" ]]; then
   cg_read_snapshot "$HOME/.claude/context-guard/context/$SESSION.json" || true
-  if ! cg_try_coalesce; then
+  if cg_try_coalesce; then
+    CG_PATH="coalesced"
+  else
+    CG_PATH="resolving"
     { zone=$(bash "$RESOLVER" "$SESSION"); } 2>/dev/null || zone="unknown"
   fi
 fi
@@ -732,7 +749,10 @@ fi
 
 # Silent on unknown, and state is left untouched: absence of data is not a
 # transition, and a later real reading must compare against the last REAL one.
-[[ "$zone" == "smart" || "$zone" == "acceptable" || "$zone" == "dumb" ]] || exit 0
+if [[ "$zone" != "smart" && "$zone" != "acceptable" && "$zone" != "dumb" ]]; then
+  cg_fire_telemetry ok '{"path":"'"$CG_PATH"'","zone":"unknown"}'
+  exit 0
+fi
 
 # One reader for both markers. It sets REPLY (the raw bytes on disk) and
 # REPLY_NORM (the normalized zone word) rather than printing them, the same
@@ -872,7 +892,7 @@ fi
 if [[ -n "$persist_failed" ]]; then
   cg_require_utils
   hook::emit_telemetry "zone-crossing-inject" "$EVENT" "error" "$START_EPOCH" \
-    '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed"}'
+    '{"zone":"'"$zone"'","previous":"'"${last:-}"'","marker":"'"$persist_failed"'","reason":"state_persist_failed","path":"'"$CG_PATH"'"}'
   exit 0
 fi
 
@@ -911,7 +931,9 @@ fi
   if [[ -n "$last" && "$zone" != "$last" ]]; then
     cg_require_utils
     hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
-      '{"zone":"'"$zone"'","previous":"'"$last"'","armed":"'"$armed"'","injected":false}'
+      '{"zone":"'"$zone"'","previous":"'"$last"'","armed":"'"$armed"'","injected":false,"path":"'"$CG_PATH"'"}'
+  else
+    cg_fire_telemetry ok '{"path":"'"$CG_PATH"'","zone":"'"$zone"'"}'
   fi
   exit 0
 }
@@ -940,5 +962,5 @@ operator="context-guard: context zone ${prev_label} → ${zone_label}. Response 
 cg_require_utils
 hook::emit_channels "$EVENT" "$guidance" "$operator"
 hook::emit_telemetry "zone-crossing-inject" "$EVENT" "ok" "$START_EPOCH" \
-  '{"zone":"'"$zone"'","previous":"'"${last:-}"'","armed":"'"${armed:-}"'","injected":true}'
+  '{"zone":"'"$zone"'","previous":"'"${last:-}"'","armed":"'"${armed:-}"'","injected":true,"path":"'"$CG_PATH"'"}'
 exit 0

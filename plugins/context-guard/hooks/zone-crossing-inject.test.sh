@@ -1452,6 +1452,76 @@ for pct in 0 49 50 51 74 75 76 100; do
   fi
 done
 
+# 14. One telemetry record per fire, tagged with how the decision was made.
+# fire_tel <sid>: run one fire against a log-appending sink, wait for the first
+# record, then give a second one time to show up. Sets TEL_LINES (the
+# records written) and TEL_PATH (the first record's data.path).
+FTH="$WORK/fire-tel-home"
+FTD="$WORK/fire-tel-data"
+FT_LOG="$WORK/fire-tel.log"
+FT_SINK="$(make_sink "{ cat; echo; } >>\"$FT_LOG\"")"
+TEL_LINES=0
+TEL_PATH=""
+fire_tel() {
+  : >"$FT_LOG"
+  printf '{"session_id":"%s","hook_event_name":"PostToolBatch"}' "$1" |
+    HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" HOOK_TELEMETRY_SINK="$FT_SINK" bash "$HOOK" >/dev/null 2>&1
+  wait_for_sink "$FT_LOG"
+  sleep 0.2
+  TEL_LINES=$(grep -c . "$FT_LOG")
+  TEL_PATH=$(head -n1 "$FT_LOG" | jq -r '.data.path // ""' 2>/dev/null)
+}
+
+write_snapshot "$FTH" sfire 10
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "resolving" ]]; then
+  ok "fire telemetry: a fire that resolves writes one record with path=resolving"
+else
+  fail "fire telemetry resolving: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "fast" ]]; then
+  ok "fire telemetry: a repeat fire with unchanged inputs writes one record with path=fast"
+else
+  fail "fire telemetry fast: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+sleep 0.05 # the rewrite must land on a later mtime than the mark
+write_snapshot "$FTH" sfire 10
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "coalesced" ]]; then
+  ok "fire telemetry: a refresh inside one band writes one record with path=coalesced"
+else
+  fail "fire telemetry coalesced: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+# A crossing is also one record, and it keeps its own fields beside the path.
+sleep 0.05
+write_snapshot "$FTH" sfire 90
+fire_tel sfire
+if [[ "$TEL_LINES" == 1 && "$TEL_PATH" == "resolving" &&
+  "$(head -n1 "$FT_LOG" | jq -r '.data.injected' 2>/dev/null)" == "true" ]]; then
+  ok "fire telemetry: a crossing writes one record carrying path and injected"
+else
+  fail "fire telemetry crossing: lines=$TEL_LINES path=$TEL_PATH log=$(cat "$FT_LOG")"
+fi
+
+# No sink: no record is written and the fast path still sources nothing extra.
+rm -f "$FT_LOG"
+write_snapshot "$FTH" snosink 10
+printf '{"session_id":"snosink","hook_event_name":"PostToolBatch"}' |
+  env -u HOOK_TELEMETRY_SINK HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" bash "$HOOK" >/dev/null 2>&1
+FT_TRACE="$WORK/fire-tel-trace.log"
+printf '{"session_id":"snosink","hook_event_name":"PostToolBatch"}' |
+  env -u HOOK_TELEMETRY_SINK HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" \
+    BASH_XTRACEFD=9 bash -x "$HOOK" >/dev/null 2>&1 9>"$FT_TRACE"
+if [[ ! -e "$FT_LOG" ]] && ! grep -q 'hook-utils.sh' "$FT_TRACE"; then
+  ok "fire telemetry: with no sink a fast fire writes nothing and sources no hook-utils"
+else
+  fail "fire telemetry with no sink: log=$(cat "$FT_LOG" 2>/dev/null) utils=$(grep -c 'hook-utils.sh' "$FT_TRACE")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
