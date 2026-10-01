@@ -112,7 +112,7 @@ jobs:
           payload="$RUNNER_TEMP/payload.json"
           : >"$adds"
           while IFS= read -r -d '' path; do
-            git show ":$path" | base64 -w0 | jq -Rc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
+            git show ":$path" | base64 -w0 | jq -Rsc --arg path "$path" '{path: $path, contents: .}' >>"$adds"
           done < <(git diff --cached --name-only --diff-filter=AM -z)
           git diff --cached --name-only --diff-filter=D -z |
             jq -Rs 'split("\u0000") | map(select(length > 0) | {path: .})' >"$dels"
