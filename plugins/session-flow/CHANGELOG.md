@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.42.0] - 2026-10-01
+
+### Fixed
+
+- **A handoff chain no longer repeats per-hop lines in its cumulative sections** ([#5636](https://github.com/melodic-software/claude-code-plugins/issues/5636)). The constraints re-scan attestation now goes on a `Re-scan:` line in `## This session`, which is rewritten each hop, instead of a Constraints entry that every later hop copied forward. `validate` accepts one such line after the `did/left` line, `new` emits its slot, and attestation entries already carried in Constraints stay ordinary entries. `validate` also warns when a new cumulative entry duplicates a carried one (compared without the `[hN]` tag or `UNVERIFIED` prefix, ignoring spacing and case; the oldest tagged entry stays) and when a handoff file passes 300 lines, the margin under the Read tool's single-read cap. `UNVERIFIED (predecessor failed validation)` entries still do not expire; `reference/structure.md` says so.
+
 ## [0.41.2] - 2026-09-30
 
 ### Fixed
