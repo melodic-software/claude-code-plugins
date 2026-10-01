@@ -10,7 +10,9 @@ that plan's branch).
 Form: light (one module, one skill). Unattended run on 2026-09-30: no one answered questions, so
 each thread records the recommended answer as taken. Every answer is open to the user at plan
 approval, which is still pending. The user decided DT2, DT3, DT4, DT8, DT9, DT10, DT13, DT14, DT15
-and DT16 on 2026-09-30; each such line starts "Decided 2026-09-30 (user)".
+and DT16 on 2026-09-30; each such line starts "Decided 2026-09-30 (user)". On 2026-10-01 the user
+narrowed 2b to what Release 3's cleanup gate needs; DT4, DT5, DT6 and DT9 carry a line starting
+"Decided (user) 2026-10-01". Lines marked "Recommended, awaiting user" (DT2, DT5) are open.
 
 Evidence read this session:
 
@@ -36,15 +38,15 @@ Evidence read this session:
 | ID | Thread | Status |
 |---|---|---|
 | DT1 | Which tests run against each mutant | resolved |
-| DT2 | How changed test files are recognized | resolved |
+| DT2 | How changed test files are recognized | resolved (one item awaiting user) |
 | DT3 | Mapping changed tests to the production code they exercise | resolved |
-| DT4 | Trigger: flag, auto-engage, mixed diffs, cost | resolved |
-| DT5 | Survivor cause classification (Q11) | resolved |
+| DT4 | Trigger: the `--exercised` flag, cost | resolved |
+| DT5 | Survivor cause classification (Q11) | resolved (one item awaiting user) |
 | DT6 | The copied-logic blind spot | resolved |
 | DT7 | Metrics under the new scope | resolved |
 | DT8 | Tool support for running a named test set | directional |
 | DT9 | Test seam | resolved |
-| DT10 | PostToolUse `bashEditDiff` | deferred |
+| DT10 | PostToolUse `bashEditDiff` | resolved (out of 2b; done on main) |
 | DT11 | What stays out of 2b | resolved |
 | DT12 | The kill unit: the changed-test set, per mutant | resolved |
 | DT13 | Reachability: telling an unreached mutant from a survivor | deferred |
@@ -106,7 +108,7 @@ Options:
 
 - a. When `testing` is installed, ask it: the audit invokes `/testing:audit` through the Skill tool
   on the changed files and counts a file as a test when an adapter claims it (the `--file` coverage
-  block prints `adapter: <id>` or `adapter: none`, `cant-fail-scan.sh:962-967`). Without `testing`
+  block prints `adapter: <id>` or `adapter: none (...)`, `cant-fail-scan.sh:981-983`). Without `testing`
   installed, the exercised scope refuses and names it. One list, resolved by its owner.
 - b. Wait for #5606: its convention file carries the full pattern list, not only overrides, and
   `mutation-testing` reads that; until then the exercised scope refuses.
@@ -118,14 +120,27 @@ Recommendation: a, the only option that sees the list the scanner uses today and
 Decided 2026-09-30 (user): a. Test files are recognized by asking the `testing` plugin's scanner,
 not by reading the config layers. For each changed file the audit invokes `/testing:audit` through
 the Skill tool; the scanner's `cant-fail-scan.sh --file` coverage block reports `adapter: <id>` or
-`adapter: none` (`plugins/testing/skills/audit/scripts/cant-fail-scan.sh:962-967`), and a file is a
-test when an adapter claims it. When the `testing` plugin is not installed, the `--exercised` scope
-refuses with a message naming it. Without `testing`, auto-engage (DT4) does not fire and the diff
-scope runs as today. The `testing-glob-source` tag is closed.
+`adapter: none (...)` (`plugins/testing/skills/audit/scripts/cant-fail-scan.sh:981-983`), and a file
+is a test when an adapter claims it. When the `testing` plugin is not installed, the `--exercised`
+scope refuses with a message naming it. The `testing-glob-source` tag is closed.
+
+Found 2026-10-01: `/testing:audit` takes no file argument (`plugins/testing/skills/audit/SKILL.md:3`;
+`--file` is only in its script usage, :83). Plan Phase 4 adds `[--file <path>]` to that skill's
+`argument-hint` with a forwarding sentence. Calling `cant-fail-scan.sh` directly was rejected:
+`${CLAUDE_PLUGIN_ROOT}` resolves only the calling plugin, and cross-plugin use goes through the
+Skill tool (SKILL.md:97, :306).
+
+Recommended, awaiting user (2026-10-01): a file claimed by an adapter that is off in the testing
+config prints `adapter: none (<id> claims this file and is off in the testing config)`
+(`cant-fail-scan.sh:981`), where an unclaimed file prints `adapter: none (no adapter claims this
+file)` (:983). The audit tells them apart by the parenthetical: the disabled-adapter file is not a
+test for `--exercised`, and the report lists it as skipped with the scanner's reason rather than
+folding it silently into "not a test". Why: the team turned the adapter off, so running its tests
+against mutants overrides their config; reporting the skip keeps the gap visible.
 
 Basis: config-template.md:30-35 (`mutate` excludes test code); Q6 (spec:72-80); Q1 (spec:43, no
 new plugin, extend in place); SKILL.md:97 and :306 (cross-plugin use only through Skill invocation
-"when installed"); `plugins/testing/skills/audit/scripts/cant-fail-scan.sh:962-967` (the
+"when installed"); `plugins/testing/skills/audit/scripts/cant-fail-scan.sh:981-983` (the
 per-file `adapter:` line); issue #5606 (config location).
 
 ### DT3: Mapping changed tests to the production code they exercise
@@ -168,35 +183,32 @@ instead of the changed tests. It serves Release 3's recording run (#5604).
 Basis: SKILL.md:123-126; SKILL.md:158-159 (one mutant per line); config-template.md:13-66 (no
 coverage command key); issue #5604 body ("`--record-mutants` (every line in `--paths` ...)").
 
-### DT4: Trigger: flag, auto-engage, mixed diffs
+### DT4: Trigger: the `--exercised` flag, cost
 
-Recommended answer taken unattended (2026-09-30):
+Decided (user) 2026-10-01: narrow 2b to what Release 3's cleanup gate needs. The scope runs only
+when the user passes `--exercised`. There is no auto-engage on a test-only diff and no mixed-diff
+hint; without the flag every run is the diff scope as today. This supersedes the 2026-09-30
+auto-engage answer and its cap revisions. Why: Release 3's record/replay gate (PR #5604) passes
+`--exercised` itself, so nothing it needs depends on auto-engage.
 
-- New flag `--exercised` selects the scope explicitly.
-- A change set that touches at least one test file (DT2) and no line inside the `mutate`
-  globs engages the scope automatically. The change set is the committed range plus the working
-  tree, the same set DT1 uses (review 2, 2026-09-30: the trigger read the committed diff only, so
-  uncommitted tests never auto-engaged). That change set produces zero mutants today, so no
-  existing run changes; the scope report names the auto-engagement.
-- A mixed diff without the flag runs the diff scope as today, and the scope report prints one line
-  naming `--exercised`. With the flag, the exercised scope replaces the diff scope for that run.
-- `--exercised` is mutually exclusive with `--full` and `--paths`; a scope path argument narrows the
-  changed tests considered.
-- The effort cap, `--max` and `max-mutants` apply unchanged (SKILL.md:46-64), auto-engaged or not;
-  the scope report states the cap. The cost estimate uses the restricted changed-test baseline
-  (DT15), not `baseline-suite-ms`.
-- Revised 2026-09-30 after the devils-advocate pass (old: no cap on auto-engage, estimate from the
-  full-suite time; new: medium cap and restricted baseline; why: the skill is model-invocable, and
-  under the manual protocol each mutant is several tool turns).
-- Decided 2026-09-30 (user, overengineering review): the auto-engage cap is the existing effort
-  cap, unchanged (old: the smaller of the effort cap and 15); the mixed-diff hint drops the count of
-  unexamined tests and keeps one line naming `--exercised`.
+- `--exercised` replaces the diff scope for that run and is mutually exclusive with `--full` and
+  `--paths`; a scope path argument narrows the changed tests considered.
+- The effort cap, `--max` and `max-mutants` apply unchanged (SKILL.md:46-64); the scope report
+  states the cap. The cost estimate uses the restricted changed-test baseline (DT15), not
+  `baseline-suite-ms`.
 
-Basis: RESEARCH-gaps.md "Missing for the tautology role" item 3 (a test-only diff gets no mutation
-signal; cargo-mutants documents the same limit, `https://mutants.rs/in-diff.html`); SKILL.md:123
-(scope keyed on `mutate` globs).
+Switch condition for auto-engage: the user wants a mutation signal on test-only diffs without the
+flag (RESEARCH-gaps.md "Missing for the tautology role" item 3; cargo-mutants documents the same
+limit, `https://mutants.rs/in-diff.html`).
+
+Basis: SKILL.md:46-64 (effort cap); SKILL.md:123 (scope keyed on `mutate` globs); PR #5604.
 
 ### DT5: Survivor cause classification (Q11)
+
+Decided (user) 2026-10-01: the causes are `no-assertion` and `input-gap` only. The
+`expected-from-sut` cause is dropped: the shipped Release 2 judge rule
+`testing/judge/rule-restated-expectation` (`docs/conventions/detector-findings/README.md:250`) owns
+restated and copied expected values.
 
 The Phase 4 dispositions (productive, equivalent, arid, unclassified) stay. A productive survivor
 under any scope gains one cause:
@@ -204,15 +216,14 @@ under any scope gains one cause:
 | Cause | Meaning | Evidence the triage must quote |
 |---|---|---|
 | `no-assertion` | No assertion in the covering tests reaches the mutated value | The test's line range and the absence, or the only assertions present (weak, mock-only, inert) |
-| `expected-from-sut` | The expected value is computed by calling the code under test | The assertion line whose expected side calls the mutated code |
 | `input-gap` | An independent oracle exists, but no input distinguishes the mutant | The assertion line and the inputs used |
-| `unclassified` | The triage could not quote evidence for a cause | What was missing |
+| `unclassified` | The triage could not quote evidence for a cause, or the expected value comes from the code under test (judge rule) | What was missing, or the assertion line whose expected side calls the mutated code |
 
 Recommended answer taken unattended (2026-09-30): the same fresh-context triage that assigns the
 disposition assigns the cause, in the same brief, with quoted evidence; a cause without a quote is
 `unclassified`. No new rule id and no new findings column: the cause leads the persisted `Finding`
-text and selects the `Action` wording (add an assertion; replace the expected value with a spec
-literal; add an input case). The human report's Survivors table gains a `Cause` column. The
+text and selects the `Action` wording (add an assertion; add an input case; for `unclassified`,
+review the oracle with the judge rule). The human report's Survivors table gains a `Cause` column. The
 `testing` scanner is not called for the cause (DT2 calls it, through the Skill tool, only to
 recognize test files); a `testing:audit` finding the caller already holds may be passed as
 evidence.
@@ -221,28 +232,38 @@ Tie-break rules in the triage brief (added 2026-09-30 after the devils-advocate 
 cause boundaries are soft):
 
 - A weak, inert or mock-only assertion on the mutated value counts as `no-assertion`.
-- An expected value that reaches the mutated function, directly or through a helper, counts as
-  `expected-from-sut`.
 - A mutated line no changed test reaches is `input-gap`: no input takes that branch (DT13, decided
   2026-09-30 by the user; this replaces the old rule that gave a cause only to a reached mutant).
+- Recommended, awaiting user (2026-10-01): an expected value that reaches the mutated function,
+  directly or through a helper, is `unclassified`, never `input-gap`, and the finding names
+  `testing/judge/rule-restated-expectation`. Why: such a test has an assertion, so without this rule
+  the triage could call it `input-gap`, and Release 3's cleanup would add an input case to a
+  restated oracle instead of fixing it.
 
 Rejected: calling `cant-fail-scan.sh --file --lines` from `mutation-testing` (cross-plugin script
 path, DT2); a separate cause rule id (persist-findings.md:248-260 keys the rule on the disposition
 alone).
 
 Basis: SKILL.md:184-198 (fresh-context triage, evidence bar); persist-findings.md:219-245 (Finding
-and Action text, "never invent a column"); Q11 (spec:98-100); `taut.py` (calls-SUT oracle survives 3/3,
-the `expected-from-sut` case).
+and Action text, "never invent a column"); Q11 (spec:98-100); `taut.py` (calls-SUT oracle survives
+3/3); `docs/conventions/detector-findings/README.md:250` (the judge rule).
 
 ### DT6: The copied-logic blind spot
 
 Recommended answer taken unattended (2026-09-30): every exercised-scope report prints one fixed
 line: a killed mutant does not clear a copied-logic oracle, because a test that copies the
-production formula kills the same mutants as a spec literal. It points to `/testing:test-value` for
-a provenance review. The principles skill states the limit once; the audit body cites it.
+production formula kills the same mutants as a spec literal. The principles skill states the limit
+once; the audit body cites it.
+
+Decided (user) 2026-10-01: the line names the `testing` plugin's task-end judge rule
+`testing/judge/rule-restated-expectation`, which owns restated and copied expectations; `## Next`
+keeps `/testing:test-value` for a provenance review (a `## Next` names skills only, and the judge is
+a hook). No fixture scenario
+covers the copied-logic case; the line is checked in every live-run report.
 
 Basis: `taut.py` output (copied logic 3/3, literal 3/3); RESEARCH.md "What mutation detects"
-(2608.17214: mutation cannot certify oracle independence).
+(2608.17214: mutation cannot certify oracle independence); `docs/conventions/detector-findings/README.md:250`;
+`.claude/rules/skill-bodies-state-current-rules.md:19-24`.
 
 ### DT7: Metrics under the new scope
 
@@ -298,67 +319,39 @@ every mutant and hide the rest.
   protocol's one-mutant-per-line operators (statement removal, then relational inversion;
   SKILL.md:158-163) produce more than one mutant, plus a discount branch above a threshold.
 - Scenarios, one test file each, directory names in snake case so `python -m unittest <path>`
-  imports them: `calls_sut` (`expected-from-sut`); `relation`, whose expected side calls the code
-  under test (`expected-from-sut` under DT5's tie-break); `boundary`, a literal oracle at an input
-  far above the discount threshold, so the relational-inversion mutant on the threshold line is
-  reached and survives (`input-gap`); `copied_logic` (no survivor; the blind-spot line); `literal`
-  (no survivor); `no_assertion` (`no-assertion`); and `unreached_branch`, a literal test that never
-  reaches the discount branch (its mutants are `unreached`; DT13 must not label them survivors).
-  At least one listed mutant sits on a continuation or header line, to exercise DT13's
-  insert-before rule.
-- Review 2, 2026-09-30: the relation oracle `f(200)==2*f(100)` calls the code under test on its
-  expected side, so DT5's own tie-break makes it `expected-from-sut`, not `input-gap`; `boundary`
-  now carries `input-gap`.
+  imports them. Decided (user) 2026-10-01: three scenarios. `no_assertion` (`no-assertion`);
+  `boundary`, a literal oracle at an input far above the discount threshold, so the
+  relational-inversion mutant on the threshold line is reached and survives (`input-gap`); and
+  `calls_sut`, whose expected cause is `unclassified` under DT5's tie-break (awaiting user).
+  `copied_logic` is cut (DT6: the judge rule owns copied expectations). The 2026-09-30 decisions
+  had already cut `relation`, `literal` and `unreached_branch` (DT13 folds an unreached line into
+  `input-gap`).
 - `EXPECTED.md` lists, per scenario, the exact mutants the manual protocol generates and the state
-  and cause each must get. The Tier 0 3-mutant matrix is not reproduced literally; only its
-  qualitative outcomes are (calls-SUT kills none, copied logic and literal kill all).
-- `exercised-fixture.test.sh` applies exactly the mutants `EXPECTED.md` lists, runs each scenario's
-  test file with Python (standard library only), and asserts the state per mutant, so the fixture
-  cannot drift from what the evals grade. It resolves `python3`, then `python`; it skips when
-  neither exists, and fails instead when `CI` is set.
-- New eval cases per scenario, one with uncommitted tests (DT1), one unmappable test (DT3), and
-  one setup case (a bare `tests/` glob fails `setup check`).
-
-Revised 2026-09-30 after both stress-test passes (old: six tests changed together, the 3-mutant
-Tier 0 matrix; new: one scenario per outcome, mutants the skill actually generates; why: under
-DT12 the strong tests would kill every mutant, and the skill never generates the Tier 0 mutants).
-
-Decided 2026-09-30 (user, overengineering review), superseding the scenario bullet, the
-`exercised-fixture.test.sh` bullet and the eval-cases bullet above (the unmappable-test eval is
-dropped):
-
-- Four scenarios: `calls_sut`, `no_assertion`, `boundary` and `copied_logic`. `relation` and
-  `literal` are cut (their outcomes repeat `calls_sut` and `copied_logic`). `unreached_branch` is
-  cut too: DT13 folds an unreached line into `input-gap` (decided 2026-09-30 by the user).
-- `exercised-fixture.test.sh` is cut. The seams are the evals and the live runs; the fixture's
-  config carries no `tests` key (DT2).
+  and cause each must get. The Tier 0 3-mutant matrix is not reproduced literally, because the
+  skill never generates those mutants.
+- Decided 2026-09-30 (user, overengineering review): no `exercised-fixture.test.sh`. The seams are
+  the evals and the live runs; the fixture's config carries no `tests` key (DT2).
 - Evals: one case per scenario plus the uncommitted-tests case (DT1); no count gate. The setup
-  case becomes "a `test-command` without `{tests}` fails `setup check`" (DT14), since the bare
-  `tests/` glob check left with the `tests` key.
-- Live runs: the scenarios plus `calls_sut_uncommitted`.
+  case is "a `test-command` without `{tests}` fails `setup check`" (DT14).
+- Live runs: the scenarios plus `no_assertion_uncommitted`, each passing `--exercised` (DT4).
 
-Basis: `evals.json` (dict with `evals`, 14 cases); `scripts/run-plugin-tests.sh:2` (runs
-`plugins/**/*.test.sh`); `taut.py` (qualitative outcomes); SKILL.md:158-163;
-`plugins/code-metrics/scripts/dispatch.test.sh:18` (python3-or-python precedent, per the plan
-reviewer).
+Basis: `evals.json` (dict with `evals`, 14 cases); `taut.py` (qualitative outcomes);
+SKILL.md:158-163.
 
 ### DT10: PostToolUse `bashEditDiff`
 
-Status: deferred out of 2b.
+Status: out of 2b; `[DONE]` on main (`docs/specs/tautological-tests.md:891`: "the judge reads it at
+the Stop; coverage owner #5608"). The text below records why 2b does not take it.
 
 The audit reads `git diff` (SKILL.md:123), which already sees files a Bash command wrote, so the
 field adds nothing to this scope. The docs call the list "best effort and in public beta" and say
 to "use the list to find what to review, not to enforce a policy"; it is recorded in every mode
 only with `bashEditDiffEnabled`, otherwise only in auto and `bypassPermissions` mode. Its natural
 consumer is the advisory `testing` test-scan hook, which misses Bash writes today (spec risk table,
-"Bash and MCP writes bypass the hooks", spec:910). The Release 2 judge plan also deferred it.
+"Bash and MCP writes bypass the hooks").
 
-Decided 2026-09-30 (user): stays deferred. The orchestrator filed issue #5608, owned by a follow-up to
-the `testing` plugin's hooks.
-
-Research tag: `bashEditDiff-coverage`. Measure, on the installed Claude Code version, how many
-Bash-written test files reach a PostToolUse hook under the default permission mode with and without
-`bashEditDiffEnabled`; owner: #5608 (a `testing` hooks follow-up).
+Decided 2026-09-30 (user): out of 2b. Issue #5608 owns coverage measurement; the Release 2 judge
+now reads the field at the Stop.
 
 Basis: `https://code.claude.com/docs/en/hooks.md` (fetched 2026-09-30, `bashEditDiff` section,
 requires v2.1.269 or later); SKILL.md:123.
