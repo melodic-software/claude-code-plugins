@@ -2,6 +2,8 @@
 
 Copy into `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; the topic's memory slice). Tick as each step completes.
 
+Planning version: <the `version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`>
+
 ## Steps
 
 - [ ] Step 1: Survey before you ask. Read existing context, the topic's contract and memory slices, conversation history; identify what's already settled
