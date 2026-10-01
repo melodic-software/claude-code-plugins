@@ -7,7 +7,7 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 
 ### Changed
 
-- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+- **The orphan-rule check ignores `memory_dir` in `.claude/topic-docs.yaml`.** `orphan-rule-check.sh` always excludes `.work/` from its reference search. A consumer that set another `memory_dir` there now has that root searched, so a rule referenced only from it is no longer reported as an orphan. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
 
 ## [0.13.12] - 2026-09-30
 

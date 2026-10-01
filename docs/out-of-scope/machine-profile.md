@@ -12,7 +12,7 @@ then it is not a settled rejection.
 ## Decision
 
 **Superseded in part.** The design is now
-[machine-profile-design](../specs/machine-profile-design.md) and the placement is
+[machine-profile-design](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/machine-profile-design.md) and the placement is
 [ADR 0041](../adr/0041-place-the-machine-profile-as-a-claude-ops-skill.md): a skill in
 `claude-ops`. Building the skill and any setup-contract or invocation-mode change stay
 undecided until the owner rules on that design. Until then, no `machine-profile` skill

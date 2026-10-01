@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
+- **`audit-noise` ghost-ref detection no longer reads `.claude/topic-docs.yaml`.** The detector ignores its `memory_dir` and `contract_dir` roots and no longer flags `docs/topics/<slug>/` paths, because the topic-docs convention no longer exists. It still flags concrete `.work/<slug>/` children and the retired `.claude/notes/`, `.claude/handoffs/` and `.claude/review/` locations.
 
 ## [0.24.0] - 2026-10-01
 

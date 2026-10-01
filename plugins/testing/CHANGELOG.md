@@ -7,7 +7,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Changed
 
-- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
+- **The test judge ignores `memory_dir` in `.claude/topic-docs.yaml`.** `judge-lib.sh` always writes the findings file under `<repo>/.work/reviews/<branch-slug>/`, so a consumer that set `memory_dir` there no longer gets findings in that root. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
 
 ## [0.15.0] - 2026-10-01
 
