@@ -1724,6 +1724,49 @@ class DiscoveryScoringTests(unittest.TestCase):
         self.assertNotIn(("songwriting", "rhyme"), ranked)  # no shared token at all
         self.assertIn("commit", found[0][3])
 
+    def test_a_pascal_case_name_scores_on_its_words(self):
+        native = discover.Surface.build(
+            "ClaudeDesign", "builtin-tool", "builtin_tools", [{"description": ""}]
+        )
+        self.assertEqual(native.name_sets, [{"design"}])
+        self.assertEqual(discover.split_words("MCPSearch"), "MCP Search")
+
+    def test_a_user_facing_name_is_scored(self):
+        bare = surface("Edit", description="")
+        named = discover.Surface.build(
+            "Edit",
+            "builtin-tool",
+            "builtin_tools",
+            [{"description": "", "user_facing_name": "Update"}],
+        )
+        ours = discover.Component.build(
+            "claude-config", "update-config", "skill", "Update the config."
+        )
+        score = {
+            s.name + str(bool(s.registrations[0].get("user_facing_name"))): sc
+            for s, _c, sc, _m in discover.discover(
+                [bare, named], [ours], threshold=0.0, top_k=5
+            )
+        }
+        self.assertNotIn("EditFalse", score)
+        self.assertGreater(score["EditTrue"], 0.0)
+
+    def test_a_search_hint_alone_is_scored(self):
+        native = discover.Surface.build(
+            "LyricTool",
+            "builtin-tool",
+            "builtin_tools",
+            [{"description": "", "search_hint": "find rhymes"}],
+        )
+        ours = discover.Component.build(
+            "songwriting", "rhyme", "skill", "Find rhymes for a lyric."
+        )
+        [(_s, _c, score, matched)] = discover.discover(
+            [native], [ours], threshold=0.0, top_k=5
+        )
+        self.assertGreater(score, 0.0)
+        self.assertIn("rhyme", matched)
+
     def test_threshold_and_top_k_bound_the_result(self):
         native = surface("pr", description="Create a pull request")
         corpus = [
@@ -1964,6 +2007,40 @@ class DiscoveryDetectTests(unittest.TestCase):
         self.assertEqual(tool["component"]["skill"], "commit")  # via search_hint
         self.assertIn("tool loading: deferred", tool["evidence"])
         self.assertEqual(tool["recommended_integration"], "route")
+
+    def test_an_unresolved_description_still_scores_name_ufn_and_hint(self):
+        # The inventory could not resolve these descriptions; each surface is
+        # still scored on what it has: its user-facing name, its search hint,
+        # and its name.
+        self.repo.write_skill(
+            "prototype", "design-directions", description="Mock up a UI layout."
+        )
+        self.write_inventory(
+            builtin_tools={
+                "ClaudeDesign": {
+                    "name": "ClaudeDesign",
+                    "description": "",
+                    "description_source": "unresolved",
+                    "user_facing_name": "Claude Design",
+                    "search_hint": None,
+                },
+            },
+            bundled_skills={
+                "rhyme": {
+                    "name": "rhyme",
+                    "description": "",
+                    "description_source": "unresolved",
+                }
+            },
+        )
+        code, report = self.detect()
+        self.assertEqual(code, 0)
+        pairs = {
+            (c["native"]["name"], c["component"]["skill"])
+            for c in self.discovered(report)
+        }
+        self.assertIn(("ClaudeDesign", "design-directions"), pairs)
+        self.assertIn(("rhyme", "rhyme"), pairs)
 
     def test_a_broken_agent_lane_marks_its_candidates_not_re_derivable(self):
         self.repo.write_skill("planning", "plan", description="Plan the work.")
