@@ -1008,6 +1008,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
     if (!["accept", "alt", "own", "defer", "hedged"].includes(k)) return null;
     const a = (q.alternatives || []).find(x => x.key === d.alt);
+    if (k === "alt" && a && !altsOf(q).includes(a)) return {re: true, kind: "accept", alt: null, keep: d.text || "", label: "Reconfirm", text: "the recommendation"};
     if (k === "alt" && !a) return null; // a revise removed the kept alternative: nothing to reconfirm
     const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : "deferred";
     return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text};
@@ -1601,7 +1602,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   const reEsc = k => String(k).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   function refOf(q, text){ // the one option a note names by a label the card shows (Rec, #1, option 2, (a)), else null: none, or several
-    const alts = q.alternatives || [], hits = new Map(), t = String(text || "");
+    const alts = altsOf(q), hits = new Map(), t = String(text || "");
     if (/(?:^|[\s,;(])(?:#|option\s+)1\b/i.test(t) || /(?:^|\W)Rec\b/.test(t)) hits.set("", {label: "Accept with note", kind: "accept", alt: null});
     for (const m of t.matchAll(/(?:^|[\s,;(])(?:#|option\s+)([2-9])\b/gi)) { const a = alts[+m[1] - 2]; if (a) hits.set(a.key, {label: "(" + a.key + ")", kind: "alt", alt: a.key}); } // option 2 was (a) while the rows were numbered
     alts.forEach(a => { if (new RegExp("(?:^|[\\s,;])\\(" + reEsc(a.key) + "\\)", "i").test(t)) hits.set(a.key, {label: "(" + a.key + ")", kind: "alt", alt: a.key}); });

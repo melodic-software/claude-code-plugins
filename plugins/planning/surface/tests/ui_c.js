@@ -203,6 +203,10 @@ async page => {
     await pick("D1");
     const dup = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("b").textContent + "=" + e.textContent + (e.classList.contains("rec") ? "#rec" : "")));
     ok("an alternative restating the recommendation is folded into Accept: Rec is first with class rec and no (a) choice carries the duplicate", dup[0].startsWith("Rec=") && dup[0].endsWith("#rec") && !dup.some(x => /^\(a\)/.test(x) || /\(recommended\)/.test(x)) && dup.some(x => /^\(b\)/.test(x)) && dup.some(x => /^\(c\).*only on request/.test(x)), dup.join(" | "));
+    const nEv = (await events()).length;
+    await page.click("#qhead"); await page.keyboard.press("o"); await page.fill("#note", "(a), because it is hidden"); await page.click("[data-save]"); await page.waitForTimeout(400);
+    const hid = await page.evaluate(() => ({open: document.getElementById("dlg").open, title: document.getElementById("dlgTitle").textContent}));
+    ok("a note naming the hidden duplicate (a) is not offered as a choice and saves as typed", !hid.open && (await events()).length === nEv + 1, JSON.stringify(hid));
     await pick("P2"); await page.click("main.detail h3"); await page.keyboard.press("2");
     const r3 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev3 = await last();
