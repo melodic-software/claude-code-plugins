@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "jq",
+      "check": "/testing:check",
+      "install": "install jq from https://jqlang.org/download/"
+    }
+  ]
+}
