@@ -379,3 +379,6 @@ continue. Both denials are recorded with their basis in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "The built-in Explore agent cannot hold this plugin's contract". You remain the one who writes
 `EXPLORE.md`: a scout cannot write anything at all.
+
+**A nested child's delivered hand-back is its final report.** Use it and continue. Never idle
+waiting for a report you already hold.
