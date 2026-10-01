@@ -518,6 +518,24 @@ out="$(bash "$SP/sample.sh" "$TMP/no-repos" 2>&1)"
 check "sample.sh refuses a set with a codex label" "[[ $? -eq 1 ]]"
 assert_contains "and says why" "$out" "already holds labels"
 
+# --- sample.sh marks a shebang fixture executable and leaves the rest ------------
+# One pinned repo of a shebang test file and a plain code file, a stub scanner.
+SE="$TMP/e"
+mkdir -p "$SE/a/b" "$SE/scripts" "$SE/root/r"
+sed '/^REPOS=(/,/^)/d' "$HERE/sample.sh" >"$SE/a/b/sample.sh"
+git -C "$SE/root/r" init -q
+printf '#!/usr/bin/env bash\nsource ./foo.sh\n' >"$SE/root/r/foo.test.sh"
+printf 'foo() { :; }\n' >"$SE/root/r/foo.sh"
+git -C "$SE/root/r" add .
+git -C "$SE/root/r" -c user.name=t -c user.email=t@t commit -q -m c
+sha="$(git -C "$SE/root/r" rev-parse HEAD)"
+sed -i "s|^SEED=|REPOS=(\"r $sha\")\nSEED=|" "$SE/a/b/sample.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo "  adapter: bash"' 'echo "block foo.test.sh:1-2 1 t1"' >"$SE/scripts/cant-fail-scan.sh"
+printf 'id\tsource\tlanguage\tfile\ttest\tnote\tstratum\tsplit\n' >"$SE/a/b/labels.tsv"
+bash "$SE/a/b/sample.sh" "$SE/root" >/dev/null 2>&1
+check "a shebang-first fixture is executable" "[[ -x \"\$SE/a/b/cases/u01/foo.test.sh.fixture\" ]]"
+check "a fixture without a shebang is not" "[[ -f \"\$SE/a/b/cases/u01/foo.sh.fixture\" && ! -x \"\$SE/a/b/cases/u01/foo.sh.fixture\" ]]"
+
 # --- the shipped set: labels.tsv and cases/ agree ---------------------------------
 SHIP="$HERE/labels.tsv"
 assert_contains "the shipped header names the raters' columns" "$(head -n 1 "$SHIP")" $'\treference_label\topus_label\tcodex_label\tjudge_verdict\t'
