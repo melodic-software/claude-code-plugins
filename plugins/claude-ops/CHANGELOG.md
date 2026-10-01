@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.80.3] - 2026-10-01
+## [0.80.4] - 2026-10-01
 
 ### Added
 
@@ -17,6 +17,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   that flip when a reader fix lands. `test_fixture_parse.py` checks every JavaScript fixture
   the inventory tests feed the reader parses as a module under acorn, when node and acorn
   resolve, and lists the 39 tests whose fixtures do not yet.
+
+## [0.80.3] - 2026-10-01
+
+### Changed
+
+- Shared `hooks/hook-utils.sh` resynced from the repository library, the `hook-failure-audit.sh` comment beside `hook::require_jq` now says the missing-`jq` notice is once per session and agent, and the `claude-ops-paths.sh` comment says the same of the skill-usage bad-scope, bad-config and no-destination notices (comment wording only, no behavior change).
 
 ## [0.80.2] - 2026-10-01
 
