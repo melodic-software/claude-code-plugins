@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.25.21] - 2026-10-01
+
+### Added
+
+- **`evals/explorer-uses-delivered-scout-hand-back` is the plugin's first `claude plugin eval` case.** It dispatches `discovery:explorer` with a nested scout's final report already delivered in the dispatch prompt, and grades that the explorer uses the report and runs on to its own return block: the slice index reaches `Run status: complete`, and the relayed block carries `status: complete` and `persistence: written`. The delivery is simulated, so the case grades the explorer's reaction and not the harness. A run needs `--scaffold --allow-tools Bash,Write --ablation none`.
+
 ## [0.25.20] - 2026-10-01
 
 ### Added
