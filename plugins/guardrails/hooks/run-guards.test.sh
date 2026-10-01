@@ -1026,6 +1026,8 @@ cap_quoted "a heredoc sourced from stdin counts" 2 "source /dev/stdin <<'EOF'${N
 cap_quoted "a heredoc dotted from stdin counts" 2 ". /dev/stdin <<'EOF'${NL}$QS${NL}EOF"
 cap_quoted "a heredoc dotted after a separator counts" 2 "cd x; . /dev/stdin <<'EOF'${NL}$QS${NL}EOF"
 cap_quoted "a heredoc dotted from a tab-separated file counts" 2 ".${TAB}/dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc dotted through \$IFS counts" 2 ".\$IFS/dev/stdin <<'EOF'${NL}$QS${NL}EOF"
+cap_quoted "a heredoc dotted through \${IFS} counts" 2 ".\${IFS}/dev/stdin <<'EOF'${NL}$QS${NL}EOF"
 cap_quoted "a dot inside a word does not count a quoted body" 0 "cat ./a.txt <<'EOF'${NL}$QS${NL}EOF"
 cap_quoted "a span in (( )) counts" 2 "(( '$QS' ))"
 cap_quoted "a span in \${x:offset} counts" 2 "echo \${x:'$QS'}"

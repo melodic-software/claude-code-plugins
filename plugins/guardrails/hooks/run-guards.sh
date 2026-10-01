@@ -343,8 +343,10 @@ run_guards::counted_text() { # <command> -> _rg_counted
   # The words hook::shell_c_operand, eval and the root-delete guard's
   # launcher arms (su, runuser, sg, env -S, flock -c) re-parse an argument of.
   local re_reparse='(^|[^a-z0-9_.-])(eval|source|bash|sh|zsh|dash|ksh|mksh|wsl|su|runuser|sg|env|flock)([^a-z0-9_-]|$)'
-  # `. file` runs `file` (`. /dev/stdin <<'EOF'`) as `source` does.
-  local re_dot="(^|[^a-z0-9_.-])\\.[ $tab]"
+  # `. file` runs `file` (`. /dev/stdin <<'EOF'`) as `source` does. A `.` the
+  # shell may split from its operand (`.$IFS/dev/stdin`, `.${IFS}x`, `` .`cmd` ``)
+  # counts too.
+  local re_dot="(^|[^a-z0-9_.-])\\.([ $tab{\`\$]|\$)"
   _rg_counted=$1
   # A git alias definition (`-c alias.x='!…'`) is re-parsed by the git guards.
   m=${1,,}
