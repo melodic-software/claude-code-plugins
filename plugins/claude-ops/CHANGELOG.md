@@ -3,6 +3,16 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.80.1] - 2026-10-01
+
+### Changed
+
+- **The inventory is validated against Claude Code 2.1.287.** Every lane extracts ok on that
+  build, so `VALIDATED_AGAINST` is now `2.1.287` and the self-check reports `ok` instead of
+  `degraded`. The one surface change is the hidden built-in command `/plugin-types`, which the
+  2.1.287 build no longer ships; its dismissed overlap with `code-metrics:audit-type-debt` is
+  removed from the native-surfaces store.
+
 ## [0.80.0] - 2026-10-01
 
 ### Added
