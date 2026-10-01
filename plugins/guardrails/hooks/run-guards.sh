@@ -93,18 +93,22 @@
 #     For the Bash tool, a spelling inside a single-quoted span does not
 #     count: bash substitutes nothing there, and the guards read the span as
 #     one quoted word, so it costs close to the same text without the
-#     spelling and far below the unquoted cost. Everything else counts as
-#     before, including double-quoted text,
-#     ANSI-C `$'...'` and heredoc bodies, quoted delimiter or not:
-#     block-root-delete-target's substitution scan reads even a `<<'EOF'` body
-#     as commands. The discount is taken only where it is proved. The scan
-#     runs only on a command already past the cap, and from the first place
-#     bash, hook::bash_parse_segments and that scan could read the rest
-#     differently, the rest counts whole: a backtick outside a span; `$(`,
-#     `${` or `$[` inside double quotes; a heredoc; `$'` or `$$'`; a comment
-#     holding a quote; a quote that never closes; a span after `\$`, or after
-#     `((`, `[` or `{` (arithmetic, where bash expands `$(` in quotes); past
-#     1024 scan steps. The whole command counts when it names a command a
+#     spelling and far below the unquoted cost. Nor does one in the body of a
+#     heredoc whose delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`,
+#     `<<-'EOF'`): bash expands nothing there and the library skips it.
+#     block-root-delete-target's substitution scan still reads such a body as
+#     commands, at a cost its own RDT_DEADLINE of 25 s bounds. Everything else
+#     counts as before, including double-quoted text, ANSI-C `$'...'` and
+#     unquoted heredoc bodies. The discount is taken only where it is proved.
+#     The scan runs only on a command already past the cap, and from the
+#     first place bash, hook::bash_parse_segments and that scan could read the
+#     rest differently, the rest counts whole: a backtick outside a span;
+#     `$(`, `${` or `$[` inside double quotes; an unquoted heredoc, or a
+#     quoted one the scan does not model (counted_text below lists them);
+#     a single-quoted span after a heredoc body, whose quotes the root-delete
+#     scan reads; `$'` or `$$'`; a comment holding a quote; a quote that never
+#     closes; a span after `\$`, or after `((`, `[` or `{` (arithmetic, where
+#     bash expands `$(` in quotes); past 1024 scan steps. The whole command counts when it names a command a
 #     guard re-parses an argument of (`eval`, a shell, `su`, `runuser`, `sg`,
 #     `env`, `flock`, `wsl`) or holds `alias`. A command past
 #     --max-command-len is not scanned; the guards refuse it unread.
@@ -313,19 +317,25 @@ run_guards::count_subst() { # <text> -> _rg_subst
 
 # The text of a Bash command whose spellings count: the command with each
 # single-quoted span replaced by its last path component when that could be a
-# command name, else by one space. Each [[ =~ ]] jumps to the next character
+# command name, else by one space, and the body of each heredoc whose
+# delimiter is quoted dropped. Each [[ =~ ]] jumps to the next character
 # that can change how the rest reads, so the passes grow with the quotes,
-# escapes and `$`, not the length, and nothing forks. The discount holds only
-# where bash, hook::bash_parse_segments and block-root-delete-target's own
-# substitution scan all read the span as quoted and no guard re-reads it as a
-# command; elsewhere the rest of the command, or all of it, counts
-# (AGGREGATION above lists where).
+# escapes and `$`, not the length, and nothing forks. A single-quoted span is
+# discounted only where bash, hook::bash_parse_segments and
+# block-root-delete-target's own substitution scan all read it as quoted, a
+# heredoc body only where bash and the library end it on the same line, and
+# neither where a guard re-reads it as a command; elsewhere the rest of the
+# command, or all of it, counts (AGGREGATION above lists where).
 # shellcheck disable=SC2016,SC1003  # regexes and literal spellings, not expansions
 run_guards::counted_text() { # <command> -> _rg_counted
-  local LC_ALL=C rest="$1" out="" m ws=1 dq=0 br=0 n=0
-  local nl=$'\n'
+  local LC_ALL=C rest="$1" out="" m d t re_end ws=1 dq=0 br=0 hd=0 n=0
+  local nl=$'\n' tab=$'\t'
   local re_plain='^[^'\''"\`$<#]*' re_dq='^[^"\$`]*' re_sq="^'([^']*)'"
   local re_cmt="^#[^$nl]*" re_base='[/\]([^/\]*)$' re_name='^[a-zA-Z0-9_.+-]*$'
+  # `<<` or `<<-`, a delimiter word of letters, digits and `_`, each part bare,
+  # single- or double-quoted or backslashed, and the rest of its line.
+  local w='[a-zA-Z0-9_]'
+  local re_hd="^<<(-?)[ $tab]*(($w|'$w*'|\"$w*\"|\\\\$w)+)([ $tab;&|>][^'\"\`\\\$#<()$nl]*)?$nl"
   # The words hook::shell_c_operand, eval and the root-delete guard's
   # launcher arms (su, runuser, sg, env -S, flock -c) re-parse an argument of.
   local re_reparse='(^|[^a-z0-9_.-])(eval|bash|sh|zsh|dash|ksh|mksh|wsl|su|runuser|sg|env|flock)([^a-z0-9_-]|$)'
@@ -378,7 +388,7 @@ run_guards::counted_text() { # <command> -> _rg_counted
     "'"*)
       # After `\$` the root-delete scan reads an ANSI-C span, whose `\'` does
       # not close it.
-      ((br == 0)) && [[ $out != *'$' && $rest =~ $re_sq ]] || break
+      ((br == 0 && hd == 0)) && [[ $out != *'$' && $rest =~ $re_sq ]] || break
       m=${BASH_REMATCH[1]}
       rest=${rest:$((${#m} + 2))}
       # Its last path component stays when it could name a command, so a
@@ -421,8 +431,35 @@ run_guards::counted_text() { # <command> -> _rg_counted
       rest=${rest:3}
       ws=1
       ;;
-    # A heredoc: the root-delete scan reads even a quoted body as commands.
-    '<<'*) break ;;
+    # A heredoc whose delimiter is quoted: its body is stdin bash does not
+    # expand, so it is dropped, and the operator, the word and the rest of its
+    # line stay. The body starts after that line and ends at the first line
+    # equal to the delimiter (leading tabs stripped for `<<-`). The rest counts
+    # whole from here when the delimiter is unquoted, empty or more than
+    # letters, digits and `_` under quoting; when the rest of the line holds a
+    # quote, `\`, `$`, `#`, `<`, `(` or `)` (a second heredoc, a substitution,
+    # a continued line); when arithmetic or a substitution may enclose it; or
+    # when no terminator line follows.
+    '<<'*)
+      ((br == 0)) && [[ $out != *['$<>']'('* && $rest =~ $re_hd ]] || break
+      m=${BASH_REMATCH[0]}
+      d=${BASH_REMATCH[2]//[\'\"\\]/}
+      [[ -n $d && $d != "${BASH_REMATCH[2]}" ]] || break
+      re_end=$nl
+      [[ -n ${BASH_REMATCH[1]} ]] && re_end+="$tab*"
+      re_end+=$d$nl
+      # A newline is added so the terminator line always ends in one.
+      t=$nl${rest:${#m}}$nl
+      [[ $t =~ $re_end ]] || break
+      out+=$m
+      m=${t%%"${BASH_REMATCH[0]}"*}
+      rest=${t:$((${#m} + ${#BASH_REMATCH[0]}))}
+      rest=${rest%"$nl"}
+      ws=1
+      # The root-delete scan reads the body's quotes as quotes, so a later
+      # single-quoted span may be open code to it.
+      hd=1
+      ;;
     '<'*)
       out+='<'
       rest=${rest:1}
@@ -461,10 +498,10 @@ if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
   _rg_data=""
   run_guards::count_subst "$_rg_text"
   # The quote-aware recount runs only for a Bash command already past the cap
-  # that holds a single quote, and not for one past --max-command-len, which
-  # the guards refuse unread.
+  # that holds a single quote or a heredoc, and not for one past
+  # --max-command-len, which the guards refuse unread.
   if ((_rg_subst > RUN_GUARDS_MAX_SUBST && RUN_GUARDS_PRIMED)) &&
-    [[ "${RUN_GUARDS_FIELD['.tool_name']-}" == Bash && $_rg_text == *"'"* ]] &&
+    [[ "${RUN_GUARDS_FIELD['.tool_name']-}" == Bash && ($_rg_text == *"'"* || $_rg_text == *'<<'*) ]] &&
     ! ((RUN_GUARDS_MAX_CMD && ${#_rg_text} > RUN_GUARDS_MAX_CMD)); then
     run_guards::counted_text "$_rg_text"
     run_guards::count_subst "$_rg_counted"
