@@ -69,7 +69,7 @@ registers, edits, or deletes a scheduled task. Run `print-schedule` for commands
 generated from your machine's real paths:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/lanes/scripts/restart-consumer.sh" print-schedule
+bash "<skill-dir>/scripts/restart-consumer.sh" print-schedule
 ```
 
 It emits, for Windows first (matching the `ClaudeCodeOtelPrune` precedent in the

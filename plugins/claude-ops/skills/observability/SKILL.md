@@ -225,6 +225,16 @@ the other's behalf.
 and host; this section states what to do when it resolves, never that it is present. The four-part
 records live in [reference/native-explain-usage.md](reference/native-explain-usage.md).
 
+## Spoke paths
+
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief. Those
+files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
+tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
+Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Gotchas
 
 - Empty stores are normal on first run. Degrade gracefully

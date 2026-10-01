@@ -315,19 +315,25 @@ class TestRefusals(DirCase):
 
     def test_bare_unknown_id_token_warns(self):
         q = question(
-            "Q4", title="Does this follow AC21?", recommendation="Yes, like Q1."
+            "Q4",
+            title="Does this follow Q99?",
+            recommendation="Yes, like Q1 and as C3 says.",
         )
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
-        self.assertIn("AC21", err)
-        self.assertNotIn("Q1,", err)
+        self.assertIn("Q99", err)
+        self.assertIn("C3", err)
         self.assertNotIn("names Q1", err)
 
-    def test_version_label_is_not_a_bare_id(self):
-        q = question("Q4", title="Ship the V1 release on K8s?")
+    def test_other_letter_digit_tokens_are_not_ids(self):
+        q = question(
+            "Q4",
+            title="Ship the V1 release on K8s?",
+            recommendation="Yes: ABC2 at SEV1 over HTTP2, step S12, ES2022 target.",
+        )
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0)
-        self.assertNotIn("V1", err)
+        self.assertNotIn("not a question id", err)
 
     def test_apply_add_round_warns(self):
         ops = {
@@ -506,6 +512,166 @@ class TestReviseCommits(DirCase):
         self.assertEqual(rc, 0, out + err)
 
 
+class TestReviseDepends(DirCase):
+    """revise replaces dependsOn, validated like add, and logs the change in the history."""
+
+    def test_the_list_is_replaced_and_logged(self):
+        rc, out, err = self.rp("revise", "Q3", "--depends", "Q1", "--depends", "Q2")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q3")
+        self.assertEqual(q["dependsOn"], ["Q1", "Q2"])
+        self.assertEqual(
+            (q["history"][-1]["kind"], q["history"][-1]["text"]),
+            ("depends", "Dependencies: none -> Q1, Q2."),
+        )
+        self.assertNotIn(
+            "contentRev", q, "a dependency change leaves what is asked alone"
+        )
+        self.assertIn("dependencies (none -> Q1, Q2)", out)
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_none_clears_and_an_empty_op_list_clears(self):
+        rc, out, err = self.rp("revise", "Q2", "--depends", "none")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("dependsOn", self.q("Q2"))
+        for deps in (["Q1"], []):
+            ops = {"ops": [{"op": "revise", "id": "Q2", "dependsOn": deps}]}
+            rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+            self.assertEqual(rc, 0, out + err)
+            self.assertEqual(self.q("Q2").get("dependsOn", []), deps)
+
+    def test_unknown_self_and_cyclic_references_are_refused(self):
+        self.assertIn(
+            "unknown reference in Q3: Q9",
+            self.assert_refused("revise", "Q3", "--depends", "Q9"),
+        )
+        self.assertIn(
+            "cannot depend on itself",
+            self.assert_refused("revise", "Q3", "--depends", "Q3"),
+        )
+        self.assertIn(
+            "already depends on Q1",
+            self.assert_refused("revise", "Q1", "--depends", "Q2"),
+        )
+        ops = {"ops": [{"op": "revise", "id": "Q3", "dependsOn": ["Q1", "Q9"]}]}
+        self.assert_refused("apply", "--file", self.file("ops.json", ops))
+
+    def test_the_same_list_changes_nothing(self):
+        self.assertIn(
+            "nothing to revise", self.assert_refused("revise", "Q2", "--depends", "Q1")
+        )
+
+    def test_alongside_another_field_it_adds_its_own_line(self):
+        rc, out, err = self.rp("revise", "Q3", "--title", "Renamed?", "--depends", "Q1")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q3")
+        self.assertEqual(q["contentRev"], 1)
+        self.assertEqual([h["kind"] for h in q["history"][-2:]], ["revise", "depends"])
+
+
+class TestRecChangeStampsPageSeq(DirCase):
+    """A recommendation change records the page's seq on its history line; the server places the
+    stale marks by it. Other revisions record none."""
+
+    def setUp(self):
+        super().setUp()
+        self.write_events(
+            [{"seq": 4, "id": "Q3", "kind": "accept", "alt": None, "text": "", "at": "2026-09-24T10:00:00Z"}]
+        )  # fmt: skip
+
+    def test_revise_and_reply_with_rec_stamp_the_seq_and_other_changes_do_not(self):
+        rc, out, err = self.rp(
+            "revise", "Q1", "--rec", "New.", "--affects", "Q3", "--force"
+        )
+        self.assertEqual(rc, 0, out + err)
+        rc, out, err = self.rp(
+            "reply", "Q1", "--rec", "Newer.", "--affects", "none", "--force"
+        )
+        self.assertEqual(rc, 0, out + err)
+        rc, out, err = self.rp(
+            "revise", "Q1", "--title", "Renamed?", "--affects", "Q3", "--force"
+        )
+        self.assertEqual(rc, 0, out + err)
+        lines = self.q("Q1")["history"][-3:]
+        self.assertEqual([h.get("pageSeq") for h in lines], [4, 4, None])
+        self.assertEqual(lines[0]["affects"], ["Q3"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+
+class TestSupersedeRepoint(DirCase):
+    """add --supersedes names the live questions that depend on the superseded one, and moves them
+    behind --repoint."""
+
+    def setUp(self):
+        super().setUp()
+        doc = self.doc()
+        doc["questions"] += [
+            question("Q4", dependsOn=["Q1", "Q3"]),
+            question(
+                "Q5",
+                dependsOn=["Q1"],
+                archived={"why": "Off path.", "at": "2026-09-24T10:00:00Z"},
+            ),
+        ]
+        self.write_doc(doc)
+
+    def add(self, *extra):
+        return self.rp(
+            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
+            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1", *extra,
+        )  # fmt: skip
+
+    def test_without_the_flag_it_only_names_the_dependents(self):
+        rc, out, err = self.add()
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("Q2, Q4 still depend on Q1, which Q6 supersedes", out)
+        self.assertEqual(self.q("Q2")["dependsOn"], ["Q1"])
+        self.assertEqual(self.q("Q1")["supersededBy"], "Q6")
+
+    def test_repoint_moves_every_live_dependent_and_lists_them(self):
+        rc, out, err = self.add("--repoint")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("repointed Q2, Q4 from Q1 to Q6", out)
+        self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
+        self.assertEqual(self.q("Q4")["dependsOn"], ["Q6", "Q3"])
+        self.assertEqual(
+            self.q("Q5")["dependsOn"], ["Q1"], "an archived question stays as it was"
+        )
+        self.assertEqual(self.q("Q2")["history"][-1]["text"], "Dependencies: Q1 -> Q6.")
+        live = [
+            q["id"]
+            for q in self.doc()["questions"]
+            if "Q1" in q.get("dependsOn", []) and not q.get("archived")
+        ]
+        self.assertEqual(live, [])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_a_dependent_the_new_question_waits_on_only_loses_the_old_id(self):
+        rc, out, err = self.add("--repoint", "--depends", "Q2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("dependsOn", self.q("Q2"))
+        self.assertEqual(self.q("Q4")["dependsOn"], ["Q6", "Q3"])
+        self.assertIn("dropped Q1 from Q2 (Q6 depends on it)", out)
+        self.assertIn("repointed Q4 from Q1 to Q6", out)
+        live = [
+            q["id"]
+            for q in self.doc()["questions"]
+            if "Q1" in q.get("dependsOn", []) and not q.get("archived")
+        ]
+        self.assertEqual(live, [])
+
+    def test_the_apply_add_op_takes_repoint(self):
+        new = question("Q6", supersedes="Q1")
+        ops = {"ops": [{"op": "add", "question": new, "repoint": True}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("repointed Q2, Q4 from Q1 to Q6", out)
+        self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
+
+
 class TestStatus(DirCase):
     """status: withdrawn events are not unhandled; event text is quoted data on one line."""
 
@@ -551,6 +717,24 @@ class TestStatus(DirCase):
         self.assertEqual(lines[head + 1], "  #2 Q1 undo of #1")
         self.assertEqual(lines[head + 2], "  #3 - note: " + json.dumps(text))
         self.assertEqual(len(lines), head + 3, out)
+
+    def test_a_forced_wrapup_prints_the_items_it_skipped(self):
+        text = "Skipped before wrap-up:\n- The understanding is not confirmed\n- Q2: 1 commitment not ticked"
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": None,
+                    "kind": "wrapup",
+                    "alt": None,
+                    "text": text,
+                    "at": "2026-09-24T10:00:00Z",
+                }
+            ]
+        )
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("  #1 - wrapup: " + json.dumps(text), out.splitlines())
 
     def test_a_waiting_question_is_open_on_its_own_line(self):
         doc = base_doc()
@@ -1159,11 +1343,15 @@ class TestClaudeActivity(DirCase):
             {"op": "add-round", "groups": [{"id": "g3", "title": line}]},
         ):
             with self.subTest(op=repr(op)[:100]):
-                self.assertIn("the cap is", self.refused(op))
+                self.assertRegex(self.refused(op), "the cap is|allows at most")
         self.apply(
             {"op": "wait", "id": "Q3", "waitsOn": "x" * 500},
             {"op": "restate", "sections": {"goal": "x" * 20000}},
             {"op": "group", "id": "g3", "title": "x" * 500, "summary": "x" * 20000},
+            {"op": "set-status", "text": "x" * 500},
+            {"op": "activity", "text": "x" * 500},
+            {"op": "note-reply", "text": "x" * 20000},
+            {"op": "revise", "id": "Q1", "title": "x" * 500, "facts": "x" * 20000},
             {
                 "op": "add",
                 "question": question("Q4", title="x" * 500, facts="x" * 20000),
@@ -1281,6 +1469,35 @@ class TestClaudeActivity(DirCase):
         )
         self.assertEqual(
             (self.entries()[-1]["restate"], self.entries()[-1]["ids"]), (2, ["Q1"])
+        )
+
+    def test_restate_keeps_every_rev_and_mirrors_the_latest(self):
+        for text in ("One.", "Two.", "Three."):
+            self.apply({"op": "restate", "sections": {"goal": text}})
+        doc = self.doc()
+        self.assertEqual(
+            [(r["rev"], r["sections"]["goal"]) for r in doc["restatements"]],
+            [(1, "One."), (2, "Two."), (3, "Three.")],
+        )
+        self.assertEqual(doc["restatement"], doc["restatements"][-1])
+
+    def test_restate_continues_the_rev_of_a_file_with_only_a_restatement(self):
+        doc = self.doc()
+        doc["restatement"] = {
+            "rev": 4,
+            "at": "2026-09-24T10:00:00Z",
+            "sections": {"goal": "Old."},
+        }
+        self.write_doc(doc)
+        self.apply({"op": "restate", "sections": {"goal": "New."}})
+        doc = self.doc()
+        self.assertEqual([r["rev"] for r in doc["restatements"]], [4, 5])
+        self.assertEqual(doc["restatement"]["rev"], 5)
+
+    def test_restate_takes_an_out_of_scope_section(self):
+        self.apply({"op": "restate", "sections": {"outOfScope": "- no Windows"}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"], {"outOfScope": "- no Windows"}
         )
 
     def test_restate_refusals(self):
@@ -1418,6 +1635,69 @@ class TestRecordTerminalHedged(DirCase):
         self.assertEqual((t["decision"], t["text"]), ("hedged", "if cheap"))
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+
+class TestReplyResolution(DirCase):
+    """reply --resolution records the accepted reading of the counted own answer."""
+
+    def answer(self, kind, seq=1, text="YES I AGREE"):
+        self.write_events(
+            [
+                {
+                    "seq": seq,
+                    "id": "Q1",
+                    "kind": kind,
+                    "alt": None,
+                    "text": text,
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+    def apply(self, *ops):
+        rc, out, err = self.rp(
+            "apply", "--file", self.file("ops.json", {"ops": list(ops)})
+        )
+        self.assertEqual(rc, 0, out + err)
+
+    def test_the_resolution_is_bound_to_the_answer_it_resolves(self):
+        self.answer("own")
+        rc, out, err = self.rp("reply", "Q1", "--resolution", "2.0 s or less at p75")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(
+            {k: v for k, v in self.q("Q1")["resolution"].items() if k != "at"},
+            {
+                "text": "2.0 s or less at p75",
+                "seq": 1,
+                "decidedAt": "2999-01-01T00:00:00Z",
+            },
+        )
+
+    def test_an_apply_op_takes_it_and_collapses_whitespace(self):
+        self.answer("own")
+        self.apply({"op": "reply", "id": "Q1", "resolution": "  read   as\nB  "})
+        self.assertEqual(self.q("Q1")["resolution"]["text"], "read as B")
+
+    def test_a_question_with_no_counted_own_answer_refuses_it(self):
+        for kind in (None, "accept", "defer"):
+            with self.subTest(kind=kind):
+                if kind:
+                    self.answer(kind)
+                out = self.assert_refused("reply", "Q1", "--resolution", "x")
+                self.assertIn("no counted own answer", out)
+
+    def test_a_revised_recommendation_cannot_carry_one(self):
+        self.answer("own")
+        out = self.assert_refused(
+            "reply", "Q1", "--resolution", "x", "--rec", "y", "--affects", "none"
+        )
+        self.assertIn("not both", out)
+
+    def test_an_empty_resolution_is_refused(self):
+        self.answer("own")
+        self.assertIn(
+            "needs text", self.assert_refused("reply", "Q1", "--resolution", " ")
+        )
 
 
 class TestReviseSetsAsideOwn(DirCase):
@@ -1899,6 +2179,155 @@ class TestEmojiMarkersValue(unittest.TestCase):
         for value, want in cases:
             with self.subTest(value=value):
                 self.assertIs(self.markers_after(value), want)
+
+
+class TestRoundStamp(DirCase):
+    """Meta carries the round it was last set in; a newer round warns, status shows both."""
+
+    def set_meta(self, meta):
+        ops = {"ops": [{"op": "meta", "set": meta}]}
+        return self.rp("apply", "--file", self.file("meta.json", ops))[0]
+
+    def test_add_into_a_newer_round_warns_when_meta_was_set_earlier(self):
+        self.assertEqual(self.set_meta({"eyebrow": "Round one"}), 0)
+        self.assertEqual(self.doc()["meta"]["setInRound"], 1)
+        q = question("Q4", round=2)
+        rc, _, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, err)
+        self.assertIn("meta was last set in round 1, but this adds round 2", err)
+
+    def test_add_round_that_sets_meta_stamps_it_and_does_not_warn(self):
+        spec = {"meta": {"eyebrow": "Two"}, "questions": [question("Q4")]}
+        rc, _, err = self.rp(
+            "add-round", "--file", self.file("r.json", spec), "--round", "2"
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertNotIn("meta was last set", err)
+        self.assertEqual(self.doc()["meta"]["setInRound"], 2)
+
+    def test_status_prints_the_stamp_and_the_newest_round(self):
+        self.set_meta({"next": "x"})
+        self.rp("add", "--file", self.file("q.json", question("Q4", round=2)))
+        _, out, _ = self.rp("status")
+        self.assertIn("meta last set in round 1, newest question in round 2", out)
+
+    def test_add_round_keeps_a_different_title_unless_replaced(self):
+        spec = {"meta": {"title": "One sub-topic"}, "questions": [question("Q4")]}
+        rc, _, err = self.rp("add-round", "--file", self.file("r.json", spec))
+        self.assertEqual(rc, 0, err)
+        self.assertIn("kept the existing title", err)
+        self.assertEqual(self.doc()["meta"]["title"], "Test interview")
+        spec["questions"] = [question("Q5")]
+        rc, _, err = self.rp(
+            "add-round", "--file", self.file("r.json", spec), "--replace-title"
+        )
+        self.assertEqual(rc, 0, err)
+        self.assertEqual(self.doc()["meta"]["title"], "One sub-topic")
+
+    def test_unlabeled_new_stage_warns_and_a_labeled_one_is_quiet(self):
+        _, _, err = self.rp(
+            "add", "--file", self.file("q.json", question("Q4", stage="build2"))
+        )
+        self.assertIn("stage 'build2' has no meta.stages label", err)
+        self.set_meta({"stages": {"build2": "Build 2"}})
+        _, _, err = self.rp(
+            "add", "--file", self.file("q.json", question("Q5", stage="build2"))
+        )
+        self.assertNotIn("no meta.stages label", err)
+
+
+class TestReplyHintOnOwnAnswer(DirCase):
+    def test_reply_without_rec_to_an_own_answer_hints_revise_or_wait(self):
+        self.write_events(
+            [
+                {
+                    "seq": 1,
+                    "id": "Q1",
+                    "kind": "own",
+                    "text": "my words",
+                    "at": "2999-01-01T00:00:00Z",
+                }
+            ]
+        )
+        rc, _, err = self.rp("reply", "Q1", "--text", "Two readings: 1 or 2.")
+        self.assertEqual(rc, 0, err)
+        self.assertIn("revise", err)
+        self.assertIn("wait --by user", err)
+        _, _, err = self.rp("reply", "Q2", "--text", "plain")
+        self.assertNotIn("hint:", err)
+
+
+class TestDoctor(DirCase):
+    """doctor reports what the running version needs and the ledger or page lacks, and writes nothing."""
+
+    def running(self):
+        return json.loads(
+            (HERE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )["version"]
+
+    def ledger(self, text):
+        path = self.tmp / "interview-checklist.md"
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+
+    def test_an_old_shape_ledger_and_page_print_one_line_per_missing_element(self):
+        old = self.ledger(
+            "# Interview ledger\n\n## Open-question register\n\n- Q1 | open | round 1 | x? |\n"
+        )
+        doc = self.doc()
+        doc["questions"][0]["basis"] = ""
+        self.write_doc(doc)
+        before = self.raw()
+        rc, out, err = self.rp("doctor", "--ledger", old)
+        self.assertEqual(rc, 1, out + err)
+        missing = [line for line in out.splitlines() if line.startswith("missing: ")]
+        self.assertEqual(len(missing), 3, out)
+        self.assertIn("## Constraint ledger", missing[0])
+        self.assertIn("without a Basis: Q1", missing[1])
+        self.assertIn("`Checked against:` line: Q1, Q2, Q3", missing[2])
+        self.assertIn("an unrecorded version", out)
+        self.assertEqual(self.raw(), before)
+
+    def test_a_current_ledger_and_page_exit_zero(self):
+        doc = self.doc()
+        for q in doc["questions"]:
+            q["facts"] = "Checked against: none\n\nWhat the code does."
+        doc["meta"]["pluginVersion"] = self.running()
+        self.write_doc(doc)
+        current = self.ledger(
+            f"# Interview ledger\n\nPlanning version: {self.running()}\n\n"
+            "## Constraint ledger\n\n- C1 | confirmed | x | user, round 1\n\n"
+            "## Open-question register\n\n- Q1 | open | round 1 | x? |\n"
+        )
+        rc, out, err = self.rp("doctor", "--ledger", current)
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("missing:", out)
+        self.assertNotIn("note:", out)
+
+    def test_an_answered_question_is_not_checked(self):
+        doc = self.doc()
+        for q in doc["questions"]:
+            q["facts"] = "Checked against: none"
+        doc["questions"][0].pop("facts")
+        self.write_doc(doc)
+        self.write_events(
+            [{"seq": 1, "id": "Q1", "kind": "accept", "at": "2026-01-01T00:00:00Z"}]
+        )
+        ledger = self.ledger("## Constraint ledger\n\n## Open-question register\n")
+        rc, out, err = self.rp("doctor", "--ledger", ledger)
+        self.assertEqual(rc, 0, out + err)
+
+    def test_a_new_file_records_the_plugin_version_once(self):
+        shutil.rmtree(self.dir)
+        self.dir.mkdir()
+        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q1")))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["pluginVersion"], self.running())
+        doc = self.doc()
+        doc["meta"]["pluginVersion"] = "0.1.0"
+        self.write_doc(doc)
+        self.rp("add", "--file", self.file("q2.json", question("Q2")))
+        self.assertEqual(self.doc()["meta"]["pluginVersion"], "0.1.0")
 
 
 if __name__ == "__main__":

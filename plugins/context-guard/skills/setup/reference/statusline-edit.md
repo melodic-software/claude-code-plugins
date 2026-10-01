@@ -23,7 +23,7 @@ the effective value resolved in step 4 and substitute what it prints:
 
 ```bash
 jq '.statusLine' <the settings file that owns the effective command> |
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+  bash "<plugin-root>/scripts/compose-statusline-wiring.sh" \
     --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' --block --explain
 ```
 
@@ -98,7 +98,7 @@ in the order they nest, this plugin's first.
 
 ```bash
 jq '.statusLine' <the settings file that owns the effective command> |
-  bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
+  bash "<plugin-root>/scripts/compose-statusline-wiring.sh" \
     --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' \
     --wrap 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh' --block --explain
 ```

@@ -2,7 +2,7 @@
 
 Delegates to this plugin's `security-reviewer` agent for a cross-ecosystem security audit. Use when changes touch authentication, authorization, data handling, API endpoints, or any code processing user input.
 
-**Output schema:** the agent produces P1–P5 findings (severity, location, risk, fix, confidence). When rolling up into this skill's summary, fold P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION (per `${CLAUDE_PLUGIN_ROOT}/context/severity.md`).
+**Output schema:** the agent produces P1–P5 findings (severity, location, risk, fix, confidence). When rolling up into this skill's summary, fold P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION (per `<plugin-root>/context/severity.md`).
 
 ## When to use
 

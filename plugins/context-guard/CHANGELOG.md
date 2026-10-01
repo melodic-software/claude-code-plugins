@@ -5,11 +5,17 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.94] - 2026-09-30
+## [0.7.95] - 2026-10-01
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.7.94] - 2026-09-30
+
+### Fixed
+
+- **`setup` spokes no longer name `compose-statusline-wiring.sh` and `statusline-shim.sh` through the literal plugin-root token.** The token is not substituted in a `reference/` file, so a command copied from one resolved to nothing. The paths now read `<plugin-root>/scripts/...`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
 
 ## [0.7.93] - 2026-09-30
 

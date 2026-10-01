@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-09-30
+
+### Fixed
+
+- **`audit`'s `evidence-packet.md` runs the packet scripts from a path that resolves.** The prune and seal commands cited `scripts/packet-prune.sh` and `scripts/packet-seal.sh` through the literal plugin-root token, which does not expand in a reference file. They now read `<plugin-root>/scripts/...`, and `SKILL.md` gains a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
+
 ## [0.11.0] - 2026-09-30
 
 ### Added

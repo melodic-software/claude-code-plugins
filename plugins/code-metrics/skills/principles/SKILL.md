@@ -142,6 +142,16 @@ This skill is **knowledge**, not **workflow**. It measures nothing, runs no coll
 repository. The `audit-*` skills in this plugin produce the numbers; this one explains them, and
 deciding what to do about a number is the reader's call.
 
+## Spoke paths
+
+The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Next
 
 - The number in question still has to be measured: `/code-metrics:audit-complexity`, or the

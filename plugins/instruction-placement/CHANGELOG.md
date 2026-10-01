@@ -3,11 +3,17 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.7] - 2026-09-30
+## [0.16.8] - 2026-10-01
 
 ### Changed
 
 - **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.16.7] - 2026-09-30
+
+### Fixed
+
+- **`migrate` and `realign` spokes no longer name `glob-tools.sh`, `render-index.sh` and `verify-load.sh` through the literal plugin-root token.** The token is not substituted in a `context/` or `reference/` file, so a command copied from one resolved to nothing. The paths now read `<plugin-root>/scripts/...`, and both skills gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory.
 
 ## [0.16.6] - 2026-09-30
 

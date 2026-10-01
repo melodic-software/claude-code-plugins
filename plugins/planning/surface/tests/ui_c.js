@@ -48,6 +48,8 @@ async page => {
     const chipOf = async id => (await page.textContent('.qbtn[data-q="' + id + '"] .qmeta')).replace(/\s+/g, " ").trim();
     ok("a question whose prerequisite is unanswered wears Blocked, not Open", /Blocked/.test(await chipOf("P2")) && !/Open/.test(await chipOf("P2")) && /Open/.test(await chipOf("P1")), await chipOf("P2") + " | " + await chipOf("P1"));
 
+    ok("a question whose only prerequisite is archived is Open, not Blocked, and names it", /Open/.test(await chipOf("X2")) && !/Blocked/.test(await chipOf("X2")) && /needs X1 \(archived\)/.test(await page.textContent('.qbtn[data-q="X2"]')), await page.textContent('.qbtn[data-q="X2"]'));
+
     // R-J: emoji anchors on
     await pick("Q1");
     ok("R-J: question title leads with the question anchor", (await page.textContent("#dscroll .dhead h3")).startsWith(Q_MARK + " "), await page.textContent("#dscroll .dhead h3"));
@@ -58,7 +60,7 @@ async page => {
     ok("AC22: one unchecked row per commitment", rows.length === 2 && rows.every(r => !r.checked), JSON.stringify(rows));
     ok("AC22: rows sit above the collapsed details", rows.length === 2 && rows.every(r => r.before) && !(await page.$("#more [data-confirm]")));
     await page.click("main.detail h3"); await page.keyboard.press("a");
-    ok("AC16: a arms Accept", /Accept/.test(await armed()), await armed());
+    ok("AC16: a arms Rec", /Rec/.test(await armed()), await armed());
     await page.click("[data-save]"); await page.waitForTimeout(700);
     const e1 = await events();
     ok("Accept saved on Q1", e1[e1.length - 1].id === "Q1" && e1[e1.length - 1].kind === "accept");
@@ -103,7 +105,7 @@ async page => {
     ok("AC16: ? opens the shortcut sheet listing the keys", /Reconfirm/.test(sheet) && /Filter/.test(sheet) && /Shift\+N/.test(sheet), sheet.replace(/\s+/g, " ").slice(0, 120));
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
     await page.click("main.detail h3"); await page.keyboard.press("a"); await page.keyboard.press("?"); await page.waitForTimeout(150);
-    const armedBehind = /Accept/.test(await armed());
+    const armedBehind = /Rec/.test(await armed());
     await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
     ok("Ctrl+Enter saves nothing behind the open ? sheet", armedBehind && (await events()).length === n1 && await page.evaluate(() => document.getElementById("keysDlg").open), "armed " + armedBehind);
     await page.keyboard.press("Escape"); await page.waitForTimeout(150);
@@ -131,7 +133,7 @@ async page => {
     s = await state();
     const baseOpen = s.questions.questions.filter(q => q.group === "base" && !q.archived && !(s.responses.responses[q.id] || {}).decision).length;
     const cnt = await page.textContent('.sec[data-key="g:base"] .cnt');
-    ok("AC20: archived question not in the group's open count", cnt === baseOpen + " open / 4", cnt + " want " + baseOpen);
+    ok("AC20: archived question not in the group's open count", cnt === baseOpen + " open / 5", cnt + " want " + baseOpen);
     ok("AC20: archived question greyed in Groups", await page.$eval('.qbtn[data-q="X1"]', el => el.classList.contains("archived")));
     const live = s.questions.questions.filter(q => !q.archived).length;
     ok("AC20: meter leaves the archived question out", new RegExp(" of " + live + " answered$").test(await page.textContent("#meterText")), await page.textContent("#meterText"));
@@ -149,7 +151,7 @@ async page => {
     ok("stale banner names the changed prerequisite", /Stale: P1/.test(await page.textContent("#dscroll")), (await page.textContent("#dscroll")).slice(0, 160));
     ok("stale keeps its decision visible", /Accepted/.test(await page.textContent("#cur")), await page.textContent("#cur"));
     await page.click("main.detail h3"); await page.keyboard.press("a");
-    ok("a arms Reconfirm, choice 1, on a stale question", /^1\s*Reconfirm/.test((await armed()).trim()), await armed());
+    ok("a arms Reconfirm, the first row, on a stale question", /^Reconfirm/.test((await armed()).trim()), await armed());
     ok("stale chip in the rail", /Stale/.test(await page.textContent('.qbtn[data-q="P2"]')));
     ok("upstream-pending dimmed with its Waiting on chip", await page.$eval('.qbtn[data-q="P3"]', el => el.classList.contains("dim") && /Waiting on P2/.test(el.textContent)));
     await pick("P1"); await page.click("main.detail h3");
@@ -174,7 +176,7 @@ async page => {
     ok("only the accepted row is checked", (await page.$$("#choices input:checked")).length === 1);
     ok("Save starts disabled on an answered question", await page.$eval("[data-save]", el => el.disabled));
     await page.click("#choices .choice.rec input");
-    ok("clicking the pre-selected Your answer row arms it and enables Save", /Accept/.test(await armed()) && await page.$eval("[data-save]", el => !el.disabled), await armed());
+    ok("clicking the pre-selected Your answer row arms it and enables Save", /Rec/.test(await armed()) && await page.$eval("[data-save]", el => !el.disabled), await armed());
     ok("the detail says when you answered", /You answered Accepted at /.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
     ok("the detail shows the after-answer chip", /Replied after your answer/.test(await page.textContent("#dscroll")), await page.textContent("#dscroll"));
     await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
@@ -188,36 +190,36 @@ async page => {
     const r0 = await reconfirm(), ev0 = await last();
     ok("Reconfirm of a kept accept records accept", /the recommendation/.test(r0) && ev0.id === "P2" && ev0.kind === "accept" && ev0.alt === null && !(await stale("P2")), r0 + " " + JSON.stringify(ev0));
     await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "alt", alt: "a"});
-    ok("stale banner names Reconfirm as choice 1", /Reconfirm it \(a, choice 1\)/.test(await page.textContent("#dscroll")), (await page.textContent("#dscroll")).slice(0, 160));
+    ok("stale banner names the Reconfirm key", /Reconfirm it \(key a\)/.test(await page.textContent("#dscroll")), (await page.textContent("#dscroll")).slice(0, 160));
     const r1 = await reconfirm(), ev1 = await last();
-    ok("a on a stale kept alternative arms 1 Reconfirm naming alternative (b)", /^1\s*Reconfirm/.test(r1) && /alternative \(b\): Later/.test(r1), r1);
+    ok("a on a stale kept alternative arms Reconfirm naming alternative (b)", /^Reconfirm/.test(r1) && /alternative \(b\): Later/.test(r1), r1);
     ok("Reconfirm of a kept alternative records the same alt and note", ev1.id === "P2" && ev1.kind === "alt" && ev1.alt === "b" && ev1.text === "Only on weekends" && !(await stale("P2")), JSON.stringify(ev1));
     await restale({kind: "own", text: "Run it by hand"}, {kind: "accept"});
     const r2 = await reconfirm(), ev2 = await last();
-    ok("Reconfirm of a kept own answer records own with the kept text", /^1\s*Reconfirm/.test(r2) && /your own answer/.test(r2) && ev2.id === "P2" && ev2.kind === "own" && ev2.text === "Run it by hand" && !(await stale("P2")), r2 + " " + JSON.stringify(ev2));
+    ok("Reconfirm of a kept own answer records own with the kept text", /^Reconfirm/.test(r2) && /your own answer/.test(r2) && ev2.id === "P2" && ev2.kind === "own" && ev2.text === "Run it by hand" && !(await stale("P2")), r2 + " " + JSON.stringify(ev2));
     await restale({kind: "defer"}, {kind: "alt", alt: "b"});
-    const radios = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("input").value + "=" + e.querySelector(".n").textContent + " " + e.querySelector("b").textContent));
-    ok("stale with a decision: 1 Reconfirm, 2 Accept, radio values equal the numbers shown", radios[0] === "1=1 Reconfirm" && radios[1] === "2=2 Accept" && radios.every((r, i) => r.startsWith((i + 1) + "=" + (i + 1) + " ")), radios.join(", "));
+    const radios = await page.$$eval("#choices .choice", els => els.map(e => e.querySelector("input").value + "=" + e.querySelector("b").textContent + (e.querySelector(".n") ? "#n" : "")));
+    ok("stale with a decision: Reconfirm, Rec, Accept with note, then the alternatives; radio values count from 1; no number shown", radios.slice(0, 3).join() === "1=Reconfirm,2=Rec,3=Accept with note" && radios.every((r, i) => r.startsWith((i + 1) + "=") && !r.endsWith("#n")), radios.join(", "));
     await page.click("main.detail h3"); await page.keyboard.press("2");
     const r3 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev3 = await last();
-    ok("2 then save on a stale question picks again: accept", /^2\s*Accept/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
+    ok("2 then save on a stale question picks again: Rec", /^Rec/.test(r3) && ev3.id === "P2" && ev3.kind === "accept" && ev3.alt === null && !(await stale("P2")), r3 + " " + JSON.stringify(ev3));
     await pick("P2");
     // An armed choice keeps its identity when an upstream decision stales the question and a Reconfirm row renumbers the list
-    await page.click("main.detail h3"); await page.keyboard.press("3");
+    await page.click("main.detail h3"); await page.keyboard.press("4");
     const a0 = (await armed()).trim();
     await post({id: "P1", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900);
     const a1 = (await armed()).trim(), wasStale = await stale("P2");
     await page.click("main.detail h3"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev4 = await last();
-    ok("an armed alternative survives renumbering: 3 (b) shows as 4 (b) once stale and saves alt b", /^3\s*\(b\)/.test(a0) && wasStale && /^4\s*\(b\)/.test(a1) && ev4.id === "P2" && ev4.kind === "alt" && ev4.alt === "b", a0 + " / " + a1 + " " + JSON.stringify(ev4));
+    ok("an armed alternative survives a Reconfirm row shifting the key numbers: (b) stays armed once stale and saves alt b", /^\(b\)/.test(a0) && wasStale && /^\(b\)/.test(a1) && ev4.id === "P2" && ev4.kind === "alt" && ev4.alt === "b", a0 + " / " + a1 + " " + JSON.stringify(ev4));
     // Reconfirm with a note typed over the kept one records the typed note
     await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "accept"});
     await page.fill("#note", "Weekdays too");
     await page.click("main.detail h3"); await page.keyboard.press("a");
     const r6 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev6 = await last();
-    ok("Reconfirm sends the note typed over the kept one", /^1\s*Reconfirm/.test(r6) && ev6.id === "P2" && ev6.kind === "alt" && ev6.alt === "b" && ev6.text === "Weekdays too", r6 + " " + JSON.stringify(ev6));
+    ok("Reconfirm sends the note typed over the kept one", /^Reconfirm/.test(r6) && ev6.id === "P2" && ev6.kind === "alt" && ev6.alt === "b" && ev6.text === "Weekdays too", r6 + " " + JSON.stringify(ev6));
     await pick("P2");
 
     // SPEC 5.2: revising while an upstream decision is delivered and unhandled
@@ -378,7 +380,7 @@ async page => {
   }
   if (PHASE === 2) {
     await page.waitForTimeout(900); // SSE brings the external revise of A2 and the emoji switch
-    ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "1 Recommendation", await recHead());
+    ok("R-J: no anchors when emojiMarkers is false", !(await page.textContent("#dscroll .dhead h3")).includes(Q_MARK) && (await recHead()) === "Recommendation (Rec)", await recHead());
     await page.click("#dlgOk"); await page.waitForTimeout(900);
     const ev = await events(), acc = ev.filter(e => e.kind === "accept" && (e.id === "A1" || e.id === "A2")).map(e => e.id);
     ok("AC23: Accept all skips the question whose contentRev changed", acc.join(",") === "A1", acc.join(","));
@@ -405,19 +407,20 @@ async page => {
     // SPEC 5.6: wrap-up freeze
     await page.keyboard.press("w"); await page.waitForTimeout(300);
     const n0 = (await events()).length;
-    await page.click("[data-wrapup]"); await page.waitForTimeout(700);
+    await page.click("[data-wrapup]"); await page.waitForTimeout(300); if (await page.$("dialog#dlg[open]")) await page.click("#dlgOk"); await page.waitForTimeout(700);
     const ev2 = await events();
     ok("Wrap up posts one wrapup event", ev2.length === n0 + 1 && ev2[ev2.length - 1].kind === "wrapup");
     ok("toast reads Wrapping up", /Wrapping up/.test(await page.textContent("#dscroll")));
     await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("1");
-    ok("Save disabled during the wrap-up freeze", await page.$eval("[data-save]", el => el.disabled) && /Accept/.test(await armed()));
+    ok("Save disabled during the wrap-up freeze", await page.$eval("[data-save]", el => el.disabled) && /Rec/.test(await armed()));
     await page.click("#note"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(500); await page.keyboard.press("Escape");
     ok("Ctrl+Enter records nothing during the freeze", (await events()).length === n0 + 1);
     // The shell's revise between phases dropped P2's alternative (b), which its kept decision names
     const s2 = await state(), p2 = s2.questions.questions.find(q => q.id === "P2");
     await pick("P2");
     const first = await page.$eval("#choices .choice b", e => e.textContent), dtext = await page.textContent("#dscroll");
-    ok("no Reconfirm for a kept alternative a revise removed", p2.state === "stale" && s2.responses.responses.P2.alt === "b" && !p2.alternatives.some(a => a.key === "b") && first === "Accept" && /Pick an answer/.test(dtext), [p2.state, s2.responses.responses.P2.alt, first].join(" ") + " " + dtext.slice(0, 120));
+    ok("no Reconfirm for a kept alternative a revise removed", p2.state === "stale" && s2.responses.responses.P2.alt === "b" && !p2.alternatives.some(a => a.key === "b") && first === "Rec" && /Pick an answer/.test(dtext), [p2.state, s2.responses.responses.P2.alt, first].join(" ") + " " + dtext.slice(0, 120));
+    ok("a recommendation change on P1 marks P2 Upstream changed in the card and the rail", /Upstream changed: the recommendation of P1.*was revised/.test(dtext) && /Upstream changed/.test(await page.textContent('.qbtn[data-q="P2"]')) && JSON.stringify(p2.upstreamChanged) === '["P1"]', dtext.slice(0, 120) + " " + JSON.stringify(p2.upstreamChanged));
   }
   if (PHASE === 3) {
     await page.waitForTimeout(600); // SSE brings the handle of phase 2's events
@@ -451,13 +454,13 @@ async page => {
     const reopened = await page.waitForFunction(() => window.__streams >= 2, null, {timeout: 14000}).then(() => true).catch(() => false);
     const streams = await page.evaluate(() => window.__streams);
     ok("a stream silent past the ping window is dropped for polling and reopened", reopened, "streams " + streams);
-    ok("the page stays online through the fallback", await page.evaluate(() => !/Offline|Reconnecting/.test(document.getElementById("pill").textContent)), await page.textContent("#pill"));
+    ok("the page stays online through the fallback", await page.evaluate(() => !/Connection lost|Reconnecting/.test(document.getElementById("pill").textContent)), await page.textContent("#pill"));
   }
   if (PHASE === 5) { // the same server, after the shell added D2 (interview, round 3) and then E1 (design, round 1)
     await page.goto(base);
     await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(300);
     const lbl = await page.textContent("#roundLbl");
-    ok("the header round comes from the newest question's stage only", lbl === "Design round 1", lbl);
+    ok("the header round comes from the newest question's stage only", lbl === "Round 1 · Design", lbl);
     const rounds = await page.$$eval(".qbtn", els => els.length);
     ok("both stages' questions are listed", rounds >= 3, String(rounds));
   }

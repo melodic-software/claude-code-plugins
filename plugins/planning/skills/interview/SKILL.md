@@ -419,7 +419,7 @@ Route the handoff by what the session produced. **A general (non-engineering) se
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if installed)
 - **Already understand the codebase and the externals** → `/planning:plan`
 - **Task is small and the contract IS the plan** → proceed directly to implementation
-- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if installed, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch
+- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if installed, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume")
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 

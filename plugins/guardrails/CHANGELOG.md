@@ -9,6 +9,12 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **`/guardrails:check` reads whether `node` and `jq` resolve for the guardrails hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, and the SessionStart `node` notice names it. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
 
+## [0.44.2] - 2026-09-30
+
+### Fixed
+
+- **`setup` spokes no longer name the git-hook and detection-library sources through the literal plugin-root token.** The token is not substituted in a `context/` file, so the copy source in `install-commit-msg` and `install-pre-commit-content` resolved to nothing. The paths now read `<plugin-root>/lib/...`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
 ## [0.44.1] - 2026-09-30
 
 ### Fixed

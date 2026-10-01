@@ -11,9 +11,9 @@ Every action starts by calling the bundled read-only script, never hand-parse th
 files directly, and never write them:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name> | --all]
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh [--marketplace <name>] --ids <selector>
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/fleet-state.sh --ids <selector> --from <report.json>
+"<skill-dir>/scripts/fleet-state.sh" [--marketplace <name> | --all]
+"<skill-dir>/scripts/fleet-state.sh" [--marketplace <name>] --ids <selector>
+"<skill-dir>/scripts/fleet-state.sh" --ids <selector> --from <report.json>
 ```
 
 The second form emits the plain id list a mutating step loops, instead of the JSON report. One
@@ -41,8 +41,8 @@ files in a plugin's cache directory actually match the commit its install record
 `sync` and of `audit` calls it ONCE per marketplace:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> [--scope user|project|all]
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/cache-content-check.sh --marketplace <name> --ids
+"<skill-dir>/scripts/cache-content-check.sh" --marketplace <name> [--scope user|project|all]
+"<skill-dir>/scripts/cache-content-check.sh" --marketplace <name> --ids
 ```
 
 `--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
@@ -60,7 +60,7 @@ After Step 4 installs anything, reorder user-scope `enabledPlugins` with the bun
 Never hand-edit `~/.claude/settings.json`:
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/normalize-enabled-plugins.sh
+"<skill-dir>/scripts/normalize-enabled-plugins.sh"
 ```
 
 That write is user-scope only. A project-scope map is inspected with `--report-project` and never

@@ -93,7 +93,7 @@ DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 # (branch.<name>.pushRemote / remote.pushDefault) so a triangular fork flow —
 # fetch from `upstream`, push to the fork — resolves each side correctly instead
 # of pushing to the fetch remote.
-REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh") || exit 1
+REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh") || exit 1
 
 git fetch "$REMOTE" "$DEFAULT_BRANCH"
 MERGE_BASE=$(git merge-base HEAD "$REMOTE/$DEFAULT_BRANCH")
@@ -154,13 +154,13 @@ Before building PR body, parse branch for the primary (numeric GitHub) issue num
 The parser resolves the grammar itself: the `branch_issue_pattern` key across the three `source-control.md` layers, then the deprecated userConfig value passed below, then the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
 
 ```bash
-ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" || true)
+ISSUE_NUM=$(bash "<skill-dir>/scripts/parse-branch-issue.sh" || true)
 ```
 
 If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue_pattern` userConfig value (a real ERE, not the literal `${user_config…}` token, because this reference file is Read raw and the value is resolved there, never here), pass it as a **single-quoted** second positional; the empty first argument keeps the branch-name default (`git branch --show-current`). Single-quoting shields ERE metacharacters like the `$` end-anchor from the shell:
 
 ```bash
-ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' || true)
+ISSUE_NUM=$(bash "<skill-dir>/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' || true)
 ```
 
 The script's stderr is left visible on purpose: it carries the deprecation note when the userConfig value is used, and a note naming the source and the reason (never the pattern text) when a layer's section exists but yields no usable pattern (a near-miss heading such as `## branch_issue_pattern:`, no value, a heading or HTML comment as the first value line, an empty or unterminated code fence, or a pattern that is invalid, holds a backreference, or breaks the length, bound, or nested-quantifier limit), which stops resolution with no issue number whatever the lower sources say; when the userConfig value breaks one of those pattern checks and is ignored; or when a match yields no numeric id. Relay any note to the user; stdout carries only the issue number. Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a pattern with no capture group, or a non-numeric capture such as a bare Jira key, prints nothing and takes the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
@@ -228,12 +228,12 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 # `origin`/`upstream`) no longer repoints the fetch remote to the fork, and a
 # branch with any configured tracking no longer has its merge ref overwritten.
 # See the script header for the full rationale.
-bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 1
+bash "<skill-dir>/scripts/push-branch.sh" || exit 1
 ```
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
+**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
 
 ```bash
 # REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
@@ -597,7 +597,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
   # resolver in --push mode, run FROM the worktree so it reads $BRANCH's config —
   # never a hardcoded `origin`, so a `git clone -o vendor` or a triangular fork
   # flow (fetch upstream, push fork) verifies the ref at the right destination.
-  REMOTE=$( cd "$WT" && bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push ) || exit 1
+  REMOTE=$( cd "$WT" && bash "<skill-dir>/scripts/resolve-remote.sh" --push ) || exit 1
   git -C "$WT" fetch -q "$REMOTE" "$BRANCH"
   [ "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$WT" rev-parse FETCH_HEAD)" ] \
     || { echo 'worker branch is not fully pushed to the remote' >&2; exit 1; }
