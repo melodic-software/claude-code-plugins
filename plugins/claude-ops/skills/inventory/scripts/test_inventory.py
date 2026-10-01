@@ -1187,6 +1187,30 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertEqual(rec["disallowed_tools"], ["Agent"])
         self.assertEqual(rec["disallowed_tools_source"], "partial")
 
+    def test_a_spread_written_off_the_straight_line_stays_partial(self) -> None:
+        for prelude in (
+            'var pY=[xt,"Artifact"];if(c){pY=["Other"]}',
+            'var pY=[xt,"Artifact"];for(;;){pY=["Other"]}',
+            'var pY=[xt,"Artifact"];var f=()=>pY=["Other"];f();',
+            'var f=()=>pY=["Other"];var pY=[xt,"Artifact"];f();',
+        ):
+            src = AGENT_SRC + (
+                prelude + 'var SP={agentType:"spread-probe",'
+                'whenToUse:"s",source:"built-in",disallowedTools:[yt,...pY],'
+                'getSystemPrompt:()=>""};'
+            )
+            rec = self._extract(src)[0]["spread-probe"]
+            self.assertEqual(rec["disallowed_tools_source"], "partial", prelude)
+
+    def test_a_spread_whose_writer_shadows_the_name_still_resolves(self) -> None:
+        src = AGENT_SRC + (
+            'var pY=[xt,"Artifact"];function g(){let pY=[];pY=["Other"]}'
+            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
+            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
+        )
+        rec = self._extract(src)[0]["spread-probe"]
+        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+
     def test_no_roster_leaves_every_agent_absent(self) -> None:
         agents, notes = self._extract(AGENT_SRC.split("function R()")[0])
         self.assertFalse(notes["roster_found"])

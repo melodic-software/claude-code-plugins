@@ -1945,25 +1945,39 @@ def _spread_array(src: str, braces: BraceMap, ident: str, at: int) -> int | None
 
 
 def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool:
-    """Whether a function other than the one declaring `ident` at `pos`
-    writes that binding: `var x=1;function f(){x=2}` leaves x's value to
-    whether and when f runs. A write in a function that declares its own
-    `ident` is to that local, not to this binding."""
-    home = _function_block(src, braces, pos)
+    """Whether code outside the straight line of the block declaring `ident`
+    at `pos` writes that binding: a nested block (`if(c){x=2}`, a loop
+    body), a function (`function f(){x=2}`), or an expression-bodied arrow
+    (`()=>x=2`). Whether and when that write runs is not static. A write
+    that a nearer declaration of `ident` shadows is to that local instead.
+    """
+    home = braces.enclosing(pos)
     lo, hi = _chunk_span(src, pos)
+
+    def in_arrow(at: int) -> bool:
+        head = _statement_start(src, at)
+        head = max(lo, at - 4096) if head is None else head
+        return "=>" in _mask_strings(src[head:at])
+
+    if in_arrow(pos):
+        return True
     name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
     for m in _write_pattern(ident).finditer(src, lo, hi):
         w = name.search(src, m.start(), m.end())
         if w is None or w.start() == pos or _declares(src, w.start()):
             continue
         w = w.start()
-        fn = _function_block(src, braces, w)
-        if fn is None or fn == home or not _visible(braces, pos, w, src):
+        if not _visible(braces, pos, w, src):
             continue
-        if not any(
-            _declares(src, fn[0] + d.start())
-            and _visible(braces, fn[0] + d.start(), w, src)
-            for d in name.finditer(src, fn[0], fn[1])
+        block = braces.enclosing(w)
+        if block == home and not in_arrow(w):
+            continue
+        scope = _function_block(src, braces, w) or block
+        if scope is None or not any(
+            d.start() != pos
+            and _declares(src, d.start())
+            and _visible(braces, d.start(), w, src)
+            for d in name.finditer(src, scope[0], scope[1])
         ):
             return True
     return False
