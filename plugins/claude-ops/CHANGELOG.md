@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.78.1] - 2026-10-01
+
+### Fixed
+
+- **A local declaration shadows an imported name in the inventory.** A name the module imports
+  but the reader's own enclosing block declares now resolves as a runtime value, not through the
+  import to the exporting module's value.
+- **A `for` head's `let`/`const` shadows outer names in the loop body.** `for (const x of ...)`,
+  `for (let i = 0; ...)` and `for await` bind their names for the body only, so a same-named
+  outer binding no longer supplies the value.
+
 ## [0.78.0] - 2026-09-30
 
 ### Added
