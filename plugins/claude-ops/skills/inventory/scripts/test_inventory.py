@@ -1197,6 +1197,7 @@ class TestBuiltinAgents(unittest.TestCase):
             'var pY=[xt,"Artifact"];pY=c?["Other"]:pY;',
             'var pY=[xt,"Artifact"];c&&(pY=["Other"]);',
             'var pY=[xt,"Artifact"];for(;;)pY=["Other"];',
+            'var pY=[xt,"Artifact"];if(c){var pY=f()}',
         ):
             src = AGENT_SRC + (
                 prelude + 'var SP={agentType:"spread-probe",'
@@ -1217,13 +1218,19 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertEqual(rec["disallowed_tools_source"], "literal")
 
     def test_a_spread_whose_writer_shadows_the_name_still_resolves(self) -> None:
-        src = AGENT_SRC + (
-            'var pY=[xt,"Artifact"];function g(){let pY=[];pY=["Other"]}'
-            'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
-            'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
-        )
-        rec = self._extract(src)[0]["spread-probe"]
-        self.assertEqual(rec["disallowed_tools"], ["Agent", "Edit", "Artifact"])
+        for writer in (
+            'function g(){let pY=[];pY=["Other"]}',
+            'if(c){let pY=f();pY=["Other"]}',
+        ):
+            src = AGENT_SRC + (
+                'var pY=[xt,"Artifact"];' + writer + 'var SP={agentType:"spread-probe",'
+                'whenToUse:"s",source:"built-in",disallowedTools:[yt,...pY],'
+                'getSystemPrompt:()=>""};'
+            )
+            rec = self._extract(src)[0]["spread-probe"]
+            self.assertEqual(
+                rec["disallowed_tools"], ["Agent", "Edit", "Artifact"], writer
+            )
 
     def test_no_roster_leaves_every_agent_absent(self) -> None:
         agents, notes = self._extract(AGENT_SRC.split("function R()")[0])

@@ -1975,19 +1975,31 @@ def _written_elsewhere(src: str, braces: BraceMap, ident: str, pos: int) -> bool
 
     if in_arrow(pos):
         return True
+    home_fn = _function_block(src, braces, pos)
+    home_block = braces.enclosing(pos)
+
+    def separate(d: int) -> bool:
+        """Whether a declaration at `d` introduces its own binding: a `var`
+        in another function, or a `let`/`const` in another block. A `var`
+        in the same function is this binding again, and its initializer a
+        write."""
+        if d == pos or not _declares(src, d):
+            return False
+        if _is_var(src, d) or re.search(r"\bvar\s+$", src[max(0, d - 8) : d]):
+            return _function_block(src, braces, d) != home_fn
+        return braces.enclosing(d) != home_block
+
     name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
     for m in _write_pattern(ident).finditer(src, lo, hi):
         w = name.search(src, m.start(), m.end())
-        if w is None or w.start() == pos or _declares(src, w.start()):
+        if w is None or w.start() == pos or separate(w.start()):
             continue
         w = w.start()
         if not _visible(braces, pos, w, src):
             continue
         scope = _function_block(src, braces, w) or braces.enclosing(w)
         if scope is None or not any(
-            d.start() != pos
-            and _declares(src, d.start())
-            and _visible(braces, d.start(), w, src)
+            separate(d.start()) and _visible(braces, d.start(), w, src)
             for d in name.finditer(src, scope[0], scope[1])
         ):
             return True
