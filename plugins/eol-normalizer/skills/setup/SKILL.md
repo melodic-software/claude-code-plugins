@@ -59,7 +59,7 @@ unavailable command until `node` is installed or the plugin registration is disa
    `node hooks/exec-bash.mjs`, so the hook never launches and emits no notice. This probe is the
    only visibility, and it runs through the Bash tool, so it works without the launcher.
 3. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   once-per-session notice instead of normalizing.
+   once per session and agent notice instead of normalizing.
 4. **`git`.** `command -v git`. FAIL if absent: unlike jq, the hook emits NO visible notice
    when git is missing. `git check-attr` and repo-root resolution silently fail and the
    hook no-ops, so this probe is the only visibility. Distinguish the two non-failure cases

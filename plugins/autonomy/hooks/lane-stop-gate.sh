@@ -205,7 +205,7 @@ emit_tel() {
 # gate that cannot read the payload must not trap the lane).
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq parses the payload and the trusted config. Absent → visible once-per-session
+# jq parses the payload and the trusted config. Absent → visible once per session and agent
 # notice, then allow the stop (fail-open). Stop supports additionalContext, so
 # the notice reaches both the agent and the user.
 hook::require_jq "Stop" "autonomy-lane-stop-gate" "$INPUT"
