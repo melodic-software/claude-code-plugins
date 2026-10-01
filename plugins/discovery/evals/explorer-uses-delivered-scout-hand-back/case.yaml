@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: explorer-uses-delivered-scout-hand-back
+description: A discovery:explorer dispatch whose nested scout's final report was already delivered as a message uses that report and runs on to its own return block instead of waiting for it. The delivery is simulated in the dispatch prompt, so this grades the explorer's reaction, not the harness's delivery. A run needs --scaffold --allow-tools Bash,Write, and --ablation none because the baseline arm cannot dispatch the agent.
+tags: [explorer, nested-hand-back]
+plugins: ["../.."]
+runs: 3
+expected_outcome: the explorer treats the delivered scout report as final, Reads the callers it names, writes the slice with Run status complete, and returns its YAML block with status complete and persistence written.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  allowed_tools: [Agent, Read, Glob, Grep, Write, Bash]
+  max_turns: 20
+  timeout_seconds: 1200
+graders:
+  - name: explorer-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'discovery:explorer'
+    min: 1
+    max: 1
+    arm: with-only
+  - name: slice-reached-complete
+    type: regex
+    pattern: '^Run status: complete$'
+    flags: m
+    target: { source: file, path: .memory/currency-conversion/EXPLORE.md }
+    arm: with-only
+  - name: scout-caller-in-artifact
+    type: regex
+    pattern: 'fx_snapshot\.py'
+    target: { source: file, path: .memory/currency-conversion/EXPLORE.md }
+    arm: with-only
+  - name: return-block-complete
+    type: regex
+    pattern: '^status: complete\b'
+    flags: m
+    target: last_message
+    arm: with-only
+  - name: return-block-written
+    type: regex
+    pattern: '^persistence: written\b'
+    flags: m
+    target: last_message
+    arm: with-only
