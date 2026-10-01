@@ -8,9 +8,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **`worktree` routes to the built-in `EnterWorktree` and `ExitWorktree` tools.** The description
-  and a new `## Boundary` section say to use `ExitWorktree` to leave a worktree, and this skill to
-  create one (never `EnterWorktree` by name), to enter an existing one (claim check, then
-  `EnterWorktree` by path), and to inventory, clean up, or audit worktrees. The verification records are in `reference/native-worktree.md`.
+  and a new `## Boundary` section say to use `ExitWorktree` with `action: "keep"` to leave a
+  worktree, and this skill to create one (never `EnterWorktree` by name), to enter an existing one
+  (claim check, then `EnterWorktree` by path), and to inventory, clean up, or audit worktrees. The
+  skill never passes `ExitWorktree`'s destructive `action: "remove"`; removal stays with `cleanup`. The verification records are in `reference/native-worktree.md`.
 
 ## [0.68.2] - 2026-10-01
 

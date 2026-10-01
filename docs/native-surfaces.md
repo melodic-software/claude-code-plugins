@@ -1126,7 +1126,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `EnterWorktree` → `source-control:worktree`
 
-- **Verdict:** `complementary`: The built-in tool creates a worktree by name in the in-repo `.claude/worktrees/`, or switches the session into an existing worktree by path; ours creates the worktree at an external root through its helper (never by name, to keep worktrees out of the repository) and then enters it with `EnterWorktree(path:)`, and also owns status, cleanup, and audit. Entering an existing worktree also goes through ours, which runs its claim check before `EnterWorktree(path:)` so a worktree another live session claims is never entered. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `complementary`: The built-in tool creates a worktree by name in the in-repo `.claude/worktrees/`, or switches the session into an existing worktree by path; ours creates the worktree at an external root through its helper (never by name, to keep worktrees out of the repository) and then enters it with `EnterWorktree(path:)`, and also owns status, cleanup, and audit. Entering an existing worktree also goes through ours, which runs its claim check before `EnterWorktree(path:)`: the tool refuses only a lock in Claude Code's own form naming a live process, while the claim check also reads this plugin's session claims and stops on an unclaimed worktree. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
 - **Integration:** `route`
 - **Native surface:** `EnterWorktree` (built-in tool; markers: none)
 - **Our component:** `source-control:worktree` (skill)
@@ -1143,7 +1143,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `ExitWorktree` → `source-control:worktree`
 
-- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory; ours does not leave a session and tells the person to exit with the tool before creating another worktree. Leaving a worktree stays with the tool; removing one stays with ours (`cleanup`). Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `complementary`: The built-in tool leaves a worktree session and restores the original directory: `action: "keep"` leaves the worktree and its branch on disk, `action: "remove"` deletes both but is refused for a worktree entered by `path`, which is how ours enters. Leaving a worktree goes to the tool with `action: "keep"`; removal stays with ours (`cleanup`), which never passes `remove`. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation; reason corrected 2026-10-01 after the binary showed the `remove` action.
 - **Integration:** `route`
 - **Native surface:** `ExitWorktree` (built-in tool; markers: none)
 - **Our component:** `source-control:worktree` (skill)
@@ -1153,8 +1153,9 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - detect: origin discovered, score 0.4063, invocable_by model-only, recommended integration route
   - docs cross-check (tools reference, 2026-10-01): documented; not available to subagents that already run in their own working directory
   - our skill already names the tool: the `create` pre-flight says to use `ExitWorktree` to leave the current worktree first
+  - tool schema in the 2.1.285 binary (string search 2026-10-01): `action` "keep" leaves the worktree and branch on disk, "remove" deletes both (isDestructive, user-facing name 'Cleaning up worktree') and needs `discard_changes` when work would be lost; the EnterWorktree prompt says ExitWorktree will not remove a worktree entered by `path`
 - **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-01 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build, so counts are floors) (2026-10-01)
-- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, makes it remove the worktree it exits, or the tools reference stops documenting it (verified 2026-10-01)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ExitWorktree` tool, changes its `action` values or what `remove` deletes, lets `remove` delete a worktree entered by `path`, or the tools reference stops documenting it (verified 2026-10-01)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
