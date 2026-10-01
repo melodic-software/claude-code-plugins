@@ -347,7 +347,8 @@ Per plugin, from the merged fields:
 
 Absent by proof stays absent; absent or unknown because a read failed is named in the record's
 `partial`, and any non-empty `partial` degrades the lane. Behind an unresolved spread an absent
-key is unknown, not absent, and a key written before an unresolved spread is dropped as unknown,
+key is unknown, not absent. A quoted, computed or shorthand key counts as an unresolved spread in
+the plugin object and the manifest alike, and a key written before an unresolved spread is dropped as unknown,
 since the spread may override it (a `name` dropped this way leaves the registration in
 `unresolved_names`). Per field:
 

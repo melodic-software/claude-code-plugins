@@ -3940,6 +3940,11 @@ def _object_value(
     return None
 
 
+# An object part `_object_fields` reads: a plain `key:value`, or a getter,
+# setter, method or async method. Anything else is a key this reader cannot see.
+_PLAIN_PART_RE = re.compile(r"(?:(?:get|set|async)\s+)?" + _IDENT + r"\s*[:(]")
+
+
 def _merged_fields(
     src: str,
     braces: BraceMap,
@@ -3970,7 +3975,10 @@ def _merged_fields(
         a, b = _strip_span(src, a, b)
         m = re.fullmatch(r"\.\.\.(" + _IDENT + r")", src[a:b])
         if not m:
-            if src.startswith("...", a):
+            if src.startswith("...", a) or not _PLAIN_PART_RE.match(src, a, b):
+                # A spread this reader cannot follow, or a quoted, computed or
+                # shorthand key: any key may sit there, so the object is not
+                # fully read. It shadows earlier keys like a spread does.
                 complete, last_unresolved = False, a
             continue
         target = bound.get(m.group(1))
@@ -4334,13 +4342,15 @@ def _plugin_manifest(
     decl = _object_fields(src, braces, decl_at)
 
     def has_spread(open_i: int) -> bool:
+        """A spread, or a quoted, computed or shorthand key: a part that may
+        hold or override any key."""
         close = braces.pairs.get(open_i)
         return close is None or any(
-            src.startswith("...", _strip_span(src, a, b)[0])
+            not _PLAIN_PART_RE.match(src, *_strip_span(src, a, b))
             for a, b in _split_top(src, braces, open_i + 1, close)
         )
 
-    # A spread in the manifest or its declaration can hold or override any key.
+    # Such a part in the manifest or its declaration can hold or override any key.
     manifest_spread = has_spread(found[0])
     decl_spread = (
         fields[decl_key][0] != "value"

@@ -2878,6 +2878,23 @@ class TestBuiltinPlugins(unittest.TestCase):
         )
         self.assertIn("skills", _plugins(tips=tips)[0]["cc-plugin-tips"]["partial"])
 
+    def test_a_quoted_or_computed_plugin_key_is_an_unresolved_read(self) -> None:
+        for key in ('"defaultEnabled":!1', "[K]:!1", "isAvailable"):
+            agents = _plugin_modules()[3].replace(
+                "Z_({name:K,description:H,isAvailable:B,userConfig:ne})",
+                f"Z_({{{key},name:K,description:H,isAvailable:B}})",
+            )
+            rec = _plugins(agents=agents)[0]["cc-plugin-agents-md"]
+            self.assertIsNone(rec["default_enabled"], key)
+            self.assertIn("default_enabled", rec["partial"], key)
+            self.assertIsNone(rec["user_config"], key)
+
+    def test_a_quoted_or_computed_manifest_key_is_unresolved(self) -> None:
+        for decl in ('scan:{"hooks":["command.run"],', 'scan:{[K]:["command.run"],'):
+            rec = self._test_module('scan:{hooks:["command.run"],', decl)
+            self.assertIsNone(rec["hook_events"], decl)
+            self.assertIn("hook_events", rec["partial"], decl)
+
     def test_no_registrar_is_an_error(self) -> None:
         registrar = _plugin_modules()[0].replace(".builtinPlugins.set(", ".other.set(")
         plugins, notes = _plugins(registrar=registrar)
