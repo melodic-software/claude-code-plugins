@@ -1,0 +1,29 @@
+using System.Threading.RateLimiting;
+
+using Microsoft.Extensions.AI;
+
+namespace MonolithApi.Infrastructure.AI;
+
+/// <summary>
+/// Builds the Microsoft.Extensions.AI <see cref="IChatClient"/> pipeline that sits behind
+/// <see cref="MeaiTextGenerator"/>. The pipeline layers a rate-limiting <see cref="DelegatingChatClient"/>
+/// (<see cref="RateLimitingChatClient"/>) over the provider, then <c>UseOpenTelemetry</c> as the single
+/// owner of <c>gen_ai.*</c> token and latency telemetry (per architecture.md "No duplicate
+/// observability"); Platform.AI emits only <c>platform.ai.*</c> budget signals and the adapter emits
+/// no parallel token signal.
+/// </summary>
+/// <remarks>
+/// Ordering: the rate limiter is added first so it sits outside the OpenTelemetry client — the
+/// <c>gen_ai.*</c> span then measures the real provider call, not the permit wait. The composition is
+/// inlined with <see cref="ChatClientBuilder.Use(Func{IChatClient, IChatClient})"/> rather than a
+/// shared <c>UseRateLimiting</c> extension: there is a single consumer (rule of three unmet).
+/// </remarks>
+internal static class MeaiChatClientPipeline
+{
+    public static IChatClient Build(IChatClient provider, RateLimiter rateLimiter) =>
+        provider
+            .AsBuilder()
+            .Use(inner => new RateLimitingChatClient(inner, rateLimiter))
+            .UseOpenTelemetry()
+            .Build();
+}

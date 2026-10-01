@@ -1,0 +1,78 @@
+seed-s3	FLAG	The inline snapshot reproduces the implementation’s rendered output, including its floating-point artifact of Total 0.30000000000000004, rather than an independently sourced expected receipt.
+seed-g7	PASS	The expected value is the literal user object defined in the test and supplied to the repository stub, independently of the implementation.
+seed-t3	UNKNOWN	The assertion uses the literal true without an identifiable independent source or derivation from the implementation; checking only isBoosted rather than audio gain is a coverage weakness.
+seed-m2	UNKNOWN	The test hardcodes 12 with an input of 10 and mocked tax of 2, but provides no evidence of the expected value’s origin; mocking alone does not establish derivation from the implementation.
+seed-m3	PASS	The expected subtotal of 10 is independently determined by the test's explicit item prices of 4 and 6, without deriving it from the implementation.
+seed-m5	PASS	The expected array independently specifies the insertion order of the two literal jobs supplied by the test, without deriving it from the implementation.
+seed-m6	UNKNOWN	The assertion uses cart.total, but the text shows neither its origin nor the checkout implementation, so its independence cannot be determined.
+seed-m7	UNKNOWN	The assertion only checks that a query result is defined and contains no expected saved value whose independent or implementation-derived source can be established.
+seed-s5	UNKNOWN	The test only checks that retries and timeoutMs properties exist, so its weakness is assertion coverage rather than a traceable source for expected configuration values.
+seed-g10	PASS	The expected 20 is the Celsius equivalent of the fixed 293.15 Kelvin fixture supplied in the test, independent of the implementation's output.
+adv-1	FLAG	The assertion computes its expected value by summing quantity times price over the input lines, rebuilding the cart-total algorithm rather than using an independent expected value.
+adv-2	UNKNOWN	The expected value is computed as sum(prices), but the repository lacks total's implementation or an independent fixture, and the comment claiming a specification source is not evidence.
+adv-3	FLAG	The expected value is computed from the inputs using lines.Sum(l => l.Price), rebuilding the summation being tested rather than using an independent expected total.
+adv-4	UNKNOWN	The expectation is computed as a+b, but no Add implementation or independent source is present to establish its provenance, and the comment is not evidence.
+adv-5	FLAG	The expected value is rebuilt by summing the input prices with Measure-Object, repeating the total calculation rather than using an independently sourced expected result.
+adv-6	UNKNOWN	The test asserts the literal 280, but no independent source or derivation is shown, and the comment claiming a spec is not evidence of provenance.
+adv-7	UNKNOWN	The assertion hardcodes 3, but neither the implementation nor an independent fixture is present, and the assertion message's claimed documentation source is not evidence.
+adv-8	FLAG	The expected value is computed by summing the same items with reduce, rebuilding the totaling algorithm rather than using an independent expected result.
+u01-1	UNKNOWN	The expected error pattern is hard-coded and matches the implementation’s message, but the text does not establish whether it was copied or independently specified.
+u01-2	UNKNOWN	The hard-coded expected message matches the implementation’s exception text, but the block provides no evidence that it was copied from the implementation or obtained from an independent source.
+u02-1	UNKNOWN	The test hard-codes failure, BudgetExceededError, and no generator call for a zero budget, but the text provides no independent source or evidence that these expectations were copied from the implementation.
+u03-1	PASS	The block explicitly supplies the literal "deny" for a command containing `| tee report`; the guard supplies only the actual result, and no implementation output or algorithm constructs the expectation.
+u03-2	UNKNOWN	The test hard-codes "deny" and "execution is disabled"; although both match the implementation, no independent oracle or evidence of copying establishes their source.
+u03-3	PASS	The block supplies explicit allowed and denied command cases with literal expected decisions, independently of the guard’s returned output or algorithm.
+u03-4	PASS	The expected None is independently specified for the test’s literal unauthorized path '/somewhere/else' against its fixed authority '/data/root', rather than computed from implementation output or its matching algorithm.
+u03-5	PASS	The guard’s expected rejection is independently fixed by assertIsNone in the test, while spec.name checks preservation of the supplied command name rather than deriving the rejection from implementation output.
+u04-1	UNKNOWN	The assertions hard-code 'INFO' and 0 without an independent source or evidence they were derived from the implementation; agreement with its allowlist and severity logic alone does not establish provenance.
+u05-1	PASS	The test supplies the abbreviated flag `--i` and independently expects argparse’s standard usage-error exit code 2, without deriving that expectation from the implementation’s output or algorithm.
+u05-2	PASS	The expected 404 is a literal matching the final status in the independently supplied GH_500 + GH_404 input fixture, with no derivation from the implementation’s output or algorithm.
+u05-3	UNKNOWN	The expected tuple is hard-coded and matches the implementation’s refusal return, but the test provides no evidence that it was copied from the implementation or obtained from an independent source.
+u05-4	PASS	The expected empty list is specified directly for a hand-built thread whose two comments share the same author, without deriving it from implementation output or reproducing the filtering algorithm.
+u05-5	UNKNOWN	The expected action "would-resolve" is a hard-coded literal with no identifiable independent source or demonstrated derivation from the implementation; the mocked thread supplies only inputs.
+u06-1	UNKNOWN	The assertions only require success and nonblank text, with no identifiable independent source or implementation-derived expected value; the requested word 'pong' is never asserted.
+u07-1	UNKNOWN	The assertion hardcodes True for a hand-built comment containing 'Security', but the text establishes neither an independent source for that expectation nor derivation from the implementation.
+u08-1	UNKNOWN	The containment expectations follow the explicitly constructed directory fixture, but the normalization expectations are literal strings whose independent source or derivation from the implementation cannot be determined from the text.
+u09-1	UNKNOWN	The assertion hard-codes 'OK' for a mocked 30-day-old event, but neither the block nor its fixtures establish whether that expectation came from an independent source or the implementation.
+u10-1	UNKNOWN	The assertions hard-code zero relay rows and one withheld judgment for an inline input, but no independent oracle or derivation from implementation output is visible, and the comments establish neither.
+u11-1	UNKNOWN	Changed line 123 only calls skip_case to print a skip message, so it contains no assertion or expected value whose source can be classified.
+u12-1	PASS	The test specifies function existence and successful exit statuses directly, with an empty CB_REPO initialized in its own setup; the blocking shim supplies failures, not implementation-derived expected values.
+u13-1	PASS	The expected value 1 is grounded in the explicitly constructed fixture containing interval_0001.png and interval_0003.png but no interval_0002.png, leaving one frame before the gap.
+u13-2	PASS	The expected counts of 2 scene frames, 3 interval frames, and 5 total come from five explicitly authored files in the test stub, independently of the implementation's counting algorithm.
+u14-1	PASS	The expected approval value true and notes text 'enabled after review' come from the explicit input payload the test writes to approvals.json, independently of the implementation.
+u14-2	UNKNOWN	The assertions check only a nonempty approved_by and a timestamp-shaped prefix, with no identifiable independent source or evidence of derivation from the implementation.
+u15-1	UNKNOWN	The changed assertions hard-code required and forbidden source strings, but their provenance is not shown; checking implementation structure instead of behavior does not establish that expected values were derived from the implementation.
+u16-1	PASS	The changed assertions use independently constructed fixtures: two files containing four and six bytes establish 10 bytes and 2 files, while timestamps explicitly set three hours and five days ago establish the expected ages.
+u17-1	PASS	The expected enabled mode comes from the test's initial input, while zero capacity and closed adapters are explicit behavioral expectations rather than values computed from implementation output.
+u18-1	UNKNOWN	Lines 114–115 hard-code expected exit statuses 0 and 2, but neither the assertions nor their fixtures establish an independent source or show that these values were derived from the implementation.
+u19-1	UNKNOWN	The assertions hard-code degradation substrings without an independent fixture or visible derivation, and the imported transcript-strategy.js implementation is missing, so their source cannot be established.
+u20-1	UNKNOWN	The changed lines create temporary paths for test scaffolding, while the nearby telemetry and jq-absence assertions use literals whose independent or implementation-derived origin is not established by the text.
+u21-1	UNKNOWN	The assertions use literal false and true values, but the block provides no independent source or evidence that they were copied or derived from the implementation.
+u22-1	UNKNOWN	The changed assertion uses a literal date-format regex, but neither the block nor a fixture establishes its source, and the ISO-8601 comment alone does not establish independent provenance.
+u23-1	PASS	The expected ID "claude-default" comes from the explicit input in the test block, and the literal count 1 independently asserts that selecting one pool returns one profile.
+u24-1	PASS	The expected count of 1 and type TestEvent come from the test arranging one explicit TestEvent submission, independently of the collection implementation.
+u25-1	PASS	The expected counts and pending identity are explicit literals grounded in the two inline input records—one successful CheckRun and one pending StatusContext—and are not generated using the implementation.
+u25-2	PASS	The expected total of 2, failing list ["test"], and success count of 1 follow directly from the explicit fixture containing one failing alpha workflow and one successful beta workflow, without deriving expectations from implementation output or its algorithm.
+u26-1	UNKNOWN	The test hard-codes false for microsoft.com without an independent fixture or visible derivation, so the text does not establish where that expectation came from.
+u27-1	PASS	The literal expectations false and true are grounded in the test's hand-built fixture containing a watching completion timestamp and selection.json, without deriving expected values from the implementation.
+u28-1	UNKNOWN	The test hard-codes ("clear", None) and one CloseHandle call for a stubbed handle of 42, but the text establishes neither an independent source nor derivation from the implementation.
+u28-2	UNKNOWN	The expected values are hard-coded copies of the input strings, but the block provides no independent source or evidence that they were derived from the implementation.
+u28-3	PASS	The test independently creates a nested vendored/.hg directory and asserts its known parent path and explicit fail-closed outcomes without deriving expectations from implementation output or algorithms.
+u28-4	FLAG	The assertion repeats the implementation’s exact formatted error message with the fixture’s root substituted, without an independent source for that expected diagnostic.
+u29-1	UNKNOWN	The expected outputs and exit codes are hard-coded examples with no traceable independent source or evidence that they were derived from the implementation.
+u30-1	UNKNOWN	The assertions use hard-coded content and metadata literals that match the implementation, but the block provides no evidence that they were copied from it or derived from an independent source.
+u31-1	PASS	Expected body text and comment IDs come from explicit test inputs and preseeded comment fixtures, rather than implementation output or a reconstruction of its algorithm.
+u32-1	UNKNOWN	The assertions use hardcoded exit codes and diagnostic substrings against synthetic fixtures, but the text does not establish whether those expectations were independently specified or copied from the implementation.
+u33-1	PASS	The expected count of two and passing outcomes come from two explicitly registered validators with independently hard-coded successful stub responses, not from the pipeline’s output or algorithm.
+u33-2	PASS	The test independently supplies a successful validator result with Passed=false and explicitly expects one outcome and no second-validator call, without deriving those expectations from the pipeline’s output or algorithm.
+u34-1	PASS	The empty-output expectation is grounded in the independently constructed Git fixture at lines 56–95, which never creates either cited path, rather than in output or calculations from the implementation.
+u35-1	UNKNOWN	The assertions hard-code zero problems, an enabled provider, and one shutdown callback, but the block supplies no independent source or evidence that these expectations were derived from the implementation.
+u36-1	UNKNOWN	The test implicitly expects zero diagnostics, but neither its block nor the declaration-only fixture establishes an independent source or shows that the expectation was derived from the implementation.
+u37-1	UNKNOWN	The assertions use literal false and null values matching the implementation, but the block provides neither an independent source nor evidence that those expectations were derived from the implementation.
+u37-2	UNKNOWN	The test hard-codes null for three literal error strings, but provides no independent source or evidence that this expectation was derived from the implementation.
+u37-3	PASS	The expected STATUS_URL is an independently specified fixture URL using a fixed TWID, not a value computed by the implementation’s parser or canonicalizer.
+u37-4	UNKNOWN	The test hard-codes false and "invalid-url" and expects no spawn call, but provides no independent source or evidence that these expectations were copied or derived from the implementation.
+u38-1	UNKNOWN	The assertions use hard-coded prose fragments with no demonstrated independent source, and the referenced autopilot.md is absent, so their provenance cannot be determined.
+u38-2	UNKNOWN	The assertions use hard-coded prose markers with no traceable independent source or derivation, and the safety.md file they check is absent from the repository.
+u38-3	UNKNOWN	The assertions use hard-coded prose markers without an identifiable independent source, and the referenced babysit-loop files are absent, so their provenance cannot be determined.
+u39-1	UNKNOWN	The expected exit codes 2 and 0 are hard-coded and passed unchanged to assertions, but no independent source or evidence of derivation from the implementation is shown.

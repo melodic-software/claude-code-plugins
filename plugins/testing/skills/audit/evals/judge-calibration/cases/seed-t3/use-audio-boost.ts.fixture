@@ -1,0 +1,16 @@
+import { useEffect, useState } from 'react';
+
+export function useAudioBoost(audioEl: HTMLAudioElement) {
+  const [isBoosted, setIsBoosted] = useState(false);
+
+  useEffect(() => {
+    const ctx = new AudioContext();
+    const gain = ctx.createGain();
+    gain.gain.value = 2;
+    ctx.createMediaElementSource(audioEl).connect(gain);
+    gain.connect(ctx.destination);
+    setIsBoosted(true);
+  }, [audioEl]);
+
+  return { isBoosted };
+}

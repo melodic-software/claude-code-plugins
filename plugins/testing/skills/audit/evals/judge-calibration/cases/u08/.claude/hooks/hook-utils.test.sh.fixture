@@ -1,0 +1,612 @@
+#!/usr/bin/env bash
+# Regression tests for .claude/hooks/hook-utils.sh — focused on
+# hook::record_event observability append behavior.
+#
+# Black-box: source the lib in a subshell, invoke the function, assert
+# JSONL output. Each case isolates CLAUDE_PROJECT_DIR to a per-case tmpdir.
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LIB="$SCRIPT_DIR/hook-utils.sh"
+TEST_TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TEST_TMPDIR"' EXIT
+
+# Run hook::record_event in an isolated subshell with isolated state.
+# Args: enabled (true|false), event, hook, duration_ms, exit_code, subject, status
+# Env passthrough: $HOOK_OBSERVABILITY_TOOL, $HOOK_OBSERVABILITY_SESSION_ID
+record_in() {
+  local case_dir="$1"
+  shift
+  local enabled="$1"
+  shift
+  mkdir -p "$case_dir/.claude/observability"
+  (
+    export CLAUDE_PROJECT_DIR="$case_dir"
+    export HOOK_OBSERVABILITY_LOG_ENABLED="$enabled"
+    cd "$case_dir" || exit 1
+    # shellcheck source=hook-utils.sh
+    source "$LIB"
+    hook::record_event "$@"
+  )
+}
+
+# shellcheck source=../../tests/shell/lib.sh
+source "${TEST_REPO_ROOT:-$(git rev-parse --show-toplevel)}/tests/shell/lib.sh"
+
+# --- Cases ---
+
+# Case 1: kill switch off → no file created
+case1="$TEST_TMPDIR/case1"
+record_in "$case1" false PostToolUse sarif-diagnostics 1234 0 "/some/file.cs" success
+assert_file_absent "kill switch off creates no log file" \
+  "$case1/.claude/observability/hook-events.jsonl"
+
+# Case 2: kill switch on → file created with one line
+case2="$TEST_TMPDIR/case2"
+record_in "$case2" true PostToolUse sarif-diagnostics 1234 0 "/some/file.cs" success
+assert_file_exists "kill switch on creates log file" \
+  "$case2/.claude/observability/hook-events.jsonl"
+assert_line_count "single invocation produces single line" \
+  "$case2/.claude/observability/hook-events.jsonl" 1
+
+# Case 3: required fields populated
+log3="$case2/.claude/observability/hook-events.jsonl"
+assert_jsonl_field "event field populated" "$log3" event PostToolUse
+assert_jsonl_field "hook field populated" "$log3" hook sarif-diagnostics
+assert_jsonl_field "duration_ms numeric" "$log3" duration_ms 1234
+assert_jsonl_field "exit_code numeric" "$log3" exit_code 0
+assert_jsonl_field "subject populated" "$log3" subject "/some/file.cs"
+assert_jsonl_field "status populated" "$log3" status success
+
+# Case 4: status defaults to success when omitted
+case4="$TEST_TMPDIR/case4"
+record_in "$case4" true PostToolUse bash-lint 50 0 "/x.sh"
+assert_jsonl_field "status defaults to success" \
+  "$case4/.claude/observability/hook-events.jsonl" status success
+
+# Case 5: special characters in subject preserved (jq -n --arg escapes)
+case5="$TEST_TMPDIR/case5"
+# shellcheck disable=SC2016 # literal $vars must NOT expand — verifying jq escapes them
+SPECIAL_SUBJECT='a "quoted" path with $vars'
+record_in "$case5" true PostToolUse sarif-diagnostics 1 0 "$SPECIAL_SUBJECT" success
+assert_jsonl_field "special chars escaped correctly" \
+  "$case5/.claude/observability/hook-events.jsonl" \
+  subject "$SPECIAL_SUBJECT"
+
+# Case 6: multiple appends accumulate
+case6="$TEST_TMPDIR/case6"
+record_in "$case6" true PostToolUse hook-a 100 0 "/a" success
+record_in "$case6" true PostToolUse hook-b 200 0 "/b" success
+record_in "$case6" true PostToolUse hook-c 300 0 "/c" success
+assert_line_count "three appends produce three lines" \
+  "$case6/.claude/observability/hook-events.jsonl" 3
+
+# Case 7: error status records correctly
+case7="$TEST_TMPDIR/case7"
+record_in "$case7" true PostToolUse sarif-diagnostics 5000 1 "/x.cs" error
+assert_jsonl_field "error status preserved" \
+  "$case7/.claude/observability/hook-events.jsonl" status error
+assert_jsonl_field "non-zero exit code preserved" \
+  "$case7/.claude/observability/hook-events.jsonl" exit_code 1
+
+# Case 8: ts field is non-empty ISO-8601-like
+case8="$TEST_TMPDIR/case8"
+record_in "$case8" true PostToolUse hook-x 1 0 "/x" success
+assert_jsonl_field_regex "ts is ISO-8601-formatted" \
+  "$case8/.claude/observability/hook-events.jsonl" ts \
+  '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}'
+
+# Case 9: cwd field captures invocation directory
+case9="$TEST_TMPDIR/case9"
+record_in "$case9" true PostToolUse hook-y 1 0 "/y" success
+assert_jsonl_field_nonempty "cwd field populated" \
+  "$case9/.claude/observability/hook-events.jsonl" cwd
+
+# --- normalize_path cases ---
+# Source the lib once for the path-normalization tests; each invocation
+# runs in the parent shell so we can assert on stdout directly.
+# shellcheck source=hook-utils.sh
+source "$LIB"
+
+# The drive-letter fold is Windows/MSYS-only (case-insensitive FS) and also
+# lower-cases the remainder so the membership comparison is case-insensitive
+# there. On a case-sensitive POSIX host it MUST be a no-op, or a real
+# single-letter top dir like /c/Repo would collapse with /c/repo and the guard
+# would admit a sibling outside CLAUDE_PROJECT_DIR. normalize_path reads the
+# shell's OSTYPE, so each case overrides it in the capture subshell (4th arg,
+# default msys) to exercise a specific host class deterministically on any CI.
+assert_normalize_path() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" input="$2" expected="$3" ostype="${4:-msys}"
+  local got
+  got=$(
+    OSTYPE="$ostype"
+    hook::normalize_path "$input"
+  )
+  if [[ "$got" == "$expected" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — input %q expected %q got %q\n' \
+      "$CASE_NUM" "$label" "$input" "$expected" "$got" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# Windows/MSYS: POSIX /c/ drive form folds to C:/ and lower-cases the remainder.
+assert_normalize_path "msys /c/foo → C:/foo" '/c/foo' 'C:/foo' msys
+# Mixed-case remainder is lower-cased (case-insensitive comparison on NTFS).
+assert_normalize_path "msys /c/Foo → C:/foo (case-folded)" '/c/Foo' 'C:/foo' msys
+# Windows-native lowercase colon drive form folds the same way — locks the
+# consolidated `^([a-zA-Z]):/` branch so the two regex branches can't diverge.
+assert_normalize_path "msys c:/foo → C:/foo" 'c:/foo' 'C:/foo' msys
+# Backslashes → forward slashes (host-independent) then fold on Windows.
+assert_normalize_path 'msys C:\\Foo\\Bar → C:/foo/bar' 'C:\Foo\Bar' 'C:/foo/bar' msys
+# Already-normalized drive path is idempotent on Windows.
+assert_normalize_path "msys C:/foo idempotent" 'C:/foo' 'C:/foo' msys
+# cygwin is treated like msys.
+assert_normalize_path "cygwin /c/foo → C:/foo" '/c/foo' 'C:/foo' cygwin
+
+# POSIX: NO fold — single-letter top dirs pass through and stay case-distinct,
+# so /c/Repo and /c/repo never collapse (the membership-guard regression).
+assert_normalize_path "linux /c/Repo unchanged" '/c/Repo' '/c/Repo' linux-gnu
+assert_normalize_path "linux /c/repo unchanged" '/c/repo' '/c/repo' linux-gnu
+# Non-drive POSIX path passthrough.
+assert_normalize_path "linux /home/<user> passthrough" '/home/<user>' '/home/<user>' linux-gnu
+# Backslash conversion still happens on POSIX, but no drive fold.
+assert_normalize_path 'linux a\\b → a/b (no fold)' 'a\b' 'a/b' linux-gnu
+
+# --- read_file_path containment cases ---
+# read_file_path admits a target only if it lives INSIDE CLAUDE_PROJECT_DIR. The
+# containment check needs a path-segment boundary: a bare prefix admits a
+# sibling like <root>/repo2 under CLAUDE_PROJECT_DIR=<root>/repo. The Windows
+# case fold makes this reachable for case-only-different siblings, but the
+# missing boundary is the root defect, reproducible here on POSIX paths.
+# expect: 0 = admitted (path echoed, rc 0), 1 = rejected (rc 1).
+assert_read_file_path() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" project="$2" file="$3" expect="$4" rc
+  if (CLAUDE_PROJECT_DIR="$project" hook::read_file_path \
+    <<<"{\"tool_input\":{\"file_path\":\"$file\"}}" >/dev/null); then rc=0; else rc=1; fi
+  if [[ "$rc" == "$expect" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected rc %s got %s\n' "$CASE_NUM" "$label" "$expect" "$rc" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+rfp_root="$TEST_TMPDIR/read_file_path"
+mkdir -p "$rfp_root/repo/sub" "$rfp_root/repo2"
+printf 'x\n' >"$rfp_root/repo/sub/in.sh"
+printf 'x\n' >"$rfp_root/repo2/out.sh"
+assert_read_file_path "file inside project is admitted" \
+  "$rfp_root/repo" "$rfp_root/repo/sub/in.sh" 0
+assert_read_file_path "sibling repo2 is rejected (path boundary)" \
+  "$rfp_root/repo" "$rfp_root/repo2/out.sh" 1
+# A CLAUDE_PROJECT_DIR with a trailing slash must still admit in-project files
+# (stripping it avoids a "…//*" pattern that would reject everything).
+assert_read_file_path "trailing-slash project still admits in-project file" \
+  "$rfp_root/repo/" "$rfp_root/repo/sub/in.sh" 0
+
+# --- read_command cases ---
+# hook::read_command consumes stdin (bare jq read of inherited fd0). Invoke each
+# call in a subshell so its stdin is independent and the parent test loop
+# isn't drained.
+
+assert_read_command() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" stdin="$2" expected_out="$3" expected_exit="$4"
+  local got_out got_exit
+  got_out=$(printf '%s' "$stdin" | (hook::read_command))
+  got_exit=$?
+  if [[ "$got_out" == "$expected_out" && "$got_exit" == "$expected_exit" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected (out=%q, exit=%s), got (out=%q, exit=%s)\n' \
+      "$CASE_NUM" "$label" "$expected_out" "$expected_exit" "$got_out" "$got_exit" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# Case 15: valid command field returns command + exit 0
+assert_read_command "valid command field returns command" \
+  '{"tool_input":{"command":"git commit -m foo"}}' \
+  'git commit -m foo' 0
+
+# Case 16: missing command field returns empty + exit 1
+# Critical: consumers do `CMD=$(hook::read_command) || exit 0` — flipping this
+# polarity would silently no-op every consumer hook.
+assert_read_command "missing command field returns empty + exit 1" \
+  '{"tool_input":{"file_path":"/x.cs"}}' \
+  '' 1
+
+# Source-level guard: assert the named function body in $LIB still strips CR
+# (Git Bash quirk — CR-injection is platform-specific, so this is the only
+# portable regression check). Used by cases 17, 21, 26.
+assert_source_strips_cr() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local fn="$1"
+  # CR-strip invariant — satisfied by EITHER a downstream `tr -d '\r'` or an
+  # in-jq `gsub("\r";"")` fold (the fold drops a per-call `tr` fork on Windows).
+  if awk -v fn="$fn" '$0 ~ "^"fn"\\(\\) \\{",/^\}/' "$LIB" | grep -qF -e "tr -d '\\r'" -e 'gsub("\r";"")'; then
+    printf 'PASS: [%d] %s strips CR (tr -d or gsub fold)\n' "$CASE_NUM" "$fn"
+  else
+    printf 'FAIL: [%d] %s missing CR strip (no tr -d or gsub)\n' "$CASE_NUM" "$fn" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# Case 17: hook::read_command source strips CR (now via the in-jq gsub fold,
+# not a downstream `tr -d '\r'`).
+assert_source_strips_cr "hook::read_command"
+
+# Case 18: malformed JSON returns empty + exit 1 (silent — no crash)
+# `jq 2>/dev/null` swallows the parse error; missing-field guard exits 1.
+assert_read_command "malformed JSON returns empty + exit 1" \
+  'not json {{{' \
+  '' 1
+
+# --- buffer_stdin / jq_field cases ---
+
+assert_buffer_stdin() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" stdin="$2" expected_out="$3" expected_exit="$4"
+  local got_out got_exit
+  got_out=$(printf '%s' "$stdin" | (hook::buffer_stdin))
+  got_exit=$?
+  if [[ "$got_out" == "$expected_out" && "$got_exit" == "$expected_exit" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected (out=%q, exit=%s), got (out=%q, exit=%s)\n' \
+      "$CASE_NUM" "$label" "$expected_out" "$expected_exit" "$got_out" "$got_exit" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+assert_jq_field() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" input="$2" expr="$3" expected_out="$4" expected_exit="$5"
+  local got_out got_exit
+  got_out=$(hook::jq_field "$input" "$expr")
+  got_exit=$?
+  if [[ "$got_out" == "$expected_out" && "$got_exit" == "$expected_exit" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected (out=%q, exit=%s), got (out=%q, exit=%s)\n' \
+      "$CASE_NUM" "$label" "$expected_out" "$expected_exit" "$got_out" "$got_exit" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# Case 19: buffer_stdin returns input on success
+assert_buffer_stdin "buffer_stdin returns payload" \
+  '{"x":1}' '{"x":1}' 0
+
+# Case 20: buffer_stdin returns empty + exit 1 on empty stdin
+assert_buffer_stdin "buffer_stdin empty stdin exits 1" \
+  '' '' 1
+
+# Case 21: buffer_stdin strips CR (Git Bash quirk guard)
+assert_source_strips_cr "hook::buffer_stdin"
+
+# Case 22: jq_field extracts top-level field
+assert_jq_field "jq_field extracts top-level" \
+  '{"tool_name":"Write"}' '.tool_name' 'Write' 0
+
+# Case 23: jq_field extracts nested field
+assert_jq_field "jq_field extracts nested" \
+  '{"tool_input":{"command":"git status"}}' '.tool_input.command' \
+  'git status' 0
+
+# Case 24: jq_field returns empty + exit 1 on missing field
+assert_jq_field "jq_field missing field exits 1" \
+  '{"tool_name":"Write"}' '.tool_input.command' '' 1
+
+# Case 25: jq_field returns empty + exit 1 on malformed JSON (silent)
+assert_jq_field "jq_field malformed JSON exits 1" \
+  'not json' '.tool_name' '' 1
+
+# Case 26: jq_field source preserves tr -d CR strip
+assert_source_strips_cr "hook::jq_field"
+
+# --- repo_root cases ---
+# Single source of truth for "where to write project-local state". Locks the
+# .claude/.claude/observability/ regression that pre-fix statusline.sh
+# (Apr 30, commit d07f7a5) shipped before the strip-fallback was added.
+
+assert_repo_root() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" hint="$2" expected="$3"
+  local got
+  got=$(hook::repo_root "$hint")
+  if [[ "$got" == "$expected" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — hint %q expected %q got %q\n' \
+      "$CASE_NUM" "$label" "$hint" "$expected" "$got" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# Build a real tmpdir git tree for the in-tree resolution cases.
+repo_tmpdir=$(mktemp -d)
+(cd "$repo_tmpdir" && git init -q && git config commit.gpgsign false && mkdir -p .claude/observability)
+
+# Case 27: hint INSIDE a git tree → git rev-parse wins (returns toplevel,
+# NOT the strip fallback). This is the path real CC sessions hit.
+# Compare against `git rev-parse --show-toplevel` directly so path-style
+# differences (POSIX vs Windows form on Git Bash) are normalized away.
+got_root=$(hook::repo_root "$repo_tmpdir/.claude")
+CASE_NUM=$((CASE_NUM + 1))
+expected_root=$(git -C "$repo_tmpdir" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
+if [[ "$got_root" == "$expected_root" && "$got_root" != *"/.claude" ]]; then
+  printf 'PASS: [%d] hook::repo_root anchors at git toplevel from .claude/ subdir hint\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] expected %q got %q\n' "$CASE_NUM" "$expected_root" "$got_root" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 28: hint OUTSIDE any git tree, ending /.claude → strip fallback fires
+# (returns parent). Covers the d07f7a5 regression: writer must NOT nest as
+# .claude/.claude/observability/.
+nogit_dir=$(mktemp -d)
+assert_repo_root "no-git hint with /.claude suffix → strip parent" \
+  "$nogit_dir/.claude" "$nogit_dir"
+
+# Case 29: hint OUTSIDE any git tree, no /.claude suffix → returned unchanged
+assert_repo_root "no-git hint without /.claude → passthrough" \
+  "$nogit_dir" "$nogit_dir"
+
+# Case 30: backslash-form Windows-style /.claude suffix → strip fallback
+# (defends both the `${root%/.claude}` AND `${root%\\.claude}` patterns).
+assert_repo_root 'no-git Windows-style \.claude → strip parent' \
+  "$nogit_dir\\.claude" "$nogit_dir"
+
+# Case 31: default hint uses CLAUDE_PROJECT_DIR. Subshell isolates env mutation.
+case31_dir=$(mktemp -d)
+got_root=$(CLAUDE_PROJECT_DIR="$case31_dir/.claude" hook::repo_root)
+CASE_NUM=$((CASE_NUM + 1))
+if [[ "$got_root" == "$case31_dir/.claude" || "$got_root" == "$case31_dir" ]]; then
+  # Either git found a parent tree (test repo) OR strip fallback fired.
+  # Both outcomes are "did NOT produce nested .claude/.claude/" — the bug.
+  if [[ "$got_root" != *"/.claude/.claude" ]]; then
+    printf 'PASS: [%d] default hint resolves CLAUDE_PROJECT_DIR without nesting\n' "$CASE_NUM"
+  else
+    printf 'FAIL: [%d] default hint produced nested .claude/.claude path: %q\n' "$CASE_NUM" "$got_root" >&2
+    FAILED=$((FAILED + 1))
+  fi
+else
+  # Acceptable: git toplevel of the test runner repo or the case31 strip result.
+  printf 'PASS: [%d] default hint resolved to %s (no nesting)\n' "$CASE_NUM" "$got_root"
+fi
+
+# Case 32: regression lock — composing repo_root output with /.claude/observability
+# never produces .claude/.claude/observability. This is the bug C24 caught at
+# the statusline integration level; this case locks it at the unit level.
+for hint in "$nogit_dir/.claude" "$nogit_dir/.claude\\" "$nogit_dir" "$repo_tmpdir/.claude"; do
+  CASE_NUM=$((CASE_NUM + 1))
+  got_root=$(hook::repo_root "$hint")
+  log_path="${got_root}/.claude/observability"
+  if [[ "$log_path" == *"/.claude/.claude/observability"* ]]; then
+    printf 'FAIL: [%d] hint %q produced nested log path %q\n' "$CASE_NUM" "$hint" "$log_path" >&2
+    FAILED=$((FAILED + 1))
+  else
+    printf 'PASS: [%d] hint %q → log path %q (not nested)\n' "$CASE_NUM" "$hint" "$log_path"
+  fi
+done
+
+# --- resolve_git_cwd cases ---
+resolve_nogit_dir=$(mktemp -d)
+
+assert_resolve_git_cwd() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" stdin_cwd="$2" project_dir="$3" expect_ok="$4" expected="${5:-}"
+  local got rc run_dir="${6:-$resolve_nogit_dir}"
+  if got=$(cd "$run_dir" && CLAUDE_PROJECT_DIR="$project_dir" hook::resolve_git_cwd "$stdin_cwd"); then
+    rc=0
+  else
+    rc=1
+    got=""
+  fi
+  if [[ "$expect_ok" == "0" ]]; then
+    if [[ "$rc" -eq 0 && "$got" == "$expected" ]]; then
+      printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    else
+      printf 'FAIL: [%d] %s — expected ok %q got rc=%s %q\n' \
+        "$CASE_NUM" "$label" "$expected" "$rc" "$got" >&2
+      FAILED=$((FAILED + 1))
+    fi
+  else
+    if [[ "$rc" -ne 0 ]]; then
+      printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    else
+      printf 'FAIL: [%d] %s — expected failure got %q\n' "$CASE_NUM" "$label" "$got" >&2
+      FAILED=$((FAILED + 1))
+    fi
+  fi
+}
+
+assert_resolve_git_cwd "unresolvable stdin cwd falls back to CLAUDE_PROJECT_DIR" \
+  "/definitely-not-a-git-repo-path" "$repo_tmpdir" "0" "$repo_tmpdir" "$resolve_nogit_dir"
+hub_bare_admin=""
+if [[ -f "$(git rev-parse --show-toplevel 2>/dev/null)/../.bare/HEAD" ]]; then
+  hub_bare_admin="$(cd "$(git rev-parse --show-toplevel)/../.bare" && pwd)"
+fi
+if [[ -n "$hub_bare_admin" ]]; then
+  assert_resolve_git_cwd "hub .bare admin dir (no worktree) falls back to CLAUDE_PROJECT_DIR" \
+    "$hub_bare_admin" "$repo_tmpdir" "0" "$repo_tmpdir" "$resolve_nogit_dir"
+fi
+assert_resolve_git_cwd "valid stdin cwd wins over CLAUDE_PROJECT_DIR" \
+  "$repo_tmpdir" "/tmp" "0" "$repo_tmpdir" "$resolve_nogit_dir"
+# Case D: a true bare repo (core.bare=true) is itself a valid git context. The
+# is-bare short-circuit must survive the single-rev-parse collapse — `--show-toplevel`
+# fails (exit 128) in a bare repo, and that exit must NOT mask the `true` is-bare line.
+true_bare_root=$(mktemp -d)
+git init --bare --quiet "$true_bare_root/realbare"
+true_bare_dir=$(cd "$true_bare_root/realbare" && pwd)
+assert_resolve_git_cwd "true bare repo (core.bare=true) is a valid context" \
+  "$true_bare_dir" "/tmp" "0" "$true_bare_dir" "$resolve_nogit_dir"
+CASE_NUM=$((CASE_NUM + 1))
+if (cd "$resolve_nogit_dir" && bash -c "source '$LIB' && hook::resolve_git_cwd '/definitely-not-a-git-repo-path'"); then
+  printf 'FAIL: [%d] unresolvable stdin with no fallback fails — expected failure\n' "$CASE_NUM" >&2
+  FAILED=$((FAILED + 1))
+else
+  printf 'PASS: [%d] unresolvable stdin with no fallback fails\n' "$CASE_NUM"
+fi
+
+# Cleanup
+rm -rf "$repo_tmpdir" "$nogit_dir" "$case31_dir" "$resolve_nogit_dir" 2>/dev/null
+
+# --- fetch_marker_file cases ---
+# Marker is keyed by the absolute git common dir: worktrees of one clone share
+# a marker (shared origin/main ref), separate clones get distinct markers
+# (independent refs). Locks the codex P2 fix — a per-user-global last-fetch.ts
+# let a fetch in clone A make clone B skip its own fetch against a stale ref.
+
+fmf_cache="$TEST_TMPDIR/fmf-localappdata"
+fmf() { LOCALAPPDATA="$fmf_cache" hook::fetch_marker_file "$1"; }
+
+fmf_repo_a=$(mktemp -d)
+fmf_repo_b=$(mktemp -d)
+(cd "$fmf_repo_a" && git init -q && git config commit.gpgsign false && git commit --allow-empty -m init -q)
+(cd "$fmf_repo_b" && git init -q && git config commit.gpgsign false && git commit --allow-empty -m init -q)
+
+marker_a=$(fmf "$fmf_repo_a")
+marker_b=$(fmf "$fmf_repo_b")
+
+# Case 33: marker path is <cache>/last-fetch-<token>.ts
+CASE_NUM=$((CASE_NUM + 1))
+expected_cache=$(LOCALAPPDATA="$fmf_cache" hook::cache_dir)
+if [[ "$marker_a" == "$expected_cache/last-fetch-"*".ts" ]]; then
+  printf 'PASS: [%d] fetch_marker_file path is <cache>/last-fetch-<token>.ts\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] expected <cache>/last-fetch-<token>.ts, got %q\n' "$CASE_NUM" "$marker_a" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 34: deterministic — same clone twice → same marker
+CASE_NUM=$((CASE_NUM + 1))
+if [[ "$marker_a" == "$(fmf "$fmf_repo_a")" ]]; then
+  printf 'PASS: [%d] fetch_marker_file is deterministic per clone\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] non-deterministic marker for same clone\n' "$CASE_NUM" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 35: separate clones → distinct markers (the codex P2 fix)
+CASE_NUM=$((CASE_NUM + 1))
+if [[ "$marker_a" != "$marker_b" ]]; then
+  printf 'PASS: [%d] separate clones get distinct markers\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] separate clones collided on one marker: %q\n' "$CASE_NUM" "$marker_a" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 36: worktrees of one clone SHARE a marker (shared origin/main ref)
+CASE_NUM=$((CASE_NUM + 1))
+fmf_wt="$TEST_TMPDIR/fmf-wt-a"
+git -C "$fmf_repo_a" worktree add -q "$fmf_wt" -b fmf-wt-branch 2>/dev/null
+if [[ "$(fmf "$fmf_wt")" == "$marker_a" ]]; then
+  printf 'PASS: [%d] worktrees of one clone share the marker\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] worktree got a different marker than its clone\n' "$CASE_NUM" >&2
+  FAILED=$((FAILED + 1))
+fi
+git -C "$fmf_repo_a" worktree remove "$fmf_wt" --force 2>/dev/null || true
+
+rm -rf "$fmf_repo_a" "$fmf_repo_b" 2>/dev/null
+
+# --- hook JSON emit helpers ---
+
+emit_in() {
+  local case_dir="$1"
+  shift
+  mkdir -p "$case_dir"
+  (
+    export CLAUDE_PROJECT_DIR="$case_dir"
+    cd "$case_dir" || exit 1
+    # shellcheck source=hook-utils.sh
+    source "$LIB"
+    "$@"
+  )
+}
+
+# Case 37: empty context is silent (no stdout)
+CASE_NUM=$((CASE_NUM + 1))
+out37=$(emit_in "$TEST_TMPDIR/emit37" hook::emit_additional_context PostToolUse "")
+if [[ -z "$out37" ]]; then
+  printf 'PASS: [%d] emit_additional_context empty is silent\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] emit_additional_context empty produced output: %q\n' "$CASE_NUM" "$out37" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 38: valid JSON with additionalContext
+CASE_NUM=$((CASE_NUM + 1))
+out38=$(emit_in "$TEST_TMPDIR/emit38" hook::emit_additional_context PostToolUse 'line one')
+if echo "$out38" | jq -e '.hookSpecificOutput.hookEventName == "PostToolUse" and (.hookSpecificOutput.additionalContext | contains("line one"))' >/dev/null 2>&1; then
+  printf 'PASS: [%d] emit_additional_context produces valid JSON\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] emit_additional_context JSON invalid: %q\n' "$CASE_NUM" "$out38" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 39: special chars escaped via jq
+CASE_NUM=$((CASE_NUM + 1))
+out39=$(emit_in "$TEST_TMPDIR/emit39" hook::emit_additional_context SessionStart $'quote " and backslash \\')
+if echo "$out39" | jq -e '.hookSpecificOutput.additionalContext | contains("\\")' >/dev/null 2>&1; then
+  printf 'PASS: [%d] emit_additional_context escapes special chars\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] emit_additional_context special-char JSON: %q\n' "$CASE_NUM" "$out39" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 40: ctx buffer flush aggregates lines
+CASE_NUM=$((CASE_NUM + 1))
+out40=$(emit_in "$TEST_TMPDIR/emit40" bash -c '
+  source "'"$LIB"'"
+  hook::ctx_reset
+  hook::ctx_append "alpha"
+  hook::ctx_append "beta"
+  hook::ctx_flush PostToolUse
+')
+ctx40=$(echo "$out40" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
+if [[ "$ctx40" == *alpha* && "$ctx40" == *beta* ]]; then
+  printf 'PASS: [%d] ctx_flush aggregates buffered lines\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] ctx_flush output: %q\n' "$CASE_NUM" "$out40" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 41: bash_strip_literals removes double-quoted git prose
+CASE_NUM=$((CASE_NUM + 1))
+if bash -c '
+  source "'"$LIB"'"
+  stripped=$(hook::bash_strip_literals "echo \"do not git reset --hard\"")
+  hook::bash_contains_git_token "$stripped" && exit 1
+  exit 0
+'; then
+  printf 'PASS: [%d] bash_strip_literals drops quoted git prose\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] bash_strip_literals quoted prose still matches git\n' "$CASE_NUM" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Case 42: bash_strip_literals preserves executable git tokens
+CASE_NUM=$((CASE_NUM + 1))
+if bash -c '
+  source "'"$LIB"'"
+  stripped=$(hook::bash_strip_literals "cd /tmp && git status")
+  hook::bash_contains_git_token "$stripped"
+'; then
+  printf 'PASS: [%d] bash_contains_git_token keeps executable git\n' "$CASE_NUM"
+else
+  printf 'FAIL: [%d] bash_contains_git_token lost executable git\n' "$CASE_NUM" >&2
+  FAILED=$((FAILED + 1))
+fi
+
+# Summary
+printf '\n=== %d test case(s), %d failed ===\n' "$CASE_NUM" "$FAILED"
+[[ $FAILED -eq 0 ]] || exit 1
+exit 0

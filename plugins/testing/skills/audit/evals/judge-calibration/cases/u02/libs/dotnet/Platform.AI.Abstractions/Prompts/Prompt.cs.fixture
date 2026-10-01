@@ -1,0 +1,18 @@
+using Platform.AI.Abstractions.Content;
+using Platform.Core.Guards;
+
+namespace Platform.AI.Abstractions.Prompts;
+
+public sealed record Prompt
+{
+    public IReadOnlyList<PromptContent>? SystemInstructions { get; }
+
+    public IReadOnlyList<PromptMessage> Messages { get; }
+
+    public Prompt(IReadOnlyList<PromptMessage> messages, IReadOnlyList<PromptContent>? systemInstructions = null)
+    {
+        Guard.AgainstEmpty(messages);
+        Messages = messages;
+        SystemInstructions = systemInstructions;
+    }
+}

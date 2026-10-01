@@ -1,0 +1,30 @@
+namespace Platform.Analyzers;
+
+// Append-only: never renumber, never reuse a retired ID.
+internal static class DiagnosticIds
+{
+    public const string DomainMustNotReferenceInfrastructure = "PLAT001";
+    public const string ApplicationMustNotReferenceInfrastructure = "PLAT002";
+    public const string DomainMustNotReferenceApplication = "PLAT003";
+    public const string ModuleMustNotReferenceForeignModuleInternals = "PLAT004";
+    public const string DomainTypeMustNotExposePublicMutableProperties = "PLAT005";
+    public const string ApplicationMustNotReferencePresentation = "PLAT006";
+    public const string InfrastructureMustNotReferencePresentation = "PLAT007";
+    public const string DomainTypeMustNotExposeMutableCollections = "PLAT008";
+    public const string ApplicationMustNotUseStaticMutableState = "PLAT009";
+    public const string PreferExtensionBlocks = "PLAT010";
+    public const string DoNotUseDefaultBang = "PLAT011";
+    public const string ServiceRegistrarMissingAttribute = "PLAT012";
+    public const string MiddlewareRegistrarMissingAttribute = "PLAT013";
+    public const string PreferAwaitUsing = "PLAT014";
+    public const string DoNotUseDynamic = "PLAT015";
+    public const string DomainEntityMustHavePrivateConstructors = "PLAT016";
+    public const string DbSetPropertyMustBeInternal = "PLAT017";
+    public const string DomainEntityMustBeSealed = "PLAT018";
+    public const string DomainEventMustBeSealed = "PLAT019";
+    public const string HandlerMustBeSealed = "PLAT020";
+    public const string HandlerMustNotBePublic = "PLAT021";
+    public const string DomainEventMustHaveSuffix = "PLAT022";
+    public const string InnerLayerMustNotDeclareServiceProviderParameter = "PLAT023";
+    public const string ToolProviderMissingAttribute = "PLAT024";
+}

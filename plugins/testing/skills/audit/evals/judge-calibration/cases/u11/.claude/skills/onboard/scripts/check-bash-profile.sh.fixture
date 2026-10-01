@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# Phase 4 (Shell profile) gate for the /onboard skill.
+#
+# Detects which managed sentinels are present in the user's shell profile
+# (~/.bashrc on Linux/Windows, ~/.zshrc on macOS) and reports one row per
+# managed block. Read-only — never writes to any file. File creation and
+# sentinel scaffolding belong in fix mode, gated by per-item user approval.
+#
+# Block list and sentinels live in catalog.json (phases.shell_profile) and
+# are read at runtime via scripts/lib/catalog.sh. Adding a new managed block
+# is a JSON edit + a corresponding entry in scaffolds/bash-profile-blocks.sh
+# — no script change here.
+#
+# Invoked as:
+#   - TDD acceptance test (before and after /onboard fix scaffolds blocks)
+#   - Phase 4 gate (re-verification after each block is approved + written)
+#
+# Contract:
+#   1. Read-only. No file mutation under any input.
+#   2. PASS iff sentinel present (in whatever form the user wrote it).
+#   3. Fix mode — NOT this script — owns the approval dialog and the write.
+#
+# Works on Git Bash (Windows), macOS, Linux. Requires jq (Phase 2).
+#
+# Test hook: `ONBOARD_OS` env var overrides `uname -s` for deterministic
+# cross-platform test runs. Production callers leave it unset.
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/catalog.sh
+source "$SCRIPT_DIR/lib/catalog.sh"
+
+FAILED=0
+TOTAL=0
+
+# --- Output helpers -----------------------------------------------------------
+
+row() {
+  local label="$1" status="$2" detail="$3"
+  TOTAL=$((TOTAL + 1))
+  [[ "$status" == "FAIL" ]] && FAILED=$((FAILED + 1))
+  printf '  %-40s %s  %s\n' "$label" "$status" "$detail"
+}
+
+# --- OS detection -------------------------------------------------------------
+
+# Honor ONBOARD_OS test override and forward it to the catalog OS filter so
+# bash-only blocks (e.g. .bashrc.local hook) get filtered out on macOS.
+detect_os() {
+  if [[ -n "${ONBOARD_OS:-}" ]]; then
+    printf '%s' "$ONBOARD_OS"
+    return
+  fi
+  case "$(uname -s 2>/dev/null)" in
+    MINGW* | MSYS* | CYGWIN*) printf 'windows' ;;
+    Darwin) printf 'macos' ;;
+    Linux) printf 'linux' ;;
+    *) printf 'unknown' ;;
+  esac
+}
+
+# --- File state + sentinel search --------------------------------------------
+
+# Emit a single "Files probed:" entry for a path. Missing file is NOT_FOUND
+# (informational, no failure by itself — the block checks drive exit code).
+# Symlinks surface the target so fix mode can warn before editing.
+report_file_state() {
+  local label="$1" path="$2"
+  if [[ ! -e "$path" ]]; then
+    printf '  %-20s NOT_FOUND\n' "$label"
+    return
+  fi
+  local lines
+  lines=$(wc -l <"$path" 2>/dev/null | tr -d ' \r' || echo 0)
+  if [[ -L "$path" ]]; then
+    local target
+    target=$(readlink "$path" 2>/dev/null | tr -d '\r')
+    printf '  %-20s EXISTS (symlink -> %s, %s lines)\n' "$label" "$target" "$lines"
+    return
+  fi
+  printf '  %-20s EXISTS (%s lines)\n' "$label" "$lines"
+}
+
+# Check whether a sentinel string is present in a file. PASS iff the file
+# exists AND contains the sentinel. -F = literal match (sentinels include
+# # and em-dash which are regex-neutral but -F is explicit about intent).
+check_sentinel() {
+  local label="$1" sentinel="$2" path="$3"
+  if [[ ! -f "$path" ]]; then
+    row "$label" "FAIL" "target file $path does not exist"
+    return
+  fi
+  if grep -qF "$sentinel" "$path" 2>/dev/null; then
+    row "$label" "PASS" "sentinel present in $path"
+  else
+    row "$label" "FAIL" "sentinel \"$sentinel\" missing from $path"
+  fi
+}
+
+# --- Main ---------------------------------------------------------------------
+
+main() {
+  printf '\nPhase 4: Shell profile\n'
+  printf '%s\n' "-----------------------------"
+
+  local os target_label target_rc
+  os=$(detect_os)
+  # Forward to catalog OS filter so bash-only blocks (os ∈ [windows,linux])
+  # are dropped on macOS automatically.
+  export CATALOG_OS="$os"
+
+  # macOS ships zsh as the login shell default; Linux + Git Bash use bash.
+  # One target rc file per session — secondary shells are out of scope for
+  # this phase.
+  case "$os" in
+    macos)
+      target_rc="$HOME/.zshrc"
+      ;;
+    *)
+      target_rc="$HOME/.bashrc"
+      ;;
+  esac
+  target_label="~${target_rc#"$HOME"}"
+
+  printf 'Files probed:\n'
+  report_file_state "$target_label" "$target_rc"
+  # .bash_profile is informational only — its conventional contents source
+  # .bashrc, so the managed blocks live in .bashrc. Probed for visibility.
+  if [[ "$os" != "macos" ]]; then
+    local bp_rc="$HOME/.bash_profile"
+    report_file_state "~${bp_rc#"$HOME"}" "$bp_rc"
+  fi
+  printf '\n'
+
+  # Iterate catalog rows via TSV — single jq spawn for the whole phase.
+  # OS filtering is in the catalog reader — bash-only blocks
+  # (.bashrc.local hook) are skipped on macOS automatically.
+  local label sentinel
+  while IFS=$'\t' read -r label sentinel; do
+    [[ -z "$label" ]] && continue
+    check_sentinel "$label" "$sentinel" "$target_rc"
+  done < <(catalog::rows_tsv shell_profile label sentinel)
+
+  printf '%s\n' "-----------------------------"
+  local passed=$((TOTAL - FAILED))
+  if ((FAILED == 0)); then
+    printf 'Phase 4: %d/%d blocks present — READY\n\n' "$passed" "$TOTAL"
+    return 0
+  fi
+  printf 'Phase 4: %d/%d blocks present — %d gap(s), run /onboard fix\n\n' \
+    "$passed" "$TOTAL" "$FAILED"
+  return 1
+}
+
+main "$@"

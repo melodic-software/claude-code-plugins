@@ -1,0 +1,80 @@
+import { describe, expect, it } from "vitest";
+import {
+  PREFLIGHT_POOL_IDS,
+  poolEnabledInLocalConfig,
+  resolvePoolReadinessProfile,
+} from "./pool-readiness-config.js";
+import { resolveProfilesForRun, assertValidContainerImage, checkImage } from "./pool-readiness.js";
+
+const INVALID_CONTAINER_IMAGE_RE = /invalid container image/u;
+
+describe("pool readiness config", () => {
+  it("should define profiles for all builtin optional pools", () => {
+    expect(PREFLIGHT_POOL_IDS).toEqual(
+      expect.arrayContaining([
+        "cursor-default",
+        "cursor-cloud-parity",
+        "claude-default",
+        "codex-default",
+        "grok-default",
+      ]),
+    );
+  });
+
+  it("should resolve cursor-default profile with suppression mounts expectation", () => {
+    const profile = resolvePoolReadinessProfile("cursor-default");
+    expect(profile?.expectedSessionBindMountCount).toBe(2);
+    expect(profile?.tier0BuildScript).toBe("build/verify-headless-writes.js");
+  });
+
+  it("should detect enabled pool in pools.local.jsonc", () => {
+    const raw = '{"pools":{"codex-default":{"enabled":true}}}';
+    expect(poolEnabledInLocalConfig(raw, "codex-default")).toBe(true);
+    expect(poolEnabledInLocalConfig(raw, "grok-default")).toBe(false);
+  });
+
+  it("should not treat a disabled pool as enabled when a later pool is enabled", () => {
+    const raw = '{"pools":{"codex-default":{"enabled":false},"grok-default":{"enabled":true}}}';
+    expect(poolEnabledInLocalConfig(raw, "codex-default")).toBe(false);
+    expect(poolEnabledInLocalConfig(raw, "grok-default")).toBe(true);
+  });
+});
+
+describe("assertValidContainerImage", () => {
+  it("should accept built-in pool image tags", () => {
+    expect(assertValidContainerImage("agent-loop-cursor:thin")).toBeUndefined();
+  });
+
+  it("should reject shell metacharacters in image reference", () => {
+    expect(assertValidContainerImage("evil;rm -rf /")).toMatch(INVALID_CONTAINER_IMAGE_RE);
+  });
+});
+
+describe("checkImage", () => {
+  it("should fail fast on invalid container image without invoking docker", () => {
+    const profile = resolvePoolReadinessProfile("cursor-default");
+    if (profile === undefined) {
+      throw new Error("cursor-default profile missing");
+    }
+    const mutated = {
+      ...profile,
+      pool: { ...profile.pool, containerImage: "bad image;id" },
+    };
+    const result = checkImage(mutated);
+    expect(result.status).toBe("FAIL");
+    expect(result.message).toMatch(INVALID_CONTAINER_IMAGE_RE);
+  });
+});
+
+describe("resolveProfilesForRun", () => {
+  it("should return one profile for --pool", () => {
+    const profiles = resolveProfilesForRun("claude-default", false);
+    expect(profiles).toHaveLength(1);
+    // biome-ignore lint/suspicious/noUnnecessaryConditions: noUncheckedIndexedAccess makes profiles[0] undefined-able, so the ?. is required by tsc; Biome does not honor noUncheckedIndexedAccess.
+    expect(profiles[0]?.pool.id).toBe("claude-default");
+  });
+
+  it("should return all profiles for --all", () => {
+    expect(resolveProfilesForRun(undefined, true).length).toBe(PREFLIGHT_POOL_IDS.length);
+  });
+});

@@ -396,10 +396,10 @@ judge::pick() {
     writers+="$(judge::transcript_class "$tdir/$sid.jsonl") "
     [[ "$agent" =~ ^[A-Za-z0-9_-]+$ ]] && writers+="$(judge::transcript_class "$tdir/$sid/subagents/agent-$agent.jsonl") "
   done < <(jq -r '.[] | (.sid, .agent) | tostring | gsub("[\r\n]"; "")' <<<"$1")
-  m="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-opus}"
-  [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=opus
-  fb="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-sonnet}"
-  [[ "$fb" =~ ^(fable|opus|sonnet|haiku)$ ]] || fb=sonnet
+  m="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-sonnet}"
+  [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=sonnet
+  fb="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-opus}"
+  [[ "$fb" =~ ^(fable|opus|sonnet|haiku)$ ]] || fb=opus
   EFFORT="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT:-medium}"
   [[ "$EFFORT" =~ ^(low|medium|high|xhigh|max)$ ]] || EFFORT=medium
   for c in "$m" "$fb" opus sonnet haiku; do

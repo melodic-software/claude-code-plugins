@@ -1,0 +1,10 @@
+import { expect, it, vi } from 'vitest';
+import { quote } from './quote';
+import { taxFor } from './tax';
+
+vi.mock('./tax');
+
+it('adds tax to the quote', () => {
+  vi.mocked(taxFor).mockReturnValue(2);
+  expect(quote(10)).toBe(12);
+});
