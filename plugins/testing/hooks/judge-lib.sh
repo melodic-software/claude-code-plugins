@@ -49,9 +49,10 @@ judge::records_json() {
 
 # judge::last_write <sid>: print the epoch of the session's last recorded write.
 judge::last_write() {
-  local d="$DATA/sessions/$PKEY/$1"
+  local d="$DATA/sessions/$PKEY/$1" last='[.[] | objects | .written_at? | strings | fromdate?] | max'
   compgen -G "$d/*.json" >/dev/null || return 1
-  judge::records_json "$d"/*.json | jq -e '[.[].written_at? | strings | fromdate?] | max' 2>/dev/null
+  jq -en "[inputs] | $last" "$d"/*.json 2>/dev/null ||
+    judge::records_json "$d"/*.json | jq -e "$last" 2>/dev/null
 }
 
 # judge::session_set: set SESSIONS to this session plus, for a /clear or fork
@@ -76,15 +77,10 @@ judge::session_set() {
 # the first recorded cant-fail-ok: count (0 when that write created the file), the changed lines (the hint for a
 # whole-file bash harness), the writers (session and agent ids) and the last
 # writer's session (the owner of its verdicts).
+# IFILES holds each info's file path, the same index. One jq reads every
+# record; only when a malformed record fails it does each file get its own.
 judge::load() {
-  local s f files=()
-  INFOS=()
-  for s in "${SESSIONS[@]}"; do
-    for f in "$DATA/sessions/$PKEY/$s"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
-  done
-  ((${#files[@]})) || return 0
-  mapfile -t INFOS < <(judge::records_json "${files[@]}" | jq -c '
-    map(select(.file | type == "string")) | group_by(.file)[] | {
+  local s f files=() out i group='map(select(.file | type == "string")) | group_by(.file)[] | {
       file: .[0].file,
       repo: (map(.repo | strings) | .[0] // null),
       whole: any(.[]; .blocks == null),
@@ -92,7 +88,19 @@ judge::load() {
       base_ok: (sort_by(.written_at) | .[0] | if .create == true then 0 else .ok_markers // 0 end),
       lines: ([.[].lines | arrays | .[]] | unique),
       writers: ([.[] | {sid, agent: (.agent_id // "")}] | unique),
-      owner: (sort_by(.written_at) | .[-1].sid)}' 2>/dev/null)
+      owner: (sort_by(.written_at) | .[-1].sid)} | (.file | gsub("[\r\n]"; "")), tojson'
+  INFOS=() IFILES=()
+  for s in "${SESSIONS[@]}"; do
+    for f in "$DATA/sessions/$PKEY/$s"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
+  done
+  ((${#files[@]})) || return 0
+  out="$(jq -rn "[inputs | objects | . + {sid: (input_filename | split(\"/\") | .[-2])}] | $group" "${files[@]}" 2>/dev/null)" ||
+    out="$(judge::records_json "${files[@]}" | jq -r "$group" 2>/dev/null)"
+  mapfile -t f <<<"$out"
+  for ((i = 0; i + 1 < ${#f[@]}; i += 2)); do
+    IFILES+=("${f[i]}")
+    INFOS+=("${f[i + 1]}")
+  done
 }
 
 # judge::derive <info>: set KEYS to one line per in-doubt block of the file as
@@ -102,15 +110,39 @@ judge::load() {
 # when it holds or sits under a cant-fail-ok: marker and the file's count rose
 # above the first recorded one (a created file starts from 0). A file the scanner cannot list, or whose lexer
 # lost sync, is one whole-file key. A missing file is logged and skipped.
+#
+# The result is cached under derive/, keyed by the sha256 of the info, this
+# hook directory (so a plugin update re-derives), the file's current content
+# and each .claude/testing.yaml layer: block identity is name and ordinal in
+# the current text, so the same inputs give the same keys and the scanner runs
+# again only when one of them changed. A scan that failed is never cached.
 judge::derive() {
-  local file whole base_ok names lines tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
+  local file whole base_ok names lines repo tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
+  local root cfg cfgs=() key="" h cache c=()
   KEYS="" HINT=""
-  IFS=$'\t' read -r file whole base_ok lines < <(jq -r '[.file, .whole, .base_ok, (.lines | join(","))] | @tsv' <<<"$1")
+  testing::fields "$1" .file .whole .base_ok '.lines | join(",")' '.names | join("\n")' .repo || return 0
+  file="${FIELDS[0]}" whole="${FIELDS[1]}" base_ok="${FIELDS[2]:-0}" lines="${FIELDS[3]}" repo="${FIELDS[5]}"
+  names=$'\n'"${FIELDS[4]}"$'\n'
   if [[ ! -f "$file" ]]; then
     judge::log "skipped: $file no longer exists"
     return 0
   fi
-  names=$'\n'"$(jq -r '.names[]' <<<"$1")"$'\n'
+  root="${repo:-${CLAUDE_PROJECT_DIR:-}}"
+  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
+    [[ -f "$cfg" ]] && cfgs+=("$cfg")
+  done
+  # sha256sum prefixes a line with \ when the file name holds a backslash.
+  while read -r h _; do
+    h="${h#\\}"
+    key+="${h:0:16}"
+  done < <(printf '%s\n%s\n' "$1" "$HOOK_DIR" | judge::sha - "$file" "${cfgs[@]}")
+  cache="$DATA/derive/$key"
+  if ((${#key} >= 32)) && [[ -f "$cache" ]]; then
+    mapfile -t c <"$cache"
+    HINT="${c[0]:-}"
+    for line in "${c[@]:1}"; do [[ -z "$line" ]] || KEYS+="$line"$'\n'; done
+    return 0
+  fi
   tmpd="$(mktemp -d)" || return 0
   testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$tmpd/scan" --file "$file" --blocks
   rc=$SCAN_RC
@@ -159,6 +191,9 @@ judge::derive() {
     for ((i = 1; i <= n; i++)); do KEYS+="${b[i]} $(<"$tmpd/d$i")"$'\n'; done
   fi
   rm -rf "$tmpd"
+  if ((rc == 0 && ${#key} >= 32)) && mkdir -p "$DATA/derive"; then
+    printf '%s\n%s' "$HINT" "$KEYS" >"$cache.$$.tmp" && mv -f "$cache.$$.tmp" "$cache"
+  fi
 }
 
 # judge::verdict <key-hash>: set VERDICT to the key's ledger file in the
@@ -212,10 +247,11 @@ judge::fail() {
   printf '%s\n' "$2" >>"$DATA/attempts/$1"
   judge::log "attempt failed: $1: $2"
 }
-judge::attempts() {
-  local n=0
-  [[ -f "$DATA/attempts/$1" ]] && n="$(wc -l <"$DATA/attempts/$1")"
-  printf '%d' "$n"
+# judge::spent <key-hash>: true after 2 failed attempts ("judge not run").
+judge::spent() {
+  local a=()
+  [[ -f "$DATA/attempts/$1" ]] && mapfile -t a <"$DATA/attempts/$1"
+  ((${#a[@]} >= 2))
 }
 
 # judge::lock <key-hash>: take the key's lock. A stale one is broken and
@@ -272,7 +308,8 @@ judge::busy() {
   for s in "${SESSIONS[@]}"; do
     for p in "$DATA/pending/$PKEY/$s"/*; do
       [[ -f "$p" ]] || continue
-      f="$(sed -n 2p "$p")"
+      f=""
+      { read -r _ && IFS= read -r f; } <"$p"
       [[ "$f" == "$1" ]] && ! judge::stale "$p" "$((${TEST_JUDGE_DEBOUNCE:-20} + JUDGE_STALE + 60))" && return 0
     done
   done
@@ -313,10 +350,10 @@ judge::transcript_class() {
 judge::pick() {
   local tdir="${TPATH%[/\\]*}" writers=" " sid agent c m fb
   writers+="$(judge::transcript_class "$TPATH") "
-  while IFS=$'\t' read -r sid agent; do
+  while IFS= read -r sid && IFS= read -r agent; do
     writers+="$(judge::transcript_class "$tdir/$sid.jsonl") "
     [[ -z "$agent" ]] || writers+="$(judge::transcript_class "$tdir/$sid/subagents/agent-$agent.jsonl") "
-  done < <(jq -r '.[] | [.sid, .agent] | @tsv' <<<"$1")
+  done < <(jq -r '.[] | (.sid, .agent) | tostring | gsub("[\r\n]"; "")' <<<"$1")
   m="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL:-opus}"
   [[ "$m" =~ ^(fable|opus|sonnet|haiku)$ ]] || m=opus
   fb="${CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL:-sonnet}"
@@ -395,15 +432,17 @@ judge::section1() {
 # them and their relay markers. A key left without a verdict gets a failed
 # attempt.
 judge::run() {
-  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner n budget raw sys prompt rc kh here
-  IFS=$'\t' read -r file repo owner < <(jq -r '[.file, (.repo // ""), (.owner // "")] | @tsv' <<<"$info")
+  local info="$1" keys="$2" t="$3" hint="$4" dir file repo owner writers n budget raw sys prompt rc kh here
+  testing::fields "$info" .file .repo .owner '.writers | tojson' || return 0
+  file="${FIELDS[0]}" repo="${FIELDS[1]}" owner="${FIELDS[2]}" writers="${FIELDS[3]}"
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
   [[ -n "$repo" && -d "$repo" ]] || repo="${file%/*}"
-  n="$(grep -c . <<<"$keys")"
+  n=0
+  while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
   budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
   mkdir -p "$dir" "$DATA/runs/$PKEY/$SID"
   raw="$dir/.run-$BASHPID-$RANDOM"
-  judge::pick "$(jq -c .writers <<<"$info")"
+  judge::pick "$writers"
   jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" '
     {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget,
      keys: [inputs | select(. != "") | capture("^(?<kh>[^ ]+) (?<ordinal>[0-9]+) (?<start>[0-9]+)-(?<end>[0-9]+) (?<name>.*)$")
@@ -454,40 +493,74 @@ judge::label() {
   printf '%s' "$l"
 }
 
-# judge::validate <verdict file>: print the verdict as it may be relayed. A
-# quote that is not in the current file, a FLAG with no diff, or a diff that
-# fails `git apply --check` or touches another file makes it UNKNOWN, with the
-# reason.
+# judge::relay_reset: empty the relay set judge::validate fills.
+judge::relay_reset() {
+  RELAY="" RELAY_REPOS=() RELAY_N=0 RELAY_F=0 RELAY_P=0 RELAY_U=0
+}
+judge::relay_reset
+
+# judge::validate <verdict file> [test file]: add the verdict, as it may be
+# relayed, to RELAY (one compact JSON line each), its repository to
+# RELAY_REPOS and its verdict to the counts. A quote that is not in the
+# current file, a FLAG with no diff, or a diff that fails `git apply --check`
+# or touches another file makes it UNKNOWN, with the reason. One jq reads the
+# fields and runs the quote check; git runs only for a FLAG, and jq again only
+# to rewrite a verdict that failed.
 judge::validate() {
-  local v="$1" file repo verdict why="" tmp p
-  IFS=$'\t' read -r file repo verdict < <(jq -r '[.file, (.repo // ""), .verdict] | @tsv' "$v")
+  local v="$1" file="${2:-}" json="" repo verdict ev diff why="" p n=0 known=0 text=(--arg text "")
+  IFS= read -r -d '' json <"$v"
+  json="${json%%$'\n'*}"
+  if [[ -z "$file" ]]; then
+    testing::fields "$json" .file || return 0
+    file="${FIELDS[0]}"
+  fi
+  [[ -f "$file" ]] && text=(--rawfile text "$file")
+  FIELDS=()
+  while IFS= read -r -d '' p; do FIELDS+=("$p"); done < <(jq -j "${text[@]}" '
+    (.repo // "" | tostring), "\u0000", (.verdict // "" | tostring), "\u0000",
+    ((.evidence // []) as $e | if ($e | length) == 0 then "none"
+      elif all($e[]; . as $q | $text | contains($q)) then "ok" else "missing" end), "\u0000",
+    (.diff // "" | tostring), "\u0000"' <<<"$json" 2>/dev/null)
+  ((${#FIELDS[@]} == 4)) || return 0
+  repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}"
   [[ -n "$repo" && -d "$repo" ]] || repo="${file%/*}"
   if [[ ! -f "$file" ]]; then
     why="the test file no longer exists"
-  elif [[ "$verdict" != UNKNOWN ]] && ! jq -e '.evidence | length > 0' "$v" >/dev/null; then
+  elif [[ "$verdict" != UNKNOWN && "$ev" == none ]]; then
     why="the verdict quotes no evidence"
-  elif ! jq -e --rawfile text "$file" 'all(.evidence[]; . as $q | $text | contains($q))' "$v" >/dev/null; then
+  elif [[ "$ev" == missing ]]; then
     why="a quoted line is not in the file"
+  elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
+    why="the FLAG proposes no diff"
   elif [[ "$verdict" == FLAG ]]; then
-    tmp="$(mktemp)"
-    jq -r .diff "$v" >"$tmp"
-    if ! jq -e '.diff | length > 0' "$v" >/dev/null; then
-      why="the FLAG proposes no diff"
-    elif ! (cd "$repo" && git apply --check "$tmp") >/dev/null 2>&1; then
-      why="the proposed diff does not apply"
-    else
-      while IFS=$'\t' read -r _ _ p; do
-        [[ "$repo/$p" == "$file" ]] || why="the proposed diff touches another file"
-      done < <(cd "$repo" && git apply --numstat "$tmp" 2>/dev/null)
-    fi
-    rm -f "$tmp"
+    # --check with --numstat -z: whether it applies and which files it
+    # touches (paths unquoted), in one call that writes nothing.
+    while IFS= read -r -d '' p; do
+      [[ "$p" == ok ]] && n=1 && continue
+      p="${p#*$'\t'}" && p="${p#*$'\t'}"
+      [[ "$repo/$p" == "$file" ]] || why="the proposed diff touches another file"
+    done < <(git -C "$repo" apply --check --numstat -z 2>/dev/null <<<"$diff" && printf 'ok\0')
+    ((n)) || why="the proposed diff does not apply"
   fi
-  jq -c --arg why "$why" 'if $why == "" then . else .verdict = "UNKNOWN" | .reason = $why end' "$v"
+  if [[ -n "$why" ]]; then
+    verdict=UNKNOWN
+    json="$(jq -c --arg why "$why" '.verdict = "UNKNOWN" | .reason = $why' <<<"$json")" || return 0
+  fi
+  RELAY+="$json"$'\n'
+  RELAY_N=$((RELAY_N + 1))
+  case "$verdict" in
+  FLAG) RELAY_F=$((RELAY_F + 1)) ;;
+  PASS) RELAY_P=$((RELAY_P + 1)) ;;
+  *) RELAY_U=$((RELAY_U + 1)) ;;
+  esac
+  for p in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do [[ "$p" == "${FIELDS[0]}" ]] && known=1; done
+  ((known)) || RELAY_REPOS+=("${FIELDS[0]}")
 }
 
 judge::slug() {
-  local s
-  s="$(printf '%s' "$1" | tr 'A-Z/' 'a-z-' | tr -c 'a-z0-9-' '-' | tr -s '-')"
+  local s="${1,,}"
+  s="${s//[!a-z0-9-]/-}"
+  while [[ "$s" == *--* ]]; do s="${s//--/-}"; done
   s="${s#-}" && s="${s%-}"
   if ((${#s} > 40)); then
     s="${s:0:40}"
@@ -497,39 +570,45 @@ judge::slug() {
   con | prn | aux | nul | com[1-9] | lpt[1-9]) s+=-x ;;
   *) ;;
   esac
-  printf '%s' "${s:-detached}"
+  SLUG="${s:-detached}"
 }
 
-# judge::findings_dir <repo>: the findings directory the detector-findings
-# contract resolves for a headless producer: .claude/topic-docs.yaml's
-# memory_dir, else .work, then reviews/<branch-slug>/, with the memory root's
-# self-ignoring .gitignore. No branch, no repository or a root-equivalent
-# memory_dir: the plugin data directory.
+# judge::findings_dir <repo> <branch>: set FDIR, created, to the findings
+# directory the detector-findings contract resolves for a headless producer:
+# .claude/topic-docs.yaml's memory_dir, else .work, then reviews/<branch-slug>/,
+# with the memory root's self-ignoring .gitignore. No branch, no repository, or
+# a memory root not strictly inside the checkout (by its path, with no
+# symbolic link on the way down, so the self-ignore write cannot land in
+# another tree): the plugin data directory.
 judge::findings_dir() {
-  local repo="$1" branch="" mem up real top
-  [[ -n "$repo" && -d "$repo" ]] && branch="$(git -C "$repo" branch --show-current 2>/dev/null)"
-  if [[ -z "$branch" ]]; then
-    printf '%s' "$DATA/findings"
-    return
+  local repo="$1" branch="$2" mem="" line p c parts=()
+  FDIR="$DATA/findings"
+  if [[ -n "$branch" ]]; then
+    if [[ -f "$repo/.claude/topic-docs.yaml" ]]; then
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" == memory_dir:* ]] || continue
+        mem="${line#memory_dir:}"
+        break
+      done <"$repo/.claude/topic-docs.yaml"
+    fi
+    mem="${mem%%#*}" && mem="${mem//[\"\'$'\r']/}"
+    mem="${mem#"${mem%%[![:space:]]*}"}" && mem="${mem%"${mem##*[![:space:]]}"}"
+    mem="${mem:-.work}"
+    case "$mem" in /* | ?:*) ;; *) mem="$repo/${mem#./}" ;; esac
+    mem="${mem%/}"
+    if [[ "$mem" == "$repo/"?* && "/$mem/" != */../* && "/$mem/" != */./* ]]; then
+      p="$repo"
+      IFS=/ read -ra parts <<<"${mem#"$repo"/}"
+      for c in "${parts[@]}"; do
+        p+="/$c"
+        [[ -L "$p" ]] && p="" && break
+      done
+      judge::slug "$branch"
+      [[ -n "$p" ]] && FDIR="$mem/reviews/$SLUG"
+    fi
   fi
-  mem="$(sed -n 's/^memory_dir:[[:space:]]*//p' "$repo/.claude/topic-docs.yaml" 2>/dev/null | head -n 1)"
-  mem="${mem%%#*}" && mem="${mem//[\"\']/}" && mem="${mem%"${mem##*[![:space:]]}"}"
-  mem="${mem:-.work}"
-  case "$mem" in /* | ?:*) ;; *) mem="$repo/${mem#./}" ;; esac
-  mem="${mem%/}"
-  # The memory root must sit strictly inside the checkout, symlinks resolved
-  # on its nearest existing ancestor, or the self-ignore write would land in
-  # another tree.
-  up="$mem"
-  while [[ ! -d "$up" && "$up" == */* ]]; do up="${up%/*}"; done
-  real="$(cd "$up" 2>/dev/null && pwd -P)/${mem#"$up"}" && real="${real%/}"
-  top="$(cd "$repo" && pwd -P)"
-  if [[ "/$mem/" == */../* || "/$mem/" == */./* || "$real" != "$top/"?* ]] || ! mkdir -p "$mem"; then
-    printf '%s' "$DATA/findings"
-    return
-  fi
-  [[ -f "$mem/.gitignore" ]] || printf '*\n' >"$mem/.gitignore"
-  printf '%s' "$mem/reviews/$(judge::slug "$branch")"
+  mkdir -p "$FDIR" || return 1
+  [[ "$FDIR" == "$DATA/findings" || -f "$mem/.gitignore" ]] || printf '*\n' >"$mem/.gitignore"
 }
 
 # judge::findings <validated verdict lines>: write one findings file per
@@ -537,14 +616,14 @@ judge::findings_dir() {
 # verdict, its quoted evidence and proposed diff under ## Verdicts) and set
 # FINDINGS to their paths, comma-separated.
 judge::findings() {
-  local all="$1" repo dir ts path i branch
+  local all="$RELAY" repo dir ts path i branch
   FINDINGS=""
-  ts="$(date -u +%Y%m%dT%H%M%SZ)"
-  while IFS= read -r repo; do
-    dir="$(judge::findings_dir "$repo")"
+  TZ=UTC0 printf -v ts '%(%Y%m%dT%H%M%SZ)T' -1
+  for repo in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do
     branch=""
-    [[ -z "$repo" ]] || branch="$(git -C "$repo" branch --show-current 2>/dev/null)"
-    mkdir -p "$dir" || continue
+    [[ -z "$repo" || ! -d "$repo" ]] || branch="$(git -C "$repo" branch --show-current 2>/dev/null)"
+    judge::findings_dir "$repo" "$branch" || continue
+    dir="$FDIR"
     path="$dir/$ts-test-judge.md"
     i=2
     while [[ -e "$path" ]]; do
@@ -570,10 +649,21 @@ judge::findings() {
         + (if .verdict == "FLAG" and .diff != "" then "\nProposed diff, not applied:\n\n````diff\n\(.diff | rtrimstr("\n"))\n````\n" else "" end)] | join(""))
       ' <<<"$all" >"$path" 2>/dev/null || continue
     FINDINGS+="${FINDINGS:+, }$path"
-  done < <(jq -r '.repo // ""' <<<"$all" | sort -u)
+  done
 }
 
 # judge::counts <validated verdict lines>: "N tests (F FLAG, P PASS, U UNKNOWN)".
+# judge::mark_relayed <owner sid>/<key-hash>...: record the keys as relayed,
+# with one mkdir for every directory.
+judge::mark_relayed() {
+  local m dirs=()
+  for m in "$@"; do dirs+=("$DATA/relayed/$PKEY/${m%/*}"); done
+  ((${#dirs[@]})) && mkdir -p "${dirs[@]}" || return 0
+  for m in "$@"; do : >"$DATA/relayed/$PKEY/$m"; done
+}
+
 judge::counts() {
-  jq -rs '"\(length) test\(if length == 1 then "" else "s" end) (\(map(select(.verdict == "FLAG")) | length) FLAG, \(map(select(.verdict == "PASS")) | length) PASS, \(map(select(.verdict == "UNKNOWN")) | length) UNKNOWN)"' <<<"$1"
+  local s=s
+  ((RELAY_N == 1)) && s=""
+  COUNTS="$RELAY_N test$s ($RELAY_F FLAG, $RELAY_P PASS, $RELAY_U UNKNOWN)"
 }

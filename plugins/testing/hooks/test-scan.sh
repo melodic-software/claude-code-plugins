@@ -70,7 +70,7 @@ find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
 # Session state and the judge's state, at every depth. An empty directory goes
 # only once it is an hour old, so a parallel run's fresh mkdir keeps its
 # directory until it writes.
-find "$DATA"/{sessions,verdicts,locks,relayed,attempts,slots,successors,pending,runs,findings} -mindepth 1 \
+find "$DATA"/{sessions,verdicts,locks,relayed,attempts,slots,successors,pending,runs,findings,derive} -mindepth 1 \
   \( -type f -mtime +7 -o -type d -empty -mmin +60 \) -delete 2>/dev/null
 
 out_file="$(mktemp)"

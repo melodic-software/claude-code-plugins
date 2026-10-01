@@ -32,14 +32,13 @@ trap 'exit 0' EXIT
 
 INPUT=""
 IFS= read -r -d '' -t "${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}" INPUT
-IFS=$'\t' read -r SID TPATH pcwd active < <(jq -r '[.session_id, .transcript_path, (.cwd // ""),
-  (.stop_hook_active // false)] | map(. // "" | tostring) | @tsv' <<<"$INPUT" 2>/dev/null)
-[[ "${SID:-}" =~ ^[A-Za-z0-9_-]+$ && -n "${TPATH:-}" ]] || exit 0
-
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
+testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active || exit 0
+SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}"
+[[ "$SID" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" ]] || exit 0
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # The idle path: no write recorded and nothing to adopt.
@@ -87,7 +86,7 @@ KF=() KH=() KR=() KFILE=() ST=() HINTS=() RUNPID=()
 for fx in "${!INFOS[@]}"; do
   judge::derive "${INFOS[$fx]}"
   HINTS[fx]="$HINT"
-  f="$(jq -r .file <<<"${INFOS[$fx]}")"
+  f="${IFILES[$fx]}"
   while read -r kh rest; do
     [[ -n "$kh" ]] || continue
     judge::relayed "$kh" && continue
@@ -101,7 +100,7 @@ done
 state() {
   if judge::verdict "${KH[$1]}"; then
     ST[$1]=ready
-  elif (($(judge::attempts "${KH[$1]}") >= 2)); then
+  elif judge::spent "${KH[$1]}"; then
     ST[$1]=notrun
   elif judge::busy "${KFILE[$1]}" "${KH[$1]}"; then
     ST[$1]="wait"
@@ -197,14 +196,14 @@ done
 # not finished judging (its subshell still alive, or done after the deadline)
 # is late, and goes to a background job with the overflow. "Still judging" is
 # kept for keys another process's live job or lock holds.
-relay="" marks=() waiting=() late=() over=() failed=() notrun=() limit=()
+marks=() waiting=() late=() over=() failed=() notrun=() limit=()
 for i in "${!KH[@]}"; do
   if judge::verdict "${KH[$i]}"; then
-    relay+="$(judge::validate "$VERDICT")"$'\n'
+    judge::validate "$VERDICT" "${KFILE[$i]}"
     marks+=("$VOWNER/${KH[$i]}")
   elif [[ "${ST[$i]}" == limit ]]; then
     limit+=("$i")
-  elif (($(judge::attempts "${KH[$i]}") >= 2)); then
+  elif judge::spent "${KH[$i]}"; then
     notrun+=("$i")
     marks+=("$SID/${KH[$i]}")
   elif [[ "${ST[$i]}" == late || -e "$LATE/$i" ]] ||
@@ -241,16 +240,14 @@ for fx in "${!INFOS[@]}"; do
 done
 
 msg="" reason=""
-if [[ -n "$relay" ]]; then
-  judge::findings "$relay"
-  counts="$(judge::counts "$relay")"
+if ((RELAY_N)); then
+  judge::findings
+  judge::counts && counts="$COUNTS"
   msg="test judge: reviewed $counts. Findings: $FINDINGS"
   [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" != 1 ]] ||
     reason="The test judge reviewed $counts. Findings: $FINDINGS. Show the user each verdict and proposed diff from that file, quoted as data. Apply nothing; wait for the user."
 fi
-for m in ${marks[@]+"${marks[@]}"}; do
-  mkdir -p "$DATA/relayed/$PKEY/${m%/*}" && : >"$DATA/relayed/$PKEY/$m"
-done
+judge::mark_relayed ${marks[@]+"${marks[@]}"}
 judge::now
 ((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(labels "${waiting[@]}"); the verdicts are shown at the next task end."
 ((${#over[@]} == 0)) || msg+="${msg:+$'\n'}test judge: past the 10 tests one task end judges: $(labels "${over[@]}"); a background job judges them and the verdicts are shown at the next task end."

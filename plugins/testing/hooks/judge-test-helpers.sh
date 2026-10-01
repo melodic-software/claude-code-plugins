@@ -102,6 +102,26 @@ jq -cn --arg r "Here you go: $result" '{type: "result", subtype: "success", is_e
 EOF
 chmod +x "$TMP/judge-stub.sh"
 
+# Windows conditions on Linux: WIN_JQ is a directory holding a `jq` that acts
+# like the native Windows jq.exe (every LF it writes becomes CRLF unless it is
+# given -b), and win <cmd>... runs a command with that jq first on PATH, the
+# msys OSTYPE the hooks see under Git Bash, and no CLAUDE_PROJECT_DIR (so the
+# payload's backslash cwd is the project directory).
+WIN_JQ="$TMP/win-jq"
+mkdir -p "$WIN_JQ"
+cat >"$WIN_JQ/jq" <<EOF
+#!/usr/bin/env bash
+args=() bin=0
+for a in "\$@"; do
+  if [[ "\$a" == -b || "\$a" == --binary ]]; then bin=1; else args+=("\$a"); fi
+done
+((bin)) && exec "$(command -v jq)" "\${args[@]}"
+set -o pipefail
+"$(command -v jq)" "\${args[@]}" | perl -pe 's/\n/\r\n/'
+EOF
+chmod +x "$WIN_JQ/jq"
+win() { env -u CLAUDE_PROJECT_DIR PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys "$@"; }
+
 # stub_calls: how many times the stub judge ran. stub_args <n>: the nth call's
 # arguments, one per line (1-based, in call order).
 stub_calls() { find "$STUB_DIR" -name 'call-*.args' | wc -l; }

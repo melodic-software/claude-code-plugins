@@ -26,14 +26,13 @@ INPUT=""
 IFS= read -r -d '' -t "${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}" INPUT
 exec >/dev/null 2>&1
 
-IFS=$'\t' read -r SID call TPATH pcwd file < <(jq -r '[.session_id, .tool_use_id, .transcript_path,
-  (.cwd // ""), .tool_input.file_path] | map(. // "" | tostring) | @tsv' <<<"$INPUT" 2>/dev/null)
-[[ "${SID:-}" =~ ^[A-Za-z0-9_-]+$ && "${call:-}" =~ ^[A-Za-z0-9_-]+$ && -n "${TPATH:-}" && -n "${file:-}" ]] || exit 0
-
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
+testing::fields "$INPUT" .session_id .tool_use_id .transcript_path .cwd .tool_input.file_path || exit 0
+SID="${FIELDS[0]}" call="${FIELDS[1]}" TPATH="${FIELDS[2]}" pcwd="${FIELDS[3]}" file="${FIELDS[4]}"
+[[ "$SID" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" && -n "$file" ]] || exit 0
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # shellcheck source=judge-lib.sh
@@ -59,8 +58,8 @@ own="$DATA/sessions/$PKEY/$SID/$call.json"
 judge::session_set
 judge::load
 info=""
-for i in ${INFOS[@]+"${INFOS[@]}"}; do
-  [[ "$(jq -r .file <<<"$i")" == "$file" ]] && info="$i"
+for i in "${!IFILES[@]}"; do
+  [[ "${IFILES[$i]}" == "$file" ]] && info="${INFOS[$i]}"
 done
 # No record for this write: test-scan skipped it (a gitignored or excluded
 # path) or has not written yet. Judge the whole file unless it is ignored; a
@@ -78,7 +77,7 @@ keys=""
 while read -r kh rest; do
   [[ -n "$kh" ]] || continue
   judge::verdict "$kh" && continue
-  (($(judge::attempts "$kh") < 2)) || continue
+  judge::spent "$kh" && continue
   # A write-time job leaves a held key to its holder. A job the Stop hook
   # handed a late key waits for the Stop's own dying run to let go of it.
   if ! judge::lock "$kh"; then
@@ -89,7 +88,7 @@ while read -r kh rest; do
   HELD+=("$DATA/locks/$kh")
   # Another holder may have finished, or failed, between the check and the lock.
   judge::verdict "$kh" && continue
-  (($(judge::attempts "$kh") < 2)) || continue
+  judge::spent "$kh" && continue
   keys+="$kh $rest"$'\n'
 done <<<"$KEYS"
 [[ -n "$keys" ]] && judge::runs_left || exit 0

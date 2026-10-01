@@ -19,14 +19,13 @@ trap 'exit 0' EXIT
 
 INPUT=""
 IFS= read -r -d '' -t "${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}" INPUT
-IFS=$'\t' read -r SID TPATH pcwd src < <(jq -r '[.session_id, .transcript_path, (.cwd // ""), (.source // "")]
-  | map(. // "" | tostring) | @tsv' <<<"$INPUT" 2>/dev/null)
-[[ "${SID:-}" =~ ^[A-Za-z0-9_-]+$ && -n "${TPATH:-}" ]] || exit 0
-
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
+testing::fields "$INPUT" .session_id .transcript_path .cwd .source || exit 0
+SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" src="${FIELDS[3]}"
+[[ "$SID" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" ]] || exit 0
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 if [[ "$src" == clear || "$src" == fork ]]; then
@@ -38,7 +37,7 @@ source "$HOOK_DIR/judge-lib.sh"
 exec 3>&1 >/dev/null 2>>"$JUDGE_LOG"
 
 judge::now
-relay="" marks=()
+marks=()
 for d in "$DATA/verdicts/$PKEY"/*/; do
   s="${d%/}" && s="${s##*/}"
   [[ -d "$d" && "$s" != "$SID" ]] || continue
@@ -48,15 +47,14 @@ for d in "$DATA/verdicts/$PKEY"/*/; do
     [[ -f "$v" ]] || continue
     kh="${v##*/}" && kh="${kh%.json}"
     [[ -e "$DATA/relayed/$PKEY/$s/$kh" ]] && continue
-    relay+="$(judge::validate "$v")"$'\n'
+    judge::validate "$v"
     marks+=("$s/$kh")
   done
 done
-[[ -n "$relay" ]] || exit 0
+((RELAY_N)) || exit 0
 
-judge::findings "$relay"
-for m in "${marks[@]}"; do
-  mkdir -p "$DATA/relayed/$PKEY/${m%/*}" && : >"$DATA/relayed/$PKEY/$m"
-done
-jq -cn --arg m "test judge: an earlier session ended before these verdicts were shown: $(judge::counts "$relay"). Findings: $FINDINGS" \
+judge::findings
+judge::counts
+judge::mark_relayed "${marks[@]}"
+jq -cn --arg m "test judge: an earlier session ended before these verdicts were shown: $COUNTS. Findings: $FINDINGS" \
   '{systemMessage: $m}' >&3

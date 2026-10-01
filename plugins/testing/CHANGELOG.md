@@ -36,7 +36,17 @@ All notable changes to the `testing` plugin are documented here. Format follows
   resolve to Windows' `timeout.exe`); the whole group gets TERM, then KILL, and a run cut at its
   bound gives no verdict. Every wait in the Stop hook (a judge slot, a run, a background job)
   ends at its 180 s bound, and tests not judged in time go to a background job, which waits for
-  the Stop's own unfinished run to let go of them, and are shown at the next task end. The README and
+  the Stop's own unfinished run to let go of them, and are shown at the next task end. On Windows
+  (Git Bash with the native `jq.exe`) the judge hooks read payload fields NUL-separated rather than
+  through `@tsv`, which doubled every backslash in a Windows `transcript_path`, `cwd` or file path
+  and so gave the Stop hook a different project key from `test-scan`'s; and every `jq` call runs
+  with `-b` under Git Bash and Cygwin, which `jq.exe` (1.6 and later) needs to write LF rather than
+  CRLF, chosen over stripping CR from each field because it leaves every byte as written, a CR a
+  diff or a quote really carries included, and costs no extra process. A Stop over files whose
+  verdicts are ready no longer re-runs the scanner: the in-doubt blocks are cached by the file's
+  content, the records and the config layers, and the hook reads each record and verdict with one
+  `jq`; a ready Stop over one file went from 187 processes to 31 on Linux, over five files from
+  671 to 79. The README and
   `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
   reaches.
 

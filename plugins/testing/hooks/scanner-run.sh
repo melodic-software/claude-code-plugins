@@ -4,6 +4,30 @@
 # source it before their no-state exit.
 # shellcheck disable=SC2034,SC2154 # HOOK_DIR and SCANNER come from the hook; DATA, PKEY and SCAN_RC go back to it
 
+# Windows' native jq.exe writes its stdout in text mode, turning every LF into
+# CRLF, and `read`, `mapfile` and $(...) keep the CR. -b (--binary, jq 1.6 and
+# later, "Windows users using WSL, MSYS2, or Cygwin, should use this option
+# when using a native jq.exe") writes the bytes as they are, so no field, path
+# or diff gains a CR and none loses one it carried. Added under Git Bash and
+# Cygwin only; TESTING_OSTYPE is the test seam for that condition.
+case "${TESTING_OSTYPE:-${OSTYPE:-}}" in
+msys* | cygwin*) jq() { command jq -b "$@"; } ;;
+*) ;;
+esac
+
+# testing::fields <json> <jq expression>...: set FIELDS to one value per
+# expression (null and false as ""), read NUL-separated: never through @tsv,
+# which doubles every backslash in a Windows path, and never split on a tab or
+# a newline inside a value.
+testing::fields() {
+  local in="$1" prog="" e v
+  shift
+  for e in "$@"; do prog+="${prog:+, }((${e}) // \"\" | tostring | gsub(\"\\u0000\"; \"\")), \"\\u0000\""; done
+  FIELDS=()
+  while IFS= read -r -d '' v; do FIELDS+=("$v"); done < <(jq -j "$prog" <<<"$in" 2>/dev/null)
+  ((${#FIELDS[@]} == $#))
+}
+
 # testing::pkey <project dir> <transcript path>: set PKEY to the project key,
 # the first 16 hex of the sha256 of the project directory, a newline and the
 # transcript directory. A /clear or fork successor gets a new session id but

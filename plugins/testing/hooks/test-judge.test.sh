@@ -521,5 +521,80 @@ bg st w1 "$A1"
 stop st
 check "a startup session relays its own verdict for block text another session relayed" '[[ "$(field .reason)" == *"reviewed 1 test "* ]]'
 
+# The re-derive is cached by the file's content: a Stop over an unchanged
+# file with ready verdicts runs no scanner; a changed file, a changed config
+# layer or a failed scan runs it again.
+cat >"$TMP/count-scan.sh" <<EOF
+#!/usr/bin/env bash
+echo run >>"$TMP/scans"
+exec bash "$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh" "\$@"
+EOF
+scans() { [[ -f "$TMP/scans" ]] && wc -l <"$TMP/scans" | tr -d ' ' || echo 0; }
+transcript cache claude-sonnet-5
+CF="$REPO/src/cached.test.ts"
+js_file "$CF" one two
+record cache w1 "$CF" null
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" bg cache w1 "$CF"
+rm -f "$TMP/scans"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "an unchanged file with ready verdicts: the Stop runs no scanner" '[[ "$(scans)" == 0 && "$(field .reason)" == *"reviewed 2 tests"* ]]'
+js_file "$CF" one two three
+record cache w2 "$CF" "$(blocks three:1:9:11)"
+stub_reset
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "a changed file is scanned again and its new block judged" \
+  '[[ "$(scans)" == 1 && "$(stub_args 1)" == *"block 1 9-11 three"* && "$(field .reason)" == *"reviewed 1 test "* ]]'
+rm -f "$TMP/scans"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "and is not scanned a third time while unchanged" '[[ "$(scans)" == 0 ]]'
+mkdir -p "$REPO/.claude"
+printf 'rules:\n  rule-weak-oracle: warn\n' >"$REPO/.claude/testing.yaml"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "a changed .claude/testing.yaml re-derives" '[[ "$(scans)" == 1 ]]'
+rm -f "$REPO/.claude/testing.yaml" "$TMP/scans"
+transcript cache2 claude-sonnet-5
+CF2="$REPO/src/failscan.test.ts"
+js_file "$CF2" fs
+record cache2 w1 "$CF2" null
+printf '#!/usr/bin/env bash\necho run >>"%s"\nexit 3\n' "$TMP/scans" >"$TMP/fail-scan.sh"
+TEST_SCAN_SCANNER="$TMP/fail-scan.sh" stop cache2
+TEST_SCAN_SCANNER="$TMP/fail-scan.sh" stop cache2
+check "a failed scan is not cached" '[[ "$(scans)" == 2 ]]'
+
+# Windows: a payload with backslash paths, and a jq that writes CRLF (the
+# native jq.exe). test-scan, the background job and the Stop hook must agree
+# on the project key, keep the paths as they are, and read every field
+# without a trailing CR.
+check "the fake Windows jq writes CRLF" '[[ "$(PATH="$WIN_JQ:$PATH" jq -n 1 | od -An -c | tr -d " ")" == "1\r\n" ]]'
+WT='C:\Users\k\.claude\projects\-repo\wsid.jsonl'
+WC='C:\repo'
+WPK="$(printf '%s\n%s' "$WC" 'C:\Users\k\.claude\projects\-repo' | sha256 | cut -c1-16)"
+W1="$REPO/src/win\\one.test.ts"
+W2="$REPO/src/wintwo.test.ts"
+js_file "$W1" winone
+js_file "$W2" "wintwo flag"
+wpay() { # wpay <tool_use_id> <file> [extra json]
+  jq -cn --arg u "$1" --arg f "$2" --arg t "$WT" --arg c "$WC" --argjson x "${3:-{\}}" \
+    '{hook_event_name: "PostToolUse", tool_name: "Write", session_id: "wsid", tool_use_id: $u, transcript_path: $t,
+      cwd: $c, tool_input: {file_path: $f}, tool_response: {type: "create", structuredPatch: []}} + $x'
+}
+wpay ww1 "$W1" | win bash "$HOOK_DIR/test-scan.sh" >/dev/null 2>&1
+wpay ww2 "$W2" | win bash "$HOOK_DIR/test-scan.sh" >/dev/null 2>&1
+check "test-scan keys a Windows payload by sha256(cwd, transcript directory)" \
+  '[[ -f "$DATA/sessions/$WPK/wsid/ww1.json" && -f "$DATA/sessions/$WPK/wsid/ww2.json" ]]'
+stub_reset
+wpay ww1 "$W1" | win bash "$BG"
+wpay ww2 "$W2" | win bash "$BG"
+check "the background job finds the same records and keeps the backslash path" \
+  '[[ "$(stub_calls)" == 2 && "$(jq -r .file "$DATA/verdicts/$WPK/wsid/"*.json | sort | head -1)" == "$W1" ]]'
+out="$(wpay st1 "" '{"hook_event_name": "Stop", "stop_hook_active": true}' | win bash "$HOOK" 2>/dev/null)"
+check "Windows: stop_hook_active true does not block" '[[ "$(field .decision)" != block ]]'
+out="$(wpay st2 "" '{"hook_event_name": "Stop", "stop_hook_active": false}' | win bash "$HOOK" 2>/dev/null)"
+check "Windows: the Stop finds test-scan's project key and relays both verdicts, the FLAG intact" \
+  '[[ "$(field .reason)" == *"reviewed 2 tests (1 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
+out="$(jq -cn --arg t "$WT" --arg c "$WC" '{hook_event_name: "SessionStart", session_id: "wsucc", transcript_path: $t,
+  cwd: $c, source: "clear"}' | win bash "$HOOK_DIR/test-judge-start.sh" 2>/dev/null)"
+check "Windows: SessionStart writes the successor marker under the same project key" '[[ -f "$DATA/successors/$WPK/wsucc" ]]'
+
 check "no real claude was ever called" '[[ ! -e "$TMP/real-claude-called" ]]'
 finish
