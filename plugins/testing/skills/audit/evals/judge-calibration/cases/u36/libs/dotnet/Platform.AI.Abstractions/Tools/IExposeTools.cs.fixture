@@ -1,0 +1,9 @@
+namespace Platform.AI.Abstractions.Tools;
+
+public interface IExposeTools
+{
+    ToolDescriptor Describe();
+    ToolSurface Surface { get; }
+}
+
+public interface IExposeTools<TCommand> : IExposeTools;

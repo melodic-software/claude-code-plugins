@@ -1,0 +1,177 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import {
+  countFrameFiles,
+  listFrameCandidates,
+  normalizeFfmpegPath,
+  isRemoteVideoInput,
+  extractSceneFrames,
+  DEFAULT_SCENE_THRESHOLD,
+  DEFAULT_MIN_FRAMES_FOR_SCENE,
+} from "./scene-detect.js";
+
+describe("isRemoteVideoInput", () => {
+  it("should detect http(s) inputs", () => {
+    expect(isRemoteVideoInput("https://example.com/video.m3u8")).toBe(true);
+    expect(isRemoteVideoInput("C:\\video.mp4")).toBe(false);
+  });
+});
+
+describe("normalizeFfmpegPath", () => {
+  it("should convert backslashes to forward slashes", () => {
+    expect(normalizeFfmpegPath("C:\\frames\\scene_%04d.png")).toBe("C:/frames/scene_%04d.png");
+  });
+});
+
+describe("countFrameFiles", () => {
+  let tempDir;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "scene-detect-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should count sequential numbered PNG files", () => {
+    writeFileSync(join(tempDir, "scene_0001.png"), "");
+    writeFileSync(join(tempDir, "scene_0002.png"), "");
+    writeFileSync(join(tempDir, "scene_0003.png"), "");
+
+    expect(countFrameFiles(tempDir, "scene")).toBe(3);
+  });
+
+  it("should stop at first gap in numbering", () => {
+    writeFileSync(join(tempDir, "interval_0001.png"), "");
+    writeFileSync(join(tempDir, "interval_0003.png"), "");
+
+    expect(countFrameFiles(tempDir, "interval")).toBe(1);
+  });
+});
+
+describe("listFrameCandidates", () => {
+  let tempDir;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "scene-list-"));
+    writeFileSync(join(tempDir, "scene_0001.png"), "");
+    writeFileSync(join(tempDir, "scene_0002.png"), "");
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should build FrameCandidate descriptors", () => {
+    const frames = listFrameCandidates(tempDir, "scene", false);
+    expect(frames).toHaveLength(2);
+    expect(frames[0].file).toBe("scene_0001.png");
+    expect(frames[0].isInterval).toBe(false);
+    expect(frames[1].isInterval).toBe(false);
+  });
+
+  it("should mark interval frames", () => {
+    const frames = listFrameCandidates(tempDir, "scene", true);
+    expect(frames[0].isInterval).toBe(true);
+  });
+});
+
+describe("extractSceneFrames", () => {
+  let tempDir;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), "scene-extract-"));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("should use scene-detection when enough frames are produced", async () => {
+    const spawn = vi.fn(async (_cmd, _args) => {
+      mkdirSync(tempDir, { recursive: true });
+      for (let i = 1; i <= DEFAULT_MIN_FRAMES_FOR_SCENE; i++) {
+        writeFileSync(join(tempDir, `scene_${String(i).padStart(4, "0")}.png`), "");
+      }
+      return { success: true, code: 0, signal: null, stdout: "", stderr: "", timedOut: false };
+    });
+
+    const result = await extractSceneFrames(
+      "https://example.com/video.m3u8",
+      tempDir,
+      { sceneThreshold: DEFAULT_SCENE_THRESHOLD },
+      { spawn, log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } },
+    );
+
+    expect(result.method).toBe("scene-detection");
+    expect(result.count).toBe(DEFAULT_MIN_FRAMES_FOR_SCENE);
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls[0][1]).toContain(
+      `select='gt(scene,${DEFAULT_SCENE_THRESHOLD})',scale=1280:-1`,
+    );
+  });
+
+  it("should normalize local video paths before ffmpeg spawn", async () => {
+    const videoPath = join(tempDir, "video.mp4");
+    writeFileSync(videoPath, "fake");
+
+    const spawn = vi.fn(async () => ({
+      success: true,
+      code: 0,
+      signal: null,
+      stdout: "",
+      stderr: "",
+      timedOut: false,
+    }));
+
+    const { runSceneFfmpeg } = await import("./scene-detect.js");
+    await runSceneFfmpeg(
+      spawn,
+      { warn: vi.fn() },
+      videoPath,
+      join(tempDir, "scene_%04d.png"),
+      "select='gt(scene,0.15)',scale=1280:-1",
+    );
+
+    const args = spawn.mock.calls[0][1];
+    expect(args).not.toContain("-user_agent");
+    const inputArgIndex = args.indexOf("-i") + 1;
+    const inputPath = args[inputArgIndex];
+    expect(inputPath).not.toContain("\\");
+    expect(inputPath).toContain("video.mp4");
+  });
+
+  it("should fall back to interval capture when scene count is below minimum", async () => {
+    let call = 0;
+    const spawn = vi.fn(async () => {
+      call++;
+      mkdirSync(tempDir, { recursive: true });
+      if (call === 1) {
+        writeFileSync(join(tempDir, "scene_0001.png"), "");
+        writeFileSync(join(tempDir, "scene_0002.png"), "");
+      } else {
+        writeFileSync(join(tempDir, "interval_0001.png"), "");
+        writeFileSync(join(tempDir, "interval_0002.png"), "");
+        writeFileSync(join(tempDir, "interval_0003.png"), "");
+      }
+      return { success: true, code: 0, signal: null, stdout: "", stderr: "", timedOut: false };
+    });
+
+    const result = await extractSceneFrames(
+      "https://example.com/video.m3u8",
+      tempDir,
+      {},
+      { spawn, log: { info: vi.fn(), warn: vi.fn(), debug: vi.fn(), error: vi.fn() } },
+    );
+
+    expect(result.method).toBe("hybrid");
+    expect(result.sceneCount).toBe(2);
+    expect(result.intervalCount).toBe(3);
+    expect(result.count).toBe(5);
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn.mock.calls[1][1]).toContain("fps=1/30,scale=1280:-1");
+  });
+});

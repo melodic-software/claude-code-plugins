@@ -1,0 +1,5 @@
+namespace Platform.AI.Abstractions.Content;
+
+public abstract record PromptContent;
+
+public sealed record TextContent(string Text) : PromptContent;

@@ -1,0 +1,84 @@
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.Diagnostics;
+
+namespace Platform.Analyzers.Rules;
+
+[DiagnosticAnalyzer(LanguageNames.CSharp)]
+public sealed class ToolProviderMissingAttributeAnalyzer : PlatformAnalyzer
+{
+    private const string InterfaceFullName = "Platform.AI.Abstractions.Tools.IExposeTools`1";
+    private const string AttributeFullName = "Platform.AI.Abstractions.Tools.ToolProviderAttribute";
+
+    private static readonly DiagnosticDescriptor _rule = new(
+        DiagnosticIds.ToolProviderMissingAttribute,
+        "IExposeTools<T> implementation missing [ToolProvider] attribute",
+        "Class '{0}' implements IExposeTools<T> but is missing the [ToolProvider] attribute required for source generator discovery",
+        DiagnosticCategories.DependencyRegistration,
+        DiagnosticDefaults.Severity,
+        DiagnosticDefaults.EnabledByDefault,
+        helpLinkUri: DiagnosticDefaults.GetHelpLink(DiagnosticIds.ToolProviderMissingAttribute));
+
+    public ToolProviderMissingAttributeAnalyzer() : base(_rule)
+    {
+    }
+
+    protected override void RegisterActions(AnalysisContext context) =>
+        context.RegisterCompilationStartAction(OnCompilationStart);
+
+    private void OnCompilationStart(CompilationStartAnalysisContext context)
+    {
+        INamedTypeSymbol? interfaceSymbol = context.Compilation
+            .GetTypeByMetadataName(InterfaceFullName);
+
+        INamedTypeSymbol? attributeSymbol = context.Compilation
+            .GetTypeByMetadataName(AttributeFullName);
+
+        if (interfaceSymbol is null || attributeSymbol is null)
+        {
+            return;
+        }
+
+        context.RegisterSymbolAction(
+            ctx => AnalyzeNamedType(ctx, interfaceSymbol, attributeSymbol),
+            SymbolKind.NamedType);
+    }
+
+    private void AnalyzeNamedType(
+        SymbolAnalysisContext context,
+        INamedTypeSymbol interfaceSymbol,
+        INamedTypeSymbol attributeSymbol)
+    {
+        var type = (INamedTypeSymbol)context.Symbol;
+
+        if (type.TypeKind != TypeKind.Class || type.IsAbstract)
+        {
+            return;
+        }
+
+        if (!SymbolHelpers.ImplementsOpenGenericInterface(type, interfaceSymbol))
+        {
+            return;
+        }
+
+        if (HasAttribute(type, attributeSymbol))
+        {
+            return;
+        }
+
+        context.ReportDiagnostic(
+            Diagnostic.Create(SupportedDiagnostics[0], type.Locations[0], type.Name));
+    }
+
+    private static bool HasAttribute(INamedTypeSymbol type, INamedTypeSymbol attributeSymbol)
+    {
+        foreach (AttributeData attr in type.GetAttributes())
+        {
+            if (SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attributeSymbol))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

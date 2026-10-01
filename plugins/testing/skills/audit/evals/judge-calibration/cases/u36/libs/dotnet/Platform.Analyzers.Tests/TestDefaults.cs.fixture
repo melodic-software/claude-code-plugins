@@ -1,0 +1,9 @@
+using Microsoft.CodeAnalysis.Testing;
+
+namespace Platform.Analyzers.Tests;
+
+internal static class TestDefaults
+{
+    public static readonly ReferenceAssemblies Net80 = ReferenceAssemblies.Net.Net80;
+    public static readonly ReferenceAssemblies Net100 = ReferenceAssemblies.Net.Net100;
+}

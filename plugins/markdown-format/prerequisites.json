@@ -10,6 +10,11 @@
       "name": "jq",
       "check": "/markdown-format:check",
       "install": "install jq from https://jqlang.org/download/"
+    },
+    {
+      "name": "node",
+      "check": "/markdown-format:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
     }
   ]
 }

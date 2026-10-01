@@ -1,0 +1,8 @@
+import { expect, it } from 'vitest';
+import { loadConfig } from './config';
+
+it('returns a config object', () => {
+  const config = loadConfig({});
+  expect(config).toHaveProperty('retries');
+  expect(config).toHaveProperty('timeoutMs');
+});

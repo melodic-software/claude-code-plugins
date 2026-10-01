@@ -1,0 +1,86 @@
+using System.Threading.RateLimiting;
+
+using Microsoft.Extensions.AI;
+
+using MonolithApi.Infrastructure.AI;
+
+using OllamaSharp;
+
+using Platform.AI.Abstractions.Generations;
+using Platform.AI.Abstractions.Prompts;
+using Platform.AI.Abstractions.Semantics;
+using Platform.Core.Results;
+
+// Disambiguate from Microsoft.Extensions.AI.TextContent (an AIContent subtype).
+using PromptTextContent = Platform.AI.Abstractions.Content.TextContent;
+
+namespace MonolithApi.Tests;
+
+/// <summary>
+/// Live round-trip tests against a real Ollama server, gated on availability. They exercise the
+/// adapters end-to-end over the tuned dedicated "ollama" HttpClient (resilient transport with the
+/// widened cold-start timeouts), so the first call tolerates Ollama loading the model into memory.
+/// <c>ResourceGuard</c> is intentionally NOT in the chain here — the full railway through
+/// <c>ITextGenerator</c> is exercised by the Phase 5 consumption harness. When Ollama is unreachable
+/// or has no usable model, each test skips cleanly with a reason.
+/// </summary>
+[Collection(MonolithApiTestFixture.CollectionName)]
+[Trait("Category", "Integration")]
+public sealed class OllamaIntegrationTests(MonolithApiTestFixture factory)
+{
+    [Fact]
+    public async Task MeaiTextGenerator_ShouldReturnGeneration_WhenOllamaReachable()
+    {
+        OllamaAvailability availability =
+            await OllamaProbe.GetAvailabilityAsync(HttpClientFactory(), OllamaEndpoint());
+        SkipUnless(availability.ChatModel is not null, availability.ChatSkipReason);
+
+        using HttpClient httpClient = HttpClientFactory().CreateClient("ollama");
+        using OllamaApiClient provider = new(httpClient) { SelectedModel = availability.ChatModel! };
+        using IChatClient pipeline = MeaiChatClientPipeline.Build(
+            provider, factory.Services.GetRequiredService<RateLimiter>());
+        MeaiTextGenerator generator = new(pipeline, new MeaiErrorClassifier(), TimeProvider.System);
+
+        Prompt prompt = new([
+            new PromptMessage(PromptRole.User, [new PromptTextContent("Reply with exactly one word: pong")])]);
+
+        Result<Generation> result =
+            await generator.GenerateAsync(prompt, ct: TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue(result.IsFailure ? result.Error.ToString() : null);
+        result.Value.Text.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task MeaiSemanticEncoder_ShouldReturnVector_WhenOllamaReachable()
+    {
+        OllamaAvailability availability =
+            await OllamaProbe.GetAvailabilityAsync(HttpClientFactory(), OllamaEndpoint());
+        SkipUnless(availability.EmbedModel is not null, availability.EmbedSkipReason);
+
+        using HttpClient httpClient = HttpClientFactory().CreateClient("ollama");
+        using OllamaApiClient embeddingGenerator = new(httpClient) { SelectedModel = availability.EmbedModel! };
+        MeaiSemanticEncoder encoder = new(embeddingGenerator, new MeaiErrorClassifier());
+
+        Result<SemanticRepresentation> result =
+            await encoder.EncodeAsync("hello world", TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue(result.IsFailure ? result.Error.ToString() : null);
+        result.Value.Vector.Length.ShouldBeGreaterThan(0);
+        // Vector bytes are a little-endian float array — length is a whole number of floats.
+        (result.Value.Vector.Length % sizeof(float)).ShouldBe(0);
+    }
+
+    private IHttpClientFactory HttpClientFactory() =>
+        factory.Services.GetRequiredService<IHttpClientFactory>();
+
+    // Same endpoint the wired "ollama" client binds to (Ai:Ollama:Endpoint, default localhost),
+    // so the probe and the live client always agree on the target.
+    private string OllamaEndpoint() =>
+        factory.Services.GetRequiredService<IConfiguration>()["Ai:Ollama:Endpoint"]
+            ?? "http://localhost:11434";
+
+#pragma warning disable RS0030 // Xunit.Assert is banned for *assertions* (use Shouldly); Assert.Skip* is xUnit v3's only dynamic test-skip mechanism — flow control, not an assertion, with no Shouldly equivalent.
+    private static void SkipUnless(bool condition, string reason) => Assert.SkipUnless(condition, reason);
+#pragma warning restore RS0030
+}

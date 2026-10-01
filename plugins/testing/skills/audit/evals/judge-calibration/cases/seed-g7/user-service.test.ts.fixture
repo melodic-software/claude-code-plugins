@@ -1,0 +1,10 @@
+import { expect, it, vi } from 'vitest';
+import { UserService } from './user-service';
+
+it('gets a user by id', () => {
+  const user = { id: 1, name: 'Alice' };
+  const repo = { get: vi.fn() };
+  const svc = new UserService(repo);
+  repo.get.mockReturnValue(user);
+  expect(svc.get(1)).toBe(user);
+});

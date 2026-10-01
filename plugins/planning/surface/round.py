@@ -996,6 +996,33 @@ def op_set_status(d, doc, a):
     return [], "status set"
 
 
+ZONE_CAP = 40
+
+
+def op_context(d, doc, a):
+    handoff = capped("context handoff", (a.handoff or "").strip(), LINE_CAP)
+    zone = capped("context zone", (a.zone or "").strip(), ZONE_CAP)
+    pct = a.percent
+    if a.clear:
+        if pct is not None or zone or handoff:
+            sys.exit("refused: context clear takes no other field")
+        doc.pop("context", None)
+        doc.pop("handoff", None)
+        return [], "context cleared"
+    if (pct is None) != (not zone):
+        sys.exit("refused: context percent and zone go together")
+    if pct is None and not handoff:
+        sys.exit("refused: context needs percent and zone, a handoff, or clear")
+    at = now()
+    if pct is not None:
+        if isinstance(pct, bool) or not isinstance(pct, int) or not 0 <= pct <= 100:
+            sys.exit("refused: context percent is an integer from 0 to 100")
+        doc["context"] = {"percent": pct, "zone": zone, "at": at}
+    if handoff:
+        doc["handoff"] = {"text": handoff, "at": at}
+    return [], "context set"
+
+
 def op_finish(d, doc, a):
     """The closing event: the page shows it in a dismissible modal and keeps it once the server is gone."""
     done = {"at": now(), "by": "claude"}
@@ -1288,6 +1315,10 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
+    "context": (
+        op_context,
+        {"percent": None, "zone": None, "handoff": None, "clear": False},
+    ),
     "finish": (op_finish, {"brief": None, "next": None, "text": None}),
     "wait": (op_wait, {"id": None, "waitsOn": None, "by": None, "clear": False}),
     "activity": (op_activity, {"text": None, "ids": None}),
@@ -1916,12 +1947,13 @@ def clear_session(d):
 
 
 def clear_finished(d):
-    """A new server means a resumed interview: drop the finish an earlier stop or skill left."""
+    """A new server means a resumed interview: drop the finish, context badge and handoff an earlier run left."""
     if not (d / "questions.json").exists():
         return
     try:
         doc = load(d)
-        if doc.pop("finished", None):
+        dropped = [doc.pop(k, None) for k in ("finished", "context", "handoff")]
+        if any(dropped):
             save(d, doc)
     except (SystemExit, OSError, ValueError):
         pass  # an unreadable file is the server's and the gate's to report, not this start's

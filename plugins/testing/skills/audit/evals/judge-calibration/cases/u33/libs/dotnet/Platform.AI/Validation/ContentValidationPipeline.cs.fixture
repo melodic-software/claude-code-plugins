@@ -1,0 +1,76 @@
+using System.Diagnostics;
+using Platform.AI.Abstractions.Validation;
+using Platform.AI.Diagnostics;
+using Platform.Core.Results;
+
+namespace Platform.AI.Validation;
+
+public sealed class ContentValidationPipeline : IContentValidationPipeline
+{
+    private readonly List<ValidatorRegistration> _registrations;
+    private readonly bool _shortCircuitOnFailure;
+
+    public ContentValidationPipeline(
+        IEnumerable<ValidatorRegistration> registrations,
+        bool shortCircuitOnFailure = false)
+    {
+        _registrations = registrations.ToList();
+        _shortCircuitOnFailure = shortCircuitOnFailure;
+    }
+
+    public async Task<Result<IReadOnlyList<ContentValidationOutcome>>> ValidateAsync(
+        string content, CancellationToken ct = default)
+    {
+        using Activity? activity = Instrumentation.ActivitySource
+            .StartActivity("platform.ai.content_policy");
+
+        activity?.SetTag("platform.ai.policy.validator_count", _registrations.Count);
+
+        List<ContentValidationOutcome> outcomes = [];
+        int violationCount = 0;
+        bool blockingViolation = false;
+
+        foreach (ValidatorRegistration registration in _registrations)
+        {
+            Result<ContentValidationOutcome> result = await registration.Validator.ValidateAsync(
+                content, registration.Criteria, ct);
+
+            if (result.IsFailure)
+            {
+                activity?.SetTag("platform.ai.policy.action", "error");
+                return Result.Failure<IReadOnlyList<ContentValidationOutcome>>(result.Error);
+            }
+
+            outcomes.Add(result.Value);
+
+            if (result.Value.Passed)
+            {
+                continue;
+            }
+
+            violationCount++;
+
+            // Only a blocking (Failure-severity) rejection sets the block verdict
+            // and may short-circuit. An advisory (Warning-severity) rejection is
+            // recorded but must not halt the pipeline — otherwise a later blocking
+            // validator would be skipped and the content judged from an incomplete
+            // validation set.
+            if (registration.Criteria.FailureSeverity != ContentValidationSeverity.Failure)
+            {
+                continue;
+            }
+
+            blockingViolation = true;
+
+            if (_shortCircuitOnFailure)
+            {
+                break;
+            }
+        }
+
+        activity?.SetTag("platform.ai.policy.violations", violationCount);
+        activity?.SetTag("platform.ai.policy.action", blockingViolation ? "block" : "allow");
+
+        return outcomes.AsReadOnly();
+    }
+}

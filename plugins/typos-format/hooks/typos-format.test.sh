@@ -996,10 +996,10 @@ fi
 # install, verbatim.
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | map(.name)) == ["typos", "jq"]' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: declares exactly typos and jq"
+  if jq -e '(.tools | map(.name)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: declares exactly typos, jq and node"
   else
-    fail "manifest: expected tools typos and jq: $(cat "$MANIFEST")"
+    fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST")"
   fi
   IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
   NOTICE_CALL="$(sed -n '/hook::notice_once "typos-format-typos"/,/^  fi$/p' "$HOOK")"

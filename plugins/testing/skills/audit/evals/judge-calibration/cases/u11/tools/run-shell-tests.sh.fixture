@@ -1,0 +1,622 @@
+#!/usr/bin/env bash
+# Discovers and runs all *.test.sh shell tests in the repo.
+#
+# Test convention: co-located <script>.test.sh next to <script>.sh.
+# Each test file is a standalone bash script that exits 0 on success,
+# non-zero on failure. See .claude/rules/bash-conventions.md "Testing".
+#
+# Result classification (test exited 0):
+#   PASS    — emitted ^PASS: lines, no ^SKIP: lines
+#   PARTIAL — emitted both ^PASS: and ^SKIP: lines (subset skipped)
+#   SKIPPED — emitted ^SKIP: but no ^PASS: lines (file ran zero coverage)
+#   (none)  — emitted neither marker (tolerated, counted as PASS)
+# Exit non-zero from the test file → FAIL.
+#
+# SKIPPED files do NOT fail CI — wholesale-skipped tests are a visibility
+# problem (silent coverage erosion when a tool is missing), not a build-
+# breaking one. The summary surfaces the skip list explicitly so the gap
+# is auditable.
+#
+# Parallelism: tests are dispatched across $JOBS workers via xargs -P. On
+# Git Bash for Windows, sequential execution wastes ~3m of fork overhead
+# on a 53-test suite (verified: 11m45s sequential → ~3m parallel @ JOBS=8).
+# CI on ubuntu-latest sees ~3-4× speedup. Per-test output is captured to
+# disk and replayed in alphabetical order so the displayed log is stable
+# regardless of worker scheduling.
+#
+# Usage:
+#   bash tools/run-shell-tests.sh [<root-dir>]    # default: repo root
+#   JOBS=1 bash tools/run-shell-tests.sh          # sequential (debug)
+#   JOBS=8 bash tools/run-shell-tests.sh          # explicit pool size
+# Exit: 0 if all tests pass (or none found), 1 if any fail.
+
+# Assertions track pass/fail explicitly; errexit would abort before summary.
+set -uo pipefail
+
+# bash 5.0+ required for $EPOCHREALTIME (per bash-conventions.md "Bash
+# version"). Apple ships bash 3.2 — macOS contributors must `brew install
+# bash`. Fail fast with an actionable message rather than mysteriously
+# eating the parameter expansion.
+if ((BASH_VERSINFO[0] < 5)); then
+  printf 'run-shell-tests: bash 5.0+ required (found %s)\n' "$BASH_VERSION" >&2
+  printf '  macOS: brew install bash\n' >&2
+  exit 2
+fi
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Argument parsing — positional ROOT_DIR + optional flags.
+#
+#   bash tools/run-shell-tests.sh                 # default: ROOT_DIR=repo root
+#   bash tools/run-shell-tests.sh <dir>           # ROOT_DIR=<dir>
+#   bash tools/run-shell-tests.sh [<dir>] --files <p>...
+#                                                 # explicit test list
+#                                                 # --files is variadic to argv end
+#   bash tools/run-shell-tests.sh [<dir>] --changed-since <ref>
+#                                                 # derive impacted tests via
+#                                                 # `git diff <ref>...HEAD`
+#
+# Kill switch: BASH_TEST_SELECTIVE_DISPATCH_ENABLED=false disables filtering
+# entirely (full-suite glob), mirroring the round-3 A6 scheduler kill switch.
+ROOT_DIR=""
+SELECTIVE_FILES=()
+CHANGED_SINCE_REF=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --files)
+      shift
+      # Variadic: consume remaining args as test paths.
+      while [[ $# -gt 0 ]]; do
+        SELECTIVE_FILES+=("$1")
+        shift
+      done
+      ;;
+    --changed-since)
+      if [[ $# -lt 2 ]]; then
+        printf 'run-shell-tests: --changed-since requires a git ref\n' >&2
+        exit 2
+      fi
+      CHANGED_SINCE_REF="$2"
+      shift 2
+      ;;
+    --*)
+      printf 'run-shell-tests: unknown flag: %s\n' "$1" >&2
+      exit 2
+      ;;
+    *)
+      if [[ -z "$ROOT_DIR" ]]; then
+        ROOT_DIR="$1"
+      else
+        printf 'run-shell-tests: unexpected positional arg: %s (only one ROOT_DIR allowed)\n' "$1" >&2
+        exit 2
+      fi
+      shift
+      ;;
+  esac
+done
+ROOT_DIR="${ROOT_DIR:-$REPO_ROOT}"
+cd "$ROOT_DIR" || exit 2
+
+# Must-rerun-all triggers for --changed-since: if any of these paths
+# appears in the diff, fall back to the full TESTS array. Cross-cutting
+# infrastructure (runner, shared lib, hook utilities, lefthook config)
+# changes the contract every test runs against.
+RERUN_ALL_TRIGGERS=(
+  "tools/run-shell-tests.sh"
+  "tests/shell/lib.sh"
+  "tools/lib/hardcoded-path-patterns.sh"
+  ".claude/hooks/hook-utils.sh"
+  "lefthook.yml"
+)
+
+# Export TEST_REPO_ROOT so child test processes can skip the per-file
+# `git rev-parse --show-toplevel` fork (~37ms each on Git Bash / Windows).
+# Test files use `${TEST_REPO_ROOT:-$(git rev-parse --show-toplevel)}` so
+# standalone invocation (`bash <file>.test.sh`) still works when the env
+# var is unset. Aggregate saving: ~3s across ~90 test files per full suite run.
+#
+# Sourced from the effective ROOT_DIR (positional arg or default repo root),
+# not the runner's own checkout — `bash tools/run-shell-tests.sh <other-dir>`
+# must resolve helpers from <other-dir>, not from this script's repo.
+export TEST_REPO_ROOT="$ROOT_DIR"
+
+# Default to detected CPU count, clamped to [1, 8]. Probing order:
+#   - GNU coreutils `nproc` (Linux, Git Bash, msys2, NixOS)
+#   - macOS / BSD `sysctl -n hw.logicalcpu` (no nproc by default on macOS)
+#   - POSIX `getconf _NPROCESSORS_ONLN` (Solaris, AIX, fallback)
+#   - Hard fallback to 4 (sane CI default)
+# Cap at 8: tests fork 5-30 child processes each — past ~8 concurrent
+# tests, IO contention can blow tight wall-clock assertions in slow tests
+# (e.g. msbuild-introspect warm-hit asserts <2s, observed at 5.5s under
+# JOBS=16). Override with `JOBS=N bash tools/run-shell-tests.sh` to tune.
+# Floor at 1 because `xargs -P 0` means UNLIMITED — never let detection
+# leak through as the unbounded form.
+detect_jobs() {
+  local n=""
+  if command -v nproc >/dev/null 2>&1; then
+    n=$(nproc 2>/dev/null) || n=""
+  fi
+  if [[ -z $n ]] && command -v sysctl >/dev/null 2>&1; then
+    n=$(sysctl -n hw.logicalcpu 2>/dev/null) || n=""
+  fi
+  if [[ -z $n ]] && command -v getconf >/dev/null 2>&1; then
+    n=$(getconf _NPROCESSORS_ONLN 2>/dev/null) || n=""
+  fi
+  [[ $n =~ ^[0-9]+$ ]] || n=4
+  [[ $n -lt 1 ]] && n=1
+  [[ $n -gt 8 ]] && n=8
+  printf '%d\n' "$n"
+}
+JOBS="${JOBS:-$(detect_jobs)}"
+# Same clamp on user-supplied value: regex-validate, floor at 1, no cap
+# on the upper end — a power user passing JOBS=32 has explicitly asked.
+[[ $JOBS =~ ^[0-9]+$ ]] || JOBS=1
+[[ $JOBS -lt 1 ]] && JOBS=1
+
+# dotglob lets globstar descend into ALL dot-prefixed directories
+# (.claude/, .github/, .git/, .venv/, etc.). The case block below excludes
+# known-noisy ones; add new exclusions as future dot dirs appear.
+shopt -s globstar nullglob dotglob
+
+# Discover tests, filter, and stash in an array preserving sort order
+# so the deterministic replay below matches glob expansion.
+TESTS=()
+for t in **/*.test.sh; do
+  case "$t" in
+    node_modules/* | */node_modules/*) continue ;;
+    .git/* | */.git/*) continue ;;
+    .venv/* | */.venv/*) continue ;;
+    */bin/* | */obj/*) continue ;;
+    sandboxes/*) continue ;;
+    *) ;;
+  esac
+  TESTS+=("$t")
+done
+
+# Round-4 A1: selective dispatch (--files / --changed-since).
+#
+# --files: replace TESTS with explicit paths (made ROOT_DIR-relative).
+# --changed-since: derive impacted tests from `git diff <ref>...HEAD`
+#   plus uncommitted changes, applying the dispatch rule:
+#     1. Changed *.test.sh -> include directly
+#     2. Changed *.sh -> include sibling *.test.sh + glob siblings
+#        (kebab-suffix -*.test.sh splits) + text-grep matches across TESTS
+#     3. Must-rerun-all trigger matched -> full suite
+#
+# Kill switch: BASH_TEST_SELECTIVE_DISPATCH_ENABLED=false skips filtering
+# entirely so the round-3 A6 longest-first scheduler still sees the full
+# glob. Mirrors the scheduler's own kill switch.
+apply_selective_dispatch() {
+  [[ "${BASH_TEST_SELECTIVE_DISPATCH_ENABLED:-true}" == "true" ]] || return 0
+
+  # --files takes precedence over --changed-since.
+  if [[ ${#SELECTIVE_FILES[@]} -gt 0 ]]; then
+    local filtered=() abs rel
+    for abs in "${SELECTIVE_FILES[@]}"; do
+      # Make ROOT_DIR-relative; tolerate already-relative paths.
+      if [[ "$abs" == "$ROOT_DIR"/* ]]; then
+        rel="${abs#"$ROOT_DIR"/}"
+      else
+        rel="$abs"
+      fi
+      filtered+=("$rel")
+    done
+    TESTS=("${filtered[@]}")
+    return 0
+  fi
+
+  [[ -n "$CHANGED_SINCE_REF" ]] || return 0
+  command -v git >/dev/null 2>&1 || return 0
+
+  # Validate the ref before diffing. `git diff` swallows unknown-ref errors
+  # with 2>/dev/null below, which would produce an empty `changed` set and
+  # silently exit 0 with zero tests run — a false-green path that defeats
+  # the safety of selective dispatch. Fail fast with exit 2 instead.
+  if ! git rev-parse --verify --quiet "$CHANGED_SINCE_REF^{commit}" >/dev/null 2>&1; then
+    printf 'run-shell-tests: --changed-since: invalid or unknown ref: %s\n' \
+      "$CHANGED_SINCE_REF" >&2
+    exit 2
+  fi
+
+  # Collect changed paths: committed diff + uncommitted (modified/untracked).
+  local changed=() f
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && changed+=("$f")
+  done < <(git diff --name-only "$CHANGED_SINCE_REF"...HEAD 2>/dev/null)
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && changed+=("$f")
+  done < <(git ls-files --modified --others --exclude-standard 2>/dev/null)
+
+  # Must-rerun-all check.
+  local trigger
+  for trigger in "${RERUN_ALL_TRIGGERS[@]}"; do
+    for f in "${changed[@]}"; do
+      if [[ "$f" == "$trigger" ]]; then
+        printf 'run-shell-tests: must-rerun-all trigger matched (%s); running full suite.\n' \
+          "$trigger" >&2
+        return 0
+      fi
+    done
+  done
+
+  # Build impacted set (associative array prevents duplicates).
+  # Files deleted or renamed between <ref>...HEAD still appear in `git diff
+  # --name-only` output — guard with `-f` so the replay loop doesn't try to
+  # `bash <missing-path>` and convert a non-behavioral refactor into a
+  # failing selective run.
+  local impacted=()
+  declare -A seen=()
+  local base sibling t needle match
+  for f in "${changed[@]}"; do
+    if [[ "$f" == *.test.sh ]]; then
+      if [[ -f "$f" && -z "${seen[$f]:-}" ]]; then
+        impacted+=("$f")
+        seen["$f"]=1
+      fi
+      continue
+    fi
+    if [[ "$f" == *.sh ]]; then
+      base="${f%.sh}"
+      sibling="${base}.test.sh"
+      if [[ -f "$sibling" && -z "${seen[$sibling]:-}" ]]; then
+        impacted+=("$sibling")
+        seen["$sibling"]=1
+      fi
+      # Glob siblings (-*.test.sh round-3 splits)
+      for t in "${TESTS[@]}"; do
+        if [[ "$t" == "$base"-*.test.sh && -z "${seen[$t]:-}" ]]; then
+          impacted+=("$t")
+          seen["$t"]=1
+        fi
+      done
+      # Text-grep — any TESTS body referencing this SUT path
+      needle="${f##*/}"
+      if [[ ${#TESTS[@]} -gt 0 ]]; then
+        while IFS= read -r match; do
+          [[ -z "$match" ]] && continue
+          [[ -n "${seen[$match]:-}" ]] && continue
+          impacted+=("$match")
+          seen["$match"]=1
+        done < <(grep -lF "$needle" "${TESTS[@]}" 2>/dev/null)
+      fi
+    fi
+  done
+
+  if [[ ${#impacted[@]} -eq 0 ]]; then
+    printf 'run-shell-tests: No impacted *.test.sh files for --changed-since %s\n' \
+      "$CHANGED_SINCE_REF" >&2
+    TESTS=()
+    return 0
+  fi
+  TESTS=("${impacted[@]}")
+}
+apply_selective_dispatch
+
+if [[ ${#TESTS[@]} -eq 0 ]]; then
+  printf 'No *.test.sh files found.\n' >&2
+  exit 0
+fi
+
+# Round-3 A6: longest-first scheduling.
+# Under JOBS=N parallelism, suite walltime is bounded by the longest test
+# that starts LAST in the queue. Alphabetical glob order dispatches tests by
+# name (uncorrelated with walltime). Starting the longest tests FIRST overlaps
+# them with shorter tests filling around, reducing tail walltime.
+#
+# Reads tests/shell/walltime-baseline.json for ms_p95 per file. Files not in
+# baseline get the median p95 as a default (so unknown files sort in the
+# middle rather than dispatched dead-last).
+#
+# Replay loop later uses original alphabetical order — log determinism kept.
+# Kill switch: BASH_TEST_SCHEDULER_LONGEST_FIRST_ENABLED=false.
+sort_tests_longest_first() {
+  local baseline="tests/shell/walltime-baseline.json"
+  [[ "${BASH_TEST_SCHEDULER_LONGEST_FIRST_ENABLED:-true}" == "true" ]] || return 0
+  [[ -f "$baseline" ]] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+
+  local default_priority
+  default_priority=$(jq -r '
+    if (.tests | length) == 0 then 15000
+    else .tests | map(.ms_p95) | sort | .[length/2 | floor] end
+  ' "$baseline" 2>/dev/null) || default_priority=15000
+
+  # Read baseline ms_p95 into an associative array: filepath → ms_p95.
+  declare -A priority
+  local file ms
+  while IFS=$'\t' read -r file ms; do
+    [[ -n "$file" ]] && priority["$file"]="$ms"
+  done < <(jq -r '.tests[] | "\(.file)\t\(.ms_p95)"' "$baseline" 2>/dev/null)
+
+  # Annotate each test with priority, sort numerically-descending, strip prefix.
+  local sorted=() t ms_for_t
+  while IFS= read -r t; do
+    [[ -n "$t" ]] && sorted+=("$t")
+  done < <(
+    for t in "${TESTS[@]}"; do
+      ms_for_t="${priority[$t]:-$default_priority}"
+      printf '%s\t%s\n' "$ms_for_t" "$t"
+    done | sort -t$'\t' -k1,1 -rn | cut -f2-
+  )
+
+  if [[ ${#sorted[@]} -eq ${#TESTS[@]} ]]; then
+    TESTS=("${sorted[@]}")
+  fi
+}
+sort_tests_longest_first
+
+RESULTS_DIR="$(mktemp -d)"
+trap 'rm -rf "$RESULTS_DIR"' EXIT
+
+# Map a test path to a unique log basename. The path can contain '/' which
+# isn't filesystem-safe as a single filename, so flatten with '_'. Two
+# distinct paths flattening to the same name is unlikely with our naming
+# convention but would corrupt classification — sha1 hash is the safety
+# net. Plain `tr` for the common case (cheap), sha1 fallback only on
+# collision-prone characters.
+log_basename() {
+  printf '%s' "$1" | tr '/' '_'
+}
+
+printf 'Discovering: %d test file(s). Running with JOBS=%d worker(s).\n' \
+  "${#TESTS[@]}" "$JOBS"
+START_EPOCH=$EPOCHREALTIME
+
+# Run a single test in a child shell. Captures merged stdout+stderr to
+# <log>, exit code to <log>.rc, wall-clock duration to <log>.ms. Progress
+# dot to TTY for live activity.
+# Args: <results_dir> <test_path>
+run_one() {
+  local results="$1" t="$2" base log start end ms
+  base="$(printf '%s' "$t" | tr '/' '_')"
+  log="$results/$base.log"
+  start=$EPOCHREALTIME
+  bash "$t" >"$log" 2>&1
+  printf '%d\n' $? >"$log.rc"
+  end=$EPOCHREALTIME
+  # ($end - $start) * 1000 — both have microsecond precision. awk avoids
+  # floating-point arithmetic in shell. On the unlikely chance awk fails
+  # (PATH stripped, /bin/sh-only sandbox), fall back to 0 — observability
+  # degrades but the run completes.
+  ms=$(awk -v s="$start" -v e="$end" 'BEGIN{printf "%d", (e-s)*1000}' 2>/dev/null) || ms=0
+  printf '%s\n' "$ms" >"$log.ms"
+  printf '.' >&2
+}
+export -f run_one
+
+if [[ $JOBS -gt 1 ]]; then
+  # xargs -P fans out the test list across $JOBS concurrent workers. -n1
+  # binds one test per worker invocation. The inner shell calls run_one
+  # which writes log + .rc to disk; nothing is streamed back through the
+  # xargs pipe, so worker output never interleaves on the controlling
+  # terminal (besides the progress dots, which are atomic single bytes).
+  # `-I {}` implies `-n 1` — passing both triggers a POSIX warning. The
+  # placeholder substitutes the test path; one bash -c per test fans out
+  # across $JOBS concurrent workers.
+  printf '%s\n' "${TESTS[@]}" \
+    | xargs -P "$JOBS" -I{} bash -c 'run_one "$1" "$2"' _ "$RESULTS_DIR" {}
+else
+  for t in "${TESTS[@]}"; do
+    run_one "$RESULTS_DIR" "$t"
+  done
+fi
+printf '\n' >&2
+
+# Replay results in deterministic order (the original sorted TESTS array).
+# Aggregate counts during the same walk.
+TOTAL=0
+PASSED=0
+PARTIAL=0
+SKIPPED=0
+FAILED=0
+FAILED_FILES=()
+SKIPPED_FILES=()
+PARTIAL_FILES=()
+
+for t in "${TESTS[@]}"; do
+  TOTAL=$((TOTAL + 1))
+  base="$(log_basename "$t")"
+  log="$RESULTS_DIR/$base.log"
+  rc_file="$log.rc"
+
+  printf '\n--- %s ---\n' "$t"
+  cat "$log"
+  rc=$(cat "$rc_file" 2>/dev/null) || rc=255
+
+  pass=$(grep -cE '^PASS: ' "$log" || true)
+  skip=$(grep -cE '^SKIP: ' "$log" || true)
+
+  if [[ $rc -ne 0 ]]; then
+    FAILED=$((FAILED + 1))
+    FAILED_FILES+=("$t")
+  elif [[ $pass -eq 0 && $skip -gt 0 ]]; then
+    SKIPPED=$((SKIPPED + 1))
+    SKIPPED_FILES+=("$t")
+  elif [[ $pass -gt 0 && $skip -gt 0 ]]; then
+    PARTIAL=$((PARTIAL + 1))
+    PARTIAL_FILES+=("$t ($skip skip)")
+  else
+    PASSED=$((PASSED + 1))
+  fi
+done
+
+# Wall-clock elapsed using bash builtin (no `date` fork on Windows hot path)
+END_EPOCH=$EPOCHREALTIME
+ELAPSED=$(awk -v s="$START_EPOCH" -v e="$END_EPOCH" 'BEGIN{printf "%.1f", e-s}')
+
+printf '\n=== Summary ===\n'
+printf '%d test file(s) in %ss: %d passed, %d partial, %d skipped, %d failed.\n' \
+  "$TOTAL" "$ELAPSED" "$PASSED" "$PARTIAL" "$SKIPPED" "$FAILED"
+
+if [[ $SKIPPED -gt 0 ]]; then
+  printf '\nWholly skipped (no coverage in this run — investigate toolchain gap):\n'
+  for f in "${SKIPPED_FILES[@]}"; do
+    printf '  - %s\n' "$f"
+  done
+fi
+
+if [[ $PARTIAL -gt 0 ]]; then
+  printf '\nPartial coverage (subset of cases skipped):\n'
+  for f in "${PARTIAL_FILES[@]}"; do
+    printf '  - %s\n' "$f"
+  done
+fi
+
+# Slowest tests — useful signal for tuning JOBS, identifying flake risk,
+# and deciding what to fix when the suite gets too slow. Top 5 by ms.
+# Uses sort -rn with a tab separator so paths-with-spaces (rare here)
+# don't break the column split. Skipped when fewer than 5 tests ran.
+if [[ $TOTAL -ge 5 ]]; then
+  printf '\nSlowest tests:\n'
+  for t in "${TESTS[@]}"; do
+    base="$(log_basename "$t")"
+    ms_file="$RESULTS_DIR/$base.log.ms"
+    ms=$(cat "$ms_file" 2>/dev/null) || ms=0
+    printf '%s\t%s\n' "$ms" "$t"
+  done | sort -rn | head -5 | awk -F'\t' '{printf "  %6d ms  %s\n", $1, $2}'
+fi
+
+# --- Walltime budget (per .claude/rules/bash-testing.md "Walltime budget") ----
+#
+# Soft cap (advisory): warns when any test exceeds BASH_TEST_WALLTIME_SOFT_MS.
+#   Always-on; never fails the run. Useful for visibility under JOBS=8 on Git
+#   Bash where MSYS2 fork tax inflates per-test wall by ~2× vs Linux.
+#
+# Hard cap (blocking, gated): exits non-zero when any test exceeds
+#   BASH_TEST_WALLTIME_HARD_MS AND BASH_TEST_WALLTIME_HARD_ENABLED=true.
+#   Default disabled — only the pre-push lefthook lane enables it.
+#
+# Override examples (per-session):
+#   BASH_TEST_WALLTIME_SOFT_MS=60000 bash tools/run-shell-tests.sh
+#   BASH_TEST_WALLTIME_HARD_ENABLED=true bash tools/run-shell-tests.sh
+SOFT_MS="${BASH_TEST_WALLTIME_SOFT_MS:-30000}"
+HARD_MS="${BASH_TEST_WALLTIME_HARD_MS:-50000}"
+HARD_ENABLED="${BASH_TEST_WALLTIME_HARD_ENABLED:-false}"
+[[ $SOFT_MS =~ ^[0-9]+$ ]] || SOFT_MS=30000
+[[ $HARD_MS =~ ^[0-9]+$ ]] || HARD_MS=50000
+
+SOFT_VIOLATIONS=()
+HARD_VIOLATIONS=()
+for t in "${TESTS[@]}"; do
+  base="$(log_basename "$t")"
+  ms_file="$RESULTS_DIR/$base.log.ms"
+  ms=$(cat "$ms_file" 2>/dev/null) || ms=0
+  [[ $ms =~ ^[0-9]+$ ]] || ms=0
+  if [[ $ms -ge $HARD_MS ]]; then
+    HARD_VIOLATIONS+=("$ms	$t")
+  elif [[ $ms -ge $SOFT_MS ]]; then
+    SOFT_VIOLATIONS+=("$ms	$t")
+  fi
+done
+
+if [[ ${#SOFT_VIOLATIONS[@]} -gt 0 || ${#HARD_VIOLATIONS[@]} -gt 0 ]]; then
+  printf '\nWalltime budget violations (soft=%dms hard=%dms):\n' "$SOFT_MS" "$HARD_MS"
+  if [[ ${#HARD_VIOLATIONS[@]} -gt 0 ]]; then
+    printf '%s\n' "${HARD_VIOLATIONS[@]}" \
+      | sort -rn | awk -F'\t' -v hard="$HARD_MS" \
+      '{printf "  HARD (>%dms)  %6d ms  %s\n", hard, $1, $2}'
+  fi
+  if [[ ${#SOFT_VIOLATIONS[@]} -gt 0 ]]; then
+    printf '%s\n' "${SOFT_VIOLATIONS[@]}" \
+      | sort -rn | awk -F'\t' -v soft="$SOFT_MS" \
+      '{printf "  WARN (>%dms)  %6d ms  %s\n", soft, $1, $2}'
+  fi
+fi
+
+# --- Observability: shell-test-timings.jsonl (per .claude/rules/observability.md)
+#
+# Append one JSONL line per test file plus one __total__ summary line.
+# Gated by HOOK_OBSERVABILITY_LOG_ENABLED + HOOK_SHELL_TEST_TIMING_ENABLED
+# (both default false). Atomic per-line via `flock -x -w 1` against
+# <file>.lock — 1s timeout drops the line on contention (best-effort,
+# matches `hook::record_event` convention).
+#
+# Privacy: test_file is repo-relative path; never includes test content,
+# fixture data, env values. branch + cwd from hook::repo_root-equivalent
+# derivation; no user-content fields.
+if [[ "${HOOK_OBSERVABILITY_LOG_ENABLED:-false}" == "true" &&
+  "${HOOK_SHELL_TEST_TIMING_ENABLED:-false}" == "true" ]]; then
+  # CLAUDE_PROJECT_DIR override mirrors observability.md "Storage" convention
+  # so this runner is testable (point at a tmpdir) without writing to the
+  # real repo's observability log.
+  obs_root="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
+  jsonl_file="$obs_root/.claude/observability/shell-test-timings.jsonl"
+  mkdir -p "$(dirname "$jsonl_file")" 2>/dev/null || true
+  ts=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ 2>/dev/null) || ts=""
+  branch=$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d '\r') || branch=""
+  cwd_rel="${PWD#"$REPO_ROOT"}"
+  cwd_rel="${cwd_rel#/}"
+  [[ -z "$cwd_rel" ]] && cwd_rel="."
+  runner_total_ms=$(awk -v s="$START_EPOCH" -v e="$END_EPOCH" \
+    'BEGIN{printf "%d", (e-s)*1000}' 2>/dev/null) || runner_total_ms=0
+
+  # Build the JSONL block in a temp file, then either flock-append or
+  # raw-append. Concurrent runners (multiple developers, parallel CI jobs)
+  # are rare for shell tests — best-effort atomicity is sufficient per
+  # observability.md "Concurrency" (kernel O_APPEND atomicity for small writes).
+  jsonl_tmp="$RESULTS_DIR/timings.jsonl"
+  : >"$jsonl_tmp"
+  for t in "${TESTS[@]}"; do
+    base="$(log_basename "$t")"
+    ms_file="$RESULTS_DIR/$base.log.ms"
+    log="$RESULTS_DIR/$base.log"
+    ms=$(cat "$ms_file" 2>/dev/null) || ms=0
+    [[ $ms =~ ^[0-9]+$ ]] || ms=0
+    pc=$(grep -cE '^PASS: ' "$log" 2>/dev/null | tr -d '\r\n' || echo 0)
+    sc=$(grep -cE '^SKIP: ' "$log" 2>/dev/null | tr -d '\r\n' || echo 0)
+    [[ $pc =~ ^[0-9]+$ ]] || pc=0
+    [[ $sc =~ ^[0-9]+$ ]] || sc=0
+    rc=$(cat "$log.rc" 2>/dev/null) || rc=255
+    [[ $rc -eq 0 ]] && fc=0 || fc=1
+    jq -nc \
+      --arg ts "$ts" \
+      --arg tf "$t" \
+      --argjson dur "$ms" \
+      --argjson pc "$pc" \
+      --argjson sc "$sc" \
+      --argjson fc "$fc" \
+      --argjson rj "$JOBS" \
+      --argjson rt "$runner_total_ms" \
+      --arg br "$branch" \
+      --arg cwd "$cwd_rel" \
+      '{ts:$ts,test_file:$tf,duration_ms:$dur,pass_count:$pc,skip_count:$sc,fail_count:$fc,runner_jobs:$rj,runner_total_ms:$rt,branch:$br,cwd:$cwd}' \
+      2>/dev/null >>"$jsonl_tmp"
+  done
+  # Total summary line
+  jq -nc \
+    --arg ts "$ts" \
+    --argjson dur "$runner_total_ms" \
+    --argjson pc "$PASSED" \
+    --argjson sc "$SKIPPED" \
+    --argjson fc "$FAILED" \
+    --argjson rj "$JOBS" \
+    --arg br "$branch" \
+    --arg cwd "$cwd_rel" \
+    '{ts:$ts,test_file:"__total__",duration_ms:$dur,pass_count:$pc,skip_count:$sc,fail_count:$fc,runner_jobs:$rj,runner_total_ms:$dur,branch:$br,cwd:$cwd}' \
+    2>/dev/null >>"$jsonl_tmp"
+
+  # Append. Prefer flock when available (defensive against concurrent runs);
+  # fall back to raw append on Git Bash where util-linux flock is absent.
+  # The full block is one atomic append from cat — order within preserved.
+  if command -v flock >/dev/null 2>&1; then
+    flock -x -w 1 "$jsonl_file.lock" sh -c 'cat "$1" >>"$2"' _ "$jsonl_tmp" "$jsonl_file" 2>/dev/null \
+      || cat "$jsonl_tmp" >>"$jsonl_file" 2>/dev/null
+  else
+    cat "$jsonl_tmp" >>"$jsonl_file" 2>/dev/null
+  fi
+fi
+
+if [[ $FAILED -eq 0 ]]; then
+  if [[ "$HARD_ENABLED" == "true" && ${#HARD_VIOLATIONS[@]} -gt 0 ]]; then
+    printf '\n%d test file(s) exceeded hard walltime cap (%dms). BASH_TEST_WALLTIME_HARD_ENABLED=true blocks.\n' \
+      "${#HARD_VIOLATIONS[@]}" "$HARD_MS" >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+printf '\n%d of %d test file(s) failed:\n' "$FAILED" "$TOTAL" >&2
+for f in "${FAILED_FILES[@]}"; do
+  printf '  - %s\n' "$f" >&2
+done
+exit 1
