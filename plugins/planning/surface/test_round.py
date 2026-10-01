@@ -2400,5 +2400,33 @@ class TestDoctor(DirCase):
         self.assertEqual(self.doc()["meta"]["pluginVersion"], "0.1.0")
 
 
+@unittest.skipUnless(os.name == "posix", "stop signals a watcher on POSIX only")
+class TestEndWatcher(DirCase):
+    def spawn(self, argv):
+        proc = subprocess.Popen(argv)
+        self.addCleanup(proc.wait)
+        self.addCleanup(proc.kill)
+        time.sleep(0.3)  # bash must exec its script before a command line is read
+        return proc
+
+    def test_ends_a_watch_sh_for_this_data_dir(self):
+        script = self.tmp / "watch.sh"
+        script.write_text("sleep 30\n", encoding="utf-8")
+        proc = self.spawn(["bash", str(script), str(self.dir)])
+        sys.path.insert(0, str(HERE))
+        import round as r
+
+        r.end_watcher(self.dir, proc.pid)
+        self.assertIsNotNone(proc.wait(timeout=5))
+
+    def test_leaves_a_process_that_is_not_a_watcher(self):
+        proc = self.spawn(["sleep", "30"])
+        import round as r
+
+        r.end_watcher(self.dir, proc.pid)
+        time.sleep(0.3)
+        self.assertIsNone(proc.poll())
+
+
 if __name__ == "__main__":
     unittest.main()

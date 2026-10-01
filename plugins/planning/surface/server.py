@@ -852,9 +852,10 @@ class Hub:
             "since": now_iso(lease["since"]),
             "lastWaitAt": now_iso(lease["last"]),
             "waiting": lease["inflight"] > 0,
+            "pid": lease.get("pid"),
         }
 
-    def claim(self, watcher):
+    def claim(self, watcher, pid=None):
         """Take or refresh the lease for watcher and count its wait in flight; call under cond.
 
         Granted when no lease is held, when watcher holds it, or when the holder has no wait in
@@ -888,6 +889,8 @@ class Hub:
             }
         lease["inflight"] += 1
         lease["last"] = now
+        # Each arm is a new process, so the newest poll names the watcher that stop must end.
+        lease["pid"] = pid
         return lease
 
     def listener(self):
@@ -1198,14 +1201,14 @@ class Hub:
             if r.get("seq", 0) == seq:
                 return r
 
-    def wait(self, after, timeout, gone=None, replayed=0, watcher=None):
+    def wait(self, after, timeout, gone=None, replayed=0, watcher=None, pid=None):
         """Block for events; returns (seq, events, replay) or None when the client went away.
 
         after=<int>: events with seq > after. after="handled": the unhandled set U, at once when
         any seq in U exceeds `replayed` (then `replay` is the highest seq returned), else once a
         new event arrives. Timeout returns no events. `gone` is checked on every 1 s tick.
         A `watcher` id must hold the lease (see claim), else Conflict; without one the wait
-        takes no part in leasing.
+        takes no part in leasing; `pid` is the watcher's process id, kept in the lease.
         """
         deadline = time.time() + timeout
         newest = None
@@ -1224,7 +1227,7 @@ class Hub:
 
         with self.cond:
             if watcher is not None:
-                lease = self.claim(watcher)
+                lease = self.claim(watcher, pid)
             self.waiters += 1
             self.last_wait = time.time()
         try:
@@ -1375,8 +1378,12 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
             watcher = (query.get("watcher") or [None])[0]
+            pid = (query.get("pid") or [""])[0]
+            pid = int(pid) if pid.isdigit() else None
             try:
-                result = hub.wait(after, timeout, self.client_gone, replayed, watcher)
+                result = hub.wait(
+                    after, timeout, self.client_gone, replayed, watcher, pid
+                )
             except Conflict as e:
                 return self.send(409, e.payload)
             if result is None:

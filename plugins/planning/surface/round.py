@@ -1923,6 +1923,29 @@ def finish_on_stop(d):
     time.sleep(FINISH_SECONDS)
 
 
+def end_watcher(d, pid):
+    """TERM the lease's watcher PID, only when its command line is this data dir's watch.sh.
+
+    Where the OS shows no command line (Windows), nothing is signalled: a recorded PID there is
+    not a native PID, so it could name any process.
+    """
+    if not isinstance(pid, int) or pid <= 1 or os.name != "posix":
+        return
+    try:
+        cmd = (Path("/proc") / str(pid) / "cmdline").read_bytes().replace(b"\0", b" ")
+        text = cmd.decode("utf-8", "replace")
+    except OSError:
+        try:
+            text = subprocess.run(
+                ["ps", "-o", "args=", "-p", str(pid)], capture_output=True, text=True
+            ).stdout
+        except OSError:
+            return
+    if "watch.sh" in text and d.name in text:
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGTERM)
+
+
 def cmd_stop(d, a):
     """Kill the recorded PID only when its port answers with that PID; otherwise just clear the files."""
     if not d.is_dir():
@@ -1934,7 +1957,9 @@ def cmd_stop(d, a):
             clear_session(d)
             print("not running")
             return
+        watcher = (watcher_lease(d) or {}).get("pid")
         finish_on_stop(d)
+        end_watcher(d, watcher)
         os.kill(s["pid"], signal.SIGTERM)
         deadline = time.monotonic() + START_SECONDS
         while time.monotonic() < deadline and ping(s["port"], timeout=0.5):
