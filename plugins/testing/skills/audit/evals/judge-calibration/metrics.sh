@@ -5,8 +5,9 @@
 #   metrics.sh [labels.tsv]          per stratum, then pooled as "all", against
 #                                    the user's labels (human_label, the ground
 #                                    truth): Cohen's kappa of each model rater
-#                                    (every other *_label column) and of the
-#                                    judge, each with coverage and raw
+#                                    (every other *_label column holding a
+#                                    label) and of the judge, each with
+#                                    coverage and raw
 #                                    agreement, a rater under 0.6 pooled marked
 #                                    failed; the judge's confusion matrix; FLAG
 #                                    precision and recall with Wilson 95%
@@ -118,7 +119,7 @@ report() {
     function add(g,   h, j, r) {
       n[g]++
       h = $col["human_label"]; j = $col["judge_verdict"]
-      for (r = 1; r <= nr; r++) pair(g, "user-" rater(r), h, $col[R[r]])
+      for (r = 1; r <= nr; r++) { pair(g, "user-" rater(r), h, $col[R[r]]); if ($col[R[r]] != "") rated[r] = 1 }
       pair(g, "judge-user", h, j)
       if (j != "" && h != "") cm[g, j, h]++
       if (h != "") { nh[g]++; if (h == "FLAG") pf[g]++ }
@@ -151,7 +152,7 @@ report() {
     }
     function show(g,   r, i, j, tp, jf) {
       print "stratum " g " n=" n[g]
-      for (r = 1; r <= nr; r++) kline(g, "user-" rater(r))
+      for (r = 1; r <= nr; r++) if (rated[r]) kline(g, "user-" rater(r))
       kline(g, "judge-user")
       for (i = 1; i <= 3; i++) {
         printf "confusion %s judge=%s", g, L[i]

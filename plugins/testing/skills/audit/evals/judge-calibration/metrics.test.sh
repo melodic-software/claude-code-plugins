@@ -58,7 +58,7 @@ out="$(bash "$METRICS" "$W/wiki.tsv")"
 assert_contains "kappa, Wikipedia worked example, with coverage and raw agreement" "$out" \
   'kappa user-opus in s 0.4000 (n=50) coverage 1.0000 (50/50) agreement 0.7000 (35/50)'
 assert_contains "no judge labels gives NA" "$out" 'kappa judge-user in s NA (n=0) coverage NA (0/0) agreement NA (0/0)'
-assert_contains "an unrated rater gives NA" "$out" 'kappa user-codex in s NA (n=0)'
+assert_not_contains "a rater with no label on any row gets no line" "$out" 'kappa user-codex'
 
 # --- Three classes and the UNKNOWN rule, one matrix used three ways ------------
 # Rows are the judge (and the opus rater), columns the user's label:
