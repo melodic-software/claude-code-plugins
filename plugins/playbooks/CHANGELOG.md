@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.5] - 2026-10-01
+
+### Changed
+
+- The `boris` advanced and autonomy references point at the current docs for model and effort facts instead of restating them.
+
 ## [0.15.4] - 2026-10-01
 
 ### Fixed
