@@ -12,16 +12,19 @@ Every row is rechecked on each `refetch` run; the As of column is the last check
 |---|---|---|
 | Dagherbou fork | `v0.2.0-patch1`, prerelease, 2026-09-04; author on hiatus | 2026-09-22 |
 | wilsjo2 fork | `v0.8.3` newest non-prerelease (2026-09-13), still the pin; `v0.8.91` newest prerelease (seen 2026-09-23). From `v0.8.5` each release ships one `OptiScaler-NR-<version>-SHA256SUMS.txt` instead of a per-zip `.sha256`. Issue #56 (DEVICE_HUNG, reported only on Onimusha) is open with no maintainer reply, and no release through `v0.8.91` claims a fix, so the pin does not move | 2026-09-23 |
+| renodx-dlss5 (`RankFTW/rhi-repo`, tags starting `renodx-dlss5-`; the repo also publishes other tags) | `renodx-dlss5-8.5.0-rc10`, 2026-09-26; 15 such tags. Report-only: no pin, no install path in this plugin | 2026-10-01 |
 | Runtime DLL `nvngx_dlssnr.dll` | 310.8.0.0, SHA-256 `E16BCF15E16E13F527491CDF7845B2FE6521A738D8F7C9C721866A8496E1FC8E`, NVIDIA-signed. A 310.8.2 is mentioned in wilsjo2's install notes, unverified | 2026-09-21 |
-| GeForce driver | 616.92 WHQL, released 2026-09-09 | 2026-09-22 |
+| GeForce driver | 616.92 WHQL, released 2026-09-09; newest published WHQL 617.14 (2026-09-22) | 2026-10-01 |
 | Native DLSS 5 titles | NBA 2K27 and Onimusha: Way of the Sword, launched with driver 616.64 | 2026-09-20 |
-| Upstream OptiScaler | Newest release `v0.9.4` (2026-07-18) has no Neural Rendering; merge PRs #1116 (Dagherbou) and #1158 (wilsjo2) open, unmerged | 2026-09-22 |
+| Upstream OptiScaler | Newest release `v0.9.4` (2026-07-18) has no Neural Rendering; merge PRs #1116 (Dagherbou) and #1158 (wilsjo2) open, unmerged | 2026-10-01 |
 
 ## Recheck commands
 
-`-Verb refetch` runs the fork, upstream-release, driver and runtime checks below and merges the
-result into `cache\upstream.json`. The commands are listed so each row can be rechecked by hand,
-and for the two upstream pull requests, which `refetch` does not read.
+`-Verb refetch` runs the fork, renodx-dlss5, upstream-release, upstream pull request, driver and
+runtime checks below and merges the result into `cache\upstream.json`; it also prints `pinAdvice`,
+one line per fork whose newest stable release is newer than its pin. The commands are listed so each
+row can be rechecked by hand. With `-StaleDays <n>` it makes no network call while that cache is
+younger than `n` days and prints `{fresh, checked}`; the skill's update check passes 7.
 
 ```bash
 # Dagherbou fork. Not releases/latest: it skips prereleases and returns v0.2.0-dlssnr.
@@ -29,6 +32,9 @@ gh api repos/Dagherbou/OptiScaler_DLSSNR/releases --jq '.[] | [.tag_name, .prere
 
 # wilsjo2 fork
 gh api repos/wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass/releases --jq '.[] | [.tag_name, .prerelease, .published_at] | @tsv'
+
+# renodx-dlss5 releases (newest by date; other tags in the repo are not this item)
+gh api 'repos/RankFTW/rhi-repo/releases?per_page=100' --jq '[.[] | select(.tag_name | startswith("renodx-dlss5-"))] | sort_by(.published_at) | reverse | .[0] | [.tag_name, .prerelease, .published_at] | @tsv'
 
 # Upstream OptiScaler: newest release, and whether the merge PRs landed
 gh api repos/optiscaler/OptiScaler/releases/latest --jq .tag_name
@@ -55,7 +61,9 @@ unchanged.
 
 | Change | Consequence |
 |---|---|
-| New fork tag | Candidate for a new pin; follow Updating a pin below. A pin change is a plugin release, never an edit in the installed plugin |
+| New fork tag | Candidate for a new pin; follow Updating a pin below. A pin change is a plugin release, never an edit in the installed plugin. `pinAdvice` names only a stable tag newer than the pin; a prerelease is a candidate only after a live test |
+| New renodx-dlss5 tag | Report it. This plugin pins and installs no renodx build, so nothing changes here |
+| OptiScaler PR #1116 or #1158 merged | Upstream has Neural Rendering from that PR's fork; see Upstream merges Neural Rendering below |
 | New runtime version | `apply` refuses it as unknown; an NVIDIA-signed copy passes only with `-AllowUnknownRuntime`, until a plugin release updates the known hash |
 | New driver | Relaunch one modded game and confirm the `DLSS-NR cost` log lines before trusting the rest |
 | New native DLSS 5 title | That title needs no mod. It is also a runtime source `/gaming:setup` can scan |
