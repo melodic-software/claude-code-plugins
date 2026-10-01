@@ -533,10 +533,13 @@ def replace_into(tmp, path):
 
 
 def mtime(path):
+    """A change stamp for path, 0 when missing. Size and inode ride with the mtime: a coarse file
+    clock gives two writes the same time, and each atomic replace is a new inode."""
     try:
-        return path.stat().st_mtime_ns
+        st = path.stat()
     except FileNotFoundError:
         return 0
+    return (st.st_mtime_ns, st.st_size, st.st_ino)
 
 
 def is_handled(doc, seq):
@@ -951,6 +954,11 @@ class Hub:
             return 0
 
     def state(self):
+        return self.read_state()[0]
+
+    def read_state(self):
+        """(state, stale); stale means the read failed and the last good state was reused."""
+        stale = False
         try:
             q = load_json(self.questions, {"questions": []})
             r = load_json(self.responses, EMPTY_RESPONSES)
@@ -980,13 +988,14 @@ class Hub:
         except RuntimeError:
             if self._last_state is None:
                 raise
+            stale = True
         return {
             **self._last_state,
             "listener": self.listener(),
             "session": self.session,
             "instance": self.instance,
             "api": API,
-        }
+        }, stale
 
     def record(self, msg):
         """Append one page event. Returns (seq, contentRev or None, extra), where extra is the
@@ -1468,8 +1477,13 @@ class Handler(BaseHTTPRequestHandler):
             while not self.client_gone():
                 sig = hub.signature()
                 if sig != last_sig:
+                    state, stale = hub.read_state()
+                    # A failed read keeps last_sig behind so the next pass retries it.
+                    if stale:
+                        time.sleep(0.3)
+                        continue
                     n += 1
-                    data = json.dumps(hub.state(), ensure_ascii=False)
+                    data = json.dumps(state, ensure_ascii=False)
                     self.wfile.write(
                         f"id: {n}\nevent: state\ndata: {data}\n\n".encode("utf-8")
                     )
