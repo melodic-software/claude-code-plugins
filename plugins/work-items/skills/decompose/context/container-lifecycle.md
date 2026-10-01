@@ -49,9 +49,7 @@ coordination provider instead of publishing a spec that cannot travel.
   its pressure-test carve-out are untouched.
 
   - **Where to look.** The `design/` subdirectory of the same topic slice the source document was
-    read from, at the tier already selected for that read: `<contract_dir>/<slug>/design/`, or
-    `<memory_dir>/<slug>/design/` under `contract_tier: local`. The never-mix-tiers rule of the
-    source read binds this lookup too. A `#<item-number>` or conversation source has no topic
+    read from: `<memory_dir>/<slug>/design/`. A `#<item-number>` or conversation source has no topic
     slice, so there is no lookup and no artifact, and the body is unchanged.
   - **What counts as one.** A file in that directory whose frontmatter carries BOTH a `scope` key
     valued `data`, `integration`, or `system`, AND a `dialect` key valued `mermaid`, `dbml`,
@@ -77,8 +75,8 @@ coordination provider instead of publishing a spec that cannot travel.
     session, written in openapi-3.1.` A reader then knows what an unrendered fence is instead of
     meeting an unlabeled wall of syntax.
   - **No path, ever.** Neither block nor note names a file, a directory, or a topic path. The
-    contract slice holding the artifact is pruned before merge, so a pointer would dangle by
-    construction (topic-docs pointer discipline); the content travels inlined and its origin is
+    memory slice holding the artifact is never committed, so a pointer would dangle by
+    construction; the content travels inlined and its origin is
     described in prose.
   - **Where it goes.** After the Brief sections and the optional `## Testing decisions`, before
     the `**Execution shape:**` line, so the shape line and its sibling stay last for

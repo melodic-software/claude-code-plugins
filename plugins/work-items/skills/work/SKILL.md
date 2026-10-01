@@ -15,7 +15,7 @@ Arguments: `$ARGUMENTS`. `[<item-id>]`. Empty auto-selects and claims one fronti
 ## Shared tracker context
 
 The seam, operation routing, label taxonomy, canonical-role remapping, recurring schedule, and
-topic-docs binding that every work-items skill relies on live in
+memory-tier write rule that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Coordination goes through the
 seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh <verb>`); provider mechanics route through the
@@ -33,11 +33,9 @@ carries it as quoted data, never as part of the worker's instruction prose.
 
 This is the most common multi-step path. Copy the "Action: work" section of
 [`${CLAUDE_PLUGIN_ROOT}/templates/checklist.md`](${CLAUDE_PLUGIN_ROOT}/templates/checklist.md) into
-`<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`), a memory-tier write under this
-plugin's topic-docs binding
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)):
-derive `<slug>` per its slug spec and, on the session's first memory-tier write, verify the resolved
-memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
+`<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`), a memory-tier write
+([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Memory-tier writes" owns the slug and the self-ignore guard).
 Tick each step as completed.
 
 ## Permission preflight (before Step 0)
