@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-10-01
+
+### Fixed
+
+- **calibration:** `sample.sh` marks a fixture executable when its first line is a shebang, so
+  the shebang calibration fixtures stay runnable.
+
 ## [0.16.0] - 2026-10-01
 
 ### Changed
