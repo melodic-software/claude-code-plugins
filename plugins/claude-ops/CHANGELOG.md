@@ -7,7 +7,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 ### Added
 
-- **`/claude-ops:check` reads whether `node` and `jq` resolve for the claude-ops hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, so the fleet report and the per-plugin check read the same list. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites`.
+- **`/claude-ops:check` reads whether `node` and `jq` resolve for the claude-ops hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, so the fleet report and the per-plugin check read the same list. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
 
 ## [0.77.4] - 2026-09-30
 

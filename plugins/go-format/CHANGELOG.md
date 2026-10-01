@@ -7,7 +7,7 @@ All notable changes to the `go-format` plugin are documented here. Format follow
 
 ### Changed
 
-- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites`.** No behavior or exit-code change.
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
 
 ## [0.4.14] - 2026-09-30
 

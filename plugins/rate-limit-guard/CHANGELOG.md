@@ -7,7 +7,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Changed
 
-- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites`.** No behavior or exit-code change.
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
 
 ## [0.9.2] - 2026-09-30
 

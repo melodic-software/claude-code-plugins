@@ -7,7 +7,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Changed
 
-- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites`.** No behavior or exit-code change.
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
 
 ## [0.12.1] - 2026-09-30
 
