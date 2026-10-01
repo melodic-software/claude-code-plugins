@@ -58,7 +58,7 @@ A project can name its own assets folder in its `CLAUDE.md`; that wins over `out
 - **Aseprite**: optional. `scripts/backends.py` runs it when `aseprite --version` works and
   otherwise falls back to `native` with one line. Details are in `reference/backends.md`. The
   adapter is best-effort and unverified against a real Aseprite install; a failed run, missing output or
-  unusable `sheet.json` falls back to native.
+  a `sheet.json` without frames or meta falls back to native.
 
 Native `sheet.json` follows the shape of Aseprite's json-hash export but is not identical: animation
 tags list frame names and per-frame durations rather than `from`/`to` ranges. The Aseprite backend

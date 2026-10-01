@@ -8,7 +8,7 @@ All notable changes to the `pixel-art` plugin are documented here. Format follow
 ### Changed
 
 - The README and `backends.md` describe the Aseprite adapter as best-effort and unverified against a real
-  Aseprite install, with a failed run, missing output or unusable `sheet.json` falling back to native, in place of the local stand-in status line.
+  Aseprite install, with a failed run, missing output or a `sheet.json` without frames or meta falling back to native, in place of the local stand-in status line.
 
 ## [0.4.0] - 2026-09-29
 

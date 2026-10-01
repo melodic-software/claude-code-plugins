@@ -45,8 +45,8 @@ skip that feature, continue with the documented reduced result.
   `frameTags`, `layers` and `slices` stay as Aseprite wrote them. A frame count that differs from
   the sheet cell count, or an unreadable `sheet.json`, falls back to native with one line.
 - Status: best-effort and unverified against a real Aseprite install. A non-zero exit, missing or
-  unreadable output, or a frame-count mismatch falls back to native with one line; other
-  unexpected `sheet.json` shapes are not handled and fail the run.
+  unreadable output, or a frame-count mismatch, or a `sheet.json` missing its `frames` or `meta` block falls back to
+  native with one line; a `frameTags` entry missing `from` or `to` is not handled and fails the run.
 - Detect: `ASEPRITE` if set, otherwise `aseprite` on `PATH`, and `aseprite --version` exits 0.
   Missing: one line, then native.
 - The CLI page does not state a price. Do not quote one. A call does not spend a remote credit.
