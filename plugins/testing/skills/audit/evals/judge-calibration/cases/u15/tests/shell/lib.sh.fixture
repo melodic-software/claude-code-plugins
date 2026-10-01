@@ -1,0 +1,434 @@
+#!/usr/bin/env bash
+# Shared assertion library for repo-local *.test.sh shell tests.
+#
+# This is a stepping stone — NOT a BATS replacement. The convention is plain
+# bash with co-located *.test.sh files; this lib eliminates per-file helper
+# duplication across ~25 test files. See bash/conventions.md "When to migrate
+# to BATS" for the qualitative signals that trigger the eventual jump
+# (subprocess mocking, multi-line output parsing, helper proliferation).
+#
+# Source it from any test file (CWD-independent — uses git toplevel):
+#   source "$(git rev-parse --show-toplevel)/tests/shell/lib.sh"
+#
+# Each test file owns its own FAILED counter and CASE_NUM counter. Helpers
+# increment FAILED on assertion failure (calling-scope variable; bash
+# functions run in caller scope). PASS lines go to stdout, FAIL lines to
+# stderr. Test files exit non-zero at the end:
+#
+#   [[ $FAILED -eq 0 ]] || exit 1
+#
+# Param order convention: subject (haystack/actual) BEFORE expected (needle).
+# Reads naturally as "in <subject>, expect <something>".
+
+[[ -n "${_TESTS_LIB_LOADED:-}" ]] && return 0
+readonly _TESTS_LIB_LOADED=1
+
+# Initialize counters in caller scope if missing — defensive default so a
+# test file that forgets to declare them doesn't trigger nounset on the
+# first assertion.
+: "${FAILED:=0}"
+: "${CASE_NUM:=0}"
+
+# pass <label> — print PASS line, increment CASE_NUM. No exit.
+pass() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'PASS: [%d] %s\n' "$CASE_NUM" "$1"
+}
+
+# fail <label> <expected> <actual> — print FAIL line to stderr, increment
+# FAILED + CASE_NUM. No exit (run-all-cases discipline; final check exits).
+fail() {
+  CASE_NUM=$((CASE_NUM + 1))
+  printf 'FAIL: [%d] %s — expected %q got %q\n' \
+    "$CASE_NUM" "$1" "$2" "$3" >&2
+  FAILED=$((FAILED + 1))
+}
+
+# skip_suite <reason> — print SKIP marker and exit 0. Use when a test cannot
+# run ANY of its cases (missing toolchain, wrong platform). The marker is
+# matched by tools/run-shell-tests.sh `^SKIP: ` regex to classify the file
+# as wholly-skipped (no coverage in this run) — flagged in the summary so
+# silent coverage erosion is visible.
+skip_suite() {
+  printf 'SKIP: %s\n' "$1" >&2
+  exit 0
+}
+
+# skip_case <reason> — print SKIP marker without exiting. Use to skip a
+# subset of cases while letting the rest of the file run. Does NOT increment
+# CASE_NUM — skipped cases shouldn't bump the index for the cases that do
+# run. The same `^SKIP: ` marker, when paired with PASS lines in the same
+# file, classifies the file as partially-skipped in the runner summary.
+skip_case() {
+  printf 'SKIP: %s\n' "$1" >&2
+}
+
+# assert_eq <label> <expected> <actual> — exact match.
+assert_eq() {
+  local label="$1" expected="$2" actual="$3"
+  if [[ "$actual" == "$expected" ]]; then
+    pass "$label"
+  else
+    fail "$label" "$expected" "$actual"
+  fi
+}
+
+# assert_contains <label> <haystack> <needle> — substring match.
+# Subject first, expected second (majority pattern across this repo's tests).
+assert_contains() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" haystack="$2" needle="$3"
+  if [[ "$haystack" == *"$needle"* ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected %q in: %s\n' \
+      "$CASE_NUM" "$label" "$needle" "$haystack" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_not_contains <label> <haystack> <needle> — substring absence.
+assert_not_contains() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" haystack="$2" needle="$3"
+  if [[ "$haystack" != *"$needle"* ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — forbidden %q present in: %s\n' \
+      "$CASE_NUM" "$label" "$needle" "$haystack" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_silent <label> <output> — output is empty / whitespace-only.
+assert_silent() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" output="$2"
+  # Strip leading/trailing whitespace via parameter expansion
+  local trimmed="${output#"${output%%[![:space:]]*}"}"
+  trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+  if [[ -z "$trimmed" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected empty/whitespace, got: %s\n' \
+      "$CASE_NUM" "$label" "$output" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_exit <label> <expected_code> <actual_code> — exit code match.
+assert_exit() {
+  local label="$1" expected="$2" actual="$3"
+  CASE_NUM=$((CASE_NUM + 1))
+  if [[ "$actual" == "$expected" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — exit expected %s got %s\n' \
+      "$CASE_NUM" "$label" "$expected" "$actual" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_stdout_contains <label> <output> <needle> — alias of assert_contains.
+# Maintained for callers that emphasize stdout in their semantics.
+assert_stdout_contains() {
+  assert_contains "$@"
+}
+
+# hook_stdout_context <json_or_empty_stdout>
+# Extract additionalContext from hook JSON stdout; returns empty for silent hooks.
+hook_stdout_context() {
+  local out="$1"
+  [[ -n "$out" ]] || return 0
+  command -v jq >/dev/null 2>&1 || {
+    printf '%s' "$out"
+    return 0
+  }
+  jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$out" 2>/dev/null
+}
+
+# hook_stdout_worktree_path <json_stdout>
+# Extract worktreePath from WorktreeCreate hook JSON stdout.
+hook_stdout_worktree_path() {
+  local out="$1"
+  command -v jq >/dev/null 2>&1 || {
+    printf '%s' "$out"
+    return 0
+  }
+  jq -r '.hookSpecificOutput.worktreePath // empty' <<<"$out" 2>/dev/null
+}
+
+# assert_valid_hook_json_stdout <label> <output>
+# Empty stdout is valid (silent hook). Non-empty must parse as hook JSON.
+assert_valid_hook_json_stdout() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" output="$2"
+  local trimmed="${output#"${output%%[![:space:]]*}"}"
+  trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+  if [[ -z "$trimmed" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+    return 0
+  fi
+  if command -v jq >/dev/null 2>&1 \
+    && jq -e '.hookSpecificOutput' <<<"$output" >/dev/null 2>&1; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — stdout is not valid hook JSON: %s\n' \
+      "$CASE_NUM" "$label" "$output" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_hook_context_contains <label> <output> <needle>
+assert_hook_context_contains() {
+  local ctx
+  ctx=$(hook_stdout_context "$2")
+  assert_contains "$1" "$ctx" "$3"
+}
+
+# assert_hook_context_silent <label> <output>
+assert_hook_context_silent() {
+  local ctx
+  ctx=$(hook_stdout_context "$2")
+  assert_silent "$1" "$ctx"
+}
+
+# --- File / JSONL helpers (shared across audit hooks and others) ---
+
+# assert_file_exists <label> <path>
+assert_file_exists() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" path="$2"
+  if [[ -f "$path" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected file %s\n' \
+      "$CASE_NUM" "$label" "$path" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_file_absent <label> <path>
+assert_file_absent() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" path="$2"
+  if [[ ! -f "$path" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected absent, found %s\n' \
+      "$CASE_NUM" "$label" "$path" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# _jsonl_field_value <path> <field> — internal helper. Reads the LAST line
+# of <path> and jq-extracts <field>. Empty string on missing file, null, or
+# jq error. Shared extractor used by all assert_jsonl_field* functions.
+_jsonl_field_value() {
+  local path="$1" field="$2"
+  tail -1 "$path" 2>/dev/null | jq -r ".$field // empty" 2>/dev/null
+}
+
+# assert_jsonl_field <label> <path> <field> <expected>
+# Reads the LAST line of <path>, jq-extracts <field>, compares to <expected>.
+assert_jsonl_field() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" path="$2" field="$3" expected="$4"
+  local got
+  got=$(_jsonl_field_value "$path" "$field")
+  if [[ "$got" == "$expected" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — field %s expected %q got %q\n' \
+      "$CASE_NUM" "$label" "$field" "$expected" "$got" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_jsonl_field_no_match <label> <path> <field> <forbidden>
+# Asserts the field does NOT contain the forbidden substring.
+assert_jsonl_field_no_match() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" path="$2" field="$3" forbidden="$4"
+  local got
+  got=$(_jsonl_field_value "$path" "$field")
+  if [[ "$got" != *"$forbidden"* ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — field %s contained forbidden %q\n' \
+      "$CASE_NUM" "$label" "$field" "$forbidden" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_jsonl_field_regex <label> <path> <field> <regex>
+assert_jsonl_field_regex() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" path="$2" field="$3" regex="$4"
+  local got
+  got=$(_jsonl_field_value "$path" "$field")
+  if [[ "$got" =~ $regex ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — field %s value %q did not match /%s/\n' \
+      "$CASE_NUM" "$label" "$field" "$got" "$regex" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_jsonl_field_nonempty <label> <path> <field>
+assert_jsonl_field_nonempty() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" path="$2" field="$3"
+  local got
+  got=$(_jsonl_field_value "$path" "$field")
+  if [[ -n "$got" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — field %s empty\n' "$CASE_NUM" "$label" "$field" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# assert_line_count <label> <path> <expected>
+assert_line_count() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" path="$2" expected="$3"
+  local got=0
+  [[ -f "$path" ]] && got=$(wc -l <"$path" | tr -d ' ')
+  if [[ "$got" == "$expected" ]]; then
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  else
+    printf 'FAIL: [%d] %s — expected %s lines got %s\n' \
+      "$CASE_NUM" "$label" "$expected" "$got" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}
+
+# --- Process / command helpers ---
+
+# assert_command_fails <label> <cmd...> — runs <cmd> via the caller's process,
+# passes if exit non-zero. stdout/stderr discarded; capture earlier if needed.
+assert_command_fails() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1"
+  shift
+  if "$@" >/dev/null 2>&1; then
+    printf 'FAIL: [%d] %s — expected non-zero exit, got 0\n' "$CASE_NUM" "$label" >&2
+    FAILED=$((FAILED + 1))
+  else
+    printf 'PASS: [%d] %s\n' "$CASE_NUM" "$label"
+  fi
+}
+
+# --- Audit hook test scaffold ---
+
+# audit_hook_run <case_dir> <hook_path> <kill_switch_var> <kill_switch_val> <stdin>
+# Run an observability/audit hook with the canonical env block. Creates the
+# `.claude/observability/` dir under <case_dir>, exports CLAUDE_PROJECT_DIR,
+# HOOK_OBSERVABILITY_LOG_ENABLED=true, and the per-hook kill switch in a
+# subshell. Pipes <stdin> to the hook. Stderr is silenced.
+#
+# Replaces the duplicated `run_hook` helper in api-error-audit/
+# config-change-audit/instructions-loaded-audit/
+# pre-compact-audit/tool-failure-audit test files. Migrate per-test as
+# convenient — existing helpers continue to work unchanged.
+audit_hook_run() {
+  local case_dir="$1" hook="$2" kill_var="$3" kill_val="$4" stdin="$5"
+  mkdir -p "$case_dir/.claude/observability"
+  (
+    export CLAUDE_PROJECT_DIR="$case_dir"
+    export HOOK_OBSERVABILITY_LOG_ENABLED=true
+    export "${kill_var}=${kill_val}"
+    cd "$case_dir" || exit 1
+    bash "$hook" <<<"$stdin" 2>/dev/null
+  )
+}
+
+# posttool_hook_run <hook_path> <file_path> <project_dir>
+# Run a PostToolUse formatter/linter hook with a synthesized stdin payload
+# of `{"tool_input": {"file_path": "<file_path>"}}`. Pipes via jq -n --arg
+# (Git Bash JSON escaping safe), exports CLAUDE_PROJECT_DIR, captures stdout
+# + stderr combined (2>&1). MSYS_NO_PATHCONV=1 prevents Git Bash from
+# rewriting Windows-style file paths when handed to jq's native exe — the
+# hook's project-scope guard expects unchanged absolute paths.
+#
+# Replaces byte-identical `run_hook` definitions in actionlint-check/
+# bash-lint/eol-normalizer/markdown-format test files. typescript-format and
+# powershell-format follow the same shape — migrate opportunistically.
+posttool_hook_run() {
+  local hook="$1" file_path="$2" project_dir="$3"
+  local input
+  input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$file_path" '{tool_input: {file_path: $fp}}')
+  CLAUDE_PROJECT_DIR="$project_dir" bash "$hook" <<<"$input" 2>&1
+}
+
+# diff_hook_run <hook_path> <stdin_json> [env_var=value...]
+# Run a PostToolUse diff/drift hook in a hermetic `env -i` envelope. Always
+# threads HOME + PATH (needed for jq, bash, git resolution) and forwards the
+# variadic env args verbatim — caller supplies CLAUDE_PROJECT_DIR plus any
+# per-hook kill-switch or stub vars. <stdin_json> is piped to the hook;
+# stderr passes through to caller for assert_silent / assert_contains.
+#
+# Replaces the byte-identical env-envelope blocks in openapi-diff/
+# publicapi-diff/sarif-diagnostics test files.
+diff_hook_run() {
+  local hook="$1" input="$2"
+  shift 2
+  env -i HOME="$HOME" PATH="$PATH" "$@" bash "$hook" <<<"$input"
+}
+
+# make_repo <dir>
+# Initialize a fresh git repo at <dir> with one empty commit so HEAD is valid.
+# Configures local user.email + user.name so commit operations work in CI
+# environments without global git config. Quiet across init/config/commit.
+#
+# Replaces near-identical 3-site definitions in binlog/derive-slug/
+# promote-publicapi test files. Standardizes on `git -C` form (no subshell)
+# and `t@example.local` / `testuser` identity (matches binlog + promote
+# pre-existing values; derive-slug previously used `test@example.com`/`Test`
+# — value is opaque to all consumers, no test asserts on commit author).
+make_repo() {
+  local dir="$1"
+  mkdir -p "$dir"
+  git -C "$dir" init -q
+  git -C "$dir" config user.email t@example.local
+  git -C "$dir" config user.name testuser
+  git -C "$dir" commit --allow-empty -m init -q
+}
+
+# install_slice_history_dir_fixture <repo_dir>
+# Copy the slice-history-dir constant lib into a throwaway test repo so
+# work-artifact scripts can source it relative to the fixture repo root.
+install_slice_history_dir_fixture() {
+  local repo="$1"
+  local root="${TEST_REPO_ROOT:-}"
+  if [[ -z "$root" ]]; then
+    # Fixture source is the real medley tree — never git rev-parse from caller CWD (throwaway repos).
+    root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  fi
+  mkdir -p "$repo/tools/work-artifacts"
+  cp "$root/tools/work-artifacts/slice-history-dir.sh" "$repo/tools/work-artifacts/"
+}
+
+# assert_row_count <label> <output> <expected> <anchor_regex>
+# grep -cE <anchor_regex> against <output>, assert match count == <expected>.
+# <anchor_regex> varies per consumer (PASS/WARN/FAIL vs PASS/FAIL, label
+# char class `[A-Za-z.]` vs `[A-Za-z$]`) — pass the full regex to keep
+# call-site self-documenting.
+#
+# Replaces 3-site inline definitions in onboard check-identity/check-linters/
+# check-project-setup test files.
+assert_row_count() {
+  CASE_NUM=$((CASE_NUM + 1))
+  local label="$1" out="$2" expected="$3" anchor="$4"
+  local actual
+  actual=$(grep -cE "$anchor" <<<"$out" || echo 0)
+  if [[ "$actual" == "$expected" ]]; then
+    printf 'PASS: [%d] %s — %d rows emitted\n' "$CASE_NUM" "$label" "$expected"
+  else
+    printf 'FAIL: [%d] %s — expected %d rows got %d\n%s\n' \
+      "$CASE_NUM" "$label" "$expected" "$actual" "$out" >&2
+    FAILED=$((FAILED + 1))
+  fi
+}

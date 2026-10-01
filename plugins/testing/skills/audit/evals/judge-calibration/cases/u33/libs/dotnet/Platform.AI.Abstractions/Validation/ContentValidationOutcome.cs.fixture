@@ -1,0 +1,7 @@
+namespace Platform.AI.Abstractions.Validation;
+
+public sealed record ContentValidationOutcome(
+    ContentValidationCriteria Criteria,
+    bool Passed,
+    double? Score = null,
+    string? Explanation = null);

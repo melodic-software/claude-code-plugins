@@ -1,0 +1,5 @@
+import { taxFor } from './tax';
+
+export function quote(net: number): number {
+  return net + taxFor(net);
+}
