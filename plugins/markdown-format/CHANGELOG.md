@@ -3,6 +3,12 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.90] - 2026-10-01
+
+### Changed
+
+- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
+
 ## [0.11.89] - 2026-10-01
 
 ### Changed
