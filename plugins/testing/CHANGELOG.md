@@ -3,12 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.1] - 2026-10-01
+## [0.16.2] - 2026-10-01
 
 ### Changed
 
 - **The test judge ignores `memory_dir` in `.claude/topic-docs.yaml`.** `judge-lib.sh` always writes the findings file under `<repo>/.work/reviews/<branch-slug>/`, so a consumer that set `memory_dir` there no longer gets findings in that root. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
 - **The judge calibration record moved beside its labels.** `calibration.md` now lives in `skills/audit/evals/judge-calibration/`, and `metrics.sh --check` reads its `holdout-only:` lines from there instead of `docs/specs/tautological-tests-judge/calibration.md`.
+
+## [0.16.1] - 2026-10-01
+
+### Changed
+
+- Shared `hooks/hook-utils.sh` resynced from the repository library (comment wording only, no behavior change).
 
 ## [0.16.0] - 2026-10-01
 

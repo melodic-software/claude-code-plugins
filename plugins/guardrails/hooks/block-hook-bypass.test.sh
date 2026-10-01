@@ -1510,7 +1510,7 @@ MSG_POINTER="Operator levers for this guard: the guardrails README, block-hook-b
 MSG_PROJ=/srv/repo
 MSG_CFG=/srv/cfg
 # Pinned so the plugin data default has one spelling, and no data dir, so the
-# once-per-session latch fails open and every block here emits its notice.
+# once per session and agent latch fails open and every block here emits its notice.
 MSG_ENV=(-u CLAUDE_PLUGIN_DATA -u CLAUDE_PLUGIN_OPTION_BLOCK_HOOK_BYPASS_SCRATCH_ROOTS
   CLAUDE_PROJECT_DIR= CLAUDE_CONFIG_DIR="$MSG_CFG")
 

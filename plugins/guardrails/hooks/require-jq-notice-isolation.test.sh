@@ -28,7 +28,7 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # same exclusion shape as scripts/check-silent-skips.sh.
 #
 # The match is anchored so it does NOT catch hook::require_jq_blocking (#2146),
-# the fail-CLOSED sibling. That gate emits no once-per-session notice at all — it
+# the fail-CLOSED sibling. That gate emits no once per session and agent notice at all — it
 # denies the call and says why every time — so it has no notice_once key to
 # collide, and this test's whole subject does not apply to it. Its own contract
 # (which hooks may use it, and the four-cell behavior) is
