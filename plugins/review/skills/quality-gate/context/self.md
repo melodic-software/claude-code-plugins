@@ -33,7 +33,7 @@ Read in order:
    plus untracked files from git ls-files --others --exclude-standard.
 
 Run the checklist below. Do not edit files. Open your report with a `Criteria read:` line
-naming every criteria source the criteria-reading step lists that you read, or
+naming every criteria and convention source your reading steps list that you read, or
 `none present`, or `skipped: <reason>`. Close it with a `Coverage:` line naming the changed
 files you did not reach, or `all changed files reviewed`. Between them, return the findings
 table only.
