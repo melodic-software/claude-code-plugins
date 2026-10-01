@@ -2441,7 +2441,8 @@ def _bash_denial_guidance(
         "their parts by Claude Code; then they are denied too, except one "
         "plain git or gh command, repo-hygiene clean script or discovery "
         "dispatch-gate call with no operator, wrapper or ${ in it, whose only "
-        "$() is a quoted cat heredoc after git -m or gh --body or --title. "
+        '$() is a "$(cat <<EOF ...)" heredoc after git -m or gh --body or '
+        "--title. "
         "For read-only listing, use the Glob or Grep tools or an absolute-path "
         "find without side-effect primaries. " + lever
     )

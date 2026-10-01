@@ -204,24 +204,23 @@ move commands Claude issues in the main session's Bash and PowerShell lanes. It 
 - Bash: `rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv` and `find`, bare or by absolute path, plus
   an interpreter call of `hygiene.py`, `kill_switch_probe.py` or `release_belt.py` by its bundled
   path; a command that only mentions one of them does not reach the belt. Other commands (`git`,
-  `gh`, the repo-hygiene scripts) are not denied. Claude Code runs the guard on some commands with
-  `$()`, a backtick or `$VAR`; the guard reads their words, those included, and lets such a command
-  through unless a word names a deletion verb or a bundled script where a command could run it (as
-  the command, behind a wrapper such as `sudo`, `env` or `timeout`, or inside `bash -c` or `eval`),
-  or it cannot be read to the end (an unterminated quote, `$(` or heredoc, a command name built by
-  expansion). A heredoc body that `cat`, `git` or `gh` reads is data apart from an unquoted body's
-  `$()` and backticks, so a commit message may name `rm`. A command with none of `$()`, a backtick
-  or `$VAR` reached the guard through a deletion filter and is not read. What is denied is denied
-  unless it is an exact bundled engine call, the argument-free kill-switch probe, a read-only
-  supporting command, or the release lever.
+  `gh`, the repo-hygiene scripts) match none of those filters, but Claude Code also runs the guard on
+  some commands with `$()`, a backtick or `$VAR`. What reaches the guard is denied unless it is an
+  exact bundled engine call, the argument-free kill-switch probe, a read-only supporting command,
+  the release lever, or on the allowlist: one simple command with no operator, wrapper or `${`,
+  headed by exactly `git`, `gh`, a repo-hygiene `clean` script or discovery's dispatch gate, with no
+  inline-exec option (git `-c` or `--exec`, an alias, `rebase -x`; gh `alias`, `extension`, a `--`
+  pass-through), and no `$()` except a `"$(cat <<'EOF' ... EOF)"` heredoc as git's `-m` or gh's
+  `--body` or `--title`. So `git commit -m "$(cat <<'EOF' ... EOF)"` passes even when the message
+  names `rm`. The full rules are in [the safety model](skills/clean/reference/safety-model.md#session-belt).
 - PowerShell: known deletion spellings get `ask`; engine invocations are denied.
 
 **Accepted cost.** The Bash lane is a deny-list, so a wrapped deletion that no filter sends to the
 guard passes it: a script, an interpreter call, `bash -c 'rm x'`, `sudo rm x`, `env`, `timeout`,
-`eval`, `git rm` or `git clean`. With an absolute path or an expansion such a command reaches the
-guard and is denied, except where only an expansion's value names the deletion (`sudo "$RM" x`,
-`eval "$CMD"`). That is the cost of leaving `git`, `gh` and the repo-hygiene scripts unblocked. The engine's own containment stays the
-authority for engine work.
+`eval`, `git rm` or `git clean`. When a filter does send such a command (by absolute path, or with
+an expansion), it is denied: it is not on the allowlist. An allowlisted `git` still runs the
+repository's hooks and git config unchecked. That is the cost of leaving `git`, `gh` and the
+repo-hygiene scripts unblocked. The engine's own containment stays the authority for engine work.
 
 **Release lever.** When the belt blocks a command the user wants run, ask the user. The Bash denial
 prints one command, `release_belt.py --data-root <root> --session-id <id>`. Claude Code asks for
@@ -262,7 +261,7 @@ the `Stop` detector, which is the only process that can observe a guard that nev
   most about 2 MiB and never needs pruning. `command` and `reason` are secret-scrubbed, then clipped
   to 400 characters.
 - **Command text is omitted on the catch-all arms.** A PowerShell call recorded as `none` (belt mode,
-  no flagged spelling), a Bash command the belt deferred (`none`, `belt-no-deletion-shape`) and a
+  no flagged spelling), a Bash command the belt's allowlist deferred (`none`, `belt-allowlist`) and a
   Bash deny-by-default (`not-exact-engine-command`) persist `command_chars` (length only) instead of
   the command text. Those branches fire on arbitrary session commands.
 - **Owner-only.** The directory is created `0700` and the live file `0600`. Mode is reapplied on

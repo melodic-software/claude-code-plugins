@@ -216,7 +216,10 @@ skill is invoked and keeps them registered for the **rest of the session**. Ther
 harness-level "while the skill is active" window for hooks. So once `/disk-hygiene:clean`
 has run, the Bash belt (deletion shapes such as `rm`, `mv` and `find`) and the PowerShell deletion
 prompts keep applying to unrelated later work in the same session, not only to this cleanup. `git`,
-`gh` and other commands outside those shapes are not blocked. Say so when a later, unrelated
+`gh` and other commands outside those shapes are not blocked, except that Claude Code also sends
+some commands with `$()`, a backtick or `$VAR` to the belt, and of those only one plain `git`,
+`gh`, repo-hygiene or dispatch-gate command, with a `cat` heredoc message at most, passes. Say so
+when a later, unrelated
 deletion-shaped command is blocked or prompted, rather than treating it as a surprise. When the
 user wants that command run, the Bash denial prints a release lever; the user confirms it, and it
 lifts the Bash belt for that session. The PowerShell prompts stay, and without the lever the
