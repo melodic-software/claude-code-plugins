@@ -593,9 +593,9 @@ check "a failed scan is not cached" '[[ "$(scans)" == 2 ]]'
 # on the project key, keep the paths as they are, and read every field
 # without a trailing CR.
 check "the fake Windows jq writes CRLF" '[[ "$(PATH="$WIN_JQ:$PATH" jq -n 1 | od -An -c | tr -d " ")" == "1\r\n" ]]'
-WT='C:\Users\k\.claude\projects\-repo\wsid.jsonl' # portability-ok: a literal Windows path, not a regex escape
+WT='C:\w\.claude\projects\-repo\wsid.jsonl' # portability-ok: a literal Windows path, not a regex escape
 WC='C:\repo'
-WPK="$(printf '%s\n%s' "$WC" 'C:\Users\k\.claude\projects\-repo' | sha256 | cut -c1-16)"
+WPK="$(printf '%s\n%s' "$WC" 'C:\w\.claude\projects\-repo' | sha256 | cut -c1-16)"
 W1="$REPO/src/win\\one.test.ts"
 W2="$REPO/src/wintwo.test.ts"
 js_file "$W1" winone
@@ -640,17 +640,17 @@ lib() { # lib <OSTYPE> <bash>: run bash with the judge library sourced
   TESTING_OSTYPE="$1" HOOK_DIR="$HOOK_DIR" DATA="$DATA" PKEY=x SID=x TPATH=x bash -c \
     'source "$HOOK_DIR/scanner-run.sh"; source "$HOOK_DIR/judge-lib.sh"; '"$2"
 }
-WA='C:\users\k\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
-WB='C:\Users\K\repo\a.ts'
-WL='/r/a\b.ts'                     # portability-ok: a literal path holding a backslash, not a regex escape
-WF='C:\Users\K\repo\src\w.test.ts' # portability-ok: a literal Windows path, not a regex escape
+WA='C:\w\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
+WB='C:\W\Repo\a.ts'
+WL='/r/a\b.ts'               # portability-ok: a literal path holding a backslash, not a regex escape
+WF='C:\w\repo\src\w.test.ts' # portability-ok: a literal Windows path, not a regex escape
 export WA WB WL
-check "msys: C:/Users/K/repo/src/a.test.ts and $WA are one file" 'lib msys "judge::same_path C:/Users/K/repo/src/a.test.ts \"\$WA\""'
-check "msys: /c/users/k/repo/a.ts and $WB are one file" 'lib msys "judge::same_path /c/users/k/repo/a.ts \"\$WB\""'
+check "msys: C:/W/Repo/src/a.test.ts and $WA are one file" 'lib msys "judge::same_path C:/W/Repo/src/a.test.ts \"\$WA\""'
+check "msys: /c/w/repo/a.ts and $WB are one file" 'lib msys "judge::same_path /c/w/repo/a.ts \"\$WB\""'
 check "linux: a backslash is part of a file name" '! lib linux-gnu "judge::same_path /r/a/b.ts \"\$WL\""'
-jq -cn --arg f "$WF" '{file: $f, repo: "C:/Users/K/repo", name: "w", ordinal: 1, start: 3,
+jq -cn --arg f "$WF" '{file: $f, repo: "C:/w/repo", name: "w", ordinal: 1, start: 3,
   end: 5, verdict: "FLAG", evidence: [], source: "s", diff: "d", reason: "", model: "m", effort: "e"}' >"$TMP/winverdict.json"
-loc="$(WV="$TMP/winverdict.json" lib msys 'RELAY="$(<"$WV")"$'"'"'\n'"'"'; RELAY_REPOS=("C:/Users/K/repo"); judge::findings
+loc="$(WV="$TMP/winverdict.json" lib msys 'RELAY="$(<"$WV")"$'"'"'\n'"'"'; RELAY_REPOS=("C:/w/repo"); judge::findings
   grep "^| 1 |" "$FINDINGS" | cut -d"|" -f5')"
 check "msys: the findings Location is repo-relative with forward slashes" '[[ "$loc" == " src/w.test.ts:3 " ]]'
 WD="$TMP/w\\repo"
