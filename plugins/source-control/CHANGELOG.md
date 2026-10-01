@@ -12,6 +12,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   create one (never `EnterWorktree` by name), to enter an existing one (claim check, then
   `EnterWorktree` by path), and to inventory, clean up, or audit worktrees. The verification records are in `reference/native-worktree.md`.
 
+## [0.68.2] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
 ## [0.68.1] - 2026-09-30
 
 ### Fixed
