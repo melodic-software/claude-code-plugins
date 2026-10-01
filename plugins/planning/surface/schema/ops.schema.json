@@ -28,7 +28,8 @@
           {"$ref": "#/$defs/wait"},
           {"$ref": "#/$defs/activity"},
           {"$ref": "#/$defs/confirm-commitments"},
-          {"$ref": "#/$defs/restate"}
+          {"$ref": "#/$defs/restate"},
+          {"$ref": "#/$defs/finish"}
         ]
       }
     }
@@ -274,6 +275,18 @@
         "id": {"type": "string"},
         "indices": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
         "reason": {"type": "string"}
+      }
+    },
+    "finish": {
+      "description": "Post the closing event after the exports: the page shows it in a dismissible modal and keeps it once the server stops, so a stopped server reads as a finished interview. `brief` is the path of the written Brief, `next` (markdown) what happens next (the page falls back to `meta.next`), `text` one line. An `add` or `add-round` after it withdraws it. `round.sh stop` posts one when none is set.",
+      "type": "object",
+      "required": ["op"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["finish"]},
+        "brief": {"type": "string", "maxLength": 500},
+        "next": {"type": "string", "maxLength": 20000},
+        "text": {"type": "string", "maxLength": 500}
       }
     },
     "restate": {

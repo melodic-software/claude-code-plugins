@@ -22,7 +22,8 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   sync-ledger     rewrite only a ledger's register rows from page state, merged as export-ledger
                   --ledger merges
   ensure-running  start the page server for the data dir, or reuse the running one; prints its URL
-  stop            stop the data dir's server (only the recorded PID) and clear its session files
+  stop            stop the data dir's server (only the recorded PID), post a finish when none was
+                  posted, and clear its session files but the port
   lease           print the watcher holding the server's lease, or `no lease`; --release clears it
 
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
@@ -84,6 +85,8 @@ SESSION_FILES = (".interview-session.json", ".interview-session.env")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
+# The server pushes a state frame within 0.3 s of a write; stop waits this long so open tabs get the finish.
+FINISH_SECONDS = 1
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # 0 off Windows
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
@@ -112,6 +115,7 @@ LOGGED_OPS = {
     "wait",
     "confirm-commitments",
     "restate",
+    "finish",
 }
 BASIS_SENTENCES = 3
 ID_TOKEN = re.compile(r"\b[A-Z]+[0-9]+\b")
@@ -534,6 +538,7 @@ def op_meta(d, doc, a):
 
 
 def op_add(d, doc, a):
+    doc.pop("finished", None)
     before = newest_round(doc)
     touched, notes = add_question(doc, a.question, a.repoint)
     warn_stage(doc, [a.question])
@@ -545,6 +550,7 @@ def op_add(d, doc, a):
 
 def op_add_round(d, doc, a):
     """{"meta": {...}, "groups": [...], "questions": [...], "visuals": [...]}: meta, groups, then questions in file order."""
+    doc.pop("finished", None)
     before = newest_round(doc)
     meta = a.meta
     if meta is not None:
@@ -948,6 +954,21 @@ def op_set_status(d, doc, a):
     return [], "status set"
 
 
+def op_finish(d, doc, a):
+    """The closing event: the page shows it in a dismissible modal and keeps it once the server is gone."""
+    done = {"at": now(), "by": "claude"}
+    for key, val, cap in (
+        ("brief", a.brief, LINE_CAP),
+        ("next", a.next, TEXT_CAP),
+        ("text", a.text, LINE_CAP),
+    ):
+        val = capped(f"finish {key}", (val or "").strip(), cap)
+        if val:
+            done[key] = val
+    doc["finished"] = done
+    return [], "interview finished"
+
+
 HOLD_LABELS = {"claude": "pending research", "user": "needs your answer"}
 
 
@@ -1224,6 +1245,7 @@ OP_ARGS = {
         {"id": None, "decision": None, "alt": None, "text": None},
     ),
     "set-status": (op_set_status, {"text": None, "clear": False}),
+    "finish": (op_finish, {"brief": None, "next": None, "text": None}),
     "wait": (op_wait, {"id": None, "waitsOn": None, "by": None, "clear": False}),
     "activity": (op_activity, {"text": None, "ids": None}),
     "confirm-commitments": (
@@ -1703,10 +1725,11 @@ def cmd_ensure_running(d, a):
         if not live:
             # --port first, then the recorded port (the page's origin), then the resolved setting;
             # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
-            ports = [a.port, (s or {}).get("port")]
+            ports = [a.port, kept_port(d)]
             if a.port is None:
                 ports.append(settings["port"]["value"])
             port = next((p for p in ports if p and port_free(p)), 0)
+            clear_finished(d)
             nonce = secrets.token_hex(8)
             proc = start_server(d, port, nonce)
             s = wait_started(d, nonce, proc)
@@ -1726,9 +1749,52 @@ def cmd_ensure_running(d, a):
         open_browser(url, read_user_settings(user).get("browserCommand"))
 
 
+def kept_port(d):
+    """The port the session file records, running or not, else None."""
+    try:
+        port = json.loads((d / SESSION_FILES[0]).read_text(encoding="utf-8"))["port"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    ok = isinstance(port, int) and not isinstance(port, bool) and 0 < port < 65536
+    return port if ok else None
+
+
 def clear_session(d):
+    """Remove the session files but leave the port, so the next start keeps the page's origin."""
+    port = kept_port(d)
     for name in SESSION_FILES:
         (d / name).unlink(missing_ok=True)
+    if port:
+        write_private(d / SESSION_FILES[0], json.dumps({"port": port}) + "\n")
+
+
+def clear_finished(d):
+    """A new server means a resumed interview: drop the finish an earlier stop or skill left."""
+    if not (d / "questions.json").exists():
+        return
+    try:
+        doc = load(d)
+        if doc.pop("finished", None):
+            save(d, doc)
+    except (SystemExit, OSError, ValueError):
+        pass  # an unreadable file is the server's and the gate's to report, not this start's
+
+
+def finish_on_stop(d):
+    """Post a finish when the skill posted none, then wait so open tabs receive it before the server goes."""
+    if (d / "questions.json").exists():
+        try:
+            doc = load(d)
+            if "finished" not in doc:
+                doc["finished"] = {
+                    "at": now(),
+                    "by": "stop",
+                    "text": "The interview server was stopped by Claude.",
+                }
+                save(d, doc)
+        except (SystemExit, OSError, ValueError):
+            pass  # a file the schema refuses must not keep the server running
+    time.sleep(FINISH_SECONDS)
 
 
 def cmd_stop(d, a):
@@ -1742,6 +1808,7 @@ def cmd_stop(d, a):
             clear_session(d)
             print("not running")
             return
+        finish_on_stop(d)
         os.kill(s["pid"], signal.SIGTERM)
         deadline = time.monotonic() + START_SECONDS
         while time.monotonic() < deadline and ping(s["port"], timeout=0.5):

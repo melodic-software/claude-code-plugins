@@ -789,6 +789,9 @@ class Hub:
         self.watch_seq = self.dir / ".watch-seq"
         self.token = secrets.token_urlsafe(32)
         self.session = hashlib.sha256(str(self.dir).lower().encode()).hexdigest()[:12]
+        self.instance = secrets.token_hex(
+            6
+        )  # differs on every start; the page tells a restart by it
         self.cond = threading.Condition()
         self.waiters = 0
         self.streams = 0
@@ -966,6 +969,7 @@ class Hub:
             **self._last_state,
             "listener": self.listener(),
             "session": self.session,
+            "instance": self.instance,
             "api": API,
         }
 

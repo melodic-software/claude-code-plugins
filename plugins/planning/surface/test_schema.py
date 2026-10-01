@@ -215,6 +215,24 @@ class TestShippedSchemas(unittest.TestCase):
         accept = {"seq": 2, "id": "Q1", "kind": "accept", "at": "t", "contentRev": 3}
         self.assertIsNone(schema.first_error(accept, schema.load("event")))
 
+    def test_finish_op_and_finished_document_field(self):
+        ops = schema.load("ops")
+
+        def check(op):
+            return schema.first_error(op, ops["$defs"][op["op"]], "$", ops)
+
+        self.assertIsNone(check({"op": "finish"}))
+        self.assertIsNone(
+            check({"op": "finish", "brief": "PLAN.md", "next": "n", "text": "t"})
+        )
+        self.assertIn("text", check({"op": "finish", "text": "x" * 501}))
+        self.assertIn("other", check({"op": "finish", "other": 1}))
+        doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
+        doc["finished"] = {"at": "t", "by": "stop", "text": "Stopped"}
+        self.assertIsNone(schema.first_error(doc, schema.load("questions")))
+        doc["finished"]["by"] = "nobody"
+        self.assertIn("by", schema.first_error(doc, schema.load("questions")))
+
     def test_a_recommendation_history_line_carries_page_seq(self):
         doc = json.loads((FIXTURES / "questions.json").read_text(encoding="utf-8"))
         line = {

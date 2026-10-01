@@ -48,6 +48,19 @@
         }
       }
     },
+    "finished": {
+      "description": "The closing event, set by the finish op or by `round.sh stop` when none was set: the page shows it in a dismissible modal and keeps it locally. A new `add` or `add-round`, or a new server start, removes it.",
+      "type": "object",
+      "required": ["at", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "at": {"type": "string"},
+        "by": {"enum": ["claude", "stop"]},
+        "brief": {"type": "string"},
+        "next": {"type": "string"},
+        "text": {"type": "string"}
+      }
+    },
     "restatement": {"$ref": "#/$defs/restatement"},
     "restatements": {
       "description": "Every restatement the restate op wrote, oldest first; the last is mirrored as `restatement`. A file written before this list existed has only `restatement`.",

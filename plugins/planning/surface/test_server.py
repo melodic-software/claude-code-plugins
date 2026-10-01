@@ -501,6 +501,129 @@ class TestEnsureRunning(ServerCase):
         self.assertFalse((other / ".interview-session.json").exists())
 
 
+class TestFinishAndPort(unittest.TestCase):
+    """The finish event, stop's finish and the port kept across stop."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-finish-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.dir = self.tmp / "data"
+        self.dir.mkdir()
+        shutil.copy(FIXTURES / "questions.json", self.dir / "questions.json")
+        self.addCleanup(run_round, self.dir, "stop")
+
+    def doc(self):
+        return json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+
+    def ops(self, *ops):
+        f = self.tmp / "ops.json"
+        f.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        return run_round(self.dir, "apply", "--file", str(f))
+
+    def start(self):
+        p = ensure_running(self.dir)
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return session(self.dir)
+
+    def state(self, s):
+        code, raw, _ = request(
+            s["port"], "GET", "/api/state", headers={"X-Interview-Token": s["token"]}
+        )
+        self.assertEqual(code, 200)
+        return json.loads(raw)
+
+    def test_finish_op_stores_the_closing_event_and_logs_it(self):
+        rc, out = self.ops(
+            {
+                "op": "finish",
+                "brief": "docs/PLAN.md",
+                "next": "Run the plan.",
+                "text": "Done",
+            }
+        )
+        self.assertEqual(rc, 0, out)
+        done = self.doc()["finished"]
+        self.assertEqual(
+            {k: done[k] for k in ("by", "brief", "next", "text")},
+            {
+                "by": "claude",
+                "brief": "docs/PLAN.md",
+                "next": "Run the plan.",
+                "text": "Done",
+            },
+        )
+        self.assertEqual(self.doc()["activity"][-1]["text"], "Interview finished")
+
+    def test_finish_op_over_the_cap_is_refused_and_writes_nothing(self):
+        rc, out = self.ops({"op": "finish", "text": "x" * 501})
+        self.assertNotEqual(rc, 0)
+        self.assertNotIn("finished", self.doc())
+
+    def test_stop_posts_a_finish_when_none_was_posted(self):
+        s = self.start()
+        self.assertNotIn("finished", self.state(s)["questions"])
+        rc, out = run_round(self.dir, "stop")
+        self.assertEqual(rc, 0, out)
+        done = self.doc()["finished"]
+        self.assertEqual(done["by"], "stop")
+        self.assertNotIn("brief", done)
+
+    def test_stop_keeps_the_skills_finish(self):
+        self.start()
+        self.ops({"op": "finish", "brief": "PLAN.md"})
+        run_round(self.dir, "stop")
+        self.assertEqual(
+            (self.doc()["finished"]["by"], self.doc()["finished"]["brief"]),
+            ("claude", "PLAN.md"),
+        )
+
+    def test_stop_creates_no_questions_file(self):
+        self.start()
+        (self.dir / "questions.json").unlink()
+        run_round(self.dir, "stop")
+        self.assertFalse((self.dir / "questions.json").exists())
+
+    def test_the_server_pushes_the_finish_and_a_new_instance_per_start(self):
+        s = self.start()
+        self.ops({"op": "finish", "text": "Done"})
+        first = self.state(s)
+        self.assertEqual(first["questions"]["finished"]["text"], "Done")
+        run_round(self.dir, "stop")
+        second = self.state(self.start())
+        self.assertNotIn("finished", second["questions"])
+        self.assertNotEqual(first["instance"], second["instance"])
+
+    def test_add_round_withdraws_the_finish(self):
+        self.ops({"op": "finish"})
+        rc, out = self.ops({"op": "add", "question": {**FINISH_Q}})
+        self.assertEqual(rc, 0, out)
+        self.assertNotIn("finished", self.doc())
+
+    def test_stop_then_ensure_running_keeps_the_port_when_it_is_free(self):
+        port = self.start()["port"]
+        run_round(self.dir, "stop")
+        self.assertEqual(self.start()["port"], port)
+
+    def test_a_busy_kept_port_falls_through_to_a_free_one(self):
+        port = self.start()["port"]
+        run_round(self.dir, "stop")
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", port))
+            sock.listen(1)
+            self.assertNotEqual(self.start()["port"], port)
+
+
+FINISH_Q = {
+    "id": "ZZ1",
+    "short": "Late question",
+    "title": "Is this late question fine?",
+    "recommendation": "Yes. It is fine.",
+    "basis": "Nothing else changes. It is a test.",
+    "commits": [],
+    "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Later"}],
+}
+
+
 def round_sh_python():
     """The interpreter round.sh picks: python3, then python, from PATH."""
     return shutil.which("python3") or shutil.which("python") or sys.executable
@@ -554,7 +677,13 @@ class TestStop(unittest.TestCase):
             except OSError:
                 gone = True
         self.assertTrue(gone, "stopped server still answers")
-        self.assertFalse((self.a / ".interview-session.json").exists())
+        self.assertEqual(
+            json.loads(
+                (self.a / ".interview-session.json").read_text(encoding="utf-8")
+            ),
+            {"port": sa["port"]},
+        )
+        self.assertFalse((self.a / ".interview-session.env").exists())
         code, raw, _ = request(sb["port"], "GET", "/api/ping")
         self.assertEqual(code, 200)
         self.assertEqual(json.loads(raw)["pid"], sb["pid"])
@@ -579,7 +708,12 @@ class TestStop(unittest.TestCase):
         self.assertIn("not running", out)
         time.sleep(0.3)
         self.assertIsNone(sleeper.poll(), "stop killed a process it did not start")
-        self.assertFalse((self.c / ".interview-session.json").exists())
+        self.assertEqual(
+            json.loads(
+                (self.c / ".interview-session.json").read_text(encoding="utf-8")
+            ),
+            {"port": sb["port"]},
+        )
         self.assertFalse((self.c / ".interview-session.env").exists())
         code, _, _ = request(sb["port"], "GET", "/api/ping")
         self.assertEqual(code, 200)
