@@ -4,7 +4,6 @@
   "title": "zone-crossing-inject telemetry data",
   "description": "Per-hook `data` payload for context-guard's zone-crossing injection hook (PostToolBatch + UserPromptSubmit — the envelope `hook_event` distinguishes them). Discovered from the envelope `hook` value \"zone-crossing-inject\". Emitted once per fire that reaches a zone decision: a transition (either direction), an unchanged zone, an unknown zone, or a skipped no-change fire. Evolves additive-only.",
   "type": "object",
-  "required": ["path"],
   "additionalProperties": true,
   "properties": {
     "zone": {
@@ -21,8 +20,7 @@
     },
     "path": {
       "type": "string",
-      "enum": ["fast", "coalesced", "resolving"],
-      "description": "How the fire reached its decision: \"fast\" (no resolver ran), \"coalesced\" (the last zone reused because the snapshot body matched, or only used_percentage moved within one shipped band with no zones.json), \"resolving\" (the resolver ran). The share of fires per path, with the envelope duration, shows where the time goes."
+      "description": "How the fire reached its decision. Known values: \"fast\" (no resolver ran), \"coalesced\" (the last zone reused because the snapshot body matched, or only used_percentage moved within one shipped band with no zones.json), \"resolving\" (the resolver ran). The share of fires per path, with the envelope duration, shows where the time goes. Absent on records written before the field existed; consumers tolerate values not listed here."
     }
   }
 }

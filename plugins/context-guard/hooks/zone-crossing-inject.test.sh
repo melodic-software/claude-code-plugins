@@ -1522,6 +1522,34 @@ else
   fail "fire telemetry with no sink: log=$(cat "$FT_LOG" 2>/dev/null) utils=$(grep -c 'hook-utils.sh' "$FT_TRACE")"
 fi
 
+# The two exits after a zone is decided but before any state is written still
+# record the fire, as an error with a reason.
+write_snapshot "$FTH" sjq 10
+: >"$FTH/$CTX_REL/sjq.compacted"
+: >"$FT_LOG"
+printf '{"session_id":"sjq","hook_event_name":"PostToolBatch","cwd":"/tmp"}' |
+  PATH="$NJ" HOME="$FTH" CLAUDE_PLUGIN_DATA="$FTD" HOOK_TELEMETRY_SINK="$FT_SINK" bash "$HOOK" >/dev/null 2>&1
+wait_for_sink "$FT_LOG"
+if [[ "$(head -n1 "$FT_LOG" | jq -r '[.status, .data.reason, .data.path] | join(",")' 2>/dev/null)" == "error,jq_missing,fast" ]]; then
+  ok "fire telemetry: a fire with no jq records error/jq_missing"
+else
+  fail "fire telemetry no jq: log=$(cat "$FT_LOG")"
+fi
+
+BD="$WORK/fire-tel-baddata"
+mkdir -p "$BD"
+: >"$BD/state" # a file where the state directory belongs: mkdir -p fails on every platform
+write_snapshot "$FTH" sbd 10
+: >"$FT_LOG"
+printf '{"session_id":"sbd","hook_event_name":"PostToolBatch"}' |
+  HOME="$FTH" CLAUDE_PLUGIN_DATA="$BD" HOOK_TELEMETRY_SINK="$FT_SINK" bash "$HOOK" >/dev/null 2>&1
+wait_for_sink "$FT_LOG"
+if [[ "$(head -n1 "$FT_LOG" | jq -r '[.status, .data.reason, .data.path] | join(",")' 2>/dev/null)" == "error,state_dir_unavailable,resolving" ]]; then
+  ok "fire telemetry: an unusable state directory records error/state_dir_unavailable"
+else
+  fail "fire telemetry state dir: log=$(cat "$FT_LOG")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

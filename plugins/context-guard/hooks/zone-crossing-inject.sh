@@ -855,8 +855,15 @@ umask 077
 # `mkdir -p` on an existing directory exits 0 anyway, so no outcome changes.
 # Without jq no emit can run, so exit before any marker moves; a later fire
 # with jq installed then still sees the crossing. `command -v` is a builtin.
-command -v jq >/dev/null 2>&1 || cg_require_utils
-[[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+# Both early exits still record the fire; emit needs no jq.
+command -v jq >/dev/null 2>&1 || {
+  cg_fire_telemetry error '{"path":"'"$CG_PATH"'","zone":"'"$zone"'","reason":"jq_missing"}'
+  cg_require_utils
+}
+[[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || {
+  cg_fire_telemetry error '{"path":"'"$CG_PATH"'","zone":"'"$zone"'","reason":"state_dir_unavailable"}'
+  exit 0
+}
 # A marker whose on-disk value already matches is not rewritten. This hook
 # fires once per UserPromptSubmit and once per PostToolBatch, so a three-batch
 # turn that stays in one zone fired four times and rewrote both files four
