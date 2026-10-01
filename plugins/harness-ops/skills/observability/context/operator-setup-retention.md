@@ -151,7 +151,7 @@ model context (read the action with `schtasks /query /tn "ClaudeCodeOtelPrune" /
 
 | State | Meaning |
 |---|---|
-| `provisioned` | enabled, and the action is pwsh running the provisioning launcher: it names `installed_plugins.json`, the `claude-ops@` plugin key and the in-plugin prune path |
+| `provisioned` | enabled, and the action is pwsh running the provisioning launcher: it names `installed_plugins.json`, the `harness-ops@` (or older `claude-ops@`) plugin key and the in-plugin prune path |
 | `missing` | no `ClaudeCodeOtelPrune` task: run the provisioning apply |
 | `disabled` | the task or its trigger is disabled |
 | `stale path` | a hand-registered task names a prune script that no longer exists, typically a version directory the orphan sweep removed |
