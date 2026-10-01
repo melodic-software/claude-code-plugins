@@ -39,7 +39,9 @@ EMPTY_RESPONSES = {
     "history": {},
     "events": [],
 }
-DECISIONS = {"accept", "alt", "own", "defer", "reopen"}
+# One-line free-text cap; a hedged decision's condition is one.
+LINE_CAP = 500
+DECISIONS = {"accept", "alt", "own", "defer", "hedged", "reopen"}
 # Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin.
 REQUESTS = {"ask", "rephrase", "research", "cancel-research"}
 # Events not tied to a question; `confirm-understanding` answers the restatement, and
@@ -920,8 +922,14 @@ class Hub:
             qid = None
         elif kind != "undo" and qid not in qs:
             raise ValueError("unknown question")
-        if kind in ("own", "ask", "note") and not text.strip():
-            raise ValueError("text required")
+        if kind in ("own", "ask", "note", "hedged") and not text.strip():
+            raise ValueError(
+                "text required: say the condition"
+                if kind == "hedged"
+                else "text required"
+            )
+        if kind == "hedged" and len(text) > LINE_CAP:
+            raise ValueError(f"text too long: at most {LINE_CAP} characters")
         items = check_accept_audit(msg) if kind == "accept-audit" else None
         now = now_iso()
         extra = {}

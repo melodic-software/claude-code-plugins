@@ -178,7 +178,8 @@ section of <https://code.claude.com/docs/en/plugins/loading> ("removes that dire
 background cleanup 14 days later, so a session that already loaded the old version keeps running").
 Verified 2026-09-29 against Claude Code 2.1.285 and that page as fetched that day. Recheck when the
 page changes the window, the marker name, or the sweep condition, or a release note names plugin
-cache cleanup; then update `ORPHAN_SWEEP_DAYS` in `scripts/install_state.py`.
+cache cleanup; then update `ORPHAN_SWEEP_DAYS` in `lib/plugin_cache_versions.py` and its byte-identical copy in
+`disk-hygiene`.
 
 ## Phase 4. Numeric names and liveness
 

@@ -1277,6 +1277,33 @@ class TestListenerDisconnect(WaitCase):
         self.assertNotIn("deliveredAt", ev)
 
 
+class TestHedged(WaitCase):
+    """A hedged decision is an accept that carries its condition as the event text."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(cls.dir, question("A"))
+
+    def test_a_hedged_decision_needs_a_condition_within_the_line_cap(self):
+        before = self.state()["responses"]["events"]
+        for text in ("", "   ", "x" * 501):
+            code, data = self.post({"id": "A", "kind": "hedged", "text": text})
+            self.assertEqual(code, 400, data)
+        self.assertEqual(self.state()["responses"]["events"], before)
+
+    def test_a_hedged_decision_is_recorded_rebuilds_and_validates(self):
+        from server import rebuild_responses
+
+        code, data = self.post({"id": "A", "kind": "hedged", "text": "if it is cheap"})
+        self.assertEqual(code, 200, data)
+        r = self.state()["responses"]
+        self.assertEqual(r["responses"]["A"]["decision"], "hedged")
+        self.assertEqual(r["responses"]["A"]["text"], "if it is cheap")
+        self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+
+
 class TestQuestionState(WaitCase):
     """AC19: stale direct dependents, upstream-pending descendants, archived, revising."""
 

@@ -63,6 +63,7 @@ import exporters  # noqa: E402
 import schema  # noqa: E402
 from server import (  # noqa: E402
     EMPTY_RESPONSES,
+    LINE_CAP,
     SCHEMA_VERSION,
     Settings,
     check_alt,
@@ -74,7 +75,7 @@ from server import (  # noqa: E402
     write_private,
 )
 
-DECISIONS = ("accept", "alt", "own", "defer")
+DECISIONS = ("accept", "alt", "own", "defer", "hedged")
 SESSION_FILES = (".interview-session.json", ".interview-session.env")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
@@ -86,7 +87,6 @@ ACTIVITY_CAP = 200
 # commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
 # basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
 # restatement section).
-LINE_CAP = 500
 TEXT_CAP = 20000
 QUESTION_CAPS = (
     ("title", LINE_CAP),
@@ -664,6 +664,10 @@ def op_note_reply(d, doc, a):
 def op_record_terminal(d, doc, a):
     q = find(doc, a.id)
     capped("record-terminal text", a.text, TEXT_CAP)
+    if a.decision == "hedged":
+        if not (a.text or "").strip():
+            sys.exit("refused: --decision hedged needs --text: the condition")
+        capped("record-terminal condition", a.text, LINE_CAP)
     if a.decision == "alt" and not a.alt:
         sys.exit("--alt KEY required with --decision alt")
     if a.decision == "alt":
@@ -688,6 +692,7 @@ def op_record_terminal(d, doc, a):
         "alt": f"Chose ({a.alt})",
         "own": "Answered",
         "defer": "Deferred",
+        "hedged": "Hedged",
     }[a.decision]
     q.setdefault("history", []).append(
         {
