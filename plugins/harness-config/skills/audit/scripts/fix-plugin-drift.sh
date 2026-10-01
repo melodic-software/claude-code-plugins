@@ -210,7 +210,7 @@ trap 'cleanup_temps; exit 143' TERM HUP
 
 if [[ -z "$INPUT_JSON" ]]; then
   # Positional absolute template with trailing Xs: the one mktemp form both
-  # GNU and BSD accept (see docs/conventions/topic-docs ephemeral tier, #1709).
+  # GNU and BSD accept.
   # GNU marks -t deprecated, and BSD -t treats the argument as a prefix, not a
   # template. The .json extension was cosmetic; BSD substitutes trailing Xs
   # only, so the template cannot carry one.

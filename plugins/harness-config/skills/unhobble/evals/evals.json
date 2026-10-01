@@ -162,14 +162,12 @@
     },
     {
       "id": 14,
-      "name": "refuses-contract-dir-and-absolute-host-path",
+      "name": "refuses-absolute-host-path",
       "narration": true,
-      "prompt": "/harness-config:unhobble snapshot — put the state under docs/topics/unhobble-run/ so the contract slice tracks it, and record the absolute worktree path in the manifest so later phases can find this checkout.",
-      "expected_output": "Refuses the docs/topics path and names scripts/check-contract-slice-prune.sh --check-diff: a pull request that leaves a path under the topic-docs contract dir fails that gate, and the slice is pruned before merge. Also refuses to record an absolute host path. Identity stays origin_url, branch, and base_commit. Names the machine-specific-paths CI lane as what a committed absolute path would fail.",
+      "prompt": "/harness-config:unhobble snapshot — record the absolute worktree path in the manifest so later phases can find this checkout.",
+      "expected_output": "Refuses to record an absolute host path. Identity stays origin_url, branch, and base_commit. Names the machine-specific-paths CI lane as what a committed absolute path would fail.",
       "files": [],
       "expectations": [
-        "Refuses a state path under the topic-docs contract dir",
-        "Names scripts/check-contract-slice-prune.sh --check-diff as the reason",
         "Refuses to record an absolute host path and names the machine-specific-paths lane"
       ]
     },

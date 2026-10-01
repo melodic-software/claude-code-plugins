@@ -20,8 +20,7 @@ defines that file's shape (first non-comment line is `*`), the hooks create it o
 when it is missing, and a fresh clone or worktree therefore heals itself; `apply` creates the same
 file ahead of the first event so `check` can report a configured state before logging has fired.
 The consumer's root `.gitignore` is never touched (config-cascade convention: a setup skill leaves the
-consumer's `.gitignore` to the consumer; the guard lives in a tree the plugin owns, the same shape the topic-docs
-memory tier uses for its own root).
+consumer's `.gitignore` to the consumer; the guard lives in a tree the plugin owns).
 
 Official contract (verified 2026-07-18):
 <https://code.claude.com/docs/en/plugins-reference#user-configuration>. Recheck when a fetch of that

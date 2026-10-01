@@ -4,15 +4,14 @@ Rung 1 of the recovery ladder in [`../SKILL.md`](../SKILL.md), the first thing t
 rung that needs no transcript. Read-only throughout, like every rung. When it produces a strong,
 recent candidate the ladder ends here and rung 3's grep machinery never runs.
 
-Resolve `<memory_dir>/handoffs/` for the **current repo** through the plugin binding
-([`reference/topic-docs.md`](../../../reference/topic-docs.md)),
+Resolve `<memory_dir>/handoffs/` for the **current repo**,
 never assume the literal `.work`; the memory root is consumer-configurable. Add the fallback
 `<root>/handoffs/`, where `<root>` is what
 `"$PY" -X utf8 "<plugin-root>/scripts/save_point.py" memory-root` prints (the writer's
 own plugin-data derivation; never glob `CLAUDE_PLUGIN_DATA` directly, since it is not exported to
 Bash-tool commands per the [plugins-reference environment variables](https://code.claude.com/docs/en/plugins-reference#environment-variables),
 read 2026-09-29; recheck when a release note or that section changes which processes receive it), **only when project-root resolution fails**: the
-producer writes there only on its no-project-root branch (topic-docs binding), so inside a repo
+producer writes there only on its no-project-root branch, so inside a repo
 that shared location holds unrelated sessions' save-points, and a newer one could hijack the
 short-circuit ahead of the transcript holding this repo's lost handoff. Glob `*-handoff-*.md`,
 keep only files whose frontmatter is `type: handoff`, rank by mtime. **Skip any file that still

@@ -1099,7 +1099,7 @@ def test_new_outside_any_git_repo_still_requires_guard_and_uses_absolute_origin_
     tmp_path,
 ):
     shutil.copytree(FIXTURES / "projects", tmp_path / "projects", dirs_exist_ok=True)
-    memory = tmp_path / "plugin-data" / "topic-docs"
+    memory = tmp_path / "plugin-data" / "artifacts"
     memory.mkdir(parents=True)
     args = new_args(tmp_path, tmp_path, "--no-previous")
     args[args.index("--memory-dir") + 1] = str(memory)
@@ -1139,7 +1139,7 @@ def _outside_git(tmp_path: Path) -> Path:
 def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
     cwd = _outside_git(tmp_path)
     data = tmp_path / "plugin-data"
-    memory = data / "topic-docs"
+    memory = data / "artifacts"
     memory.mkdir(parents=True)
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
     args = _no_memory_dir_args(tmp_path)
@@ -1163,7 +1163,7 @@ def test_new_without_memory_dir_outside_git_derives_data_dir_from_cache(tmp_path
         version_dir / "scripts",
         ignore=shutil.ignore_patterns("tests", "__pycache__"),
     )
-    memory = config / "plugins" / "data" / "session-flow-my-market" / "topic-docs"
+    memory = config / "plugins" / "data" / "session-flow-my-market" / "artifacts"
     memory.mkdir(parents=True)
     (memory / ".gitignore").write_text("*\n", encoding="utf-8")
     result = run(
@@ -1183,13 +1183,13 @@ def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
     assert not (cwd / ".work").exists()
 
 
-def test_memory_root_outside_git_prints_the_plugin_data_topic_docs(tmp_path):
+def test_memory_root_outside_git_prints_the_plugin_data_artifacts(tmp_path):
     cwd = _outside_git(tmp_path)
     data = tmp_path / "plugin-data"
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
     result = run("memory-root", env=env, cwd=cwd)
     assert result.returncode == 0, err(result)
-    assert out(result).strip() == real_posix(data / "topic-docs")
+    assert out(result).strip() == real_posix(data / "artifacts")
     refused = run("memory-root", cwd=cwd)
     assert refused.returncode == 1
 

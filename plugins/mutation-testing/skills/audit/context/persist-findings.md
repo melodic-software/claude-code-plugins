@@ -26,14 +26,14 @@ the consumer never scans that path.
 
 ## Where the file goes
 
-Resolve the destination and run the guards per the contract "Where the file goes". Three of its
-obligations are the ones a mutation run is most likely to skip, so they are named, not restated,
-here: run the **whole** rung order rather than its last rung; take the **non-interactive collapse**
-for the rungs that confirm or ask, since a headless detector cannot answer; and honor the
-**self-ignore guard**, including the invalid-root rule that keeps it out of a consumer's root
-`.gitignore`. Its second invalid case, named in "Prove the destination is outside tracked
-space", is where no checkout can be shown to govern a resolved root and this phase writes nothing
-there at all.
+Resolve the destination per the contract "Where the file goes": the current branch's findings
+directory in the memory slice, `<memory_dir>/reviews/<branch-slug>/`, where `<memory_dir>` is `.work/`
+unless the project's instructions declare another root. Two obligations are the ones a mutation run is
+most likely to skip, so they are named here: compose that directory rather than a hardcoded path, and
+honor the **self-ignore guard**, including the rule that keeps it out of a consumer's root
+`.gitignore` (a memory root that is `.`, empty, or the repository root is invalid). A resolved root
+that no checkout can be shown to govern is named in "Prove the destination is outside tracked
+space", and this phase writes nothing there at all.
 
 File name: `${TS}-mutation-survivors.md`, with `TS="$(date -u +%Y%m%dT%H%M%SZ)"`. The name is
 colon-free and Windows-safe, so lexical sort equals chronological sort.
@@ -52,13 +52,7 @@ both up front: on a fresh root the guard's file is exactly what makes the findin
 so that probe cannot precede the guard. "At most" is exact, not hedging. Where no governing checkout
 is found, neither write happens at a resolved root (step 1).
 
-**The one write that survives that branch is proven by step 1 itself, not by a probe.** The
-`${CLAUDE_PLUGIN_DATA}` fallback is written there, and what proves it safe is the agreement of two
-independent signals that no checkout governs the path: a destination outside every checkout cannot be
-tracked by one, so there is no ignore rule to satisfy and nothing for `check-ignore` to answer. That
-is a proof, not an exemption, which is why step 1 needs both signals and why a single-signal version
-of it would be fail-open rather than merely weaker. The order below is what makes the per-write form
-hold everywhere else:
+The order below is what makes the per-write form hold:
 
 0. **Make the resolved root a physical path first.** `cd` to its nearest existing ancestor, take
    `pwd -P`, and re-append the components below it. A lexical walk over a path whose ancestor is a
@@ -89,11 +83,11 @@ hold everywhere else:
    nothing in the environment to find**. The designation lives in a config file that destination-side
    discovery never reaches, so both signals come back empty together.
 
-   **On the permissive branch this producer writes nothing at all, with one exception named below.**
-   Not the guard's `.gitignore`, and not the findings file. The guard's half is the
-   [topic-docs convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md) "Runtime guards"
-   second invalid case, which owns the rule and why; nothing is re-derived here. The findings file
-   follows for the same undecidability applied to this skill's own contract: the destination may be
+   **On the permissive branch this producer writes nothing at all.**
+   Not the guard's `.gitignore`, and not the findings file. The guard's half follows from the same
+   undecidability: where no checkout can be shown to govern the root, a `.gitignore` absent from disk
+   may be tracked in an undetected checkout, and creating it would overwrite committed content. The
+   findings file follows for the same undecidability applied to this skill's own contract: the destination may be
    an **index-tracked deletion** in the checkout the detection missed, and writing it there produces
    a *modified tracked file* rather than a new untracked one. "Read-only with respect to
    tracked source" admits no such write, so the branch that cannot rule it out cannot take it.
@@ -101,12 +95,6 @@ hold everywhere else:
    Report the resolved destination, say that no checkout could be shown to govern it and the findings
    were therefore not persisted, and stop. A refusal a human can act on is the correct end of this
    branch; it is not a silent skip.
-
-   **The exception is the contract's `${CLAUDE_PLUGIN_DATA}` fallback**, which the rung order takes
-   when there is no project root at all. That surface is outside every checkout **by construction**,
-   so no tracked deletion can hide there and the refusal has nothing to protect. Write, and announce
-   the absolute path as the contract requires. Refusing it would strand the one destination a
-   headless run on a rootless directory is *supposed* to use.
 
    Two cases the signals resolve rather than defer: a **bare** repository with no worktree puts no
    `.git` in any ancestor and reports none, so it reaches this branch and the run refuses. That
@@ -117,7 +105,7 @@ hold everywhere else:
    topology, not this one.) A destination **inside a checkout's own `.git/`** is refused
    here, by name: `check-ignore` answers exit 1 for it, which step 5 would report as "tracked space",
    and `.git/` is not that.
-2. **Reject a root-equivalent `memory_dir`**, per the contract's invalid-root rule, judged against `T`
+2. **Reject a root-equivalent memory root** (`.`, empty, or resolving to the repo root), judged against `T`
    rather than the invoking worktree, since a root that is *another* checkout's toplevel would heal
    into *that* repo's root `.gitignore`.
 3. **Prove the guard's write before the guard makes it:** `git -C T ls-files -- <the resolved root>`.
@@ -140,10 +128,8 @@ hold everywhere else:
    Windows or macOS for a file no human put there. What the rule excludes is a root that looks like
    source: a `.py`, a `.cs`, a `Makefile`. It is a heuristic and is stated as one; it narrows the
    residual rather than closing it.
-   The precondition itself is the self-ignore guard's, not this producer's. The
-   [topic-docs convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md) "Runtime guards"
-   owns where that guard may heal; what is stated here is only how this producer discharges it before
-   its own writes.
+   The precondition itself is the self-ignore guard's, not this producer's; what is stated here is
+   only how this producer discharges it before its own writes.
 4. **Create the memory root**, **run the self-ignore guard**, then create the destination directory.
 5. **Prove the findings file:** `git -C T check-ignore -q -- <the exact intended file path>`, and
    **write only on exit 0.**

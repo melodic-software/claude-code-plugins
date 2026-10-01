@@ -10,7 +10,7 @@
 # when any chunk said so (the config is the same for every chunk of one run).
 #
 # The FINDINGS HOME is never resolved here: the caller (the audit skill)
-# resolves it through the detector-findings convention's rung order and its
+# resolves it from the memory root per the detector-findings convention and its
 # fetch-and-refuse gate, then hands the resolved path in as --out. This script
 # owns only the deterministic composition: at repo scale a findings file runs
 # to thousands of rows, which is script work, not prose work.

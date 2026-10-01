@@ -105,7 +105,7 @@ Spend the first turn grounding yourself, in parallel:
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
-- Note what the topic's contract slice `<contract_dir>/<topic-slug>/` (default `docs/topics/`) already contains, prior PRD, PLAN, design artifacts, and what its memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) holds (exploration/research artifacts)
+- Note what the topic's memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) already contains: prior PRD, PLAN, design artifacts, exploration and research artifacts
 
 If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale. The contract is branch-tracked, so git log is the history).
 
@@ -161,7 +161,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5. Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars). The same slug `/planning:interview`, `/planning:design`, and `/planning:plan` will use for this topic. Write to `<contract_dir>/<topic-slug>/PRD.md` (default `docs/topics/`). The topic's contract slice, committed on the task branch as it locks; under `contract_tier: local` it joins the memory slice instead. Roots, tier, and precedence resolve per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars). The same slug `/planning:interview`, `/planning:design`, and `/planning:plan` will use for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
 
 When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note capturing why before rewriting.
 
@@ -198,7 +198,7 @@ Test-seam sketching (where the feature will be tested, and at how few seams) is 
 
 Full template structures: [`context/templates.md`](context/templates.md).
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the tracked record. It lands in the topic-docs **ephemeral tier**, never the contract slice beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 
 ### Step 6. Hand off
 
@@ -344,7 +344,7 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 | Plan the implementation | `/planning:plan` | Reads PRD + PLAN + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output (not the PRD) |
 
-`/planning:prd` is sister to `/planning:plan`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug, share the contract slice, and feed each other.
+`/planning:prd` is sister to `/planning:plan`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug and the memory slice, and feed each other.
 
 ## Gotchas
 

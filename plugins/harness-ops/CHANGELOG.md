@@ -25,6 +25,11 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `claude-ops@<marketplace>` from `installed_plugins.json`, so it fails until provisioning reads
   `harness-ops@<marketplace>`. `probe-observability-state.sh` recognizes a launcher naming either
   key.
+## [0.81.1] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree. The `machine-profile` skill and the README cite its design document by commit permalink.
 
 ## [0.81.0] - 2026-10-01
 

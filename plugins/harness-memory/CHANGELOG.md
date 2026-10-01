@@ -17,6 +17,11 @@ All notable changes to the `harness-memory` plugin are documented here. Format f
 - The description and README state the boundary with `harness-config`: this plugin owns
   memory-layer health, `harness-config:audit-instructions` judges instruction text against the
   current model.
+## [0.13.13] - 2026-10-01
+
+### Changed
+
+- **The orphan-rule check ignores `memory_dir` in `.claude/topic-docs.yaml`.** `orphan-rule-check.sh` always excludes `.work/` from its reference search. A consumer that set another `memory_dir` there now has that root searched, so a rule referenced only from it is no longer reported as an orphan. Citations of the removed topic-docs convention and the `docs/specs` tree were dropped from the docs.
 
 ## [0.13.12] - 2026-09-30
 

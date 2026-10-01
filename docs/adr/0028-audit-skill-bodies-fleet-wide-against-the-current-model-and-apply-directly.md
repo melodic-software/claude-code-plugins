@@ -16,7 +16,7 @@ nothing changes nothing.
 
 In September 2026 the operator ran that procedure over every skill in this marketplace with
 Claude Fable 5.1 as the target model. The run is recorded in
-[`docs/specs/prompt-audit-skills-2026-09.md`](../specs/prompt-audit-skills-2026-09.md): one
+[`docs/specs/prompt-audit-skills-2026-09.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/prompt-audit-skills-2026-09.md): one
 fresh-context auditor per plugin, one report per plugin, the lead's per-finding decisions, one
 commit per plugin with a patch bump and evals updated in step, and a follow-up inventory. The
 sweep closed on 2026-09-05 over all 74 plugins: 63 took a commit and 11 were clean (one

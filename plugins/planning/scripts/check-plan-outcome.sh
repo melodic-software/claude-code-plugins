@@ -25,7 +25,7 @@
 # Headings inside fenced code blocks are ignored. A fence closes only on the same
 # character with at least the opening length and no info string, so a three-backtick
 # block quoted inside a four-backtick block stays inside it. The path check reads
-# every line, fenced or not, because a committed PLAN.md is read on other machines
+# every line, fenced or not, because a published PLAN.md is read on other machines
 # either way.
 #
 # The default run is the Step 4.7 draft gate and does not look at the `Approval:`

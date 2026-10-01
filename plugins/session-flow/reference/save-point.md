@@ -22,10 +22,8 @@ semantics. Neither skill restates this content; both walk it in order.
 
 ## Where save-points live
 
-Save-points are memory-tier, concern-scoped by session. Resolve the destination through
-the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
-A consumer-declared `memory_dir` (the `.claude/topic-docs.yaml` concern file, or a working-docs
-convention in `CLAUDE.md` / `.claude/rules/`) wins as the memory-tier ROOT; save-points always live
+Save-points are memory-tier, concern-scoped by session. A consumer-declared `memory_dir` (a
+working-docs convention in `CLAUDE.md` / `.claude/rules/`) wins as the memory-tier ROOT; save-points always live
 at **`<memory_dir>/handoffs/`** (default `.work/handoffs/`), in files named `<TS>-handoff-<topic>.md`
 with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). On the session's first
 memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*`, creating
@@ -209,7 +207,7 @@ ladder the structure doc's write procedure shows (`"$PY" -X utf8 …`, Python 3.
 
 - `save_point.py memory-root` is read-only and prints the memory root `new` uses when
   `--memory-dir` is omitted: `.work` under the git top level; outside a git work tree,
-  `<plugin data>/topic-docs`. When neither exists, `new` refuses and asks for `--memory-dir`.
+  `<plugin data>/artifacts`. When neither exists, `new` refuses and asks for `--memory-dir`.
 - `save_point.py new --topic <slug> [--memory-dir <root>] (--previous <file> | --no-previous)`
   writes the skeleton with every deterministic field filled (filename and `date:`, `session_id`
   from `CLAUDE_CODE_SESSION_ID`, the resolved `transcript:`, `previous_handoff` and `chain:`, the
@@ -609,10 +607,9 @@ into a repo that is not cwd's project root, and the resuming session may sit in 
 the right repo or in a different repo entirely. When the wrong root happens to contain its own
 `.work/handoffs/`, the failure presents as "the file is missing" rather than "the path has no
 root", which is the most expensive shape to diagnose. Rooting the path removes the resolution step
-that can be wrong. This is the same answer the binding already gives on its no-project-root branch,
-where handoffs land under `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` "with the absolute path
-announced prominently" ([`topic-docs.md`](topic-docs.md)). Absolute is already what this engine
-does wherever a relative path has no anchor.
+that can be wrong. On the no-project-root branch handoffs land under `${CLAUDE_PLUGIN_DATA}/artifacts/handoffs/` with
+the absolute path announced prominently, and absolute is already what this engine does wherever a
+relative path has no anchor.
 
 **Render it forward-slash normalized**, as `/home/<user>/src/<repo>/.work/handoffs/…` on a POSIX
 host and `D:/repos/<owner>/<repo>/.work/handoffs/…` on Windows, never with backslashes: the directive

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # raters.sh: the model raters' blind labels for the calibration set
-# (docs/specs/tautological-tests-judge/calibration.md, Raters).
+# (calibration.md, Raters).
 #
 #   raters.sh [labels.tsv]          label every row with each configured rater:
 #                                   opus, and codex when the Codex CLI is on

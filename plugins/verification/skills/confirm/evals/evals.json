@@ -55,12 +55,12 @@
       "id": 7,
       "name": "e2e-auto-trigger-on-runtime-change",
       "prompt": "verify the changes — I added a new endpoint to the API",
-      "expected_output": "Stage 2 inspects changed files, matches the e2e-app-runtime runtime-affecting category, and auto-triggers /testing:run-e2e to validate against a running app. Collects UI/runtime evidence and writes an assertion-only manifest with verified_at_sha to the topic's contract slice.",
+      "expected_output": "Stage 2 inspects changed files, matches the e2e-app-runtime runtime-affecting category, and auto-triggers /testing:run-e2e to validate against a running app. Collects UI/runtime evidence and writes an assertion-only manifest with verified_at_sha to the topic's memory slice.",
       "files": [],
       "expectations": [
         "Auto-triggers /testing:run-e2e because the change matches an e2e-* category glob (runtime-affecting)",
-        "Writes the assertion-only manifest with verified_at_sha to the topic's contract slice (docs/topics/<slug>/verification/, committed on the task branch)",
-        "Meets the redaction bar: no machine-local capture paths in the manifest — raw captures stay in the memory tier (.work/<slug>/scratch/), never committed"
+        "Writes the assertion-only manifest with verified_at_sha to the topic's memory slice (.work/<slug>/verification/, never committed) and pastes it into the PR body or linked issue",
+        "Carries distilled assertions only: no machine-local capture paths in the manifest, because raw captures stay in the memory slice (.work/<slug>/scratch/), never committed"
       ]
     },
     {

@@ -1,11 +1,17 @@
 # Changelog
 
-## [0.12.2] - 2026-10-01
+## [0.12.3] - 2026-10-01
 
 ### Changed
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.12.2] - 2026-10-01
+
+### Changed
+
+- Dropped citations of the removed topic-docs convention and the `docs/specs` tree.
 
 ## [0.12.1] - 2026-09-29
 

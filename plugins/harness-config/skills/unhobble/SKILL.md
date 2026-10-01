@@ -76,11 +76,6 @@ existing experiment directory: a fresh run mints a fresh id. Resuming an open ex
 passing its phase commands from a checkout of the recorded origin, on the recorded branch, at a
 commit that still contains `base_commit`. A different absolute path is not a mismatch.
 
-Refuse a state path under the topic-docs contract dir (default `docs/topics/`, or `contract_dir`
-when `.claude/topic-docs.yaml` sets one). Name
-`scripts/check-contract-slice-prune.sh --check-diff` as the reason: a pull request that leaves a
-path there fails that gate, and the slice is pruned before merge, which deletes the ledger.
-
 - `manifest.json`: every surface found, its classification (`behavioral` | `policy` | `hybrid` | `convention` |
   `non-derivable`, which is kept and restored like `policy`),
   what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under

@@ -5,7 +5,7 @@
 
 ## Context
 
-The [machine profile design](../specs/machine-profile-design.md) (issue #4666) describes a
+The [machine profile design](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/machine-profile-design.md) (issue #4666) describes a
 re-runnable profile that discovers host facts once, stores them, and hands each plugin's `setup`
 the answers. The design needs one owner. Two placements were on the table: a skill in
 `harness-ops`, or a new plugin.

@@ -21,11 +21,10 @@ operator as a change that has been made.
 
 ## Where the file goes
 
-Resolve per the contract "Where the file goes": run the WHOLE rung order (never only its
-documented default), take the non-interactive collapse for the rungs that confirm or ask, honor
-the self-ignore guard including its invalid cases, and prove the destination is outside tracked
-space before writing (the contract and its topic-docs binding own the proof; a destination that
-cannot be proven is reported and not written to).
+Resolve per the contract "Where the file goes": the current branch's findings directory in the
+memory slice (`<memory_dir>/reviews/<branch-slug>/`, `.work/` unless the project's instructions
+declare another root), honor the self-ignore guard, and prove the destination is outside tracked
+space before writing (a destination that cannot be proven is reported and not written to).
 
 File name: `${TS}-audit-instructions.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free,
 Windows-safe). Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer.
@@ -58,7 +57,7 @@ recomputation, cell assembly and escaping, tier lookup (a mirror of the crosswal
 crosswalk row is authoritative), each row's finding identity (through `scripts/finding-ids.sh`,
 per [reference/finding-identity.md](../reference/finding-identity.md)), rank ordering, the
 non-overwrite suffix, and the `## Surfaces` counts. What stays with the model is everything before
-the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore guard) and everything
+the script (destination resolution, the fetch-and-refuse gate, the self-ignore guard) and everything
 after it (reading the written file's head to confirm shape, and severity-vocabulary mapping when
 the consuming project defines its own). For that mapping, edit the written file's `Tier` cells per
 the contract's consumer-precedence rule.

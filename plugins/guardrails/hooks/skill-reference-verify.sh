@@ -76,9 +76,7 @@ case "$FILE" in
 # were CHANGELOG rename entries, all correct as written, and excluding them moves
 # the guard from 3.4% of files firing at 6% precision to 0.5% firing at 57%.
 #
-# Deliberately narrow. `docs/topics/*/PLAN.md` completion records are arguably the
-# same shape, but two of the four real findings on this corpus live there — a
-# broader "historical by contract" rule would cost half the signal.
+# Deliberately narrow: a broader "historical by contract" rule would cost real signal.
 */CHANGELOG.md | CHANGELOG.md) exit 0 ;;
 *.md) ;;
 *) exit 0 ;;

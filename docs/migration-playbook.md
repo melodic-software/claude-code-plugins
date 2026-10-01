@@ -256,8 +256,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      restructures. A further one-increment PRECEDENT-EXTENSION; each instance records its schema and
      resolution rules as a versioned contract under `docs/conventions/<concern>/` (template:
      `docs/conventions/hook-telemetry/`; first instance:
-     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md); second
-     instance: [`docs/conventions/topic-docs/`](conventions/topic-docs/README.md)).
+     [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md)).
    - **Profiled folder for audience/deployment variants.** When ONE plugin's tracked config varies by
      *audience* or *deployment*, meaning a different framing, ranking lens, or branding per team /
      client / context, add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
@@ -506,10 +505,8 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 **The marketplace `renames` map is append-only.** Every entry stays: a consumer whose
 `enabledPlugins` still names a pre-rename plugin id resolves only through the map, and removing an
 entry strands them. A rename this marketplace chooses is a clean breaking change carried by a
-version bump and a changelog note, with no new entry, the standing posture locked in
-`docs/topics/shadowed-skill-renames/` (pruned per the topic-docs convention; read it
-in history at `c70d8867ccd9f9921fdde25de70cb9a91e718c80`). The exception is a rename upstream
-forces: `claude plugin validate` rejects a third-party name starting `claude-`
+version bump and a changelog note, with no new entry. The exception is a rename upstream forces:
+`claude plugin validate` rejects a third-party name starting `claude-`
 ([plugins-reference, name](https://code.claude.com/docs/en/plugins-reference)), so
 `claude-config`, `claude-memory` and `claude-ops` became `harness-config`, `harness-memory` and
 `harness-ops` with entries in the map, because every existing install of a now-invalid id would

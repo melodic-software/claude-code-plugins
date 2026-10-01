@@ -120,7 +120,7 @@ session-side coverage cross-referenced. One work item covers the chapter.
 **The repo has already executed this lane's remedy.** A fleet-wide `/claude-api prompt-audit`
 run (Claude Code 2.1.258 against Fable 5.1) covered 74 plugins, 241 skills, 798 files, about
 115k lines; 805 findings applied, 207 withheld, 694 files changed
-(`docs/specs/prompt-audit-skills-2026-09.md`, ADR-0028). ADR-0028 makes it a repeating lane
+(ADR-0028), which makes it a repeating lane
 per model change. The `harness-config:audit-instructions` criteria catalog maps one-to-one onto
 the article's six anti-pattern families:
 

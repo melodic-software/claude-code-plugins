@@ -172,8 +172,8 @@ schema, resolution rules, and the prompt-storage seam live in
 **`lanes/` is this skill's reserved concern home.** The config and the lane prompt
 files live inside `<repo>/.work/lanes/`, a reserved first-level name under the
 memory root, not as bare files at the root itself. Lanes **hardcodes the literal
-`.work` root**: it does not resolve the topic-docs `memory_dir` setting, and a
-consumer that has repointed `memory_dir` elsewhere must pass `--config` or set
+`.work` root**: it does not resolve a repointed memory root, and a
+consumer that has repointed it elsewhere must pass `--config` or set
 `$CLAUDE_OPS_LANES_CONFIG`. That is a stated carve-out, not an oversight. The
 launcher is an operator script invoked outside a session (an OS schedule, a bare
 shell), where no skill body is loaded to resolve the setting for it, and the

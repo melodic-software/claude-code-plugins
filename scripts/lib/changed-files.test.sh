@@ -197,9 +197,8 @@ fi
 
 # --find-renames pins detection ON regardless of the repository's diff.renames.
 # A gate whose verdict depends on a move collapsing to its destination alone
-# (check-contract-slice-prune.sh: a `git mv` OUT of the policed root is the
-# prescribed graduation) cannot let a config setting decide, so the flag is
-# asserted against a repo that has turned detection OFF.
+# (a `git mv` out of a policed directory) cannot let a config setting decide,
+# so the flag is asserted against a repo that has turned detection OFF.
 git_test_config "$repo" config diff.renames false >/dev/null
 paths=()
 run_into "$repo" paths "$base" --include-deleted --

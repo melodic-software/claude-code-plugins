@@ -4,7 +4,7 @@
 #   emit-findings.sh --from <detect-output> --out <path> [--branch <b>]
 #
 # The FINDINGS HOME is never resolved here: the caller (the audit-noise skill)
-# resolves it through the detector-findings convention's rung order and its
+# resolves it from the memory root per the detector-findings convention and its
 # fetch-and-refuse gate, then hands the resolved path in as --out. This script
 # owns only the deterministic composition.
 #

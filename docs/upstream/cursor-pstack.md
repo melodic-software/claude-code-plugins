@@ -308,9 +308,7 @@ that are all session-process problems), written by a **transcript-parsing subage
 in a file whose cumulative-chain identity lives in YAML frontmatter a TSV cannot carry — and the
 skill "does not run builds, tests, or a code review", so it cannot produce a `result` cell at all.
 Upstream's is decision-shaped, written by the **acting agent at decision time**. Two artifacts, not
-one. Two further blockers: `session-flow/reference/topic-docs.md` states "session-flow never writes
-the contract tier", and `docs/conventions/topic-docs/README.md` records `history.md`
-("append-only decision log") as **deliberately absent** already.
+one.
 
 The audit then argued the opposite verdict — ship a capture format that the fleet's **eight**
 existing audit-trail surfaces route into — on the grounds that this marketplace built the *recovery*

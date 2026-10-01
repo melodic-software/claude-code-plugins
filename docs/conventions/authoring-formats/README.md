@@ -188,9 +188,7 @@ verbatim, with only the key name and the emitting behavior substituted:
 An installed plugin never sees this repository's `docs/conventions/`. A consuming skill therefore
 cannot defer to this document at runtime, and a path citation to it would make this publisher a
 runtime dependency of the consumer's session. The instruction surface a session loads is the skill
-body, so the rules have to be in it. That is the same reasoning
-[`topic-docs`](../topic-docs/README.md) § "Implementers restate the rules; they do not share a
-source" records for its own setup skills, and identical prose across two consuming skills is a
+body, so the rules have to be in it. Identical prose across two consuming skills is a
 coincidence of scope rather than a shared artifact to hoist.
 
 This doc owns the text; the consuming slices carry the restating work.

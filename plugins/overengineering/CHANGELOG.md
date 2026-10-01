@@ -3,12 +3,18 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.21] - 2026-10-01
+## [0.4.22] - 2026-10-01
 
 ### Changed
 
 - References to the `claude-config`, `claude-memory` and `claude-ops` plugins now use their new
   names, `harness-config`, `harness-memory` and `harness-ops`.
+
+## [0.4.21] - 2026-10-01
+
+### Changed
+
+- Removed `reference/topic-docs.md` and its binding to the repository's topic-docs convention, which no longer exists. Plans, specs and findings live in the pull request body, the linked issue and the memory slice.
 
 ## [0.4.20] - 2026-09-30
 

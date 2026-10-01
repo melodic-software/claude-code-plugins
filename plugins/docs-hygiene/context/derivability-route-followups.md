@@ -3,11 +3,11 @@
 ## Contents
 
 - [Batch record](#batch-record)
-- [Route: audit-noise (38)](#route-audit-noise-38)
+- [Route: audit-noise (36)](#route-audit-noise-36)
 - [Route: extract-ssot (136)](#route-extract-ssot-136)
 - [False-keep sampling backlog](#false-keep-sampling-backlog)
 
-Durable tracking for the 174 route-to-sibling annotations from the repo-wide
+Durable tracking for the 172 route-to-sibling annotations from the repo-wide
 `/docs-hygiene:audit-derivability` sweep (issue #2735 / session ledger
 `derivability-ledger.json`, ephemeral). This file is the in-tree status board,
 and no new GitHub issues are opened from it.
@@ -20,7 +20,7 @@ and no new GitHub issues are opened from it.
 | extract-ssot triage | 2026-08-16 | all 136 ssot-routed paths | dispositions below; exact byte-identical `reference/artifact-protocol.md` cluster already registered in `scripts/cross-plugin-source-registry.txt` (keep-as-synced-copies, not pointer-extract) |
 | false-keep sampling | deferred | 1089 `keep-owns-facts` from the original sweep | original session ledger ephemeral; future sweeps sample keeps per the post-#2695 contract. Do not invent a one-off sample without the ledger |
 
-## Route: audit-noise (38)
+## Route: audit-noise (36)
 
 Disposition after the 2026-08-16 pass: **closed for scanner follow-up**. Line-level
 noise the original sweep saw was largely false-positive under the pre-exemption
@@ -34,7 +34,6 @@ scanner; remaining real cite relocated.
 | `docs/conventions/ecosystem-commands/README.md` | clean |
 | `docs/conventions/hook-observability/README.md` | clean |
 | `docs/conventions/hook-telemetry/README.md` | clean |
-| `docs/topics/context-engineering-claude-5/design/skill-inventory.md` | clean |
 | `plugins/ai-briefing/skills/generate/references/build-pipeline.md` | clean |
 | `plugins/ai-briefing/skills/generate/references/slide-generation.md` | clean |
 | `plugins/architecture/CHANGELOG.md` | basename-exempt |
@@ -54,7 +53,6 @@ scanner; remaining real cite relocated.
 | `plugins/machine-health/skills/audit/references/windows/check-catalog.md` | clean |
 | `plugins/machine-health/skills/audit/references/windows/elevation-matrix.md` | clean |
 | `plugins/mcp-tools/skills/audit/reference/server-discovery.md` | clean |
-| `plugins/planning/reference/topic-docs.md` | clean |
 | `plugins/planning/skills/draft-goal-condition/SKILL.md` | clean |
 | `plugins/planning/skills/interview/context/session-config.md` | clean |
 | `plugins/playbooks/skills/boris/SKILL.md` | clean |

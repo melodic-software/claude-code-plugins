@@ -186,7 +186,7 @@ internals become public invocations.
   The Boundary section still shows its pattern in the fenced block immediately below, so nothing a
   reader needed from those files left the page.
 - **Two of the three were standing findings.** They are `V-review-13` and `V-review-14` in
-  [`docs-hygiene-sweep-unapplied-remediations.md`](../../specs/docs-hygiene-sweep-unapplied-remediations.md)'s
+  [`docs-hygiene-sweep-unapplied-remediations.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/docs-hygiene-sweep-unapplied-remediations.md)'s
   L4 group of 34, recorded open on 2026-08-26 and unapplied since. That roster is a point-in-time
   record and is not edited here, per its own decay rule, and re-deriving it against its own text
   test shows most of it is already closed: these two were the last open rows of its 24-row Group 1,

@@ -14,7 +14,7 @@ prerequisite is absent.
 
 Shape, fields, ids, ordering, the stable-spine / free-prose split, the status vocabulary, and the
 re-run merge rules are owned by `<plugin-root>/context/findings-artifact.md`. Its home is
-resolved through `<plugin-root>/reference/topic-docs.md`. **This document restates neither.**
+in that document's "Where it lives". **This document restates neither.**
 
 Two reminders that are about *writing* the file rather than about the contract:
 

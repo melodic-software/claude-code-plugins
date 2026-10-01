@@ -7,8 +7,8 @@
 # and the one record formatter every JSONL writer here emits through. Sourced,
 # never executed (no shebang, like every other sourced library here).
 # Deliberately NOT lib/hook-utils.sh: a logging producer runs on every hook
-# event, and parsing that library costs more than the rest of the hook
-# (docs/topics/hook-logging-pipeline, Brief Q15). Nothing here spawns a
+# event, and parsing that library costs more than the rest of the hook.
+# Nothing here spawns a
 # process; every function assigns into a caller-named variable (`printf -v`)
 # or returns a status. Locals carry a `slog__` prefix so `printf -v` can never
 # land on a shadowed name.

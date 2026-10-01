@@ -1,121 +1,50 @@
 ---
-description: "Verify and configure the planning plugin for this repository across its two concerns. check inspects read-only the topic-docs seam (.claude/topic-docs.yaml effective values, committed-tier conflict) and the standards index presence; apply resolves where topic documents land (persisting .claude/topic-docs.yaml) and bootstraps the standards index (docs/standards/ and, on relocation, .claude/standards.yaml). Use when: 'set up planning', 'is planning configured', 'configure the planning plugin', 'planning setup', 'where do planning artifacts land', 'set up standards', 'bootstrap the standards index', or a planning skill reports missing or thin config. Re-runnable. Safe to invoke again to reconfigure or migrate."
+description: "Verify and configure the planning plugin for this repository. check inspects read-only the standards index presence and the interview-rendering toggle; apply bootstraps the standards index (docs/standards/ and, on relocation, .claude/standards.yaml). Use when: 'set up planning', 'is planning configured', 'configure the planning plugin', 'planning setup', 'set up standards', 'bootstrap the standards index', or a planning skill reports missing or thin config. Re-runnable. Safe to invoke again to reconfigure or migrate."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
-shell: bash
 ---
-
-## Pre-computed context
-
-`check`'s read of the concern file ran at load time, from the session's working directory (the
-repository root unless the session has changed directory). Read it here instead of re-reading the
-file. `(absent)` means no readable `.claude/topic-docs.yaml` at that path; an empty value means the
-file exists but is empty:
-
-!`{ cat .claude/topic-docs.yaml 2>/dev/null || echo "(absent)"; }`
-
-When the session's working directory is not the repository root, or the value reads
-`[shell command execution disabled by policy]`, read `.claude/topic-docs.yaml` at the repository
-root directly instead.
 
 ## Purpose
 
-Verify and settle the topic-docs convention for the CONSUMING repo: where the planning pipeline's contract
-documents (`PRD.md`, `PLAN.md`, `design/`) and working memory (checklists, baselines, scratch) land,
-persisting it to the tracked concern file **`.claude/topic-docs.yaml`**, the consumer-side single
-source of truth every consuming plugin resolves first. The file's shape is the convention's
-`topic-docs.schema.json`; every key is optional and absent keys mean the documented defaults
-(`contract_dir: docs/topics`, `memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`).
-This plugin's binding, its tier table and vault-seam close-out pointer, lives in
-[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md);
-the contract it cites owns the resolution order and runtime guards.
+Verify and settle the planning plugin's one consumer-side concern: where the consuming repo's
+**standards** live, the adopted conventions and criteria the planning skills ground plans in. Where
+planning artifacts land needs no configuration: the plugin's artifact protocol
+([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md))
+fixes placement.
 
-Both concern files are optional: with none, the pipeline uses the documented defaults, so their absence
-is a reported INFO, never a FAIL. `check` inspects read-only; `apply` resolves and persists, then
+The standards concern is optional: with no index, the pipeline uses standard engineering defaults, so its
+absence is a reported INFO, never a FAIL. `check` inspects read-only; `apply` resolves and persists, then
 re-runs `check`. No argument or `check` runs the check; `apply` runs the check first, then the
-resolve-and-write flow. Idempotent: re-running reads the current state and offers an update rather than
+bootstrap flow. Idempotent: re-running reads the current state and offers an update rather than
 overwriting blind.
 
 ## `check` (read-only)
 
-Inspect both concerns and report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify
-nothing, and do NOT run a planning stage. Those are the pipeline skills.
+Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing, and do NOT run a
+planning stage. Those are the pipeline skills.
 
-1. **topic-docs concern file**. Take `.claude/topic-docs.yaml` from the pre-computed block and
-   report its effective
-   values (absent keys mean the documented defaults). Absent file → INFO: the documented defaults apply;
-   `apply` persists a concern file when the repo diverges. A file that does not parse as the schema
-   (e.g. a comment-only document YAML parses as null) is FAIL.
-2. **Committed-tier conflict**. Only when the effective `contract_tier` is `branch` (local mode has no
-   committed tier to guard): `git check-ignore -v` on a representative file path inside the chosen
-   contract root (e.g. `<contract_dir>/probe/PLAN.md`. A bare directory misses `**` patterns). A
-   consumer ignore rule that matches is FAIL: a "committed" tier that git ignores is the failure the
-   guard exists to catch; surface the exact rule and source line.
-3. **Deferred backend.** If the effective `vault_backend` is `gitbook`, INFO: it is reserved but not
-   enabled. Git remains the storage layer because GitBook offers no concurrency-safe, lossless write
-   path, so it is deferred and non-writable; durable writes target `docs`.
-4. **Standards index**. The index presence test at the resolved `<standards_dir>/README.md`
+1. **Standards index**. The index presence test at the resolved `<standards_dir>/README.md`
    (`.claude/standards.yaml` may relocate the root from the documented default). Absent → INFO: the
    standards concern is not bootstrapped; `apply` offers to scaffold it. A present index whose
    `standards-contract` frontmatter version is behind the plugin binding's is INFO with the DIRECTIONAL
    version-delta noted (migration runs under `apply`). A present `README.md` that is hand-authored (not
    a conforming index) is INFO, flagged for the `apply` confirmation gate.
-5. **Interview-rendering toggle**. INFO: report the effective `use_ask_user_question` value,
+2. **Interview-rendering toggle**. INFO: report the effective `use_ask_user_question` value,
    `${user_config.use_ask_user_question}` (unexpanded or empty means the default `false`. The pipeline
    skills' question rounds render as inline prose). This is a native `userConfig` toggle, not a
    consumer-project file; `apply` gives the reconfigure guidance below.
 
 ## `apply` (idempotent)
 
-Run `check`, then resolve and persist both concerns. Proceed non-interactively where the invocation and
+Run `check`, then bootstrap the standards index. Proceed non-interactively where the invocation and
 the repo make the values unambiguous; ask only where a choice genuinely needs the user. No silent
 writes. Every bootstrap write is user-accepted.
 
-### First concern. Topic-docs
+### Standards bootstrap
 
-1. **Read the current state first.** In order: an existing `.claude/topic-docs.yaml` (report its
-   effective values as the baseline. The interview proposes changes against it); a working-docs
-   convention declared in the consumer's `CLAUDE.md` / `.claude/rules` (an inference source,
-   surface it as the recommended values and offer to persist it into the concern file).
-2. **Infer before asking.** With no concern file and no declared convention, look for an existing
-   conforming layout (a `docs/topics/`-shaped contract root, a self-ignoring `.work/`) and
-   confirm it rather than guessing.
-3. **Interview. One decision.** The one choice that matters is `contract_tier`: **`branch`
-   (RECOMMENDED)**. Contract documents commit on the task branch, travel to worktrees and cloud
-   clones, and are pruned before merge, versus `local`: solo/offline mode; contract kinds join the
-   memory tier and the PR-description paste is the only publication surface. Keep `contract_dir`,
-   `memory_dir`, and `vault_backend` at their defaults unless the repo's own conventions say
-   otherwise. But offer every schema key and preserve every key an existing file carries (a
-   re-run never drops one); do not invent knobs beyond the schema. Whenever the effective
-   `vault_backend` is, or becomes, `gitbook`, preserved from an existing file, inferred from the
-   repo's own `CLAUDE.md` / `.claude/rules`, or chosen by the user during this interview, report
-   that GitBook is deferred and non-writable: the effective writable promotion target remains
-   `docs` until a later reviewed decision enables the backend. Do not configure or test a GitBook
-   API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user chooses that
-   change.
-4. **Run the conflict check before writing**. Only when the chosen tier is `branch` (local mode
-   has no committed tier to guard). `git check-ignore -v` on a representative file path
-   inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md`. A bare directory misses
-   `**` patterns): if a consumer ignore rule matches, STOP and surface the exact rule and
-   source line. A "committed" tier that git ignores is the failure the guard exists to catch.
-   Resolving the rule is the user's edit to make: **never modify the consumer's root
-   `.gitignore`** (or any ignore file this setup did not itself create. The standards root's
-   own bootstrap-shipped `.gitignore` below is the one setup-owned exception).
-5. **Persist.** Write `.claude/topic-docs.yaml` (tracked, team-shared), recording only the keys
-   the user chose. Absent keys mean the documented defaults, so an all-defaults answer may
-   yield a file with `contract_tier: branch` alone or the schema-valid empty mapping `{}`
-   (optionally followed by comments), never a comment-only document, which YAML parses as null.
-   Preserve every schema key an existing file carries. After the write, run the tracked-file pair
-   on it: `git check-ignore -v` reports no match (a match is FAIL with the pattern) AND
-   `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but
-   untracked: commit it to share with the team", never success).
-
-### Second concern. Standards bootstrap
-
-Settle where the consumer's **standards** live, the adopted conventions and criteria the
-planning skills ground plans in, by implementing the normative "Setup and migration" section of
-the plugin's contract binding
+Settle where the consumer's standards live by implementing the normative "Setup and migration" section
+of the plugin's contract binding
 [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md).
 The procedure (state reading via the index presence test, the conforming-index short-circuit, the
 hand-authored-README confirmation gate, interview, skeleton write, row-path validation,
@@ -162,17 +91,15 @@ still reports the OLD value; report the observed effective value, never an unobs
 
 ### Verify after remediation
 
-Re-run the `check` probes on what was written, the topic-docs conflict check on the persisted tier
-and the standards index presence/row-path validation, and report the actual results, never success on
-the write alone.
+Re-run the `check` probes on what was written, the standards index presence/row-path validation, and
+report the actual results, never success on the write alone.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
 ## Output
 
-A written (or confirmed) `.claude/topic-docs.yaml`, plus. When the standards concern was
-exercised. A written (or confirmed-healthy) standards index and its overlay `.gitignore`, a
-one-line summary of the effective values, the conflict-check and row-validation results, and how
+When the standards concern was exercised, a written (or confirmed-healthy) standards index and its
+overlay `.gitignore`, a one-line summary of the effective values, the row-validation results, and how
 to re-run this setup to reconfigure or migrate.
 
 ## What this skill does NOT do
@@ -180,9 +107,9 @@ to re-run this setup to reconfigure or migrate.
 - Run a planning stage. That is the pipeline skills (`/planning:brainstorm`, `/planning:prd`,
   `/planning:interview`, `/planning:design`, `/planning:design-handoff`,
   `/planning:devils-advocate`, `/planning:plan`). `check` only inspects config.
-- Edit the consumer's root `.gitignore` or any ignore file it did not itself create. The
-  conflict check surfaces rules; the user resolves them. (The memory root's own self-ignoring
-  `.gitignore` is created by the first memory-tier write, announced. Not by setup. The single
-  setup-owned ignore file is the standards root's bootstrap-shipped `<standards_dir>/.gitignore`.)
+- Edit the consumer's root `.gitignore` or any ignore file it did not itself create. (The memory
+  root's own self-ignoring `.gitignore` is created by the first memory-tier write, announced. Not by
+  setup. The single setup-owned ignore file is the standards root's bootstrap-shipped
+  `<standards_dir>/.gitignore`.)
 - Write anything into the plugin directory or the plugin data directory
   (`${CLAUDE_PLUGIN_DATA}` is for caches and generated state only).

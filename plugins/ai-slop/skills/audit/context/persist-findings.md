@@ -13,18 +13,16 @@ the consumer never scans that path.
 
 ## Where the file goes
 
-Resolve per the contract "Where the file goes": run the WHOLE rung order (never only its
-documented default), take the non-interactive collapse for the rungs that confirm or ask, honor
-the self-ignore guard including its invalid cases, and prove the destination is outside tracked
-space before writing (the contract and its topic-docs binding own the proof; a destination that
-cannot be proven is reported and not written to).
+Resolve per the contract "Where the file goes": the current branch's findings directory in the
+memory slice (`<memory_dir>/reviews/<branch-slug>/`, `.work/` unless the project's instructions
+declare another root), honor the self-ignore guard, and prove the destination is outside tracked
+space before writing (a destination that cannot be proven is reported and not written to).
 
-Common case, a summary that yields to the contract on any disagreement: with no
-`.claude/topic-docs.yaml` `memory_dir` and no location declared in `CLAUDE.md` or `.claude/rules`,
-the file goes to `<repo>/.work/reviews/<branch-slug>/` once `git check-ignore` confirms that path is
-ignored. The slug rule is in `plugins/review/reference/topic-docs.md` "Resolution". Any other rung,
-or a rung that cannot be resolved, follows the contract, and the run reports report-only when the
-contract would need to ask.
+Common case, a summary that yields to the contract on any disagreement: with no location declared
+in `CLAUDE.md` or `.claude/rules`, the file goes to `<repo>/.work/reviews/<branch-slug>/` once
+`git check-ignore` confirms that path is ignored. The slug rule is in `/review:fanout` "Shared inputs"
+(`plugins/review/skills/fanout/SKILL.md`). A destination that cannot be resolved follows the
+contract, and the run reports report-only.
 
 File name: `${TS}-ai-slop.md`, `TS="$(date -u +%Y%m%dT%H%M%SZ)"` (colon-free, Windows-safe).
 Never overwrite: when the path exists, take `-2`, `-3`, the smallest free integer.
@@ -44,7 +42,7 @@ The self-ignore guard file is the one write the script does not own. Create it w
 tool, never with a shell redirect: a repository running the guardrails plugin blocks
 `printf '*' > <memory root>/.gitignore` as a hook bypass, and the same block applies to any
 other shell write into the checkout. What stays with the model is
-everything before the script (rung-order resolution, the fetch-and-refuse gate, the self-ignore
+everything before the script (destination resolution, the fetch-and-refuse gate, the self-ignore
 guard) and everything after it (reading the written file's head to confirm shape, and
 severity-vocabulary mapping when the consuming project defines its own, done by editing the
 written file's `Tier` cells per the contract's consumer-precedence rule). Hand-compose only when

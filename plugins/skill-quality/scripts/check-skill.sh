@@ -2160,7 +2160,7 @@ done < <(
 # heading either (Handoff, Routing, Integration, Skill chaining, each matched
 # as a prefix because the fleet titles them several ways), the absence is a
 # WARN. `contract` is left out of the stage list on purpose: interview, prd,
-# and design route through the contract slice they write, not through a
+# and design route through the artifacts they write, not through a
 # successor section. `anytime`, `operator`, and `session` are not stages.
 NEXT_STAGE_BEARING='^(explore|research|plan|implement|test|review|verify|pr|retro)$'
 NEXT_ROUTING_HEADING='^##[[:space:]]+(handoff|routing|integration|skill chaining)'
