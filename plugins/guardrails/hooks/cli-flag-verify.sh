@@ -110,8 +110,8 @@ esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
 # Bundled verifier missing (install corruption, not a consumer-facing
-# prerequisite) — fail open, don't block, but make it visible once per
-# session rather than a fully silent skip (docs/conventions/hook-observability/).
+# prerequisite) — fail open, don't block, but make it visible once per session
+# and agent rather than a fully silent skip (docs/conventions/hook-observability/).
 CFV_SHARED="$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
 if [[ ! -x "$VERIFIER" || ! -f "$CFV_SHARED" ]]; then
   if hook::notice_once "guardrails-cli-flag-verifier" "$INPUT"; then

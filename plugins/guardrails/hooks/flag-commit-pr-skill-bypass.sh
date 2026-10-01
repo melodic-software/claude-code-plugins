@@ -101,8 +101,8 @@ hook::require_jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
 # call. Failure semantics are unchanged: a missing jq or an unparsable payload
 # yields rc 1 here, which exits 0 exactly as the empty-COMMAND skip below did —
 # hook::require_jq above has already made the degraded state visible once per
-# session. The `// "Bash"` default moves to the bash-side expansion, matching
-# block-dangerous-git.
+# session and agent. The `// "Bash"` default moves to the bash-side expansion,
+# matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || exit 0
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0

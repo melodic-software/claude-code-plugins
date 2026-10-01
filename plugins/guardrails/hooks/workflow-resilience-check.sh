@@ -69,7 +69,7 @@ hook::require_jq "PreToolUse" "guardrails-workflow-resilience-check" "$INPUT"
 # empty-SCRIPT skip below did (both fields would have come back empty, and the
 # scriptPath fallback needs a non-empty SCRIPT_PATH to do anything) —
 # hook::require_jq above has already made the degraded state visible once per
-# session.
+# session and agent.
 hook::jq_fields "$INPUT" '.tool_input.script' '.tool_input.scriptPath' || exit 0
 SCRIPT="${HOOK_JQ_FIELDS[0]}"
 SCRIPT_PATH="${HOOK_JQ_FIELDS[1]}"
