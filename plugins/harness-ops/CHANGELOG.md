@@ -21,6 +21,10 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   contract validator requires the plugin-name prefix. The lane-telemetry comment sentinels
   (`<!-- claude-ops:lane-telemetry marker=... -->`, `claude-ops:restart-consumer`) keep their old
   spelling, because existing GitHub comments match on them.
+- The provisioned OTEL prune task (melodic-software/provisioning#669) reads the plugin key
+  `claude-ops@<marketplace>` from `installed_plugins.json`, so it fails until provisioning reads
+  `harness-ops@<marketplace>`. `probe-observability-state.sh` recognizes a launcher naming either
+  key.
 
 ## [0.81.0] - 2026-10-01
 
