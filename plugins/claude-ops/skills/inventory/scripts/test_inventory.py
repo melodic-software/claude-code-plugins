@@ -1737,6 +1737,14 @@ class TestModuleScopedResolution(unittest.TestCase):
                 )
                 self.assertNotEqual(_tool(src, "Probe").get("description"), "REAL")
 
+    def test_an_unbraced_for_body_ending_in_a_block_ends_its_head_binding(self) -> None:
+        src = _modules(
+            'var Qz="Probe";'
+            "function ff(x,c){for(const x of a)if(c){g()}return x}"
+            '$t({name:Qz,maxResultSizeChars:1,description:ff("REAL")});'
+        )
+        self.assertEqual(_tool(src, "Probe")["description"], "REAL")
+
     def test_a_for_head_binding_named_of_shadows_a_bound_parameter(self) -> None:
         for head in ("const of of a", "const{of}of a"):
             with self.subTest(head=head):
