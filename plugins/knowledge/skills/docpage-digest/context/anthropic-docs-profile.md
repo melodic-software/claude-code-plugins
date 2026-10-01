@@ -44,8 +44,8 @@ extraction waits for the third (Rule of Three).
   **archived snapshot** this pipeline captured are
   unaffected: that file is immutable, which is exactly what makes its line numbers citable.
 - **Blog posts (`claude.com/blog/...`, correlate-only):** no raw-markdown channel known; fetch rendered and
-  extract. Record the channel used. **Three extraction artifacts reproduce on this channel; record
-  them, never repair them.** `source.*` is immutable, so the fix belongs in whatever reads the
+  extract. Record the channel used. **Three extraction artifacts may reproduce on this channel;
+  record each one that does, never repair it.** `source.*` is immutable, so the fix belongs in whatever reads the
   snapshot, not in the snapshot. (a) The animated hero heading collapses every space in the H1.
   Read the exact title from the `<title>`/`<h1>` of the `source.html` that (c) keeps. When that
   file is missing, reconstruct the title from the canonical URL slug, which the checklist already
@@ -72,6 +72,13 @@ extraction waits for the third (Rule of Three).
   `[CAPTION]` lines and media as `[IMG]`, `[VIDEO]`, `[SOURCE]` and `[SVG]` lines. Its markers are
   this host's markup, so it does not read the other correlate-only host, `claude.com/blog`,
   whose pages keep the rendered channel above.
+- **Figure data decoded from a framework payload is a derived file (both blog hosts).** When a
+  figure's values sit in a script payload inside `source.html` (for example a `self.__next_f`
+  script) rather than in its text, decode the payload into a file beside the originals, never
+  named `source.*`, and record the decoding command in the checklist. That file is derived, not an
+  original: a row reads from it only the values the payload states and cites `source.html` as its
+  original. Never compute a number from SVG geometry (path coordinates, bar lengths, axis
+  positions); a value the figure shows only as geometry is recorded as not stated.
 - **PDFs (model/system cards):** download the original binary as `source.pdf` plus a text
   extraction as `source.txt`; both are originals, the extraction tooling is named in the
   checklist.
@@ -190,7 +197,8 @@ asserts:
   - **`blog-apparatus` holds only text that neither directs the reader nor asserts a fact.** A
     line that tells the reader to do something, or states anything about a model, product or
     result, takes a vocabulary tag even when it sits in a figure or a summary box. Blog
-    furniture never goes into `metadata` or `navigation-pointer` to avoid a tag.
+    furniture never goes into `metadata` or `navigation-pointer` to avoid a tag. The blog
+    row-class table at the end of this section assigns the common blog rows.
   - **Pointer convention:** a bare "See X" is `navigation-pointer`. A directive pointer, one
     that tells the operator to do something or that asserts a fact about the target, is
     guidance and takes a vocabulary tag, not the exempt disposition.
@@ -271,6 +279,16 @@ asserts:
   the marker.
   Pointer: <https://platform.claude.com/llms.txt>. As of: 2026-10-01. Recheck trigger: that URL
   stops serving the docs page index.
+
+**Blog row classes.** A blog row takes its tag from what it asserts, never from where it sits on
+the page (a figure, a caption, a summary box):
+
+| Row class | Tag |
+|---|---|
+| Benchmark method: how a measurement was set up (task set, configuration, scoring) | The vocabulary tag its content warrants (`cc-applicable` when it transfers to the harness), plus `unverified-inference` when applicability was inferred and `vendor-claimed` when it is blog-only |
+| Benchmark result: a score, rate, comparison or trend | As for benchmark method |
+| The author's own test run: something the author reports running and observing | As for benchmark method |
+| Widget text: the furniture the `blog-apparatus` sub-shape lists, such as slider labels and preset names | `tag-exempt (blog-apparatus)`, only while the text neither directs the reader nor asserts a fact |
 
 ## Digest-agent model matching
 

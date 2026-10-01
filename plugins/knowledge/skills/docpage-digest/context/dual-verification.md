@@ -55,6 +55,12 @@ floor exactly as silently as no record at all. A verdict likewise lands in
 `<work-root>/verification/` or it did not happen: one written to a session scratchpad is unreachable
 by every later round.
 
+**Each correction round sweeps every fixed class twice.** For each class of defect the round
+fixed, the round searches the digest set for other occurrences of that class, then runs a second
+search for the same class worded differently (other terms or another pattern), so one wording's
+blind spot cannot pass as a zero. The applied record carries both commands and their raw counts,
+in the replayable form below.
+
 **A mechanical gate reports only what it parsed, and only the fields it checks.** Any script used as
 a verification gate errors loudly on input it cannot recognize, and a clean result is read as
 covering just the rows and fields it actually exercised. **A gate is a claim that needs its own

@@ -28,6 +28,12 @@ only after that version increases.
   a verifier arm runs; the model-alias spawning gap and the Codex verifier's no-network limit are
   recorded; the effort gotcha names where an agent's effort comes from; the hedge rule is
   links-only.
+- **The `docpage-digest` Anthropic profile tags blog rows by what they assert, and correction
+  rounds search twice.** A blog row-class table gives benchmark method, results and the author's
+  own test runs a vocabulary tag plus `unverified-inference` or `vendor-claimed` as their content
+  warrants, and leaves pure widget text tag-exempt. Figure data decoded from a framework payload is
+  a derived file read for stated values only, never numbers from drawn geometry. Each correction
+  round pairs its occurrence sweep per fixed class with a differently worded second search.
 
 ## [0.14.13] - 2026-09-30
 
