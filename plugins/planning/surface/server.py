@@ -815,7 +815,6 @@ class Hub:
         self.origins = {f"http://{h}" for h in self.hosts}
         self.layers = Settings(repo_root(self.dir))
         self._last_state = None
-        self.stale = False  # the last state() fell back to _last_state
         # The one watcher allowed: {watcher, since, last, inflight}. In memory, so a restart frees it.
         self.lease = None
         self.opens = {}  # new-tab nonce: (visual id, monotonic expiry)
@@ -954,6 +953,11 @@ class Hub:
             return 0
 
     def state(self):
+        return self.read_state()[0]
+
+    def read_state(self):
+        """(state, stale); stale means the read failed and the last good state was reused."""
+        stale = False
         try:
             q = load_json(self.questions, {"questions": []})
             r = load_json(self.responses, EMPTY_RESPONSES)
@@ -980,18 +984,17 @@ class Hub:
                 "settings": settings,
                 "watchSeq": self.watched(),
             }
-            self.stale = False
         except RuntimeError:
             if self._last_state is None:
                 raise
-            self.stale = True
+            stale = True
         return {
             **self._last_state,
             "listener": self.listener(),
             "session": self.session,
             "instance": self.instance,
             "api": API,
-        }
+        }, stale
 
     def record(self, msg):
         """Append one page event. Returns (seq, contentRev or None, extra), where extra is the
@@ -1473,9 +1476,9 @@ class Handler(BaseHTTPRequestHandler):
             while not self.client_gone():
                 sig = hub.signature()
                 if sig != last_sig:
-                    state = hub.state()
+                    state, stale = hub.read_state()
                     # A failed read keeps last_sig behind so the next pass retries it.
-                    if hub.stale:
+                    if stale:
                         time.sleep(0.3)
                         continue
                     n += 1

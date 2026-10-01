@@ -1389,15 +1389,12 @@ class TestStateFallback(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp(prefix="iv-stale-"))
         self.addCleanup(shutil.rmtree, tmp, True)
         hub = server.Hub(0, tmp)
-        hub.state()
-        self.assertFalse(hub.stale)
+        self.assertFalse(hub.read_state()[1])
         with unittest.mock.patch.object(
             server, "load_json", side_effect=RuntimeError("busy")
         ):
-            hub.state()
-        self.assertTrue(hub.stale)
-        hub.state()
-        self.assertFalse(hub.stale)
+            self.assertTrue(hub.read_state()[1])
+        self.assertFalse(hub.read_state()[1])
 
 
 class TestEventStreamCap(ServerCase):
