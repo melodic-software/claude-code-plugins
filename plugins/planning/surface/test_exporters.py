@@ -61,7 +61,9 @@ class SessionCase(unittest.TestCase):
         self.dir = self.tmp / "data"
         self.dir.mkdir()
 
-    def session(self, questions, events, meta=None, restatement=None):
+    def session(
+        self, questions, events, meta=None, restatement=None, restatements=None
+    ):
         doc = {
             "meta": meta or {"title": "Export test", "eyebrow": "surface eyebrow text"},
             "rev": 1,
@@ -69,6 +71,9 @@ class SessionCase(unittest.TestCase):
             "questions": questions,
             "visuals": [],
         }
+        if restatements:
+            doc["restatements"] = restatements
+            doc["restatement"] = restatements[-1]
         if restatement:
             doc["restatement"] = restatement
         (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
@@ -275,6 +280,20 @@ class TestExportBrief(SessionCase):
         self.assertEqual(rc, 0, out + brief.read_text(encoding="utf-8"))
         self.assertIn("brief=ok", out)
 
+    def test_a_source_quote_in_facts_stays_out_of_the_brief_and_report(self):
+        quote = "Exact words the decision rests on."
+        self.session(
+            [
+                question(
+                    "Q1", facts=f"> {quote}\n\n[section](https://example.com/doc#s)"
+                )
+            ],
+            [event(1, "Q1", "accept")],
+        )
+        for what in ("brief", "report"):
+            text = self.export(what).read_text(encoding="utf-8")
+            self.assertNotIn(quote, text, what)
+
     def test_brief_shape(self):
         self.deferred_session()
         text = self.export("brief").read_text(encoding="utf-8")
@@ -370,6 +389,313 @@ class TestExportBrief(SessionCase):
         self.assertNotIn("risk:", assumptions)
         scope = text.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn("Off the chosen path.", scope)
+
+
+LEDGER_HEAD = "# Interview ledger\n\n## Open-question register\n\n"
+
+
+class TestBriefIds(SessionCase):
+    """The Brief numbers questions as the ledger does and carries the ledger's own rows."""
+
+    def gapped(self):
+        """Page ids Q1, Q2 and Q5; the ledger also holds Q3 and Q4, deferred there only."""
+        self.session(
+            [question("Q1"), question("Q2"), question("Q5")],
+            [
+                event(1, "Q1", "accept"),
+                event(2, "Q2", "alt", alt="a"),
+                event(3, "Q5", "defer", text="the pilot"),
+            ],
+        )
+        ledger = self.tmp / "hand-ledger.md"
+        ledger.write_text(
+            LEDGER_HEAD + "- Q1 | answered | round 1 | Question Q1? | accepted\n"
+            "- Q2 | answered | round 1 | Question Q2? | a\n"
+            "- Q3 | deferred | round 1 | Four unclaimed? | deferred to planning\n"
+            "- Q4 | deferred | round 1 | Which cap? | USER-RESERVED until the pilot\n"
+            "- Q5 | deferred | round 1 | Question Q5? | the pilot\n",
+            encoding="utf-8",
+        )
+        return ledger
+
+    def brief_with(self, ledger):
+        out = self.tmp / "brief-with.md"
+        rc, text = self.rp("export-brief", "--out", str(out), "--ledger", str(ledger))
+        self.assertEqual(rc, 0, text)
+        return out.read_text(encoding="utf-8")
+
+    def test_ledger_only_deferred_rows_reach_the_brief_under_their_real_ids(self):
+        ledger = self.gapped()
+        text = self.brief_with(ledger)
+        deferred = text.split("### Deferred questions")[1].split("##")[0]
+        self.assertRegex(
+            deferred,
+            r"- Q3: Four unclaimed\?, defer until deferred to planning; \*\*arbiter: /planning:plan\*\*",
+        )
+        self.assertRegex(
+            deferred,
+            r"- Q4: Which cap\?, defer until USER-RESERVED until the pilot; \*\*arbiter: USER-RESERVED\*\*",
+        )
+        self.assertRegex(deferred, r"- Q5: Question Q5\?, defer until the pilot;")
+        self.assertIn("- 5 questions: 2 answered, 3 deferred", text)
+        self.assertNotIn("[Q", text)
+        brief = self.tmp / "brief-with.md"
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+    def test_constraint_lines_carry_the_real_id_not_a_position(self):
+        text = self.brief_with(self.gapped())
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("- Q2 Short Q2: alt a:", constraints)
+        self.assertNotIn("Q3 Short Q2", constraints)
+
+    def test_without_a_ledger_a_gap_keeps_the_register_number_and_adds_the_id(self):
+        self.session(
+            [question("Q1"), question("Q3"), question("Q4")],
+            [
+                event(1, "Q1", "accept"),
+                event(2, "Q3", "defer", text="later"),
+                event(3, "Q4", "accept"),
+            ],
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- Q2 [Q3]: Question Q3?, defer until later;", text)
+        self.assertIn("- Q3 [Q4] Short Q4: accepted:", text)
+        self.assertNotIn("[Q3] [Q3]", text)
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+
+class TestBriefRestatements(SessionCase):
+    """Goal, Constraints, Acceptance criteria and Out-of-scope come from the newest confirmed rev."""
+
+    def rev(self, n, **sections):
+        return {"rev": n, "at": f"2026-09-24T10:0{n}:00Z", "sections": sections}
+
+    def confirm(self, seq, rev, alt="confirm"):
+        return {
+            **event(seq, None, "confirm-understanding", alt),
+            "contentRev": rev,
+            "at": f"2026-09-24T11:0{seq}:00Z",
+        }
+
+    def brief(self, restatements, verdicts):
+        self.session(
+            [question("Q1", archived={"why": "Dropped.", "at": AT}), question("Q2")],
+            [event(1, "Q2", "accept"), *verdicts],
+            restatements=restatements,
+        )
+        return self.export("brief").read_text(encoding="utf-8")
+
+    def section(self, text, name):
+        return text.split(f"### {name}")[1].split("###")[0].strip().splitlines()
+
+    def test_a_confirmed_rev_one_survives_an_unconfirmed_rev_three(self):
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    goal="Cut p75 load time.",
+                    constraints="- stdlib only",
+                    acceptance="- p75 is 2.0 s or less\n- no new dependency",
+                    outOfScope="- mobile layouts",
+                ),
+                self.rev(2, goal="Draft two.", acceptance="- narrowed"),
+                self.rev(3, goal="Draft three.", acceptance="- narrower"),
+            ],
+            [self.confirm(2, 1)],
+        )
+        self.assertIn(
+            "- Restatement: UNCONFIRMED (latest rev 3); the sections below are from confirmed rev 1",
+            text,
+        )
+        self.assertEqual(self.section(text, "Goal"), ["Cut p75 load time."])
+        self.assertEqual(
+            self.section(text, "Acceptance criteria"),
+            ["- p75 is 2.0 s or less", "- no new dependency"],
+        )
+        self.assertEqual(self.section(text, "Constraints")[0], "- stdlib only")
+        self.assertEqual(self.section(text, "Out-of-scope")[0], "- mobile layouts")
+        self.assertIn("Dropped.", "\n".join(self.section(text, "Out-of-scope")))
+        self.assertNotIn("Draft", text)
+
+    def test_a_confirmed_latest_rev_is_stamped_with_its_time(self):
+        text = self.brief(
+            [self.rev(1, goal="One."), self.rev(2, goal="Two.")],
+            [self.confirm(2, 2)],
+        )
+        self.assertIn("- Restatement: confirmed at rev 2, 2026-09-24T11:02:00Z", text)
+        self.assertNotIn("UNCONFIRMED", text)
+        self.assertEqual(self.section(text, "Goal"), ["Two."])
+
+    def test_no_rev_confirmed_is_stamped_unconfirmed_and_keeps_the_title_goal(self):
+        text = self.brief(
+            [self.rev(1, goal="One.", acceptance="- a")], [self.confirm(2, 1, "off")]
+        )
+        self.assertIn(
+            "- Restatement: UNCONFIRMED (latest rev 1); no rev was confirmed", text
+        )
+        self.assertEqual(self.section(text, "Goal"), ["Export test"])
+        self.assertIn("- none recorded in the interview surface", text)
+
+    def test_a_withdrawn_confirm_does_not_count(self):
+        text = self.brief(
+            [self.rev(1, goal="One.")],
+            [{**self.confirm(2, 1), "withdrawn": True}],
+        )
+        self.assertIn("UNCONFIRMED (latest rev 1)", text)
+
+    def test_a_file_with_only_a_restatement_is_still_read(self):
+        self.session(
+            [question("Q1")],
+            [event(1, "Q1", "accept"), self.confirm(2, 1)],
+            restatement=self.rev(1, goal="Legacy goal."),
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- Restatement: confirmed at rev 1,", text)
+        self.assertEqual(self.section(text, "Goal"), ["Legacy goal."])
+
+    def test_no_restatement_writes_no_stamp(self):
+        self.session([question("Q1")], [event(1, "Q1", "accept")])
+        self.assertNotIn(
+            "Restatement:", self.export("brief").read_text(encoding="utf-8")
+        )
+
+    def test_restated_goal_constraints_and_scope_cannot_add_a_heading_or_fence(self):
+        text = self.brief(
+            [
+                self.rev(
+                    1,
+                    goal="# Sneaky goal",
+                    constraints="# Sneaky\n```\n~~~",
+                    outOfScope="## Also sneaky",
+                )
+            ],
+            [self.confirm(2, 1)],
+        )
+        headings = [x for x in text.splitlines() if x.startswith("#")]
+        self.assertEqual(len(headings), 9, headings)
+        self.assertFalse(
+            any(x.startswith(("```", "~~~", "# Sneaky")) for x in text.splitlines())
+        )
+
+    def test_the_gate_fails_an_unconfirmed_brief_and_passes_a_confirmed_one(self):
+        revs = [self.rev(1, goal="One."), self.rev(2, goal="Two.")]
+        unconfirmed = self.brief(revs, [self.confirm(2, 1)])
+        self.assertIn("UNCONFIRMED", unconfirmed)
+        ledger = self.export("ledger")
+        brief = self.export("brief")
+        rc, out = self.check("--ledger", ledger, "--brief", brief)
+        self.assertEqual(rc, 1, out)
+        self.assertIn("brief=unconfirmed status=incomplete", out)
+        self.brief(revs, [self.confirm(2, 2)])
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+
+class TestSupersededCommitments(SessionCase):
+    """A commitment list a later revise replaced never reaches the Brief."""
+
+    def test_only_the_replacing_list_is_a_named_risk(self):
+        self.session(
+            [question("Q1", commits=["PR 1 ships the parser", "PR 6 ships docs"])],
+            [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")],
+        )
+        rc, out = self.rp(
+            "revise", "Q1", "--commit", "One PR ships everything", "--force"
+        )
+        self.assertEqual(rc, 0, out)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("risk: One PR ships everything (unconfirmed); from Q1", text)
+        self.assertNotIn("PR 1", text)
+        self.assertNotIn("PR 6", text)
+        self.assertIn("- 0 commitments confirmed; 1 unconfirmed", text)
+
+
+class TestResolvedOwnAnswer(SessionCase):
+    """A resolution is the row's answer and the user's words its note, through every export."""
+
+    TYPED = "YES I AGREE DAMMIT"
+    READ = "2.0 s or less at p75"
+
+    def resolved(self):
+        self.session(
+            [question("Q1", commits=["Measure at p75"]), question("Q2")],
+            [event(1, "Q1", "own", text=self.TYPED), event(2, "Q2", "accept")],
+        )
+        rc, out = self.rp("reply", "Q1", "--resolution", self.READ)
+        self.assertEqual(rc, 0, out)
+
+    def row(self, ledger):
+        return register_rows(ledger)[0]
+
+    def test_the_ledger_row_answers_with_the_resolution_and_notes_the_typed_words(self):
+        self.resolved()
+        row = self.row(self.export("ledger"))
+        self.assertIn(
+            f"answer:: free-text: {self.READ}; note:: {self.TYPED}; commitments::", row
+        )
+
+    def test_the_brief_gives_the_resolution_and_labels_the_typed_words_a_note(self):
+        self.resolved()
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn(
+            f"- Q1 Short Q1: free-text: {self.READ}; note: {self.TYPED}", text
+        )
+
+    def test_a_later_answer_does_not_inherit_the_resolution(self):
+        self.resolved()
+        responses = json.loads((self.dir / "responses.json").read_text("utf-8"))
+        events = responses["events"]
+        events.append(
+            {
+                **event(3, "Q1", "own", text="Actually, p95."),
+                "at": "2026-09-25T10:00:00Z",
+            }
+        )
+        doc = json.loads((self.dir / "questions.json").read_text("utf-8"))
+        self.session(doc["questions"], events)
+        row = self.row(self.export("ledger"))
+        self.assertIn("answer:: free-text: Actually, p95.", row)
+        self.assertNotIn(self.READ, row)
+        self.assertNotIn("note::", row)
+
+    def test_an_exported_resolution_round_trips_through_import_ledger(self):
+        self.resolved()
+        first = self.export("ledger")
+        again = self.tmp / "again"
+        again.mkdir()
+        rc, out = self.rp("import-ledger", "--ledger", str(first), d=again)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.row(self.export("ledger", d=again)), self.row(first))
+        text = self.export("brief", d=again).read_text(encoding="utf-8")
+        self.assertIn(f"free-text: {self.READ}; note: {self.TYPED}", text)
+
+    def test_a_set_aside_answer_does_not_use_the_resolution(self):
+        self.resolved()
+        ops = self.tmp / "wait.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {"op": "wait", "id": "Q1", "waitsOn": "a figure", "by": "user"}
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
+        self.assertEqual(rc, 0, out)
+        row = self.row(self.export("ledger"))
+        self.assertIn(f"aside:: free-text: {self.TYPED}", row)
+        self.assertNotIn(self.READ, row)
 
 
 class TestConfirmsAgainstAnEarlierList(unittest.TestCase):
@@ -1456,7 +1782,7 @@ class TestImportLedger(SessionCase):
                     "contradictory fields 'proposal' and 'status open'",
                 ),
                 (
-                    "answered | round 1 | Who? | answer:: free-text: x; note:: y",
+                    "withdrawn | round 1 | Who? | answer:: archived: x; note:: y",
                     "contradictory fields 'answer' and 'note'",
                 ),
                 (
@@ -3265,6 +3591,231 @@ class TestUntickedCommitmentGate(SessionCase):
         self.assertIn("- 0 commitments confirmed; 2 unconfirmed", brief)
         self.assertIn("- Q1: decided, open until its commitments are confirmed", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1", brief)
+
+
+class TestLedgerRoundCellsAndMerge(SessionCase):
+    """Round cells survive import and export; export-ledger --ledger merges into a ledger's
+    register, --diff prints what that would change, and sync-ledger rewrites only its rows."""
+
+    def ledger(self, rows, prose=""):
+        path = self.tmp / f"ledger-{len(list(self.tmp.iterdir()))}.md"
+        path.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            + prose
+            + "\n".join(rows)
+            + "\n\n### Deferred questions\n\n- none\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def doc(self, d=None):
+        return json.loads((d or self.dir).joinpath("questions.json").read_text("utf-8"))
+
+    def test_a_labeled_round_cell_imports_as_its_round(self):
+        ledger = self.ledger(
+            [
+                "- Q1 | open | round 5 (sweep S1 to S3) | One? |",
+                "- Q2 | open | round 5 (sweep S12 to S14) | Two? |",
+                "- Q3 | open | round 5 (sweep S7), resolved in step 2 | Three? |",
+                "- Q4 | open | Round 5 (research) | Four? |",
+                "- Q5 | open | 6 (design) | Five? |",
+            ]
+        )
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual([q["round"] for q in self.doc()["questions"]], [5, 5, 5, 5, 6])
+        self.assertIn("warning: Q5 round cell '6 (design)'", out)
+        self.assertEqual(out.count("warning:"), 1, out)
+        rc, out = self.rp("validate")
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger")), register_rows(ledger))
+
+    def test_an_import_then_export_round_trips_byte_for_byte(self):
+        self.decided()
+        rows = register_rows(self.export("ledger"))
+        labeled = [
+            rows[0].replace("| round 1 |", "| round 1 (sweep S1 to S3) |", 1),
+            rows[1].replace("| round 1 |", "| Round 1 (design) |", 1),
+            *rows[2:],
+        ]
+        self.assertNotEqual(labeled, rows)
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        rc, out = self.rp(
+            "import-ledger", "--ledger", str(self.ledger(labeled)), d=fresh
+        )
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("validate", d=fresh)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(register_rows(self.export("ledger", d=fresh)), labeled)
+        # A round the page changes no longer matches the label, so the plain cell is written.
+        doc = self.doc(fresh)
+        doc["questions"][0]["round"] = 2
+        (fresh / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
+        self.assertIn("| round 2 |", register_rows(self.export("ledger", d=fresh))[0])
+
+    def three_of_four(self, accepted=("Q1", "Q2", "Q4")):
+        """Page questions Q1, Q2 and Q4, the named ones accepted; Q3 lives only in the ledger."""
+        self.session(
+            [question("Q1"), question("Q2"), question("Q4", round=2)],
+            [event(n, qid, "accept") for n, qid in enumerate(accepted, start=1)],
+        )
+
+    def test_ledger_only_rows_and_titles_survive_the_export(self):
+        self.three_of_four()
+        only = "- Q3 | deferred | round 1 | Never posted? | deferred: to planning"
+        ledger = self.ledger(
+            [
+                "- Q1 | open | round 1 | Who writes the ledger? |",
+                "- Q2 | open | round 1 | Question Q2? |",
+                only,
+                "- Q4 | open | round 2 | Question Q4? |",
+            ]
+        )
+        out = self.tmp / "merged.md"
+        rc, text = self.rp("export-ledger", "--out", str(out), "--ledger", str(ledger))
+        self.assertEqual(rc, 0, text)
+        rows = register_rows(out)
+        self.assertEqual(
+            [r.split(" | ")[0] for r in rows], ["- Q1", "- Q2", "- Q3", "- Q4"]
+        )
+        self.assertEqual(rows[2], only)
+        self.assertIn("| Who writes the ledger? |", rows[0])
+        self.assertTrue(all(" | answered | " in r for r in rows if r != only), rows)
+        self.assertIn("- Q3: Never posted?", out.read_text(encoding="utf-8"))
+        rc, verdict = self.check("--ledger", out)
+        self.assertEqual(rc, 0, verdict)
+
+    def test_diff_lists_the_label_the_ledger_only_row_and_the_conflict(self):
+        self.three_of_four(accepted=("Q1", "Q4"))
+        ledger = self.ledger(
+            [
+                "- Q1 | open | round 1 (design) | Question Q1? |",
+                "- Q2 | answered | round 1 | Question Q2? | free-text: settled in the ledger",
+                "- Q3 | deferred | round 1 | Never posted? | deferred: to planning",
+                "- Q4 | open | round 2 | Question Q4? |",
+            ]
+        )
+        before = ledger.read_text(encoding="utf-8")
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Q1 round: kept 'round 1 (design)' (page: 'round 1')", out)
+        self.assertIn("Q3: only in the ledger; kept", out)
+        self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
+        self.assertIn("Q1 status: 'open' -> 'answered'", out)
+        self.assertEqual(ledger.read_text(encoding="utf-8"), before)
+        merged = self.tmp / "merged.md"
+        rc, out = self.rp(
+            "export-ledger", "--out", str(merged), "--ledger", str(ledger)
+        )
+        self.assertEqual(rc, 1, out)
+        self.assertIn("conflict", out)
+        rows = register_rows(merged)
+        self.assertIn("| round 1 (design) |", rows[0])
+        self.assertEqual(
+            rows[1],
+            "- Q2 | answered | round 1 | Question Q2? | free-text: settled in the ledger",
+        )
+        self.assertEqual(
+            rows[2], "- Q3 | deferred | round 1 | Never posted? | deferred: to planning"
+        )
+
+    def test_a_page_decision_since_the_ledger_row_is_not_a_conflict(self):
+        self.three_of_four()
+        ledger = self.ledger(
+            [
+                "- Q1 | deferred | round 1 | Question Q1? | deferred: later",
+                "- Q2 | open | round 1 | Question Q2? |",
+                "- Q3 | deferred | round 1 | Never posted? | deferred: to planning",
+                "- Q4 | open | round 2 | Question Q4? |",
+            ]
+        )
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Q1 status: 'deferred' -> 'answered'", out)
+        self.assertNotIn("conflict", out)
+
+    def test_sync_ledger_after_apply_rewrites_only_the_register_rows(self):
+        self.decided()
+        ledger = self.tmp / "checklist.md"
+        ledger.write_text(
+            self.export("ledger")
+            .read_text(encoding="utf-8")
+            .replace(
+                "## Open-question register\n\n",
+                "## Open-question register\n\nRows are written by sync-ledger.\n\n",
+            ),
+            encoding="utf-8",
+        )
+        tree = ledger.read_text(encoding="utf-8").split("## Open-question register")[0]
+        ops = self.tmp / "ops.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "record-terminal",
+                            "id": "Q3",
+                            "decision": "defer",
+                            "text": "later",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
+        self.assertEqual(rc, 0, out)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        text = ledger.read_text(encoding="utf-8")
+        self.assertEqual(register_rows(ledger), register_rows(self.export("ledger")))
+        self.assertIn(" | deferred | ", register_rows(ledger)[2])
+        self.assertIn("Rows are written by sync-ledger.\n\n- Q1 |", text)
+        self.assertEqual(text.split("## Open-question register")[0], tree)
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 0, out)
+
+    def test_a_ledger_answer_after_an_import_is_a_conflict_the_sync_keeps(self):
+        seed = [
+            "- Q1 | deferred | round 1 | Later? | deferred: to planning",
+            "- Q2 | open | round 1 | Held? | hold:: user checking the tracker",
+        ]
+        rc, out = self.rp("import-ledger", "--ledger", str(self.ledger(seed)))
+        self.assertEqual(rc, 0, out)
+        answered = [
+            "- Q1 | answered | round 1 | Later? | free-text: decided after all",
+            "- Q2 | answered | round 1 | Held? | free-text: the tracker says yes",
+        ]
+        ledger = self.ledger(answered)
+        rc, out = self.rp("export-ledger", "--diff", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Q1 status: conflict, kept the ledger's 'answered'", out)
+        self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 1, out)
+        self.assertEqual(register_rows(ledger), answered)
+
+    def test_sync_ledger_keeps_crlf_line_endings(self):
+        self.decided()
+        ledger = self.tmp / "crlf.md"
+        text = self.export("ledger").read_text(encoding="utf-8")
+        ledger.write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        data = ledger.read_bytes()
+        self.assertEqual(data, text.replace("\n", "\r\n").encode("utf-8"))
+
+    def test_sync_ledger_refuses_two_registers(self):
+        self.decided()
+        ledger = self.ledger(["- Q1 | open | round 1 | Question Q1? |"])
+        ledger.write_text(
+            ledger.read_text(encoding="utf-8") + "\n## Open-question register\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertNotEqual(rc, 0, out)
+        self.assertIn("2 open-question register headings", out)
 
 
 class TestNoEmojiNoSkillNames(SessionCase):
