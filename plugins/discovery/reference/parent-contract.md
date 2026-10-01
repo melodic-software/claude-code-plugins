@@ -547,8 +547,9 @@ include the resumed turns. Post-read-once, dispatches on or after 2026-09-28 (th
 [#4739](https://github.com/melodic-software/claude-code-plugins/pull/4739) merge), reported
 separately: researcher n=5, p50 26, p90 41, max 41, 1 at the ceiling (resume not detectable);
 explorer n=2, p50 30, max 31, 0 at the ceiling; research-verifier n=5, p50 10, max 14, 0 at the
-ceiling. Samples this small do not settle a number. Whether to size the research lanes to
-finish within one dispatch is the owner's decision, and `maxTurns` stays 40 meanwhile.
+ceiling. Samples this small do not settle a number. Decision: `maxTurns` stays 40 as a
+checkpoint, and research-deep does not size its lanes to finish within one dispatch; a run that
+reaches the limit completes through resume. The recheck triggers above still apply.
 
 ## Running the acceptance gate
 

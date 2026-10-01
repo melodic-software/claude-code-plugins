@@ -1373,7 +1373,7 @@ as before.
   Its hooks reference documents a hook that cannot start as a
   [non-blocking error](https://code.claude.com/docs/en/hooks#other-exit-codes) for most events,
   with a missing script as the example, and does not document a `command` absent from `PATH`.
-  `/guardrails:setup check` reports a missing `node`. A `SessionStart` row in shell form
+  `/guardrails:check` reports a missing `node` or `jq`. A `SessionStart` row in shell form
   (`"shell": "bash"`, no `args`) runs `command -v node` and needs no node itself. When node is
   absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
   tells the model that the guards cannot launch and enforce nothing. It prints nothing when node
@@ -1394,7 +1394,7 @@ as before.
 ```
 
 Then verify the runtime prerequisites and live guard surface with
-`/guardrails:setup check`; `/guardrails:setup apply` resolves anything the
+`/guardrails:check`; `/guardrails:setup apply` resolves anything the
 check reports with guidance. Opt-in personal git hooks:
 `/guardrails:setup apply install-commit-msg` (commit-convention depth layer) and
 `/guardrails:setup apply install-pre-commit-content` (secret / hardcoded-path
