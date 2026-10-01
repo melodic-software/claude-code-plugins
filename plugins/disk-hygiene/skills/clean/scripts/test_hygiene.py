@@ -15609,7 +15609,7 @@ class EngineGrammarTests(unittest.TestCase):
                     )
 
     def test_a_quoted_brace_target_is_classified_like_a_plain_one(self) -> None:
-        guid = "C:/Users/x/AppData/Local/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
+        guid = "D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}"
         for name in ("scan", "inventory"):
             spec = self.grammar.subcommand(name)
             plain = self.words(spec, optionals=False)
