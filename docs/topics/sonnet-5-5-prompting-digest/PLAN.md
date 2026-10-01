@@ -135,9 +135,21 @@ No `docs/standards/` index exists, so these were inferred from `docs/conventions
 
 A blog link appears only as a "correlate with <blog link>" note beside a main-docs pointer. A conflict is recorded only as "pages X and Y disagree on topic T", with both links, a date and a trigger.
 
-### Phase 0: Tracker setup [TODO]
+### Phase 0: Tracker setup [DONE]
 
 Runs after plan approval. Every write is the user's approved action.
+
+Done 2026-10-01: parent [#5685](https://github.com/melodic-software/claude-code-plugins/issues/5685). [#4347](https://github.com/melodic-software/claude-code-plugins/issues/4347) is reopened as its sub-issue. The follow-ons, in list order:
+
+1. [#5678](https://github.com/melodic-software/claude-code-plugins/issues/5678)
+2. [#5679](https://github.com/melodic-software/claude-code-plugins/issues/5679)
+3. [#5680](https://github.com/melodic-software/claude-code-plugins/issues/5680)
+4. [#5681](https://github.com/melodic-software/claude-code-plugins/issues/5681)
+5. [#5682](https://github.com/melodic-software/claude-code-plugins/issues/5682)
+6. [#5683](https://github.com/melodic-software/claude-code-plugins/issues/5683)
+7. [#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684)
+
+No duplicates were found.
 
 - [ ] **Phase-entry check:** `gh issue list --state all --search 'Sonnet 5.5 prompting guide in:title' --json number,title,state`, and the same for each follow-on title below.
 - [ ] If a match exists, pivot: comment on that issue instead of creating a duplicate, and record its number.
@@ -377,7 +389,7 @@ All of it is in `plugins/knowledge/skills/docpage-digest/`.
 - [ ] Run the repo gates locally, one mode per call: `scripts/check-changelog-parity.sh --check`, `--check-bump origin/main`, `--check-preserved origin/main`, `--check-order`; markdownlint on changed markdown; and `bash scripts/affected-tests.sh --run --base origin/main`.
 - [ ] Criterion 1 triage: run the broad grep `git grep -nliE '(opus 4\.8|sonnet 5([^.0-9]|$)|opus 5([^.0-9]|$)|fable 5([^.0-9]|$))' -- docs plugins ':!*CHANGELOG.md' ':!plugins/playbooks/skills/boris/*' ':!docs/topics/*' ':!docs/adr/*' ':!docs/specs/*'`, then classify each hit as historical, fallback, test fixture or "calls current". Every "calls current" hit is fixed in this PR. The playbooks host skill name `fable-5` is exempt.
 - [ ] Run `/attribution:audit` over every file the PR changes. It reports zero fingerprint-confirmed and zero source-fetched-similar findings, and a fresh-context agent reviews each llm-suspected finding (criterion 2).
-- [ ] Open the draft PR. Title: `feat(playbooks): apply the Sonnet 5.5 prompting guide across the marketplace`. Body follows the contract: `Closes #<parent>`, `Closes #4347`, Summary, Fix, Verification, Related.
+- [ ] Open the draft PR. Title: `feat(playbooks): apply the Sonnet 5.5 prompting guide across the marketplace`. Body follows the contract: `Closes #5685`, `Closes #4347`, Summary, Fix, Verification, Related.
 - **Sanity Check:** `gh pr view --json isDraft,title --jq '.isDraft,.title'` prints `true` and the title, and `gh pr checks` shows `ci-status` passing.
 
 ## Blast radius
