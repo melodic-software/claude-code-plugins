@@ -333,10 +333,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .app{height:auto;min-height:100vh}
   .layout,.layout.pinned,.layout.norail,.layout.norail.pinned{grid-template-columns:minmax(0,1fr)}
   .strip{flex-direction:row;order:-1}
-  nav.rail{max-height:45vh}
+  nav.rail{max-height:none}
+  .rail-list{overflow:visible}
+  h1{font-size:20px;margin-top:2px}
+  header.top{gap:4px;padding-bottom:4px}
+  .cline{white-space:normal;overflow:visible;text-overflow:clip}
   .notice{max-width:100%}
   aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}
 }
+@media (max-height:800px){ .choices{max-height:calc(40vh - 90px)} fieldset.decide{max-height:40vh;overflow-y:auto} }
 @media (prefers-reduced-motion: reduce){*,*::before{animation:none!important;transition:none!important}}
 </style>
 <style id="themeOverride"></style>
