@@ -1,5 +1,14 @@
 # Changelog: topic-docs convention
 
+## [3.3.1] - 2026-10-01
+
+Patch under the Versioning rule: no tier moves, no `topic-docs.yaml` key is renamed, the slug spec
+is untouched, and no visibility guarantee changes. The ephemeral-tier rationale restates two
+upstream-derived findings as our decisions and states no upstream text: `mktemp` flags are not
+relied on and a producer uses an absolute-path template, and a producer never reads
+`CLAUDE_CODE_TMPDIR` itself. The temp-tree footprint note records our own search result and points
+at the `cleanupPeriodDays` section. Each carries a pointer, an as-of date and a recheck trigger.
+
 ## [3.3.0] - 2026-09-12
 
 Minor under the Versioning rule: additive. No tier moves, no `topic-docs.yaml` key is renamed,

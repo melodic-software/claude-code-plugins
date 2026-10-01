@@ -54,15 +54,15 @@ this rule entirely, being neither skill, agent, nor schema content. Identifying 
 the manifest is for.)
 
 A git config **vendor section that is not a publisher name** is the git-native place for a
-convention any `git config --get` consumer must be able to read. git-config(1) Variables states
-that "Other git-related tools may and do use their own variables. When inventing new variables for
-use in your own tool, make sure their names do not conflict with those that are used by Git itself
-and other popular tools, and describe them in your documentation" (verified 2026-09-08 against
-[git-config(1) Variables](https://git-scm.com/docs/git-config#_variables); recheck trigger: that
-paragraph being rewritten). Git already owns `worktree.*` (`worktree.guessRemote`,
-`worktree.useRelativePaths`; [git-worktree(1) Configuration](https://git-scm.com/docs/git-worktree#_configuration),
-verified 2026-09-08; recheck trigger: git-config(1) adding a new `worktree.*` key), so a placement
-key cannot live there. Popular tools typically name the section after the *tool* (`ghq.root`,
+convention any `git config --get` consumer must be able to read. We name such a section so it
+collides with neither Git's own variables nor other popular tools', and document it. Pointer: for
+third-party tool variables, see
+[git-config(1) Variables](https://git-scm.com/docs/git-config#_variables). As of: 2026-09-08.
+Recheck trigger: that paragraph being rewritten. Git already owns `worktree.*`
+(`worktree.guessRemote`, `worktree.useRelativePaths`; Pointer:
+[git-worktree(1) Configuration](https://git-scm.com/docs/git-worktree#_configuration). As of:
+2026-09-08. Recheck trigger: git-config(1) adding a new `worktree.*` key), so a placement key
+cannot live there. Popular tools typically name the section after the *tool* (`ghq.root`,
 `git-town.*`, `lfs.*`, `wt.basedir`, `delta.*`, `hub.protocol`); a publisher-named key (`melodic.*`)
 is still an org-agnosticism defect, and a plugin-named key (`source-control.*`) still couples
 consumers to this marketplace's plugin identity. The worktree-placement key is therefore a
@@ -109,13 +109,12 @@ Keep plugins horizontally decoupled:
   Claude Code installs automatically) or guarded behind an "if installed" check with the documented
   fallback. A bare unguarded cross-plugin reference is a defect.
 
-This follows Claude Code's own distinction between standalone configuration and plugins. Standalone
-configuration is for "personal workflows, project-specific customizations, quick experiments".
-Plugins are for "sharing with teammates, distributing to community, versioned releases, reusable
-across projects"
-([create plugins](https://code.claude.com/docs/en/plugins#when-to-use-plugins-vs-standalone-configuration),
-verified 2026-08-10). Namespaced skill invocations are part of that isolation, not an
-implementation detail.
+This follows Claude Code's own distinction between standalone configuration and plugins: this
+marketplace ships plugins because it distributes versioned capability to other people and projects.
+Pointer: for when to use a plugin rather than standalone configuration, see
+<https://code.claude.com/docs/en/plugins/overview#decide-whether-you-need-a-plugin>. As of:
+2026-08-10. Recheck trigger: that section moves or drops the distinction. Namespaced skill
+invocations are part of that isolation, not an implementation detail.
 
 ### Hardcoded consumer specifics
 
@@ -136,17 +135,18 @@ A skill name is an imperative verb phrase; the plugin namespace supplies the obj
 (`/machine-health:audit`, `/source-control:commit`). Names compose into instruction sentences, such as
 "/discovery:explore the module, then /planning:interview me", and one grammar keeps every name in
 the marketplace predictable. This is a deliberate, documented deviation from the official authoring
-guidance's gerund preference, and the guidance sanctions it: gerunds are what it says to "consider
-using", action-oriented names (`process-pdfs`, `analyze-spreadsheets`) are listed under "Acceptable
-alternatives", and what it puts under Avoid is "inconsistent patterns within your skill collection",
-which is exactly the consistency this section supplies
-([skill authoring best practices, "Naming conventions"](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#naming-conventions),
-verified 2026-09-10). Neither source treats one form as required: the agentskills.io
-specification's own example names are noun phrases (`pdf-processing`, `data-analysis`,
-`code-review`; [specification](https://agentskills.io/specification), verified 2026-09-10), and
-Claude Code validates no naming form (`claude plugin validate` 2.1.263 passed a non-conforming
-name, verified 2026-09-10). Recheck this paragraph when the page's Avoid list changes, when the
-specification's example names change, or when `claude plugin validate` starts rejecting a form.
+guidance's gerund preference. We read that guidance as allowing action-oriented names and as
+asking above all for one consistent pattern within a skill collection, which is what this section
+supplies. Neither the guidance nor the Agent Skills specification requires one form, and Claude
+Code validates no naming form (our probe: `claude plugin validate` 2.1.263 passed a non-conforming
+name on 2026-09-10).
+
+- **Pointer**: for skill naming, see
+  <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#naming-conventions>
+  and <https://agentskills.io/specification#name-field>.
+- **As of**: 2026-09-10
+- **Recheck trigger**: the guidance's list of names to avoid changes, the specification's example
+  names change, or `claude plugin validate` starts rejecting a form.
 
 Verb meanings are fixed:
 
@@ -192,15 +192,17 @@ that no other skill here performs.
 Every exception is an entry on this list, decided per name. A name class is never
 blanket-sanctioned.
 
-A plugin skill declares no frontmatter `name`. The field is optional and defaults to the directory
-name ([frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), fetched
-2026-08-10), and the directory here is already the name the skill is documented and invoked by, so
-declaring it restates the path in the character set the Agent Skills specification allows. The one
-effect a declaration still buys is the bare alias: in a plugin skill a declared `name` also registers
-the bare `/<name>` alongside the namespaced command, unless another command already owns that token
-([how a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name)).
-Declare it only to take that alias deliberately, and only with the value the directory already
-carries. A `name` that *differs* from its directory is out of bounds here even though the harness
+A plugin skill declares no frontmatter `name`. We rely on the directory supplying the name, and
+the directory here is already the name the skill is documented and invoked by, so declaring it
+restates the path in the character set the Agent Skills specification allows. The one effect we
+would declare it for is the bare `/<name>` alias beside the namespaced command. Declare it only to
+take that alias deliberately, and only with the value the directory already carries.
+
+- **Pointer**: for the `name` field, see
+  <https://code.claude.com/docs/en/skills#frontmatter-reference>; for the bare alias, see
+  <https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name>.
+- **As of**: 2026-08-10
+- **Recheck trigger**: `name` stops being optional, or a declared `name` stops adding a bare alias. A `name` that *differs* from its directory is out of bounds here even though the harness
 honors it: it would relocate the last command segment away from the directory that
 `scripts/check-skill-leaf-names.sh` derives every leaf from, desynchronizing the cross-plugin
 collision registry from the commands that actually resolve. That is why `skill-quality`'s check 1
@@ -209,17 +211,18 @@ Never degrade a name to dodge a built-in command: plugin skills are namespaced a
 with other levels. When a name matches a built-in, the bare token still belongs to the built-in; the
 namespaced form is the plugin skill's only command.
 
-Resolution settled, **display** follows from it. Before v2.1.216 a declared `name` replaced the
-whole command, so the menu showed the bare form and the namespaced one did not autocomplete; that
-is gone. The skills page no longer pins that history; the basis is now the v2.1.216
-[changelog](https://code.claude.com/docs/en/changelog) entry, "Fixed plugin skills with a `name`
-frontmatter field losing their plugin prefix in slash-command autocomplete" (verified 2026-08-31;
-recheck trigger: a fetch of the changelog or the skills page no longer matching this record). What
-the skills page pins instead is a successor quirk: a `name` that itself carries the plugin's own
-prefix was doubled from v2.1.216 through v2.1.245 and is not re-prefixed on v2.1.246 or later
-([how a skill gets its command name](https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
-fetched 2026-08-31), moot under this doctrine because the only sanctioned value is the bare
-directory name. The rest is observed in the client rather than documented
+Resolution settled, **display** follows from it. We rely on a plugin skill keeping its plugin
+prefix in autocomplete whether or not it declares `name`. A version-dependent display quirk for a
+`name` that carries the plugin's own prefix is moot under this doctrine, because the only
+sanctioned value is the bare directory name.
+
+- **Pointer**: for the autocomplete fix, see the
+  [changelog](https://code.claude.com/docs/en/changelog) entry 2.1.216; for the prefixed-`name`
+  quirk, see <https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name>.
+- **As of**: 2026-08-31
+- **Recheck trigger**: a fetch of the changelog or the skills page no longer matching this record.
+
+The rest is observed in the client rather than documented
 (2.1.225): the picker labels a row with the command it resolves, `/planning:plan` prefix and all,
 and appends a bare alias in parentheses only when what you typed prefix-matches that alias, so a
 skill declaring no `name` never renders the stuttering `/plugin:skill (skill)`. Re-observe before
@@ -275,57 +278,59 @@ native one matures into fitness.
 ### Recorded gate runs
 
 Platform surfaces the gate has been run against, recorded in the
-[upstream-drift](conventions/upstream-drift/README.md) four-part shape: claim, basis, as-of date,
-trigger. Defer and decline are results, not omissions; the trigger, never the date, is what obliges
-re-deriving a row.
+[upstream-drift](conventions/upstream-drift/README.md#required-parts) record shape: each row holds
+our verdict and reason in our words, the surface link (to the section the reason rests on) as the
+pointer, the as-of date, and the recheck trigger. No row restates the page. Defer and decline are
+results, not omissions; the trigger, never the date, is what obliges re-deriving a row.
 
-| Surface | Verdict | Basis and reason | Recheck trigger | Verified |
+| Surface (pointer) | Verdict | Decision and reason | Recheck trigger | As of |
 |---|---|---|---|---|
 | [Run agents in parallel](https://code.claude.com/docs/en/agents) | Adopt, as a citation | The upstream comparison of every way Claude Code runs multiple agents: subagents, agent view, agent teams, dynamic workflows. Adopted as the [dispatch ladder](#dispatch-ladder)'s canonical index and cited there, never restated, so the menu an author chooses from cannot go stale inside this file. | The page adds or drops a parallelism surface. | 2026-08-10 |
-| [Feature availability](https://code.claude.com/docs/en/feature-availability) | Adopt, as a citation | Per-feature availability by model provider and subscription plan, the canonical input to the [cross-platform contract](#cross-platform-contract), cited there. Its "platform" sense is the *provider* platform (Anthropic Console, Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, Microsoft Foundry), never the host surface a consumer runs in; that axis is [Platforms and integrations](https://code.claude.com/docs/en/platforms), a separate row below. Copying it is barred by [evidence and validation](#evidence-and-validation): a provider matrix is exactly the volatile table that rule names. | A plugin proposes narrowing its platform support. Re-fetch the matrix then, never trust a restatement. | 2026-08-10 |
-| [Agent teams](https://code.claude.com/docs/en/agent-teams) | Defer | Fails gate 2 and stops there: "Agent teams are experimental and disabled by default", gated behind `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`, with limitations the page states outright: "No nested teams: teammates cannot spawn their own teammates", and `/resume` and `/rewind` do not restore in-process teammates. Defer rather than decline: the gap question stays open while the surface is opt-in and churning, and no plugin may depend on a team meanwhile. | The page drops the experimental warning or the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` requirement. | 2026-08-10 |
-| [Cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging) | Decline | Fails gate 1: the channel is for "independent sessions that you start and steer yourself", not for a skill dispatching a worker. It could not be a portable rung either: "not available on Amazon Bedrock, Claude Platform on AWS, Google Cloud's Agent Platform, or Microsoft Foundry". Re-derived 2026-08-24 after the prior trigger's Windows leg fired: native Windows is now supported ("v2.1.234 or later on native Windows"), which removes one portability leg but moves neither surviving premise, so the verdict stands. | Either surviving premise moves: the page stops scoping the channel to sessions you steer yourself, or its Availability section stops excluding any of those four providers. | 2026-08-24 |
-| [Sessions](https://code.claude.com/docs/en/sessions) | Decline | Fails gate 1. Resume restores "the full history, including tool calls and results", which is the authoring story the [inline-template conventions](#inline-template-conventions) exist to withhold, so it is the opposite of a fresh-eyes rung rather than a missing one. A human session-management surface with no plugin-authoring interface. | `sessions` grows a plugin-facing interface: a manifest field, a tool, or skill frontmatter. | 2026-08-10 |
-| [Platforms and integrations](https://code.claude.com/docs/en/platforms) | Adopt, as a citation | The upstream index of every host Claude Code runs in, covering CLI, Desktop, VS Code, JetBrains, web, and mobile, plus the integrations beside them. Adopted as the [cross-platform contract](#cross-platform-contract)'s canonical input for the host axis, which the already-adopted [feature availability](https://code.claude.com/docs/en/feature-availability) does not carry: that page's axes are provider and plan, and it scopes itself to what runs locally: "The Claude Code CLI and everything that runs locally work on every provider." The host axis matters because a host can withhold the plugin system outright rather than one capability: a Desktop session in WSL 2 lists "connectors and plugins" among features that "aren't available in WSL sessions yet"; on mobile, "commands that only run in the terminal interface, such as `/plugin` and `/resume`, don't work from the app"; Desktop's Cowork tab sources its plugins from claude.ai configuration, "not from the CLI's `~/.claude` directory"; and the VS Code extension carries only a "Subset" of the CLI's "Commands and skills", so a skill this fleet ships may simply not be reachable there. None of those four is restated in the contract. Only the rule they establish is. | `platforms` adds or drops a host, or `feature-availability` grows a host-surface axis, which would make this citation redundant. | 2026-08-10 |
-| [GitHub Enterprise Server](https://code.claude.com/docs/en/github-enterprise-server) | Decline | Does not fail gate 1 by subject: it is a real plugin-distribution surface, "Plugin marketplaces \| ✅ Supported", and the only page in this run that names one. It fails on need. Nothing in this repo documents a GHES-hosted mirror or fork of this marketplace, and no README anywhere ships a full-git-URL install path, the form GHES requires. Census of the 65 plugin READMEs: 54 carry the literal `/plugin marketplace add melodic-software/claude-code-plugins`; 9 carry no install block; `dometrain` points at another github.com marketplace; and `github`, being marketplace-agnostic, uses the placeholder `<marketplace-owner>/<marketplace-repo>`. All of those are the same `owner/repo` shorthand, which the page says "always resolves to github.com", correct for this marketplace, and the one place the finding could bite: a consumer redistributing the `github` plugin from a GHES-hosted marketplace would follow that README and silently resolve to github.com instead of their own host. Otherwise the GHES-specific obligations land on a consumer running their own instance, not on this marketplace: full git URL, `extraKnownMarketplaces` pre-registration, `hostPattern` allowlisting. | This repo documents a GHES-hosted mirror or fork, or any README gains an install path that is not `owner/repo` shorthand, a full git URL being the form that means a non-github.com host is in play. Also fires if `plugins/github/README.md` starts naming a concrete GHES-hosted marketplace. | 2026-08-10 |
-| [Ultrareview](https://code.claude.com/docs/en/ultrareview) | Decline | Fails gate 1: no interface a plugin can reach. Each run is human-gated and metered: "Claude Code shows a confirmation dialog with the review scope, your remaining free runs, and the estimated cost", then "typically \$5 to \$25 in usage credits". So it can never be a rung in an automated dispatch ladder. Nor is `review:fanout` a custom rebuild of it that Native-first would retire: fanout normalizes many in-session finding producers into one ranked report, where this is one confirmed cloud run. | The page documents a non-interactive or programmatic entry point. | 2026-08-10 |
-| [Chrome](https://code.claude.com/docs/en/chrome) | Decline | Fails gate 1: a consumer-installed browser integration delivered as a built-in skill, since Claude Code "asks for permission to use the `claude-in-chrome` skill", so a plugin has nothing to declare here and must not rebuild automation the platform already ships. Recorded rather than dismissed because the page only *looked* cited: the repo's sole reference is a `docs/en/browser` URL that now returns 404, inside `plugins/playbooks/skills/boris/vendor/SKILL.md`, a verbatim upstream baseline kept for drift detection, which is why it is deliberately not hand-edited here. | A plugin proposes shipping browser automation, or `/playbooks:update` refreshes the boris baseline and the stale slug persists. | 2026-08-10 |
-| [Mods (hooks modules)](https://github.com/anthropics/claude-code/tree/main/mods) | Defer | Fails gate 2 and stops there. A mod is a plugin whose behavior lives in one `register(on, options)` hooks module running in-process. Anthropic's own `mods/README.md` states the interface "may change between releases without notice"; a mod you write is off by default behind the rollout gate `tengu_plugin_hooks_modules`, whose default is `false` and which `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` only overrides per process; and the feature has zero mentions in the official docs (all 197 pages via `llms-full.txt`) or in `CHANGELOG.md`, checked at Claude Code 2.1.278. Defer rather than decline: the surface is real and shipping, so the gap question stays open, and no plugin may depend on it meanwhile. Recorded in [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | All five go criteria hold: a test mod loads with the enable flag unset, the official docs mention the feature, [#92533](https://github.com/anthropics/claude-code/issues/92533) is closed, the official docs state the throw and timeout semantics and the engine default on an uncaught throw is settled upstream (the generated `.d.ts` JSDoc already states the mechanism, so a JSDoc hit does not meet this), and the early-access warning is gone from `mods/README.md`. Commands and expected outputs: [go-no-go.md](upstream/claude-code-mods/go-no-go.md). Any one failing is no-go. | 2026-09-19 |
-| [Checkpointing](https://code.claude.com/docs/en/checkpointing) | Decline | Nothing to adopt, and the reason is the outcome: `/rewind` cannot be a mutating skill's undo story, because "Checkpointing does not track files modified by bash commands" and, for any subagent other than a foreground forked skill, "rewinding doesn't restore the edits. Use git to revert them." The restored carve-out is narrow, covering only a `context: fork` skill running in the foreground, so a skill that mutates through a shell script or a background worker states a git-based rollback and never leans on `/rewind`. | The limitations section drops either the bash-command or the subagent exclusion. | 2026-08-10 |
+| [Feature availability](https://code.claude.com/docs/en/feature-availability) | Adopt, as a citation | Per-feature availability by model provider and subscription plan, the canonical input to the [cross-platform contract](#cross-platform-contract), cited there. We read its "platform" sense as the *provider* platform, never the host surface a consumer runs in; that axis is [Platforms and integrations](https://code.claude.com/docs/en/platforms), a separate row below. Copying it is barred by [evidence and validation](#evidence-and-validation): a provider matrix is exactly the volatile table that rule names. | A plugin proposes narrowing its platform support. Re-fetch the matrix then, never trust a restatement. | 2026-08-10 |
+| [Agent teams](https://code.claude.com/docs/en/agent-teams#limitations) | Defer | Fails gate 2 and stops there: the feature is marked experimental and is off unless `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` is set, and its stated limitations cover nesting and resume. Defer rather than decline: the gap question stays open while the surface is opt-in and churning, and no plugin may depend on a team meanwhile. | The page drops the experimental warning or the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` requirement. | 2026-08-10 |
+| [Cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging#when-to-use-cross-session-messaging), [availability](https://code.claude.com/docs/en/cross-session-messaging#availability) | Decline | Fails gate 1: we read the channel as one for sessions a person starts and steers, not for a skill dispatching a worker. It could not be a portable rung either, because four providers were excluded. Re-derived 2026-08-24 after the prior trigger's Windows leg fired: native Windows support removed one portability leg but moved neither surviving premise, so the verdict stands. | Either surviving premise moves: the page stops scoping the channel to sessions you steer yourself, or its Availability section stops excluding any of those four providers. | 2026-08-24 |
+| [Sessions](https://code.claude.com/docs/en/sessions#what-a-resumed-session-restores) | Decline | Fails gate 1. Resume restores the prior conversation in full, which is the authoring story the [inline-template conventions](#inline-template-conventions) exist to withhold, so it is the opposite of a fresh-eyes rung rather than a missing one. A human session-management surface with no plugin-authoring interface. | `sessions` grows a plugin-facing interface: a manifest field, a tool, or skill frontmatter. | 2026-08-10 |
+| [Platforms and integrations](https://code.claude.com/docs/en/platforms) | Adopt, as a citation | The upstream index of every host Claude Code runs in, covering CLI, Desktop, VS Code, JetBrains, web, and mobile, plus the integrations beside them. Adopted as the [cross-platform contract](#cross-platform-contract)'s canonical input for the host axis, which the already-adopted [feature availability](https://code.claude.com/docs/en/feature-availability) does not carry: that page's axes are provider and plan, scoped to what runs locally. The host axis matters because a host can withhold the plugin system outright rather than one capability: Desktop sessions in WSL 2, the mobile app, Desktop's Cowork tab, and the VS Code extension each limit plugins, terminal-only commands, or skills relative to the CLI, so a skill this fleet ships may simply not be reachable there (read each host's page from the index for the specifics). None of those four is restated in the contract. Only the rule they establish is. | `platforms` adds or drops a host, or `feature-availability` grows a host-surface axis, which would make this citation redundant. | 2026-08-10 |
+| [GitHub Enterprise Server](https://code.claude.com/docs/en/github-enterprise-server) | Decline | Does not fail gate 1 by subject: it is a real plugin-distribution surface, and the only page in this run that names one. It fails on need. Nothing in this repo documents a GHES-hosted mirror or fork of this marketplace, and no README anywhere ships a full-git-URL install path, the form GHES requires. Census of the 65 plugin READMEs: 54 carry the literal `/plugin marketplace add melodic-software/claude-code-plugins`; 9 carry no install block; `dometrain` points at another github.com marketplace; and `github`, being marketplace-agnostic, uses the placeholder `<marketplace-owner>/<marketplace-repo>`. All of those are the same `owner/repo` shorthand, which we treat as resolving to github.com, correct for this marketplace, and the one place the finding could bite: a consumer redistributing the `github` plugin from a GHES-hosted marketplace would follow that README and silently resolve to github.com instead of their own host. Otherwise the GHES-specific obligations land on a consumer running their own instance, not on this marketplace: full git URL, `extraKnownMarketplaces` pre-registration, `hostPattern` allowlisting. | This repo documents a GHES-hosted mirror or fork, or any README gains an install path that is not `owner/repo` shorthand, a full git URL being the form that means a non-github.com host is in play. Also fires if `plugins/github/README.md` starts naming a concrete GHES-hosted marketplace. | 2026-08-10 |
+| [Ultrareview](https://code.claude.com/docs/en/ultrareview#run-ultrareview-from-the-cli), [pricing](https://code.claude.com/docs/en/ultrareview#pricing-and-free-runs) | Decline | Fails gate 1: no interface a plugin can reach. Each run is human-gated behind a confirmation dialog and metered per run, so it can never be a rung in an automated dispatch ladder. Nor is `review:fanout` a custom rebuild of it that Native-first would retire: fanout normalizes many in-session finding producers into one ranked report, where this is one confirmed cloud run. | The page documents a non-interactive or programmatic entry point. | 2026-08-10 |
+| [Chrome](https://code.claude.com/docs/en/chrome) | Decline | Fails gate 1: a consumer-installed browser integration the platform ships itself, so a plugin has nothing to declare here and must not rebuild automation the platform already ships. Recorded rather than dismissed because the page only *looked* cited: the repo's sole reference is a `docs/en/browser` URL that now returns 404, inside `plugins/playbooks/skills/boris/vendor/SKILL.md`, a verbatim upstream baseline kept for drift detection, which is why it is deliberately not hand-edited here. | A plugin proposes shipping browser automation, or `/playbooks:update` refreshes the boris baseline and the stale slug persists. | 2026-08-10 |
+| [Mods (hooks modules)](https://github.com/anthropics/claude-code/tree/main/mods) | Defer | Fails gate 2 and stops there. A mod is a plugin whose behavior lives in one `register(on, options)` hooks module running in-process. Anthropic's own `mods/README.md` marks the interface as unstable between releases; a mod you write is off by default behind the rollout gate `tengu_plugin_hooks_modules`, whose default is `false` and which `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` only overrides per process; and the feature has zero mentions in the official docs (all 197 pages via `llms-full.txt`) or in `CHANGELOG.md`, checked at Claude Code 2.1.278. Defer rather than decline: the surface is real and shipping, so the gap question stays open, and no plugin may depend on it meanwhile. Recorded in [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | All five go criteria hold: a test mod loads with the enable flag unset, the official docs mention the feature, [#92533](https://github.com/anthropics/claude-code/issues/92533) is closed, the official docs state the throw and timeout semantics and the engine default on an uncaught throw is settled upstream (the generated `.d.ts` JSDoc already states the mechanism, so a JSDoc hit does not meet this), and the early-access warning is gone from `mods/README.md`. Commands and expected outputs: [go-no-go.md](upstream/claude-code-mods/go-no-go.md). Any one failing is no-go. | 2026-09-19 |
+| [Checkpointing: bash changes](https://code.claude.com/docs/en/checkpointing#bash-command-changes-not-tracked), [subagent edits](https://code.claude.com/docs/en/checkpointing#subagent-edits-not-restored) | Decline | Nothing to adopt, and the reason is the outcome: `/rewind` cannot be a mutating skill's undo story, because checkpoints do not cover bash-command changes or the edits of most subagents. The restored carve-out is narrow, covering only a `context: fork` skill running in the foreground, so a skill that mutates through a shell script or a background worker states a git-based rollback and never leans on `/rewind`. | The limitations section drops either the bash-command or the subagent exclusion. | 2026-08-10 |
 
 ## Component stances
 
-> **Staleness disclaimer.** The platform changes constantly. Every row carries the date its facts
-> were verified against the linked official page. Always re-fetch the current page before acting on
-> a row; never trust this table alone. A fetch that diverges from a row is that row's recheck
-> trigger: update the row, refreshing its verified date with the outcome. The
-> [upstream-drift convention](conventions/upstream-drift/README.md) owns this stamp discipline.
+> **Staleness disclaimer.** The platform changes constantly. Each row states our stance in our
+> words; its component link is the pointer, and its as-of date is when the stance was last derived
+> from that page. Always re-fetch the current page before acting on a row; never trust this table
+> alone. A fetch that diverges from a row is that row's recheck trigger: re-derive the row and
+> refresh its as-of date with the outcome. The
+> [upstream-drift convention](conventions/upstream-drift/README.md) owns this record discipline.
 
-| Component | Stance | Rationale and constraints | Verified |
+| Component (pointer) | Stance | Rationale and constraints | As of |
 |---|---|---|---|
-| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model` (the override lasts for the current turn and is not saved; in auto mode a model auto mode does not support is not used and the session keeps its model; with `context: fork` the value sets the forked subagent's model). `model` verified 2026-09-29 against the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck when that row changes what `model` accepts or when auto mode stops keeping the session model. | 2026-09-29 |
-| [`commands/`](https://code.claude.com/docs/en/plugins-reference) | Prohibited | Officially merged into skills; docs direct "use `skills/` for new plugins". Existing flat commands migrate to skill directories. | 2026-07-17 |
-| [Agents](https://code.claude.com/docs/en/sub-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
+| [Skills](https://code.claude.com/docs/en/skills) | Primary surface | The default unit of capability. Newer frontmatter is adopted case-by-case through the adoption gate: `paths`, `context: fork` (+ `agent`), `arguments`, skill-scoped `hooks` with `once`, and `model`, which we use only as a per-turn override, including for a forked subagent. Pointer for `model`: the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). Recheck trigger: that row changes what `model` accepts, or auto mode stops keeping the session model. | 2026-09-29 |
+| [`commands/`](https://code.claude.com/docs/en/plugins/components#commands) | Prohibited | Superseded by skills upstream; every new capability goes in `skills/`. Existing flat commands migrate to skill directories. | 2026-07-17 |
+| [Agents](https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: workflows are paid-plan-gated, a consumer can switch them off (`disableWorkflows`, `CLAUDE_CODE_DISABLE_WORKFLOWS`), and an org can disable them fleet-wide in managed settings; so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. None ship in this fleet today. | 2026-07-27 |
-| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. Windows exec form spawns a real executable such as a `.exe` with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal where no `${user_config.*}` appears; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the guardrails and disk-hygiene SessionStart node notice rows and the claude-ops hook-failure-audit Stop row, which run in shell form with `"shell": "bash"` because they must work when `node` is missing. `node` must be on `PATH`, and Claude Code does not guarantee it: exec form resolves `command` on `PATH` ([Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)), and the installed `claude` binary does not itself invoke Node ([Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)), both fetched 2026-09-29. A hook that cannot start is a non-blocking error, so a guard whose `node` is missing enforces nothing and the transcript notice is the only signal ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The four-part record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
-| [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search ([actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache), verified 2026-08-10). | 2026-08-10 |
-| [LSP servers](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
-| [Output styles](https://code.claude.com/docs/en/plugins-reference) | Adopt on need | No additional constraints. | 2026-07-17 |
-| [`bin/`](https://code.claude.com/docs/en/plugins) | Adopt on need | Executables join the Bash tool's `PATH` while the plugin is enabled; names must be collision-safe (plugin-prefixed), because the platform does not namespace them. That `PATH` delivery is per-session and can silently fail ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)), so never depend on bare-name invocation: invoke via `${CLAUDE_PLUGIN_ROOT}/bin/`, and note that a `bash "…/bin/x"` invocation does not match a `Bash(x:*)` allow rule. | 2026-07-17 |
-| [Plugin `settings.json`](https://code.claude.com/docs/en/plugins) | `agent` prohibited by default | Supports only `agent` and `subagentStatusLine`. `agent` takes over the main thread, a consumer-hostile default for a marketplace plugin; any exception requires documented justification in the plugin README. | 2026-07-17 |
-| [Monitors](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
-| [Themes](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
-| [Channels](https://code.claude.com/docs/en/plugins-reference) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
-| [Dependencies](https://code.claude.com/docs/en/plugin-dependencies) | Adopt on need (hard requires only) | See the design boundary: hard requires only, semver-constrained, released via `{name}--v{version}` tags. None exist in this fleet today. | 2026-07-17 |
+| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | Exec form (`args`) is mandatory wherever `${user_config.*}` appears, because shell form errors since v2.1.207; otherwise read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror. On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal where no `${user_config.*}` appears; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the guardrails and disk-hygiene SessionStart node notice rows and the claude-ops hook-failure-audit Stop row, which run in shell form with `"shell": "bash"` because they must work when `node` is missing. `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Hooks modules ("mods"), the in-process TypeScript hook form, are deferred: see the mods row under [Recorded gate runs](#recorded-gate-runs) and [ADR 0035](adr/0035-defer-claude-code-mods-with-five-go-criteria.md). | 2026-09-29 |
+| [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search (pointer: [actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache)). | 2026-08-10 |
+| [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
+| [Output styles](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Adopt on need | No additional constraints. | 2026-07-17 |
+| [`bin/`](https://code.claude.com/docs/en/plugins/components#executables) | Adopt on need | A plugin's executables reach the Bash tool's `PATH` for as long as the plugin stays on; names must be collision-safe (plugin-prefixed), because the platform does not namespace them. That `PATH` delivery is per-session and can silently fail ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)), so never depend on bare-name invocation: invoke via `${CLAUDE_PLUGIN_ROOT}/bin/`, and note that a `bash "…/bin/x"` invocation does not match a `Bash(x:*)` allow rule. | 2026-07-17 |
+| [Plugin `settings.json`](https://code.claude.com/docs/en/plugins/components#default-settings) | `agent` prohibited by default | Supports only `agent` and `subagentStatusLine`. `agent` takes over the main thread, a consumer-hostile default for a marketplace plugin; any exception requires documented justification in the plugin README. | 2026-07-17 |
+| [Monitors](https://code.claude.com/docs/en/plugins/components#monitors) | Wait | Experimental (`experimental.monitors`); interactive-CLI-only, unsandboxed at hook trust level, no `${user_config.*}` and no `CLAUDE_PLUGIN_OPTION_*` in monitor processes; keep running after mid-session disable. Re-verify before each audit. | 2026-07-17 |
+| [Themes](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
+| [Channels](https://code.claude.com/docs/en/plugins/components#channels) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
+| [Dependencies](https://code.claude.com/docs/en/plugins/dependencies) | Adopt on need (hard requires only) | See the design boundary: hard requires only, semver-constrained, released via `{name}--v{version}` tags. None exist in this fleet today. | 2026-07-17 |
 
 ### Windows exec-form probe
 
 `scripts/check-exec-form-windows-probe.sh` rejects an exec-form `command` that is not a real Windows executable ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)). It does not rewrite rows. A `.sh` path, a `.cmd`/`.bat` shim, or bare `bash` as `command` stays illegal. `scripts/check-hook-exec-form.sh` keeps rejecting bare `bash` with the script in `args`. Every shipped hook row is exec form, except the three shell-form rows named in the Hooks row above: `"command": "node"` with `hooks/exec-bash.mjs` (canonical `lib/exec-bash.mjs`, copied by `scripts/sync-exec-bash.sh`) and then the script. The launcher finds Git Bash and never `System32\bash.exe`. A default-off option is `--require-true NAME` (exit 0 unless `CLAUDE_PLUGIN_OPTION_NAME` is `true`). A default-on option is `--run-if-unset-or-true NAME` (exit 0 only when that variable is set to something other than `true`). Skill-frontmatter `args` is a YAML sequence, one element per argument.
 
-- **Claim:** On Windows, exec form (`args` present) resolves `command` as an executable and spawns it directly with `args` as the argument vector. There is no shell, so a shebang is not honored, and `command` must be a real executable such as a `.exe`. `.cmd` and `.bat` shims cannot be spawned. If a Windows spawn of that shape drops `args` or the process image is `bash.exe`, the fleet sweep stops.
-- **Basis:** [Hooks reference](https://code.claude.com/docs/en/hooks), section "Exec form and shell form". Verbatim, from a full raw-markdown read of `https://code.claude.com/docs/en/hooks.md` (330,813 bytes, SHA-256 `57e3b47d55acfbae3dcdc112866c8c0f75528d8b5c4fca9bfcdaa904d4728218`; the slug is listed in `https://code.claude.com/docs/llms.txt`): "On Windows, exec form requires `command` to resolve to a real executable such as a `.exe`." The same section states that exec form has no shell and that `shell` is "Ignored when `args` is set". Args-drop is [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495), open as of this date.
+- **Decision:** every exec-form `command` is a real Windows executable (`node`), never a shebang script, a `.cmd`/`.bat` shim, or bare `bash`, and no row relies on a shell or on the `shell` field while `args` is set. If a Windows spawn of that shape drops `args` or the process image is `bash.exe`, the fleet sweep stops.
+- **Pointer:** for exec form on Windows, see <https://code.claude.com/docs/en/hooks#exec-form-and-shell-form> (read from the raw `.md`, 330,813 bytes, SHA-256 `57e3b47d55acfbae3dcdc112866c8c0f75528d8b5c4fca9bfcdaa904d4728218`); for the args drop, see [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495), open as of this date.
 - **As of:** 2026-09-28.
-- **Recheck:** the hooks page changes that Windows sentence, stops ignoring `shell` when `args` is set, or #90495 closes.
+- **Recheck trigger:** the hooks page changes what exec form requires of `command` on Windows, stops ignoring `shell` when `args` is set, or #90495 closes.
 
 On a non-Windows host the spawn half prints a `SKIP` line and exits 0 when the row spellings are clean. That skip is fail-soft: it does not show that #90495 is absent, and it does not authorize converting `.sh` rows. On Windows the script spawns `node.exe` (a PE image, not a `.cmd`) with an args array and a stdin payload. A missing sentinel or a `bash.exe` image exits 1 with `ARGS-DROP` and the sweep stays stopped. `EXEC_FORM_WINDOWS_PROBE_LIVE=1` adds an opt-in `claude` hook run; without `claude` on `PATH` that half also skips fail-soft.
 
@@ -471,8 +476,9 @@ a consumer sets a value through; this rule settles where the plugin's own values
 - Docs cite the owner and do not restate the number. A copy generated from the owner is not a second
   owner.
 - Measurement records keep their numbers: a recorded result is data about one run, not a restatement.
-- A volatile external specific restated in a skill body carries the four-part record of the
-  [upstream-drift convention](conventions/upstream-drift/README.md).
+- A skill body never restates a volatile external specific. It states our decision and carries the
+  pointer, as-of date, and recheck trigger of the
+  [upstream-drift convention](conventions/upstream-drift/README.md#required-parts).
 - A value read from two languages lives in a JSON file both read.
 
 Worked example: `animation`'s brush defaults live in `skills/rotoscope/scripts/brush.json`, read by
@@ -523,10 +529,10 @@ hook and a `git`-dependent tier set whose absence the native prompt cannot see, 
 back to its default and which has no external prerequisite, correctly ships none. A setup skill was
 written for it and deliberately dropped rather than kept for symmetry.
 
-The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, matching
-upstream's own rule for the flag, "for workflows with side effects that you want to trigger
-manually" ([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10),
-and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
+The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, because
+setup has side effects a person should trigger by hand (Pointer:
+<https://code.claude.com/docs/en/best-practices#create-skills>. As of: 2026-08-10. Recheck trigger:
+that section stops tying the flag to manually triggered side effects), and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
 contract is exception class (ii) of the fleet's invocation-mode rubric
 ([`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md)), which owns the
 default and the other reasons a skill may set the flag. The
@@ -592,15 +598,13 @@ a separate `<plugin>:check` skill with `disable-model-invocation: false`. It rea
 follows only its `check` section, so `setup` stays the one account of what is checked, and it
 installs and writes nothing. `setup` keeps `true`, and `apply` stays manual. A hook or probe names
 `/<plugin>:check`, never `/<plugin>:setup check`, which the flag hides from Claude.
-`plugins/context7/skills/check/SKILL.md` is the shape to copy. Verification record. Claim: the flag
-is set per skill in frontmatter, and the skills page documents no per-action invocation flag.
-Basis: <https://code.claude.com/docs/en/skills#frontmatter-reference>, field
-`disable-model-invocation` ("Set to `true` to prevent Claude from automatically loading this
-skill. Use for workflows you want to trigger manually with `/name`."), and
-<https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> ("Two frontmatter fields let
-you restrict this"), both read from the raw `.md` of that page on 2026-09-29. As of: 2026-09-29.
-Recheck: a Claude Code release adds a per-action invocation flag, or that field's description
-stops applying to the whole skill.
+`plugins/context7/skills/check/SKILL.md` is the shape to copy. Record. Decision: we set the flag
+per skill and split `check` into its own skill, because we found no per-action invocation flag.
+Pointer: for `disable-model-invocation`, see
+<https://code.claude.com/docs/en/skills#frontmatter-reference> and
+<https://code.claude.com/docs/en/skills#control-who-invokes-a-skill>. As of: 2026-09-29. Recheck
+trigger: a Claude Code release adds a per-action invocation flag, or that field stops applying to
+the whole skill.
 
 The verb set is deliberately closed at `check` and `apply`: no standalone `remove`, `reset`, or
 `migrate` verb joins the mandatory contract (teardown, where genuinely needed, rides as a `remove`
@@ -681,12 +685,14 @@ data: removing the plugin's own tracked setup config is teardown, whereas an app
 that mutates a managed inventory the plugin maintains (a status change over existing entries, say)
 is ordinary `apply` surface, not teardown, and does not trip that trigger.
 
-Two native idioms are the sanctioned initialization surfaces (verified 2026-08-10 against the
-[hooks reference](https://code.claude.com/docs/en/hooks) and
-[plugins reference](https://code.claude.com/docs/en/plugins-reference)): the `Setup` hook event
-(`--init-only`, or `--init`/`--maintenance` in `-p` mode) for headless and CI preparation, and a
-`SessionStart` hook comparing a bundled manifest against its `${CLAUDE_PLUGIN_DATA}` copy for
-runtime-dependency installation.
+Two native idioms are the sanctioned initialization surfaces: the `Setup` hook event for headless
+and CI preparation, and a `SessionStart` hook comparing a bundled manifest against its
+`${CLAUDE_PLUGIN_DATA}` copy for runtime-dependency installation. Pointer: for the `Setup` event and
+the flags that fire it, see <https://code.claude.com/docs/en/hooks#setup>; for the data-directory
+install idiom, see
+<https://code.claude.com/docs/en/plugins/components#install-dependencies-into-the-data-directory>.
+As of: 2026-08-10. Recheck trigger: either section moves, or the `Setup` event or the data-directory
+idiom is removed.
 
 These native idioms complement the `setup` skill; they do not compete with it, and native-first is
 honored either way. The skill is the interactive, discoverable consumer-configuration face
@@ -737,10 +743,10 @@ also its subject. A machine-global or `@latest` install is not itself a reason t
 `install-typos`: cargo, Homebrew, Conda, pacman or a pre-built binary, reasons 1 and 2) are the
 current refusals. They stay; they are not defects against a missing subaction.
 
-- **Claim:** install subactions fall into four shapes by what they install (consumer-repo
+- **Decision:** install subactions fall into four shapes by what they install (consumer-repo
   dependency, machine-global CLI, plugin-owned dependencies, hook file); names are not converged;
   a refusal names the reasons that apply from the list and never excludes a sanctioned subaction.
-- **Basis:** #3574. What each live subaction installs: `plugins/ruff-format/skills/setup/SKILL.md`
+- **Pointer:** #3574. What each live subaction installs: `plugins/ruff-format/skills/setup/SKILL.md`
   (`install-ruff`), `plugins/biome-format/skills/setup/SKILL.md` (`install-biome`),
   `plugins/markdown-format/skills/setup/SKILL.md` (`install-lint`),
   `plugins/context7/skills/setup/SKILL.md` and `plugins/playwright/skills/setup/SKILL.md`
@@ -754,7 +760,7 @@ current refusals. They stay; they are not defects against a missing subaction.
   `plugins/typos-format/skills/setup/SKILL.md`. Tokens such as `install-hint` and
   `install-browser` are not setup subactions.
 - **As of:** 2026-09-29.
-- **Recheck:** a setup skill adds an install subaction that fits none of the four shapes, a live
+- **Recheck trigger:** a setup skill adds an install subaction that fits none of the four shapes, a live
   subaction changes what or where it installs, or a maintainer converges the fleet onto one
   spelling.
 
@@ -856,14 +862,14 @@ Optional platform integrations must degrade visibly and preserve the portable co
 
 [Feature availability](https://code.claude.com/docs/en/feature-availability) is this contract's
 canonical input: fetch it when a platform, provider, or plan question decides something, and restate
-none of it here (verified 2026-08-10, [recorded gate runs](#recorded-gate-runs)). A capability the
+none of it here (as of 2026-08-10; trigger in [recorded gate runs](#recorded-gate-runs)). A capability the
 platform itself does not ship on a supported OS is the platform's gap, never the "narrower, inherent
 platform boundary" a plugin may declare. The plugin still owes a portable path.
 
 That input carries two axes, model provider and subscription plan. The *host surface* a consumer
 runs in, whether CLI, Desktop, an IDE extension, web, or mobile, is a third, read separately from
 [Platforms and integrations](https://code.claude.com/docs/en/platforms) and the per-host pages it
-indexes, cited and never restated (verified 2026-08-10, [recorded gate runs](#recorded-gate-runs)).
+indexes, cited and never restated (as of 2026-08-10; trigger in [recorded gate runs](#recorded-gate-runs)).
 It is a distinct axis because a host can withhold the plugin system itself rather than one
 capability, and where no plugin loads there is no portable path for one to owe. Host-surface absence
 is therefore neither a plugin defect nor a boundary a plugin may declare: the OS rule above governs
@@ -895,15 +901,16 @@ Every standing instruction this marketplace ships is a per-session tax on every 
 whether or not the instruction ever fires: a CLAUDE.md line, a hook that corrects model behavior, a
 skill's always-loaded listing text. (Whether a skill's description enters that
 always-loaded listing at all is the invocation-mode choice, owned by the rubric at
-[`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md).) Official doctrine is explicit: "CLAUDE.md is loaded
-every session, so only include things that apply broadly… For each line, ask: 'Would removing this
-cause Claude to make mistakes?' If not, cut it," and "If Claude already does something correctly
-without the instruction, delete it or convert it to a hook"
-([best-practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10). Anthropic
-applied the same doctrine to Claude Code itself, removing over 80% of its system prompt for the
-Opus 5 / Fable 5 generation with no measurable loss on its coding evaluations
-([The new rules of context engineering for Claude 5 generation models](https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models),
-verified 2026-08-08). Context load is not the only budget: the human maintainer's cognitive load
+[`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md).) We keep a standing
+line only if removing it would cause a mistake, and we delete or convert to a hook any instruction
+the model already follows unaided. Pointer: for pruning standing instructions, see
+<https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md> and
+<https://code.claude.com/docs/en/best-practices#avoid-common-failure-patterns>. As of: 2026-08-10.
+Recheck trigger: either section moves or stops recommending pruning. Anthropic reports applying
+the same doctrine to Claude Code's own system prompt for the Claude 5 generation; no docs page
+covers that as of 2026-08-08
+(correlate with <https://claude.com/blog/the-new-rules-of-context-engineering-for-claude-5-generation-models>).
+Context load is not the only budget: the human maintainer's cognitive load
 is its sibling constraint, and the write-time doctrine budgeting both lives in
 `docs-hygiene:write-for-agents`. Four rules follow:
 
@@ -981,15 +988,19 @@ A context that produced work is structurally the weakest place to judge that wor
 made a mistake plausible is still active, so a self-check inherits the bias. A fresh-context (non-fork)
 subagent, generic or named, removes it: it starts in its own fresh context window, blind to the
 reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
-it carries the same bias forward
-([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-08-10).
-Upstream now states the doctrine, not only the mechanism: a fresh context "improves code review
-since Claude won't be biased toward code it just wrote", and a verification subagent exists "so the
-agent doing the work isn't the one grading it", and a reviewer in a fresh subagent context "sees only
-the diff and the criteria you give it, not the reasoning that produced the change"
-([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10). This
-section is the authoring-time form of that guidance, applied where an invoker cannot be relied on
-to remember it.
+it carries the same bias forward. Upstream recommends fresh-context review as well as describing
+the mechanism, and this section is the authoring-time form of that guidance, applied where an
+invoker cannot be relied on to remember it.
+
+- **Pointer**: for what a fork inherits, see
+  <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>; for
+  fresh-context review, see
+  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>,
+  <https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work>, and
+  <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>.
+- **As of**: 2026-08-10
+- **Recheck trigger**: a fork stops inheriting the parent conversation, or those sections stop
+  recommending a fresh-context reviewer.
 
 The rule: **a skill step whose output judges work produced in the same context delegates that judgment
 to a fresh-context (non-fork) subagent**, generic or named; what the rule requires is the fresh
@@ -1035,18 +1046,20 @@ judgment and its target, never re-derives these rules.
 ### Dispatch ladder
 
 The default worker is a **generic fresh-context subagent carrying rich inline instructions**: the
-task, the artifact, the criteria, and the output shape all travel in the dispatch prompt. A subagent
-starts with a fresh, isolated context window and does not see the parent conversation
-([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-08-10), which is exactly the
-independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung,
+task, the artifact, the criteria, and the output shape all travel in the dispatch prompt. A non-fork
+subagent starts without the parent conversation (Pointer:
+<https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>. As of:
+2026-08-10. Recheck trigger: a non-fork subagent starts receiving the parent conversation), which
+is exactly the independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung,
 but only when the named-agent bar below is met, and the site always states the generic fallback
 (presence-gate-plus-fallback, [seam phrasing](conventions/seam-phrasing/README.md)). The top rung, for
 high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**
 when one is installed, on the same presence-gate shape with the same generic fallback.
 
 Those rungs are one choice among the platform's parallelism surfaces;
-[run agents in parallel](https://code.claude.com/docs/en/agents) is the canonical upstream comparison
-of all of them (verified 2026-08-10). Why the fleet takes the subagent rung today rather than agent
+[run agents in parallel](https://code.claude.com/docs/en/agents#choose-an-approach) is the
+canonical upstream comparison of all of them (as of 2026-08-10; trigger in
+[recorded gate runs](#recorded-gate-runs)). Why the fleet takes the subagent rung today rather than agent
 teams or cross-session messaging is recorded once in the [gate runs](#recorded-gate-runs). Re-derive
 from that table's triggers instead of re-arguing it at a checkpoint site.
 
@@ -1061,11 +1074,10 @@ A dispatch prompt at any rung:
 - **degrades when absent**: a preferred named agent or advisor that is not installed routes to the
   generic fresh-context subagent, never to a command that may not resolve; and
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
-  optional. Upstream names the failure this prevents: "A reviewer prompted to find gaps will
-  usually report some, even when the work is sound, because that is what it was asked to do", and
-  chasing all of them "leads to over-engineering"
-  ([best practices](https://code.claude.com/docs/en/best-practices), verified 2026-08-10). An
-  unbounded adversarial prompt buys noise at the same price as judgment.
+  optional. An unbounded adversarial prompt buys noise at the same price as judgment, and chasing
+  every reported gap over-engineers the work. Pointer:
+  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>. As of:
+  2026-08-10. Recheck trigger: that section stops recommending a bounded review.
 
 ### Named-agent bar
 
@@ -1074,12 +1086,13 @@ multiple sites (or repeats via description-triggered direct invocation) AND a mo
 pin, or an enforced tool restriction is required.** Otherwise the generic subagent with inline instructions
 is the simpler, equally independent form. On tool cages: an allowlist that includes Bash bars
 Edit/Write and recursive spawning but is **not read-only**, because Bash can write. State what the cage
-actually enforces, never "read-only" ([plugin agents support `tools` frontmatter](https://code.claude.com/docs/en/plugins-reference),
-verified 2026-08-10).
+actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
+<https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents>. As of:
+2026-08-10. Recheck trigger: plugin agents stop supporting `tools`).
 
 **Exception: `planning:plan-reviewer`.**
 
-- **Claim:** this agent departs from three defaults on purpose. Bar: it has one dispatch site,
+- **Decision:** this agent departs from three defaults on purpose. Bar: it has one dispatch site,
   `/planning:plan` Step 3, and its description says not to invoke it directly, so the
   multiple-sites clause is unmet; the pin clause carries it, because a definition is the only way to bound
   this one review's effort (a generic Agent-tool dispatch has no per-invocation `effort`). For the same
@@ -1089,14 +1102,14 @@ verified 2026-08-10).
   bound it further. Model: it pins `model: opus`; under the fleet's pinned default session, `opus`
   is the session tier, so it meets the [Model tiers](#model-tiers) rule that a consequential verdict
   runs at the session-model tier or above.
-- **Basis:** the frontmatter of `plugins/planning/agents/plan-reviewer.md` (`model: opus`,
+- **Pointer:** the frontmatter of `plugins/planning/agents/plan-reviewer.md` (`model: opus`,
   `effort: medium`, `maxTurns: 25`) and `plugins/planning/skills/plan/SKILL.md` Step 3;
   [#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256), which measured a
   nested plan review at 31.6 minutes and 277k tokens at session effort; the closing comment on
   [#4849](https://github.com/melodic-software/claude-code-plugins/pull/4849), which kept
   `opus`.
 - **As of:** 2026-09-29.
-- **Recheck:** a second dispatch site or direct use appears (the exception then ends), the Agent
+- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the Agent
   tool gains a per-invocation `effort` parameter, or the agent's `model` or `effort` changes.
 
 ### Model tiers
@@ -1105,13 +1118,13 @@ The ladder is relative to the session: **a consequential verdict runs at the ses
 above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
 explicit: an agent definition that omits `model` falls through to `CLAUDE_CODE_SUBAGENT_MODEL` and,
 where that is unset, to the main conversation's model, the same model `inherit` selects
-([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model): "When
-you omit it, Claude Code picks the model in the subagent model order", verified 2026-09-27; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
-`inherit`). Consumers hold one global fallback knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set via the
-settings `env` map. It ranks **third**, below the per-invocation `model` parameter and below
-frontmatter, so it decides only where neither is set; setting it to `inherit` is the same as leaving
-it unset. A structural frontmatter binding therefore holds against it, and the knob is a default for
-unbound subagents rather than an override
+([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model),
+verified 2026-09-27; frontmatter takes a full model ID, an alias (`sonnet`, `opus`, `haiku`,
+`fable`), or `inherit`). Consumers hold one global fallback knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set
+via the settings `env` map. It ranks **third**, below the per-invocation `model` parameter and below
+frontmatter, so it decides only where neither is set; a value of `inherit` behaves as if the
+variable were absent. A structural frontmatter binding therefore holds against it, and the knob is
+a default for unbound subagents rather than an override
 ([subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model),
 verified 2026-09-11, recheck when a release note touches subagent model selection;
 `env` applies to every session and spawned subprocess,
@@ -1145,18 +1158,18 @@ the session default model changes):
 Row 1 is relative by construction: the invariant above makes the ladder relative to the active
 session, so a session already running Fable 5.1 has no rung above and dispatches consequential
 verdicts at its own tier. The named models are the resolution under the fleet's pinned session
-default (`opus[1m]`, an alias): `opus` resolves to Opus 5.5 on the Anthropic API
+default (`opus[1m]`, an alias): on the Anthropic API the `opus` alias currently points at Opus 5.5
 ([model-config](https://code.claude.com/docs/en/model-config), verified 2026-09-23), the model the
-models overview says to "start with … for most workloads", while Fable 5.1 is among "the most
-capable models in Claude Code", suited to tasks larger than a single sitting rather than to harder
-verdicts at ordinary length. The `fable` alias resolves to Fable 5.1, except in a Claude apps
-gateway session, where `fable` and `best` resolve to Fable 5; Fable 5 itself is selected by model
-id
+models overview names as the general starting point, while Fable 5.1 sits above it in capability,
+aimed at work spanning more than one session rather than at harder
+verdicts at ordinary length. In Claude Code, `fable` points at Fable 5.1 everywhere but a Claude
+apps gateway session, where both `fable` and `best` give Fable 5; Fable 5 itself is selected by
+model id
 ([model-config: work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable),
 verified 2026-09-28). Opus 5 and Opus 4.8 are legacy models. Rows 2 and 3 re-verify
 unchanged: Sonnet 5 and Haiku 4.5 remain the current Sonnet and Haiku.
 The trigger itself re-tested negative: a further family, Claude Mythos 5, now appears upstream but
-has not fired it: Mythos "is not generally available", offered invitation-only to approved
+has not fired it: Mythos is not generally available, offered invitation-only to approved
 customers under Project Glasswing, so no lane may reach for it. The figures behind the cost ordering
 below are upstream-owned
 ([pricing](https://platform.claude.com/docs/en/about-claude/pricing)) and are not restated here.
@@ -1180,10 +1193,8 @@ The dispatch consequence, phrased as capability rather than family name so it su
 moving under it: **require interleaving only where extended reasoning between tool results decides
 the next call, meaning a mid-sweep judgment that has to change what gets called next. A task that chains
 calls, or that reasons over its results at the end, does not need it.** The boundary is much
-narrower than the capability's name suggests, and the same page draws it: "Consecutive tool calls do
-not require interleaved thinking. Claude can chain tool calls with or without interleaved thinking;
-interleaving changes where thinking blocks appear between tool calls, not whether tool calls can
-chain." What the capability adds is a thinking block at that boundary, so what its absence removes is
+narrower than the capability's name suggests, and the same page draws it: chaining tool calls does
+not depend on interleaving. What the capability adds is a thinking block at that boundary, so what its absence removes is
 deliberation *at that point*, not the tool result from context, and not the ability to act on it.
 So the bottom tier row stands for bulk mechanical sweeps and for straightforward triage or research
 passes that decide at the end; the case it does not cover is a fan-out whose worth is deliberating
@@ -1198,15 +1209,15 @@ recheck list: the trigger above re-audits **every** agent-frontmatter `model` va
 repository, which `git grep -n '^model:' -- 'plugins/*/agents/*.md'` enumerates rather than any
 list restated here.
 
-That floor is the consumer's to lose. An enterprise `availableModels` allowlist applies "everywhere
-a user can specify a model", frontmatter pins included, and where this document once recorded the
+That floor is the consumer's to lose. An enterprise `availableModels` allowlist applies wherever a
+model can be specified, frontmatter pins included, and where this document once recorded the
 blocked-pin branch as unresolved upstream, upstream now resolves it, per surface and differently for
-each. A blocked **subagent** override "falls back to the subagent's inherited model … rather than
-failing the request", except that on the Anthropic API and Claude Platform on AWS a blocked *family
-alias* instead follows the substitution rule and runs "on the newest permitted version of its
-family", a v2.1.222 change the page dates, before which the alias fell back like any other blocked
-value. A blocked **skill or command** override behaves differently again: "Claude Code ignores the
-override, including a blocked family alias, and the skill or command runs on the session model."
+each. For a **subagent**, a blocked override silently drops to the model the subagent would
+otherwise inherit. The exception is a blocked *family alias* on the Anthropic API or Claude
+Platform on AWS: since v2.1.222 it is swapped for the newest version of its family the allowlist
+permits, and before that release it dropped to the inherited model like any other blocked value.
+For a **skill or command**, a blocked override, family alias or not, is discarded and the turn
+stays on the session model.
 
 The earlier derivation's conclusion survives its replacement. A blocked subagent alias can still
 land **below** the session, as when the session runs Opus 5.5, the lane is pinned `opus`, and the
@@ -1225,8 +1236,8 @@ skill, or command changing).
 
 Effort routes per lane the way model does. Skill and subagent frontmatter `effort` overrides the
 session level while that lane is active, but never the `CLAUDE_CODE_EFFORT_LEVEL` environment
-variable, and accepts all five level names including `max`; a level the active model does not
-support falls back to the highest supported level at or below it
+variable, and accepts all five level names including `max`; when the active model lacks the
+requested level, the nearest lower level it has is used
 ([skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
 [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level),
 verified 2026-08-10). The ladder itself is upstream-owned, covering level names, per-model
@@ -1234,17 +1245,16 @@ availability, and per-model defaults: resolve it from the model-config page at d
 from this document.
 
 What a pin actually buys is bounded by how allocation works: thinking is adaptive, so the model
-"evaluates each request and decides for itself whether to think and how much", and the caller sets
-an intent and optionally the effort while the model "allocates reasoning where it judges reasoning
-will help" ([steering thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost),
+decides per request if it thinks at all and for how long; the caller supplies an intent and,
+optionally, an effort level, and the model chooses where the reasoning goes ([steering thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost),
 verified 2026-08-03). A lane pin is therefore a posture, never a switch: a lane pinned `low` still
 thinks where the model judges thinking earns its cost, and a turn carrying no thinking is that
 mechanism working rather than a pin misfiring. Authoring conformance follows the posture: pin the
 lane, then let allocation vary per request instead of writing prose that tries to force it uniform.
 
 Lane rules, dated 2026-07-29 (recheck trigger: a model change on any pinned lane, or the
-model-config effort table changes, since the effort scale is calibrated per model, so the same level
-name is not the same underlying value across models):
+model-config effort table changes, since each model maps level names to its own amount of
+thinking, so one name does not mean the same depth on two models):
 
 - **Consequential-output lanes with a frontmatter surface pin `high`**: verdicts, and research
   that feeds decisions, wherever the lane is a named agent or a skill doing that work in its own
@@ -1265,12 +1275,11 @@ name is not the same underlying value across models):
   pin governs the orchestrating conversation, and whether it propagates to subagents spawned
   while the skill is active is undocumented, so treat propagation as unknown alongside the cache
   caveat below.
-- **Bulk mechanical sweeps may pin `low`.** Upstream pitches `low` for simpler tasks needing the
-  best speed and lowest cost, "such as subagents", and lower effort spends fewer tool calls
-  ([effort](https://platform.claude.com/docs/en/build-with-claude/effort)), but not at the model
+- **Bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more than
+  depth, subagent sweeps included, knowing a lower level also makes fewer tool calls (pointer:
+  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)), but not at the model
   ladder's own bottom rung, because the two ladders do not compose there. Effort is a per-model
-  capability and Haiku has none: "Models not listed here do not support effort", and no Haiku
-  appears in that table
+  capability and Haiku has none: no Haiku appears in the effort table
   ([model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level)),
   which the model roster corroborates with adaptive thinking off for Claude Haiku 4.5
   ([models overview](https://platform.claude.com/docs/en/about-claude/models/overview), both
@@ -1282,10 +1291,12 @@ name is not the same underlying value across models):
   by model alone and omits the pin, because the dial it would be reaching for only exists one rung
   up.
 - **Every other lane omits the pin** and inherits the session level: effort is a general
-  preference, not a task-by-task decision
-  ([choosing a model and effort level](https://claude.com/blog/claude-model-and-effort-level-in-claude-code)).
-- **No lane pins `max` without eval evidence.** Upstream warns it adds significant cost for
-  relatively small quality gains and can lead to overthinking. Deliberation helps only while
+  preference, not a task-by-task decision (Pointer:
+  <https://code.claude.com/docs/en/model-config#choose-an-effort-level>;
+  correlate with <https://claude.com/blog/claude-model-and-effort-level-in-claude-code>).
+- **No lane pins `max` without eval evidence.** We treat it as the costliest level, whose gain a
+  lane must measure before using it (pointer:
+  [effort](https://platform.claude.com/docs/en/build-with-claude/effort)). Deliberation helps only while
   there is still evidence to find; past that point extra effort buys cost and latency and can
   degrade the answer ([cut spend without losing quality](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#cut-spend-without-losing-quality),
   verified 2026-09-09). A pin above `high` (e.g. `xhigh`)
@@ -1300,20 +1311,17 @@ name is not the same underlying value across models):
   model-adaptation chapter for the newer model
   (`plugins/playbooks/reference/model-adaptation/fable-5-1.md`, "Cross-model effort economics");
   current prices resolve through the `claude-api` skill at decision time.
-- **Effort is the first lever in either direction; steering prose is the second.** Upstream states
-  the order plainly, to set the effort level matching the lane's workload, then "add prompt guidance
-  only if Claude's triggering still doesn't match your needs at that level", and gives the
-  rationale that lowering effort "is usually the better first lever, since it is a calibrated
-  control rather than a wording-sensitive instruction"
+- **Effort is the first lever in either direction; steering prose is the second.** We set the
+  level to fit the lane's work and add prose only where that level still falls short; the reason
+  is at the pointer
   ([steering thinking: effort levels](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#effort-levels),
   verified 2026-08-03). Both directions: shallow output from a pinned-`low` lane raises the lane's
-  effort rather than prompting around it, and a lane thinking more than the work needs lowers the
-  pin before any prose telling the model to think less. Upstream states that reduce direction
-  outright and warns it "may reduce quality on tasks that benefit from reasoning". A lane that must
-  hold its level for latency is the one case that reaches for steering prose first; it then owes
-  the measurement upstream asks for, a representative sample run with and without the guidance,
-  compared on trigger rate, output tokens, latency, and quality, because steering effectiveness is
-  wording-sensitive in a way a level is not. Authoring a lane's prose against its own pin, in
+  effort instead of adding prompt text, and a lane thinking more than the work needs lowers the
+  pin before any prose telling the model to think less. A lane that must
+  hold its level for latency is the one case that reaches for steering prose first; it then
+  measures the prose on a representative sample, with and without it, comparing how often thinking
+  fires, output tokens, latency, and quality, because the effect of wording is harder to predict
+  than the effect of a level. Authoring a lane's prose against its own pin, in
   either direction, is the inversion this rule exists to catch.
 - **Cache caveat**: changing effort between requests invalidates cached prompt prefixes, so a
   skill pin firing mid-session is expected to cost the main conversation's cache (harness-side
@@ -1322,28 +1330,27 @@ name is not the same underlying value across models):
   mechanism: the platform page and the harness page agree that an effort change forces a full
   re-read but describe *why* differently, so an explanation that picks one is asserting more than
   either source supports. Two corollaries follow. Setting a lane's effort explicitly to the model's
-  own default is a no-op that "does not break the cache", so a pin that merely documents the
-  default costs nothing. And **per-message steering is the cache-safe escape hatch**: guidance
-  appended to the newest user message "leaves earlier cache breakpoints intact, where a
-  configuration or effort change does not", which is what makes a skill's invocation-time
+  own default is a no-op that keeps the cache, so a pin that merely documents the default costs
+  nothing. And **per-message steering is the cache-safe escape hatch**: steering text added to the
+  latest user turn leaves the cached prefix intact, while changing configuration or effort breaks
+  it, which is what makes a skill's invocation-time
   instructions cheaper than a mid-session pin. The convention that falls out, and the reason a lane
   pin is a design-time choice rather than a per-task one: pick the level once and keep it, steer
   per message when one turn needs more or less, and move the configuration only at natural breaks
   between tasks ([steering thinking: prompt caching](https://platform.claude.com/docs/en/build-with-claude/thinking-steering-and-cost#prompt-caching),
-  verified 2026-08-03). The harness page states the same convention in its own words, "Pick your
-  model and effort level at the top of a session, then save `/compact` for natural breaks between
-  tasks", and adds the interactive consequence a plugin author cannot see from the platform page
-  alone: once a conversation has started, Claude Code "shows a confirmation dialog before applying
-  an effort change that would invalidate the cache", so a mid-session change is a prompt the
+  verified 2026-08-03). The harness page backs the same convention (choose model and effort when a
+  session starts, compact between tasks), and adds the interactive consequence a plugin
+  author cannot see from the platform page alone: once a conversation has started, Claude Code
+  confirms a cache-invalidating effort change with a dialog, so a mid-session change is a prompt the
   consumer must clear rather than a silent cost. The same section independently corroborates the
-  no-op corollary above: a change resolving to the level already in effect "skips the dialog and
-  keeps the cache" ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
-  verified 2026-08-10). Re-read 2026-09-29: on most models that dialog sentence still
-  holds, and each effort level has its own cache. On Opus 5.5, Sonnet 5.5, and Fable 5.1, with an
-  API key or a Claude subscription, changing effort keeps the cache and Claude Code applies the new level
-  without asking. The exception does not apply on Amazon Bedrock, Google Cloud's Agent Platform,
-  or a Claude apps gateway, when `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS` is set, or when the
-  organization has a HIPAA configuration. Before v2.1.260, Fable 5.1 invalidated the cache too
+  no-op corollary above: a change resolving to the level already in effect skips the dialog and
+  keeps the cache ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
+  verified 2026-08-10). Re-read 2026-09-29: the dialog still covers most models, and each effort
+  level caches separately. Fable 5.1, Opus 5.5, and Sonnet 5.5 are the exception under API-key or
+  Claude-subscription auth: an effort change there is applied without a dialog and the cache
+  survives. We do not count on that exception on a Claude apps gateway, Amazon Bedrock, or Google
+  Cloud's Agent Platform, with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS` set, or for an organization
+  with a HIPAA configuration, and Fable 5.1 has it only from v2.1.260
   ([prompt caching: changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level),
   fetched 2026-09-29, 42,099 bytes; recheck trigger: that section drops the Opus 5.5 / Sonnet 5.5 /
   Fable 5.1 exception or changes which providers it excludes).
@@ -1370,15 +1377,13 @@ name is not the same underlying value across models):
   [#4253](https://github.com/melodic-software/claude-code-plugins/issues/4253) is the source of
   the filed list of eleven, which omits `auditor`, `object-writer`, and `research-verifier`. The
   Agent-tool gap is stated in this section ("a generic Agent-tool dispatch carries no effort
-  control"). Upstream, fetched 2026-09-29 from the raw `.md` channel:
+  control"). Upstream, fetched 2026-09-29 from the raw `.md` channel, for how frontmatter effort
+  ranks against the session level, the environment variable, and an effort cap:
   [model config](https://code.claude.com/docs/en/model-config#set-the-effort-level) (109,848
-  bytes), "Frontmatter effort applies when that skill or subagent is active, overriding the
-  session level but not the environment variable. A `maxEffortLevel` or organization effort cap
-  still limits the level the skill or subagent runs at";
+  bytes) and the `effort` field in
   [sub-agents](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields) (107,466
-  bytes), `effort`: "Effort level when this subagent is active. Overrides the session effort
-  level." Lowering effort beat an architecture change, and `low` is named for simpler subagent
-  tasks ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
+  bytes). A lower effort level outperformed an architecture change, and `low` is named for
+  simpler subagent tasks ([optimizing for cost and intelligence](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence),
   [effort](https://platform.claude.com/docs/en/build-with-claude/effort), same fetch date).
 - **As of:** 2026-09-29.
 - **Recheck:** a checker pinned `medium` misses a defect its `high` pin caught, the Agent tool gains
@@ -1386,19 +1391,17 @@ name is not the same underlying value across models):
 
 **Effort is one dial of two, and the other is not an effort value.** The `thinking` parameter decides
 whether Claude reasons in thinking blocks; `effort` decides how hard the whole response works,
-"which in adaptive mode includes how often and how deeply it thinks". Upstream states the resulting
-trap outright, "Don't pass `adaptive` as an `effort` value: `adaptive` is a thinking mode, not an
-effort level", and a frontmatter `effort` field is exactly where that trap is reachable, because the
-two dials share vocabulary. The second consequence bounds what any pin can promise, in upstream's own
-words: "**You need a hard ceiling on spend:** use `max_tokens`. Effort is soft guidance; `max_tokens`
-is a strict limit." Read what that limit bounds before reaching for it. `max_tokens` is a request
-parameter capping one response's output, and it "includes all thinking Claude generates in the current
-turn", so it binds per response and constrains neither input and cache reads nor the further
+thinking included in adaptive mode. The resulting trap: `adaptive` is a thinking mode, never an
+`effort` value, and a frontmatter `effort` field is exactly where that trap is reachable, because the
+two dials share vocabulary. The second consequence bounds what any pin can promise: effort is soft
+guidance, and the hard spend ceiling is `max_tokens`. Read what that limit bounds before reaching
+for it. `max_tokens` is a request parameter capping one response's output, thinking included, so it
+binds per response and constrains neither input and cache reads nor the further
 requests an agentic lane makes. **And no documented frontmatter field reaches it.** Those fields set
 the model and the effort level, and a subagent adds `maxTurns`, which bounds agentic turns rather
 than tokens and has no skill-frontmatter counterpart; neither field list carries a token cap, because
 the parameter belongs to the API request that the lane-pin surface does not assemble. So the rule
-this section can actually state is narrower than the quote: a lane wanting to spend less lowers
+this section can actually state is narrower than the upstream guidance: a lane wanting to spend less lowers
 `effort` knowing it is guidance, and a hard cap has to be imposed by whoever builds the request
 ([thinking and effort](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-and-effort),
 [subagent frontmatter](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields), and
@@ -1408,8 +1411,8 @@ page, or either documented frontmatter field list gains a token cap). Checking t
 the harness's own accepted-value list, which this section deliberately does not restate.
 
 Session-level effort is the consumer's own knob, out of plugin scope: `low` through `xhigh`
-persist via the `effortLevel` setting, while `max` and `ultracode` are session-only, and `max` is
-durable only through the `CLAUDE_CODE_EFFORT_LEVEL` environment variable. Plugins never set
+persist via the `effortLevel` setting, while `max` and `ultracode` are session-only, and `max`
+persists only when set in `CLAUDE_CODE_EFFORT_LEVEL`. Plugins never set
 session effort.
 
 ### Declared patterns

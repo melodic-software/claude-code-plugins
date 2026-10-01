@@ -12,9 +12,11 @@
 - [Hedge preservation, and the residual-risk footer](#hedge-preservation-and-the-residual-risk-footer)
 
 Publisher-specific configuration for `/knowledge:docpage-digest` runs against Anthropic
-documentation properties (`platform.claude.com`, `code.claude.com`, `claude.com/blog`,
-`claude.dev/blog`, `anthropic.com/engineering`). Hosts match with or without a leading `www.`;
-the two blog hosts share every blog rule below; live engineering links use `www.anthropic.com`. The pipeline engine in `SKILL.md` stays generic; everything here
+documentation properties: the docs hosts `platform.claude.com` and `code.claude.com`, and the
+correlate-only hosts `claude.com/blog`, `claude.dev/blog` and `anthropic.com/engineering`, which
+the upstream-drift convention never accepts as a pointer. Hosts match with or without a leading
+`www.`; the two blog hosts share every blog rule below; live engineering links use
+`www.anthropic.com`. The pipeline engine in `SKILL.md` stays generic; everything here
 is this publisher's own contract. A second publisher joins as a sibling profile file; engine
 extraction waits for the third (Rule of Three).
 
@@ -41,7 +43,7 @@ extraction waits for the third (Rule of Three).
   names a line number, resolve it to the row's key before relying on it. Line numbers into an
   **archived snapshot** this pipeline captured are
   unaffected: that file is immutable, which is exactly what makes its line numbers citable.
-- **Blog posts (`claude.com/blog/...`):** no raw-markdown channel known; fetch rendered and
+- **Blog posts (`claude.com/blog/...`, correlate-only):** no raw-markdown channel known; fetch rendered and
   extract. Record the channel used. **Three extraction artifacts reproduce on this channel; record
   them, never repair them.** `source.*` is immutable, so the fix belongs in whatever reads the
   snapshot, not in the snapshot. (a) The animated hero heading collapses every space in the H1.
@@ -85,8 +87,8 @@ archive wrong in a way its own verification cannot catch:
   carries no annotation explaining why a re-publication exists. Record the re-publication as what it
   is; never
   infer a revision, an intent, or a policy movement from the appearance of a new dated heading.
-- **Absence of bold does not prove absence of change.** The page states that updates between
-  versions are bolded, and that convention does not hold: spans of the archive carry differences,
+- **Absence of bold does not prove absence of change.** The archive's own bold-marks-updates
+  convention does not hold, as we observed: spans of the archive carry differences,
   including whole added paragraphs, silent typo fixes, and silent removals, with no bold markup at
   all. Treat an unbolded inter-entry difference as an authoritative delta of
   equal standing to a bolded one, which means the deltas come from diffing entries, never from
@@ -214,8 +216,8 @@ asserts:
   section as their row-local basis; the boundary rule still routes claims naming an API surface
   to `mixed`, and third-party APIs (e.g. the GitHub API) count as API surfaces, with no vendor
   exemption.
-- **Vendor-blog attestation:** a `claude.com/blog` page is marketing-adjacent vendor voice, not
-  reference documentation. Any assertion of fact that exists ONLY in the blog (no harness or
+- **Vendor-blog attestation:** a `claude.com/blog` page is a correlate-only source in
+  marketing-adjacent vendor voice, not reference documentation. Any assertion of fact that exists ONLY in the blog (no harness or
   platform doc states the same assertion) additionally carries
   `vendor-claimed (blog, <fetch date> fetch)` beside its vocabulary tag. That covers behavioral,
   performance, figure/percentage, comparative, frequency, methodological/definitional,
@@ -236,10 +238,15 @@ behavioral descriptions:
 | Cross-model or harness doc (best practices, effort, guardrails) | Session default (no override) |
 | Non-Claude subject | Session default (no override) |
 
-Pinned-vs-alias semantics are generation-dependent: since the 4.6 generation the dateless ID is
-itself the pinned snapshot, while earlier models pin a dated snapshot and their dateless aliases
-move. Resolve them at spawn time against the live
-[model IDs and versioning page](https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions).
+Pinned-vs-alias semantics differ by model generation, so resolve which ID is pinned at spawn time
+against the live page; this profile stores no generation rule.
+
+- **Pointer**: for which model IDs are pinned snapshots, see
+  <https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions#model-id-format>
+  and <https://platform.claude.com/docs/en/about-claude/models/model-ids-and-versions#dateless-ids-are-pinned-snapshots>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that page changes how a dateless ID or alias resolves, or a new model
+  generation ships.
 
 Every model-pinned spawn brief uses the conditional framing contract from `SKILL.md` Phase 3
 ("this brief assumes model X; if you are not X, note the mismatch and continue").
@@ -271,25 +278,26 @@ undecided). The handoff records the candidate target per finding; the interview 
 
 A source's own hedge travels with the content it qualifies. An artifact graduated from this
 publisher preserves the hedge as the source states it, neither dropped as throat-clearing nor
-widened past what the source claims. The footer below is the standing instance; the harness
-best-practices material's "starting points, not set in stone" relativization is the second, and both
-graduate under this one convention rather than each inventing its own.
+widened past what the source claims. The residual-risk footer below is the standing instance; the
+harness best-practices material's own relativizing hedge on its recommendations is the second, and
+both graduate under this one convention rather than each inventing its own.
 
 **Wrong-footer trap.** This profile's hallucination-scoped residual-risk footer attaches only to
 artifacts derived from a page that states that hedge. A page carrying its own hedge graduates
-that page's sentence, never this one. Worked instance: server-managed-settings' "not a security
-boundary" sentence travels verbatim; attaching the hallucination footer to that page would be a
-scope transfer the rule above forbids.
+that page's sentence, never this one. Worked instance: the server-managed-settings page carries its
+own security-boundary caveat; attaching the hallucination footer to that page would be a scope
+transfer the rule above forbids.
 
 **Residual-risk footer.** Every artifact derived from a guardrail page of this publisher carries
 that page's OWN residual-risk sentence when the page states one, quoted rather than paraphrased.
 A hedge scoped to one page's techniques never transfers to an artifact derived from a different
-page. The standing instance, for artifacts derived from [Reduce
-hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
-(verified 2026-08-03):
+page. The standing instance is the residual-risk sentence of the Reduce hallucinations page; this
+profile does not store its text, and an artifact reads it live at the pointer.
 
-> Remember, while these techniques significantly reduce hallucinations, they don't eliminate them
-> entirely. Always validate critical information, especially for high-stakes decisions.
+- **Pointer**: for the residual-risk sentence, see
+  <https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations#advanced-techniques>.
+- **As of**: 2026-08-03
+- **Recheck trigger**: that section drops, moves, or rewords its residual-risk sentence.
 
 Its scope is the source's own and stays unbroadened. It is about **hallucinations**, not errors,
 regressions, or guardrail failures in general; and it names **no validator**: who or what validates

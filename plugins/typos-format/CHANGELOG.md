@@ -3,6 +3,16 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-10-01
+
+### Changed
+
+- **The README's hook-behavior notes state our decisions and point at the docs.** The timeout tail,
+  the omitted `MultiEdit` matcher, the Git Bash requirement on native Windows, the `node`
+  requirement and the decision to keep the row synchronous are each a decision with a pointer to the
+  anchored docs section, an as-of date and a recheck trigger, and none of the page's wording is
+  stored. No hook behavior changes.
+
 ## [0.8.4] - 2026-09-30
 
 ### Changed

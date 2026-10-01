@@ -3,6 +3,16 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.7] - 2026-10-01
+
+### Changed
+
+- **`diagnose` states its screenshot downscale and zoom findings as our decisions with pointers.**
+  `reference/screenshots-and-zoom.md` no longer restates the documentation: the fixed target size,
+  the zoom action and the remedy of larger text in the app are our decisions, each with a pointer to
+  the docs section, an as-of date and a recheck trigger. The measured pixel-count figure is marked
+  as our own probe.
+
 ## [0.1.6]
 
 ### Changed

@@ -2,10 +2,10 @@
 
 Every check in this plugin that decides whether an `AGENTS.md` is a live instruction surface turns
 on two questions, in this order: is `AGENTS.md` support **available** in the session at all, and if
-so, which files does the **Project instructions** setting load. Both are recorded here as the
-four-part record the
-[upstream-drift convention](../../../docs/conventions/upstream-drift/README.md) defines: claim,
-basis, as-of date, recheck trigger.
+so, which files does the **Project instructions** setting load. Both are recorded here in the
+shape the
+[upstream-drift convention](../../../docs/conventions/upstream-drift/README.md#required-parts)
+defines: our decision, a pointer to the upstream section, the as-of date, the recheck trigger.
 
 **Why the record lives here.** A plugin never imports files from a sibling plugin
 ([plugin philosophy](../../../docs/plugin-philosophy.md), "It never imports files from a sibling
@@ -15,26 +15,25 @@ into another plugin's private reference would leave these conditions unresolvabl
 standalone install. Each record below cites the upstream page directly. Where a sibling plugin keeps
 its own record of the same upstream fact, that is a parallel record, not this one's source.
 
-## Availability: four documented conditions, any one of which ends the question
+## Availability: four conditions, any one of which ends the question
 
-- **Claim**: in these sessions "Claude reads `CLAUDE.md` files only, and **Project instructions**
-  doesn't appear in the `/config` settings panel", so no `AGENTS.md` is read natively at any path
-  under any mode:
-  1. "You're on a Claude Code version before v2.1.277";
-  2. "Your session doesn't fetch feature flags from Anthropic, for example because you use Amazon
-     Bedrock or another third-party provider, or you disabled telemetry. The linked section has the
-     full list";
-  3. "It's your first session after you install or upgrade to a version with `AGENTS.md` support.
-     Claude reads `AGENTS.md` from your next session on";
-  4. "You or your organization set `disableAllHooks` or `allowManagedHooksOnly`, or you disabled the
-     built-in `agents-md` plugin in `/plugin`".
+Our checks treat `AGENTS.md` support as unavailable, so that no `AGENTS.md` is read natively at
+any path under any mode, when any one of these holds for the session:
 
-  The page's own remedy for these sessions is the shim: "To give Claude your `AGENTS.md` in these
-  sessions, import it from a `CLAUDE.md`."
-- **Basis**: <https://code.claude.com/docs/en/memory>, "When AGENTS.md support is unavailable".
-- **As of**: 2026-09-21.
-- **Recheck trigger**: a condition is added to or removed from that list, the list's opening claim
-  changes, or the remedy sentence changes.
+1. the Claude Code version is below v2.1.277;
+2. the session fetches no feature flags from Anthropic (a third-party provider such as Amazon
+   Bedrock, or telemetry disabled);
+3. it is the first session after an install or upgrade to a version with `AGENTS.md` support;
+4. `disableAllHooks` or `allowManagedHooksOnly` is set, or the built-in `agents-md` plugin is
+   disabled in `/plugin`.
+
+For such a session the remedy we recommend is a `CLAUDE.md` that imports the `AGENTS.md`.
+
+- **Pointer**: for when `AGENTS.md` support is unavailable and the import remedy, see
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
+- **As of**: 2026-09-21
+- **Recheck trigger**: a condition is added to or removed from that section's list, or its remedy
+  changes.
 
 **Three of the four are resolvable, and two of those from settings this plugin already reads.**
 Condition 1 is a version comparison. Condition 4 is `disableAllHooks`, `allowManagedHooksOnly` and
@@ -46,30 +45,31 @@ is resolvable first, because a condition known TRUE settles it with no further w
 
 ## The mode: four values, and where the value lives
 
-- **Claim**: the **Project instructions** setting takes one of four values.
-  `claude-md-or-agents-md` reads "Your `CLAUDE.md` files, or your `AGENTS.md` files when you have no
-  `CLAUDE.md` or `CLAUDE.local.md` in your working directory or above it. **This is the default**".
-  `claude-md-and-agents-md` reads both, "each directory's `CLAUDE.md` files first and its
-  `AGENTS.md` after them", and "Claude Code skips an `AGENTS.md` it has already loaded, so one that
-  your `CLAUDE.md` imports or symlinks to isn't read twice". `claude-md` reads "Your `CLAUDE.md`
-  files only". `managed-only` reads "Only your organization's managed `CLAUDE.md` and auto memory at
-  launch", and under it "every `AGENTS.md`" is left out.
-  **So two of the four values make an `AGENTS.md` unread regardless of displacement**, and
-  displacement is a condition of the default value alone.
-- **Basis**: <https://code.claude.com/docs/en/memory>, "Choose which instruction files load", value
-  table.
-- **As of**: 2026-09-21.
-- **Recheck trigger**: a value is added, removed or renamed, the default moves, or a value's
-  description changes which files it loads.
+Our checks read the **Project instructions** setting as one of four values:
 
-**Where the value lives**, which is what a check reads rather than the `/config` panel:
+- `claude-md-or-agents-md`, the default: an `AGENTS.md` loads only where no `CLAUDE.md` or
+  `CLAUDE.local.md` sits in the working directory or above it (displacement).
+- `claude-md-and-agents-md`: both load, `CLAUDE.md` first per directory, and an `AGENTS.md` that a
+  `CLAUDE.md` already imports or symlinks counts once.
+- `claude-md` and `managed-only`: no `AGENTS.md` loads.
 
-- **Claim**: "Add it under the built-in `agents-md` plugin's ID in `pluginConfigs`, in
-  `~/.claude/settings.json`, a `--settings` file, or managed settings. **Claude Code ignores it in
-  project and local settings files.**" The documented shape is the `instructionFiles` option under
-  the `agents-md@builtin` key.
-- **Basis**: the same section, its settings paragraph and JSON example.
-- **As of**: 2026-09-21.
+**So two of the four values make an `AGENTS.md` unread regardless of displacement**, and
+displacement is a condition of the default value alone.
+
+- **Pointer**: for the values and what each loads, see
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
+- **As of**: 2026-09-21
+- **Recheck trigger**: a value is added, removed or renamed, the default moves, or a value changes
+  which files it loads.
+
+**Where the value lives**, which is what a check reads rather than the `/config` panel: our checks
+read the `instructionFiles` option under the `agents-md@builtin` key of `pluginConfigs`, from user
+settings (`~/.claude/settings.json`), a `--settings` file or managed settings, and ignore the key
+in project and local settings files.
+
+- **Pointer**: for where the setting is honored and its JSON shape, see
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
+- **As of**: 2026-09-21
 - **Recheck trigger**: the option key or plugin id changes, the honored scope set changes, or the
   setting becomes readable from project or local settings.
 

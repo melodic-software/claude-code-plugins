@@ -11,11 +11,11 @@ training-data recall.
 > prior fetch. The authoritative, self-updating master list is
 > [`https://code.claude.com/docs/llms.txt`](https://code.claude.com/docs/llms.txt); if a page listed
 > here is missing from it, or a page you need isn't listed here, treat `llms.txt` as the source of
-> truth and update this file. Every row below was verified against a live fetch on the date shown, and
+> truth and update this file. Each row's **As of** date is when the page was last read live, and
 > that date is the ceiling on how current the row still is, not a guarantee. A fetch that no longer
 > matches a row is that row's recheck trigger: update the row, refreshing its date with the
 > outcome. The [upstream-drift convention](conventions/upstream-drift/README.md) owns this
-> stamp-and-trigger discipline, and its
+> record shape and trigger discipline, and its
 > [fetch route](conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route) owns how to
 > read the page you re-fetch: several of these pages are long enough that a summarizing fetch
 > truncates them and then reports what it never reached as absent. Read the `.md` channel verbatim
@@ -24,16 +24,15 @@ training-data recall.
 ## Plugin components → doc page
 
 One row per plugin component type, per the current [Plugins reference](https://code.claude.com/docs/en/plugins-reference).
-`Commands` is the legacy flat-markdown form of a skill, and the [Skills](https://code.claude.com/docs/en/skills)
-page is authoritative for both. Statusline is not its own plugin component: it is one of the two
-settings keys (`subagentStatusLine`) a plugin's `settings.json` may set. Channels are declared via a
-`channels` manifest field bound to an MCP server, not a separate file location. Workflows have no
-per-component section in the Plugins reference. That page carries the slot in its standard-layout
-and file-locations tables, and the [Workflows](https://code.claude.com/docs/en/workflows) page is
-authoritative for the component. The manifest (`.claude-plugin/plugin.json`) is the container these
-components are declared in, not a component, so it has no row.
+We cite the [Skills](https://code.claude.com/docs/en/skills) page for both skills and legacy
+`commands/`. Statusline gets no row: we treat it as a settings key a plugin's `settings.json` may
+set, not a component. Channels get a row for the `channels` manifest field, not a file location.
+For workflows we cite the [Workflows](https://code.claude.com/docs/en/workflows) page. The manifest
+(`.claude-plugin/plugin.json`) is the container these components are declared in, not a component,
+so it has no row. For which slots and settings keys a plugin carries, see
+[Standard layout](https://code.claude.com/docs/en/plugins-reference#standard-layout).
 
-| Component | Official doc page | Verified date |
+| Component | Official doc page | As of |
 |---|---|---|
 | Skills (`skills/`) | <https://code.claude.com/docs/en/skills> | 2026-08-06 |
 | Commands: legacy flat-file skills (`commands/`) | <https://code.claude.com/docs/en/commands> | 2026-08-06 |
@@ -52,7 +51,7 @@ components are declared in, not a component, so it has no row.
 
 ## Authoring
 
-| Page | Official doc page | Verified date |
+| Page | Official doc page | As of |
 |---|---|---|
 | Create plugins | <https://code.claude.com/docs/en/plugins> | 2026-08-06 |
 | Plugins reference (schemas, variables, CLI) | <https://code.claude.com/docs/en/plugins-reference> | 2026-08-06 |
@@ -75,14 +74,14 @@ components are declared in, not a component, so it has no row.
 | Run parallel sessions with worktrees | <https://code.claude.com/docs/en/worktrees> | 2026-08-06 |
 | Tools reference (includes the Monitor tool) | <https://code.claude.com/docs/en/tools-reference> | 2026-08-06 |
 | Run agents in parallel: compares subagents, agent view, agent teams, dynamic workflows | <https://code.claude.com/docs/en/agents> | 2026-08-10 |
-| Orchestrate agent teams: experimental, `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` | <https://code.claude.com/docs/en/agent-teams> | 2026-08-10 |
-| Cross-session messaging: `ListAgents`/`SendMessage`, `crossSessionInbound`; v2.1.224+ (native Windows v2.1.234+) | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-24 |
+| Orchestrate agent teams: status and the `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` switch | <https://code.claude.com/docs/en/agent-teams> | 2026-08-10 |
+| Cross-session messaging: `ListAgents`/`SendMessage`, `crossSessionInbound`, and the version floors | <https://code.claude.com/docs/en/cross-session-messaging> | 2026-08-24 |
 | Manage sessions: resume, branch, transcript storage | <https://code.claude.com/docs/en/sessions> | 2026-08-10 |
 | Checkpointing: what `/rewind` does and does not restore | <https://code.claude.com/docs/en/checkpointing> | 2026-08-10 |
 | Feature availability: per-feature matrix by model provider and subscription plan (not by host surface, see Platforms) | <https://code.claude.com/docs/en/feature-availability> | 2026-08-10 |
 | Platforms and integrations: the host-surface index (CLI, Desktop, IDEs, web, mobile) | <https://code.claude.com/docs/en/platforms> | 2026-08-10 |
-| Ultrareview: human-confirmed, metered cloud review; no programmatic entry point | <https://code.claude.com/docs/en/ultrareview> | 2026-08-10 |
-| Chrome: browser integration delivered as the built-in `claude-in-chrome` skill | <https://code.claude.com/docs/en/chrome> | 2026-08-10 |
+| Ultrareview: the cloud review, how it is started and billed | <https://code.claude.com/docs/en/ultrareview> | 2026-08-10 |
+| Chrome: the browser integration and how it is delivered | <https://code.claude.com/docs/en/chrome> | 2026-08-10 |
 
 The two `best-practices` rows share only their slug: the platform page is the cross-product Agent
 Skills guide for skill bodies, the Claude Code page is the harness guide for CLAUDE.md, permissions,
@@ -90,10 +89,10 @@ and sessions, and they are distinct documents, so cite the one you mean by its f
 
 ## Distribution / marketplace
 
-| Page | Official doc page | Verified date |
+| Page | Official doc page | As of |
 |---|---|---|
 | Create & distribute a marketplace | <https://code.claude.com/docs/en/plugin-marketplaces> | 2026-08-06 |
-| GitHub Enterprise Server: marketplaces on a self-hosted instance; `owner/repo` always resolves to github.com | <https://code.claude.com/docs/en/github-enterprise-server> | 2026-08-10 |
+| GitHub Enterprise Server: marketplaces on a self-hosted instance, and how `owner/repo` resolves | <https://code.claude.com/docs/en/github-enterprise-server> | 2026-08-10 |
 | Discover & install plugins | <https://code.claude.com/docs/en/discover-plugins> | 2026-08-06 |
 | Plugin dependencies (version constraints) | <https://code.claude.com/docs/en/plugin-dependencies> | 2026-08-06 |
 | Recommend plugins for your org (plugin relevance) | <https://code.claude.com/docs/en/plugin-relevance> | 2026-08-06 |
@@ -108,7 +107,7 @@ SDK-based host.
 
 ## Configuration / settings
 
-| Page | Official doc page | Verified date |
+| Page | Official doc page | As of |
 |---|---|---|
 | Settings | <https://code.claude.com/docs/en/settings> | 2026-08-12 |
 | Server-managed settings | <https://code.claude.com/docs/en/server-managed-settings> | 2026-08-06 |
@@ -128,7 +127,7 @@ and embedded sample prompts, is authored against these pages. They live on `plat
 master list is
 [`https://platform.claude.com/docs/llms.txt`](https://platform.claude.com/docs/llms.txt).
 
-| Page | Official doc page | Verified date |
+| Page | Official doc page | As of |
 |---|---|---|
 | Prompting best practices (all current models) | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices> | 2026-08-08 |
 | Prompting Claude Fable 5 | <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5> | 2026-08-08 |
@@ -144,14 +143,14 @@ This marketplace authors model-graded eval fixtures for its skills (see the migr
 eval warrant policy) and ships the `evals` plugin distilling this guidance, so the platform-side
 evaluation pages are plugin-relevant here alongside the prompting-doctrine rows above.
 
-| Page | Official doc page | Verified date |
+| Page | Official doc page | As of |
 |---|---|---|
 | Define success criteria and build evaluations | <https://platform.claude.com/docs/en/test-and-evaluate/develop-tests> | 2026-08-08 |
 | Evals cookbook (source: `anthropics/claude-cookbooks` `misc/building_evals.ipynb`) | <https://platform.claude.com/cookbook/misc-building-evals> | 2026-08-08 |
 
 ## Reference / schemas
 
-| Page | Official doc page | Verified date |
+| Page | Official doc page | As of |
 |---|---|---|
 | Docs index (discover any other page) | <https://code.claude.com/docs/llms.txt> | 2026-08-06 |
 | CLI reference | <https://code.claude.com/docs/en/cli-reference> | 2026-08-06 |
@@ -168,8 +167,8 @@ page has produced inconsistent readings of the same entries. Second, a changelog
 what changed **in a version**, so always pin the version, and pair it with the topic page rather than
 replacing it, since the topic page stays authoritative for mechanism and semantics.
 
-Machine-readable JSON Schemas (editor validation only; Claude Code ignores the `$schema` field at
-load time, already cited in this repo's `CLAUDE.md`): `marketplace.json` →
+Machine-readable JSON Schemas, which we use for editor validation only and never as a load-time
+contract: `marketplace.json` →
 [`https://json.schemastore.org/claude-code-marketplace.json`](https://json.schemastore.org/claude-code-marketplace.json),
 `plugin.json` →
 [`https://json.schemastore.org/claude-code-plugin-manifest.json`](https://json.schemastore.org/claude-code-plugin-manifest.json)

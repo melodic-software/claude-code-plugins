@@ -46,9 +46,14 @@ The "Cursor unslop additions" section was inspired by
 
 ## Upstream-drift record
 
-- **Claim**: this catalog's tell inventory derives from the source page revision cited above.
-- **Basis**: the revision-pinned URL in the attribution block.
-- **As of**: 2026-08-17.
+This catalog's tell inventory derives from the pinned source revision named in the attribution
+block. Each tell is this repository's own firing rule, reworded and classified for use outside
+Wikipedia; the page's text is read at the pointer, not stored here.
+
+- **Pointer**: for the source inventory, see revision
+  [1369699198](https://en.wikipedia.org/w/index.php?title=Wikipedia:Signs_of_AI_writing&oldid=1369699198)
+  of <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>.
+- **As of**: 2026-08-17
 - **Recheck trigger**: each `ai-slop` release and each fleet audit. Per-revision rechecking was
   rejected: the page was measured at 50+ edits/week (2026-08-17), so a per-revision trigger would
   fire continuously.
@@ -98,28 +103,28 @@ placement gate are defined at the top of that section.
 
 ## False-positive posture (source Caveats)
 
-Mined from the pin's Caveats section (byte-identical on the live head; extraction closed
-2026-08-25). Three source statements bind how this catalog's verdicts are read:
+Derived from the pin's Caveats section (byte-identical on the live head; extraction closed
+2026-08-25), which is read at the pointer in the upstream-drift record. Three postures bind how
+this catalog's verdicts are read:
 
-- **The signs are descriptive, not prescriptive.** The source: "do not merely treat these signs
-  as the problems to be fixed; that could just make detection harder." This plugin's fix flow
-  is therefore framed as house style (better prose on its own merits), never detector evasion;
-  the rewrite guide's non-evasion posture carries the operational test.
-- **Expert false-positive rate.** The source's calibration figure: an experienced LLM-output
-  patroller who tags 10 pages has probably made one false positive. A deterministic subset of
-  those signs run over a technical corpus is not better calibrated than the experts; verdicts
-  are evidence for a rewrite decision, never proof of provenance, and accusatory framing
-  ("this is AI-written") is outside this plugin's vocabulary.
-- **Combination over isolation.** Individual signs are weak alone; the source repeats per-sign
-  that combination strengthens a verdict. Density thresholds, the minimum-hits floor, and the
-  rubric's counter-sign tempering are this catalog's mechanical forms of that instruction.
+- **The signs are descriptive, not prescriptive.** This plugin's fix flow is framed as house
+  style (better prose on its own merits), never detector evasion; the rewrite guide's
+  non-evasion posture carries the operational test.
+- **Expert false-positive rate.** The Caveats section gives a false-positive rate for
+  experienced human reviewers. A deterministic subset of those signs run over a technical corpus
+  is not better calibrated than those reviewers; verdicts are evidence for a rewrite decision,
+  never proof of provenance, and accusatory framing ("this is AI-written") is outside this
+  plugin's vocabulary.
+- **Combination over isolation.** This catalog treats an individual sign as weak alone and a
+  combination as stronger. Density thresholds, the minimum-hits floor, and the rubric's
+  counter-sign tempering are its mechanical forms of that posture.
 
 ## Quotation exemption (policy-level)
 
-Stated once here and inherited by every rule; the design follows Wikipedia's MOS "principle of
-minimal change" for quoted material (quotations are not the repo's own prose to restyle) and the
-detector implements it mechanically. No rule scans fenced code, inline code spans, or
-ignore-marked lines, whatever its class. Each rule carries a class:
+Stated once here and inherited by every rule; the design follows the Wikipedia Manual of Style's
+principle of minimal change for quoted material (quotations are not the repo's own prose to
+restyle) and the detector implements it mechanically. No rule scans fenced code, inline code
+spans, or ignore-marked lines, whatever its class. Each rule carries a class:
 
 - **wording**: the rule judges prose the repo AUTHORS. It never scans quoted material:
   blockquote lines and double-quoted spans are removed from its input.
@@ -317,7 +322,7 @@ then-current 1,361-file tracked-markdown corpus:
 - applicability: general-prose
 - v1: script
 - Three constructions: "not just X, but also Y"; "not X, but Y" (including "isn't X; it's Y");
-  "X rather than Y" (noted by the source as characteristic of Grok output).
+  "X rather than Y" (the source ties this one to a particular model family).
 
 ### rule-rule-of-three: Rule of three
 
@@ -340,9 +345,8 @@ then-current 1,361-file tracked-markdown corpus:
 - applicability: general-prose
 - v1: recorded-only
 - Synonym-cycling to avoid repeating a word a human would simply repeat.
-- Demoted from the active rubric 2026-08-25: the live source page moved this sign to its
-  Historical indicators (base rate collapsed in current model output), and this catalog
-  follows the upstream demotion rather than keeping an era-bound tell active.
+- Demoted from the active rubric 2026-08-25, following the live source page's own move of this
+  sign to its historical section, rather than keeping an era-bound tell active.
 
 ## Style
 
@@ -397,21 +401,17 @@ then-current 1,361-file tracked-markdown corpus:
   outside code fences and inline code flags. Documents that require em dashes opt out
   per-document via config path-lists or the in-file marker; the rule is never
   threshold-calibrated and is excluded from the `recorded-only` demotion path.
-- The source page's Style section (catalog pin and the 2026-08-21 recheck) treats this as a
-  **valid sign**, not an ineffective one. The same section carries the qualifier *"This sign
-  is most useful when taken in combination with other indicators, not by itself."* That is a
-  corroboration note on a kept tell, not a listing under **Ineffective indicators** (checked
-  explicitly; see that section). The shipped default stays zero-tolerance: this plugin is a
-  house-style detector, not a Wikipedia AI-authorship tribunal. A consuming repo that wants the
-  source's combination reading disables the rule or uses `em_dash_allowed_paths` (or the
-  generalized `rule_allowed_paths`).
-- **Spacing qualifier (mined 2026-08-25 from the same pinned section):** the source
-  distinguishes SPACED em dashes (`—` with a space on each side) as the stronger AI tell,
-  while unspaced em dashes are the typographically informed human convention; it cites
-  reporting (The Economist, 2026-07-30, wiki-cited, not independently verified here) that
-  among current models only Claude still over-uses them. The shipped rule stays
-  character-level zero-tolerance as house style, and records the spacing discriminator here
-  for any consuming repo calibrating a softer setting.
+- The source page's Style section (catalog pin and the 2026-08-21 recheck) lists this as a
+  **valid sign**, not an ineffective one, with its own qualifier about weighing it alongside
+  other signs. That qualifier is a corroboration note on a kept tell, not a listing under
+  **Ineffective indicators** (checked explicitly; see that section). The shipped default stays
+  zero-tolerance: this plugin is a house-style detector, not a Wikipedia AI-authorship tribunal.
+  A consuming repo that wants the source's combination reading disables the rule or uses
+  `em_dash_allowed_paths` (or the generalized `rule_allowed_paths`).
+- **Spacing qualifier (mined 2026-08-25 from the same pinned section):** the source's section
+  separates spaced from unspaced em dashes as tells; read the distinction there. The shipped rule
+  stays character-level zero-tolerance as house style. A consuming repo calibrating a softer
+  setting can match only spaced em dashes (`—` with a space on each side).
 - **Zero-tolerance is a house-style choice, not a detection claim.** The false-accusation
   literature the source's Caveats cite is one more reason this rule's verdict is "this repo
   does not use em dashes", never "this text is AI-written".
@@ -480,7 +480,7 @@ then-current 1,361-file tracked-markdown corpus:
 - v1: script
 - Assistant-frame residue, both halves of the source section (extraction completed 2026-08-25;
   the original ERE covered roughly one of the section's six words-to-watch families and missed
-  even the source's own example "as of my last knowledge update"):
+  even one of the source's own examples, now in the cutoff list below):
   - Cutoff half: "as of my knowledge cutoff", "as of my last (knowledge) update", "up to my
     last training update", "I cannot browse", "as an AI (language) model".
   - Source-gap (RAG-era) half: "while specific details are limited/scarce", "not widely
@@ -593,7 +593,7 @@ then-current 1,361-file tracked-markdown corpus:
 
 Fetch gap closed 2026-08-21 (see the upstream-drift record). The source section is Wikipedia
 talk-page comments, so every tell classifies `wikipedia-specific` / `recorded-only`. They have
-no general-prose analogue worth a script rule. Quoted from the catalog pin (revision
+no general-prose analogue worth a script rule. Distilled from the catalog pin (revision
 1369699198, parse section 62) and confirmed on the live page (revision 1370403579).
 
 One of the seven tells already has a slug under Edit summaries: downplaying AI use by
@@ -776,29 +776,21 @@ pin (revision 1369699198, parse section 80, 2026-08-16) and the live recheck (re
 1370403579, retrieved 2026-08-21 from
 <https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing>).
 
-Quoted from the pin (CC BY-SA 4.0; ellipses mark dropped citation/example markup):
+The eight, named only; the page's reasons for each are read at the pointer in the
+[upstream-drift record](#upstream-drift-record), not stored here. Each line states what this
+catalog does about it:
 
-<!-- ai-slop-ignore-start: verbatim Wikipedia quotation; it carries the em dash the catalog documents -->
-> False accusations of AI use can drive away new editors and foster an atmosphere of
-> suspicion. […] Here are several somewhat commonly used indicators that are ineffective
-> in LLM detection—and may even indicate the opposite.
-<!-- ai-slop-ignore-end -->
-
-- **Perfect grammar**: skilled human writers also produce this.
-- **Combination of casual and formal registers**, or language that sounds both "clinical"
-  and "emotional": technical-field casual writing, mixed registers, or multi-editor pages.
-- **"Bland" or "robotic" prose**: LLM output has *specific* traits; "robotic" is not one.
-- **"Fancy", "academic", or "formal" prose**: in the page's own wording, LLMs favor *specific
-  words*, and "the correlation does not extend to all formal, academic, or 'fancy'-sounding
-  prose." `rule-ai-vocabulary` is the specific-word rule, not a formality detector.
-- **Transition words (in isolation)**: older output overused a few (`Additionally`,
-  `Consequently`, `Notably`); "this is not a strong tell." The shipped vocabulary list
-  already dropped `additionally` for legitimate technical use; there is no standalone
-  transition-words rule.
-- **Unsourced content**: most uncited articles predate LLMs; modern chatbots also cite.
-- **Bizarre wikitext**: random HTML/VisualEditor artifacts are *not* the LLM markup tells
-  already catalogued under Markup.
-- **Correct wikitext**: correct formatting is normal.
+- **Perfect grammar**: no rule.
+- **Combination of casual and formal registers**: no rule.
+- **Bland or robotic prose**: no rule.
+- **Fancy, academic, or formal prose**: no rule. `rule-ai-vocabulary` is the specific-word rule,
+  not a formality detector.
+- **Transition words (in isolation)**: no standalone transition-words rule. The shipped
+  vocabulary list already dropped `additionally` for legitimate technical use.
+- **Unsourced content**: no rule.
+- **Bizarre wikitext**: no rule; these are not the LLM markup tells already catalogued under
+  Markup.
+- **Correct wikitext**: no rule.
 
 None of those eight is a shipped script rule, a shipped rubric tell, or a Cursor-addition
 slug. No drop or re-scope follows.
@@ -906,9 +898,9 @@ either layer, and those rows say so.
   that" (for "because"), "it is important to note that", "it is worth noting that", "it should
   be noted that" (all deletable). Fires per occurrence; each hit has a mechanical rewrite.
 - **Recorded divergence from the source (2026-08-25):** the source's Syntax counter-sign list
-  names "isolated wordy constructions such as 'in order to'" among signs of HUMAN writing (an
-  uncited bullet, and the study its neighboring bullet cites does not measure this
-  construction). This rule keeps flagging it deliberately: the plugin's goal is concise house
+  counts the "in order to" construction among signs of HUMAN writing (an uncited bullet, and the
+  study its neighboring bullet cites does not measure this construction). This rule keeps
+  flagging it deliberately: the plugin's goal is concise house
   style, not authorship attribution, and "in order to" -> "to" is de-verbosing every style
   authority endorses. The divergence is a house-style choice, recorded rather than hidden.
 
@@ -1125,10 +1117,12 @@ README's "Updating the model-era inventory".
 
 ### Model-era record
 
-- **Claim**: the entries above reflect the community-documented model-vocabulary layer as of
-  the dates below, and neither upstream inventory carries it.
-- **Basis**: per-entry sources; upstream absence verified against the live Wikipedia page and
-  the Cursor skill head.
+This section holds the model-vocabulary layer this repository tracks from community sources, and
+keeps it here because neither upstream inventory carried it when checked.
+
+- **Pointer**: the per-entry sources named in each entry and in the record below; for the
+  absence check, the live Wikipedia page and the Cursor skill head named in the record.
+- **As of**: 2026-08-26
 - **Recheck trigger**: each `ai-slop` release, each new frontier-model generation, and, for
   `rule-model-era-vocabulary`, whether a second independent frequency pool has landed (the
   cluster's promotion condition, which no other trigger would look for).
@@ -1139,9 +1133,9 @@ README's "Updating the model-era inventory".
   crystl.dev's hacker-idiom catalog, and jola.dev's filter hook. Wikipedia "Signs of AI
   writing" head revision 1371415133 (fetched 2026-08-26) and Cursor unslop head (last commit
   2026-08-02) both carry none of it. Harness confound recorded on the metaphor cues: the
-  version-tracked Piebald-AI system-prompt mirror carries "give brief updates when you find
-  something load-bearing or change direction" verbatim, so "load-bearing" in Claude Code
-  output is partly prompt-primed rather than purely model-weight; the frequency spike aligns
+  version-tracked Piebald-AI system-prompt mirror uses the word "load-bearing" in its
+  progress-update instruction, so "load-bearing" in Claude Code output is partly prompt-primed
+  rather than purely model-weight; the frequency spike aligns
   with the Opus 4.6 release date and the word appears in non-Code output, so the weights-side
   claim stays alive at MEDIUM. A harness prompt change can therefore collapse a phrase's base
   rate overnight. Attribution notes exist so a recheck knows which entries die that way.

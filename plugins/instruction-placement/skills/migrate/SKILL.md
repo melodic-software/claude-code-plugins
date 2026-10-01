@@ -313,8 +313,8 @@ the run removed. The restore writes the one import line back and verifies it byt
 than asking git for an index copy a staged edit may have replaced; a restore that did not land says
 so and the run still exits non-zero.
 
-Removal is priced, and the price is printed before the confirmation: a directly read `AGENTS.md`
-fires no `InstructionsLoaded` hook, and `/memory` lists it only from v2.1.280
+Removal is priced, and the price is printed before the confirmation: the hook-visible load goes,
+and `/memory` becomes the only place to see the file
 ([`reference/sources.md`](reference/sources.md), "What shim removal costs"). That is a decision to
 make, not tidying.
 
@@ -338,33 +338,29 @@ The shim is what carries `AGENTS.md` in two cases a repository cannot talk itsel
 `CLAUDE.md` above the file being read instead of it, and a session that cannot read `AGENTS.md`
 directly at all.
 
-- **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
-  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, and
-  attaches a subdirectory's `AGENTS.md` when a Read opens a file there and that subdirectory has
-  none of those three names of its own. Reading it directly needs v2.1.277 or later. The memory
-  page's "When AGENTS.md support is unavailable" list is: a CLI before v2.1.277, the built-in
-  `agents-md` plugin disabled in `/plugin`, and in some cases the first session after an upgrade
-  from v2.1.276 or earlier. The same page says that before v2.1.281, some sessions, such as those
-  on Amazon Bedrock or with telemetry disabled, read `CLAUDE.md` files only, and that on those
-  versions you update Claude Code. A `CLAUDE.md` containing `@AGENTS.md` never makes Claude read
-  the file twice.
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-09-29 (49,601 bytes;
-  slug in `llms.txt`; first heading "How Claude remembers your project"), sections "AGENTS.md",
-  "When Claude Code reads AGENTS.md", "When AGENTS.md support is unavailable", and "Remove an
-  earlier AGENTS.md workaround". Canary runs on Claude Code 2.1.278 confirmed the displacement
-  rule; this 2026-09-29 pass did not re-run the displacement canary.
-- **As of**: 2026-09-29.
-- **Recheck trigger**: that page changes which file names count for the check or which sessions lack
-  support, or a release note names `AGENTS.md` or instruction-file loading.
+This skill keeps the shim wherever a `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` can
+shadow the `AGENTS.md` it carries, at the root or in a subdirectory, and wherever a session may
+lack direct `AGENTS.md` support (the CLI floor and the version-dependent session kinds are in
+`reference/sources.md`, "The minimum CLI version"). It treats the import as safe to keep: the shim
+never makes Claude read the file twice. Canary runs on Claude Code 2.1.278 observed the
+shadowing; the 2026-09-29 pass did not re-run that canary.
 
-It is priced, not free. From v2.1.280, `/memory` lists a directly read `AGENTS.md`; before that,
-`/memory` and `/context` did not. `InstructionsLoaded` still does not fire for an `AGENTS.md` read
-through the Project instructions setting, and does fire when a `CLAUDE.md` imports it or is a
-symlink to it. One reached through a shim behaves like part of its `CLAUDE.md` and keeps the hook.
-That is a reason the shim is worth its ~55 tokens, and a reason removing it later is a decision
-rather than tidying. The dated quotes are in `reference/sources.md`, "What shim removal costs".
+- **Pointer**: for when Claude Code reads `AGENTS.md`, when that support is unavailable, and what
+  removing a shim involves, see
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>,
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable> and
+  <https://code.claude.com/docs/en/memory#remove-an-earlier-agents-md-workaround>.
+- **As of**: 2026-09-29
+- **Recheck trigger**: those sections change which file names shadow `AGENTS.md` or which sessions
+  lack support, or a release note names `AGENTS.md` or instruction-file loading.
 
-Every upstream fact the cutover turns on lives as a four-part dated record in
+It is priced, not free. A load through a shim keeps the `InstructionsLoaded` hook, which this
+plugin's load verification depends on; a direct read loses it, and only recent versions list a
+directly read `AGENTS.md` in `/memory`. That is a reason the shim is worth its ~55 tokens, and a
+reason removing it later is a decision rather than tidying. The price, with its pointers, is in
+`reference/sources.md`, "What shim removal costs".
+
+Every upstream fact the cutover turns on lives as a dated pointer record in
 [`reference/sources.md`](reference/sources.md): the remote flag and how its code default is read,
 the documented feature-flag dependency, the CLI floor, the `claude-code-action` release to CLI map,
 the CI canary result, the current fleet grade, and what shim removal costs. `cutover-check.sh`
@@ -374,15 +370,16 @@ skip checking. Read it before arguing about the shim from memory. One record the
 detects a load through the `InstructionsLoaded` hook, so it measures a **shimmed** surface and
 cannot see an `AGENTS.md` that Claude reads directly.
 
-**One setting changes the reading, and no repository can ship it.** Under `instructionFiles:
-claude-md-and-agents-md`, Claude Code loads both files, "each directory's `CLAUDE.md` files first
-and its `AGENTS.md` after them", so an unimported nested `AGENTS.md` does load and an `UNWIRED` row
-is a false positive for that operator. The import stays harmless there: "Claude Code skips an
-`AGENTS.md` it has already loaded, so one that your `CLAUDE.md` imports or symlinks to isn't read
-twice". The value is a user, `--settings` or managed setting, ignored in project and local settings,
-so a repository cannot rely on it and the gates keep the default's answer
-([memory](https://code.claude.com/docs/en/memory), "Choose which instruction files load"; fetched
-2026-09-28, quotes unchanged; recheck when that table changes or a release note names the setting).
+**One setting changes the reading, and no repository can ship it.** For an operator who sets
+`instructionFiles: claude-md-and-agents-md`, an unimported nested `AGENTS.md` loads, so an
+`UNWIRED` row is a false positive for that operator, and the import stays harmless. The setting is
+not one a repository's project or local settings can carry, so the gates keep the default's
+answer.
+
+- **Pointer**: for the `instructionFiles` values and where the setting is read, see
+  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>.
+- **As of**: 2026-09-28
+- **Recheck trigger**: that table changes, or a release note names the setting.
 
 ## Hard rules
 
@@ -409,9 +406,9 @@ The `reference/` files write the plugin's root directory as `<plugin-root>`, whi
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+`CLAUDE_PLUGIN_ROOT` to expand it from. Pointer: for where each `${…}` variable resolves, see
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>. As of:
+2026-09-30. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

@@ -34,7 +34,7 @@ have checked a judgment row is misreporting.
 | A gotchas surface exists (`## Gotchas` inline or a gotchas spoke) | mechanical (check 11) |
 | `## Next` is present and names the successor in mention-only form | judgment |
 | Arguments follow the skill argument shape: one action first, earned `--flag` modifiers, at most one subject last, `argument-hint` in the same order ([`authoring-guidance.md`](authoring-guidance.md#argument-surface)) | judgment |
-| No date-conditional guidance; history lives in CHANGELOG, commit, or ADR; a restated number carries the four-part record | judgment |
+| No date-conditional guidance; history lives in CHANGELOG, commit, or ADR; no upstream text is restated, and a volatile specific the body depends on is our decision plus a pointer to the exact section, an as-of date, and a recheck trigger | judgment |
 | One term per concept throughout | judgment |
 | Examples are concrete, not abstract | judgment |
 | File references are one level deep | judgment |

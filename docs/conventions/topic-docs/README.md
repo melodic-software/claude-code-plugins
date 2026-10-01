@@ -116,21 +116,21 @@ Five rules hold at this row:
    template does **not** reach the temp tree: `mktemp report-XXXXXX`
    creates the file in the current working directory, which is the
    consumer's repository (reproduced against GNU coreutils 8.32,
-   2026-07-27). The flags that would fix it are not portable. `-p` (which
-   GNU also spells `--tmpdir`) exists in both dialects but means different things: GNU
-   treats the template as relative to that directory and lets the flag
-   beat `TMPDIR`, while BSD/macOS consult it only as a fallback for `-t`
-   when `TMPDIR` is unset, so with a bare template and no `-t` the flag
-   does nothing there and the template still resolves against the
-   current directory. GNU marks `-t` deprecated, and BSD's `-t` takes a
-   prefix rather than a template. An absolute path in the positional
-   template is reinterpreted by neither. That root is the ambient
-   `$TMPDIR` or system default, **not** `CLAUDE_CODE_TMPDIR`, which
-   overrides the temp directory Claude Code uses for its *own internal*
-   files: the env-var reference states that "Unsandboxed Bash commands
-   inherit your shell's `$TMPDIR` unchanged" (verified 2026-07-27). A
-   plugin shelling out to `mktemp` therefore never observes that
-   override, and no plugin should claim it does. This placement rule
+   2026-07-27). The flags that would fix it are not portable: `-p` (GNU
+   also spells it `--tmpdir`) and `-t` mean different things in the GNU
+   and BSD/macOS dialects, so we never rely on either. An absolute path
+   in the positional template is reinterpreted by neither, and that is
+   the form a producer uses. That root is whatever the ambient `$TMPDIR`
+   or system default resolves to. A producer never reads
+   `CLAUDE_CODE_TMPDIR` itself: we treat that variable as Claude Code's own
+   setting, so no plugin relies on observing it or claims it does. The
+   ambient value can still equal Claude Code's override in some
+   environments (native Windows is one), and nothing here depends on
+   whether it does. Pointer: for what `CLAUDE_CODE_TMPDIR` governs and
+   which processes see it, see
+   [Environment variables](https://code.claude.com/docs/en/env-vars#variables).
+   As of: 2026-10-01. Recheck trigger: a Claude Code release note changes
+   which processes receive `CLAUDE_CODE_TMPDIR`. This placement rule
    governs **every** ephemeral file a plugin creates through the temp
    primitive, not only the artifacts this convention names tiers for.
    The portability traps belong to the platform, so a producer whose
@@ -160,11 +160,12 @@ Five rules hold at this row:
    configuration ownership table in `docs/plugin-philosophy.md`.
 
 **Keep the footprint small.** Nothing reclaims this tree on a schedule:
-verified 2026-07-26 against the full Claude Code docs corpus, no
-documented cleanup, retention, TTL, or pruning mechanism covers the temp
-tree Claude Code writes under, and the one documented retention setting,
-`cleanupPeriodDays`, is scoped to `~/.claude/` application data, a
-different tree. That is precisely why rule 2 refuses to promise the file
+our search of the full Claude Code docs corpus on 2026-07-26 found no
+documented cleanup, retention, TTL, or pruning mechanism for the temp
+tree Claude Code writes under, and we do not count on `cleanupPeriodDays`
+for it (for that setting's scope, see
+[`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays)).
+That is precisely why rule 2 refuses to promise the file
 dies with the session, and why the footprint rule matters rather than
 being mere tidiness: a producer writes one file, or one directory, per
 run, never an accumulating tree, and rule 4 does real work, since

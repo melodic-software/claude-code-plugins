@@ -3,7 +3,8 @@
 Terms the performance skills and [techniques.md](techniques.md) use. A link points at the entry or
 skill section that applies the term.
 
-Sources: [How we made claude.ai 3x faster in two weeks](https://claude.dev/blog/how-we-made-claude-ai-faster).
+The definitions are this plugin's own; no docs page covers these terms as of 2026-10-01.
+Correlate with [How we made claude.ai 3x faster in two weeks](https://claude.dev/blog/how-we-made-claude-ai-faster).
 
 - **Arithmetic consistency check.** Predict the magnitude a proposed cause should produce and
   compare it to the observed value; a mismatch rules the cause out. See

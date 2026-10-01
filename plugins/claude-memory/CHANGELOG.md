@@ -3,6 +3,19 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.13] - 2026-10-01
+
+### Changed
+
+- **The `audit` and `stateless` reference files hold our decision plus a pointer per topic.**
+  `criteria.md` and `official-guidance.md` in both skills no longer restate documentation text.
+  The `audit` load-model table is labeled this audit's working model, with a pointer record to the
+  memory page sections it rests on, and the `update` action refreshes the decision and the pointer
+  together.
+- The `${...}` placeholder rule behind the `stateless` purge and `audit` update spokes is stated as
+  our decision, with a pointer record to where each variable resolves, instead of the page's
+  wording.
+
 ## [0.13.12] - 2026-09-30
 
 ### Changed

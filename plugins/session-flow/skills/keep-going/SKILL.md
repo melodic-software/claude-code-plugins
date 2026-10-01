@@ -171,12 +171,13 @@ For any "is it stuck / check the monitor / poke it":
   form such as `resets Sep 8, 6pm (America/New_York)` is unparsed (exit `2`); never
   treat exit `2` as lifted.
 - The limit **message text** (e.g. `resets 3:45pm`) is a capture bound to the
-  account that emitted it. Live readings of the *current* account are the
-  `/usage` plan usage bars, which the operator relays because the model cannot
-  open that view, and the statusline `rate_limits` object (`five_hour` /
-  `seven_day` `used_percentage` and `resets_at`), which Claude Code sends to the
-  statusline script on stdin: read it only when a statusline or hook exposes it
-  to the session; the record below says who gets it. This skill has no
+  account that emitted it. Two live readings of the *current* account count:
+  the `/usage` view, which the operator relays because the model cannot open
+  it, and the statusline `rate_limits` object, which this skill reads only when
+  a statusline or hook exposes it to the session. For which fields that object
+  carries and who receives it, see
+  [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data);
+  the record below holds its as-of date and recheck trigger. This skill has no
   in-session account-identity signal, so a captured message never drives a
   still-blocked verdict by itself: re-check live before handing back. When no
   live reading is obtainable (headless, subagent, cloud, no statusline
@@ -184,9 +185,9 @@ For any "is it stuck / check the monitor / poke it":
   headroom, as in the exit `2` path. Never invent a window and never conclude
   still-blocked.
 
-  | Claim | Basis | As of | Recheck |
+  | Decision | Pointer | As of | Recheck trigger |
   |---|---|---|---|
-  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | [Manage costs effectively](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit): "The message shows when the window resets." and, for `/usage`, "Subscribers see plan usage bars, activity stats, and a usage breakdown on the same screen." [Customize your status line](https://code.claude.com/docs/en/statusline): "Claude Code sends JSON data to your script via stdin." and "`rate_limits`: appears only for claude.ai Pro and Max subscribers, or behind a Claude apps gateway that sets a spend limit for you, and only after the first API response in the session." `check-usage-limit-reset.py` `RESET_RE` (no month token). | 2026-09-29 | That costs section stops carrying the reset-time statement; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; an in-session account-identity field this skill can read without a sibling plugin ships; or `RESET_RE` starts matching a date-bearing form. |
+  | A captured usage-limit message is account-bound. Still-blocked requires a live re-check of the current account, or the operator's answer when none is obtainable. The date-bearing `Sep 8, 6pm` form is unparsed (exit 2). | For the reset time a limit message carries, see [costs: When a developer asks about a limit](https://code.claude.com/docs/en/costs#when-a-developer-asks-about-a-limit). For what `/usage` shows a subscriber, see [costs: Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-usage-command). For the `rate_limits` field, who receives it and when, see [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data). For the parsed forms, see `check-usage-limit-reset.py` `RESET_RE` (no month token). | 2026-09-29 | That costs section stops covering the reset time; `/usage` stops showing plan usage bars; the statusline page drops `rate_limits` or starts passing it to the model; an in-session account-identity field this skill can read without a sibling plugin ships; or `RESET_RE` starts matching a date-bearing form. |
 
 ## Still blocked (limit not yet reset). Hand back, don't busy-wait
 

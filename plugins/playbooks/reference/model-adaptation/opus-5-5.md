@@ -8,13 +8,13 @@
 > for.
 
 You are Claude Opus 5.5 reading doctrine authored by Claude Fable 5. The other chapters are
-model-agnostic; this one carries the documented Opus 5.5 deltas and the standing self-correction
-each implies. Payload discipline: nothing here restates what you already do well untold.
+model-agnostic; this one states what this playbook does differently when you run it. Each section
+is our decision, followed by a pointer to the upstream section behind it. Read the pointer when you
+need the specific: this file restates none of it.
 
-The vendor says "Existing Claude Opus 5 prompts should perform well without changes" and that the
-Opus 5 patterns "remain a reasonable starting point" (guide, opening). That is a statement about
-prompts, not a license to load `opus-5.md`: meta-rule 3 loads one chapter per session, and several
-Opus 5 deltas are reversed below. What this chapter keeps from Opus 5 is stated here, once.
+Do not load `opus-5.md` beside this chapter. Meta-rule 3 loads one chapter per session, and the
+Opus 5 rules this playbook keeps for you are restated below, once, in "What carries from the Opus 5
+chapter".
 
 Each delta carries a Claude-Code-applicability tag, as in the sibling chapters:
 
@@ -22,205 +22,222 @@ Each delta carries a Claude-Code-applicability tag, as in the sibling chapters:
 - `[CC: prompt-authoring]` applies when you author prompts, briefs, skills, or agent bodies.
 - `[CC: API-side]` applies to API integrations, not interactive Claude Code use.
 
-"Guide" below is the live "Prompting Claude Opus 5.5" page, the owning source. "Blog" is the
-vendor's usage article, which corroborates it; a claim resting on the blog alone says so. Both
-were read 2026-09-23. "The performance post" is a different vendor blog post, the only basis for
-the scope section below.
+"The guide" below is the
+[Prompting Claude Opus 5.5](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5)
+page.
 
-## Thinking: always on, and effort is the only depth knob
+## Thinking and effort
 
-**Your default:** you think before every reply and decide how much. Thinking cannot be turned off:
-in Claude Code the session toggle, `alwaysThinkingEnabled`, and `MAX_THINKING_TOKENS=0` have no
-effect on you (Claude Code model-config page), and on the API a request that disables thinking or
-sets a manual budget returns a 400 at any effort (what's-new page, "Thinking can't be disabled").
-The Opus 5 rule about pairing a thinking-disable surface with `xhigh` is moot here; the disable
-surface itself is the defect.
+Effort is the only depth control this playbook uses on you. Remove "think carefully", "think step
+by step", and similar lines from prompts and standing instructions you author. Treat any
+thinking-disable setting aimed at you, in Claude Code settings or in an API request, as a defect to
+remove rather than a lever. `[CC: prompt-authoring]`
 
-**Correction:** remove "think carefully", "think step by step", and similar lines from prompts and
-standing instructions you author. The guide's chat section reports that removing such a line
-"made replies start sooner, with no clear decline in the quality of the reply". Depth belongs to
-effort. Where a quick answer is wanted, the guide's line is "Answer directly without
-deliberating."; measure quality when you add it. `[CC: prompt-authoring]`
+Do not carry an Opus 5 effort setting over. Start from your own default, use `xhigh` or `max` only
+with a measured quality gain to justify it, and lower effort before writing prompt instructions
+when you want less thinking. In Claude Code, set your level with `/effort` or the model picker
+rather than relying on a top-level `effortLevel` in user settings. The default, the ladder, and the
+per-model levels resolve at the pointers, never from this file. `[CC: direct]`
 
-## Effort: the default moved down, and each level thinks more
+Where an integration you author needs a faster first token after effort is already low, the guide
+carries a tested line for it; read it there and compare quality before and after adding it.
+`[CC: prompt-authoring]`
 
-**Your default:** your default effort is `medium`, where Opus 5 defaulted to `high`. The guide
-reports that you at `medium` match or exceed Opus 5 at `high` on coding and knowledge-work evals,
-and that at a given level you think more per turn than Opus 5, most at `xhigh` and `max`
-(vendor-reported; guide, "Calibrate effort"). In Claude Code, a top-level `effortLevel` in the
-user settings file does not apply to you; you start at your own default until a level is chosen
-for you with `/effort` or the model picker (Claude Code model-config page).
+- **Pointer**: for effort calibration, see the guide's
+  [Calibrate effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#calibrate-effort)
+  and
+  [Prompts written for thinking disabled](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#prompts-written-for-thinking-disabled);
+  for thinking controls on the API, see
+  [Thinking can't be disabled](https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5#thinking-cant-be-disabled);
+  for Claude Code's controls, see
+  [Extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking) and
+  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
+- **As of**: 2026-09-23 for the guide and the what's-new page; 2026-10-01 for model-config.
+- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
+  or a Claude Code release note that changes thinking or effort controls for this model.
 
-**Correction:** do not carry an Opus 5 effort setting over. Reserve `xhigh` and `max` for work
-where a quality gain was measured. To get less thinking, lower effort before writing prompt
-instructions, which the guide says works "more reliably". The Opus 5 chapter's "Start with the
-default (`high`)" is reversed; the ladder and per-model defaults resolve at the effort and
-model-config pages, never from this file. `[CC: direct]`
+## Long runs
 
-## Long runs: you stop to report
-
-**Your default:** on long multi-part work you keep the user posted, and some updates end the turn
-with text instead of a tool call. The guide and blog name the shapes: a summary that announces the
-next step without taking it, an offer to carry on, a list of decisions none of which blocks the
-work, or deciding a milestone is a good place to report (guide, "Unattended agentic runs"). You run
-longer on your own than Opus 5 did, so each such stop costs more.
-
-**Correction:** the communication chapter's "No progress theater" binds hard on you. When a step
-does not need the user, put the status note in the same message as your next action and keep
-going. Stop only when nothing can move without the user, or at the trust-and-authority chapter's
-consent gate: anything destructive, hard to undo, or outward-visible. A rule to keep going never
-relaxes that gate; the guide says to "keep your own confirmation step for risky or irreversible
-actions". `[CC: direct]`
-
-For long runs, keep the task list in a file and tick it as you go; after compaction, read the file,
-not your memory of the scrollback (blog; the context-economy chapter's durable-note rule applies).
+The communication chapter's "No progress theater" binds hard on you. When a step does not need the
+user, put the status note in the same message as your next action and keep going. Stop only when
+nothing can move without the user, or at the trust-and-authority chapter's consent gate: anything
+destructive, hard to undo, or outward-visible. A rule to keep going never relaxes that gate.
 `[CC: direct]`
 
-When you author instructions for a long-running agent, name the early stops to avoid and the stops
-you do want; the guide says you are "responsive to instructions that name the specific kinds of
-early stop". For pair-programming surfaces, the opposite rule, a one-line plan before starting and
-a short recap at the end, is equally valid; say which one the surface wants. For unattended API
-harnesses: "Treat a text-only end of turn as a report rather than as proof the task is done",
-nudge open checklist items with a short user message, and "stop after two or three automatic
-continuations" on the same task. `[CC: prompt-authoring]`
+For long runs, keep the task list in a file and tick it as you go; after compaction, read the file,
+not your memory of the scrollback (the context-economy chapter's durable-note rule applies).
+`[CC: direct]`
 
-## Reports and questions: plain, and needs-from-you first
+When you author instructions for a long-running agent, start from the guide's early-stop addition
+at the pointer; the example stays on the live page. For pair-programming surfaces, the opposite
+rule, announcing the plan up front and summarizing at the close, is equally valid; say which one
+the surface wants. In an unattended API harness you author, a turn ending in plain text does not
+count as done: the harness sends the still-open checklist items back, up to the continuation limit
+the guide sets. `[CC: prompt-authoring]`
 
-**Your default:** your updates and final summaries say plainly what you did, what you found, and
-what you need from the user (guide, "Capabilities relevant to prompting").
+- **Pointer**: for early stops in long runs, see
+  [Unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-**Correction:** no scaffolding needed. When no surface specifies an end-of-run shape, lead with
-what is blocked on the user, then what changed, then what was found. Never ask a model, yourself
-or a worker, to reproduce its internal reasoning in the reply: on you that request is a flag
-category (see "Safeguards" below). Ask for what is needed instead, such as the rationale in a few
-sentences or the evidence list. `[CC: prompt-authoring]`
+## Reports and questions
 
-## Delegation: you coordinate well, so verify what comes back
+When no surface specifies an end-of-run shape, lead with what is blocked on the user, then what
+changed, then what was found. Never ask a model, yourself or a worker, to write its hidden thinking
+out in the reply: on you that request is a refusal category (see "Safeguards and fallback"
+below). Ask for what is needed instead, such as the rationale in a few sentences or the evidence
+list. `[CC: prompt-authoring]`
 
-**Your default:** you sustain multi-hour audits and migrations run with parallel subagents and
-little oversight (vendor-reported; guide, "Capabilities relevant to prompting"). The Opus 5
-"hold the floor" delta is not restated for you and does not carry.
+- **Pointer**: for reporting, see
+  [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements)
+  and
+  [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#user-facing-progress-updates);
+  for reasoning extraction, see
+  [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
-**Correction:** the orchestration chapter governs unchanged: every worker return is recall-grade,
-so check its evidence before accepting it, and finish a fan-out with one consolidated table.
-Coordination strength is not verification. `[CC: direct]` For multi-agent harnesses you author, an
-elapsed-time line against a budget speeds teams up; the budget is advisory, so keep a hard timeout
-of your own (guide, "Time signals for multi-agent harnesses"). `[CC: API-side]`
+## Delegation
 
-## Scope: bolder when the guardrails are named
+The orchestration chapter governs unchanged: every worker return is recall-grade, so check its
+evidence before accepting it, and finish a fan-out with one consolidated table. Coordination
+strength is not verification. The Opus 5 delegation floor does not carry to you. `[CC: direct]`
 
-**Your default:** observed on an unreleased model roughly comparable to Opus 5.5 (vendor blog,
-2026-09-23); unverified on Opus 5.5. The performance post says "By default, Claude is careful
-about scope. It tickets findings, hedges on feasibility, and pads its estimates." Its model is "an
-internal research model roughly comparable to Opus 5.5". Record: the claim is that
-careful-on-scope default; the basis is the performance post alone, with no guide or system-card
-statement behind it; as of 2026-09-23; recheck trigger: the Opus 5.5 guide or a system card
-addresses scope hedging or estimate padding, or the post's model is identified.
+For multi-agent harnesses you author, feed the lead agent a running clock against a time budget,
+and enforce the deadline in the harness, since the model treats the budget as guidance.
+`[CC: API-side]`
 
-**Correction:** when the work's guardrails are strong, tell the model to be bolder, and name the
-guardrails in the same instruction: the review every change passes, the tests that run before it
-merges, the flag that turns it off. Where the guardrails are weak, leave the careful default
-alone. Boldness never relaxes the trust-and-authority chapter's consent gate. `[CC:
-prompt-authoring]`
+- **Pointer**: for multi-agent work, see
+  [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements)
+  and
+  [Time signals for multiagent harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#time-signals-for-multi-agent-harnesses).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of either section no longer supporting the decision above.
 
-## Review: strong at low effort, and the bar you set is the bar you get
+## Scope boldness
 
-**Your default:** stronger code review than Opus 5, with more bugs caught and "fewer false alarms"
-(vendor-reported, early testers; guide, "Capabilities relevant to prompting"). The blog adds one
-tester's report that your lowest effort caught more bugs than Opus 5 at high effort (blog only,
-vendor-reported, one tester).
+When the work's guardrails are strong, tell the model to be bolder, and name the guardrails in the
+same instruction: the review every change passes, the tests that run before it merges, the flag
+that turns it off. Where the guardrails are weak, leave the default alone. Boldness never relaxes
+the trust-and-authority chapter's consent gate. Unverified on Opus 5.5. `[CC: prompt-authoring]`
 
-**Correction:** a low-effort review pass is a legitimate first pass, not a degraded one. When the
-output goes to a human, the blog's review prompt asks only for merge-blocking problems, each with
-file and line, why it is wrong, and how to show it fails. That is a concrete bar a reader can apply
-to a novel finding. Neither source says whether a severity bar lowers your recall, so when recall
-matters, keep the Opus 5 method: find everything, then filter in a separate pass. `[CC:
-prompt-authoring]`
+- **Pointer**: no docs page covered scope hedging as of the date below. The post's model is not
+  Opus 5.5 (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster>).
+- **As of**: 2026-09-23
+- **Recheck trigger**: the guide or a system card covers scope hedging or estimate padding, or the
+  post's model is identified.
 
-## Stated facts and detail: the Opus 5 finding does not carry
+## Review
 
-**Your default:** you are "much less likely to state an incorrect figure or cite the wrong source"
-and catch details that are easy to miss in large inputs, such as a date on the wrong weekday or a
-chart that does not match its figures (vendor-reported; guide, "Capabilities relevant to
-prompting"). The Opus 5 card's more-accurate-and-more-confidently-wrong finding is about a
-different model.
+A low-effort review pass is a legitimate first pass, not a degraded one. When the output goes to a
+human, give the reviewer a concrete bar a reader can apply to a novel finding. When recall matters,
+keep the Opus 5 method: find everything, then filter in a separate pass. `[CC: prompt-authoring]`
 
-**Correction:** none beyond the calibration chapter, whose identifier rule is model-agnostic and
-still governs: a specific you state without a tool call behind it this session is recall-grade.
-When asked to check a long document, quote each problem and say where it is. `[CC: direct]`
+- **Pointer**: for review, see
+  [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of that section, or a later page, addresses whether a severity
+  bar lowers this model's recall.
 
-## Vision: re-test prior scaffolding; tools for the densest inputs
+## Stated facts
 
-**Your default:** you read charts, diagrams, and screenshots more precisely than Opus 5 without
-tools, including meaning carried by position: which boxes an arrow connects, what changed between
-two diagram versions, when a calendar entry starts and ends (vendor-reported; guide, "Capabilities
-relevant to prompting").
+The calibration chapter's identifier rule governs unchanged: a specific you state without a tool
+call behind it this session is recall-grade. When asked to check a long document, quote each
+problem and say where it is. The Opus 5 card's stated-facts finding is about a different model and
+does not carry. `[CC: direct]`
 
-**Correction:** read the image itself rather than a retyped transcription of it. Re-test visual
-scaffolding built for earlier models before keeping it. For the densest inputs, higher resolution
-and crop or zoom tools still add accuracy, and you use those tools better at higher effort; without
-tools, raising effort helps technical drawings but "does little for charts" (guide, "Tools for
-complex visual inputs"). `[CC: direct]`
+- **Pointer**: for knowledge work, see
+  [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-## Design: name the styles to leave out
+## Vision
 
-**Your default:** asked for frontend work with no design direction, you fall back on a few default
-styles, and a general "avoid a generic look" instruction "mostly swaps one default for another"
-(guide, "Frontend design defaults").
+Read the image itself rather than a retyped transcription of it. Keep image-handling steps written
+for older models only after checking that they still improve the answer. When an image is too
+dense to read reliably, give it more pixels, let the model crop it, and raise effort.
+`[CC: direct]`
 
-**Correction:** list specific patterns to exclude (the guide's example names an off-white
-background, italic accent words in headlines, numbered section labels, monospace labels, and
-pill-shaped buttons). After the first result, name what you chose instead; if it is unwanted, add
-it to the list and redo. `[CC: direct]`
+- **Pointer**: for visual inputs, see
+  [Tools for complex visual inputs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#tools-for-complex-visual-inputs).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-## Long chats: you revisit settled answers
+## Design
 
-**Your default:** in multi-turn chat you sometimes go back over an earlier answer while thinking
-about a short follow-up, which adds thinking and latency (guide, "Thinking instructions in chat
-system prompts").
+For frontend work, give a named list of styles to avoid; a request for a "less generic" look is
+not enough. The guide's example list stays on the live page. Check which styles the first draft
+fell back on, and add any unwanted one to the list before the next pass. `[CC: direct]`
 
-**Correction:** for chat-product system prompts you author, the guide's settled-answers instruction
-applies: "Once you have answered something, treat that answer as done." Leave it out of long
-analysis and agentic work, where a later step can show an earlier mistake; the guide adds that it
-may make the model less likely to point out its own earlier mistake. It never goes into this
-playbook or any agentic surface. `[CC: prompt-authoring]`
+- **Pointer**: for design defaults, see
+  [Frontend design defaults](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#frontend-design-defaults).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-## Safeguards: flags, fallback, and reasoning requests
+## Chat system prompts
 
-**Your default:** you are the first Opus model with Fable-level biology and cybersecurity
-safeguards, plus a reasoning-extraction category (blog; guide, "Safeguard refusals"). "Finding
-vulnerabilities in source code is allowed"; high-risk dual-use cybersecurity work is not (guide).
-In Claude Code a flagged request re-runs on an older model chosen by category and the session
-continues there. As of 2026-09-23, a biology flag moves you to Opus 5 and a cybersecurity flag to
-Opus 4.8 (Claude Code model-config page, "Automatic model fallback"; recheck trigger: a re-read of
-that section naming different targets). `/model` switches back; turning off "Switch models when a
-message is flagged" in `/config` makes each flag ask first.
+For chat-product system prompts you author, remove think-carefully lines, and use the guide's
+settled-answers instruction where follow-up latency matters; read it at the pointer. Leave it out
+of long analysis and agentic work, where revisiting earlier output is the point. It never goes
+into this playbook or any agentic surface. `[CC: prompt-authoring]`
 
-**Correction:** treat any in-context evidence of a switch as the meta-rule 3 trigger and re-resolve
-the adaptation chapter against the model now answering; do not keep applying this file on Opus 5
-or Opus 4.8. `[CC: direct]` Never write, in a prompt, brief, or skill, an instruction to reproduce
-internal reasoning in the reply; that is the reasoning-extraction category, and the guide says
-server-side fallback returns such declines instead of retrying them. `[CC: prompt-authoring]`
+- **Pointer**: for thinking instructions in chat, see
+  [Thinking instructions in chat system prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
-## Speed: fast mode for back-and-forth
+## Safeguards and fallback
 
-Fast mode is available for you in Claude Code as a research preview: same model, output arrives
-sooner, at a higher per-token price (Claude Code fast-mode page). Use `/fast` for back-and-forth
-work where the user reads each reply; leave it off for unattended runs where latency is not the
-constraint. Prices resolve at that page. `[CC: direct]`
+Treat any in-context evidence of a model switch as the meta-rule 3 trigger and re-resolve the
+adaptation chapter against the model now answering; do not keep applying this file after a switch.
+To return, use `/model`; to be asked before each switch, turn off the flagged-switch setting in
+`/config`. `[CC: direct]` Never write, in a prompt, brief, or skill, an instruction asking for
+hidden thinking in the reply. `[CC: prompt-authoring]`
 
-## API-side facts, for integrations you author
+- **Pointer**: for Claude Code's fallback, see
+  [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback)
+  and [Ask before switching](https://code.claude.com/docs/en/model-config#ask-before-switching);
+  for the refusal categories, see
+  [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals)
+  and
+  [Refusals and fallback](https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5#refusals-and-fallback).
+- **As of**: 2026-10-01 for model-config; 2026-09-23 for the guide and the what's-new page.
+- **Recheck trigger**: a re-read of the fallback section naming different targets, or a refusal
+  category added or removed for this model.
 
-Forced `tool_choice` (`any` or a named tool) returns a 400 on this model. Text you write between
-tool calls arrives as progress-update thinking blocks whose text is empty at the default display
-setting, so a client rendering only text blocks looks silent; the what's-new and migration pages
-own the fix. Thinking blocks are tied to the model and the conversation, so keep histories
-append-only. For multi-app agents, one system-prompt sentence telling the model to explore the
-relevant sources before acting raised correctness in vendor testing; keep untrusted content out of
-what it searches. Marking user-pasted text with tagged blocks lets you ignore instructions inside
-it (guide, "Mark pasted text in user messages"). Leave room in `max_tokens` for thinking. Model
-IDs, prices, and limits resolve through the `claude-api` skill at the moment of use; this chapter
-carries none. `[CC: API-side]`
+## Speed
+
+Use `/fast` for back-and-forth work where the user reads each reply; leave it off for unattended
+runs where latency is not the constraint. Availability and prices resolve at the pointer.
+`[CC: direct]`
+
+- **Pointer**: for fast mode, see
+  [Decide when to use fast mode](https://code.claude.com/docs/en/fast-mode#decide-when-to-use-fast-mode).
+- **As of**: 2026-10-01
+- **Recheck trigger**: fast mode leaves research preview, or the page stops listing this model.
+
+## API-side, for integrations you author
+
+Do not force `tool_choice` on this model. Show progress-update thinking blocks to users, or a
+text-only client looks frozen during tool work. Keep conversation histories append-only. For
+multi-app agents, have the model survey the connected sources before it changes anything, and give
+it only sources free of untrusted content. Mark user-pasted text with tagged blocks, in
+the form the guide gives. Size `max_tokens` with thinking counted in. Model IDs, prices, and limits
+resolve through the `claude-api` skill at the moment of use; this chapter carries none.
+`[CC: API-side]`
+
+- **Pointer**: for the breaking changes, see
+  [Forced tool use is not supported](https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5#forced-tool-use-is-not-supported),
+  [Thinking blocks are tied to the model and the conversation](https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5#thinking-blocks-are-tied-to-the-model-that-produced-them),
+  and
+  [Text between tool calls is returned in thinking blocks](https://platform.claude.com/docs/en/models/opus-5-5/migration-guide#text-between-tool-calls);
+  for the prompting patterns, see
+  [Explore context in multi-app workflows](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#explore-context-in-multi-app-workflows),
+  [Mark pasted text in user messages](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#mark-pasted-text-in-user-messages),
+  and
+  [Calibrate effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#calibrate-effort).
+- **As of**: 2026-09-23
+- **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
 ## What carries from the Opus 5 chapter, and what does not
 
@@ -229,29 +246,20 @@ carries none. `[CC: API-side]`
   `PreToolUse` hook or a `permissions.deny` rule) is the control and a written rule is the weaker
   one; hard facts are pointers.
 - **Reversed:** the `high` effort default, the thinking-disable configuration rule, and the
-  confidently-wrong stated-facts finding.
-- **Not restated for you, so not imported:** the instructed re-check removal, the delegation floor,
-  and the correction-narration rule. The verification and orchestration chapters apply unchanged.
+  stated-facts finding.
+- **Not imported:** the instructed re-check removal, the delegation floor, and the
+  correction-narration rule. The verification and orchestration chapters apply unchanged.
 - **Do not read another version's chapter.** Meta-rule 3 in the skill body owns this routing.
 
 ## Sources
 
-- <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>,
-  the live "Prompting Claude Opus 5.5" page, raw `.md` read 2026-09-23 (28,311 bytes, MD5
-  `fb3bff7f41e20fbbb71be78770edb8cb`). Owning source for every "guide" citation above.
-- <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>, raw `.md` read
-  2026-09-23 (21,525 bytes, MD5 `bacb60024cacd3f9bdb539587fbc9bf8`): breaking changes, default
-  effort, safeguard categories.
-- <https://code.claude.com/docs/en/model-config>, read 2026-09-23 (MD5
-  `459c915e18892813e484986ada64efd7`): thinking controls, effort default and `effortLevel` scope,
-  automatic model fallback targets. <https://code.claude.com/docs/en/fast-mode>, read 2026-09-23.
-- "Getting the most out of Opus 5.5 in Claude and Claude Code", the vendor's usage article
-  (claude.dev blog, published 2026-09-22, read 2026-09-23). Corroboration, and the only basis for
-  the claims marked "blog".
-- <https://claude.dev/blog/how-we-made-claude-ai-faster>, "the performance post" (claude.dev
-  blog, published and read 2026-09-23). Sole basis for the scope section; it describes an internal
-  research model, not Opus 5.5.
+Our reads, recorded so a re-read can tell whether a page moved:
 
-Recheck trigger: a re-fetch of the guide or the model-config page diverging from any claim above,
-or a later Opus release. Behavioral claims decay with model and doc revisions, so re-verify them
-before propagating them elsewhere.
+- The guide, raw `.md` read 2026-09-23 (28,311 bytes, MD5 `fb3bff7f41e20fbbb71be78770edb8cb`).
+- <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>, raw `.md` read
+  2026-09-23 (21,525 bytes, MD5 `bacb60024cacd3f9bdb539587fbc9bf8`).
+- <https://code.claude.com/docs/en/model-config> and <https://code.claude.com/docs/en/fast-mode>,
+  re-read 2026-10-01.
+
+Recheck trigger for the whole chapter: a later Opus release, or a re-read of any pointed section
+no longer supporting the decision beside it.

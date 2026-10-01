@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.3] - 2026-10-01
+
+### Changed
+
+- **The interview's model-versus-effort guidance is stated as the skill's own decision.**
+  `context/session-config.md` keeps the recommendation rules in our words and points at the
+  model-config effort section and the choosing-a-model section, with the Claude blog post as a
+  correlate. It records that no docs page states the try-versus-know test, which stays this skill's
+  own rule, with an as-of date and a recheck trigger.
+
 ## [0.55.2] - 2026-10-01
 
 ### Changed

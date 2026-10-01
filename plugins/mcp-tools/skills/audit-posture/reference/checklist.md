@@ -1,8 +1,8 @@
 # MCP posture checklist
 
 Criteria P1-P5 for `/mcp-tools:audit-posture`. Each criterion names its severity rule and what it
-reads from the inventory. The factual claims behind the criteria are in [Source records](#source-records),
-each as a four-part record (claim, basis, as-of date, recheck trigger).
+reads from the inventory. The decisions behind the criteria are in [Source records](#source-records),
+each with a pointer to where the fact lives, an as-of date and a recheck trigger.
 
 ## Contents
 
@@ -29,10 +29,10 @@ load; mark its findings "if approved". A user row reading `shadowed-by:project-i
 also scored, marked "if the project entry is not approved". Rows reading `shadowed-by:<scope>`,
 `suppressed-by-managed`, `disabled`, or `rejected-by-client` stay in the inventory table and get
 no findings, because Claude Code does not launch them from that entry. `rejected-by-client` is a
-`managedMcpServers` entry that fails the managed-mcp page's entry checks (`type` of `http`, `sse`,
+`managedMcpServers` entry that fails the entry checks the script applies (`type` of `http`, `sse`,
 or `streamable-http`, an `https://` URL, no `command`, `args`, `env`, or `headersHelper`, no
 `${VAR}`, a name of letters, numbers, hyphens, and underscores, and no control or invisible
-formatting character in any key or value), so Claude Code does not load it; see the managed
+formatting character in any key or value), so the audit treats it as not loaded; see the managed
 precedence record.
 
 P2, P3, and P4 depend on facts outside the config. A result reached without a lookup the operator
@@ -103,9 +103,8 @@ index was set but its URL could not be shown safely.
 Worked case: `postmark-mcp` on npm was an unscoped package named for Postmark that Postmark did not
 publish (see the Postmark record). An unscoped name that matches a vendor is what P3 catches.
 
-Registry namespace ownership is the only provenance signal the official MCP registry itself
-provides, and the registry states it does little moderation beyond that (see the registry record).
-A registry listing is therefore not evidence that a package is safe.
+P3 takes namespace ownership as the only provenance signal the official MCP registry supplies, and
+treats a registry listing as no evidence that a package is safe (see the registry record).
 
 Label the result `unverified` unless the operator asked for a registry or vendor lookup in this
 run.
@@ -133,87 +132,87 @@ Its value is the diff between runs: a new server, a changed package, or a pin th
 
 ### Sandbox coverage
 
-- **Claim**: The Claude Code sandbox applies to Bash, PowerShell, and Monitor commands and their
-  child processes. A stdio MCP server is started by Claude Code itself, not by one of those
-  commands, so it runs outside the sandbox. Every stdio row is therefore `sandboxed = no`.
-- **Basis**: <https://code.claude.com/docs/en/sandboxing>, which scopes sandboxing to "every Bash,
-  PowerShell, or Monitor command and its child processes" and warns that a command editing
-  protected config "could ... add a hook or MCP server that Claude Code runs outside the sandbox".
-- **As of**: 2026-09-26.
-- **Recheck trigger**: a re-fetch of that page no longer matching these quotes, or a Claude Code
-  release note naming sandboxing together with MCP servers.
+The inventory marks every stdio row `sandboxed = no`: this audit treats a stdio MCP server as
+started by Claude Code itself, outside the scope of the commands the sandbox covers.
+
+- **Pointer**: for which commands the sandbox covers and the protected paths that keep a command
+  from adding an MCP server, see <https://code.claude.com/docs/en/sandboxing> (the page
+  introduction) and <https://code.claude.com/docs/en/sandboxing#protected-paths>.
+- **As of**: 2026-09-26
+- **Recheck trigger**: that page changes which commands the sandbox covers, or a Claude Code
+  release note names sandboxing together with MCP servers.
 
 ### Anthropic does not audit MCP servers
 
-- **Claim**: Anthropic does not vet the MCP servers a user configures, so the operator owns that
-  review.
-- **Basis**: <https://code.claude.com/docs/en/security>: Anthropic "does not security-audit or
-  manage any MCP server".
-- **As of**: 2026-09-26.
-- **Recheck trigger**: a re-fetch of that page no longer carrying the quoted sentence.
+The audit assigns the review of every configured MCP server to the operator; it never treats a
+server as vetted by Anthropic.
+
+- **Pointer**: for Anthropic's position on MCP server review, see
+  <https://code.claude.com/docs/en/security#mcp-security>.
+- **As of**: 2026-09-26
+- **Recheck trigger**: that section changes what Anthropic reviews.
 
 ### Registry moderation
 
-- **Claim**: The official MCP registry verifies namespace ownership and does little moderation
-  beyond it; it does not remove a server for having a vulnerability, and it is in preview.
-- **Basis**: <https://modelcontextprotocol.io/registry/moderation-policy>: consumers "should assume
-  minimal-to-no moderation", and the registry will not remove "Servers with security
-  vulnerabilities".
-- **As of**: 2026-09-26.
-- **Recheck trigger**: a re-fetch of that page no longer matching these quotes, or the registry
-  leaving preview.
+P3 takes namespace ownership as the only provenance signal from the official MCP registry and
+gives a registry listing no weight as evidence of safety, including for known vulnerabilities.
+
+- **Pointer**: for what the registry moderates, and its preview status, see
+  <https://modelcontextprotocol.io/registry/moderation-policy>.
+- **As of**: 2026-09-26
+- **Recheck trigger**: that page changes what the registry moderates or removes, or the registry
+  leaves preview.
 
 ### Docker sandboxes and local MCP servers
 
-- **Claim**: A virtual-machine sandbox around the agent does not contain a local stdio MCP server
-  either; Docker's own sandbox model treats such servers as host integrations.
-- **Basis**: <https://docs.docker.com/ai/sandboxes/security>: "local stdio MCP servers run on the
-  host, not inside the" sandbox, and the page describes "local MCP servers as trusted host
-  integrations".
-- **As of**: 2026-09-26.
-- **Recheck trigger**: a re-fetch of that page no longer matching these quotes.
+The audit does not count a virtual-machine sandbox around the agent as containing a local stdio
+MCP server.
+
+- **Pointer**: for how Docker's sandbox model places local MCP servers, see
+  <https://docs.docker.com/ai/sandboxes/security>.
+- **As of**: 2026-09-26
+- **Recheck trigger**: that page changes where local stdio MCP servers run.
 
 ### Postmark
 
-- **Claim**: Postmark did not publish the `postmark-mcp` package on npm; it was a third-party
-  package under Postmark's name.
-- **Basis**: <https://postmarkapp.com/blog/information-regarding-malicious-postmark-mcp-package>.
-- **As of**: 2026-09-26.
-- **Recheck trigger**: a re-fetch of that post no longer stating that Postmark did not publish the
-  package on npm.
+P3's worked case: the audit treats `postmark-mcp` on npm as a package under Postmark's name that
+Postmark did not publish.
+
+- **Pointer**: <https://postmarkapp.com/blog/information-regarding-malicious-postmark-mcp-package>.
+- **As of**: 2026-09-26
+- **Recheck trigger**: that post changes what it says about who published the package.
 
 ### Configuration sources
 
-- **Claim**: MCP servers are configured at user scope (top-level `mcpServers` in `~/.claude.json`),
-  local scope (under the project's path in `~/.claude.json`), project scope (`.mcp.json`), and by
-  managed configuration (`managed-mcp.json`, and `managedMcpServers` in `managed-settings.json`
-  plus `managed-settings.d/*.json` in the same system directory). Local wins over project, which
-  wins over user, for the same server name. These are the sources the inventory script reads.
-- **Basis**: <https://code.claude.com/docs/en/mcp>, <https://code.claude.com/docs/en/managed-mcp>,
-  <https://code.claude.com/docs/en/managed-settings>.
-- **As of**: 2026-09-26.
+The inventory script reads user scope (top-level `mcpServers` in `~/.claude.json`), local scope
+(under the project's path in `~/.claude.json`), project scope (`.mcp.json`), and managed
+configuration (`managed-mcp.json`, and `managedMcpServers` in `managed-settings.json` plus
+`managed-settings.d/*.json` in the same system directory), and ranks local over project over user
+for the same server name.
+
+- **Pointer**: for the scopes and their precedence, see
+  <https://code.claude.com/docs/en/mcp#mcp-installation-scopes> and
+  <https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence>; for managed configuration,
+  <https://code.claude.com/docs/en/managed-mcp> and
+  <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>.
+- **As of**: 2026-09-26
 - **Recheck trigger**: a Claude Code release note naming an MCP scope, `managed-mcp.json`, or
-  `managedMcpServers`, or a re-fetch of any of the three pages diverging from this record.
+  `managedMcpServers`, or a re-fetch of any of those pages diverging from this record.
 
 ### Managed precedence
 
-- **Claim**: A `managedMcpServers` entry wins over a server of the same name at local, project,
-  or user scope, so those rows read `shadowed-by:managed-settings`. When `managed-mcp.json` defines
-  the same name, its entry wins over `managedMcpServers`, so the managed-settings row reads
-  `shadowed-by:managed`. When `managed-mcp.json` is present, local, project, and user rows read
-  `suppressed-by-managed` instead, because the file takes exclusive control.
-- **Basis**: <https://code.claude.com/docs/en/managed-mcp>: "A provided server takes precedence
-  over a server with the same name in local, project, or user scope", and "If you also deploy
-  `managed-mcp.json`, Claude Code loads its servers and the provided servers together, and the
-  file's entry takes precedence when both define a name." The same page lists the checks a
-  `managedMcpServers` entry must pass: "`type` is `http` or `sse`. As in `.mcp.json`,
-  `streamable-http` is accepted as an alias for `http`"; `url` "is an `https://` URL"; the entry
-  "has no `command`, `args`, `env`, or `headersHelper` member"; "No value contains a `${VAR}`
-  reference"; and "The server name contains only letters, numbers, hyphens, and underscores, and
-  no key or value contains control or invisible formatting characters". An entry failing one
-  reads `rejected-by-client`. The page does not say whether `type` is matched without regard to
-  case, so the script matches it case-sensitively and reads `"HTTP"` as `rejected-by-client`.
-- **As of**: 2026-09-26.
-- **Recheck trigger**: a re-fetch of the managed-mcp page no longer carrying these quoted
-  sentences, or a Claude Code release note naming `managedMcpServers` precedence or its entry
-  checks.
+The inventory reads a local, project, or user row whose name a `managedMcpServers` entry also
+defines as `shadowed-by:managed-settings`; a managed-settings row whose name `managed-mcp.json` also
+defines as `shadowed-by:managed`; and, when `managed-mcp.json` is present, every local, project,
+and user row as `suppressed-by-managed`. A `managedMcpServers` entry failing the entry checks
+listed under [Severity and scoring](#severity-and-scoring) reads `rejected-by-client`. The script
+matches `type` case-sensitively, so `"HTTP"` reads `rejected-by-client`; the page does not settle
+case handling.
+
+- **Pointer**: for precedence between provided servers, `managed-mcp.json` and the other scopes,
+  see <https://code.claude.com/docs/en/managed-mcp#how-provided-servers-load> and
+  <https://code.claude.com/docs/en/managed-mcp#exclusive-control-with-managed-mcp-json>; for the
+  entry checks, <https://code.claude.com/docs/en/managed-mcp#what-an-entry-can-contain>.
+- **As of**: 2026-09-26
+- **Recheck trigger**: the managed-mcp page changes precedence or the entry checks, or a Claude
+  Code release note names `managedMcpServers` precedence or its entry checks.

@@ -3,6 +3,15 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.5] - 2026-10-01
+
+### Changed
+
+- **`severity.md` records its decidable tier tests as a decision with a pointer.** The tests restate
+  the existing bars and move no finding between tiers; the record points at the code-review
+  harnesses section of the Sonnet 5 prompting guide, with an as-of date of 2026-10-01 and a recheck
+  trigger.
+
 ## [0.34.4] - 2026-09-30
 
 ### Fixed

@@ -109,6 +109,10 @@ The user approved each change below explicitly in this session (2026-09-30), aft
 | Q13, Q46 | `docs/upstream/` decisions record and a docpage-digest queue entry | Both dropped. The chapter carries each decision with its pointer, as-of date and trigger, and the queue lists only undigested pages. The `docs/official-docs.md` row stays | none | plan (user-approved challenge) |
 | Q45 | Whole retrofit, "EVERYTHING" | Three groups stay untouched: released CHANGELOG entries (CI forbids edits), `.claude/unhobble/**/evidence/` records, and the boris playbook's third-party tip content. Criterion 1 names the boris exception | none | plan (user-approved) |
 | Q24 | Five follow-on issues | Seven: adds a post-merge `/overengineering:audit` of CI and hooks (including the audit catalog's per-model version tokens), and the tree-wide no-copy retrofit of the remaining files | two more issues filed (Phase 0) | plan (user-approved) |
+| Q10 | code-reviewer and ci-log-auditor stay `high` | ci-log-auditor stays `medium`: #4253, merged to main as c79aa290c after plan approval, lowered it and phase-verifier to `medium`. Phase 3 lowers only ecosystem-specialist and explorer. User decision, 2026-10-01 | none | user decision in session |
+| Q22, Q44 | No upstream text in repo files, not even one line | One named exception in upstream-drift 2.0.0, "Old-patterns mapping tables": an old-to-current name table inside a skill's "Old patterns" section where the skill-authoring guidance recommends one (peer session's topic exception, adopted by the user 2026-10-01) | none | user decision in session |
+| Q45 | Whole retrofit | The two `docs/specs/context-engineering-*` files stay untouched as dated research records (their purpose is to digest upstream articles) and go to #5684 for an owner decision; the blog-pointer sanity check excludes `docs/specs/` | comment on #5684 | user decision in session |
+| Q45, criterion 2 | Every file the PR changes holds no copied upstream text | Two named exceptions in the PR body: the generated plugin-options block that `scripts/sync-plugin-options-docs.py` writes into 41 plugin READMEs (generator left to #5684), and main's compaction paragraph in `context-guard/reference/reader-contract.md`, which the blog-digest branch replaces on rebase | comment on #5684 | user decision in session |
 | Q38-Q41 | Deferred to planning | Q38 and Q39 dissolve with the hook and the drift check. Q40: nothing needs to detect unattended runs, since nothing asks or blocks. Q41: see Execution shape | none | plan |
 
 ### Standards grounding
@@ -165,9 +169,16 @@ No duplicates were found.
   7. the tree-wide no-copy retrofit: inventory every remaining file that quotes a linked upstream page with `/attribution:audit`, then convert plugin by plugin, running each catalog skill's evals before and after.
 - **Sanity Check:** `gh issue view <parent> --json body --jq .body` contains all seven follow-on numbers, and `gh issue view 4347 --json state --jq .state` prints `OPEN`.
 
-### Phase 1: Links-only rule and retrofit [TODO]
+### Phase 1: Links-only rule and retrofit [DONE]
 
 Review: code-design
+
+Done 2026-10-01. The 1b inventory grew by the record-shape writers the 1a pre-flight found, the
+files that described converted files as quote digests, and the migrate scripts that parse record
+labels. A whole-file copy scan against each file's linked pages, plus two fresh-context phase
+verifier runs, replaced the 1b attribution-audit check; the full `/attribution:audit` runs once in
+Phase 7 over every changed file. Shared-file and generated-block exceptions are in "Plan changes
+after the Brief".
 
 Phase 1a runs in the main session and fixes the target shape. Phase 1b converts files.
 
@@ -204,8 +215,8 @@ Phases 2-6 follow the same rule: every file a phase edits is converted whole by 
 | [ ] `docs/adr/0038-restore-the-claude-review-lanes-on-every-push.md` | MODIFY | blog pointer |
 | [ ] `docs/finding-your-unknowns.md` | MODIFY | blog pointer |
 | [ ] `docs/plugin-philosophy.md` | MODIFY | blog pointer; tier and floor edits are Phase 3 |
-| [ ] `docs/specs/context-engineering-corpus-knowledge.md` | MODIFY | blog pointer |
-| [ ] `docs/specs/context-engineering-linked-sources.md` | MODIFY | blog pointer |
+| [ ] `docs/specs/context-engineering-corpus-knowledge.md` | KEEP | dated research record whose purpose is to digest upstream articles; left to #5684 for an owner decision (user decision, 2026-10-01) |
+| [ ] `docs/specs/context-engineering-linked-sources.md` | KEEP | same as above |
 | [ ] `plugins/ai-slop/skills/audit/reference/catalog.md` | MODIFY | record |
 | [ ] `plugins/architecture/skills/record-decision/SKILL.md` | MODIFY | record |
 | [ ] `plugins/claude-config/reference/agents-md-liveness.md` | MODIFY | record |
@@ -260,7 +271,7 @@ Phases 2-6 follow the same rule: every file a phase edits is converted whole by 
 | [ ] `.claude/unhobble/**/evidence/*` | KEEP | experiment evidence |
 
 - **Sanity Check:** with the 1b file list saved one path per line in `.work/sonnet-5-5-prompting-digest/retrofit-files.txt`, `xargs grep -lE '^\s*- \*\*Basis(\*\*|\.\*\*)' < .work/sonnet-5-5-prompting-digest/retrofit-files.txt` prints nothing. The `**Basis` label stays legal elsewhere under the recommendation-basis convention.
-- **Sanity Check:** `git grep -nE 'claude\.com/blog|claude\.dev/blog|anthropic\.com/(engineering|news|research)' -- docs plugins ':!plugins/playbooks/skills/boris/*' ':!*CHANGELOG.md' ':!docs/topics/*' | grep -vi correlate` prints nothing.
+- **Sanity Check:** `git grep -nE 'claude\.com/blog|claude\.dev/blog|anthropic\.com/(engineering|news|research)' -- docs plugins ':!plugins/playbooks/skills/boris/*' ':!*CHANGELOG.md' ':!docs/topics/*' ':!docs/specs/*' | grep -vi correlate` prints nothing.
 - **Sanity Check:** `/attribution:audit` over the 1b file list reports zero fingerprint-confirmed and zero source-fetched-similar findings. Each llm-suspected finding carries a fresh-context agent's verdict. The findings file is the evidence.
 - **Sanity Check:** each converted catalog skill's evals run before and after 1b with the same results (`/skill-quality:check validate-evals <skill>` for the static gate; `/evals:plugin-eval` where a suite exists). A changed result is a regression to fix, not to accept.
 - **Sanity Check:** `node plugins/attribution/skills/audit/scripts/fingerprint.test.mjs` exits 0, and `bash scripts/affected-tests.sh --run --base origin/main` exits 0.
@@ -298,7 +309,7 @@ Phases 2-6 follow the same rule: every file a phase edits is converted whole by 
   - add the medium-floor sentence for code-changing or verifying work on every model that supports effort, under a heading named "Effort floor", which the Phase 2 chapter links by that heading;
   - note that aliases resolve to different models on Bedrock, Agent Platform and Foundry, with a pointer to the model page's provider section;
   - point at the model page's effort section;
-  - correct the claim at :1313 ("Fourteen named agents pin `effort: high`") and its agent list to the new split (eleven `high`, four `medium` counting plan-reviewer);
+  - correct the pinned-agents record and its agent list to the new split (nine `high`; six `medium`: plan-reviewer, phase-verifier, ci-log-auditor, doc-drift-detector, ecosystem-specialist, explorer);
   - restate the fired recheck trigger with a model-change event.
 - [ ] `plugins/discovery/reference/parent-contract.md:133` ("every producing worker … at `effort: high`"): correct it for explorer's `medium` pin.
 - [ ] `docs/upstream/claudedevs-cost-performance.md:157` ("13 agents pinned `effort: high`"): correct the count during its 1b conversion.
@@ -308,9 +319,9 @@ Phases 2-6 follow the same rule: every file a phase edits is converted whole by 
 - [ ] `plugins/claude-ops/skills/known-issues/context/action-quality.md:58-73`: the fired recheck trigger is re-read and restated (D10.1 part 3).
 - [ ] `docs/official-docs.md:131-139`: add a Sonnet 5.5 prompting-guide row (Q13).
 - [ ] Agent pins (Q10):
-  - `plugins/review/agents/ecosystem-specialist.md`, `plugins/review/agents/doc-drift-detector.md` and `plugins/discovery/agents/explorer.md` change from `effort: high` to `effort: medium`;
-  - `code-reviewer` and `ci-log-auditor` stay `high`;
-  - the three medium agents gain our own-wording finish-then-stop instruction (Q23).
+  - `plugins/review/agents/ecosystem-specialist.md` and `plugins/discovery/agents/explorer.md` change from `effort: high` to `effort: medium` (`doc-drift-detector`, `ci-log-auditor` and `phase-verifier` are already `medium` on main);
+  - `code-reviewer` stays `high`;
+  - ecosystem-specialist, doc-drift-detector and explorer gain our own-wording finish-then-stop instruction (Q23).
 - **Sanity Check:** the tier table rows in `docs/plugin-philosophy.md` (the table under the tier heading near :1098) and the loop-lane alias section in `docs/conventions/loop-lane/README.md` (formerly :379-391; the known-gap note below it may name models by version) contain no `(Sonnet|Opus|Haiku|Fable) [0-9]` match. The worker reports the exact line ranges it checked, and the main session reruns the grep on them.
 - **Sanity Check:** `grep -h '^effort:' plugins/review/agents/ecosystem-specialist.md plugins/review/agents/doc-drift-detector.md plugins/discovery/agents/explorer.md | sort -u` prints only `effort: medium`, and `git grep -nE '^effort: *low' -- 'plugins/*/agents/*.md' 'plugins/*/skills/*/SKILL.md'` prints nothing.
 

@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.0] - 2026-10-01
+
+### Changed
+
+- **The `docpage-digest` Anthropic docs profile is stated as our decisions plus pointers.** The
+  docs hosts `platform.claude.com` and `code.claude.com` are pointer hosts; `claude.com/blog`,
+  `claude.dev/blog` and `anthropic.com/engineering` are correlate-only hosts that the upstream-drift
+  convention never accepts as a pointer, and the blog hosts share every blog rule. Rules that
+  quoted or paraphrased a page now say what we do and where the page is read. The pinned-versus-alias
+  model ID rule stores no generation rule and carries a pointer record.
+- **The Anthropic docs queue lists blog posts as digest targets, never pointers.** Each post entry
+  names the docs page that serves as its pointer and keeps the post as a correlate, and the
+  queue's custody notes state our finding rather than the page's wording.
+
 ## [0.14.13] - 2026-09-30
 
 ### Changed

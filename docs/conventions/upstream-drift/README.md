@@ -17,8 +17,9 @@
 
 Owner doc for **how this repository records a fact or decision derived from a source it does not
 own**, whether an official doc page, an upstream issue thread, or a probed platform behavior, so the record
-stays honest as the upstream moves. One name and one shape: a dated **verification stamp** paired
-with a **recheck trigger**, the stated observable event that obliges re-deriving the record.
+stays honest as the upstream moves. One name and one shape: our decision in our own words, a
+**pointer** to the exact upstream section, an **as-of date**, and a **recheck trigger**, the stated
+observable event that obliges re-deriving the record. The upstream text itself is never stored.
 
 The fleet previously practiced this in five-plus places under four names: "recheck triggers"
 ([hook-config-delivery](../hook-config-delivery/README.md)), "revisit triggers"
@@ -59,35 +60,68 @@ the upstream form list is the org standard's to change.
 
 ## A date is never authority
 
-A dated verification stamp is an **as-of record**: it tells the reader when the claim last matched
-its source, and nothing more. It never confers standing authority. A stale stamp reads identically
+A dated verification stamp is an **as-of record**: it tells the reader when the decision was last
+derived from its source, and nothing more. It never confers standing authority. A stale stamp reads identically
 to a fresh one, and upstream surfaces move without notice: Claude Code changes its own conventions
 between releases, sometimes with no version signal on the surface in question, and experimental
 surfaces churn outright. The part of the record that matters is therefore the **trigger**, not the
-date: anything restating a volatile upstream specific carries a stated re-derivation event, or it
-is drift waiting to happen. Before acting on any stamped claim, re-fetch the cited basis. The
-stamp is the ceiling on how current the claim can be, never a guarantee.
+date: anything depending on a volatile upstream specific carries a stated re-derivation event, or
+it is drift waiting to happen. Before acting on any record, re-read the section its pointer names.
+The as-of date is the ceiling on how current the decision can be, never a guarantee.
 
 The discipline covers two record kinds, one shape:
 
-- a **verified-fact stamp**: a restated upstream specific ("verified 2026-07-17 against \<page>");
+- a **dependent decision**: something this repository does because of an upstream specific, with
+  the pointer saying where that specific lives;
 - a **recorded decision**: a deferral or rejection derived from upstream facts as they stood on a
   date, whose premises can rot the same way the facts can.
 
 ## Required parts
 
-A conforming record carries four parts:
+A conforming record stores no upstream text, quoted or paraphrased, not even one line (the one
+named exception is [old-patterns mapping tables](#old-patterns-mapping-tables)). It carries:
 
-1. **The claim or decision**: what exactly was verified, or what was decided and on what premise.
-2. **The basis**, the specific source it was derived against: the official page URL (with anchor
-   where one exists), the upstream issue, or the probe/method for an empirical finding. "Verified"
-   with no stated basis is not re-checkable.
-3. **The as-of date**: when the derivation happened.
+```markdown
+<our decision, in our words>
+- **Pointer**: for <topic>, see <link to the exact upstream section>.
+- **As of**: YYYY-MM-DD
+- **Recheck trigger**: <an observable event, never a bare date>
+```
+
+1. **The decision**: what this repository does or decided, in our own words. It may name the topic
+   the upstream page covers; it never states what the page says about it.
+2. **The pointer**: the official page URL with the anchor of the exact section, or the upstream
+   issue. A reader who needs the specific reads it there, live. A blog post is never the pointer
+   where a main docs section covers the topic: it appears only as a "correlate with \<blog link>"
+   note beside that pointer. Where no docs page covers it yet, the record links the post as that
+   note, says no docs page covers the topic as of the date, and its recheck trigger is a docs page
+   starting to cover it, at which point the pointer moves there.
+3. **The as-of date**: when the decision was last derived from the page.
 4. **The recheck trigger**: the observable event that obliges re-derivation.
 
-Prefer the pointer: where a surface can defer to the live source at read time, cite it and restate
-nothing. Then no stamp is needed at all. The four-part record is the fallback for surfaces that
-must restate a volatile specific to function.
+Two cases have their own form:
+
+- **A probed behavior** has no upstream page. The pointer names the probe (the script, pull request
+  or issue holding its evidence), and the decision may state what the probe observed, in our words:
+  the observation is ours, not the upstream's.
+- **A source conflict** is recorded only as "pages X and Y disagree on topic T", with both links,
+  the as-of date and a trigger. Neither page's position is restated.
+
+When a surface needs the specific at run time, it fetches it from the pointer
+([the fetch route](#reading-the-basis-the-fetch-route)). A catalog row that must fire without a
+live fetch keeps its firing rule in our own words; the rule is our decision, not the page's text.
+
+### Old-patterns mapping tables
+
+One named exception admits upstream names into a file. A skill may carry a table mapping old API
+or interface names to their current ones, but only inside an "Old patterns" section placed where
+the skill-authoring guidance recommends one. The table holds names only, never descriptions of
+behavior, and the section carries the record parts below it. Everywhere else the rule above holds.
+
+- **Pointer**: for where the guidance recommends an "Old patterns" section, see
+  <https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-time-sensitive-information>.
+- **As of**: 2026-10-01
+- **Recheck trigger**: that section stops recommending an "Old patterns" section, or moves.
 
 ## The observability bar
 
@@ -101,24 +135,25 @@ qualify: a trigger whose firing cannot be checked is a date with extra words.
 
 A firing is a record-maintenance event, and the procedure follows what the trigger guards:
 
-- **A four-part record.** Re-fetch the cited basis and re-derive the claim or decision from what is
-  actually there, never patching the record from memory. Refresh the as-of date **with the outcome**,
-  drift or no drift. On a versioned surface a drift outcome lands as a changelog entry; refreshing
-  a date with no verdict change is no entry and no version bump.
+- **A pointer record.** Re-read the section the pointer names and re-derive the decision from what
+  is actually there, never patching the record from memory. A section that moved gets a new
+  pointer. Refresh the as-of date **with the outcome**, drift or no drift. On a versioned surface
+  a drift outcome lands as a changelog entry; refreshing a date with no verdict change is no entry
+  and no version bump.
 - **A named trigger guarding an in-repo decision** ([Adopters](#adopters) says which rows these
-  are). There is no cited basis to re-fetch and no as-of date to refresh: re-derive the decision
+  are). There is no pointer to re-read and no as-of date to refresh: re-derive the decision
   from the state the trigger names. The decision guarded is in-repo; the firing event can live
   anywhere, upstream included. Record the outcome durably where the decision lives: the record
-  itself or the owning surface's changelog. A re-derivation that ends up restating an upstream
-  specific adopts the four required parts in the refreshed record. The durable outcome is the part
-  this kind shares with the stamped kind.
+  itself or the owning surface's changelog. A re-derivation that ends up depending on an upstream
+  specific adopts the required parts in the refreshed record. The durable outcome is the part
+  this kind shares with the pointer kind.
 
 Whichever the kind, where re-derivation finds drift the changed value lands in the owning record,
 never silently in a consuming surface.
 
 ### Read-time validation is not a firing
 
-The standing rule to re-fetch a cited basis before acting on a stamped claim
+The standing rule to re-read a record's pointer before acting on it
 ([a date is never authority](#a-date-is-never-authority)) is per-use validation: it protects the
 act, not the record, and a lookup that finds no drift obliges no edit anywhere. A record kept
 current this way states divergence as its trigger, and "a read-time re-fetch finds the source no
@@ -127,7 +162,7 @@ lookup, is what fires, and only a firing invokes the maintenance procedure above
 
 ## Reading the basis: the fetch route
 
-Re-fetching a cited basis is the first step of every firing above, so **how** the page is read is
+Re-reading the section a pointer names is the first step of every firing above, so **how** the page is read is
 part of the contract. A summarizing fetch of a long docs page is not a read of that page: it
 truncates, and a summarizer asked what the page contains then answers from the truncated span. That
 answer is indistinguishable from a genuine absence, so a truncated fetch does not merely fail. It
@@ -137,8 +172,9 @@ rows missing ([#2182](https://github.com/melodic-software/claude-code-plugins/pu
 
 Three rules bind every read, whichever rung it comes from:
 
-- **No verbatim quote, no claim.** A record's basis is the text, not a paraphrase of it. A verdict
-  of "current" states the quoted span it matched.
+- **No read, no verdict.** A verdict rests on the text read, not on a paraphrase or a summary of
+  it. A verdict of "current" names the span it matched in the run's working data; the span never
+  enters the record.
 - **A truncated read supports no absence claim, ever.** If the fetch stops short, say so and mark
   the item unverified. "Not in the response" is never "not on the page". The reader cannot tell
   those apart, which is the entire failure this rung ladder exists to prevent.
@@ -165,11 +201,10 @@ types. The Anthropic profile is the default. A page whose channel does not resol
 declares is recorded unread with a reason, so the reader drops a rung and says so; the script never
 falls back to another channel itself.
 
-Rung 1 is the default. It was verified against `env-vars` on 2026-08-10: `curl` returned
-`text/markdown`, 361,797 bytes over 458 lines carrying 315 variable rows including the full
-`CLAUDE_CODE_MAX_*` range, and two fetches seconds apart hashed identically
-(SHA-256 `43a805b4cfffd9aae5e36cec42f3a271dc92ddead26db76cd401d61ff4048584`). That same fetch
-re-confirmed the header finding below: `Last-Modified` came back equal to `Date`.
+Rung 1 is the default. A probe against `env-vars` on 2026-08-10 showed the raw channel returning
+the whole page, including the rows the summarizing fetches had dropped, and two fetches seconds
+apart hashing identically. That same fetch re-confirmed the header finding below: `Last-Modified`
+came back equal to `Date`.
 
 The route is not new here; it is **hoisted from two surfaces that each derived it independently**.
 `/claude-ops:changelog`'s read-actions context carried it page-scoped ("`curl` the
@@ -190,12 +225,11 @@ page it is reading and drops a rung when it does not resolve.
 
 A rung-1 fetch can return `200`, `text/markdown`, and a complete untruncated body that is
 **someone else's page**. A retired slug is silently aliased to its successor: no redirect, no
-`Location` header, no notice in the body. Verified 2026-08-11:
-`https://code.claude.com/docs/en/slash-commands.md` returns `200` with 82,668 bytes whose first
-heading is `# Extend Claude with skills`, **byte-identical to `skills.md`** (both SHA-256
-`a833dd5c96b9b111de0daec5fc6436e210c8cdc009e51306d32438746db0b5a5`), while the rendered URL reports
-`0` redirects. This is not a catch-all: an invented slug (`nonexistent-page-xyz.md`) returns a clean
-`404`, so the alias is specific to slugs that once existed.
+`Location` header, no notice in the body. A probe on 2026-08-11 found
+`https://code.claude.com/docs/en/slash-commands.md` returning `200` with a body **byte-identical to
+`skills.md`**, while the rendered URL reported `0` redirects. This is not a catch-all: an invented
+slug (`nonexistent-page-xyz.md`) returned a clean `404`, so the alias is specific to slugs that once
+existed.
 
 The failure this produces is worse than truncation, because truncation at least yields text you can
 see is short. Here a search for a term the *requested* page owns comes back empty against a full,
@@ -210,10 +244,9 @@ Two checks, both cheap, and a run does them before it trusts a body:
   alias. Verified across ten slugs on 2026-08-11: the nine live ones each appear as
   `docs/en/<slug>.md`; `slash-commands` appears in no such entry (only an unrelated
   `agent-sdk/slash-commands`), which is exactly the one that aliased.
-- **Read the body's own first heading before quoting it.** `skills.md` and a live `<slug>.md` both
-  say what they are on line 5. A heading that does not match the page you asked for ends the read;
-  a title that merely differs in wording from the slug does not (`sub-agents.md` is titled "Create
-  custom subagents", `costs.md` "Manage costs effectively", both correct).
+- **Read the body's own first heading before trusting it.** A page says what it is in its first
+  heading. A heading for a different page than the one you asked for ends the read; a title that
+  merely differs in wording from the slug does not.
 
 A slug missing from `llms.txt` is not automatically a dead end: it may have been renamed, and the
 index is the place to find the successor. Fetch the successor and cite **that** slug, rather than
@@ -236,13 +269,11 @@ it, and both produce a claim that reads as researched:
   `hooks`", or, if the sweep really covered the index, "not documented on any page listed in
   `llms.txt` as of `<date>`", which is a much larger and much more expensive claim.
 - **Searching the phrase instead of the capability.** A literal string can be absent while the
-  thing it names is documented in other words on the same page. Worked instance, verified
-  2026-08-11 on `hooks.md`: the phrase "verbose hooks" appears **zero** times, yet the page itself
-  documents "Async hook completion notifications are suppressed by default. To see them, enable
-  verbose mode with `Ctrl+O` or start Claude Code with `--verbose`", and separately
-  "set `CLAUDE_CODE_DEBUG_LOG_LEVEL=verbose` to see additional log lines such as hook matcher
-  counts and query matching". A phrase search would have returned nothing and licensed "no verbose
-  hooks toggle exists". That is false, from a complete, untruncated read of the right page.
+  thing it names is documented in other words on the same page. Worked instance, 2026-08-11 on
+  [`hooks`](https://code.claude.com/docs/en/hooks): the phrase "verbose hooks" appeared **zero**
+  times, yet the page documented two separate ways to see more hook output, in other words. A
+  phrase search would have returned nothing and licensed "no verbose hooks toggle exists". That
+  was false, from a complete, untruncated read of the right page.
 
 So an absence claim states the corpus and the terms tried, and a claim that a *capability* is
 missing searches the capability's plausible vocabulary, not one phrasing of it. This bit the fleet
@@ -259,9 +290,9 @@ convenient.
 A mirror read is admissible only when it is **verbatim** and its currency is **corroborated against
 the page's own content**, never against the mirror's self-reported sync time alone, which is a
 claim by the party whose freshness is in question. The corroboration names a fact that only a sync
-later than some known upstream change could carry, and the record states it. The worked instance:
-`ericbuess/claude-code-docs` `docs/env-vars.md` was accepted because it carried the v2.1.224
-removal of the 200-subagent-per-session cap, which no pre-v2.1.224 sync can contain.
+later than some known upstream change could carry, and the record names that release. The worked
+instance: `ericbuess/claude-code-docs` `docs/env-vars.md` was accepted because it carried a change
+from Claude Code v2.1.224, which no earlier sync can contain.
 
 A record resting on a mirror **says on its face that it is one rung below a primary read**, and
 states retirement of that basis as part of its trigger: a later primary read of the same range
@@ -325,8 +356,10 @@ every correct citation and every in-repo mention alike, and a gate whose false-p
 routine suppression trains authors to bypass it. That is worse than no gate, because it converts a
 real signal into noise with an approved silencer.
 
-- **Basis**: `melodic-software/standards` `conventions/engineering/enforceability-tiers.md` (the
-  reasoning-only tier and the worth-mechanizing routing rule), plus the worked instance above.
+- **Pointer**: for the reasoning-only tier and the worth-mechanizing routing rule, see
+  `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`; the worked
+  instance is above.
+- **As of**: 2026-08-12
 - **Recheck trigger**: a third unstamped upstream-fact carrier reaches `main` after this decision
   (two are already on the record: `plugin-quality`, corrected in its 0.4.0, and `architecture`,
   whose false claim was removed in its 0.5.1), **or** a detector is demonstrated that separates an
@@ -347,33 +380,39 @@ carriers are recorded that way in
 [#2297](https://github.com/melodic-software/claude-code-plugins/issues/2297).
 
 The rows are not all the same thing, and the table says which is which. A **conforming record**
-carries the four required parts for an upstream-derived claim or decision. A **named trigger**
-shares the canonical name, the observability bar, and
+carries the [required parts](#required-parts) for a decision that depends on something
+upstream-owned. A **named trigger** shares the canonical name, the observability bar, and
 [its own firing procedure](#when-a-trigger-fires), but guards an in-repo decision: in scope for the
-name, outside the four-part requirement, which binds only records that restate something
-upstream-owned. This narrows what a row advertises; it does not widen the
-contract to fit its exceptions.
+name, outside the pointer requirement, which binds only records that depend on something
+upstream-owned. This narrows what a row advertises; it does not widen the contract to fit its
+exceptions.
+
+At 2.0.0 the required parts changed from a restated claim plus its basis to our decision plus a
+pointer. The rows below were converted with that release. Records elsewhere still in the 1.x
+four-part shape are tracked in
+[#5684](https://github.com/melodic-software/claude-code-plugins/issues/5684) and adopt the new shape
+on touch.
 
 | Surface | Was | What a reader can rely on |
 |---|---|---|
-| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records: version-pinned facts table with per-fact basis, a per-row verified version and date, and fact-scoped event triggers. |
-| [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records: dated upstream-claim stamps; drift outcomes recorded in its changelog. |
-| [plugin-philosophy](../../plugin-philosophy.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records: per-row claim, linked page, and verified date; the re-fetch-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a fetch diverging from the row. |
-| [plugin-philosophy](../../plugin-philosophy.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind: **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, the quoted upstream basis it rests on, and a trigger written per row rather than the generic divergence-at-fetch. A verdict is re-derived when its own trigger fires, not on any fetch that differs. |
-| [official-docs](../../official-docs.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records: same shape as the component-stances table: link + date, divergence-at-fetch as the stated trigger. |
-| [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Mixed: the dated component-decision records cite upstream bases and conform; the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record is a third kind, terminal exclusions that state "no recheck trigger" by design, decided out, so nothing fires. |
-| [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral; not a four-part record. |
-| [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only: an in-repo source-hoisting decision; not a four-part record. |
-| `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: revision-pinned four-part record over the Wikipedia source page (claim, `oldid` basis, as-of date, recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week), plus a recorded fetch-gap note for two source sections the same trigger covers. |
-| `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one four-part record per external writing standard the skill falls back to (Diátaxis, Google developer documentation style, ASD-STE100, Global English), each carrying claim, basis, as-of date, and an observable recheck trigger. Three are publication events (an STE issue, a Global English edition, a Diátaxis revision); the Google record's is a page-content divergence, because that guide is a continuously-edited site with no edition to pin. The contract admits either shape, and the record names which one it is. The STE record additionally states a fidelity ceiling: the layer is a principles subset, not the specification, so a document written to it is not thereby STE-conformant. |
+| [hook-config-delivery](../hook-config-delivery/README.md) §Recheck triggers | already the canonical name | Conforming records: per-fact pointer, a per-row verified version and date, and fact-scoped event triggers. |
+| [loop-lane](../loop-lane/README.md) §Versioning | "Re-derivation triggers" | Conforming records: dated pointers; drift outcomes recorded in its changelog. |
+| [plugin-philosophy](../../plugin-philosophy.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records: per-row decision, linked section, and as-of date; the re-read-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a read diverging from the row. |
+| [plugin-philosophy](../../plugin-philosophy.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind: **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, a pointer to the upstream section it rests on, and a trigger written per row rather than the generic divergence-at-read. A verdict is re-derived when its own trigger fires, not on any read that differs. |
+| [official-docs](../../official-docs.md) staleness warning and per-row verified dates | unlabeled discipline | Conforming records: same shape as the component-stances table: link + date, divergence-at-read as the stated trigger. |
+| [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review record | Named triggers only: the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record states "no recheck trigger" by design, decided out, so nothing fires. The dated component-decision records keep the 1.x shape and are tracked in #5684. |
+| [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
+| [topic-docs](../topic-docs/README.md) §Implementers restate the rules | "What would reopen it" | Named trigger only: an in-repo source-hoisting decision with no upstream pointer. |
+| `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
+| `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the
 canonical `## Recheck triggers` heading) adopt the canonical name, the observability bar, and their
-kind's firing procedure the next time they change; a surface restating an upstream-owned specific
-additionally adopts the required parts. **History is never rewritten**: `CHANGELOG.md` entries,
-dated audit records, and ADR sections keep the wording they shipped with; a new ADR uses the
-canonical name going forward.
+kind's firing procedure the next time they change; a surface depending on an upstream-owned
+specific additionally adopts the required parts and drops any restated upstream text. **History
+is never rewritten**: `CHANGELOG.md` entries, dated audit records, and ADR sections keep the
+wording they shipped with; a new ADR uses the canonical name going forward.
 
 ## Why this name
 

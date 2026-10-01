@@ -61,9 +61,10 @@ Four facts make the naive version of this migration actively harmful, and each o
 The full evidence, including a first-party repro, is in
 [`context/verified-mechanics.md`](context/verified-mechanics.md).
 
-**A rule without `paths:` costs exactly what `CLAUDE.md` costs.** Unscoped rules load at launch with
-the same priority as `.claude/CLAUDE.md`. Moving a section into `.claude/rules/` without a glob is
-bookkeeping, not a saving. The glob is the product.
+**A rule without `paths:` costs exactly what `CLAUDE.md` costs.** The plugin prices an unscoped
+rule as always-loaded, the same as `.claude/CLAUDE.md` (the pointer is in the evidence file above).
+Moving a section into `.claude/rules/` without a glob is bookkeeping, not a saving. The glob is the
+product.
 
 **Nothing that defers is inherited, and no deferred surface says it exists.** Measured on Claude
 Code 2.1.268: a subagent dispatched *after* its parent had loaded a nested `CLAUDE.md`, a nested
@@ -88,16 +89,17 @@ it load, though it stays the cover for the sessions that cannot read `AGENTS.md`
 Claude Code's own AGENTS.md support is version- and session-dependent, which is why the plugin's
 posture is to write the shim while a root `CLAUDE.md` exists in a repository.
 
-- **Claim**: Claude Code reads `AGENTS.md` as the project instructions only where there is no
-  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in the working directory or above it, and
-  attaches a subdirectory's `AGENTS.md` on a Read there under the same condition; reading
-  `AGENTS.md` directly depends on a CLI version floor and on the session, both in
-  [`skills/migrate/reference/sources.md`](skills/migrate/reference/sources.md), "The minimum CLI
-  version".
-- **Basis**: [memory](https://code.claude.com/docs/en/memory), "AGENTS.md", "When Claude Code reads
-  AGENTS.md" and "When AGENTS.md support is unavailable"; confirmed by canary runs on 2.1.278.
-- **As of**: 2026-09-29.
-- **Recheck trigger**: that section changes which file names count for the check, or a release note
+The plugin treats an `AGENTS.md`, at the root or in a subdirectory, as shadowed wherever a
+`CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` sits in the working directory or above it,
+and treats direct `AGENTS.md` reading as dependent on the CLI floor and session recorded in
+[`skills/migrate/reference/sources.md`](skills/migrate/reference/sources.md), "The minimum CLI
+version". Canary runs on 2.1.278 observed the shadowing.
+
+- **Pointer**: for when Claude Code reads `AGENTS.md` and when that support is unavailable, see
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
+- **As of**: 2026-09-29
+- **Recheck trigger**: those sections change which file names shadow `AGENTS.md`, or a release note
   names `AGENTS.md` or instruction-file loading.
 
 ## What this plugin does NOT buy you
@@ -108,9 +110,9 @@ always-loaded file. **That claim was measured and not supported**, so it has bee
 softened.
 
 Across 32 trials at two bloat levels, using a realistic 251-line always-loaded file and an extreme
-1,927-line one nearly ten times the official 200-line guidance, a clear convention was followed
-**100% of the time in both arms**. Full method, caveats, and the ceiling effect the run hit:
-[`evals/adherence-results.md`](evals/adherence-results.md).
+1,927-line one nearly ten times the 200-line size the memory page recommends, a clear convention
+was followed **100% of the time in both arms**. Full method, caveats, and the ceiling effect the
+run hit: [`evals/adherence-results.md`](evals/adherence-results.md).
 
 Weigh a migration on context cost and on the promote lane. Do not expect your instructions to be
 obeyed better afterwards.
@@ -137,10 +139,12 @@ posture keeps shared content portable: subtree conventions go in a nested `AGENT
 `CLAUDE.md` shim beside it wherever a `CLAUDE.md` on that path would otherwise be read instead, and
 the generated index lives in the root `AGENTS.md` when one exists.
 
-One semantic difference is deliberately not papered over: other agents resolve `AGENTS.md`
-nearest-wins, while Claude concatenates the whole ancestor chain. Subtree content is therefore
-written as additive and self-contained, and a candidate that only makes sense as an override is
-reported rather than moved.
+One semantic difference is deliberately not papered over: the plugin assumes other agents resolve
+`AGENTS.md` nearest-wins while Claude loads the whole ancestor chain (for Claude's order, see
+<https://code.claude.com/docs/en/memory#how-claude-md-files-load>, as of 2026-10-01; recheck when
+that section changes how ancestor files combine). Subtree content is therefore written as additive
+and self-contained, and a candidate that only makes sense as an override is reported rather than
+moved.
 
 ## Scope boundary: what this plugin does not own
 

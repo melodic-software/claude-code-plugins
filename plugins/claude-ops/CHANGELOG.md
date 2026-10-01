@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.1] - 2026-10-01
+
+### Changed
+
+- **The `audit-native-overlap` bake step writes the links-only record shape.** A reference it bakes
+  into a skill holds our decision in our words, a pointer to the exact upstream section, the as-of
+  date and the recheck trigger, with no upstream text. A table form uses the header
+  `| Decision | Pointer | As of | Recheck when |` in place of `| Claim | Basis | Recheck trigger |
+  Verified |`, and the skill's own two upstream dependencies are restated in that form.
+- **The `known-issues`, `observability` and `plugins` records follow the same shape.** The model
+  fallback and quality-tracker notes, the hook-latency event record and the plugin scope
+  semantics each state our decision and point at the docs section or at our own probe, instead of
+  restating the page.
+
 ## [0.79.0] - 2026-10-01
 
 ### Added

@@ -5,6 +5,17 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.96] - 2026-10-01
+
+### Changed
+
+- **`reader-contract.md` records its upstream dependencies as decisions plus pointers.** The
+  statusline `context_window` fields, the percentage shape, the version field and the
+  absolute-token degradation basis each state what the contract relies on, with a pointer to the
+  docs section or the Chroma context-rot report, an as-of date and a recheck trigger, and carry
+  none of the source wording. One recheck trigger covers every dated record in the file. No
+  behavior or zone change.
+
 ## [0.7.95] - 2026-10-01
 
 ### Changed

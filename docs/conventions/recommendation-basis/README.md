@@ -34,9 +34,10 @@ re-statement. It does not own:
   which in turn defers to the contract `/discovery:research` states. This doc uses those terms and
   does not redefine them.
 - **Durable records of upstream-derived facts.** A recommendation written into a committed file as
-  a standing decision carries the four-part record the
-  [upstream-drift convention](../upstream-drift/README.md) defines. The `Basis:` label covers what
-  is said to the user in session; the stamp covers what is stored.
+  a standing decision carries the record the
+  [upstream-drift convention](../upstream-drift/README.md#required-parts) requires: our decision, a
+  pointer, an as-of date and a recheck trigger. The `Basis:` label covers what is said to the user
+  in session; the record covers what is stored.
 
 ## What counts as a recommendation
 

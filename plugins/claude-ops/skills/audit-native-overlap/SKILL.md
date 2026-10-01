@@ -294,8 +294,10 @@ Two baked surfaces exist, and they are gated differently because they cost diffe
 **The Boundary section lands with the row.** A store row whose verdict is not `defer` and whose
 observation is extraction-evidence is written together with a `## Boundary` section in the
 component's body, in the same change: the surfaces by provenance class, the routing split, and
-the mutation gate, with the four-part detail (basis, as-of, recheck trigger, evidence) in a
-reference file inside the same skill that the section links. A body loads only on invocation, so
+the mutation gate, with the records behind them in a reference file inside the same skill that
+the section links. Each record holds our decision in our words, a pointer to the exact upstream
+section, the as-of date and the recheck trigger, and no upstream text; a table form uses the
+header `| Decision | Pointer | As of | Recheck when |`. A body loads only on invocation, so
 the section spends no listing budget and moves no routing; it is what makes the verdict real for
 the model, and a row without it fails the self-check. Boundary-only baking may cover several
 plugins in one change.
@@ -372,30 +374,29 @@ Any claim about what Claude Code itself ships must come from the raw markdown en
 returns a small model's answer *about* the page, so absence from that answer is not evidence of
 absence. A `200` is also not proof you got the page you asked for: retired slugs are silently
 aliased, so confirm the slug against `https://code.claude.com/docs/llms.txt` and read the body's
-own first heading before quoting it.
+own first heading before citing it.
 
-Two upstream facts this skill depends on, each with the trigger that obliges re-deriving it:
+Two upstream dependencies of this skill, each with the trigger that obliges re-deriving it:
 
-| Claim | Basis | Recheck trigger | Verified |
+| Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
-| Descriptions load into context by default, truncated at 1,536 chars per entry, listing capped at 1% of the context window, with name-only degradation on overflow. The docs state that degradation goes least-invoked-first; the shipped binary instead ranks by a decay-weighted score and grants first-fit, so use the mechanism recorded in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md), not the documented order | `docs/en/skills.md` (Frontmatter reference; Troubleshooting), `docs/en/settings-reference.md`, plus the binary for the order | Either default moves, or the binary's scorer or grant loop diverges from that reference | 2026-09-01 |
-| Native availability varies on settings/env, plan, platform/provider, and host surface, so no static availability claim holds | `docs/en/settings-reference.md`, `docs/en/env-vars.md`, `docs/en/commands.md`, `docs/en/cloud-environments.md` | A release or docs change adds, removes, or renames a gating axis | 2026-08-23 |
+| We treat the description as the routing surface and measure a baked description against a 1,536-character per-entry cap and a listing budget of 1% of the context window. For which entries overflow drops, we use the order our own binary reading records in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md); the docs page and that reading disagree on the drop order | [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars), [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction); the drop order is our binary reading | 2026-09-01 | Either default moves, or the binary's scorer or grant loop diverges from that reference |
+| We make no static availability claim for a native surface, because we treat settings and environment, plan, platform or provider, and host surface as each able to remove one | [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills), [environment variables](https://code.claude.com/docs/en/env-vars), [Commands](https://code.claude.com/docs/en/commands), [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#whats-available-in-cloud-sessions) | 2026-08-23 | A release or docs change adds, removes, or renames a gating axis |
 
 ## Gotchas
 
 - **A plugin skill never shadows a native one.** Ours are namespaced, so both resolve and the model
   chooses. That is why the routing lives in descriptions rather than in a name.
 - **`plugin_backed` is its own lane.** `security-review` is reported there, not under
-  `builtin_commands`. Read the wrong key and the row looks absent. Verified 2026-09-29 against
-  Claude Code 2.1.284, by reading the `plugin_backed` key of an `inventory.py --binary-only`
-  extraction on this machine, which holds `security-review` and nothing else. Recheck when the
-  extractor's provenance lanes change or a release note moves a bundled surface between them.
-- **A bundled skill can carry aliases.** `code-review` answers to `review`; treating an alias as a
-  separate surface produces a duplicate row for one capability. Basis:
-  <https://code.claude.com/docs/en/commands> gives `/code-review` the line "Alias: `/review`".
-  Verified 2026-09-29 against Claude Code 2.1.284 (the extraction lists `review` as the alias) and
-  that page as fetched that day. Recheck when
-  the commands page drops the alias line or a release note renames a bundled skill.
+  `builtin_commands`. Read the wrong key and the row looks absent. Pointer: our probe, the
+  `plugin_backed` key of an `inventory.py --binary-only` extraction on this machine, which held
+  `security-review` and nothing else. As of: 2026-09-29, Claude Code 2.1.284. Recheck trigger:
+  the extractor's provenance lanes change or a release note moves a bundled surface between them.
+- **A bundled skill can carry aliases.** We treat `review` as an alias of `code-review`, never a
+  separate surface, since a separate row would duplicate one capability. Pointer:
+  [All commands](https://code.claude.com/docs/en/commands#all-commands), the `/code-review` row,
+  and our extraction, which lists `review` as the alias. As of: 2026-09-29, Claude Code 2.1.284.
+  Recheck trigger: the commands page drops the alias or a release note renames a bundled skill.
 - **Absent from the binary is not absent from the product.** Session-provided skills exist only in
   a live roster. "Not in the extraction" is a statement about the extraction.
 - **A verdict is not permanent.** The trigger is the load-bearing part of the row; a date alone

@@ -1,5 +1,16 @@
 # Changelog: session-flow plugin
 
+## [0.41.3] - 2026-10-01
+
+### Changed
+
+- **`handoff`, `keep-going` and `orchestrate` state their upstream-derived rules as decisions plus
+  pointers.** The fresh-window continuation rule, the resume-subagents note and the `/export`
+  suggestion (backed by our own probes) each carry a pointer to the exact section, an as-of date
+  and a recheck trigger. `orchestrate/context/sources.md` now lists, per imperative, the section
+  that backs it instead of quoted and paraphrased page text, and the orchestrate gotchas follow the
+  same shape.
+
 ## [0.41.2] - 2026-09-30
 
 ### Fixed

@@ -1,5 +1,18 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.22] - 2026-10-01
+
+### Changed
+
+- **`audit-progressive-disclosure` holds its thresholds as our settings with pointer records.**
+  `context/tier-model.md` states each number and rule in our words, with a pointer, an as-of date
+  and a recheck trigger, and `SKILL.md` lists its sources by topic only. The missing-TOC check
+  records that two Anthropic sources disagree on the threshold (100 versus 300 lines), so a file
+  between the two gets awareness only and neither number is presented as the single official rule.
+- **`write-for-humans` records its four fallback layers in the links-only shape.** The layers in
+  `reference/sources.md` are this plugin's selections from published standards, each with our
+  decision, a pointer, an as-of date and a recheck trigger.
+
 ## [0.23.21] - 2026-09-30
 
 ### Changed

@@ -5,6 +5,25 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.56.0] - 2026-10-01
+
+### Changed
+
+- **The `audit-instructions` criteria catalog keeps its firing rules in our words and names its
+  sources.** A row's Source line names the page and section that documents its mechanic and quotes
+  nothing; the firing rule above it works without a live fetch. A row that acts on a volatile
+  upstream literal keeps the literal as its own setting and carries the links-only record: the
+  decision, a pointer to the exact section, an as-of date and an observable recheck trigger. The
+  vendor blog posts the catalog cites are marked correlate-only beside their docs pointer.
+- **`audit-instructions` records a source conflict.** The Fable 5 guide and the Opus 5 and Opus 4.8
+  guides disagree on throttling subagent dispatch, so the catalog records the disagreement with the
+  guide sections and keeps its per-target treatment of a throttle.
+- **The `audit-permission-state`, `audit-prompting-postures` and `agents-md-liveness` records use the
+  same shape.** The conditions under which `AGENTS.md` support is unavailable, the four **Project
+  instructions** values and where the setting is honored are stated as what our checks read, each
+  with a pointer to its anchored section of the memory page, an as-of date and a recheck trigger,
+  and none of the page's wording is stored.
+
 ## [0.55.3] - 2026-09-30
 
 ### Fixed

@@ -4,6 +4,26 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.16.0] - 2026-10-01
+
+### Changed
+
+- The `fable-5-1`, `opus-4-8`, `opus-5`, `opus-5-5` and `sonnet-5` model-adaptation chapters and the
+  `prompt-caching` chapter now hold our decision in our own words, with a pointer to the exact
+  upstream section, an as-of date and a recheck trigger, in place of restated or quoted guide
+  text. The chapter conventions in `model-adaptation/AGENTS.md` change from short verbatim
+  quotations to links only: a blog post appears only as a correlate beside a docs pointer, and two
+  pages that disagree are recorded as a source conflict with both links. The `opus-5` chapter
+  records its verification split as our inference and the guide's own sections as pulling in
+  different directions.
+- The `fable-5` `calibration`, `context-economy` and `orchestration` chapters restate their worked
+  examples as our own decisions with pointers. The build-pinned thinking-retention record in
+  `context-economy` is now a probe record that names the probe.
+- The `skill-authoring` reference (`authoring-guidance.md`, `authoring-checklist.md`,
+  `verification-loops-in-skills.md`) states the rules this marketplace applies and ends each
+  section in a Record instead of restating the Anthropic pages. The three limits our checks
+  enforce are tabled with the layer that owns each.
+
 ## [0.15.3] - 2026-09-30
 
 ### Changed

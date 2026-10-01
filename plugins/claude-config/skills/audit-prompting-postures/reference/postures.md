@@ -16,20 +16,20 @@ covers Claude Fable 5.1 and Claude Mythos 5.1 and carries its own headings, amon
 all effort levels", "Finish the whole task", "Keep changes and tests to what the task asks for",
 and "Let the lead agent keep working while subagents run". When the audited component targets
 Fable 5.1, read the 5.1 sibling as well as the heading a row names, and cite whichever page
-carries the wording the proposal uses. Every heading the rows below name is present on the Fable 5
-page. Verified 2026-09-06 against Claude Code 2.1.263 and both subpages as fetched that day.
-Recheck when a row's cited heading disappears from the Fable 5 page, when a newer model subpage
-appears beside these two, or when the best-practices page's model-guidance table gains a row.
+carries the wording the proposal uses. Every heading the rows below name was present on the Fable 5
+page. As of: 2026-09-06, Claude Code 2.1.263, both subpages read that day. Recheck trigger: a row's
+cited heading disappears from the Fable 5 page, a newer model subpage appears beside these two, or
+the best-practices page's model-guidance table gains a row.
 
 A row that names the "Opus 5.5 subpage" means
 <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>,
-and the "Opus 5.5 usage guide" means the vendor blog
-<https://claude.dev/blog/getting-the-most-out-of-opus-5-5/> (published 2026-09-22), which states
-the same run-shaping advice for CLAUDE.md and Claude Code sessions. Both are fetched lazily, like
-the other subpages. The behaviors they describe (named stops, a finish line, a task file, a report
-that leads with what the human owes) are model-neutral, so proposals citing them carry no model
-condition. Verified 2026-09-23 against the subpage's raw `.md` (28,311 bytes); recheck when a
-cited heading disappears from either page.
+the pointer for those rows. A row's "correlate:" note names a heading in the Opus 5.5 usage guide
+(correlate with <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/>, published 2026-09-22),
+a vendor blog that is never the pointer. Both are fetched lazily, like the other subpages. We treat
+the behaviors these rows check (named stops, a finish line, a task file, a report that leads with
+what the human owes) as model-neutral, so proposals citing them carry no model condition. As of:
+2026-09-23 (our probe: the subpage's raw `.md`, 28,311 bytes). Recheck trigger: a cited heading
+disappears from either page.
 
 ## Purpose classification vocabulary
 
@@ -60,8 +60,8 @@ Classify each component by what its body has the model DO (multiple or none):
   before accepting it and consolidate the results into one table.
 - **Pointer:** main page, "Subagent orchestration"; Opus 5 subpage, "Controlling subagent
   spawning"; Opus 4.8 subpage, "Controlling subagent spawning"; Opus 5.5 subpage, "Capabilities
-  relevant to prompting" (audits and migrations run with parallel subagents); Opus 5.5 usage
-  guide, "Ask it to split big work across subagents".
+  relevant to prompting" (audits and migrations run with parallel subagents); correlate: Opus 5.5
+  usage guide, "Ask it to split big work across subagents".
 
 ### P2: Minimal-scope guardrail
 
@@ -100,14 +100,16 @@ Classify each component by what its body has the model DO (multiple or none):
   components or its own text invites long runs.
 - **Present when:** an autonomous component states its finish line (what "done" observably is, or
   that the dispatching brief must state it) and names both kinds of stop: keep going when a step
-  needs no input, with status notes in the same message as the next action rather than a summary
-  that names the next step, an offer to continue, or a list of non-blocking choices; stop and ask
+  needs no input, with status notes in the same message as the next action rather than a closing
+  summary naming the next step, a question asking whether to proceed, or a menu of choices that
+  block nothing; stop and ask
   only when nothing can move without the human, or before a destructive, hard-to-undo, or outward
   action. The keep-going half never licenses turning permission prompts or P7's gates off. An
   interactive one names the gates worth stopping at.
 - **Pointer:** Fable 5 subpage, "Rare cases of early stopping" (autonomous) and "Strong
-  instruction following" (checkpoint block); Opus 5.5 subpage, "Unattended agentic runs"; Opus 5.5
-  usage guide, "Say what 'done' looks like, then let it run" and "Tell it which stops you want".
+  instruction following" (checkpoint block); Opus 5.5 subpage, "Unattended agentic runs";
+  correlate: Opus 5.5 usage guide, "Say what 'done' looks like, then let it run" and "Tell it which
+  stops you want".
 
 ### P7: Destructive-action confirmation
 
@@ -125,14 +127,13 @@ Classify each component by what its body has the model DO (multiple or none):
 ### P8: Context-budget reassurance
 
 - **Predicate:** context-surfacing.
-- **Model condition:** the guide section this row points at scopes the underlying capability by
-  model: "Claude Sonnet 5, Claude Sonnet 4.6, Claude Sonnet 4.5, and Claude Haiku 4.5 feature
-  context awareness", main page, "Context awareness and multiwindow workflows" (fetched
-  2026-08-12). Components here run on any consumer model, so per SKILL.md Gotchas
-  ("Model-conditional postures stay conditional") the proposal must be model-neutral or carry that
-  same condition. Re-read the section's own model list on the run's live fetch rather than trusting
-  this one. The list is the guide's to change, and the recheck trigger for this row is a change to
-  it.
+- **Model condition:** we treat the underlying capability as model-scoped, because the guide
+  section this row points at (main page, "Context awareness and multiwindow workflows", read
+  2026-08-12) names the models that have it. Components here run on any consumer model, so per
+  SKILL.md Gotchas ("Model-conditional postures stay conditional") the proposal must be
+  model-neutral or carry that section's model condition. Read the section's model list on the
+  run's live fetch; this file keeps no copy. The list is the guide's to change, and the recheck
+  trigger for this row is a change to it.
 - **Present when:** the surfaced figure is accompanied by do-not-wrap-up-early framing (or the
   component deliberately avoids surfacing raw countdowns at all, the stronger form).
 - **Pointer:** main page, "Context awareness and multiwindow workflows"; Fable 5 subpage, "Rare
@@ -147,8 +148,8 @@ Classify each component by what its body has the model DO (multiple or none):
   task list in a file, ticked as items finish and extended with new ones found, read instead of
   the scrollback. An existing ledger or state file that does this satisfies it.
 - **Pointer:** main page, "Workflows across multiple context windows" and "State management best
-  practices"; Opus 5.5 subpage, "Unattended agentic runs"; Opus 5.5 usage guide, "Keep the task
-  list in a file".
+  practices"; Opus 5.5 subpage, "Unattended agentic runs"; correlate: Opus 5.5 usage guide, "Keep
+  the task list in a file".
 
 ### P10: Parallel-tool-call steering
 
@@ -164,5 +165,5 @@ Classify each component by what its body has the model DO (multiple or none):
   decisions, changes to approve), then what changed and what was found, for example under the
   headings "Blocked on me", "Changed", "Found". An existing report shape that puts the human's
   items first satisfies it; adapt that shape rather than adding a second one.
-- **Pointer:** Opus 5.5 subpage, "Capabilities relevant to prompting" (communication); Opus 5.5
-  usage guide, "Read what it needs from you first".
+- **Pointer:** Opus 5.5 subpage, "Capabilities relevant to prompting" (communication); correlate:
+  Opus 5.5 usage guide, "Read what it needs from you first".

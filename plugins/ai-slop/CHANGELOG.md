@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.12.2] - 2026-10-01
+
+### Changed
+
+- **The `audit` catalog stores no text from its source page.** The attribution record now points at
+  the pinned Wikipedia revision for the source inventory, and the postures derived from the page's
+  Caveats section and the notes on the em-dash and similar rules are restated as this catalog's own
+  decisions. No rule, default or severity changes: the em-dash rule stays zero-tolerance by default.
+
 ## [0.12.1] - 2026-09-29
 
 ### Fixed

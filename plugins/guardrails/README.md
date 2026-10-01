@@ -308,8 +308,10 @@ out of scope until such a signal exists.
   freeze the session, with the dual-channel notice so the allow is not silent.
   Stdin timeout and a NUL payload still fail closed. The 60s `hooks.json`
   `timeout` on this handler is a harness-level fail-open the plugin does not
-  override: if the process is killed at that bound, the tool call proceeds
-  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)). What the
+  override: we treat a guard killed at that bound as letting the tool call
+  proceed. Pointer: <https://code.claude.com/docs/en/hooks#timeouts>. As of:
+  2026-10-01. Recheck trigger: that section changes what a timed-out
+  `PreToolUse` command hook does to the tool call. What the
   plugin does instead is keep the row far from that bound: the command
   tokenizer is linear in the command's length, one parse serves every guard,
   and a command over `MAX_COMMAND_LEN` is refused by the first guard that
@@ -326,10 +328,11 @@ out of scope until such a signal exists.
   tools.** `secret-pattern-detection` and `hardcoded-path-check` inspect
   `mcp__github__push_files` (every entry of its `files` array, not just the
   first) and `mcp__github__create_or_update_file`, and, since **0.37.1**, the
-  same two tools from a plugin-bundled GitHub server, which Claude Code names
-  `mcp__plugin_<plugin>_github__<tool>`
-  ([hooks reference](https://code.claude.com/docs/en/hooks.md), "plugin-bundled
-  MCP server", checked 2026-09-27). This closes a real hole: a
+  same two tools from a plugin-bundled GitHub server, matched as
+  `mcp__plugin_<plugin>_github__<tool>`. Pointer:
+  <https://code.claude.com/docs/en/hooks#match-mcp-tools>. As of: 2026-09-27.
+  Recheck trigger: that section changes how a plugin-bundled server's tools are
+  named. This closes a real hole: a
   `Write|Edit` matcher does not see an MCP write, so a session could be cleared
   by these guards and still push the same secret to a repository by another
   route, where there is no local file to fix afterwards and no `pre-commit`
@@ -584,9 +587,9 @@ detected from `.git/shallow`.
 
 The three report-only rows stay synchronous.
 
-- **Decision**: do not set `async: true` on `cli-flag-verify`, `skill-reference-verify`, or `stale-path-verify`.
-- **Basis**: [hooks reference](https://code.claude.com/docs/en/hooks), "Run hooks in the background", re-fetched 2026-09-28. An async hook's `additionalContext` and `systemMessage` are delivered on the next conversation turn and are not shown to the user. In an idle session the response waits for the next user message. Under `claude -p`, a hook still running at teardown is killed. `timeout` is not enforced on an async hook. These findings are advisory context for the edit that just landed; a next-turn delivery misses that edit. Blocking guards stay synchronous and fail closed.
-- **As of**: 2026-09-28.
+- **Decision**: do not set `async: true` on `cli-flag-verify`, `skill-reference-verify`, or `stale-path-verify`. These findings are advisory context for the edit that just landed, and an async row would deliver them after that edit, could lose them at the end of a `claude -p` run, and would not be bounded by the row's `timeout`. Blocking guards stay synchronous and fail closed.
+- **Pointer**: for async delivery, `-p` teardown and `timeout` on an async hook, see <https://code.claude.com/docs/en/hooks#run-hooks-in-the-background> and <https://code.claude.com/docs/en/hooks#how-async-hooks-execute>.
+- **As of**: 2026-09-28
 - **Recheck trigger**: that section changes when async output is delivered beside the tool result, when `-p` waits for a running async hook, or when `timeout` applies to one.
 
 **0.38.0, a long command (#4528).** 2026-09-27, Linux 6.12, bash 5.2.21,
@@ -1368,20 +1371,22 @@ as before.
   fails **open** (disabled) and prints a one-line stderr notice, never a silent
   disable.
 - **Node.js** on `PATH`. Every guard row starts through `hooks/exec-bash.mjs`, which finds bash
-  and runs the guard; the script declares no minimum Node version. Claude Code resolves an
-  exec-form `command` on `PATH` ([exec form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)).
-  Its hooks reference documents a hook that cannot start as a
-  [non-blocking error](https://code.claude.com/docs/en/hooks#other-exit-codes) for most events,
-  with a missing script as the example, and does not document a `command` absent from `PATH`.
-  `/guardrails:check` reports a missing `node` or `jq`. A `SessionStart` row in shell form
+  and runs the guard; the script declares no minimum Node version. The exec-form row needs `node`
+  resolvable on `PATH`, and we treat a row that cannot start because `node` is missing as a guard
+  that enforced nothing, with no documented error to rely on. `/guardrails:check` reports a missing
+  `node` or `jq`. A `SessionStart` row in shell form
   (`"shell": "bash"`, no `args`) runs `command -v node` and needs no node itself. When node is
   absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
   tells the model that the guards cannot launch and enforce nothing. It prints nothing when node
   is present. It does not read the per-guard toggles, because an unset toggle exports no
   environment variable and the row would need every guard's key listed by hand; a host that turns
-  every guard off should disable the plugin instead. Basis: https://code.claude.com/docs/en/hooks, "SessionStart" (plain stdout reaches
-  Claude only, and exit-2 stderr reaches the user only) and "JSON output" (`systemMessage` is a
-  warning shown to the user).
+  every guard off should disable the plugin instead. Pointer: for how an exec-form `command`
+  resolves, see <https://code.claude.com/docs/en/hooks#exec-form-and-shell-form>; for a hook that
+  cannot start, see <https://code.claude.com/docs/en/hooks#other-exit-codes>; for where
+  `SessionStart` stdout goes, see <https://code.claude.com/docs/en/hooks#exit-code-0>; for
+  `systemMessage`, see <https://code.claude.com/docs/en/hooks#json-output>. As of: 2026-10-01.
+  Recheck trigger: the hooks page documents a `command` absent from `PATH`, or changes who sees
+  `SessionStart` stdout or `systemMessage`.
 - On Windows, **Git Bash** (the hooks run via Git Bash's bash).
 - `cli-flag-verify` runs `<bin> --help` for the binaries it scans; findings
   require those binaries on PATH (missing binaries are skipped, never flagged).

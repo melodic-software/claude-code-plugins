@@ -1,17 +1,18 @@
 # model-adaptation chapters: contributor conventions
 
-## Verbatim upstream quotations
+## Links only, no upstream text
 
-This repository is public. Each chapter reproduces a small number of short verbatim sentences
-from Anthropic's published prompting guides and system cards. They are de-minimis quotations,
-reproduced with attribution and marked with quotation marks at each site. Everything else is
-paraphrase with a citation.
+A chapter stores no text from Anthropic's prompting guides, system cards or blog posts, quoted or
+paraphrased. It states what this repository does differently on that model, in our own words, and
+points at the exact upstream section for the reason, in the record shape the
+[upstream-drift convention](../../../../docs/conventions/upstream-drift/README.md#required-parts)
+defines: pointer, as-of date, recheck trigger.
 
-Two kinds of span are quoted rather than paraphrased, and both must stay quoted. Tested phrasing,
-such as the deliverable-length calibration sentence and the effort steers, may lose its
-effectiveness when reworded. System-card findings carry qualifiers that a loose paraphrase drops,
-and dropping them makes the claim stronger than the card makes it. Phrases like "slightly more"
-and "similarly to Opus 4.8" are exactly what a paraphrase loses.
+Tested phrasing, such as a guide's effort steers or a length-calibration sentence, is not copied
+into a chapter even where rewording might weaken it. The chapter names the trigger for using it
+and links the section, and a reader who needs the exact words reads them there. The same holds for
+a system-card finding: link the section rather than restate it, so no qualifier is dropped.
 
-When you edit a chapter, leave quoted spans byte-identical or re-verify them against the source
-named in that chapter's Sources section.
+A blog post appears only as a "correlate with \<blog link>" note beside a main-docs pointer. A
+conflict between two pages is recorded only as "pages X and Y disagree on topic T", with both
+links, the as-of date and a trigger.
