@@ -9,6 +9,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`babysit-loop` resolves promotion evidence each cycle through `scripts/resolve-promotion-evidence.mjs`.** Step 3 runs the helper only when the effective rung is merge-capable and the step 0 bootstrap check found no problem. The helper runs `check-security-binding.mjs` in evaluation mode on the `promotion_evidence_binding`, `promotion_evidence_root` and `promotion_evidence_source` surfaces and prints `{source, failClosedReason, cells}`. The checker's path is a fourth operator option, `promotion_evidence_checker` (user, `--settings` or managed settings only), because the program that decides `promoted` must come from the bootstrap and the plugin does not look for another plugin's install directory. A cell is effective-promoted only when `failClosedReason` is null and the checker printed `promoted` for it. The helper fails closed (every cell effective-unpromoted) on a missing, relative or unresolvable path, a surface or checker inside the checkout or a worktree root or containing one (compared before and after symlinks resolve), and a checker that exits non-zero, times out or prints an unparsable block. The helper enforces where each path sits; it cannot tell an operator's option value from a path the lane chose, so the cycle step is instructed to pass only the substituted option values. The checker runs with only `PATH` and `SystemRoot` in its environment, so a repository `env` block cannot inject `NODE_OPTIONS` or similar. The lane passes the checker no `--credential-roots`, so a binding whose L2/L3 entries rest on filesystem credential probes still resolves effective-unpromoted. Operators keep `--merge human-only` on launch lines until the owner decides the remaining phase.
 
+## [0.68.2] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
 ## [0.68.1] - 2026-09-30
 
 ### Fixed
