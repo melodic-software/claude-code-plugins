@@ -68,8 +68,17 @@
 #     payload carries an absolute `cwd`. A target must resolve under the git
 #     toplevel of the payload cwd, or strictly under a temp root or the payload
 #     `scratchpad_dir` (honored only when it sits strictly under a temp root);
-#     a temp root itself, its glob and the scratchpad itself are refused. A
-#     directory a literal cd reaches is judged against the cwd's tree, never a
+#     a temp root itself, its glob and the scratchpad itself are refused. The
+#     userConfig key block_root_delete_target_allowed_roots, read from the
+#     hook's own environment and never from the command text, adds roots on
+#     the temp-root rule: comma-separated absolute directories, compared by
+#     real path, so a target is allowed only strictly under one, and the root
+#     itself and its glob stay refused. An entry that is relative, empty, UNC,
+#     holds a glob character, a line break or a `..` component, or resolves
+#     to a filesystem root or HOME grants nothing, and no listed root lets
+#     through a filesystem root, HOME or a directory holding HOME. Every other
+#     refusal in this guard runs before this judgment and ignores the key.
+#     A directory a literal cd reaches is judged against the cwd's tree, never a
 #     tree of its own. Unquoted braces are expanded the way bash expands them
 #     and every alternative is judged as its own operand (a sequence, more
 #     than 64 alternatives, a word over 4096 bytes or 128 braces, or a partly
@@ -475,9 +484,10 @@ rdt_block() {
     ;;
   outside-tree)
     printf '%s\n' \
-      "BLOCKED: this recursive delete targets $target, which is outside the working tree, the temp directories and the session scratchpad." \
-      'The working tree is the git toplevel of the directory the delete runs from. A recursive delete outside it is not recoverable from git, and a temp root or the scratchpad itself is refused as a whole.' \
-      'Fix: delete only under the working tree, strictly under a temp directory, or strictly under the session scratchpad. If the target really is meant to go, do it outside the agent session.' >&2
+      "BLOCKED: this recursive delete targets $target, which is outside the working tree, the temp directories, the session scratchpad and any user-listed allowed root." \
+      'The working tree is the git toplevel of the directory the delete runs from. A recursive delete outside it is not recoverable from git, and a temp root, the scratchpad or an allowed root itself is refused as a whole.' \
+      'Fix: delete only under the working tree, strictly under a temp directory, or strictly under the session scratchpad. If the target really is meant to go, do it outside the agent session.' \
+      'The user, not the agent, can list directories in the guardrails userConfig key block_root_delete_target_allowed_roots to let deletes strictly under them through; the agent cannot set it.' >&2
     ;;
   too-many-origins)
     printf '%s\n' \
@@ -1783,7 +1793,9 @@ rdt_tree_to() {
 # to) the payload cwd's tree, is allowed. With <deep> 1 the target is the
 # literal directory in front of a glob before the last component, so what is
 # deleted lies at least two levels below it, and equal to the scratchpad or a
-# temp root is enough.
+# temp root is enough. Last, strictly under a user-listed allowed root (the
+# same rule as a temp root), but never a root, HOME, or a directory holding
+# HOME, whatever is listed.
 rdt_allowed() {
   local t="$1" deep="$2" c
   if ((deep == 0)); then
@@ -1797,6 +1809,12 @@ rdt_allowed() {
     [[ "$t" == "$c"/* || (deep -eq 1 && "$t" == "$c") ]] && return 0
   done
   [[ -n "$RDT_TREEC" && ("$t" == "$RDT_TREEC" || "$t" == "$RDT_TREEC"/*) ]] && return 0
+  ((${#RDT_ALLOWC[@]})) || return 1
+  { rdt_root_like "$t" || rdt_is_root "${t,,}"; } && return 1
+  [[ "$t" == "$RDT_HOMEC" || "$RDT_HOMEC" == "$t"/* ]] && return 1
+  for c in "${RDT_ALLOWC[@]}"; do
+    [[ "$t" == "$c"/* || (deep -eq 1 && "$t" == "$c") ]] && return 0
+  done
   return 1
 }
 
@@ -2010,12 +2028,35 @@ rdt_judge_pending() {
   local tree=""
   rdt_tree_to tree "${RDT_ORIGINS[0]}"
   rdt_deadline
+  # The user's allowed roots, from this hook's own environment (userConfig),
+  # never from the command text. An entry that is empty, relative, UNC, a
+  # drive path on a host without drives, over the operand bounds, or holds a
+  # glob character, a line break or a `..` component grants nothing. HOME is
+  # resolved with them, and an unusable HOME leaves the whole list unused.
+  local -a allow=()
+  local home="${HOME:-}" roots="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS:-}" x
+  home="${home//\\//}"
+  if ! rdt_is_abs "$home" || rdt_is_unc "$home"; then roots=""; fi
+  while [[ -n "$roots" ]]; do
+    c="${roots%%,*}"
+    if [[ "$c" == "$roots" ]]; then roots=""; else roots="${roots#*,}"; fi
+    c="${c#"${c%%[![:space:]]*}"}"
+    c="${c%"${c##*[![:space:]]}"}"
+    c="${c//\\//}"
+    x="${c//[^\/]/}"
+    [[ -n "$c" && "$c" != *[$'\n\r*?[']* && "/$c/" != */../* ]] || continue
+    ((${#c} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
+    if ! rdt_is_abs "$c" || rdt_is_unc "$c"; then continue; fi
+    ((RDT_WIN)) || [[ ! "$c" =~ ^[A-Za-z]: ]] || continue
+    allow+=("$c")
+  done
+  ((${#allow[@]})) || home=""
 
-  # One realpath over the parents, the tree, the temp roots and the
-  # scratchpad. A `*/` operand then has its symlink matches added, each
-  # resolved whole, and on Windows one cygpath maps every full target and
-  # root onto one spelling.
-  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree"
+  # One realpath over the parents, the tree, the temp roots, the scratchpad,
+  # the allowed roots and HOME. A `*/` operand then has its symlink matches
+  # added, each resolved whole, and on Windows one cygpath maps every full
+  # target and root onto one spelling.
+  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} "$home"
   local n0=${#tp[@]} l
   for ((k = 0; k < n0; k++)); do
     [[ -n "${te[k]}" ]] || continue
@@ -2037,7 +2078,7 @@ rdt_judge_pending() {
     targets[k]="$p"
   done
   local -a others=()
-  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree"; do
+  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} "$home"; do
     [[ -n "$c" ]] && others+=("${RDT_RES[$c]}")
   done
   rdt_winmap_all ${targets[@]+"${targets[@]}"} ${others[@]+"${others[@]}"}
@@ -2060,6 +2101,16 @@ rdt_judge_pending() {
   if [[ -n "$tree" ]]; then
     rdt_canon_to t "${RDT_WMAP[${RDT_RES[$tree]}]}"
     rdt_root_like "$t" || RDT_TREEC="$t"
+  fi
+  # An allowed root that is a filesystem root or HOME itself is dropped.
+  RDT_ALLOWC=()
+  RDT_HOMEC=""
+  if [[ -n "$home" ]]; then
+    rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
+    for c in "${allow[@]}"; do
+      rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
+      rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]] || RDT_ALLOWC+=("$t")
+    done
   fi
   for ((k = 0; k < ${#tp[@]}; k++)); do
     rdt_deadline
