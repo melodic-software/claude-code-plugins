@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.22] - 2026-09-30
+
+### Fixed
+
+- **`manage` spokes no longer name `lock-updates.sh`, `firewall.ps1` and `sync-finalize.sh` through the literal plugin-root token.** The token is not substituted in a `reference/` file, so a command copied from `workflow.md` or `troubleshooting.md` resolved to nothing. The paths now read `<plugin-root>/skills/manage/scripts/...`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
 ## [0.7.21] - 2026-09-25
 
 ### Changed

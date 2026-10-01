@@ -10,6 +10,9 @@
 # tracks reality, which is the whole failure mode this tool exists to avoid.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/affected-tests.sh"
@@ -521,7 +524,7 @@ else
 fi
 
 # --- --run executes the selected suites, sequentially ----------------------
-marker="$(mktemp "${TMPDIR:-/tmp}/affected-tests-marker.XXXXXX")"
+marker="$(mktemp "$TMP_ROOT/affected-tests-marker.XXXXXX")"
 : >"$marker"
 (cd "$repo" && MARKER_FILE="$marker" bash scripts/affected-tests.sh --run lib/widget.sh >/dev/null 2>&1)
 RC=$?

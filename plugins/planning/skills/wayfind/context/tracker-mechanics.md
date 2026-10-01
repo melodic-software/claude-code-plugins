@@ -1,7 +1,7 @@
 # Tracker mechanics: the `gh` commands
 
 `/planning:wayfind` operates the map through the GitHub Issues backend directly, the same idiom as the
-sibling `/work-items` skill (backend-agnostic "work items" language, plain `gh`). All commands
+sibling `work-items` plugin (backend-agnostic "work items" language, plain `gh`). All commands
 run against the current repository. Where the consuming project routes tracker **writes**
 through a bot identity or wrapper, follow that project's own rules, with one exception: the
 claim assignment (`--add-assignee "@me"`) always runs on the session identity, never a shared
@@ -121,7 +121,7 @@ done
 # to the per-item jq filter above.
 ```
 
-## Claim a frontier item (mirrors `/work-items`, one claim model across both skills)
+## Claim a frontier item (mirrors the `work-items` plugin, one claim model across both)
 
 Optimistic locking via **claim-comment order** (the sibling's mechanism). Assignee comparison
 is NOT sufficient: two same-identity sessions both assign `@me` and resolve to one login, so

@@ -1,0 +1,35 @@
+# Skill spokes that still name a path through ${CLAUDE_PLUGIN_ROOT}, as
+# scripts/check-spoke-plugin-root.sh reads them. One `<repository-relative file
+# path> <occurrence count>` per line; a `#` starts a comment. Keyed on file.
+#
+# The Read tool substitutes no variables, so the token in a spoke reaches the
+# model verbatim. The fix: SKILL.md renders <skill-dir> from ${CLAUDE_SKILL_DIR}
+# and the spoke cites <skill-dir>/scripts/..., as plugins/claude-memory does.
+# Fix the file, then lower its count or delete its line.
+#
+# A file whose hits are prose, or whose hits carry a working fallback, may stay
+# listed with a trailing `# justified: <reason>` comment.
+#
+# Stale-guarded: an entry whose file is gone, no longer contains the token, or
+# holds a different count fails the gate. Never add an entry for a new spoke:
+# use <skill-dir> instead.
+plugins/claude-config/skills/audit-permission-grants/reference/criteria.md 5 # justified: the criteria name the substitution token and the grants it detects; the literal text is the subject, not a path to resolve
+plugins/claude-config/skills/audit/context/validation-categories.md 1 # justified: the sentence names the two placeholders the hook rules look for in a plugin-provided hook; the literal text is the rule's subject
+plugins/claude-config/skills/audit/reference/audit-checklist.md 1 # justified: the row lists the placeholder spellings the hook check detects; the literal text is the pattern
+plugins/claude-ops/skills/lanes/context/restart-consumer.md 1 # justified: the sentence says the skill resolves the variable freshly at run time; it names the token and runs nothing
+plugins/claude-ops/skills/plugins/context/gotchas.md 2 # justified: the sentences say what the variable substitutes into and when it resolves; they name the token and run nothing
+plugins/claude-ops/skills/plugins/context/scope-semantics.md 1 # justified: the sentence says the variable substitutes alongside a sibling key; it names the token and runs nothing
+plugins/claude-ops/skills/plugins/context/sync.md 1 # justified: the sentence says the variable keeps resolving to the version loaded at session start; it names the token and runs nothing
+plugins/code-tidying/skills/dissolve-comments/reference/safety.md 1 # justified: the sentence says where the token is substituted and where it is not; the literal text is the subject
+plugins/code-tidying/skills/dissolve-comments/reference/scope.md 1 # justified: the note says this file's paths are not written through the token; the literal text is the subject
+plugins/context-guard/skills/setup/reference/statusline-edit.md 1 # justified: the sentence names the token as a path the wiring target must never be; it runs nothing
+plugins/disk-hygiene/skills/clean/reference/safety-model.md 7 # justified: the prose names the substitution Claude Code performs on a skill-frontmatter hook's args; the token is described, never run from here
+plugins/dometrain/skills/sync/context/update.md 1 # justified: the prose says what the variable resolves to in a normal session; the sentence names the token and does not run it
+plugins/event-storming/skills/simulation/reference/agentic-simulation.md 1 # justified: the sentence names the token as the read-only install directory a session archive is never written into; it runs nothing
+plugins/planning/skills/interview/context/loop.md 4 # pinned: all four hits sit inside sections interview-defenses.test.sh pins by digest; replacing them needs an attended digest recompute
+plugins/playbooks/skills/skill-authoring/reference/authoring-checklist.md 1 # justified: the row tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
+plugins/playbooks/skills/skill-authoring/reference/authoring-guidance.md 1 # justified: the line tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
+plugins/playbooks/skills/skill-authoring/reference/precompute-context.md 1 # justified: the line tells skill authors which pointer to write in a SKILL.md body, where it substitutes; the literal text is the guidance
+plugins/repo-fleet-hygiene/skills/audit/reference/official-sources.md 1 # justified: the line names the token as a topic of the upstream plugins reference it cites; it runs nothing
+plugins/repo-hygiene/skills/clean/reference/invocation-forms.md 1 # justified: the convention text names the token it says a context file must not use; it runs nothing
+plugins/source-control/skills/worktree/context/audit.md 1 # justified: the sentence tells the model not to emit the token in a command it presents; the literal text is the warning

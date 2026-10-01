@@ -173,30 +173,8 @@ fi
 
 cr_count() { tr -cd '\r' <"$1" | wc -c | tr -d ' '; }
 
-# make_sink <body> -> path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). HOOK_TELEMETRY_SINK must be a
-# single executable path, not a command-with-args, so tests point it at a stub.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [tries] -> block until <file> is non-empty (the
-# fire-and-forget sink flushed) or the bound elapses, polling in 20ms steps.
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 new_repo() {
   local r="$1"
@@ -334,13 +312,7 @@ run_hook_env "$REPO/tel2.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true HO
 wait_for_sink "$TEL"
 if [[ -s "$TEL" ]]; then
   ok "telemetry/stub-sink: envelope received"
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL" >/dev/null 2>&1; then
-      ok "envelope: $field present"
-    else
-      fail "envelope: $field missing ($(cat "$TEL"))"
-    fi
-  done
+  if check_envelope "$TEL"; then ok "envelope: matches envelope schema"; else fail "envelope: does not match envelope schema. envelope=$(cat "$TEL")"; fi
   if [[ "$(jq -r '.hook' "$TEL")" == "eol-normalizer" ]]; then ok "envelope: hook is eol-normalizer"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.1" ]]; then ok "envelope: schema_version 1.1"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi

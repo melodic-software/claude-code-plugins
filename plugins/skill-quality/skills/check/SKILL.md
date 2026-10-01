@@ -148,10 +148,14 @@ that line before editing, since it may be an illustrative example path rather th
    Report its `FAIL:` lines verbatim (each is an actionable defect: duplicate case ids/names,
    an unresolvable `files` fixture, an empty criterion item), then its `WARN:` lines grouped
    after (advisory quality heuristics: vague criterion phrasing, thin sole-criterion
-   `expected_output`, identical prompt+files pairs, a set with no refusal/anti-pattern case).
-   The script exits 0 when only warnings remain; run `--help` for the full Q1-Q9 check list.
+   `expected_output`, identical prompt+files pairs, a set with no refusal/anti-pattern case, a criterion that leaves an
+   evaluative word such as "appropriate" or "correctly" undefined).
+   The script exits 0 when only warnings remain; run `--help` for the full Q1-Q10 check list.
    If `jq` is absent the script exits 2. Report that the quality lint was skipped for that
    reason; the schema verdict from steps 3-4 still stands.
+
+`validate-evals` checks structure and lint only. It cannot tell whether a claim needs a no-skill
+baseline arm: `/evals:design` says when one is required, and `/evals:plugin-eval` runs it.
 
 ## Action: listing-budget
 
@@ -357,7 +361,7 @@ tool. This gate does not automate that reachability check; author and review aga
   phrases, "read-only by default",
   the noun "remediation", and a negated "or rewrites" list do not advertise mutation.
 - `check-evals-quality.sh` requires `jq` (exit 2 without it, and the schema validation of
-  `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q9) are lexical heuristics:
+  `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q10) are lexical heuristics:
   Q9 (set-coverage) detects refusal/anti-pattern cases by wording, so a set whose guardrail case
   phrases the prohibition unusually can WARN despite covering it. Read the set before adding a
   case. It deliberately does not flag low case count: the marketplace's low eval volume is a recorded

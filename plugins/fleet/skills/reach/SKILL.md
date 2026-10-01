@@ -1,136 +1,150 @@
 ---
-description: "Run a Claude Code agent turn on ANOTHER machine in the fleet, over SSH on the tailnet. Every machine signs into its own Claude account, so the peer tools (`ListAgents`, `SendMessage`) are same-account and never span machines; SSH plus a headless `claude -p` is the path that does. Carries: resolving a target host from `~/.config/fleet/FLEET.md`, the one-shot and multi-turn headless recipes for both SSH ports, the Windows-side relay that reaches a target's own native-Windows sessions, the permission and safety posture, a verification step, and the gotchas. Use when: 'run this on melo-desk-001', 'ask the desktop to', 'spawn claude on the other machine', 'cross-machine', 'remote agent', 'reach the fleet', 'run claude over ssh'. Not for: messaging a session on THIS machine (the built-in peer tools own that), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene, where fleet means repos)."
-when_to_use: "a request names another machine, or asks for work to happen somewhere other than here"
+description: "Reach another Claude Code lane in the fleet, on this machine or another, to run, prompt, query, message or start a session, with no human copying prompts. Use when: 'run this on <host>', 'ask the desktop to', 'cross-machine', 'remote agent', 'reach the fleet', 'message the Windows session', 'from WSL to Windows'. Not for: a session in THIS lane (ListAgents/SendMessage), a detached local background session (session-flow:continue-in-background), or repository fleets (repo-fleet-hygiene)."
 argument-hint: "[relay]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Run a Claude Code agent turn on another fleet machine over SSH
+  summary: Reach another fleet lane (WSL or Windows, here or remote) to run, prompt, query or message
 ---
 
 ## Purpose
 
-Getting an agent turn to happen on a machine that is not this one. The obvious route, asking the
-peer tools to find the other machine's session, does not work here and cannot be made to: the
-accounts are split on purpose. This carries the route that does, plus the reasons the shortcuts
-fail, so neither gets rediscovered by trial.
+One procedure for agent-to-agent reach across the fleet. A **lane** is one Claude Code install
+with its own sign-in: the WSL distro or native Windows, on each machine. From any lane this reaches
+every other lane: run a script there, prompt it, query it and wait, message one of its sessions, or
+start a named session in it.
 
-Read `~/.config/fleet/FLEET.md` before composing anything. It is rendered per machine from the
-fleet manifest and carries the real hosts, ports and accounts; the recipes below are the same
-commands with placeholders where it has values.
+Prefer the richest lane for the work. **WSL is the default agent lane**: it has the repos, the
+toolchain and sshd. Use native Windows only for Windows-only work and Windows-side sessions.
+
+Read `~/.config/fleet/FLEET.md` before composing anything. It is rendered per machine and carries
+the real aliases, accounts and paths; the commands below are the same commands with placeholders.
+
+## Route matrix
+
+Find the row for where you are and where the work goes. `<agent>` is the headless turn from
+[Verbs](#verbs); in a WSL lane it is `claude`, in a Windows lane `<claude-exe>`. "Tested" means a
+real run of that exact shape; see [reference/relay.md](reference/relay.md#verified-behavior) for
+what each run showed.
+
+| # | From | To | Command shape | Status |
+|---|---|---|---|---|
+| R0 | any | same lane | Built-in `ListAgents` / `SendMessage`. Not this skill | n/a |
+| R1 | WSL | this machine, Windows | `cd <win-dir> && <claude-exe> <agent-args> < /dev/null` | tested: script (`powershell.exe`), list, multi-turn, message a `-n` receiver |
+| R2 | WSL | other machine, WSL | `<ssh> <wsl-alias> 'claude <agent-args> < /dev/null'` | tested: script, multi-turn, stream-json, `--bg`, message an interactive session and a `-p` receiver across accounts |
+| R3 | WSL | other machine, Windows | `<ssh> <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | reaches `claude.exe`; needs `/login` at that machine's console |
+| R4 | Windows | this machine, WSL | `wsl.exe -d <distro> --cd /tmp --exec <shell> -lc 'claude <agent-args> < /dev/null'` | tested: script from a native-Windows `claude.exe` (its Bash tool, Git Bash); list |
+| R5 | Windows | other machine, WSL | `ssh.exe <wsl-alias> 'claude <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R2) |
+| R6 | Windows | other machine, Windows | `ssh.exe <wsl-alias> 'cd <win-dir> && <claude-exe> <agent-args> < /dev/null'` | untested from a Windows origin (same hop as R3) |
+
+A script with no agent goes over the same hop with the command in place of the `claude` part; on
+R1 that is `powershell.exe -NoProfile -Command '<cmd>'` from a Windows-side directory. The exception is a Windows script on another machine, which goes over port 22 instead:
+`<ssh> <win-alias> '<pwsh command>'` (see [Port 22](#port-22-is-not-an-agent-lane)).
+
+Placeholders, each filled from FLEET.md or a probe, never guessed:
+
+- `<ssh>`: the Windows OpenSSH client. `ssh.exe` from Windows; from WSL,
+  `/mnt/c/Windows/System32/OpenSSH/ssh.exe`, because the distro holds no key.
+- `<wsl-alias>` / `<win-alias>`: the target's `wsl-shell` (port 2222) and `windows-shell` (port 22)
+  aliases.
+- `<claude-exe>`: `/mnt/c/Users/<user>/.local/bin/claude.exe`, by absolute path.
+- `<win-dir>`: a scratch directory under `/mnt/c/Users/<user>/`, never a repository that defines the
+  fleet's accounts or firewall. `claude.exe` needs a Windows-side working directory.
+- `<distro>`: from `wsl.exe -l -q`. `<shell>`: the distro account's login shell, so `claude` is on
+  `PATH`.
+
+Per-route detail, the receiver and the reply patterns are in [reference/relay.md](reference/relay.md).
 
 ## Resolve the target first
 
-Machines are addressed by **hostname over the tailnet** (MagicDNS), never by session name. A
-session name identifies a session, not a host, and nothing routes on it.
-
-1. Read `~/.config/fleet/FLEET.md`. Done when you can name the target's MagicDNS host name and see
-   its per-host table of reach entries, each carrying an `id`, transport, ssh `alias`, port,
-   account and shell.
-2. Pick the reach entry by what the work needs, not by what is first in the table. Agent work goes
-   to `wsl-shell` (port 2222, the distro account, bash); Windows PowerShell work goes to
-   `windows-shell` (port 22, `ssh-admin`, pwsh). Done when you hold a concrete port and account
-   for the command you are about to compose, both read from the table rather than assumed.
-3. If the host is absent from that file it is not a fleet host. Done by saying so and stopping;
-   the manifest is the only inventory, and a guessed name reaches nothing.
+1. Read `~/.config/fleet/FLEET.md`. Done when you can name the target host and lane and see its
+   reach entries (alias, port, account, shell).
+2. Pick the lane by the work: agent work goes to WSL; Windows-only work or a Windows-side session
+   goes to Windows. Done when you hold a concrete row from the matrix and every placeholder in it.
+3. A host absent from FLEET.md is not a fleet host. Say so and stop. Machines are addressed by
+   hostname over the tailnet, never by session name.
 
 ## Verify the hop before you trust it
 
-Cheap, and it separates "the host is unreachable" from "the agent over there is not signed in":
+Run the row with `hostname && <agent> -p "echo ok"` as the agent part. The hostname proves which
+machine answered; `ok` proves that lane's Claude is signed in. A Windows lane that answers
+`Failed to authenticate: OAuth session expired and could not be refreshed` routed correctly and is
+signed out: someone runs `/login` at that machine's console (or over RDP). Nothing remote fixes it,
+and no credential travels in a prompt.
 
-```console
-ssh -p 2222 <wsl-user>@<host> 'hostname && claude -p "echo ok" < /dev/null'
-```
+## Verbs
 
-The hostname proves which machine answered. `ok` proves that machine's Claude is authenticated and
-working. Do this before sending a long or expensive prompt.
+Each verb fills `<agent-args>` in a matrix row. All but the first start an agent, and each agent
+turn costs real usage (about 22 to 31 US cents for a one-line turn, mostly SessionStart hooks and
+context loading). When a script can do the job, run the script.
 
-## One shot
+| Verb | `<agent-args>` | Status |
+|---|---|---|
+| Run a script | none: the command itself replaces `claude ...` over the same hop | tested on R1, R2, R4; port 22 untested |
+| Prompt | `-p "<prompt>"` | tested on R1, R2, R4 |
+| Multi-turn | `-p --session-id <uuid> "<prompt>"`, then `-p --resume <uuid> "<prompt>"` against the same lane | tested on R1, R2 |
+| One open pipe | `-p --input-format stream-json --output-format stream-json --verbose`, user messages as NDJSON on stdin | tested on R2 |
+| List sessions | `-p "List the sessions you can reach"` | tested on R1, R4 |
+| Message a session | `-p "SendMessage to <name>: <text>"` | tested on R1, R2 |
+| Named receiver | `-p -n <name> --settings '{"crossSessionInbound":"accept"}' "<standing instructions>"` | tested on R1, R2 |
+| Background session | `--bg --name <name> "<prompt>"`, not `-p`; manage with `claude agents --json --all`, `stop <id>`, `rm <id>` | tested on R2, trusted directory only |
 
-```console
-ssh -p 2222 <wsl-user>@<host> 'claude -p "<prompt>" < /dev/null'
-```
+- Give every prompt the whole task: what done looks like, and what should make it stop and report.
+  Nobody answers a question a headless turn asks.
+- **Query and wait has no one-turn form.** `notify_when_idle` from a `-p` sender does not work: the
+  turn ends before the notice arrives. Send the message, then poll `claude agents --json` in that
+  lane, or `--resume` the receiver or read its output.
+- **Multi-turn versus one open pipe.** The pipe keeps context in one process while the connection
+  stays open. Per-turn `--resume` survives a disconnect. `--session-id` picks the id up front, so
+  nothing parses the first turn's output; use a UUID from `/proc/sys/kernel/random/uuid` where
+  `uuidgen` is missing.
+- **Background sessions** need a trusted working directory. Anywhere else the start fails with
+  ``Workspace not trusted. Run `claude` in <dir> once and accept the trust prompt`` and exit 1.
+  `claude logs` takes only the short id, not the name, and prints raw TUI output, so read a reply
+  from the transcript (`--resume <id>`), not from `logs`.
+- An interactive session in a prompting mode (default or auto) accepts inbound messages. A `-p`
+  receiver needs `crossSessionInbound: accept`, and lives only as long as its turn.
+- `--bare` cuts the per-turn cost but binds no inbox socket, so a bare session cannot receive
+  messages or be listed. Use it for prompts, never for a receiver.
+- Remote Control is interactive only: `-p --remote-control` does not connect. Keep it out of
+  headless recipes.
+- Session names belong to the target lane. List first, then message a name from that list.
+- `--resume` ids belong to the lane that made them. Resume against the same row. `--session-id`
+  picks the id up front, so nothing has to parse the first turn's output.
 
-Escape every apostrophe in `<prompt>` before substituting it. The remote command is single-quoted
-on the LOCAL shell, so a raw `'` ("what's", "don't") closes that quote early and the remainder is
-re-parsed as separate words. Two ways: replace each `'` with `'\''`
-(`'claude -p "what'\''s the disk usage?" < /dev/null'`), or wrap the remote command in `$'...'`
-quoting and write `\'` for each apostrophe
-(`$'claude -p "what\'s the disk usage?" < /dev/null'`).
+The receiver's nested quoting, background sessions, and the mechanisms not used here (Remote
+Control, cloud sessions, Channels) are in [reference/relay.md](reference/relay.md).
 
-The turn runs under the TARGET's account, config, plugins and usage limits. That is the point: the
-work happens where its files and credentials already are, and it draws down that machine's window
-rather than this one's. Nobody answers a question the remote turn asks, so give `<prompt>` the whole
-task: what done looks like, and what should make it stop and report instead of acting.
+## Accounts are per lane
 
-## Multi-turn
+Each lane signs into its own claude.ai account, deliberately, so one lane's usage never draws down
+another's. On melo-desk-001 the WSL lane and the Windows lane use different accounts; the laptop's
+WSL lane uses a third. Three facts follow:
 
-The first call reports the session it created; resume by that id:
+- **Same lane.** Sessions find each other through files and sockets; the peer tools work.
+- **Other lane, same machine.** WSL and Windows register under different homes and socket types.
+  Each lane's `ListAgents` shows only its own lane.
+- **Other machine.** Remote Control lists only the signed-in account's sessions. Across accounts
+  `ListAgents` shows nothing remote, even with Remote Control connected.
 
-```console
-ssh -p 2222 <wsl-user>@<host> 'claude -p --output-format json "<prompt>" < /dev/null'
-ssh -p 2222 <wsl-user>@<host> 'claude -p --resume <session_id> "<prompt>" < /dev/null'
-```
-
-Same apostrophe rule as the one-shot recipe: escape each `'` in both prompts before substituting,
-or wrap each remote command in `$'...'`.
-
-`--resume` finds the id on the machine that made it, in any project directory there. Ids do not
-travel between hosts or accounts, so resume against the same host you started on.
+So the peer tools are same-lane only, and no setting widens them. Every other route starts a turn
+inside the target lane, where the peer tools are local. Do not propose sharing an account: the
+split is the decision, not an oversight.
 
 ## Port 22 is not an agent lane
 
-`ssh-admin` is a separate Windows account with no Claude sign-in, so `claude` over port 22 has
-nothing to run as. Use that hop for pwsh work only, and mind that its remote shell is PowerShell,
-so the quoting differs from the bash hop:
-
-```console
-ssh -p 22 ssh-admin@<host> '<pwsh command>'
-```
-
-## Reaching the target's own sessions
-
-A headless turn on port 2222 lands inside the WSL distro and sees only the distro's sessions. A WSL
-session and a native Windows session on one computer register under different home directories and
-listen on different socket types, so they cannot reach each other; that is documented behavior,
-not a misconfiguration.
-
-To act on the target's Windows-side sessions, start a Windows `claude.exe` turn through the same
-SSH hop. It runs as the target's Windows console account, so its peer tools are same-account there
-and do work:
-
-```console
-ssh -p 2222 <wsl-user>@<host> 'cd /mnt/c/Users/<user>/claude-lane-sandbox && /mnt/c/Users/<user>/.local/bin/claude.exe -p "List the sessions you can reach" < /dev/null'
-```
-
-FLEET.md renders this with the real profile path. For the interop mechanics, the send and
-wait-for-reply variants, and why the obvious `cmd.exe` probe misleads, read
-[reference/relay.md](reference/relay.md).
-
-## The account model, and why ListAgents is out
-
-Every machine here signs into its OWN Claude account, deliberately, so one machine's usage limits
-never draw down another's. Two different mechanisms follow, and conflating them is the usual error:
-
-- **Same machine.** Sessions of the same OS user find each other through files and sockets. No
-  account check is documented for that path.
-- **Beyond this machine.** The only route is Remote Control, and it lists your own claude.ai
-  sign-in's sessions. With the accounts split, another fleet machine's sessions are never listed
-  and cannot be messaged.
-
-So `ListAgents` and `SendMessage` are not the cross-machine path, and no setting makes them one.
-Do not propose sharing an account: the split is the decision, not an oversight. The built-in Remote
-Control session on a target serves that target's own account, opened from the Claude app signed
-into it, which is the human path from a phone or the web.
+`ssh-admin` is a separate Windows account with no Claude sign-in and no DPAPI. Use port 22 for pwsh
+scripts only, with pwsh quoting; anything needing the console user's credentials goes through the
+on-demand tasks FLEET.md lists.
 
 ## Permission and safety posture
 
-- Starting an agent on another machine is **not** covered by the auto-mode classifier, which
-  reaches only read-only remote commands. Both `claude -p` and the relay turn prompt under auto
-  mode. That is intended; let them prompt.
-- There is no `Bash(ssh ...)` allow rule anywhere in this fleet, and adding one is not the fix for
-  a prompt. If asked to stop the prompting, say what the rule would cost and decline to add it.
+- Every verb except running a script starts an agent in another lane, same machine included. The
+  auto-mode classifier reaches only read-only remote commands, so these prompt under auto mode.
+  That is intended; let them prompt. A script is judged on its own content.
+- There is no `Bash(ssh ...)` allow rule anywhere in this fleet, and adding one is not the fix for a
+  prompt. If asked to stop the prompting, say what the rule would cost and decline.
 - Neither side runs `bypassPermissions`.
 - Never `wsl --shutdown` on a target, and never run `wsl -d` on a target's drift-convergence path.
   Both take the distro out from under whatever else is using it.
@@ -139,32 +153,33 @@ into it, which is the human path from a phone or the web.
 
 ## Boundary
 
-| Neighbor                             | Owns                                                                                                                                                  |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Built-in Remote Control               | Interactive use of a target's session from a phone, the web, or another device, under THAT machine's account. Not agent-to-agent under split accounts |
-| Built-in `ListAgents` / `SendMessage` | Sessions this session's own account can see; same machine, or same account through Remote Control                                                     |
-| `session-flow:continue-in-background` | A detached session on THIS machine. Same host, no SSH                                                                                                 |
-| `session-flow:orchestrate`            | Delegation inside one session, to subagents. Same host, same account                                                                                  |
-| `repo-fleet-hygiene:audit`            | Fleets of REPOSITORIES. Same word, different subject                                                                                                  |
+| Neighbor | Owns |
+|---|---|
+| This skill | Every lane other than this session's: the other lane on this machine, and both lanes on other machines |
+| Built-in `ListAgents` / `SendMessage` | Sessions in this lane, under this lane's account |
+| Built-in Remote Control | Human use of a lane's session from a phone or the web, under that lane's account. Not agent-to-agent across accounts |
+| `session-flow:continue-in-background` | A detached session in THIS lane |
+| `session-flow:orchestrate` | Delegation inside one session, to subagents |
+| `repo-fleet-hygiene:audit` | Fleets of REPOSITORIES. Same word, different subject |
 
 ## Gotchas
 
-- **Use the Windows OpenSSH client.** `C:/Windows/System32/OpenSSH/ssh.exe` is agent-backed and is
-  what `~/.ssh/config` is wired to. Git Bash's MSYS `ssh` reaches no agent and fails with
-  `Permission denied (publickey)`, which reads like a key problem and is not one.
-- **Redirect stdin, always.** `claude -p` reads stdin, so without `< /dev/null` inside the remote
-  command (or `ssh -n` on the client) it waits several seconds before answering every turn.
-- **Two shells, two quoting rules.** Single-quote the remote command and double-quote the prompt
-  inside it. Port 2222 is bash; port 22 is pwsh, where that quoting does not carry over.
-- **Escape apostrophes in `<prompt>`.** The remote command is single-quoted on the LOCAL shell, so
-  a `'` inside the prompt text ("what's", "don't") closes that quote early, before `ssh` ever
-  runs, and the rest is re-parsed as separate words. Replace each `'` in the prompt with `'\''`
-  before substituting it, e.g. `'claude -p "what'\''s the disk usage?" < /dev/null'`, or wrap the
-  remote command in `$'...'` and write `\'` for each apostrophe.
-- **Parse the JSON, not the stream.** A relay turn's `SessionEnd` hooks print `Hook cancelled` on
-  stdout. Take the JSON object out of the output before reading it, for example
-  `grep '^{' | jq -r .session_id`, rather than piping the whole stream to `jq`.
-- **`--resume` is per target account.** An id from one host means nothing on another.
-- **A session name is not an address.** Hostname over the tailnet, always.
-- **The relay's working directory matters.** It runs where the target's Remote Control task runs,
-  a scratch checkout, never a repository that defines the fleet's own accounts or firewall rules.
+- **Use the Windows OpenSSH client.** It is agent-backed and is what `~/.ssh/config` is wired to.
+  Git Bash's MSYS `ssh` reaches no agent and fails with `Permission denied (publickey)`, which reads
+  like a key problem and is not one.
+- **Redirect stdin, always.** `claude -p` reads stdin, so without `< /dev/null` (or `ssh -n`) it
+  waits several seconds before answering every turn.
+- **Escape apostrophes in `<prompt>`.** Every row except R1 wraps the remote command in single
+  quotes on the LOCAL shell, so a `'` in the prompt ("what's") closes that quote early. The rule
+  follows the origin shell, not the lane:
+  - **bash, zsh, and Git Bash** (a native-Windows Claude's Bash tool, R4 to R6): replace each `'`
+    with `'\''`, or wrap the command in `$'...'` and write `\'`. Doubling (`''`) silently drops the
+    apostrophe here: `'what''s'` arrives as `whats`.
+  - **pwsh** (a native-Windows Claude's PowerShell tool, or a pwsh terminal): double it, `''`.
+- **Use `wsl.exe --exec`, not `--`.** With `--`, the distro's login shell re-parses the rest of the
+  line before `<shell> -lc` sees it; `--exec` hands the arguments over as they are.
+- **Probe interop by absolute path.** `cmd.exe /c` prints nothing inside an sshd session and reads
+  as "interop is broken" when it is not; run the `.exe` by absolute path.
+- **Parse the JSON, not the stream.** `SessionEnd` hooks print `Hook cancelled` on stdout. Extract
+  the object first, for example `grep '^{' | jq -r .session_id`.
+- **A session name is not an address.** Hostname and lane, always.

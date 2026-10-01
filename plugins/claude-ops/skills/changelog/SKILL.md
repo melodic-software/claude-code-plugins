@@ -1,5 +1,5 @@
 ---
-description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (full integrate pipeline, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
+description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (executes the decisions in scope one PR per owner plugin and hands larger ones off as work items, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
 argument-hint: "<fetch|diff|status|apply> [vA..vB|vX|text]"
 user-invocable: true
 disable-model-invocation: false
@@ -21,12 +21,12 @@ Arguments: `$ARGUMENTS`
 
 ## Scope
 
-Ingests Claude Code changelog entries and integrates them into the repo. Covers the full arc: read upstream changes → orient on repo impact → research new features → triage with user → plan edits → implement → verify → close matching issues.
+Ingests Claude Code changelog entries and hands their decisions to the repo's stage skills. Covers the arc: read upstream changes → orient on repo impact → research new features → scope with the user → run what fits the session through the marketplace stage skills, one PR per owner plugin → file the rest as work items → native drift. `diff` reports decisions about components, not a list of items.
 
 Distinct from:
 
 - `/claude-ops:known-issues`. Tracks CC bugs/workarounds. This skill integrates CC feature changes into repo config/docs
-- Any release-triage automation the consumer runs (issue filing per release). This skill IMPLEMENTS changes, holistically across a release
+- Any release-triage automation the consumer runs (issue filing per release). This skill decides, holistically across a release, what changes in the repo, and hands each decision to the skill that plans, implements or verifies it; it re-implements none of them
 
 ## Input modes and range
 
@@ -68,9 +68,9 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 
 | Action | Description | Detail |
 |--------|-------------|--------|
-| `apply` | Full pipeline: ingest → explore → research → interview → plan → implement → verify → close issues | See "Action: apply" below |
+| `apply` | Hand-off: ingest → explore → research → scope gate → stage skills per owner-plugin PR, larger decisions filed as issues → native drift. Consumes the `diff` working set | See "Action: apply" below |
 | `fetch` | Fetch + display changelog for a version or range. Read-only | See "Action: fetch" below |
-| `diff` | Resolve the range, apply the cap, orient on repo impact. Read-only analysis table | See "Action: diff" below |
+| `diff` | Resolve the range, apply the cap, emit decision rows by owner surface plus a docs-lag section. Read-only | See "Action: diff" below |
 | `status` | The read marker and its source, installed vs newest release, the default range, the cap verdict | See "Action: status" below |
 | `help` | Show action table | *(inline)* |
 
@@ -86,9 +86,10 @@ If action is unknown, show action table.
 
 **`apply` mutates the repo.** Run only on explicit user intent per routing above. When the model
 detects a new CC release in conversation, default to `fetch` or `diff` and offer `apply`. Do not
-auto-start the pipeline.
+auto-start the hand-off.
 
-The full pipeline runs explore → research → interview → plan → implement → verify as the phases below. If the consumer project ships its own stage skills for these, prefer them at each phase.
+`apply` plans, edits and verifies nothing itself. It reads the release, asks the user which decisions
+are in scope, and hands each one to the marketplace skill that owns that stage, as Phases 3 and 4 set out.
 
 ### Phase 0. Ingest
 
@@ -98,29 +99,28 @@ Resolve the range, check the cap, and check version alignment:
    - Changelog text already in conversation → the releases its `<Update label>` blocks or version headings name ARE the range; pass them as `--range <lowest>..<highest>` so the cap is judged on the pasted releases and never on the repository's default feed. Pasted text with no version at all skips the cap
    - A range or version was given → `--range` as given
    - Otherwise → no `--range`; the default range from the read marker applies
-2. **Run the status script** with that `--range`. If `cap` reads `exceeded`, stop and relay the `recommend` line; the pipeline does not run past the cap. Relay any `warn` line per "Version awareness" above
-3. **Resolve content**: pasted text is parsed as-is; otherwise slice the releases the `releases` line names out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md)
-4. **Parse** into structured items. Each item gets: summary, category (feature / fix / UI / internal), affected surface (if identifiable)
+2. **Run the status script** with that `--range`. If `cap` reads `exceeded`, stop and relay the `recommend` line; the hand-off does not run past the cap. Relay any `warn` line per "Version awareness" above
+3. **Reuse the working set** when `diff` saved one for this range and it passes the checks under "Persistence" in [context/decisions.md](context/decisions.md): `apply` consumes it, resolves no content, and re-fetches only what a recheck trigger names. Otherwise continue
+4. **Resolve content**: pasted text is parsed as-is; otherwise slice the releases the `releases` line names out of a local copy of the changelog per the fetch route in [context/read-actions.md](context/read-actions.md)
+5. **Parse** into structured items. Each item gets: a stable id (`2.1.257-001`), summary, category (feature / fix / UI / internal), affected surface (if identifiable). Ids and the working-set directory are defined in [context/decisions.md](context/decisions.md)
 
 ### Phase 1. Explore
 
-Per `context/repo-surfaces.md`, orient on repo impact for EACH changelog item:
+Orient on repo impact for EACH changelog item. Run `bash "${CLAUDE_SKILL_DIR}/scripts/discover-surfaces.sh"` first: its output is the surface list, and `context/repo-surfaces.md` gives per-class examples and scoped grep patterns:
 
-1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL listed surfaces
-2. Classify each item per `context/classification-rubric.md`:
-   - **P1 (requires update)**. Repo already uses this feature/surface and changelog changes behavior or adds capability we should document
-   - **P2 (worth considering)**. New capability repo does NOT currently use but SHOULD evaluate for adoption
-   - **P3 (no action)**. UI/cosmetic fix, internal change, or feature irrelevant to repo
-3. List every P2 item as "New capability. Evaluate for adoption" with a brief rationale
+1. Grep/Glob each feature name, setting name, hook event, CLI flag across ALL surface classes the script printed
+2. Classify each item per `context/classification-rubric.md` into one action lens per owner surface it touches: **correct**, **replace**, **adopt**, **note**, or **skip**
+3. Group by owner surface and write each correct, replace and adopt row with its required sentence. A skip item leaves no row
 
-Output: structured table with item, classification, affected files, rationale.
+Output: decision rows grouped by owner surface, per [context/decisions.md](context/decisions.md). The
+work fans out by release cluster with no Workflow script; see "Fan-out shape" there.
 
 ### Phase 2. Research
 
-For items needing enrichment (P1 items with behavioral changes, P2 items with unclear scope):
+For rows needing enrichment (correct rows with behavioral changes, adopt rows with unclear scope):
 
-1. Spawn **parallel research subagents**. One per feature cluster (use a Claude Code documentation-focused agent type when available)
-2. Instruct each subagent to ground every claim in a primary source fetched during the task (official docs URL, changelog entry, or GitHub issue) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it.
+1. Spawn **parallel research subagents**. One per feature cluster, each receiving the explorers' questions (use a Claude Code documentation-focused agent type when available)
+2. Instruct each subagent to ground every claim by `curl` of the page (official docs URL, changelog entry, or GitHub issue) and to return citations with each claim. Treat any uncited subagent claim as unverified and re-verify it against official docs before acting on it. A local verifier then checks the repo-side facts
 
 3. Research targets per item type:
    - New frontmatter field → exact syntax, interaction with existing fields, docs gap
@@ -129,71 +129,90 @@ For items needing enrichment (P1 items with behavioral changes, P2 items with un
    - Behavioral change → before/after, migration path, breaking implications
    - Bug fix → what was broken, what surfaces affected, historical data impact
 
-4. Synthesize research into enriched analysis per item
+4. Synthesize research into enriched rows
 
-### Phase 3. Interview
+### Phase 3. Scope gate
 
-Present triage table to user via `AskUserQuestion` or structured markdown:
+Present the decision rows to the user via `AskUserQuestion` or structured markdown:
 
 ```markdown
-| # | Change | Classification | Affected files | Action needed |
-|---|--------|---------------|----------------|---------------|
-| 1 | <summary> | P1 | <files> | <specific update> |
-| 2 | <summary> | P2 | — | <evaluation + recommendation> |
-| N | <summary> | P3 | — | No action |
+| # | Owner surface | Lens | Items | Required sentence | Action needed |
+|---|---------------|------|-------|-------------------|---------------|
+| 1 | <component> | correct | <ids> | <false vs true> | <specific update> |
+| 2 | <component> | adopt | <ids> | <problem solved> | <adopt, decline, or defer pending probe> |
 ```
 
-User picks scope: "all P1+P2", "just P1", or specific items by number.
+The user picks which rows are in scope: "all rows", "just correct", or specific rows by number. A
+row left out is reported at the end and recorded only when the user declines it, with its reopen
+condition in the ledger's Declined table.
 
-Lock brief: confirmed scope becomes implementation contract.
+Then sort each in-scope row by whether it fits this session. A row **fits** when its edits stay in
+its owner plugin and one session can plan, make and verify them. A row is **too large** when it
+redesigns a component, changes behavior across several plugins, or needs work this session cannot
+finish and verify. Show the sort with the rows and let the user move a row across.
 
-### Phase 4. Plan
+### Phase 4. Hand off
 
-Plan the concrete edits for the confirmed scope, down to the section and text each file changes. One
-changelog item often touches several surfaces: a new hook event, for example, needs an update in
-every surface that documents hook events, rules, hook scripts, and reference docs alike.
+1. **Rows that fit**: work them in this session's branch, one branch and PR per owner plugin. Use
+   `/planning:plan` for the edit plan (if the planning plugin is installed), `/implementation:implement`
+   for the edits (if the implementation plugin is installed) and `/verification:confirm` for the
+   check (if the verification plugin is installed). A stage whose plugin is missing is not done by
+   hand here: report the rows that needed it as not executed, naming the missing plugin. A
+   `replace` row is never edited: nominate it into `/claude-ops:audit-native-overlap`
+2. **Rows too large**: file one issue per row through `/work-items:track` (if the work-items plugin
+   is installed), carrying the owner surface, lens, required sentence, item ids and range. That
+   issue is worked later in its own PR, behind an interview-style human gate before any edit. When
+   `/work-items:track` is not installed, report the row and file nothing. List the rows to file and
+   file them only after the user confirms that batch; a row the user does not confirm is reported, not
+   filed
+3. **Docs lag**: hand the docs-lag pairs to `/claude-ops:known-issues`. They are never a decision row
+4. **Commit and PR shape**: one PR per owner plugin, each carrying that plugin's `CHANGELOG.md`
+   entry. The upstream ledger update is the last PR and references the others. Every commit subject
+   reads `chore(<plugin>): address Claude Code v<A>..<B> changelog`, the ledger's taking the
+   ledger owner's scope. The ledger PR moves the read marker only once every row in the range is
+   applied in a merged PR, nominated, recorded as declined or deferred, or filed, and stops below the first
+   release that still has a row outside those states, so no unfinished row drops out of the next
+   default range. `status` reports it from the ledger and, until the ledger exists, from that subject
 
-### Phase 5. Implement
+### Phase 5. Native-surface drift
 
-Once the plan is approved, run Phases 5 and 6 without stopping between steps: done means every
-confirmed item is edited and verification passes. Stop and ask only when a check fails for a reason
-you cannot explain or an item needs a change outside the confirmed scope. Execute plan:
+Re-read what Claude Code ships and file what moved. Run the inventory self-check, a full
+`--binary-only --docs` extraction, and overlap `detect` and `self-check`, then
+`scripts/native_drift.py` to diff against the previous run's summary and evaluate the overlap
+store's recheck triggers. Report surface changes (added, removed, renamed, reclassified),
+invocability and marker changes, docs cross-check changes, and new overlap candidates. File one
+work item per new candidate, fired trigger, and degraded or broken self-check through
+`/work-items:track`, deduped by a `native-drift:<kind>:<surface>:<component>` key; a self-check
+degraded only by a CLI version past the validated build proposes revalidation instead. A repository
+with no overlap store is report-only: report, file nothing, keep the baseline. Commands,
+the summary's location, items, dedupe and approval: [context/native-drift.md](context/native-drift.md).
+Its commands write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that
+path in place of the placeholder before running one.
 
-1. Edit files per the approved plan
-2. Run the consumer repo's markdown linter on every touched `.md` file (e.g. `npx markdownlint-cli2`), when one is configured
-3. If hook scripts touched: run their tests with the consumer repo's test runner
-4. If settings.json touched: `jq empty .claude/settings.json`
-
-### Phase 6. Verify
-
-Run the consumer repo's verification workflow (build/test/lint) on affected ecosystems. At minimum: markdown lint on all touched files.
-
-### Phase 7. Close issues (optional)
-
-If user approves:
-
-1. If the consumer repo files CC-release tracking issues, search for matching open ones using
-   that repo's own convention (label, title marker, or milestone) via `gh issue list --state open --search '...'`
-2. For each issue whose title matches an implemented changelog item: close with comment citing this session's work
-
-The last commit of an `apply` moves the read marker to the top of the applied range, in a subject of
-the form `chore(<scope>): address Claude Code v<A>..<B> changelog`, so `status` reports the new
-marker from the ledger and, until the ledger exists, from that subject.
-
-End the run with a report that leads with what waits on the user (the Phase 7 approval, any item
-deferred or blocked), then what changed and what verification showed.
+End the run with a report that leads with what waits on the user (rows left out of scope, rows
+filed or reported unfiled, stages skipped for a missing plugin), then the PRs opened and what each
+changed, what `/verification:confirm` showed, the docs-lag pairs handed off, and the Phase 5 drift
+report with the items filed or skipped.
 
 ---
 
 ## Actions: fetch, diff, status (read-only)
 
-The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**:
+The three read-only actions stop short of any edit. **Full steps in [context/read-actions.md](context/read-actions.md)**.
+Its fetch command writes this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put
+that path in place of the placeholder before running it.
 
-- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (`curl` the `.md`, slice the release blocks locally) and display a version, a range, or the newest release. No edits
-- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the interview. Emits the triage table only. Answers "is this range worth an `apply`?"
+- **`fetch`**. Read the raw changelog by the upstream-drift fetch route (the plugin's `fetch-docs.sh` writes the `.md` to a file; slice the release blocks locally) and display a version, a range, or the newest release. No edits
+- **`diff`**. Run the status script; stop at an exceeded cap with its recommendation; otherwise Phase 0 (ingest) + Phase 1 (explore) + Phase 2 (research) over the releases in range, stopping before the scope gate. Emits decision rows grouped by owner surface, each with its lens and required sentence, plus a docs-lag section, and saves its working set for `apply`. Answers "is this range worth an `apply`?"
 - **`status`**. Run the status script and relay: the read marker and its source (ledger line or commit subject, never a commit body), installed vs newest release, the default range, and the cap verdict with its recommendation
 
 ---
+
+## Next
+
+- Candidates and fired triggers filed by Phase 5: `/claude-ops:audit-native-overlap`.
+- Items filed as raw intake, and rows filed by Phase 4: `/work-items:triage`.
+- A revalidation item: `/claude-ops:inventory`.
 
 ## Reference index. Load on demand
 
@@ -201,5 +220,8 @@ The three read-only actions stop short of any edit. **Full steps in [context/rea
 |---|---|
 | `context/read-actions.md` | Running `fetch`, `diff`, or `status`; the read marker, range, cap, and fetch route are defined there. |
 | `scripts/changelog-status.sh` | Every action's first step; `--help` lists its output lines and flags. Covered by `scripts/changelog-status.test.sh`. |
-| `context/repo-surfaces.md` | Phase 1 explore, enumerating which surfaces a given changelog item can touch. |
-| `context/classification-rubric.md` | Assigning P1/P2/P3 to an item, and defending a downgrade. |
+| `context/decisions.md` | Writing or reading decision rows, choosing where a decision is recorded (plugin CHANGELOG, audit-native-overlap nomination, ledger, filed issue), fanning out, or saving and reusing the working set. |
+| `context/repo-surfaces.md` | Phase 1 explore, after running `scripts/discover-surfaces.sh`: per-class examples of what an item changes, and scoped grep patterns. |
+| `context/classification-rubric.md` | Assigning a lens (correct, replace, adopt, note, skip) to an item, and defending a skip. |
+| `context/native-drift.md` | Running `apply` Phase 5: the extraction commands, the previous-run summary, the drift report, and filing its items. |
+| `scripts/native_drift.py` | Phase 5's summary, diff and trigger evaluation. Covered by `scripts/test_native_drift.py`. |

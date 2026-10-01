@@ -656,6 +656,7 @@ class ShortId(unittest.TestCase):
         """The SAME full id must always shorten to the SAME short id, or a
         call's `calls[].id` could never be matched to its `results[].id`."""
         full = "toolu_01AbCdEfGhIjKlMnOpQrSt"
+        # cant-fail-ok: determinism contract
         self.assertEqual(observer._short_id(full), observer._short_id(full))
 
     def test_non_string_stringified(self):

@@ -17,16 +17,24 @@
 # was silently dropped after being written; a question never written at all is
 # out of reach of any file-based check and is the skill's contract to keep.
 #
-# Exit 0 = every registered question is resolved (register is clean)
+# Exit 0 = every registered question is resolved (register is clean) and, with
+#          --procedure, the procedure checks below pass
 # Exit 1 = at least one question is still `open` or `superseded-by-plan` (the
-#          contract is not locked)
+#          contract is not locked), --procedure found a procedure defect
+#          (the register is gradeable but the interview did not complete its
+#          own procedure; fix the ledger or Brief and re-run), or the named
+#          Brief is stamped `UNCONFIRMED` (the user has not confirmed the
+#          latest restatement; `brief=unconfirmed`)
 # Exit 2 = ungradeable: no ledger, no register section, a duplicate register or
 #          deferred-questions heading, an unterminated fenced block, an empty
-#          register, a malformed row, an unknown status, a duplicate or
-#          non-contiguous Q id, or a named `--brief` that is missing
+#          register, a malformed row, an unknown status, a duplicate, an
+#          out-of-order or a missing (gap) Q id, or a named `--brief` that is
+#          missing. Row errors are collected in one pass, each on stderr with
+#          its own ledger line, and the verdict keeps the counts of the rows
+#          that parsed.
 #
 # Usage:
-#   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>]
+#   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>] [--procedure]
 #   bash check-open-questions.sh --help
 #
 # Register row shape (inside the ledger's `## Open-question register` section):
@@ -42,10 +50,37 @@
 # hole this gate exists to refuse. When --brief is omitted the verdict says
 # `brief=unchecked` rather than omitting the field: a check the caller only
 # appeared to get is worse than one it knowingly skipped. The named Brief must
-# exist, but it is only READ when the register retired a row: with nothing to
-# look up the cross-check is satisfied (`brief=ok`), and the Brief's own
+# exist. The deferred cross-check reads it only when the register retired a row:
+# with nothing to look up it is satisfied (`brief=ok`), and the Brief's own
 # headings and fences are not graded, so a stray fence in an unrelated section
 # of a large planning document cannot fail a clean register.
+#
+# --brief also fails (exit 1, `brief=unconfirmed`) on the line
+# `- Restatement: UNCONFIRMED (latest rev <N>)` that `round.sh export-brief` writes
+# while the newest restatement has no Confirm. A Brief without that line is not
+# graded for it. A line inside a fenced block is documentation.
+#
+# --procedure is OPT-IN and adds checks a script can derive from the ledger, so
+# a caller that omits it keeps every verdict and exit code above unchanged:
+#   - round numbers in the register rows run contiguously from 1 (a `round`
+#     field that is not `round <N>` with N >= 1 counts as a defect)
+#   - every `answered`, `deferred`, `withdrawn` and `blocked` row carries a
+#     non-empty resolution (the fifth field)
+#   - with --brief, the Brief holds every section of the literal Brief template:
+#     TLDR, Goal, Constraints, Acceptance criteria, Captured assumptions,
+#     Out-of-scope, Deferred questions (headings only; content is not graded)
+# Each defect is named on stderr. Without --procedure the verdict says
+# `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
+# register with a procedure defect exits 1 with `status=incomplete` (`open` when
+# a row is also unresolved); ungradeable stays exit 2 with `procedure=unchecked`.
+# With --procedure the named Brief is always read, so an unterminated fence in
+# it is ungradeable even when the register retired nothing.
+#
+# What stays a model judgment and is NOT checked here: whether the Step 1
+# survey genuinely grounded the questions, whether the domain was classified,
+# whether the register was written at ask-time rather than answer-time, and
+# whether the frontier was recomputed between rounds. A file written after the
+# fact looks identical to one written at ask-time.
 #
 # Fenced blocks (``` or ~~~) are documentation in both files. A fence closes
 # only on a line of the same character at least as long as its opener with
@@ -53,7 +88,7 @@
 # example and a `~~~` line inside a backtick fence is content.
 #
 # Output (stdout, greppable):
-#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked> status=<clean|open|ungradeable>`
+#   `registered=<n> open=<n> deferred=<n> blocked=<n> withdrawn=<n> answered=<n> superseded=<n> brief=<ok|unchecked|unconfirmed> status=<clean|open|incomplete|ungradeable> procedure=<ok|unchecked|fail>`
 
 set -uo pipefail
 
@@ -141,10 +176,11 @@ extract_section() {
 ledger=""
 brief=""
 brief_named=0
+procedure_on=0
 
 die_ungradeable() {
   echo "error: $1" >&2
-  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 superseded=0 brief=unchecked status=ungradeable"
+  echo "registered=0 open=0 deferred=0 blocked=0 withdrawn=0 answered=0 superseded=0 brief=unchecked status=ungradeable procedure=unchecked"
   exit 2
 }
 
@@ -170,6 +206,10 @@ while [[ $# -gt 0 ]]; do
   --brief=*)
     brief="${1#*=}"
     brief_named=1
+    shift
+    ;;
+  --procedure)
+    procedure_on=1
     shift
     ;;
   *)
@@ -230,7 +270,40 @@ blocked=0
 superseded=0
 seen_ids=" "
 deferred_ids=""
-expected=1
+ids_in_order=""
+max_id=0
+rounds_seen=" "
+max_round=0
+proc_problems=""
+row_errors=""
+lineno=0
+
+# Row errors are collected, not fatal on the first, so one run names every bad
+# row with its own line; any of them still makes the register ungradeable.
+row_error() { row_errors="${row_errors}line $lineno: $1"$'\n'; }
+
+# Record a question id (its number, no leading zero) in file order. A repeat is
+# a duplicate (dup=1, the row is skipped); a number below one already seen is
+# out of order. Gaps are found after the loop, from the whole id set, so an
+# out-of-order row is not also reported as a gap.
+track_id() {
+  dup=0
+  case "$seen_ids" in
+  *" Q$1 "*)
+    row_error "duplicate question id: Q$1"
+    dup=1
+    return
+    ;;
+  *) ;;
+  esac
+  seen_ids="${seen_ids}Q$1 "
+  ids_in_order="$ids_in_order$1 "
+  if [[ "$1" -lt "$max_id" ]]; then
+    row_error "question id out of order: Q$1 follows Q$max_id"
+  else
+    max_id="$1"
+  fi
+}
 
 # What counts as a CANDIDATE register row, defined once. The fenced branch and
 # the live branch below both test it, and they must agree: a shape skipped as
@@ -239,6 +312,9 @@ row_candidate_re='^[[:space:]]*-[[:space:]]+[Qq][0-9]+([^0-9]|$)'
 
 skipped_fenced_row=0
 while IFS= read -r line; do
+  # extract_section emits one line per ledger line after the heading, so the
+  # ledger line number is the heading's plus the count read so far.
+  lineno=$((lineno == 0 ? register_line + 1 : lineno + 1))
   # extract_section prefixes every line with its fence state; strip the marker
   # before parsing. A fenced block inside the register section is documentation
   # (the row shape, a worked example), not data. Grading it would fail a ledger
@@ -260,16 +336,34 @@ while IFS= read -r line; do
   # is a real state; it exits 2.
   [[ "$line" =~ $row_candidate_re ]] || continue
 
+  # No leading zeros, and no Q0. `[[ ]]` numeric comparison evaluates its
+  # operands in arithmetic context, where a leading-zero numeral is OCTAL: the
+  # order test on `Q08` errors to stderr and resolves FALSE, so a misplaced row
+  # would silently pass. Rejecting the form outright keeps the comparison total.
+  # Q<N> is a running counter from 1, so `Q08` is malformed by the register's
+  # own contract anyway.
+  [[ "$line" =~ ^[[:space:]]*-[[:space:]]+([Qq]([0-9]+)) ]]
+  token="${BASH_REMATCH[1]}"
+  num="${BASH_REMATCH[2]}"
+  if ! [[ "$num" =~ ^[1-9][0-9]*$ ]]; then
+    row_error "malformed question id (expected Q1, Q2, … with no leading zero): $token"
+    continue
+  fi
+  # Normalize so `q3` and `Q3` collide as the same id. Q numbering runs
+  # continuously across rounds (SKILL.md "Relentless mode"), so a gap is a row
+  # that went missing after it was written, the exact silent drop this gate is
+  # here to refuse. A malformed row's id still counts, so it is not also a gap.
+  id="Q$num"
+  track_id "$num"
+  [[ "$dup" -eq 0 ]] || continue
+
   if ! [[ "$line" =~ ^[[:space:]]*-[[:space:]]+[Qq][0-9]+[[:space:]]*\| ]]; then
-    die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line ($where)"
+    row_error "malformed register row (needs 'Q<N> | status | round | question'): $line"
+    continue
   fi
 
   row="${line#*-}"
   row="${row#"${row%%[![:space:]]*}"}"
-
-  id="${row%%|*}"
-  id="${id#"${id%%[![:space:]]*}"}"
-  id="${id%"${id##*[![:space:]]}"}"
 
   rest="${row#*|}"
   status_field="${rest%%|*}"
@@ -280,37 +374,30 @@ while IFS= read -r line; do
   # reports NF as the number of `|` separators plus one.
   separators="${row//[!|]/}"
   if [[ "${#separators}" -lt 3 ]]; then
-    die_ungradeable "malformed register row (needs 'Q<N> | status | round | question'): $line ($where)"
+    row_error "malformed register row (needs 'Q<N> | status | round | question'): $line"
+    continue
   fi
 
-  # No leading zeros, and no Q0. `[[ ]]` numeric comparison evaluates its
-  # operands in arithmetic context, where a leading-zero numeral is OCTAL: the
-  # contiguity test below on `Q08` errors to stderr and resolves FALSE, so a
-  # gapped register would silently pass. Rejecting the form outright keeps the
-  # comparison total. Q<N> is a running counter from 1, so `Q08` is malformed
-  # by the register's own contract anyway.
-  num="${id#[Qq]}"
-  if ! [[ "$num" =~ ^[1-9][0-9]*$ ]]; then
-    die_ungradeable "malformed question id (expected Q1, Q2, … with no leading zero): $id ($where)"
+  # Fields after the id: status | round | question | resolution. The resolution
+  # is the text after the last `|`, so a `|` inside the question cannot make an
+  # empty resolution look filled; a row with no question and resolution
+  # fields has none.
+  after_status="${rest#*|}"
+  round_field="${after_status%%|*}"
+  round_field="${round_field#"${round_field%%[![:space:]]*}"}"
+  round_field="${round_field%"${round_field##*[![:space:]]}"}"
+  resolution="${after_status#*|}"
+  if [[ "$resolution" == *"|"* ]]; then resolution="${resolution##*|}"; else resolution=""; fi
+  resolution="${resolution#"${resolution%%[![:space:]]*}"}"
+  resolution="${resolution%"${resolution##*[![:space:]]}"}"
+  if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
+    round_num="${BASH_REMATCH[1]}"
+    rounds_seen="$rounds_seen$round_num "
+    [[ "$round_num" -gt "$max_round" ]] && max_round="$round_num"
+  else
+    proc_problems="$proc_problems$id: round field is not 'round <N>' (N >= 1): '$round_field'"$'\n'
   fi
-  # Normalize so `q3` and `Q3` collide as the same id.
-  id="Q$num"
 
-  case "$seen_ids" in
-  *" $id "*) die_ungradeable "duplicate question id: $id ($where)" ;;
-  *) ;; # not seen before — fall through and register it
-  esac
-  seen_ids="$seen_ids$id "
-
-  # Q numbering runs continuously across rounds (SKILL.md "Relentless mode"), so
-  # a gap is a row that went missing after it was written — the exact silent drop
-  # this gate is here to refuse. Ungradeable, never a pass.
-  if [[ "$num" -ne "$expected" ]]; then
-    die_ungradeable "non-contiguous question id: expected Q$expected, got $id ($where)"
-  fi
-  expected=$((expected + 1))
-
-  registered=$((registered + 1))
   # Statuses match case-insensitively without a subprocess per row (a `tr` fork
   # costs over a second per row on a loaded Windows host). nocasematch, not
   # ${var,,}, because macOS /bin/bash is 3.2; scoped so no other match sees it.
@@ -328,10 +415,46 @@ while IFS= read -r line; do
     blocked=$((blocked + 1))
     deferred_ids="$deferred_ids$id "
     ;;
-  *) die_ungradeable "unknown status '$status_field' in row: $line ($where)" ;;
+  *)
+    row_error "unknown status '$status_field' in row: $line"
+    shopt -u nocasematch
+    continue
+    ;;
+  esac
+  case "$status_field" in
+  answered | deferred | withdrawn | blocked)
+    [[ -n "$resolution" ]] || proc_problems="$proc_problems$id: $status_field row has an empty resolution"$'\n'
+    ;;
+  *) ;;
   esac
   shopt -u nocasematch
+  registered=$((registered + 1))
 done <<<"$section"
+
+# A gap is a number missing below the highest id; one sort over the whole set,
+# not a walk to the highest id, so a mistyped Q99999 costs nothing extra.
+prev=0
+# shellcheck disable=SC2086 # deliberate: one id per word
+for n in $(printf '%s\n' $ids_in_order | sort -n); do
+  if [[ "$n" -gt $((prev + 1)) ]]; then
+    gap="Q$((prev + 1))"
+    [[ "$n" -gt $((prev + 2)) ]] && gap="$gap to Q$((n - 1))"
+    row_errors="${row_errors}gap in question ids: no row for $gap"$'\n'
+  fi
+  prev="$n"
+done
+
+if [[ -n "$row_errors" ]]; then
+  # Exit 2 stays load-bearing for Step 3 and the --brief path; the verdict
+  # keeps the counts of the rows that parsed, so a row error reads apart from
+  # a ledger the gate could not read at all (whose counts are all zero).
+  printf 'error: row errors in %s in: %s\n' "$where" "$ledger" >&2
+  while IFS= read -r row_err; do
+    printf 'error: %s\n' "$row_err" >&2
+  done <<<"${row_errors%$'\n'}"
+  echo "registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=unchecked status=ungradeable procedure=unchecked"
+  exit 2
+fi
 
 if [[ "$registered" -eq 0 ]]; then
   if [[ "$skipped_fenced_row" -eq 1 ]]; then
@@ -393,12 +516,91 @@ elif [[ "$brief_named" -eq 1 ]]; then
   brief_state="ok"
 fi
 
+# export-brief stamps the Brief `- Restatement: UNCONFIRMED (latest rev N)` while the newest
+# restatement has no Confirm. A Brief with no stamp (hand-written, or no restatement posted) is
+# not graded for it; a fenced line is documentation.
+if [[ "$brief_named" -eq 1 ]]; then
+  unconfirmed_stamp="$(awk "$fence_awk"'
+    fence_line($0) { next }
+    fenced { next }
+    /^- Restatement: UNCONFIRMED \(latest rev [0-9]+\)/ { sub(/\r$/, ""); print; exit }
+  ' "$brief")"
+  if [[ -n "$unconfirmed_stamp" ]]; then
+    brief_state="unconfirmed"
+    printf 'brief: the restatement is unconfirmed (%s in %s); the user confirms the latest restate, then the Brief is exported again\n' "${unconfirmed_stamp#- Restatement: }" "$brief" >&2
+  fi
+fi
+
+procedure_state="unchecked"
+if [[ "$procedure_on" -eq 1 ]]; then
+  # Contiguous rounds never exceed the row count, so bound the walk there: a
+  # mistyped round number fails fast instead of iterating to it.
+  round_limit="$max_round"
+  if [[ "$max_round" -gt "$registered" ]]; then
+    round_limit="$registered"
+    proc_problems="${proc_problems}highest round $max_round exceeds the $registered registered question(s); rounds must run contiguously from 1"$'\n'
+  fi
+  for ((round_num = 1; round_num <= round_limit; round_num++)); do
+    case "$rounds_seen" in
+    *" $round_num "*) ;;
+    *) proc_problems="${proc_problems}round $round_num has no register row (rounds must run contiguously from 1; highest is $max_round)"$'\n' ;;
+    esac
+  done
+
+  if [[ "$brief_named" -eq 1 ]]; then
+    # A PLAN.md holds `## Brief` + `## Plan`: a heading under `## Plan` must not
+    # satisfy a template section the Brief lacks, so grade only the lines from
+    # the `## Brief` heading to the next level-2 heading. A file with no
+    # `## Brief` heading is graded whole.
+    brief_lo=0
+    brief_hi=999999999
+    brief_h2="$(heading_matches '^##[[:space:]]' "$brief")"
+    brief_h2_status=$?
+    if [[ "$brief_h2_status" -eq 4 ]]; then
+      die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
+    elif [[ "$brief_h2_status" -ne 0 ]]; then
+      die_ungradeable "could not read the headings of: $brief"
+    fi
+    brief_lo="$(printf '%s\n' "$brief_h2" | awk -F'\t' 'tolower($2) ~ /^##[[:space:]]+brief[[:space:]]*$/ { print $1; exit }')"
+    if [[ -n "$brief_lo" ]]; then
+      brief_hi="$(printf '%s\n' "$brief_h2" | awk -F'\t' -v lo="$brief_lo" '$1 > lo { print $1; exit }')"
+      brief_hi="${brief_hi:-999999999}"
+    else
+      brief_lo=0
+    fi
+    for section_pattern in 'tl;?dr' 'goal' 'constraints' 'acceptance criteria' \
+      'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions'; do
+      section_matches="$(heading_matches "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief")"
+      section_status=$?
+      if [[ "$section_status" -eq 4 ]]; then
+        die_ungradeable "unterminated fenced block in: $brief (every heading after it is hidden; close the fence)"
+      elif [[ "$section_status" -ne 0 ]]; then
+        die_ungradeable "could not read the headings of: $brief"
+      fi
+      section_matches="$(printf '%s\n' "$section_matches" | awk -F'\t' -v lo="$brief_lo" -v hi="$brief_hi" '$1 > lo && $1 < hi')"
+      [[ -n "$section_matches" ]] || proc_problems="${proc_problems}Brief is missing the section matching '$section_pattern'"$'\n'
+    done
+  fi
+
+  if [[ -n "$proc_problems" ]]; then
+    procedure_state="fail"
+    printf 'procedure: %s\n' "${proc_problems%$'\n'}" >&2
+  else
+    procedure_state="ok"
+  fi
+fi
+
 verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
 
 if [[ $((open_count + superseded)) -gt 0 ]]; then
-  echo "$verdict status=open"
+  echo "$verdict status=open procedure=$procedure_state"
   exit 1
 fi
 
-echo "$verdict status=clean"
+if [[ "$procedure_state" == "fail" || "$brief_state" == "unconfirmed" ]]; then
+  echo "$verdict status=incomplete procedure=$procedure_state"
+  exit 1
+fi
+
+echo "$verdict status=clean procedure=$procedure_state"
 exit 0

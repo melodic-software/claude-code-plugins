@@ -1,0 +1,14 @@
+// expect: rule-weak-oracle
+// Any order passes Assert.IsNotNull, one with the wrong total included.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderIsNotNullTests
+{
+    [TestMethod]
+    public void Place_ReturnsAnOrder()
+    {
+        var order = Order.Place("", 40m);
+        Assert.IsNotNull(order);
+    }
+}

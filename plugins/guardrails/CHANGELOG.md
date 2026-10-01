@@ -3,6 +3,124 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.0] - 2026-09-30
+
+### Added
+
+- **`/guardrails:check` reads whether `node` and `jq` resolve for the guardrails hooks.** The skill is model-invocable, read-only and never installs. `prerequisites.json` now points its `node` row at it and declares `jq`, and the SessionStart `node` notice names it. The `jq` notices in `hook-utils.sh` name `/claude-ops:prerequisites` when the claude-ops plugin is installed.
+
+## [0.44.2] - 2026-09-30
+
+### Fixed
+
+- **`setup` spokes no longer name the git-hook and detection-library sources through the literal plugin-root token.** The token is not substituted in a `context/` file, so the copy source in `install-commit-msg` and `install-pre-commit-content` resolved to nothing. The paths now read `<plugin-root>/lib/...`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
+## [0.44.1] - 2026-09-30
+
+### Fixed
+
+- **`block-dangerous-git` lets read-only git through PowerShell grouping.** A `{}` or `()` group sent the whole command to the fail-closed sink, so `foreach ($d in 'a','b') { git -C $d status; git -C $d log --oneline -3 }` was refused. The sink now passes a command whose every git invocation is a built-in interrogator (`status`, `log`, `show`, `diff`, `rev-parse`, `ls-files`, `remote -v`, `stash list` and similar), optionally behind `-C <path>`. A `-c` override, `--exec-path`, a computed or obscured subcommand, an alias, `fetch`, `grep` and any mutating verb keep the command blocked, and dynamic-invocation, launcher and here-string triggers are unchanged. `scripts/check-guardrails-ps-differential.sh origin/main` shows 19 commands newly allowed, all read-only git, and no other cell moved.
+- **The read-only group check refuses an environment write it cannot prove has a plain literal target.** `GIT_PAGER`, `GIT_EXTERNAL_DIFF` and `PATH` turn a read into execution, so a command that writes the environment or rebinds `git` keeps the group blocked. The check reads syntax instead of matching text, so a name built from pieces no longer slips through: `Set-Item`, `New-Item`, `Set-Content` and the other provider cmdlets need plain-literal operands (a path that is computed, held in a variable, splatted or piped in refuses), and an `Env:`, `Function:` or `Alias:` drive path, a `$env:NAME` assignment (alone, in a target list or as a foreach variable), a static `::` call, any method call, `ForEach-Object -MemberName`, a computed call target, a word spliced from quoted parts, a write beside a `Set-Location` or `cd` whose target is computed or piped in, and a function, filter or alias definition, and a native `env` wrapper (`env GIT_PAGER=... git log`) all refuse. `Set-Item -Path ('E'+'nv:') ...` and `$m.InvokeMember(...)` beside `& { git log }` are blocked. Code in a file, and a script block held in a variable and run by a cmdlet, are not read.
+- **The PowerShell read-only git test judges `remote` and `stash` by arguments.** Both were listed as mutating stems, so bare `git remote`, `remote -v`, `remote show`, `remote get-url`, `stash list` and `stash show` were refused. Every other `remote` or `stash` form still blocks.
+- **The PowerShell sink denial offers the commit form only for a commit and names the PowerShell rewrite first.** The fallback line for an unrecognized trigger leads with the rewrite too.
+
+## [0.44.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** Every guard launches through `node`, so a host without it enforced nothing silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README Requirements section documents the row.
+
+## [0.43.3] - 2026-09-30
+
+### Changed
+
+- `block-windows-drive-tmp` skips its `cygpath` probe for a command that names no tmp path, removing two process forks from every benign Bash command on Windows.
+- `secret-pattern-detection` pre-matches a Windows write target against the environment's temp spellings and adds the `cygpath` drive spellings only after a hit, or when a temp root has no `tmp` or `temp` component, so a write outside temp spawns no resolver process under the default temp roots.
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+- The `block-hook-bypass`, `secret-pattern-detection`, `run-guards` and `coverage-manifest` suites run on Windows: CR-free `jq` output, `hooks.json` opened through `cygpath`, symlink fixtures made real or counted skips, and the 70 KB payload built on stdin.
+
+## [0.43.2] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` exempts one literal PowerShell write under an exempt root.** `Get-ChildItem | Export-Csv -Path C:\Users\<user>\.claude\plugins\data\<plugin>\out.csv` was refused because the scratch and plugin-data exemption applied on the Bash lane only. A PowerShell command that is exactly one `Out-File`, `Set-Content`, `Add-Content`, `Tee-Object`, `Export-Csv`/`epcsv`, `Export-Clixml` or `>`/`>>` write to one absolute literal destination is now judged by the same roots and symlink confirmation as a Bash redirect. A relative, variable-carried, double-quoted, wildcard or comma-listed destination, any other flag, a second write, and any subexpression, script block, call operator, here-string, comment, `;` or launcher keep the block.
+
+### Changed
+
+- Tests: PowerShell rows pin that a `-match` regex pipeline ending in `Remove-Item -LiteralPath $_.FullName -Recurse` is allowed, that a refusal never names the regex as a path, and that `& "C:\tools\tool.exe" arg` and `function f { Get-ChildItem }; f` are allowed while the same shapes beside `git status` print a `Trigger:` line naming a dynamic invocation and `{}/() grouping`.
+
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`block-no-verify` blocks a PowerShell env assignment of a hook-manager variable and a same-command git alias carrying a no-verify flag.** `$env:LEFTHOOK=0; git commit -m x` and `Set-Item env:HUSKY 0; git commit -m x` (also `si`, and `-Path`/`-Value` in any order) are refused when the same command runs a `git commit` or `git push`, using the configured hook-manager prefix set. `git config alias.c 'commit -n'; git c -m x` and `git -c alias.c='commit -n' c -m x` are refused: a `git config alias.NAME VALUE` segment is recorded, an inline `-c alias.NAME=VALUE` is read from the invocation, and the aliased command is checked. A `--config-env` alias fails closed. `git config --get`, `--unset` and the other read or remove actions record no alias. An alias defined in an earlier command or a config file is not seen.
+
+## [0.43.0] - 2026-09-30
+
+### Added
+
+- **`block-credential-read` blocks a Bash or PowerShell command whose output is a credential.** It matches `git credential fill` and credential-helper `get`, `gh auth token`, `echo`/`printenv` of a token-shaped variable, and `cat` of `.git-credentials`, `.netrc` or `.env`. Presence checks (`gh auth status`, `test -n "$GH_TOKEN"`) pass. `block_credential_read_enabled` turns it off and `block_credential_read_allow` permits single families.
+
+## [0.42.5] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.42.4] - 2026-09-30
+
+### Changed
+
+- `block-root-delete-target` states its scope in the hook header: friction against accidental or casual root deletes, not a sandbox. The launcher grammar is not widened further without a filed bypass. Converging the walker with `lib/powershell/ps-command.sh` stays deferred, and any future convergence is checked against the delete lane in `scripts/check-guardrails-ps-differential.sh`. No verdict changes.
+- `scripts/check-guardrails-ps-differential.sh` compares `block-root-delete-target` in the PowerShell differential, with a delete-lane corpus. The guard tokenizes on its own, and an outside-tree target is judged from one neutral payload cwd for both arms.
+
+## [0.42.3] - 2026-09-30
+
+### Fixed
+
+- **`block-hook-bypass` allows a computed PowerShell call whose target resolves to a single-quoted non-writer literal.** `$p = 'git'; & $p 'status' bare` was refused by the positional-write arm. The arm now skips a call site whose variable resolves to such a literal; an unresolved target stays blocked and no allow token was added.
+- **The computed-call positional arm has its own block reason.** It reports form `powershell-computed-positional` with a reason that names the computed call, instead of the cmdlet/redirect message with Write/Edit advice. The telemetry schema lists the new form token.
+
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **The substitution cap no longer counts text inside single-quoted spans ([#4684](https://github.com/melodic-software/claude-code-plugins/issues/4684)).** A Bash command whose issue or PR body quotes `$(`, `<(`, `>(` or backticks in single quotes is no longer refused at 256, because bash substitutes nothing there. Unquoted, double-quoted and heredoc-body substitutions still count. A command naming a shell, `eval`, `su`, `env` or `alias`, or with quoting the scan does not model, counts whole. PowerShell is unchanged.
+
+## [0.42.1] - 2026-09-29
+
+### Fixed
+
+- **`block-windows-drive-tmp` catches inline python `open (` and `getattr(__builtins__,'open')(`.** The inline-python write check required `open(` with no space and no `getattr` form, so a drive-root `\tmp` path opened either way passed. The README row names both shapes and the suite covers them.
+
+## [0.42.0] - 2026-09-29
+
+### Added
+
+- **Node.js on PATH is a declared requirement.** Every hook row launches through `node`, so the README Requirements section names it, `/guardrails:setup check` reports a missing `node` as a FAIL row, and `prerequisites.json` lists it for `/claude-ops:prerequisites`. The README states a missing node's outcome only as far as the Claude Code hooks reference documents it: a hook that cannot start is a non-blocking error for most events, and an exec-form command absent from PATH is not documented. `/guardrails:setup` apply text follows the reconfiguration convention (the scope `claude plugin list` reports, read the command output, observe in the next session).
+
+### Fixed
+
+- **`block-windows-drive-tmp` blocks a drive-root `\tmp` on a usertemp host and judges more `curl`/`wget` shapes.** On a stock Git for Windows host where POSIX `/tmp` is the user temp, `echo x > "\tmp\x"` was allowed. It is now refused. Short-flag clusters (`curl -sSLo /c/tmp/x URL`, `wget -qO /c/tmp/a URL`), `curl --output-dir` destinations and an option after a bare `-O` (`curl -O -o /c/tmp/x URL`) are judged as writes. The usertemp mount fallback needs `usertemp` on the `/tmp` mount's own line. The suite feeds each command to the hook on stdin, so the 9 `/usr/bin` writer cases that were skipped when the payload carried the command in argv now run.
+- **`block-root-delete-target` judges a PowerShell delete after a newline or inside a block.** `if (...) { Remove-Item -Recurse -Force C:\ }`, a delete after LF, CRLF or a bare CR, and a delete inside a scriptblock, grouping or `$( )` were skipped and are now judged. A `Remove-Item` whose target is a grouping stays refused in either argument order, and a delete of a bare variable inside a scriptblock (`ForEach-Object { Remove-Item -Recurse $_ }`) is refused like `rm -rf $X`.
+- **`$env:NAME\subpath` is no longer refused as a bare variable.** `$env:TEMP\build` (and `${env:TEMP}\build`) gets the answer Bash gives `$TEMP/build`; `$env:TEMP`, `$env:TEMP\` and `$env:TEMP\*` stay refused.
+- **The stale-path and skill-reference verifiers rebuild a partly written cache.** A cache another session is still writing, or one a crash cut short, is now a miss instead of a partial list that silently dropped findings. A cache written by an earlier version is rebuilt once, and a cache in an unwritable git directory no longer prints a permission error.
+- **The PowerShell classifier keeps one untrusted-reduction flag instead of two, and skips its carriage-return scan for commands with no CR.** No verdict changes: `scripts/check-guardrails-ps-differential.sh origin/main` reports 613 commands and no cell lost. The sink-budget tests are rebuilt on four triggers plus a stuck launcher. An over-block from the earlier here-string and bare-CR release is unchanged and was never named in its entry: a git-free PowerShell command with a trailing-space here-string opener (`@"` then a space) is refused as `herestring-orphan-closer` with no allow token, because the opener is unconfirmed and its `"@` closer at column zero reads as an orphan.
+
+### Changed
+
+- README: `wsl` handling is dated to 0.38.11 and the guards that re-parse a `-c` or wsl operand are the six `block-*` guards, `block-hook-bypass` included; 8.3 temp handling is dated to 0.38.6; the `.work/.gitignore` redirect is no longer attributed to session-flow's procedure; the PowerShell here-string shapes refused with no allow token are listed with their rewrite; the plugin-scoped GitHub MCP matcher is shown; the contributor to-do and tracker state are removed.
+- README: the exec-form dispatcher rows are dated to 0.41.3, not 0.41.0, and each fire is stated as two processes, node and then the bash it spawns.
+- `/guardrails:setup check` probes the bash `hooks/exec-bash.mjs` resolves, not the Bash tool's own bash.
+- `reference/edit-write-guards/PLAN.md` says the "no further process can be removed" floor was shown only for the PostToolUse cold-finding path, and marks the goal an unratified draft pending a human `/performance:goal` run. It also says its census rows and floor line were measured under shell form and not re-measured under exec form, and that no hook or skill reads it.
+- Tests: `wsl` regression rows in the `block-hook-bypass`, `block-noncanonical-commit` and `block-convention-violation` suites. `exec-bash.test.sh` accepts the first bash on `PATH` (a Homebrew bash included) as well as `/bin/bash` and `/usr/bin/bash`, and the plugin's resolver test gains the PATH-first cases.
+- **Released entries corrected in place, no heading removed.**
+  - 0.41.7 keeps only what changed for guardrails, the vendored `hook-utils.sh` optional `prerequisite` notice class.
+  - 0.40.0 drops the instruction to measure `RUN_GUARDS_PROFILE=1` on a Windows host and the "this Linux CI checkout" wording, and links #4235 instead of calling it open.
+  - 0.38.11 lists all six wsl re-parsing guards and states that `wsl.exe -e bash -c "echo secret > ..."` blocks through `block-hook-bypass` since 0.38.9.
+  - 0.38.1 is a changelog-only-bump note; the over-length fail-closed row, parse-once replay and linear tokenizer text moved to 0.38.0, which shipped that code.
+  - 0.37.3 is reduced to "Not released as its own version; see 0.38.0."
+
 ## [0.41.9] - 2026-09-29
 
 ### Fixed
@@ -19,7 +137,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- **Missing external tools surface to the session, with a model-invocable check (#4240).** A `prerequisite` notice latches once per session and keeps its install route on renewal. Format hooks probe at session start. `/claude-ops:prerequisites` reads each plugin's `prerequisites.json` and does not install.
+- **The vendored `hook-utils.sh` gains an optional `prerequisite` notice class (#4240).** `hook::notice_once` takes it as a
+  third argument: the notice latches once per session instead of once per agent, and a renewal keeps its install route
+  instead of cutting to the first line. No guardrails hook passes the class, so guard behavior is unchanged.
 
 ## [0.41.6] - 2026-09-28
 
@@ -96,8 +216,8 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Changed
 
-- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. #4235 (open) lets some interrogation forms through that sink; the rewrite already works on this tree.
-- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded. Measure the PowerShell allow path with `RUN_GUARDS_PROFILE=1` on a Windows host; this Linux CI checkout cannot produce that figure.
+- **README names the PowerShell over-blocks and the rewrites that pass** ([#4236](https://github.com/melodic-software/claude-code-plugins/issues/4236)). `& $var script arg1 arg2` (two or more leading positionals, at least one a bare word) is blocked as a file write; call the program by a quoted literal path, or put a flag first. A `foreach { git … }` loop, and any other `{}` / `()` grouping the git guards cannot tokenize, is refused regardless of verb; unroll it into flat `git -C <path> …;` statements. [#4235](https://github.com/melodic-software/claude-code-plugins/issues/4235) lets some interrogation forms through that sink; the rewrite already works.
+- **The dispatcher still runs every remaining guard after a block.** A command both `block-no-verify` and `block-dangerous-git` refuse prints both denials, so the operator sees every lever in one turn. The one exception is unchanged: an over-length command (`--max-command-len`) still ends the chain at the first ceiling block (#4528). Stopping the whole chain at the first deny is declined: it would hide the second reason on the dual-sink path this issue recorded.
 
 ## [0.39.2] - 2026-09-28
 
@@ -125,7 +245,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ### Fixed
 
-- **A `wsl` / `wsl.exe` prefix no longer hides a command from the blocking guards** ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)). `wsl` runs its command line inside a Linux distribution, and no guard read past it, so `wsl git reset --hard`, `wsl.exe -e git reset --hard`, `wsl git clean -fdx`, `wsl.exe -- git push --force origin main`, `wsl git commit --no-verify -m x` and `wsl rm -rf /` all exited 0. `hook::shell_c_operand` now reads a `wsl` command word the way it reads `bash -c`, so the five guards that re-parse a child shell's operand (`block-no-verify`, `block-dangerous-git`, `block-noncanonical-commit`, `block-convention-violation`, `block-root-delete-target`) re-parse wsl's command line, and each of those rows exits 2. The grammar is wsl's own, from `src/windows/common/WslClient.cpp` and `src/windows/inc/wsl.h` in microsoft/WSL. A leading distro GUID and a leading `~` are stripped. `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`, `--shell-type` and `--parent-console` take an operand, `--` ends the options, and an option wsl does not run with is stepped over rather than trusted to end the command. Without `-e`/`--exec`, wsl hands the rest of its raw Windows command line to `$SHELL -c`, so the words are rebuilt the way Git Bash builds that line (MSVCRT quoting: a word with whitespace or `"` is double-quoted, every other word is bare). `wsl bash -c 'git reset --hard'` and `wsl git status '&&' git clean -fd` block, and `wsl 'git status && git clean -fd'` is one command word to the distro shell. With `-e`, `--exec` or `--shell-type none` the words are argv, so `wsl -e git commit -m 'a; git reset --hard'` stays allowed. On the PowerShell tool `wsl` joins `Start-Process`, `pwsh` and `cmd` as a launcher, so `wsl.exe -e git reset --hard` reaches the fail-closed sink and blocks, and `ps-unparsable-launcher` in `block_dangerous_git_allow` covers it too. `wsl echo hi`, `wsl git status`, `wsl --list --verbose` and a bare `wsl` stay allowed. `block-hook-bypass`, `block-windows-drive-tmp` and `block-exported-msys-pathconv` do not re-parse a `-c` operand, so `wsl.exe -e bash -c "echo secret > …"` is still allowed by this version ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)).
+- **A `wsl` / `wsl.exe` prefix no longer hides a command from the blocking guards** ([#4242](https://github.com/melodic-software/claude-code-plugins/issues/4242)). `wsl` runs its command line inside a Linux distribution, and no guard read past it, so `wsl git reset --hard`, `wsl.exe -e git reset --hard`, `wsl git clean -fdx`, `wsl.exe -- git push --force origin main`, `wsl git commit --no-verify -m x` and `wsl rm -rf /` all exited 0. `hook::shell_c_operand` now reads a `wsl` command word the way it reads `bash -c`, so the six guards that re-parse a child shell's operand (`block-no-verify`, `block-dangerous-git`, `block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`, `block-root-delete-target`) re-parse wsl's command line, and each of those rows exits 2. The README `wsl` scope note owns the current guard list. The grammar is wsl's own, from `src/windows/common/WslClient.cpp` and `src/windows/inc/wsl.h` in microsoft/WSL. A leading distro GUID and a leading `~` are stripped. `-d`/`--distribution`, `--distribution-id`, `-u`/`--user`, `--cd`, `--shell-type` and `--parent-console` take an operand, `--` ends the options, and an option wsl does not run with is stepped over rather than trusted to end the command. Without `-e`/`--exec`, wsl hands the rest of its raw Windows command line to `$SHELL -c`, so the words are rebuilt the way Git Bash builds that line (MSVCRT quoting: a word with whitespace or `"` is double-quoted, every other word is bare). `wsl bash -c 'git reset --hard'` and `wsl git status '&&' git clean -fd` block, and `wsl 'git status && git clean -fd'` is one command word to the distro shell. With `-e`, `--exec` or `--shell-type none` the words are argv, so `wsl -e git commit -m 'a; git reset --hard'` stays allowed. On the PowerShell tool `wsl` joins `Start-Process`, `pwsh` and `cmd` as a launcher, so `wsl.exe -e git reset --hard` reaches the fail-closed sink and blocks, and `ps-unparsable-launcher` in `block_dangerous_git_allow` covers it too. `wsl echo hi`, `wsl git status`, `wsl --list --verbose` and a bare `wsl` stay allowed. Only `block-windows-drive-tmp` and `block-exported-msys-pathconv` do not re-parse a `-c` operand. `block-hook-bypass` has re-parsed it since 0.38.9 ([#4243](https://github.com/melodic-software/claude-code-plugins/issues/4243)), so `wsl.exe -e bash -c "echo secret > …"` blocks.
 
 ## [0.38.10] - 2026-09-28
 
@@ -200,30 +320,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ## [0.38.1] - 2026-09-27
 
-### Fixed
-
-- **A long Bash or PowerShell command no longer runs the guard row past its 60-second `timeout`**
-  ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)). Claude Code cancels a
-  command hook at its `timeout`, and on `PreToolUse` a cancelled command hook does not block the tool call
-  ([hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts)), so a long enough command passed every
-  guard on the row unchecked. On `main` the row took 7.23 s for a 10 KB heredoc and 12.6 s for 16 KB, and a
-  ~70 KB one was still running at 120 s. Now it takes 132 ms, 203 ms and 64 ms.
-  - The row passes `--max-command-len 16384` to `run-guards.sh`. That is the `MAX_COMMAND_LEN` ceiling above
-    which five of its guards already refuse a command unread. Past it, the chain ends at the first guard that
-    blocks, which is `block-no-verify` at the head of the row, before any guard tokenizes the command.
-    Before, the dispatcher ran the other eight guards after that block, and the three with no ceiling that
-    tokenize (`block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`) each spent about
-    44 s of a 70 KB run tokenizing the whole command only to add a reason. Each guard keeps its kill switch: with `block-no-verify` disabled,
-    `block-dangerous-git` blocks next. At or below the ceiling every guard still runs and every reason still
-    shows. `run-guards.test.sh` holds the row's value equal to each guard's `MAX_COMMAND_LEN`.
-  - The event's command is tokenized once. Six guards on the row parse the same string; the first parse is
-    recorded and replayed to the other five, `HOOK_SEG_*` arrays included. A parse that a guard cut short with
-    `exit` is not kept, and a callback's re-parse of a substring is never cached.
-  - hook-utils.sh: the tokenizer is linear in the command's length (see Changed).
-
 ### Changed
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+- Changelog-only bump with no code change. The over-length fail-closed row, the linear tokenizer and the
+  parse-once replay for [#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)
+  shipped in 0.38.0.
 
 ## [0.38.0] - 2026-09-27
 
@@ -256,6 +357,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   guards' notices still renew. Without `jq` the guard allows before it could block, so the latch is not
   spent on a run that never delivered it.
 - Exit code 2, the verdict text, the telemetry `form` strings and every pinned block are unchanged.
+- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
 
 ### Fixed
 
@@ -265,11 +367,6 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   ([hooks: Exit code 2](https://code.claude.com/docs/en/hooks#exit-code-2), fetched 2026-09-27).
   `docs/conventions/hook-observability/README.md` is corrected to match and admits this notice to its
   carve-out list.
-
-## [0.37.3] - 2026-09-27
-
-### Fixed
-
 - **A long Bash or PowerShell command no longer runs the guard row past its 60-second `timeout`**
   ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)). Claude Code cancels a
   command hook at its `timeout`, and on `PreToolUse` a cancelled command hook does not block the tool call
@@ -289,9 +386,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     `exit` is not kept, and a callback's re-parse of a substring is never cached.
   - hook-utils.sh: the tokenizer is linear in the command's length (see Changed).
 
-### Changed
+## [0.37.3] - 2026-09-27
 
-- hook-utils.sh: `hook::bash_parse_segments` splits a command in time linear in its length. It took one `${cmd:i:1}` per character, and bash measures the whole string on each of those, so a parse was quadratic: 1.27 s for a 10,000-character heredoc under en_US.UTF-8 against 84 ms now. The command is split in 4096- and 64-byte blocks under the C locale, and the caller's `LC_ALL` is put back afterwards. Every segment it reports is byte-identical to before under en_US.UTF-8, C.UTF-8 and C. The parse is also reachable as `hook::bash_parse_segments_uncached`, for a dispatcher that shares one parse across the hooks of an event ([#4528](https://github.com/melodic-software/claude-code-plugins/issues/4528)).
+Not released as its own version; see 0.38.0.
 
 ## [0.37.2] - 2026-09-27
 

@@ -1,0 +1,66 @@
+{
+  "skill_name": "check",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-read-only-check",
+      "prompt": "A hook just said bash-format found no shfmt binary. Are shfmt and shellcheck installed here?",
+      "expected_output": "Reads the setup skill's check section, runs only that check, and reports its PASS/FAIL table for shfmt and shellcheck. Installs nothing and stops.",
+      "files": [],
+      "expectations": [
+        "Follows only the `check` section of /bash-format:setup and reports its PASS/FAIL table",
+        "Probes both shfmt and shellcheck via Bash rather than assuming either",
+        "Does not run `apply`, a package manager, or any download",
+        "Stops after the table instead of continuing into remediation"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-request-is-routed-not-performed",
+      "prompt": "/bash-format:check\n\nThe check failed. Just install shellcheck for me.",
+      "expected_output": "Does not install from this skill. Names /bash-format:setup apply as the successor for an explicit install request.",
+      "files": [],
+      "expectations": [
+        "Does not install shellcheck or shfmt itself",
+        "Names /bash-format:setup apply as the route for install guidance the user asked for",
+        "Does not claim shellcheck is now installed"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/bash-format:check",
+      "expected_output": "When both binaries resolve, reports PASS and stops without suggesting setup apply.",
+      "files": [],
+      "expectations": [
+        "Reports the PASS/FAIL table from the check section",
+        "On a PASS, does not suggest /bash-format:setup apply",
+        "Modifies no file"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "shfmt-absence-depends-on-editorconfig-opt-in",
+      "prompt": "/bash-format:check\n\nshfmt is missing, and this repo's .editorconfig only has a bare [*] section.",
+      "expected_output": "Reports the missing shfmt as INFO, not FAIL, because no shell section opts the repo into formatting, and installs nothing.",
+      "files": [],
+      "expectations": [
+        "Treats the missing shfmt as INFO because a bare [*] section is not a shell opt-in",
+        "Still probes shellcheck and reports it separately",
+        "Installs nothing and stops after the table"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "check-runs-its-own-probes-including-node",
+      "prompt": "/bash-format:check\n\nnode is not on PATH here, though shellcheck and shfmt are installed.",
+      "expected_output": "Runs the jq, node, shellcheck and shfmt probes via Bash, since setup's pre-computed rows are not rendered when this skill reads the file, and reports a Node.js FAIL with the reason.",
+      "files": [],
+      "expectations": [
+        "Runs the jq, node, shellcheck and shfmt probes via Bash instead of expecting pre-computed rows",
+        "Reports the missing node as FAIL because every hook launch goes through node hooks/exec-bash.mjs",
+        "Installs nothing and stops after the table"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+# good-for: rule-conditional-assertion
+# good-for: rule-recomputed-derived
+# good-for: rule-snapshot-only
+# good-for: rule-weak-oracle
+# The repaired twins: the error is asserted with assertRaisesRegex, the total
+# is a literal, the snapshot sits beside a literal, and assertIsNotNone sits
+# beside the value.
+from snapshottest import TestCase
+
+from app.cart import total
+from app.parse import parse
+from app.render import render_order
+from app.users import create_user
+
+
+class RepairedTests(TestCase):
+    def test_rejects_empty_input(self):
+        with self.assertRaisesRegex(ValueError, "empty document"):
+            parse("")
+
+    def test_total_adds_the_prices(self):
+        self.assertEqual(total([10, 5]), 15)
+
+    def test_render_order(self):
+        out = render_order({"id": 7, "total": 15})
+        self.assertIn("Total: 15", out)
+        self.assertMatchSnapshot(out)
+
+    def test_create_user(self):
+        user = create_user("ada")
+        self.assertIsNotNone(user)
+        self.assertEqual(user.name, "ada")

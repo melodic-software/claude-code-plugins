@@ -1,0 +1,10 @@
+// expect: rule-zero-assertion
+// Applies the discount and never looks at the result.
+import { applyDiscount } from '../src/pricing';
+
+describe('applyDiscount', () => {
+  it('applies a percentage coupon', () => {
+    const cart = { items: [{ sku: 'A1', price: 5000 }], coupon: 'SAVE10' };
+    applyDiscount(cart);
+  });
+});

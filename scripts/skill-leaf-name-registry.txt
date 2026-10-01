@@ -107,7 +107,16 @@ setup *
 # `extract-ssot`'s concern and not this plugin's. provenance is the plugin's
 # former name and keeps the leaf only as a deprecated shim whose `audit` stub
 # points to `attribution:audit`.
-audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-budget,github,instruction-placement,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,provenance,repo-fleet-hygiene,testing
+# disk-hygiene joins on its own grounds. Its object, the leftovers in one
+# directory tree, is supplied by the namespace, and the contract is exactly the
+# verb's: bare invocation runs the engine's one read-only `scan` and reports the
+# snapshot, which is written under the plugin data directory and never into the
+# target. The skill has no override and no removal lane; removal is the sibling
+# `clean`, which stays manual-only, so a model-invocable leaf that promised
+# removal would contradict the verb table's `clean` meaning. `scan` is the
+# verb-table synonym but names the engine subcommand, not the product, a
+# findings report with a handoff to `clean` (#5516).
+audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-budget,disk-hygiene,github,instruction-placement,machine-health,mcp-tools,mutation-testing,overengineering,plugin-quality,provenance,repo-fleet-hygiene,testing
 
 # Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
 # skill, toolchain checks a build. instruction-placement joins on its own
@@ -127,7 +136,12 @@ audit ai-slop,attribution,claude-config,claude-memory,codebase-health,context-bu
 # whether the ctx7 CLI, its API-key auth
 # and the Context7 MCP server resolve, read-only, never installing. It is its
 # own skill because `setup` is manual-only and the check must be model-invocable.
-check actionlint,biome-format,context7,go-format,instruction-placement,markdown-format,skill-quality,toolchain
+# playwright joins on the same grounds: it reports whether the playwright-cli
+# binary and a browser resolve, read-only, never installing. claude-ops joins on
+# the same grounds: it reports whether node and jq resolve for its hooks.
+# guardrails joins on the same grounds: it reports whether node and jq resolve
+# for its hooks.
+check actionlint,bash-format,biome-format,claude-ops,context7,disk-hygiene,go-format,guardrails,instruction-placement,markdown-format,playwright,powershell-format,ruff-format,skill-quality,toolchain,typos-format
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.

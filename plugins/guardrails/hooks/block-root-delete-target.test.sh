@@ -1545,6 +1545,180 @@ expect "PS kill switch disables the guard" 0 \
   --tool PowerShell --command 'Remove-Item -Recurse C:\' \
   -- "CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ENABLED=false"
 
+# --- 4a. PowerShell statement boundaries and $env: operands (#4516) ------------
+# A statement ends at an unquoted newline (LF, CRLF or a bare CR), `{`, `}`, `(`,
+# `)` and `$(`, not only at `; | &`, so a delete after a newline or inside a
+# scriptblock or a grouping is judged as a statement of its own. The shared field
+# reader drops every CR from the command, so the guard re-reads a PowerShell
+# command from the payload to see a bare CR.
+# portability-ok: Windows path strings in test fixtures, not regex/sed constructs
+for rdt_sep in $'\n' $'\r\n' $'\r'; do
+  rdt_nl="LF"
+  [[ "$rdt_sep" == $'\r\n' ]] && rdt_nl="CRLF"
+  [[ "$rdt_sep" == $'\r' ]] && rdt_nl="bare CR"
+  expect_both "PS delete on the line after Get-Location ($rdt_nl) blocks" 2 \
+    --tool PowerShell --command "Get-Location${rdt_sep}Remove-Item -Recurse -Force C:\\"
+  expect_both "PS delete on the line after a comment ($rdt_nl) blocks" 2 \
+    --tool PowerShell --command "# note${rdt_sep}Remove-Item -Recurse -Force C:\\"
+  expect_both "PS delete on the last of three lines ($rdt_nl) blocks" 2 \
+    --tool PowerShell --command "Get-Location${rdt_sep}Get-ChildItem${rdt_sep}ri -r C:\\"
+  expect_both "PS backtick continues the line ($rdt_nl): operand on the next line, allowed" 0 \
+    --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse \`${rdt_sep}  ./build"
+  expect_both "PS backtick continues the line ($rdt_nl): missing operand still blocks" 2 \
+    --tool PowerShell --command "Remove-Item -Recurse \`${rdt_sep}  -Force"
+  expect_both "PS two harmless lines ($rdt_nl) allowed" 0 \
+    --tool PowerShell --command "Get-Location${rdt_sep}Get-ChildItem C:\\"
+  expect_both "PS newline inside a quoted string is inert ($rdt_nl)" 0 \
+    --tool PowerShell --command "Write-Output 'a${rdt_sep}Remove-Item -Recurse C:\\'"
+  expect_both "PS newline after a pipe keeps the pipeline target ($rdt_nl)" 2 \
+    --tool PowerShell --command "Get-ChildItem |${rdt_sep}Remove-Item -Recurse"
+  expect_both "PS newline after an unquoted comma continues the operand list ($rdt_nl)" 2 \
+    --tool PowerShell --command "Remove-Item -Recurse -Path ./x,${rdt_sep}C:\\"
+  expect_both "PS newline after a quoted comma ends the statement ($rdt_nl)" 2 \
+    --tool PowerShell --command "Write-Output 'a,'${rdt_sep}Remove-Item -Recurse -Force C:\\"
+done
+
+# Scriptblocks, groupings and subexpressions.
+expect_both 'PS if (...) { delete } blocks' 2 \
+  --tool PowerShell --command 'if (Test-Path x) { Remove-Item -Recurse -Force C:\ }'
+expect_both 'PS try { delete } catch blocks' 2 \
+  --tool PowerShell --command 'try { Remove-Item -Recurse -Force C:\ } catch {}'
+expect_both 'PS catch { delete } blocks' 2 \
+  --tool PowerShell --command 'try { Get-Item x } catch { Remove-Item -Recurse -Force C:\ }'
+expect_both 'PS else { delete } blocks' 2 \
+  --tool PowerShell --command 'if ($ok) { Get-Item x } else { Remove-Item -Recurse -Force C:\ }'
+expect_both 'PS ForEach-Object { delete } blocks' 2 \
+  --tool PowerShell --command 'Get-ChildItem | ForEach-Object { Remove-Item -Recurse -Force C:\ }'
+expect_both 'PS foreach loop { delete } blocks' 2 \
+  --tool PowerShell --command 'foreach ($d in 1..3) { ri -r C:\ }'
+expect_both 'PS & { delete } blocks' 2 \
+  --tool PowerShell --command '& { Remove-Item -Recurse -Force C:\ }'
+expect_both 'PS Start-Job { delete } blocks' 2 \
+  --tool PowerShell --command 'Start-Job { Remove-Item -Recurse -Force C:\ }'
+expect_both 'PS function body blocks' 2 \
+  --tool PowerShell --command 'function Clear-It { Remove-Item -Recurse -Force C:\ }; Clear-It'
+expect_both 'PS multi-line scriptblock blocks' 2 \
+  --tool PowerShell --command $'if ($ok) {\n  Get-Location\n  Remove-Item -Recurse -Force C:\\\n}'
+expect_both 'PS $(delete) subexpression blocks' 2 \
+  --tool PowerShell --command '$(Remove-Item -Recurse -Force C:\)'
+expect_both 'PS (delete) grouping blocks' 2 \
+  --tool PowerShell --command '(Remove-Item -Recurse -Force C:\)'
+expect_both 'PS @(delete) array subexpression blocks' 2 \
+  --tool PowerShell --command '@(Remove-Item -Recurse -Force C:\)'
+expect_both 'PS scriptblock delete of a bare variable blocks' 2 \
+  --tool PowerShell --command 'Get-ChildItem | ForEach-Object { Remove-Item -Recurse -Force $_ }'
+# portability-ok: Windows path string in a test fixture, not a regex/sed construct
+expect_both 'PS scriptblock delete outside the tree blocks with a cwd' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'if ($ok) { Remove-Item -Recurse C:\Windows }'
+
+# A delete whose target is a grouping stays refused. The `(` opens a nested level
+# and its `)` hands the statement back with one placeholder word, so the
+# arguments after a grouping still belong to their command. A positional
+# grouping is refused with or without -Recurse, as it always was.
+expect_both 'PS Remove-Item -Recurse (Join-Path $a b) blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse (Join-Path $a b)'
+expect_both 'PS Remove-Item -Recurse $(Join-Path $a b) blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse $(Join-Path $a b)'
+expect_both 'PS Remove-Item (Join-Path $a b) without -Recurse blocks (positional grouping, as before)' 2 \
+  --tool PowerShell --command 'Remove-Item (Join-Path $a b)'
+expect_both 'PS Remove-Item -Recurse -Path (Get-Item x) blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse -Path (Get-Item x)'
+expect_both 'PS Remove-Item -Path (Join-Path $a b) -Recurse -Force blocks (arguments after the grouping)' 2 \
+  --tool PowerShell --command 'Remove-Item -Path (Join-Path $a b) -Recurse -Force'
+expect_both 'PS Remove-Item -Path (Join-Path $env:TEMP x) -Recurse blocks' 2 \
+  --tool PowerShell --command 'Remove-Item -Path (Join-Path $env:TEMP x) -Recurse'
+expect_both 'PS Remove-Item -Path (multi-line grouping) -Recurse blocks' 2 \
+  --tool PowerShell --command $'Remove-Item -Path (\n  Join-Path $a b\n) -Recurse -Force'
+expect_both 'PS Remove-Item -Recurse ./build (Get-Item x) blocks (a second, unknown operand)' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ./build (Get-Item x)'
+expect_both 'PS Remove-Item -Recurse "$(Join-Path $a b)" blocks (quoted subexpression)' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse "$(Join-Path $a b)"'
+expect_both 'PS Remove-Item -Recurse ./a {x} C:\ blocks (a scriptblock argument does not end the statement)' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ./a {x} C:\'
+expect_both 'PS Remove-Item -Recurse -Path {scriptblock} blocks (its value is not known)' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse -Path {./x}'
+expect_both 'PS a mismatched closer still hands the grouping back to Remove-Item' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse (Get-Item {x)}'
+expect_both 'PS Remove-Item -Filter {..} -Recurse C:\ blocks (arguments after a scriptblock)' 2 \
+  --tool PowerShell --command 'Remove-Item -Filter {*.tmp} -Recurse C:\'
+expect_both 'PS if (...) { ... } Remove-Item -Recurse C:\ blocks (a } after if ends the statement)' 2 \
+  --tool PowerShell --command 'if ($ok) { Get-Item x } Remove-Item -Recurse -Force C:\'
+expect_both 'PS an unbalanced ( before a delete blocks' 2 \
+  --tool PowerShell --command 'Get-Item ( ; Remove-Item -Recurse -Force C:\'
+expect_both 'PS an unbalanced ) before a delete blocks' 2 \
+  --tool PowerShell --command ') Remove-Item -Recurse -Force C:\'
+expect_both 'PS a } before a delete blocks' 2 \
+  --tool PowerShell --command '} Remove-Item -Recurse -Force C:\'
+expect_both 'PS a grouping left open around a delete blocks' 2 \
+  --tool PowerShell --command 'Get-Item ( Remove-Item -Recurse -Force C:\'
+expect_both 'PS Remove-Item -Recurse -Path ./build -Filter {*.tmp} allowed with a cwd (scriptblock value of -Filter)' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse -Path ./build -Filter {*.tmp} -Force'
+# Groupings nest to MAX_SUBST_DEPTH and the cap refuses.
+rdt_deep32=$(printf '(%.0s' {1..32})
+rdt_deep33=$(printf '(%.0s' {1..33})
+expect_both 'PS 32 nested groupings allowed' 0 \
+  --tool PowerShell --command "Write-Output ${rdt_deep32}x rm"
+expect_both 'PS 33 nested groupings refused' 2 \
+  --tool PowerShell --command "Write-Output ${rdt_deep33}x rm"
+
+# Controls that stay allowed.
+expect_both 'PS Remove-Item -Recurse ./build allowed with a cwd' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse ./build'
+expect_both 'PS if ($ok) { Write-Output hi } allowed' 0 \
+  --tool PowerShell --command 'if ($ok) { Write-Output hi }'
+expect_both 'PS scriptblock delete of a relative path allowed with a cwd' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'if (Test-Path ./build) { Remove-Item -Recurse ./build }'
+expect_both 'PS non-recursive delete in a scriptblock allowed' 0 \
+  --tool PowerShell --command 'if ($ok) { Remove-Item C:\file.txt }'
+expect_both 'PS quoted braces are inert' 0 \
+  --tool PowerShell --command 'Write-Output "{ Remove-Item -Recurse C:\ }"'
+expect_both 'PS quoted parentheses are inert' 0 \
+  --tool PowerShell --command "Write-Output '(Remove-Item -Recurse C:\\)'"
+expect_both 'PS multi-line scriptblock without a delete allowed' 0 \
+  --tool PowerShell --command $'foreach ($d in 1..3) {\n  Get-Item $d\n}'
+
+# `$env:NAME` and `${env:NAME}` are read as `$NAME` and `${NAME}`, so each spelling
+# gets the answer the Bash lane gives (`rm -rf $X` blocks, `$X/`, `$X/*` block,
+# `$X/build` and `${X}/build` pass). Each PowerShell row below runs beside the Bash
+# row it mirrors, with and without a cwd. The four rows that allow a subpath
+# (`$env:TEMP\build`, `$env:TEMP/build`, `$Env:TEMP\build` and
+# `${env:LOCALAPPDATA}\cache\x`) match the Bash lane's `$X/build` and `${X}/build`,
+# which are allowed.
+while IFS='|' read -r rdt_want rdt_ps rdt_bash; do
+  [[ -n "$rdt_ps" ]] || continue
+  # The rows write a backslash as `~`.
+  rdt_ps=${rdt_ps//\~/\\}
+  for rdt_cwd_arm in none cwd; do
+    rdt_args=()
+    [[ "$rdt_cwd_arm" == cwd ]] && rdt_args=("${RDT_CWD[@]}")
+    expect_both "PS Remove-Item -Recurse $rdt_ps is $rdt_want like rm -rf $rdt_bash ($rdt_cwd_arm)" "$rdt_want" \
+      --tool PowerShell ${rdt_args[@]+"${rdt_args[@]}"} --command "Remove-Item -Recurse $rdt_ps"
+    expect_both "Bash rm -rf $rdt_bash is $rdt_want ($rdt_cwd_arm)" "$rdt_want" \
+      ${rdt_args[@]+"${rdt_args[@]}"} --command "rm -rf $rdt_bash"
+  done
+done <<'EOF'
+2|$env:TEMP|$TEMP
+2|$env:TEMP~|$TEMP/
+2|$env:TEMP/|$TEMP/
+2|$env:TEMP~*|$TEMP/*
+2|$Env:TEMP|$TEMP
+2|${env:TEMP}|${TEMP}
+2|${env:TEMP}~|${TEMP}/
+2|${env:TEMP}~*|${TEMP}/*
+2|$env:TEMP~.|$TEMP/.
+2|$env:TEMP~..|$TEMP/..
+0|$env:TEMP~build|$TEMP/build
+0|$env:TEMP/build|$TEMP/build
+0|$Env:TEMP~build|$TEMP/build
+0|${env:LOCALAPPDATA}~cache~x|${LOCALAPPDATA}/cache/x
+EOF
+# `(x86)` is legal inside a PowerShell `${env:...}` name and is no Bash spelling, so
+# these two have no Bash row. The `(` inside the braces ends no statement.
+expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)} blocks (bare variable)' 2 \
+  --tool PowerShell --command 'Remove-Item -Recurse ${env:ProgramFiles(x86)}'
+expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache allowed' 0 \
+  --tool PowerShell --command 'Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache'
+
 # --- 4b. Launchers read two ways, and four more launchers (#4685) -----------
 # sg re-parses its one command word; setpriv, prlimit and systemd-run step
 # over their own options; an abbreviated env --split-string is split; an
@@ -1644,6 +1818,18 @@ done <<'EOF'
 0|runuser -u bob -- ls /
 0|chroot /mnt ls /
 EOF
+
+# A -match regex is text, not a path. It is allowed beside a literal-target delete,
+# and a refusal for some other reason never names the regex as a system path.
+PS_RX="-match '^[a-z0-9]{8}\.[a-z0-9]{3}\$'"
+expect_both 'PS regex pipeline with -LiteralPath $_.FullName delete allowed' 0 --tool PowerShell \
+  --command "Get-ChildItem C:\\Temp\\x | Where-Object { \$_.Name $PS_RX } | ForEach-Object { Remove-Item -LiteralPath \$_.FullName -Recurse -Force }"
+expect_both 'PS literal safe Remove-Item -Recurse beside the regex allowed' 0 --tool PowerShell \
+  --command "Remove-Item -Recurse -Force ./build; Get-ChildItem | Where-Object { \$_.Name $PS_RX }"
+guard_invoke --tool PowerShell \
+  --command "Remove-Item -Recurse -Force C:\\; Get-ChildItem | Where-Object { \$_.Name $PS_RX }"
+assert_exit "PS regex beside a root delete still blocks" 2 "$GUARD_RC"
+assert_absent "PS block message does not name the regex as a path" "$GUARD_ERR" '^[a-z0-9]'
 
 # --- 5. Fail-closed inputs ---------------------------------------------------
 rc=0

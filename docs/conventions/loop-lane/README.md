@@ -238,11 +238,13 @@ Three rules make the signal deterministic:
 
 **Background-job launch mode.** The tracker marker comment is the escalation of record whether or
 not the record file was written. A loop lane must not call `EnterWorktree` (the terminal would end
-the long-lived orchestrator session). Which launch conditions let the record file be written is a
-harness behavior this convention neither states nor verifies. The work-loop skill's "Background-job
-launch mode" paragraph in
+the long-lived orchestrator session). Launch a background lane from inside an isolated linked git
+worktree to keep the record Write; a background launch from a checkout that is not a linked
+worktree may have the Write refused or landed in an auto-created worktree. Which launch conditions
+let the record file be written is a harness behavior this convention does not verify. The
+work-loop skill's "Background-job launch mode" paragraph in
 [`SKILL.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/work-items/skills/work-loop/SKILL.md)
-owns that text.
+owns that text and its verification record.
 
 The `summary` restates the marker comment's one-line question, text the lane already published on
 the tracker, so the record itself adds no new secret surface. The hook payload the seam sends is
@@ -401,7 +403,7 @@ resolutions re-verified 2026-09-23 against both pages after the Opus 5.5 and Fab
   non-interactive mode a Fable request that would bill usage credits bills them without a consent
   prompt, which is the shape every unattended lane runs in.
 - **strong binds `opus`.** The docs' own starting recommendation, "start with Claude Opus 5.5 for
-  most workloads". Opus 5.5 and Fable 5.1 share a June 2026 reliable knowledge cutoff, so cutoff
+  most workloads". Opus 5.5 and Fable 5.1 both have reliable knowledge through June 2026, so
   freshness does not separate them, and raw capability order (Fable above Opus) does not decide
   the binding alone.
 - **fast binds `sonnet`.** "Best combination of speed and intelligence", native 1M context, Jan
@@ -840,16 +842,31 @@ input. It also baked a solo-operator posture into a contract whose sibling state
 no machine, org size, or budget"
 ([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance): a
 multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
-gap changes no lane's obligations today; it removes the false assurance that nothing is missing.
+gap removes the false assurance that nothing is missing.
 
-**The resolution is account identity, and its writer-side half has landed.** The tee now carries an
+**The resolution is account identity, and all three sides have landed.** The tee carries an
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
 writer could attribute the observation and absent rather than wrong when it could not
-(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). The other two sides
-are not built: reader-side invalidation of latched state on an identity change, and the re-audit
-of every lane body's inlined guard floor. No lane acts on the field yet, so the gap above narrows
-rather than closes. A lane can now be told whose windows it is reading, and is not yet obliged to
-do anything about the answer.
+(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). Reader-side
+invalidation of latched state is a **MUST** in the inlined floor's "Account switch" bullet: a paused
+lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
+names at pause entry, because the snapshot can be up to 10 minutes old), reads
+`.oauthAccount.emailAddress` directly from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` at pause entry
+and on every wake and Monitor tick (the tee is not the signal source, because a headless-only
+machine never refreshes it), and on a change drops the latch and resumes when the new account is
+below the pause threshold, or re-latches against the new account's `resets_at`. One branch goes
+past "drop when the new account is below the threshold": when no fresh tee snapshot attributes the
+new account, its windows are unknown, so the lane drops the latch and runs reactive-only, the
+outcome the staleness rule already gives unknown windows. The lane-floor re-audit is satisfied by
+the drift gate: the floor block moved to every carrier together and
+`scripts/check-loop-lane-floor-drift.sh` fails when any copy differs.
+
+**Known gap: unattributable cases.** The gap narrows rather than closes. A switch the lane cannot
+attribute goes unseen: the tee field is absent whenever the writer could not attribute, a reader
+that cannot read `.oauthAccount.emailAddress` keeps its latch (fail-closed, never a spurious drop)
+until the latched pause ends, and a pause whose tripping snapshot has no `account.email` starts with
+no latched account and adopts the first account it reads, so a switch before that read goes unseen.
+All three depend on an internal `.claude.json` key or on the writer's attribution.
 
 **Guard-mode telemetry.** Each lane records the guard's mode, proactive, reactive, or unknown, in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the

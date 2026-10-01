@@ -160,6 +160,10 @@ for _hm in "${_hm_list[@]}"; do
 done
 [[ -n "$HM_ALT" ]] || HM_ALT="lefthook" # never leave the guard patternless
 
+# Set by the PowerShell lane when the command assigns a hook-manager variable
+# (same HM_ALT list) to 0/false; check_segment blocks on it beside a commit/push.
+PS_HM_ENV_DISABLED=0
+
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
 # spawns no telemetry-only subprocess.
@@ -177,6 +181,87 @@ block() {
   echo "$msg2" >&2
   emit_tel "blocked" "$form"
   exit 2
+}
+
+# Same-command git aliases: `git config alias.NAME VALUE` records the definition
+# (a later definition wins), and `git -c alias.NAME=VALUE NAME` carries its own; a
+# segment invoking NAME is re-checked as the spliced argv, so `git c` with
+# alias.c = `commit -n` is `git commit -n`. A `!` value is a shell command,
+# re-parsed with the caller's arguments appended. Aliases defined by an earlier
+# command or in a config file are not visible here.
+ALIAS_NAMES=()
+ALIAS_VALUES=()
+ALIAS_DEPTH=0
+
+# Record one alias definition from the words after `config`. Read, list, unset,
+# rename and edit actions define nothing; `git config set` is a write.
+alias_record() {
+  local key
+  local -a pos=()
+  while (($# > 0)); do
+    case "$1" in
+    --get | --get-all | --get-regexp | --get-urlmatch | --get-color | --get-colorbool | \
+      --unset | --unset-all | --remove-section | --rename-section | -l | --list | -e | --edit) return 0 ;;
+    -f | --file | --blob | -t | --type | --default | --comment) shift ;;
+    -*) ;;
+    *) pos+=("$1") ;;
+    esac
+    shift
+  done
+  case "${pos[0]:-}" in
+  get | unset | list | edit | remove-section | rename-section) return 0 ;;
+  set) pos=("${pos[@]:1}") ;;
+  *) ;;
+  esac
+  ((${#pos[@]} >= 2)) || return 0
+  key="${pos[0],,}"
+  [[ "$key" == alias.?* ]] || return 0
+  ALIAS_NAMES+=("${key#alias.}")
+  ALIAS_VALUES+=("${pos[1]}")
+}
+
+# $1 subcommand, $2 its index, then the segment argv. Re-checks every definition
+# of the subcommand: the inline `-c alias.NAME=VALUE` spellings
+# hook::git_invocation resolved for this segment (copied before a recheck
+# overwrites them) and the last `git config` record. The locals reach the
+# callbacks below through bash's dynamic scope and are restored when a nested
+# alias returns.
+alias_expand() {
+  local name="${1,,}" idx=$2 i v
+  local -a ALIAS_HEAD ALIAS_TAIL defs=()
+  # --config-env=alias.NAME=VAR expands to a variable's value this parser never reads.
+  [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]] && block "config-env-alias" \
+    "BLOCKED: git alias '$1' is defined via --config-env, so its expansion cannot be verified." \
+    "Define the alias in git config or run the subcommand directly."
+  [[ "$HOOK_GITINV_ALIAS_TERM" == "inline" ]] && defs=("${HOOK_GITINV_ALIAS_EXPS[@]}")
+  shift 2
+  ALIAS_HEAD=("${@:1:idx}")
+  ALIAS_TAIL=("${@:idx+2}")
+  ((ALIAS_DEPTH < 5)) || return 0 # git itself refuses an alias loop
+  for ((i = ${#ALIAS_NAMES[@]} - 1; i >= 0; i--)); do
+    [[ "${ALIAS_NAMES[i]}" == "$name" ]] || continue
+    defs+=("${ALIAS_VALUES[i]}")
+    break
+  done
+  for v in ${defs[@]+"${defs[@]}"}; do
+    ((ALIAS_DEPTH++))
+    if [[ "$v" == '!'* ]]; then
+      hook::bash_parse_segments "${v:1}" alias_recheck_shell
+    else
+      hook::bash_parse_segments "git $v" alias_recheck
+    fi
+    ((ALIAS_DEPTH--))
+  done
+}
+
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+alias_recheck() {
+  check_segment "${ALIAS_HEAD[@]}" "${@:2}" ${ALIAS_TAIL[@]+"${ALIAS_TAIL[@]}"}
+}
+
+# shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
+alias_recheck_shell() {
+  check_segment "$@" ${ALIAS_TAIL[@]+"${ALIAS_TAIL[@]}"}
 }
 
 # Inspect one already-tokenized segment (its argv words passed as "$@"). Blocks
@@ -207,7 +292,17 @@ check_segment() {
   nseg=${#w[@]}
   sub=$HOOK_GITINV_SUB
   sub_idx=$HOOK_GITINV_SUB_IDX
-  [[ "$sub" == "commit" || "$sub" == "push" ]] || return 0
+  case "$sub" in
+  commit | push) ;;
+  config)
+    alias_record "${w[@]:sub_idx+1}"
+    return 0
+    ;;
+  *)
+    alias_expand "$sub" "$sub_idx" "${w[@]}"
+    return 0
+    ;;
+  esac
 
   # core.hooksPath is checked only on git config arguments (collected by the
   # subcommand walk from -c/--config/--config-env), never commit messages or
@@ -227,6 +322,12 @@ check_segment() {
       "BLOCKED: a hook-manager env-var bypass disables the hook manager, letting this commit/push land unchecked." \
       "Fix the hook lane failure instead of bypassing."
   done
+
+  # Form 2, PowerShell spelling: `$env:X=0` or `Set-Item env:X 0` anywhere in
+  # the same command (found on the original text by ps_env_disables_hook_manager).
+  ((PS_HM_ENV_DISABLED)) && block "hook-manager-env" \
+    "BLOCKED: a hook-manager env-var bypass disables the hook manager, letting this commit/push land unchecked." \
+    "Fix the hook lane failure instead of bypassing."
 
   # Form 1: --no-verify / -n (commit or push) — words after the subcommand,
   # skipping values consumed by commit/push options (e.g. -m message text).
@@ -309,6 +410,65 @@ sink_allowed() {
 # checking any remaining visible text — do not fail-open a compound command
 # that still carries --no-verify beside the granted shape (same loop as
 # block-dangerous-git, narrowed to this guard's readonly-ok classifier).
+# True (0) when the PowerShell command text assigns a hook-manager variable to
+# 0/false: `$env:X=0`, `${env:X} = '0'`, `Set-Item env:X 0`,
+# `Set-Item -Path env:X -Value 0`, `si env:X 0`. The classifier reduction turns
+# `$var=` into a bare word, so this reads the original text. The assignment head
+# (`$env:X=` or `Set-Item`/`si`) must also appear once quoted spans are blanked,
+# so a commit message that only quotes `$env:LEFTHOOK=0` is not an assignment;
+# the operands (which may be quoted) are then read from the original text.
+ps_env_disables_hook_manager() {
+  local lc="${1,,}" scan head tail q=$'[\'"]?'
+  [[ "$lc" == *env:* ]] || return 1
+  ps::blank_herestrings "$1"
+  ps::blank_quoted_spans_to scan "$PS_BLANKED"
+  scan="${scan,,}"
+  head="\\\$(\\{env:|env:)(${HM_ALT})[_a-z0-9]*\\}?[[:space:]]*="
+  tail="[[:space:]]*${q}(0|false)${q}([^[:alnum:]_]|\$)"
+  [[ "$scan" =~ $head ]] && [[ "$lc" =~ ${head}${tail} ]] && return 0
+  [[ "$scan" =~ (^|[^[:alnum:]_-])(set-item|si)[[:space:]] ]] && ps_set_item_disables "$lc"
+}
+
+# True (0) when a `Set-Item`/`si` statement in the lowercased text binds a
+# hook-manager `env:` path and a 0/false value. Operands bind the way PowerShell
+# binds them: `-Path`/`-LiteralPath`/`-Value` (unambiguous prefixes, `-Value:0`
+# spelling) in any order, remaining words positionally as path then value.
+ps_set_item_disables() {
+  local rest="$1" tok name want path val
+  local -a toks
+  local re=$'(^|[^[:alnum:]_-])(set-item|si)[[:space:]]+([^;|&)}\r\n]*)'
+  while [[ "$rest" =~ $re ]]; do
+    read -ra toks <<<"${BASH_REMATCH[3]}"
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+    path="" val="" want=""
+    for tok in ${toks[@]+"${toks[@]}"}; do
+      tok="${tok//[\'\"]/}"
+      if [[ -n "$want" ]]; then
+        [[ "$want" == path ]] && path="$tok" || val="$tok"
+        want=""
+      elif [[ "$tok" =~ ^-([a-z]+)(:(.*))?$ ]]; then
+        name="${BASH_REMATCH[1]}"
+        want=""
+        if [[ value == "$name"* ]]; then
+          want=value
+        elif [[ literalpath == "$name"* ]] || { [[ path == "$name"* ]] && ((${#name} > 1)); }; then
+          want=path
+        fi
+        if [[ -n "$want" && -n "${BASH_REMATCH[2]}" ]]; then
+          [[ "$want" == path ]] && path="${BASH_REMATCH[3]}" || val="${BASH_REMATCH[3]}"
+          want=""
+        fi
+      elif [[ -z "$path" ]]; then
+        path="$tok"
+      else
+        val="$tok"
+      fi
+    done
+    [[ "$path" =~ ^env:[\\/]?(${HM_ALT})[_a-z0-9]*$ && "$val" =~ ^(0|false)$ ]] && return 0
+  done
+  return 1
+}
+
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # The declaration first, then the library it names. Under run-guards.sh the
   # declaration is already in this process and the library was loaded once for
@@ -316,15 +476,16 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # shellcheck source=guard-requires.sh
   declare -F guard::require_libs >/dev/null || source "$_HOOK_SELF/guard-requires.sh"
   guard::require_libs
+  ps_env_disables_hook_manager "$COMMAND" && PS_HM_ENV_DISABLED=1
   ps::classify_git_command "$TOOL_NAME" "$COMMAND" "readonly-ok"
   _ps_rc=$?
   _ps_sink_attempts=0
   while ((_ps_rc == 2)); do
     # Same placement as block-dangerous-git: the flag, inside the loop, because
     # a later blanking round can acquire a commented opener. No token for it.
-    if ((PS_HERESTRING_OPENER_COMMENT_CHAR)); then
+    if ((PS_REDUCTION_UNTRUSTED)); then
       PS_SINK_TRIGGER="${PS_REDUCTION_UNTRUSTED_REASON:-herestring-comment-char}"
-      ps::print_unparsable_block_message
+      ps::print_unparsable_block_message "$COMMAND"
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER}"
       exit 2
     fi
@@ -336,7 +497,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     fi
     sink_allow="ps-unparsable-${PS_SINK_TRIGGER:-unknown}"
     if ! sink_allowed "$sink_allow"; then
-      ps::print_unparsable_block_message
+      ps::print_unparsable_block_message "$COMMAND"
       # The trigger rides along in the form token: five distinct shapes reach this
       # sink, and one collapsed token cannot show which of them is over-blocking.
       emit_tel "blocked" "powershell-unparsable-${PS_SINK_TRIGGER:-unknown}"

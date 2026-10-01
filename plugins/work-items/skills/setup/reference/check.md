@@ -9,7 +9,7 @@ with one remediation line per FAIL. Modify nothing, and do NOT bind, file items,
 check.
 
 1. **`jq` entry gate**, the authoritative check is
-   [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+   [`reference/tracker-seam.md`](../../../reference/tracker-seam.md)
    "entry-point presence checks"; probe it (`command -v jq`), don't restate it. Absent is FAIL with that
    reference's install remediation, the schedule snippets parse with `jq` unconditionally.
 2. **Tracker provider binding**, resolve `BINDING` (above). Absent → INFO: the tracker seam is not
@@ -94,7 +94,7 @@ check.
 7. **Work-class label axis**, when probe 2 found a present, shape-valid binding whose provider
    exposes label listing (the `github` adapter: `gh label list`), verify all five canonical
    `work-class:` members from
-   [`${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/work-class-labels.md)
+   [`reference/work-class-labels.md`](../../../reference/work-class-labels.md)
    exist. Any missing member is FAIL. Triage cannot apply autonomous-eligible outcomes until the
    axis is provisioned; remediation is `/work-items:setup apply` on repos without label-as-code,
    or the repo's declared label-as-code owner when one exists (never `gh label create` ad hoc there).
@@ -104,7 +104,7 @@ check.
 8. **Capability-tier label axis**, when probe 2 found a present, shape-valid binding whose provider
    exposes label listing (the `github` adapter: `gh label list`), verify the canonical
    `capability-tier: frontier` member from
-   [`${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md`](${CLAUDE_PLUGIN_ROOT}/reference/capability-tier-labels.md)
+   [`reference/capability-tier-labels.md`](../../../reference/capability-tier-labels.md)
    exists. Absent is FAIL. Triage cannot stamp frontier-tier quota guard and the work-loop reader
    fails closed to general tier until the label exists; remediation is `/work-items:setup apply` on
    repos without label-as-code, or the repo's declared label-as-code owner when one exists (never

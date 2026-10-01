@@ -77,7 +77,7 @@ Only the orchestrator may refresh a branch:
    optimistic locking:
 
    ```text
-   python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/refresh_pr_branch.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --lease-token <worker-token> --state-dir <state-dir> --apply
+   python "<skill-dir>/scripts/refresh_pr_branch.py" --pr owner/repo#42 --expected-head-sha <expected-head-sha> --lease-token <worker-token> --state-dir <state-dir> --apply
    ```
 
 3. Treat GitHub's `202 Accepted` response as asynchronous, and terminal for that PR's cycle.

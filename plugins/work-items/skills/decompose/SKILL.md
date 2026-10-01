@@ -1,6 +1,6 @@
 ---
 description: "Break a plan, spec, or PRD into independently-grabbable vertical-slice work items, classify each AFK (agent-ready) or HITL (needs-human), and publish them blockers-first with dependency edges, optionally under a spec container. Also re-slices (reroutes) when the spec changes mid-flight. Use when the user wants a plan, PRD, or brief broken into tickets or work items, published to the tracker, or re-decomposed. Single-item CRUD is /work-items:track; executing one is /work-items:work."
-argument-hint: "[source]. Empty = topic PLAN.md; prd = topic PRD.md; #<number> = item body; or conversation context"
+argument-hint: "[source]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. `[source]`. Empty = topic PLAN.md; `prd` = topic PRD.md; `#<number>` = item body; otherwise the conversation context.
 
 ## Shared tracker context
 
@@ -199,6 +199,19 @@ close-on-ship drift doctrine. A run that publishes plain slices needs none of it
 ### 5. Report
 
 After publishing, present summary: N items created, dependency graph, which are AFK vs HITL, and the suggested execution order. **work the frontier** (unblocked slices first).
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the
+placeholder before running a command or writing it into a brief. Those files arrive through the Read
+tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the Bash
+tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
+## Next
+
+`/work-items:work` for a slice ready to build.
 
 ## Re-decompose (rerouting)
 

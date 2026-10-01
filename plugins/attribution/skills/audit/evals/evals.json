@@ -165,6 +165,171 @@
         "States that dense rotation evades word-shingling and that no value of min_containment recovers a passage with zero matching shingles, instead of proposing a threshold change",
         "Treats the three cases as one measurement of where the rule ends rather than as three unrelated verdicts"
       ]
+    },
+    {
+      "id": 11,
+      "name": "restated-facts-are-reported-under-their-own-rule",
+      "prompt": "/attribution:audit the six cases c11 through c16 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the passage restates. Report what you find in each and say which findings are fix-eligible.",
+      "expected_output": "Each of the six passages restates a fact an external product owns, in its own wording, with no conforming pointer or four-part record. The panel applies the restated-fact rubric, the refutation pass runs on each unanimous verdict, and each survivor is reported as class restated-fact under attribution/audit/rule-restated-upstream-fact at tier source-fetched-similar, because a source was supplied and this class never reaches fingerprint-confirmed. None is fix-eligible: the fix and sweep actions do not reach the class, and the answer offers a pointer or a stamped record as a disposition behind the human gate rather than applying either. The class is report-only for the gate's arithmetic too, since six cases is below min_n_per_class.",
+      "files": [
+        "evals/fixtures/golden/c11-restated-listing-budget-behavior/case.md",
+        "evals/fixtures/golden/c11-restated-listing-budget-behavior/source.md",
+        "evals/fixtures/golden/c11-restated-listing-budget-behavior/expected.json",
+        "evals/fixtures/golden/c12-restated-status-tag-table/case.md",
+        "evals/fixtures/golden/c12-restated-status-tag-table/source.md",
+        "evals/fixtures/golden/c12-restated-status-tag-table/expected.json",
+        "evals/fixtures/golden/c13-restated-check-list-cap/case.md",
+        "evals/fixtures/golden/c13-restated-check-list-cap/source.md",
+        "evals/fixtures/golden/c13-restated-check-list-cap/expected.json",
+        "evals/fixtures/golden/c14-restated-listing-behavior-bullets/case.md",
+        "evals/fixtures/golden/c14-restated-listing-behavior-bullets/source.md",
+        "evals/fixtures/golden/c14-restated-listing-behavior-bullets/expected.json",
+        "evals/fixtures/golden/c15-restated-cap-in-routing-step/case.md",
+        "evals/fixtures/golden/c15-restated-cap-in-routing-step/source.md",
+        "evals/fixtures/golden/c15-restated-cap-in-routing-step/expected.json",
+        "evals/fixtures/golden/c16-restated-link-and-date-no-trigger/case.md",
+        "evals/fixtures/golden/c16-restated-link-and-date-no-trigger/source.md",
+        "evals/fixtures/golden/c16-restated-link-and-date-no-trigger/expected.json"
+      ],
+      "expectations": [
+        "Reports each of c11 through c16 as class restated-fact under the rule id attribution/audit/rule-restated-upstream-fact, at tier source-fetched-similar",
+        "Keeps every one of them below fingerprint-confirmed however the fingerprint module scored the overlap and however unanimous the panel was, and offers no automatic fix",
+        "Reports c16 although it carries a link and a fetch date, and names the missing recheck trigger as the reason a partial record does not conform",
+        "Reports c12 although its status cells name Anthropic, and says that a category label is not a source, an as-of date or a trigger",
+        "Confines each finding's span to the passage that carries the fact and leaves the neighboring local sentences and bullets out of it",
+        "Names a pointer or a stamped four-part record as the candidate dispositions, with the human as the gate, and states that the fix and sweep actions do not reach this class",
+        "Reports the restated-fact class as report-only because six cases is below min_n_per_class, and states that this is the gate's arithmetic and not a precision result"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "conforming-records-and-pointers-are-not-findings",
+      "prompt": "/attribution:audit the four cases c17 through c20 under evals/fixtures/golden relative to the skill directory, and compare c20 with c15 from the same directory. Each case's source.md is the upstream page the passage concerns. Report what you find in each.",
+      "expected_output": "c17 and c18 are script comments carrying a whole four-part record, c19 is a pointer that states no value, and c20 is the c15 clause with its record added. All four produce no restated-fact finding and are reported as examined. The panel clears each on the conforming pointer or record carve-out and names the parts found: claim, a specific basis URL, an ISO as-of date, and a trigger that is an event a reader can check. c15, the same fact without a record, is reported, and the answer says the two differ by the record alone.",
+      "files": [
+        "evals/fixtures/golden/c15-restated-cap-in-routing-step/case.md",
+        "evals/fixtures/golden/c15-restated-cap-in-routing-step/source.md",
+        "evals/fixtures/golden/c15-restated-cap-in-routing-step/expected.json",
+        "evals/fixtures/golden/c17-negative-stamped-script-constant/case.md",
+        "evals/fixtures/golden/c17-negative-stamped-script-constant/source.md",
+        "evals/fixtures/golden/c17-negative-stamped-script-constant/expected.json",
+        "evals/fixtures/golden/c18-negative-stamped-script-header/case.md",
+        "evals/fixtures/golden/c18-negative-stamped-script-header/source.md",
+        "evals/fixtures/golden/c18-negative-stamped-script-header/expected.json",
+        "evals/fixtures/golden/c19-negative-conforming-pointer/case.md",
+        "evals/fixtures/golden/c19-negative-conforming-pointer/source.md",
+        "evals/fixtures/golden/c19-negative-conforming-pointer/expected.json",
+        "evals/fixtures/golden/c20-negative-conforming-record-prose/case.md",
+        "evals/fixtures/golden/c20-negative-conforming-record-prose/source.md",
+        "evals/fixtures/golden/c20-negative-conforming-record-prose/expected.json"
+      ],
+      "expectations": [
+        "Produces no finding for c17 or c18 and clears each on the conforming pointer or record carve-out, naming the claim, the basis URLs, the as-of date and the recheck trigger found in the script comment",
+        "Produces no finding for c19 and clears it as a pointer, because the passage states no value and names the page that owns the field set",
+        "Clears c20 on the conforming record carve-out while reporting c15 under attribution/audit/rule-restated-upstream-fact, and says the two differ by the presence of the record's parts",
+        "Does not clear a passage because it sits in code, and does not report one because the source page happens to be on hand",
+        "Reports that all four files were examined, so a clean file is visible as coverage rather than absent from the report"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "distilling-files-are-cleared-on-their-own-attribution",
+      "prompt": "/attribution:audit the four cases c21 through c24 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the file distills. Report what you find in each.",
+      "expected_output": "All four files state facts an external source owns, and each is a surface whose stated job is to distill that source. The panel clears each on the distilling-file carve-out by quoting the line of the file's own attribution that enumerates the fact: the Sources bullet naming the adaptive-thinking default for c21, the inline guide citation on the span for c22, the two inline citations for c23, and the opening line naming the guide for c24. No restated-fact finding is produced for any of them and each is reported as examined.",
+      "files": [
+        "evals/fixtures/golden/c21-negative-distilling-thinking-controls/case.md",
+        "evals/fixtures/golden/c21-negative-distilling-thinking-controls/source.md",
+        "evals/fixtures/golden/c21-negative-distilling-thinking-controls/expected.json",
+        "evals/fixtures/golden/c22-negative-distilling-inline-tagged/case.md",
+        "evals/fixtures/golden/c22-negative-distilling-inline-tagged/source.md",
+        "evals/fixtures/golden/c22-negative-distilling-inline-tagged/expected.json",
+        "evals/fixtures/golden/c23-negative-distilling-effort-default/case.md",
+        "evals/fixtures/golden/c23-negative-distilling-effort-default/source.md",
+        "evals/fixtures/golden/c23-negative-distilling-effort-default/expected.json",
+        "evals/fixtures/golden/c24-negative-distilling-loops-taxonomy/case.md",
+        "evals/fixtures/golden/c24-negative-distilling-loops-taxonomy/source.md",
+        "evals/fixtures/golden/c24-negative-distilling-loops-taxonomy/expected.json"
+      ],
+      "expectations": [
+        "Produces no finding for c21 through c24 and clears each on the distilling-file carve-out rather than on a low similarity score",
+        "Quotes the enumerating line of each file's own attribution, which is the Sources bullet for c21, the inline guide citation for c22, the two inline citations for c23 and the opening line for c24",
+        "States that the carve-out rests on the attribution line that enumerates the fact and not on the file's purpose alone, and that a fact the attribution does not enumerate would remain a candidate",
+        "Does not report c21 as an unstamped restatement on the ground that the excerpt carries no four-part record",
+        "Reports that all four files were examined, so a clean file is visible as coverage rather than absent from the report"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "adjudicated-copies-are-found-with-the-class-their-wording-supports",
+      "prompt": "/attribution:audit the nine cases c25 through c33 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the file's passage may derive from. Report what you find in each, then score the nine against their expected.json.",
+      "expected_output": "Each of the nine files carries a lifted span and an attribution, or none, that does not reach it. Eight are near-verbatim findings and c32 is a verbatim finding, each fingerprint-confirmed because the separation rule fires against the supplied source: c25 (part-and-date header names no source), c26 (the credited standard is not the source of the bullets), c27 (two lifted sentences inside original prose, no attribution), c28 (prose re-bulleted, no attribution), c29 (the post is credited and the compilation is not), c30 (the one citation names a different page), c31 (the link covers one section and the span begins above it), c32 (header names parts and dates only) and c33 (a local cross-reference beside two lifted rules). No case is reported as fix-eligible, and the answer says the verbatim and near-verbatim classes are still report-only.",
+      "files": [
+        "evals/fixtures/golden/c25-near-verbatim-filler-dropped/case.md",
+        "evals/fixtures/golden/c25-near-verbatim-filler-dropped/source.md",
+        "evals/fixtures/golden/c25-near-verbatim-filler-dropped/expected.json",
+        "evals/fixtures/golden/c26-near-verbatim-spec-credited-as-paraphrase/case.md",
+        "evals/fixtures/golden/c26-near-verbatim-spec-credited-as-paraphrase/source.md",
+        "evals/fixtures/golden/c26-near-verbatim-spec-credited-as-paraphrase/expected.json",
+        "evals/fixtures/golden/c27-near-verbatim-two-sentences-in-original-prose/case.md",
+        "evals/fixtures/golden/c27-near-verbatim-two-sentences-in-original-prose/source.md",
+        "evals/fixtures/golden/c27-near-verbatim-two-sentences-in-original-prose/expected.json",
+        "evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/case.md",
+        "evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/source.md",
+        "evals/fixtures/golden/c28-near-verbatim-reformatted-guidance/expected.json",
+        "evals/fixtures/golden/c29-near-verbatim-compilation-credits-the-post/case.md",
+        "evals/fixtures/golden/c29-near-verbatim-compilation-credits-the-post/source.md",
+        "evals/fixtures/golden/c29-near-verbatim-compilation-credits-the-post/expected.json",
+        "evals/fixtures/golden/c30-near-verbatim-citation-names-other-file/case.md",
+        "evals/fixtures/golden/c30-near-verbatim-citation-names-other-file/source.md",
+        "evals/fixtures/golden/c30-near-verbatim-citation-names-other-file/expected.json",
+        "evals/fixtures/golden/c31-near-verbatim-undated-time-bound-claim/case.md",
+        "evals/fixtures/golden/c31-near-verbatim-undated-time-bound-claim/source.md",
+        "evals/fixtures/golden/c31-near-verbatim-undated-time-bound-claim/expected.json",
+        "evals/fixtures/golden/c32-verbatim-header-names-parts-only/case.md",
+        "evals/fixtures/golden/c32-verbatim-header-names-parts-only/source.md",
+        "evals/fixtures/golden/c32-verbatim-header-names-parts-only/expected.json",
+        "evals/fixtures/golden/c33-near-verbatim-local-cross-reference/case.md",
+        "evals/fixtures/golden/c33-near-verbatim-local-cross-reference/source.md",
+        "evals/fixtures/golden/c33-near-verbatim-local-cross-reference/expected.json"
+      ],
+      "expectations": [
+        "Reports a finding for each of c25 through c33, with class near-verbatim for every case except c32, which is verbatim",
+        "Gives each finding's span as the lifted lines named in that case's expected.json, which for c30 is the single line 8 and for c27 and c33 excludes the original prose around the lift",
+        "Names, for each case, what its attribution covers and why that does not reach the span: the part-and-date header of c25 and c32, the credited standard of c26, the absent attribution of c27 and c28, the credited post of c29, the citation of a different page in c30, the per-section link of c31 that starts below the span, and the local-only links of c33",
+        "Does not clear any case on the ground that the file cites something upstream, or that most of the file is original, or that the lift was re-bulleted",
+        "Reports no finding as fix-eligible and says every class is below min_n_per_class"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "matches-that-reach-judgment-are-cleared-on-their-own-record-or-citation",
+      "prompt": "/attribution:audit the five cases c34 through c38 under evals/fixtures/golden relative to the skill directory. Each case's source.md is the upstream page the passage matches. Report what you find in each.",
+      "expected_output": "All five passages match their source closely enough to fire the separation rule, and none is a finding. c34 and c37 are cleared on the conforming stamped record carve-out, quoting the claim, basis, as-of date and recheck trigger that name the restated facts. c38 is cleared on the quotation-context carve-out, because the quoted span is attributed at the span. c35 is cleared because the matched text is the file's own Sources entry, which is the citation and not a copy. c36 is cleared because the record at the head of the file names the row's values and the row adds a local severity scheme. Each is reported as examined.",
+      "files": [
+        "evals/fixtures/golden/c34-negative-record-names-the-restated-list/case.md",
+        "evals/fixtures/golden/c34-negative-record-names-the-restated-list/source.md",
+        "evals/fixtures/golden/c34-negative-record-names-the-restated-list/expected.json",
+        "evals/fixtures/golden/c35-negative-sources-entry-is-the-citation/case.md",
+        "evals/fixtures/golden/c35-negative-sources-entry-is-the-citation/source.md",
+        "evals/fixtures/golden/c35-negative-sources-entry-is-the-citation/expected.json",
+        "evals/fixtures/golden/c36-negative-record-covers-the-table-row/case.md",
+        "evals/fixtures/golden/c36-negative-record-covers-the-table-row/source.md",
+        "evals/fixtures/golden/c36-negative-record-covers-the-table-row/expected.json",
+        "evals/fixtures/golden/c37-negative-record-basis-clause-restates-the-doc/case.md",
+        "evals/fixtures/golden/c37-negative-record-basis-clause-restates-the-doc/source.md",
+        "evals/fixtures/golden/c37-negative-record-basis-clause-restates-the-doc/expected.json",
+        "evals/fixtures/golden/c38-negative-quotation-with-inline-code-attributed/case.md",
+        "evals/fixtures/golden/c38-negative-quotation-with-inline-code-attributed/source.md",
+        "evals/fixtures/golden/c38-negative-quotation-with-inline-code-attributed/expected.json"
+      ],
+      "expectations": [
+        "Produces no finding for c34 through c38",
+        "Clears c34 and c37 on the conforming stamped record carve-out and quotes the claim, the basis URL, the ISO as-of date and the recheck trigger from each",
+        "Clears c38 on the quotation-context carve-out and quotes the sentence that names the guide, the section and the URL beside the quoted span",
+        "Clears c35 on its failing criteria, stating that the matched text is the file's Sources entry and that the entry is the attribution its claims point at",
+        "Clears c36 on the record at the head of the file, stating that the record names the row's two values, and notes that the row also adds a local severity scheme",
+        "Reports that all five files were examined, so a cleared file is visible as coverage rather than absent from the report"
+      ]
     }
   ]
 }

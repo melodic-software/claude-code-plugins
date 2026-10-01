@@ -143,31 +143,49 @@ CI is unaffected, it still runs everything.
 ### Local pre-flight for hygiene gates
 
 Several hygiene findings only show up after a push because the **gate name in CI is not the
-local command**. The gap is discoverability, not a missing runner, except one genuine hole
-(#3522).
+local command**. The gap is discoverability, not a missing runner: every gate below has a local form.
 
 | CI gate / step id | Local command | Notes |
 |---|---|---|
 | `plugin-options-docs` | `python3 scripts/sync-plugin-options-docs.py --check` | Regenerates from `plugin.json` `userConfig`. Do not hand-edit the README block. |
+| `config-cascade-semantics` | `python3 scripts/sync-config-cascade-semantics.py --check` | Regenerates the glance table from the Implementers rows; run it without `--check` after editing a row. Do not hand-edit the generated block. |
 | `typos` | `typos --config _typos.toml` | Same config CI passes to the composite. |
 | `markdown` | `markdownlint-cli2` | Config: `.markdownlint-cli2.jsonc`. |
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
-| `machine-specific-paths` | none in this repo | Composite in `melodic-software/ci-workflows`. Parked: there is no local runner. |
+| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/machine-specific-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
 
 There is no single script that runs the whole hygiene set. `scripts/aggregate-hygiene-results.sh`
 consumes CI step outcomes; it does not run the gates. A pre-commit hook or a make target that
 wraps the runnable rows is a later tooling decision, not this record.
 
-- **Claim:** the mapping table is the local pre-flight path; `machine-specific-paths` stays a
-  known coverage gap with no in-repo runner.
-- **Basis:** #3522 (four CI round-trips on #3503). Confirmed 2026-09-28: `find` over this
-  checkout still has no `*machine-specific*` script; `ci.yml` pins
-  `melodic-software/ci-workflows/.github/actions/machine-specific-paths`.
-- **As of:** 2026-09-28.
-- **Recheck:** `ci-workflows` publishes a runnable local form of `machine-specific-paths`, or a
-  maintainer adds an in-repo wrapper or a documented make/script target for the runnable rows.
+- **Claim:** every row of the mapping table is a local command; `machine-specific-paths` runs the
+  pinned composite's own entry script.
+- **Basis:** the #3522 owner decision (document running the composite's script from a
+  `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
+  `EXCLUDE`.
+- **As of:** `ci-workflows` v0.27.1 (`4610c31e92eb1c4b24981e2f200ac87bdb2a1753`), the pin in
+  `.github/workflows/ci.yml`.
+- **Recheck:** the `ci.yml` pin moves, or the composite's entry script changes its environment
+  contract.
+
+#### Running `machine-specific-paths` locally
+
+The gate is a composite in `melodic-software/ci-workflows`. Its entry script runs standalone, but it
+sources `machine-path-patterns.sh` from its own directory, so run it in place from a `ci-workflows`
+checkout.
+
+1. In the `Check for machine-specific paths` step of `.github/workflows/ci.yml`, read the pinned SHA
+   from the `uses:` line and the `:(exclude)...` pathspecs from the `exclude:` input.
+2. Check out `ci-workflows` at that SHA:
+   `git -C <ci-workflows-checkout> switch --detach <sha>` (or add a worktree at the SHA).
+3. From this repo's root, run the row's command with `EXTENSIONS` set to the action's default,
+   `*.cs *.csproj *.json *.jsonc *.js *.jsx *.md *.props *.ps1 *.psm1 *.py *.sh *.slnx *.targets *.toml *.ts *.tsx *.yaml *.yml`,
+   and `EXCLUDE` set to the `exclude:` pathspecs joined by spaces.
+
+The script uses `git grep` in the current directory: it scans tracked files only, so `git add -N`
+or commit a new file before running. Exit 0 is clean, exit 1 means findings.
 
 ### The check-script contract
 

@@ -833,6 +833,15 @@ jobs:
         continue-on-error: true
         run: scripts/check-adr-numbers.sh --check
 
+      # Self-test first, so a broken checker cannot mask a regression.
+      - name: Run spoke-plugin-root tests
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-spoke-plugin-root.test.sh
+      - name: Check skill spokes do not name paths through the plugin-root token
+        id: spoke_plugin_root
+        continue-on-error: true
+        run: scripts/check-spoke-plugin-root.sh --check
+
       # A ${user_config.*} token in a plugin hook config silently drops the
       # whole hook entry whenever the key is unset (the declared userConfig
       # `default` is unimplemented upstream — anthropics/claude-code#46477), so
@@ -957,6 +966,21 @@ jobs:
         id: plugin_options_docs
         continue-on-error: true
         run: python3 scripts/sync-plugin-options-docs.py --check
+
+      # The config-cascade "Semantics at a glance" table is generated from the
+      # Implementers rows, so the failure this catches is a row edited without
+      # regenerating the table, or a table hand-edited away from its rows. The
+      # gate is ungated on purpose: a change that edits only the Implementers
+      # table is docs-only, and that is exactly the edit that can leave the
+      # generated block stale. Self-test first so a broken generator cannot
+      # mask a regression.
+      - name: Test the config-cascade semantics generator
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/sync-config-cascade-semantics.test.sh
+      - name: Check the config-cascade semantics table against the Implementers rows
+        id: config_cascade_semantics
+        continue-on-error: true
+        run: python3 scripts/sync-config-cascade-semantics.py --check
 
       # code-metrics resolves every tunable from one defaults file and restates
       # every key in a reference table with its default. The setup template is
@@ -1484,6 +1508,18 @@ jobs:
         continue-on-error: true
         run: scripts/check-pipefail-grep-q.sh
 
+      # A *.test.sh that runs mktemp must trap EXIT to remove it; the known
+      # offenders are listed in scripts/test-tmp-cleanup-baseline.txt, which
+      # only shrinks. Self-test first, so a broken checker cannot mask a
+      # regression.
+      - name: Test the test-temp-cleanup gate
+        if: needs.changes.outputs.run_shell == 'true'
+        run: bash scripts/check-test-tmp-cleanup.test.sh
+      - name: Gate test suites on cleaning up their temp paths
+        id: test_tmp_cleanup
+        continue-on-error: true
+        run: scripts/check-test-tmp-cleanup.sh --check
+
       # Runner policy, previously its own job. Reads .github/workflows/** and
       # the pinned policy package, so it gates on the workflows filter group:
       # a change that touches nothing under .github/ cannot move a runner
@@ -1536,6 +1572,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            spoke-plugin-root=${{ steps.spoke_plugin_root.outcome }}
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
             exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
@@ -1544,6 +1581,7 @@ jobs:
             hooks-description=${{ steps.hooks_description.outcome }}
             summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
             plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
+            config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
             silent-skips=${{ steps.silent_skips.outcome }}
@@ -1575,6 +1613,7 @@ jobs:
             portability-lint=${{ steps.portability.outcome }}
             shell-portability-lint=${{ steps.shell_portability.outcome }}
             pipefail-grep-q=${{ steps.pipefail_grep_q.outcome }}
+            test-tmp-cleanup=${{ steps.test_tmp_cleanup.outcome }}
             runner-policy=${{ needs.changes.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
@@ -1827,7 +1866,7 @@ jobs:
               py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
               rest=$(printf '%s\n' "$notrun" | grep -Ev '(^$|\.py$)' || true)
               if [ -n "$py" ]; then
-                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q --
+                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q -o tmp_path_retention_policy=none --
               fi
               if [ -n "$rest" ]; then
                 printf '%s\n' "$rest" >"$RUNNER_TEMP/outside-node-paths.txt"
@@ -2202,6 +2241,29 @@ jobs:
           fi
           scripts/sync-html-escape.sh --check-bump "origin/$BASE_REF"
 
+      - name: Verify fetch-docs copies match the canonical fetcher
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          scripts/sync-fetch-docs.sh --check
+      - name: Run fetch-docs tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/fetch-docs.test.sh
+          bash scripts/sync-fetch-docs.test.sh
+      - name: Verify carrying plugins bumped when the fetcher changed
+        if: needs.changes.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-fetch-docs.sh --check-bump "origin/$BASE_REF"
+
       - name: Verify resolve-convention-home cluster matches canonical
         if: needs.changes.outputs.run_tests == 'true'
         run: |
@@ -2470,9 +2532,13 @@ jobs:
       - name: Verify plugin copies match the shared lib
         if: needs.changes.outputs.run_tests == 'true'
         run: scripts/sync-hook-utils.sh --check
+      # The second suite is the contract of the telemetry-sink test helper, which
+      # drives hook::emit_telemetry from this same library.
       - name: Run shared lib tests
         if: needs.changes.outputs.run_shell == 'true'
-        run: bash lib/hook-utils.test.sh
+        run: |
+          bash lib/hook-utils.test.sh
+          bash lib/hook-test-sink.test.sh
       - name: Verify carrying plugins bumped when the lib changed
         if: needs.changes.outputs.run_tests == 'true'
         env:

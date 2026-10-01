@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
@@ -14,7 +17,7 @@ assert_usage_error "$S" --repo
 # than empty it or trip the unknown-argument path. The conformance binding never
 # threads --repo (CB_REPO is empty for this adapter), so this is the only place
 # the flag's parse is exercised.
-STORE="$(mktemp -d)"
+STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "repo-parity" >/dev/null
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$S" --repo other/repo)"
 assert_eq "--repo lists the bound store (exit 0)" "0" "$?"

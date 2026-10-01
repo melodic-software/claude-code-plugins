@@ -41,6 +41,12 @@ Contract enforced here (encoded as code, not convention):
   `--approver-bot-logins`, and `--block-labels` are all non-empty. Any criterion
   failing is just another blocker, so the caller falls back to the human
   merge-ready list. Absent the flag the gate is byte-for-byte its prior self.
+- The merge method, dependency-manager logins, and block labels are resolved for
+  the PR's own repository from its default-branch `.claude/source-control.md`
+  (`babysit_repo_config`); the matching flags are the deprecated `userConfig`
+  fallback. The review-settle pair stays `userConfig`-only: a repository
+  declaration of either key is ignored. A repository config that cannot be read
+  refuses the run at exit 2.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, up-to-date, approvals, and conversation resolution) plus
@@ -58,10 +64,12 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from dataclasses import dataclass
+from collections.abc import Iterable
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Any, cast
 
+import babysit_repo_config as repo_policy
 from babysit_checks import check_identity_key, classify_checks
 from babysit_classify import (
     DEFAULT_FEEDBACK_CONFIG,
@@ -1291,6 +1299,34 @@ def allowed_method(repo: str, requested: str | None) -> str:
     raise RuntimeError(f"no merge method enabled on {repo}")
 
 
+def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | None:
+    """The review-settle hold, or None when it would be inert.
+
+    Inert means no reviewer logins, or a window that is not a finite number
+    converting to at least one second.
+    """
+    reviewer_logins = normalize_login_set(logins)
+    try:
+        settle_minutes = float(minutes)
+    except ValueError:
+        settle_minutes = float("nan")
+    # Round, then floor the RESULT at one second. Truncating a positive
+    # sub-second window to zero would pass the greater-than-zero test and then
+    # hold nothing, which is exactly the active-looking inert configuration the
+    # paired-flag rule exists to make impossible.
+    settle_seconds = (
+        round(settle_minutes * 60)
+        if settle_minutes > 0 and settle_minutes != float("inf")
+        else 0
+    )
+    if not reviewer_logins or settle_seconds < 1:
+        return None
+    return ReviewSettleConfig(
+        reviewer_logins=reviewer_logins,
+        settle_seconds=settle_seconds,
+    )
+
+
 def main() -> int:
     configure_stdio()
     # allow_abbrev=False: the permission grants covering this gate state their
@@ -1476,7 +1512,8 @@ def main() -> int:
     # gate to invent how long that reviewer takes, and a window with no reviewer
     # set has nothing to wait for. Either alone is a usage error rather than a
     # silently-inert flag, so a half-configured hold can never read as an active one.
-    settle: ReviewSettleConfig | None = None
+    # The pair is `userConfig`-only, so a half-set or invalid flag is a usage
+    # error whatever the target repository declares.
     if args.review_bot_logins is not None or args.review_settle_minutes is not None:
         missing = [
             name
@@ -1493,21 +1530,12 @@ def main() -> int:
                 "missing " + ", ".join(missing),
                 2,
             )
-        reviewer_logins = normalize_login_set(parse_csv_set(args.review_bot_logins))
-        try:
-            settle_minutes = float(args.review_settle_minutes)
-        except ValueError:
-            settle_minutes = float("nan")
-        # Round, then floor the RESULT at one second. Truncating a positive
-        # sub-second window to zero would pass the greater-than-zero test above
-        # and then hold nothing, which is exactly the active-looking inert
-        # configuration the paired-flag rule exists to make impossible.
-        settle_seconds = (
-            round(settle_minutes * 60)
-            if settle_minutes > 0 and settle_minutes != float("inf")
-            else 0
-        )
-        if not reviewer_logins or settle_seconds < 1:
+        if (
+            build_settle(
+                parse_csv_set(args.review_bot_logins), args.review_settle_minutes
+            )
+            is None
+        ):
             return _refuse(
                 "--review-bot-logins must be non-empty and "
                 "--review-settle-minutes must be a finite number "
@@ -1515,26 +1543,22 @@ def main() -> int:
                 "run the hold under-specified",
                 2,
             )
-        settle = ReviewSettleConfig(
-            reviewer_logins=reviewer_logins,
-            settle_seconds=settle_seconds,
-        )
 
     # Build the autopilot-merge-tier config before any network access, failing
-    # closed on a partial configuration: the tier's whole point is that the three
-    # sets are all supplied deliberately, so an umbrella flag with any of them
-    # empty is a refusal, never a merge on an under-specified tier.
+    # closed on a partial configuration: the tier's whole point is that its sets are
+    # all supplied deliberately, so an umbrella flag with any of them empty is a
+    # refusal, never a merge on an under-specified tier. The block labels are the
+    # exception: the target repository may declare them, so their non-empty check
+    # runs once the repository's policy is read.
     tier: AutopilotMergeTierConfig | None = None
     if args.autopilot_merge_tier:
         lane = parse_csv_set(args.lane_logins)
         approver = parse_csv_set(args.approver_bot_logins)
-        block = parse_csv_set(args.block_labels)
         missing = [
             name
             for name, value in (
                 ("--lane-logins", lane),
                 ("--approver-bot-logins", approver),
-                ("--block-labels", block),
             )
             if not value
         ]
@@ -1548,7 +1572,7 @@ def main() -> int:
         tier = AutopilotMergeTierConfig(
             lane_logins=frozenset(lane),
             approver_bot_logins=frozenset(approver),
-            block_labels=frozenset(block),
+            block_labels=frozenset(parse_csv_set(args.block_labels)),
         )
     elif any((args.lane_logins, args.approver_bot_logins, args.block_labels)):
         return _refuse(
@@ -1559,8 +1583,46 @@ def main() -> int:
 
     if args.auto and not (args.merge and args.expected_head):
         return _refuse("--auto requires --merge and --expected-head", 2)
-    if args.auto and args.method not in (None, "squash"):
-        return _refuse("--auto arms a squash merge; --method must be squash", 2)
+
+    # The target repository's policy, read from its default branch with the flags
+    # as the deprecated `userConfig` fallback. Unreadable policy refuses the
+    # check as well as the merge: a verdict computed without the repository's
+    # holds would read as ready when it may not be.
+    try:
+        policy = repo_policy.resolve(repo, repo_policy.fallback_from_args(args))
+    except repo_policy.RepoConfigError as exc:
+        return _refuse(
+            f"repository policy unreadable: {exc}; refusing to run the gate without it",
+            2,
+        )
+    if args.auto and policy.merge_method not in (None, "squash"):
+        return _refuse(
+            "--auto arms a squash merge; the effective merge method must be "
+            f"squash, not {policy.merge_method!r}",
+            2,
+        )
+    settle: ReviewSettleConfig | None = None
+    if policy.review_bot_logins is not None or policy.review_settle_minutes is not None:
+        settle = build_settle(
+            policy.review_bot_logins or (), policy.review_settle_minutes or ""
+        )
+        if settle is None:
+            return _refuse(
+                "the effective review-settle pair is under-specified; refusing "
+                "to run the hold without it",
+                2,
+            )
+    if tier is not None:
+        # Add-only: the effective labels are the flag set plus the repository's, and
+        # an empty union is an under-specified tier.
+        if not policy.merge_block_labels:
+            return _refuse(
+                "--autopilot-merge-tier requires non-empty block labels, from "
+                "--block-labels or the repository's babysit_merge_block_labels; "
+                "refusing to run the tier under-specified",
+                3,
+            )
+        tier = replace(tier, block_labels=policy.merge_block_labels)
 
     # Resolve self logins only after every argument-shape refusal above: '@me'
     # resolution is a network call, and the guard's contract is that malformed
@@ -1577,9 +1639,7 @@ def main() -> int:
             if token.strip().casefold() != "@me"
         )
 
-    extra_dependency_manager_logins = frozenset(
-        parse_csv_set(args.extra_dependency_manager_logins)
-    )
+    extra_dependency_manager_logins = policy.extra_dependency_manager_logins
 
     try:
         result = evaluate(
@@ -1634,7 +1694,7 @@ def main() -> int:
         result["action"] = "auto-merge"
 
     try:
-        method = allowed_method(repo, "squash" if arm_auto else args.method)
+        method = allowed_method(repo, "squash" if arm_auto else policy.merge_method)
     except (RuntimeError, json.JSONDecodeError) as exc:
         # A method-lookup failure is reported, not raised, so output stays JSON.
         result["error"] = f"{type(exc).__name__}: {exc}"

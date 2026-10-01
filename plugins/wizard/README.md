@@ -59,6 +59,19 @@ it never fires for steps the agent can perform itself.
   warn visibly and land in the closing to-do summary instead of failing the
   run. Wizards whose values live only in `.env` never touch `gh`.
 
+## Unattended secrets
+
+A script `/wizard:unattended` authors resolves each secret in this order, first hit wins:
+environment variable, a file the author names, a `Microsoft.PowerShell.SecretManagement` vault,
+then the native store (macOS Keychain through `security find-generic-password -s <name> -w`, Linux
+`pass show <name>` first line, for an entry `<name>.gpg` in the password store), then a hidden prompt. A store rung is skipped silently when its
+module, command or the name is absent, and the vault uses only a string secret. The vault reads
+every registered vault, so a locked vault, Keychain or `pass` can prompt during a dry run, and an
+unattended run needs an unlocked keychain or a `gpg-agent` with a cached passphrase. Names declared with
+`-Secrets` on `Invoke-UnattendedRun` resolve once, before the first stage, so every hidden prompt
+comes up front. An undeclared name falls back to the same ladder at first use. The result JSON
+lists declared names, never values.
+
 ## Ephemeral by default
 
 A wizard is built for one run: save it to a scratch or `scripts/` path, run it,

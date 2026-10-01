@@ -1,13 +1,24 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import { pathToFileURL } from "node:url";
 
 const buildDir = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const script = path.join(buildDir, "emit-slides-data.js");
+
+const scratchDirs = [];
+after(() => {
+  for (const dir of scratchDirs) rmSync(dir, { recursive: true, force: true });
+});
+
+function scratch(prefix) {
+  const dir = mkdtempSync(path.join(tmpdir(), prefix));
+  scratchDirs.push(dir);
+  return dir;
+}
 
 function run(args, env = {}) {
   return spawnSync(process.execPath, [script, ...args], {
@@ -38,7 +49,7 @@ test("a missing briefing exits 1", () => {
 });
 
 test("argv writes slides-data.js and formats an ASCII-arrow window", () => {
-  const root = mkdtempSync(path.join(tmpdir(), "slides-"));
+  const root = scratch("slides-");
   const briefing = path.join(root, "briefing.md");
   const out = path.join(root, "slides-data.js");
   writeFileSync(
@@ -68,7 +79,7 @@ test("argv writes slides-data.js and formats an ASCII-arrow window", () => {
 });
 
 test("runs as the entrypoint through a symlinked build directory", () => {
-  const link = path.join(mkdtempSync(path.join(tmpdir(), "emit-link-")), "build");
+  const link = path.join(scratch("emit-link-"), "build");
   symlinkSync(buildDir, link, "junction");
   const missing = path.join(tmpdir(), "no-such-briefing.md");
   const result = spawnSync(

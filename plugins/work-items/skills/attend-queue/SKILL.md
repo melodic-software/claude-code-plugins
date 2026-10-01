@@ -1,6 +1,5 @@
 ---
 description: "Attend the loop-lane human queue: escalated items and untriaged intake in one view, driven to resolution. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
-argument-hint: "(no arguments. Polls escalations and untriaged intake for the bound repository)"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`. None: the skill takes no arguments and polls escalations and untriaged intake for the bound repository.
 
 ## Shared tracker context
 
@@ -237,13 +236,29 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
   the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
-  fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
-  consumer **must** arm a session Monitor on the tee file and re-evaluate on every write: the file
-  carries an **`account.email` field when the writer could attribute the observation**, so a write
-  is still the signal that the windows changed under you (account switch, another session's
-  refresh).
+  fresh snapshot stays valid through the pause unless the account changes (see **Account switch**;
+  no refresh happens while paused). While paused, a consumer **must** arm a session Monitor on the
+  tee file and re-evaluate on every write: the file carries an **`account.email` field when the
+  writer could attribute the observation**, so a write is still the signal that the windows changed
+  under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
+- **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
+  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
+  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
+  the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
+  with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
+  every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
+  re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
+  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
+  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
+  latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
+  missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
+  print, log, or interpolate the email or the state file (`.claude.json` holds account state); parse
+  it with a JSON parser only and treat the value as untrusted.
 
 Two further reader-contract rules apply alongside the floor (outside the byte-audited block):
 
@@ -264,7 +279,22 @@ For this attended lane, "stop claiming new work" means: finish the row in hand (
 flip-while-claimed and assignee clear when disposition is complete), then stop pulling further rows
 and report the pause
 to the operator, who may explicitly choose to continue (the operator's presence is the "explicit
-user request" the hard-stop rule anticipates).
+user request" the hard-stop rule anticipates). This lane keeps no durable state, so the latched
+account is held in the session only: apply the **Account switch** bullet on each Monitor tick and
+when the operator returns, and report a resume or a re-latch in the next reply.
+
+## Spoke paths
+
+The `reference/` files write the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the
+placeholder before running a command or writing it into a brief. Those files arrive through the Read
+tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the Bash
+tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
+## Next
+
+`/work-items:work-loop` is the autonomous drain that picks up what this flipped.
 
 ## Gotchas
 

@@ -5,6 +5,178 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.55.3] - 2026-09-30
+
+### Fixed
+
+- **`audit`, `audit-instructions`, `audit-pass` and `audit-permission-grants` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` and `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. In `audit`, `audit-pass` and `audit-permission-grants`, script paths now read `<skill-dir>/scripts/...` and `<plugin-root>/lib/...`, and each `SKILL.md` gains a `## Spoke paths` section saying which variable each placeholder is. `audit-instructions` is at the `SKILL.md` line cap, so its spokes point at the script paths `SKILL.md` already gives, resolved, instead of adding a section. The `audit-permission-grants` criteria, the `audit` hook-coverage checklist and the `audit` validation categories keep the literal token where it is the subject they detect, so no detection pattern or example changes.
+
+## [0.55.2] - 2026-09-30
+
+### Changed
+
+- `automode-entry-diff.sh --oracle` removes its scratch directory on exit; the suites remove their temporary directories.
+
+## [0.55.1] - 2026-09-30
+
+### Changed
+
+- **`audit`, `audit-instructions` and `audit-permission-state` descriptions fit the 500-character listing budget.** Each keeps its leading native-route phrase, its quoted trigger phrases and its sibling boundary, in fewer words ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.55.0] - 2026-09-30
+
+### Added
+
+- **The audit engine derives more of its criteria from the docs it fetches.** It follows links out of
+  `settings-reference` to the pages a check reads (today only `hooks`; a page no check reads is not
+  requested), takes the `fallbackModel` cap and the enum values
+  of string keys from the documented sections (a list with a bullet that is not a literal value, such
+  as the strftime pattern in `timeFormat`'s list, is open and gives no row, so `"%H:%M"` is not
+  flagged), checks nested keys inside objects the reference
+  documents, and quotes the binary's describe string for a key the docs leave undocumented. The
+  string is quoted only when every describe-bearing declaration of the key's name in the binary
+  carries the same one: the binary holds many schemas that reuse names such as `timeout` and
+  `enabled`, so a name declared with different descriptions gets none, and so does a key whose own
+  entry has no describe.
+- **`known-issues` fix versions are compared with the installed Claude Code version** in a new
+  Category J check. `reference/known-issues.md` documents the `Fixed in vX.Y.Z` form the check reads
+  and records why no tracked issue carries one yet, so the check emits no row until one does.
+  `SKILL.md`, the audit checklist and `context/validation-categories.md` describe Category J.
+
+### Changed
+
+- **The audit's Phase 2 prose matches the engine.** Hook event names are engine-decided in `SKILL.md`
+  and `context/validation-categories.md`, and the checklist template sends Phase 2 to the judgment
+  column; the model reads the hooks page only for a row the engine left `not-inspectable`.
+- **The audit checklist's hook Timeouts row states the figures `context/validation-categories.md`
+  states** (5-15s for simple formatters, 30s for slow-startup tools) and says they are this skill's
+  judgment, not a documented limit. It previously gave 5-30s and up to 60s.
+- **A `fallbackModel` array longer than the documented cap before duplicates are removed is no longer
+  a warning.** The row compared the raw length with the declared schema's `maxItems` of 3, which the
+  engine does not read, so that case is now a `skip` row. Only the distinct count past the cap the
+  `fallbackModel` section states is a finding.
+
+### Fixed
+
+- **`settings-reference` sections are indexed once per run** instead of rescanned on every lookup, and
+  a key containing U+0000 stays in one row.
+- **Every quoted docs span the audit cites is pinned** in `doc-citations.tsv`, and a permissions-page
+  quotation the page no longer carries is restated from the page's wildcard table.
+
+## [0.54.0] - 2026-09-30
+
+### Changed
+
+- **The docs fetcher is canonical in `lib/fetch-docs.sh` and takes `--profile <name>`.** A profile
+  names a publisher's index URL, page path prefix, raw-channel suffix and content types; `anthropic`
+  is the default and the only one defined, so existing callers behave as before.
+  `scripts/fetch-docs.sh` is a byte-identical copy of the canonical file, kept in step by
+  `scripts/sync-fetch-docs.sh` (run in CI). The test seam variables are renamed to
+  `FETCH_DOCS_FIXTURE_DIR`, `FETCH_DOCS_INDEX_URL` and `FETCH_DOCS_CLAUDE_BIN`; `audit-engine.sh`
+  and `check-doc-citations.sh` use the new names.
+
+## [0.53.6] - 2026-09-30
+
+### Changed
+
+- **`audit` / Phase 5:** route approved `settings.json` and `settings.local.json` edits through `update-config` with
+  the `[Self-Modification]` handshake, and document the two auto-mode refusals
+  (`.claude/audit-pass.md` as `[Instruction Poisoning]`, the `audit-engine.sh` re-run as
+  `[Self-Modification]`) with the operator fallback
+  ([#5376](https://github.com/melodic-software/claude-code-plugins/issues/5376)).
+
+## [0.53.5] - 2026-09-29
+
+### Changed
+
+- **`unhobble`: listing description trimmed to 500 characters or fewer.** Quoted triggers are
+  kept; the body is unchanged
+  ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.53.4] - 2026-09-29
+
+### Fixed
+
+- **`scripts/fetch-docs.sh`:** a slug resolves only to the top-level docs page
+  (`/docs/en/<slug>.md` or `/docs/<slug>.md`). A nested page with the same basename, such as
+  `plugins/cli-reference.md`, no longer shadows the top-level page, so `--discover` no longer marks
+  the top-level page not-in-index
+  ([#5496](https://github.com/melodic-software/claude-code-plugins/issues/5496)).
+
+## [0.53.3] - 2026-09-29
+
+### Changed
+
+- **`audit-permission-state`, `audit` and `audit-instructions` descriptions open with a
+  presence-gated routing clause for the native skill their Boundary section routes to.**
+  `audit-permission-state` routes reducing permission prompts by writing an allowlist to the bundled
+  `fewer-permission-prompts` skill and keeps showing what is in effect. `audit` routes a settings
+  change the person requested to the bundled `update-config` skill and keeps auditing what is
+  configured. `audit-instructions` routes a model migration, a target-model change, or any pass over
+  application-code prompts to the bundled `claude-api` skill's `prompt-audit`, keeps the standing
+  audit of Claude Code instruction surfaces, and runs both when a sweep wants both. The `suggest`
+  surfaces (`/permissions`, `/auto-mode-setup`, `doctor`) get no phrase.
+- **Boundary bullets for native surfaces no longer assert that the surface ships with Claude
+  Code.** The six bullets in `audit-instructions`, `audit-permission-grants`,
+  `audit-permission-state`, `audit` and `draft-auto-mode-rules` keep the provenance class, what
+  the surface does and how it is invoked, in the native-references template form.
+
+## [0.53.2] - 2026-09-29
+
+### Added
+
+- **`audit-permission-grants` carries a Boundary section for the built-in command
+  `/permissions`.** The command edits rules interactively; this skill audits grants and writes
+  nothing. The model offers the person-run command when a finding calls for changing a settings
+  rule.
+
+## [0.53.1] - 2026-09-29
+
+### Added
+
+- **`draft-auto-mode-rules` carries a Boundary section for the built-in command
+  `/auto-mode-setup`.** The command drafts and saves `autoMode.environment` entries; this skill
+  interviews for every section and prints only. The model offers the person-run command at the
+  start of the run rather than invoking it.
+- **`audit-permission-state` carries a Boundary section for the bundled skill
+  `fewer-permission-prompts` and the built-in command `/permissions`.** When
+  `fewer-permission-prompts` resolves in the session it is preferred for writing an allowlist, and
+  this skill for seeing what is in effect; the model offers the person-run `/permissions` for
+  interactive editing rather than invoking it.
+- **`audit-instructions` carries a Boundary section for the bundled skill `doctor`.** The model
+  offers the person-run `/doctor prompt-audit` at the end of the run as an addition to this
+  report-only audit, rather than invoking it.
+- **`audit` carries a Boundary section for the bundled skill `update-config`.** When it resolves in
+  the session it is preferred for making a requested settings change, and this skill for auditing
+  configuration.
+
+## [0.53.0] - 2026-09-29
+
+### Added
+
+- **`scripts/fetch-docs.sh`: one shared fetcher for upstream docs pages.** It resolves each page
+  through the docs index, reads it verbatim over HTTPS from the docs origin, and writes a per-run
+  manifest with `url`, `retrieved`, `sha256`, `status`, `content_type`, `bytes`, `lines`, `state`,
+  and `reason` per page, plus `claude_version`. A 404, a non-markdown body, or a truncated body is
+  `unread` and leaves no file. There is no persistent cache
+  ([#4655](https://github.com/melodic-software/claude-code-plugins/issues/4655)).
+
+### Changed
+
+- **`audit` engine:** reads its docs pages through the fetcher and carries the manifest fields in
+  the `docs` coverage record (#4655).
+- **`check-doc-citations.sh`:** reads its pages through the fetcher. A slug the docs index does not
+  list, or any page the fetcher reports unread, prints a visible `SKIP` line instead of grepping a
+  foreign body (#4655).
+
+## [0.52.1] - 2026-09-29
+
+### Changed
+
+- **`audit-instructions` / I15:** record the user-request-conflict axis as a non-member in the
+  Boundary section, with the co-residency reason; `conflict-criteria.md` 1.6.2
+  ([#3565](https://github.com/melodic-software/claude-code-plugins/issues/3565)).
+
 ## [0.52.0] - 2026-09-29
 
 ### Added

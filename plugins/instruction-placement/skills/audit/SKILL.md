@@ -149,6 +149,14 @@ and suppress every candidate whose `finding_id` it carries. That file is how a d
 checkout the findings artifact never does, so a sweep that ignores it re-proposes decisions the
 operator already made somewhere else.
 
+Derive a candidate's `anchor/v1` and `finding_id` by running `detect.sh identity`, never by hand.
+`--file` is the repo-relative path:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" identity --file <path> --start <n> \
+  --lane demote|promote --destination <rung>
+```
+
 Three obligations, none optional. **Read, never write**: `realign` composes an entry behind its
 per-item gate and nothing here does. **Report the suppressions**, each with its reason, date, and
 contributing layer, and every entry that did *not* suppress: personal-only, malformed, or outside
@@ -191,6 +199,11 @@ table and the two rules that keep routing from becoming silent dropping.
   read-only sources for the promote lane.
 - **Deterministic output.** Files sort lexically, findings sort by rank then identifier, no
   timestamps outside frontmatter.
+
+## Next
+
+`/instruction-placement:realign`. It applies the findings the operator accepts, one gated item at a
+time.
 
 ## Gotchas
 

@@ -3,6 +3,16 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.4] - 2026-09-29
+
+### Removed
+
+- The DLSS5-Feeder pointers from `SKILL.md`, `candidate-selection.md` and
+  `reference/feeder-route.md`; the reference file is deleted.
+- `assess` guidance for a no-upscaler or 32-bit game no longer names an alternative route.
+- The Feeder route is not built: `apply`, `remove` and `status` cover the in-process OptiScaler
+  route only. The bitness and dx12 fixes from 0.8.0 stand.
+
 ## [0.8.3] - 2026-09-29
 
 ### Fixed

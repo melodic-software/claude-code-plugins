@@ -1,0 +1,15 @@
+// expect: rule-inert-assertion
+// Assert.IsTrue(true) passes whatever PlaceOrder did (MSTEST0032).
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderAlwaysTrueTests
+{
+    [TestMethod]
+    public void PlaceOrder_MarksOrderPlaced()
+    {
+        var order = new Order();
+        order.Place();
+        Assert.IsTrue(true);
+    }
+}

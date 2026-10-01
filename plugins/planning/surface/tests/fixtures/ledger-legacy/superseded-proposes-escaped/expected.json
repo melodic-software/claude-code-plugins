@@ -1,0 +1,52 @@
+{
+  "Q1": {
+    "title": "One?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": "nl\nx",
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "old"
+      }
+    ],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: nl\nx; was: old",
+      "proposal": [
+        "nl\nx",
+        "old"
+      ]
+    }
+  },
+  "Q2": {
+    "title": "Two?",
+    "round": 1,
+    "commits": [],
+    "terminal": null,
+    "recommendation": "x; was: y",
+    "alternatives": [
+      {
+        "key": "was",
+        "text": "old|piped"
+      }
+    ],
+    "archived": null,
+    "hold": null,
+    "setAside": [],
+    "seed": {
+      "status": "superseded-by-plan",
+      "round": 1,
+      "resolution": "plan proposes: x; was: y; was: old|piped",
+      "proposal": [
+        "x; was: y",
+        "old|piped"
+      ]
+    }
+  }
+}

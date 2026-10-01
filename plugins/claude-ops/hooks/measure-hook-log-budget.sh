@@ -180,8 +180,22 @@ run_row() {
     node "$LAUNCHER" --require-true SESSION_EVENT_LOG_ENABLED "$HOOK" <"$1"
 }
 
+# The bash the launcher spawns: on Windows that is Git\bin\bash.exe, a wrapper that starts
+# Git\usr\bin\bash.exe, not the `bash` on PATH. S is timed on the launcher's bash so it is the
+# unit the hook rows pay; the PATH bash is timed once beside it for comparison.
+launcher_bash="$(cd "$SCRIPT_DIR" && node --input-type=module -e '
+import { statSync } from "node:fs";
+const { resolveBash } = await import("./exec-bash.mjs");
+const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+process.stdout.write(resolveBash(process.env, process.platform, isFile) ?? "");
+' 2>/dev/null)"
+invoking_bash="$(command -v bash)"
+native_path() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
+invoking_bash_native="$(native_path "$invoking_bash")"
+
 node_floor="$(median_ms node -e 0)"
-bash_floor="$(median_ms bash -c :)"
+bash_floor="$(median_ms "${launcher_bash:-bash}" -c :)"
+invoking_bash_floor="$(median_ms bash -c :)"
 kill_off="$(median_ms run_row "$PAYLOAD" false)"
 
 wall_ms() {
@@ -273,10 +287,15 @@ WHEN="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 capture="$(cat <<EOF
 host: $HOST
 ostype: ${OSTYPE:-unknown}
+uname_s: $(uname -s)
 date: $WHEN
 samples: $SAMPLES
+invoking_bash_path: $invoking_bash
+invoking_bash_native_path: $invoking_bash_native
+launcher_bash_path: $(native_path "${launcher_bash:-unresolved}")
 node_spawn_floor_median_ms: $node_floor
 bash_spawn_floor_median_ms: $bash_floor
+invoking_bash_spawn_floor_median_ms: $invoking_bash_floor
 kill_switch_off_median_ms: $kill_off
 parallel_wall_off_ms: $wall_off
 parallel_wall_on_ms: $wall_on

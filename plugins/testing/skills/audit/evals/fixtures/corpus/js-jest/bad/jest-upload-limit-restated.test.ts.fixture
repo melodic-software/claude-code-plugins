@@ -1,0 +1,10 @@
+// expect: rule-constant-restatement
+// The test restates the constant's value: it fails on a rename or a new limit
+// and never on a broken upload check.
+import { MAX_UPLOAD_BYTES } from '../src/upload';
+
+describe('upload limits', () => {
+  it('caps uploads at ten megabytes', () => {
+    expect(MAX_UPLOAD_BYTES).toBe(10485760);
+  });
+});

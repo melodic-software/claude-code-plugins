@@ -10,7 +10,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** Full form: [worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
+**Arguments.** `[worker|autopilot|help] [owner/repo | #n | owner/repo#n]`. Full form: [worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
 
 ## Pre-computed context
 
@@ -281,19 +281,19 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none. Always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only. Tier of explicit bare invocations | `safe` |
-| `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | repo convention, then squash |
 | `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only. Gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
 | `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
-| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | `--block-labels` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
-| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
+| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | deprecated fallback `--block-labels` (merge wrapper, autopilot merge tier); omit it when unset | tier refuses fail-closed when enabled and the target repository declares none |
+| `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review); omit it when unset | review-trigger module dormant |
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review, merge gate) | review-trigger module dormant; merge gate's review-settle hold dormant |
-| `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
+| `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | deprecated fallback `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_review_settle_minutes` | `${user_config.babysit_review_settle_minutes}` | `--review-settle-minutes` (merge gate) | review-settle hold dormant. Pair it with `babysit_review_bot_logins`, which the gate requires alongside it |
-| `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
+| `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | deprecated fallback `--ci-gateway-context` (snapshot) | gateway check unused |
 | `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot, resolve-thread, request_review) | structural bot detection only |
-| `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
-| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
+| `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | deprecated fallback `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
+| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | deprecated fallback `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
 | `babysit_stuck_check_age_seconds` | `${user_config.babysit_stuck_check_age_seconds}` | `--stuck-check-age-seconds` (snapshot) | `1800` |
@@ -301,6 +301,22 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_worker_concurrency_cap` | `${user_config.babysit_worker_concurrency_cap}` | prose only. Fan-out bound | `10` |
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
 | state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | n/a |
+
+Seven rows are repository policy: `babysit_merge_method`, `babysit_merge_block_labels`,
+`babysit_review_gate_context`, `babysit_ci_gateway_context`,
+`babysit_extra_dependency_manager_logins`, `babysit_approval_downgrade_logins`, and
+`babysit_skip_downgrade_logins`. Each PR's repository resolves them from its tracked
+`.claude/source-control.md` on the default branch, merged per key with the flag on its row by the
+modes in
+[config-resolution.md](../../reference/config-resolution.md#babysit-prs-repository-policy-keys):
+hold lists union, `babysit_skip_downgrade_logins` is remove-only, and the rest take the repository
+value first. The flag is a deprecated fallback for every one of these except
+`babysit_skip_downgrade_logins`, whose flag stays its only additive source. The review pair
+(`babysit_review_bot_logins`, `babysit_review_settle_minutes`) and the trigger phrase
+(`babysit_review_trigger_phrase`) are `userConfig`-only: a repository declaration of any of them is
+ignored. A repository whose file cannot be read is refused by the merge
+gate and `request_review`, and its PRs are never merge-ready in the snapshot. The unset behavior
+above applies when neither source sets the key.
 
 Configure via the `/plugin` dialog, or headless at install time with `claude plugin install
 --config KEY=VALUE`; `/source-control:setup` documents both plus the environment probes.
@@ -399,6 +415,43 @@ suspicious state changes such as missing permissions, changed branch protection,
 conflicts, or a head SHA that moved during work. When nothing materially changed, stay silent.
 Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5.3.
 
+## Boundary, the built-in `/autofix-pr` command
+
+Both watch a pull request and push fixes to it, so "watch my PR and fix what breaks" can land on
+either.
+
+- **`/autofix-pr` (built-in command)**: spawns a cloud session that watches the current branch's PR
+  and pushes fixes when CI fails or reviewers comment, and keeps running after the local session
+  ends. It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** A fleet pass over the person's open PRs from the local
+  session, under tiered autonomy, with deterministic gates on every mutation; the safe tier never
+  resolves threads or merges.
+
+**Routing.** When the person wants one PR watched after this session ends, offer it to the
+person: you can run `/autofix-pr` instead of or alongside this skill for that PR. Prefer this
+skill for the fleet, for tiered merge authority, and for anything the gates must prove. An
+unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** Both push to the PR branch. When `/autofix-pr` runs on a PR this skill also
+works, fetch before each fix commit and skip a finding the cloud session already fixed. This skill
+never runs `/autofix-pr` on the person's behalf.
+
+**Availability is never assumed.** The command registers hidden and gated, and needs `gh` and
+cloud-session access; this section states what to do when the person can run it, never that it is
+present. The four-part records live in
+[reference/native-autofix-pr.md](reference/native-autofix-pr.md).
+
+## Spoke paths
+
+The `reference/` files write this skill's directory as `<skill-dir>`, which is
+`${CLAUDE_SKILL_DIR}`, and the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put each path in place of its placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_SKILL_DIR` or `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
 ## Gotchas
 
 - **Survey-without-classifying is the primary failure.** A run can report completion having
@@ -438,5 +491,6 @@ Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5
 | [reference/autopilot.md](reference/autopilot.md) | Running the autopilot tier: its per-PR steps, exclusions, draft handling, widened scopes. |
 | [reference/worktrees.md](reference/worktrees.md) | Creating, reusing, or pruning a per-PR worktree before dispatching a worker. |
 | [reference/feedback.md](reference/feedback.md) | A PR carries review comments needing classification and disposition, or the PR is a bot's and its taxonomy decides the handling. |
+| [reference/native-autofix-pr.md](reference/native-autofix-pr.md) | Checking the basis of the `/autofix-pr` Boundary section, or its recheck trigger fired. |
 | [reference/independent-resolution.md](reference/independent-resolution.md) | A current bot thread is addressed but this context may not retire it. |
 | [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md) | Running the per-PR checklist for real, or briefing a worker: the compact checklist above is a skeleton over this. |

@@ -1,5 +1,338 @@
 # Changelog
 
+## [0.8.2] - 2026-09-30
+
+### Added
+
+- Golden cases c25 to c38 and evals 14 and 15 grow the verbatim and near-verbatim classes, each
+  rewritten synthetically from a finding a unanimous blind panel adjudicated on real repo text,
+  plus cleared negatives. The set is now 38 cases: verbatim 3, near-verbatim 13, negative 15,
+  restated-fact 6, paraphrase 1. `fingerprint.mjs` measures every `case.md` and `source.md` from
+  c25 to c38 below both limbs of the separation rule against its real source (containment under
+  0.3, longest span under 15 words), while each positive case still fires against its own
+  synthetic `source.md`. The measure is lexical and does not cover a sentence-by-sentence
+  paraphrase.
+
+### Changed
+
+- **Whole-set score against rubric version 4 and restated-fact version 1, 38 cases, 114 blind
+  judges: 22 tp / 3 fp / 1 fn / 13 tn, precision 0.88, recall 0.96.** Each case was judged by
+  three independent judges run as in 0.7.1, with no tools, skills, MCP servers or CLAUDE.md, a
+  neutral working directory, and labels that carry no path or case name. The local passage was the
+  whole `case.md`, and the source's own disclaimer paragraph was dropped. The combine rule is
+  0.7.1's: a unanimous `STANDS` with one class is a finding, unanimous `CLEARED` is none, and a
+  split routes to a human and gives none. Restated-fact cases were scored on the panel verdict
+  alone; the refutation pass was not run on them here. The panel ran before the 0.8.1 punctuation
+  edits to `c12`, `c14`, `c16` and `c24`, which change no line.
+
+  | Class | n | tp | fp | fn | tn | Precision | Recall | Previous (0.7.1) |
+  |---|---|---|---|---|---|---|---|---|
+  | verbatim | 3 | 3 | 0 | 0 | 0 | 1.00 | 1.00 | n 2, 1.00 / 1.00 |
+  | near-verbatim | 13 | 12 | 1 | 1 | 0 | 0.92 | 0.92 | n 5, 1.00 / 1.00 |
+  | paraphrase | 1 | 1 | 0 | 0 | 0 | 1.00 | 1.00 | n 1, 1.00 / 1.00 |
+  | restated-fact | 6 | 6 | 0 | 0 | 0 | 1.00 | 1.00 | not measured |
+  | hard negatives | 15 | 0 | 2 | 0 | 13 | n/a | n/a | n 2, 2 tn |
+
+  `score-golden.sh` charges a case to the class its `expected.json` records, not to the class the
+  panel returned: a finding on a recorded negative is a false positive in the hard-negatives row,
+  and a recorded near-verbatim case that the panel calls another class is one false negative and
+  one false positive in the near-verbatim row.
+
+  **Near-verbatim crossed `min_n_per_class` and its gate is binding, and it fails the 0.95
+  precision bar** (0.92, one false positive in thirteen), so it is not fix-eligible. The
+  hard-negative class also crossed the gate. No class is declared fix-eligible.
+
+  **Where the panel disagreed with a recorded expectation.** None of the expectations was changed.
+  - `c26` returned `verbatim` where the fixture records `near-verbatim`, on the same lines: the
+    case reproduces the source's three rules word for word. It is the near-verbatim row's one
+    false negative and one false positive.
+  - `c23` and `c36`, recorded as negatives, each returned a `near-verbatim` finding. For `c36`
+    the panel read the stamped record as covering only the two numbers it claims, not the
+    sentences lifted beside them. For `c23` it found inline attributions with no URL or as-of
+    date on time-bound claims.
+  - `c24` and `c34`, recorded as negatives, split 1 to 2 and count as true negatives under the
+    rule above.
+
+  Of the 14 new cases `c25` to `c38`, 12 matched their expectation; the misses are `c26` and
+  `c36`. Nine of them are findings adjudicated from real repository text, which is most of the
+  near-verbatim class, so that row reports a set of known-hard cases and is not an estimate of
+  ordinary performance. Four of the nine share one source.
+
+### What this entry does not support
+
+- Verbatim has 3 cases against the more-than-10 target. All 68 candidate panels ran: 35
+  unanimous findings (3 verbatim, 32 near-verbatim), 22 cleared, 10 blocked (eight splits or
+  class splits, one resting on the owned-content carve-out, one with an UNKNOWN grade), and one
+  restated-fact `STANDS` that survived refutation. Three candidates were adjudicated verbatim:
+  one is converted (`c32`), one is a 16-word list of product identifiers that an earlier
+  adjudication recorded as failing C2, which this panel contradicts and which is left for the
+  owner, and one is not converted. The pool cannot reach more than 10 verbatim cases, so the
+  target stays open. Near-verbatim is above 10, and 24 adjudicated near-verbatim findings are
+  not converted to cases.
+- The blocked panels are not resolved here; each turns on a split the panel could not settle or
+  on whether this repository owns a passage.
+
+## [0.8.1] - 2026-09-30
+
+### Fixed
+
+- **Removed the em dash in `skills/audit/context/persist-findings.md`.** Wording only; behavior is unchanged.
+- **Removed the em dashes in the `restated-fact` golden cases `c12`, `c14` and `c16`, and marked
+  the verbatim upstream text in the `c24` source as ignored by the ai-slop detector.** Punctuation
+  only, on the same lines, so every expected span is unchanged.
+
+## [0.8.0] - 2026-09-29
+
+### Added
+
+- `audit` has a second, report-only lane for restated facts: prose that states a checkable
+  external fact (a default, a limit, a supported value) in its own words, with no copied span for
+  the fingerprint to match. It is a separate finding class, `restated-fact`, under rule id
+  `attribution/audit/rule-restated-upstream-fact`, and never fix-eligible.
+- `reference/rubric.md` carries a second rubric, restated-fact v1, beside the copy rubric, which
+  stays at v4. The dispatching run picks the rubric: copy when the fingerprint matched above the
+  separation rule, restated-fact when the passage states a checkable external fact, copy
+  otherwise; an unnamed dispatch defaults to copy.
+- Every restated-fact `STANDS` verdict goes through one refutation pass, whatever
+  `accuracy.review_agents` is set to: a fresh adversary that tries to break the finding through a
+  missed carve-out or any of the four rubric criteria, including a pointer or whole record already
+  in the file. An open question counts as refuted, and a refuted finding stays on the human
+  report and off the relay.
+- The detector-findings relay has a row for a restated fact, and only for one whose panel was
+  unanimous, whose verdict is `STANDS` and whose refutation pass `SURVIVES`. It ranks last at
+  tier IMPORTANT with an empty confidence cell. A restated-fact finding under any other rule id is
+  withheld and counted, not reported as unparsed.
+- `reference/dispositions.md` lists three report-only dispositions for a restated fact.
+- Golden cases c11 to c24 and evals 11 to 13 cover the new class, with negatives for stamped
+  records, conforming pointers and distilling files. The restated-fact gate prints report-only
+  until it has enough cases.
+
+## [0.7.1] - 2026-09-30
+
+### Changed
+
+- **Golden-set score against rubric version 4: the blind judgment panel ran, and the table is
+  8 tp / 0 fp / 0 fn / 2 tn, precision 1.00, recall 1.00.** Every case, thirty judges in all, was
+  judged by three independent judges; every panel was unanimous and no verdict moved against the
+  recorded expectations. This is the run the 0.7.0 entry recorded as not done, and it pins the
+  version-4 table (Refs #5354).
+
+  **Method.** Each judge was one `claude -p` process (no subagent tool was available), model
+  `opus`, effort `medium`, with no tools, no hooks, no skills, no MCP servers, no CLAUDE.md
+  discovery, and a neutral working directory outside any repository. A probe launched with the same
+  flags reported empty `tools`, `skills`, `slash_commands` and `mcp_servers` in its init event, and
+  each judge's input was 9,444 to 9,680 tokens, the size of its own prompt, so no standing
+  instruction text rode along. A judge could not open `expected.json` because it could open
+  nothing. Every one of the 96 criterion grades that a judge gave carries a quoted span, and each
+  quote is text from that judge's own prompt. Each prompt carried the `nomination.md` framing
+  block, the "Judgment" prompt shape, the whole of `reference/rubric.md` as committed, one lens
+  sentence, and the case block. The three lens sentences are the ones `nomination.md` names (could
+  it have been written without the source in hand; what does a reader lose if the passage becomes a
+  link; does the attribution's declared scope cover the derivation), one per judge, so each lens
+  ran once per case.
+
+  The cases were relabelled `case-a` to `case-j` in a random order. The source was passed as its
+  text plus its declared upstream URL and a route line saying it came from a local copy, without
+  its local path. The paragraph every golden `source.md` opens with (naming the golden set and
+  calling the page invented) and the canonical-location line were dropped from the copy; the URL
+  in that line is what the judge received as the source's identity. No directory name, path or
+  fixture id reached a judge, and the case bodies and sources were checked for the words golden,
+  fixture, negative, adversarial, rotation and synthetic before dispatch. The dispatching run read
+  the rubric, `nomination.md`, the 0.4.0 and 0.7.0 entries (including 0.7.0's prediction that no
+  verdict would move) and every `case.md` and `source.md`; it opened no `expected.json` until all
+  thirty raw outputs were saved, and none of those documents but the rubric was in a judge's
+  input. The rubric is inlined as committed, so each judge read its header line "three samples by
+  default; unanimity renders the verdict".
+
+  **What the panel measured, and what it did not.** The candidate passage for every judge was the
+  whole case body, and the judge named the span it graded, because no nomination pass ran. The
+  panel therefore measures judgment over a given candidate, not nomination recall. The rubric
+  defines no class names, so the return format glossed `verbatim` (same words, same order),
+  `near-verbatim` (same sentences, light edits), `paraphrase` (same content, no shared word runs)
+  and `summary` (condensed), and asked for one line span per judge. The combine rule was fixed
+  before any `expected.json` was opened: unanimous STANDS gives one finding, its class the class
+  all three name and its span the hull of their spans; unanimous cleared gives none; any split or
+  UNKNOWN routes to the human and gives none. Tier was mapped afterward from `fingerprint.mjs`
+  alone (rule fired: `fingerprint-confirmed`; not fired and class not paraphrase or summary:
+  `source-fetched-similar`; paraphrase: `llm-suspected`), never from a judge. `score-golden.sh`
+  ignores tier.
+
+  | Case | Panel (3 of 3) | Class, span | Carve-out | Tier | Recorded expectation |
+  |---|---|---|---|---|---|
+  | `c01` | STANDS | verbatim, 5-9 | none | `fingerprint-confirmed` | held |
+  | `c02` | STANDS | verbatim, 5-8 | none | `fingerprint-confirmed` | held (see below) |
+  | `c03` | STANDS | near-verbatim, 3-6 | none | `fingerprint-confirmed` | held |
+  | `c04` | STANDS | near-verbatim, 5-9 | none | `fingerprint-confirmed` | held |
+  | `c05` | STANDS | paraphrase, 3-9 | none | `llm-suspected` | held |
+  | `c06` | cleared | none | 3 (quotation) | none | held |
+  | `c07` | cleared | none | 4 (owned) | none | held |
+  | `c08` | STANDS | near-verbatim, 3-7 | none | `fingerprint-confirmed` | held |
+  | `c09` | STANDS | near-verbatim, 3-8 | none | `fingerprint-confirmed` | held |
+  | `c10` | STANDS | near-verbatim, 3-7 | none | `source-fetched-similar` | held |
+
+  All four criteria graded PASS for all three judges on each of the eight STANDS cases. `c04` is
+  again the only case whose attribution reaches grading, and all three judges passed C3: the URL
+  in the `See also` list two sections below the lift understates its scope.
+
+  `score-golden.sh --golden plugins/attribution/skills/audit/evals/fixtures/golden --actual
+  <panel findings>` with `cases_run` declaring all ten cases (`coverage_declared` true, nothing
+  declined) returned, condensed to its `overall`, `by_class` and per-case `verdict` fields:
+
+  ```text
+  {"scored":10,"tp":8,"fp":0,"fn":0,"tn":2,"precision":1,"recall":1}
+  {"class":"verbatim","n":2,"tp":2,"fp":0,"fn":0,"tn":0,"precision":1,"recall":1,"gate":"report-only (n=2 below min_n_per_class=10)"}
+  {"class":"near-verbatim","n":5,"tp":5,"fp":0,"fn":0,"tn":0,"precision":1,"recall":1,"gate":"report-only (n=5 below min_n_per_class=10)"}
+  {"class":"paraphrase","n":1,"tp":1,"fp":0,"fn":0,"tn":0,"precision":1,"recall":1,"gate":"report-only (n=1 below min_n_per_class=10)"}
+  {"class":"negative","n":2,"tp":0,"fp":0,"fn":0,"tn":2,"precision":null,"recall":null,"gate":"report-only (n=2 below min_n_per_class=10)"}
+  c01 tp, c02 tp, c03 tp, c04 tp, c05 tp, c06 tn, c07 tn, c08 tp, c09 tp, c10 tp
+  ```
+
+  | Class | n | tp | fp | fn | tn | Precision | Recall |
+  |---|---|---|---|---|---|---|---|
+  | verbatim | 2 | 2 | 0 | 0 | 0 | 1.00 | 1.00 |
+  | near-verbatim | 5 | 5 | 0 | 0 | 0 | 1.00 | 1.00 |
+  | paraphrase | 1 | 1 | 0 | 0 | 0 | 1.00 | 1.00 |
+  | hard negatives | 2 | 0 | 0 | 0 | 2 | n/a | n/a |
+
+  **Every class stays below `min_n_per_class` 10** (verbatim 2, near-verbatim 5, paraphrase 1, hard
+  negatives 2), so each class gate is `report-only` whatever the panel returns, and no class
+  becomes fix-eligible. A precision of 1.00 on n = 5 or n = 1 is not a measurement of the 0.95 bar.
+
+  **No verdict moved.** Each case's verdict, class and span overlap match its `expected.json`, and
+  the eight derived tiers match the eight recorded ones. Two differences of route or extent are
+  recorded rather than folded into "held":
+
+  - **`c02` returned one finding where the fixture records two.** The fixture lists two disjoint
+    verbatim spans (5-8 and 12-14). The return format allowed one span per judge, and all three
+    judges returned 5-8 while their reasoning names lines 12-14 as a second word-for-word copy of
+    the source's second section. The extent gap comes from the return format, not from judgment;
+    the case-level score is unaffected because the finding overlaps an expected span.
+  - **`c07` cleared at the carve-out, not at C1.** The fixture explains the case as a C1 failure and
+    records that owned content applies; the rubric's order of evaluation makes those exclusive, and
+    all three judges took carve-out 4 and graded no criterion, as the 0.4.0 panel did. The recorded
+    answer (no finding) holds.
+
+  **One limit on the tier column.** The route line handed to judges ("served from a local copy")
+  drew tier commentary: four of the thirty judges (on `c02`, `c03`, `c08` and `c10`) mention the
+  `vendored-snapshot` row in their reasoning. That row's gate is a committed snapshot read
+  because a live fetch failed, which is not what a fixture's local source is. The panel never
+  assigns a tier, every panel was unanimous on the verdict and class it returned, and the recorded
+  tiers above come from `fingerprint.mjs`, so the commentary changed no result.
+
+## [0.7.0] - 2026-09-29
+
+### Added
+
+- **`vendored-snapshot` is an evidence tier of its own.** `reference/rubric.md` "Tier mapping"
+  gains a row between `fingerprint-confirmed` and `source-fetched-similar`: the source was read
+  from a committed snapshot because the live fetch was unavailable or failed, the finding records
+  `source.route: vendored-snapshot` and names the snapshot path, its declared upstream ref and its
+  sync date, and it never reaches the relay and is never fix-eligible. The 0.4.0 rule that a
+  snapshot basis caps at `source-fetched-similar` and borrows that tier is replaced in
+  `reference/source-fetch.md` and `SKILL.md`, and the README and the two `docs/specs/provenance-*`
+  tier lists carry the new row. The fix-eligibility rule itself is unchanged.
+
+  `emit-findings.sh` recognizes the name as a withheld judgment verdict. Before, a finding
+  declaring it and carrying no rule id printed verbatim into `## Unparsed`, tier name and payload
+  included, and one paired with a copy rule id was counted as "not relay-eligible" rather than as a
+  judgment finding. Both now take the withheld path and are counted under "judgment findings". The
+  suite pins both shapes.
+
+  **The rubric stays at version 4.** Its header rule names carve-outs and criteria, and a tier row
+  is neither: judges grade carve-outs and criteria before any tier is mapped, no grade changes, and
+  no golden case declares this tier, so no recorded measurement is invalidated. The row joins
+  version 4 before any measurement is pinned to that version (Refs #3465).
+
+- **`scripts/sweep-ledger.sh` keeps the sweep ledger.** `init`, `close <file>`, `spend <n>`,
+  `cache-add`, `cache-check`, and `status` manage `.work/<topic-slug>/sweep-ledger.md` in the
+  current checkout, so a resumed sweep restores its closures, its running fetch spend and its
+  source cache instead of relying on a hand-kept file. `init` gives the sweep an id and records the
+  checkout it started in; every call refuses, with exit 3, a ledger that names another checkout or
+  none, so a copy carried elsewhere is a new sweep, not a resume. `close` refuses an entry missing
+  the file, the dispositions or any of the four guard outcomes, and a file already closed, and
+  stamps the running spend on each closure. `spend` sums across separate invocations.
+  `cache-check` reports a hit for re-validation with its recorded hash and fetch time, never as
+  something to reuse. `status` prints the sweep id, the closed files, spend against
+  `corpus_fetch_ceiling` (read through the config layers) and the cache size, and exits 1 once
+  spend reaches the ceiling. With no ledger in the checkout it says
+  `no ledger here: this is a new sweep (no closures, no spend, no cache)`.
+
+  **The script checks an entry's shape and the spend's arithmetic, not whether a disposition is
+  right.** It cannot know how many findings a file had, so every field remains the run's own
+  claim. `SKILL.md` "Sweep", `reference/dispositions.md` "Sweep closure" and
+  `reference/source-fetch.md` "Budgets, caching, and stopping" no longer say the ledger is written
+  by hand. The 0.5.1 entry recording that no machinery existed is left as recorded. The suite is
+  `scripts/sweep-ledger.test.sh` (#5353, Refs #3465).
+
+### Changed
+
+- **`fix` and `sweep` apply dispositions to hand-written markdown only.** The generated-output
+  paragraph in `reference/dispositions.md` was a flagged gap and is now the rule: a file whose head
+  carries a generated-output marker is not edited, its findings are reported and routed to the
+  human, and each names the generator's input as the fix site. The exclusion is the marker, never a
+  list of files, and no script enforces the check. `SKILL.md` "Sweep" states the same in one
+  sentence (Refs #3465).
+- **`SKILL.md`'s description no longer enumerates the tier names**, so a tier added later does not
+  leave it stale.
+- **Golden-set re-score against rubric version 4: the deterministic layer was re-run, the judgment
+  panel was not.** `fingerprint.mjs compare` over all ten `case.md` and `source.md` pairs reproduces
+  every figure the fixtures record, and the separation rule fires on the same six cases and stays
+  silent on the same four:
+
+  | Case | Containment | Jaccard | Longest span (words) | Rule fires |
+  |---|---|---|---|---|
+  | `c01` | 0.643 | 0.336 | 76 | yes |
+  | `c02` | 0.713 | 0.477 | 59 | yes |
+  | `c03` | 0.436 | 0.208 | 22 | yes |
+  | `c04` | 0.507 | 0.325 | 68 | yes |
+  | `c05` | 0.000 | 0.000 | 0 | no |
+  | `c06` | 0.039 | 0.014 | 7 | no |
+  | `c07` | 0.000 | 0.000 | 0 | no |
+  | `c08` | 0.570 | 0.312 | 22 | yes |
+  | `c09` | 0.413 | 0.178 | 10 | yes |
+  | `c10` | 0.000 | 0.000 | 0 | no |
+
+  **Not run: the blind judgment panel.** Version 4 is scored by the three-judge panel per case the
+  0.4.0 re-score used, thirty independent judges that see the candidate, the fetched source, the
+  containing file and the rubric and never `expected.json` or another judge's verdict. This run had
+  no subagent tool, and it had read every `expected.json` before any grading, so an inline grade
+  would be neither blind nor a panel. No tp, fp, fn or tn, and no precision or recall, is therefore
+  pinned to version 4. The version-3 table (8 tp, 0 fp, 0 fn, 2 tn) stays superseded and is not
+  restated as a version-4 claim. Running the panel and recording its table is what remains of
+  #5354.
+
+  **No verdict moved, and none could be measured as moving.** Version 4 differs from version 3 in
+  carve-out 5 and in the tier table's `vendored-snapshot` row, which joined version 4 before its
+  first measurement, so no version-4 figure predates it. All ten cases are ordinary local
+  notes, none is a distilling surface with a Sources section, so the carve-out 5 qualifier has
+  nothing to act on, and no case declares the new tier. That reading predicts every expected
+  verdict holds; it is a prediction from the fixtures, not a panel result, and no `expected.json`
+  was edited.
+
+  **Every class stays below `min_n_per_class` 10:** near-verbatim n = 5, verbatim n = 2, paraphrase
+  n = 1, hard negatives n = 2 (10 cases). The class-size gate therefore holds whatever the panel
+  returns, and no class is fix-eligible (Refs #3465).
+
+## [0.6.4] - 2026-09-29
+
+### Fixed
+
+- **audit:** a config root that is the home directory (or an ancestor of it) or is not inside a git
+  working tree no longer reads `.claude/attribution.json` and `.claude/attribution.local.json` as
+  team and overlay layers, and two paths naming one file are read once. The classifier is
+  `lib/config-root.sh`, a synced copy of the source-control resolver.
+
+## [0.6.3] - 2026-09-29
+
+### Fixed
+
+- The provenance design-threads spec no longer says the first no-breadcrumb case validates the
+  searched-surfaces listing: the listing is a prose requirement the reader verifies, and
+  `emit-findings.sh` checks presence only. `reference/source-fetch.md` now names where a
+  completeness floor would have to live (a machine-written log of visited surfaces, compared
+  against the sidecar's `searched` array by `emit-findings.sh`) and says no such log exists
+  (Refs #3465).
+
 ## [0.6.2] - 2026-09-29
 
 ### Fixed

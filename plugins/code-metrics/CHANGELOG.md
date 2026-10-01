@@ -3,6 +3,69 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6] - 2026-09-30
+
+### Fixed
+
+- **`principles` spokes no longer point at the collector ladder and config reference through the literal plugin-root token.** The token is not substituted in a `reference/` file. The two reference docs are now relative links, the ladder file reads `<plugin-root>/scripts/collector-ladder.tsv`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
+## [0.4.5] - 2026-09-30
+
+### Changed
+
+- README: the pytest command passes `-o tmp_path_retention_policy=none` so test directories are not kept under `$TMPDIR`.
+
+## [0.4.4] - 2026-09-30
+
+### Fixed
+
+- **`setup check` runs one measure per collector before reporting PASS.** A collector row passed on
+  the adapter's version probe alone, so a tool that resolved on `PATH` but could not measure showed
+  PASS. The row now runs one measure on a bundled fixture: PASS names the version and the measure,
+  FAIL reports a tool that probed but did not measure, and WARN `probe only` marks a collector no
+  bundled fixture can exercise.
+
+## [0.4.3] - 2026-09-30
+
+### Fixed
+
+- **Reports are keyed per project and retention is scoped to the key.** `persist-report.sh` wrote
+  `<data>/reports/<skill>-<stamp>.json` with no project key and kept the newest 20 per skill across
+  every project on the machine, so a run in one repository could delete another's reports. Reports
+  now land in `<data>/reports/<state-key>/`, the key comes from the synced `lib/state-key.sh`, and
+  the newest-20 retention counts only that directory. Reports written before this change stay in
+  place, unkeyed, and a run names them once on stderr. When no key can be derived the run keeps no
+  report and says why.
+
+## [0.4.2] - 2026-09-30
+
+### Changed
+
+- **The duplication size limits cite their upstream basis.** `reference/collectors.md` has a
+  `Duplication size limits` table with a basis, verification date and recheck trigger for the jscpd
+  `--max-size` default, the SonarJS file-size limit and the SonarQube duplication rules. `config.md`
+  and the config template point at it instead of restating the figures. The jscpd row records that
+  the documented "no limit" default contradicts the 1mb skip a live run shows.
+
+## [0.4.1] - 2026-09-30
+
+### Fixed
+
+- **The setup check no longer lists `adapter_paths` as a collector.** `adapter_paths.py` is the
+  shared helper the collector adapters import, not a collector, but the check's collector loop
+  reported it as a passing row with no detail. The loop now skips it, and the setup-check test
+  asserts the table has no `adapter_paths` row.
+
+## [0.4.0] - 2026-09-29
+
+### Changed
+
+- **Breaking: reports use `code-metrics/v2` and root-relative paths.** The schema identifier is now
+  `code-metrics/v2`. Every measured path is relative to the new `root` object (the repository root,
+  or the working directory outside a work tree), and `scan_root` records where the scan started.
+  v1 documents are not comparable path-for-path, so a baseline taken under v1 must be re-taken.
+  Producers emit v2 only.
+
 ## [0.3.24] - 2026-09-29
 
 ### Fixed

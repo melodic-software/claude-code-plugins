@@ -3,6 +3,76 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.27.0] - 2026-09-29
+
+### Added
+
+- **`audit` reports never-PR and closed-unmerged remote branches, and `apply --remote-branches` deletes them one branch at a time** ([#5322](https://github.com/melodic-software/claude-code-plugins/issues/5322)).
+  A remote head with no pull request ever, or only closed unmerged pull requests with one at the live tip, is a `HIGH` `unmerged-remote-branch` finding (class `never-pr` or `closed-unmerged`). `MEDIUM` `unmerged-remote-branch-unverified` and `unmerged-remote-branch-review` rows are never deletion candidates. The flag is opt-in: without it `delete-remote-branches` plan rows are skipped and no remote is contacted. With it, each branch gets its own prompt that `--yes` never answers, and a session without a terminal deletes nothing. Before any prompt the live tip is re-read, the remote's fetch and push URLs must still name the audited repository (`remote_key` in the plan row), and the branch's pull requests are re-read for `github_repo`: an open or merged pull request, a changed class, or a failed read skips the row, and both checks run again after the prompt is answered. The tip goes to `<plan-file>.tip-ledger` with a restore command before a lease-guarded push. Branches with a merged pull request stay out of scope.
+
+## [0.26.0] - 2026-09-29
+
+### Added
+
+- **`sync` accepts `--skip`, `--extend-skip`, `--skip-from`, `--repos-from` and `--dry-run`** ([#5294](https://github.com/melodic-software/claude-code-plugins/issues/5294)).
+  `--dry-run` states the default explicitly and exits 2 when combined with `--apply`.
+  An explicit `--skip` or `--skip-from` set replaces the default skip names (`vendor`,
+  `node_modules`, ...), as it does in `audit`, and `--extend-skip` adds names to whichever set is in
+  effect. `--repos-from` restricts the run to the checkouts listed one per line. Every plan line, and
+  every skipped line, ends with a tab-separated `rung=<rung>` field naming the scope rung that found
+  the repository.
+- **Scope resolution probes every `ghq root` and an ancestor rung.** `scope-resolve.sh` reads
+  `ghq root --all`, and walks up to 4 levels from the working directory's checkout, accepting an
+  ancestor only when it directly holds 2 or more repositories.
+
+### Changed
+
+- **A bare `audit` or `sync` run inside a checkout covers its sibling fleet.** When a parent up to 4
+  levels above the checkout holds 2 or more repositories, that parent is the root; the checkout
+  alone is the scope only when no such parent exists. Both verbs share this ladder, so a bare
+  `audit` inside a checkout now audits the siblings too.
+- **`audit` and `sync` share one discovery script**, `scripts/fleet-discovery.sh`, for the default
+  skip list, fleet config scope and depth loading, and the repository walker. `sync` now honors
+  `fleet.skip`, `fleet.skipAppend` and `fleet.maxDepth`, stops at the first checkout on each path
+  instead of also reporting repositories nested inside it, and reaches one level deeper by default.
+  The skip-list drift-guard test is removed.
+
+## [0.25.0] - 2026-09-29
+
+### Added
+
+- **`audit` reports remote branch families** ([#5220](https://github.com/melodic-software/claude-code-plugins/issues/5220)).
+  A last-fetched remote-tracking branch named `agent-<hex>`, `claude/*`, `plan/*`, `stranded/*` or
+  `pre-wipe/*` that no `merged-remote-branch` finding covers gets one `LOW` `remote-branch-family` row with
+  the family, tip, age in days and whether the tip is on the default branch. It is report-only: no remote
+  probe, handoff or deletion preview.
+- **`merged-remote-branch` covers a tip that is an ancestor of the merged head.** When the PR's
+  `headRefOid` differs from the remote-tracking tip, the tip is an ancestor of it and that commit is in the
+  clone, the finding is `MEDIUM` (never `HIGH`, since no live probe runs). A head commit absent from the
+  clone emits nothing.
+
+## [0.24.2] - 2026-09-29
+
+### Fixed
+
+- **`audit` withholds the per-repository `merged-remote-branch` `MEDIUM` rows when every live `ls-remote` probe in the run fails** ([#4211](https://github.com/melodic-software/claude-code-plugins/issues/4211)). The run now reports only the single fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding, whose handoff is to confirm `git ls-remote --heads` works by hand and rerun. A mixed run with at least one successful probe still reports the per-repository `MEDIUM` rows, and `HIGH` rows are unchanged.
+
+## [0.24.1] - 2026-09-29
+
+### Fixed
+
+- **`discovery-skip` and `discovery-symlink-skip` no longer make the fleet verdict BLOCKED**
+  ([#4220](https://github.com/melodic-software/claude-code-plugins/issues/4220)). Both findings stay
+  `UNKNOWN` and disclosed, but a non-repository `.git` husk or a symlinked directory under the root
+  no longer turns an otherwise clean fleet into `BLOCKED (evidence gap)`. Every other `UNKNOWN`
+  kind, including `stale-config-entry` and `ls-remote-fleet-unavailable`, still does.
+
 ## [0.24.0] - 2026-09-29
 
 ### Added

@@ -1,0 +1,4 @@
+# Known offenders: suites that use mktemp without a trap ... EXIT. One
+# repo-relative path per line; a `#` starts a comment. Stale-guarded: an entry
+# whose file is gone or no longer offends fails the gate, so the list only
+# shrinks. Never add a suite here: give it the trap instead.

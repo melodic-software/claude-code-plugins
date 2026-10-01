@@ -1,5 +1,5 @@
 ---
-description: "Report the Claude Code permission state in effect: merges every settings scope into the effective allow/ask/deny set, each rule with its source and precedence, and flags allow rules auto mode drops. Report-only. Use when: 'what permissions are actually in effect', 'show me my effective permissions', 'which of my rules survive auto mode', 'is my managed policy being read', or before changing a rule whose source is unknown. A rule ignored for its shape: `audit-permission-grants`."
+description: "When the bundled fewer-permission-prompts skill resolves in this session, prefer it to reduce prompts via an allowlist; this skill to see the state in effect. Report-only: merges every settings scope into the allow/ask/deny set in effect with source and precedence per rule, and flags allow rules auto mode drops. Use when: 'what permissions are actually in effect', 'which of my rules survive auto mode', 'is my managed policy being read'. A rule ignored for its shape: `audit-permission-grants`."
 argument-hint: "[--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]"
 user-invocable: true
 disable-model-invocation: false
@@ -40,6 +40,34 @@ could actually open, and what each one holds.
   and not something a project-scope reader can do.
 - The instruction layer (CLAUDE.md, a natively read AGENTS.md, rules, auto-memory) → the
   `claude-memory` plugin.
+
+## Boundary, native Claude Code surfaces
+
+Two native surfaces act on the same permission rules this skill reports, so "fix my permissions"
+can mean any of the three.
+
+- **`fewer-permission-prompts` (bundled skill)**: scans transcripts for common read-only Bash and
+  MCP calls and adds a prioritized allowlist to project `.claude/settings.json`. The model and the
+  person can both invoke it.
+- **`/permissions` (built-in command, alias `/allowed-tools`).** An interactive dialog to view,
+  add, and remove rules by scope, review recent auto mode denials, and edit classifier rules on its
+  Auto mode tab. It is reserved for the person to run; the model does not invoke it.
+- **This skill (marketplace plugin).** Computes the effective merged set across every scope, off a
+  live session, with source, precedence, auto mode drops, and dead config. It writes nothing.
+
+**Routing.** When the bundled `fewer-permission-prompts` skill resolves in this session, prefer it
+for reducing prompts by writing an allowlist; prefer this skill to see what is in effect. When the
+report ends with a rule the person wants added, removed, or moved, offer it to the person: you can
+run `/permissions` to view and edit these rules interactively. An unattended run records that
+offer in its output instead of asking.
+
+**Mutation gate.** `fewer-permission-prompts` writes project settings, and `/permissions` writes
+whichever scope the person edits. This skill never chains into either on its own behalf.
+
+**Availability is never assumed.** Bundled skills are gated by settings such as
+`disableBundledSkills`, and both surfaces vary by version and host; this section states what to do
+when they resolve, never that they are present. The four-part records live in
+[reference/native-surfaces.md](reference/native-surfaces.md).
 
 ## Report-only, permanently
 

@@ -71,16 +71,23 @@ for an in-flight full run, then ends on a settled `success`, `failure`, or
 
 **Operator remedy.** When a contract-only `ci-status` is red:
 
-- If `ci-lanes` on that SHA is already `success`, try re-running the red
-  contract-only `ci` run; if it stays red, push a new commit.
+- If `ci-lanes` on that SHA is `success` and the pull-request contract passes
+  (valid title, no `do-not-merge` label), re-run the red contract-only `ci`
+  run. The composite logs `Carried forward: ci-lanes is success`, passes, and
+  the re-run replaces the red check run. Pushing a new commit is not needed.
+- If the title is invalid or `do-not-merge` is applied, the contract check
+  stays red on a re-run. Fix the title or remove the label first, then follow
+  the other bullets for `ci-lanes`.
 - If `ci-lanes` is `failure` or missing, re-run the full workflow.
 
-A body edit while a failed full run is being re-run can still read the old
-failure without waiting (#4670). Distinguishing that re-run from a
-contract-only sibling is a ci-workflows composite change; this repository
-pins the composite and documents the remedy until that pin moves. How a ruleset
-treats two same-name `ci-status` check runs on one SHA is unverified and tracked
-in #4670.
+A body edit while a failed full run is being re-run reads the old `ci-lanes`
+failure at once, without waiting, and goes red; the re-run's later `success`
+does not change that run. The wait loop only holds while no settled `ci-lanes`
+status exists. Fixing this is a ci-workflows composite change
+([ci-workflows#646](https://github.com/melodic-software/ci-workflows/issues/646));
+this repository pins the composite and documents the remedy until that pin
+moves. How a ruleset treats two same-name `ci-status` check runs on one SHA is
+unverified and tracked in #4670.
 
 ## Toolchain integrity
 
@@ -115,6 +122,13 @@ elsewhere: the pin is held equal to the fleet inventory in
 melodic-software/dotfiles (`.chezmoidata/uv-tools.yaml`), which is what installs
 a developer's local toolchain, so CI never lints with a ruff nobody runs. Do not
 "fix" a clean tree by adopting a newer ruff's new rules in an unrelated PR.
+
+## Time-to-green
+
+The standing target is a p50 under 5 minutes and a p95 under 12 minutes per
+pull-request head SHA, measured to the first successful full run of the
+required workflow (`ci-status`); contract-only runs are excluded. This
+repository owns the target, tracked on #3932.
 
 ## Authoritative references
 

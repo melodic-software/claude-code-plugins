@@ -3,6 +3,305 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.13.0] - 2026-09-30
+
+### Added
+
+- **audit:** `cant-fail-scan.sh --blocks` also prints `block <file>:<start>-<end> <ordinal> <name>`
+  for each examined test block in `--lines` scope, in every adapter family; a bash harness is one
+  whole-file block. The ordinal counts same-named blocks through the whole file, so a block's
+  identity is its name and ordinal, never its line range.
+- **hooks:** `test-scan` records each scanned write in
+  `sessions/<pkey>/<session_id>/<tool_use_id>.json` under the plugin data directory: the file, its
+  repository, the agent, whether the write created the file, the blocks it created or changed
+  (`null` when unknown, meaning the whole file) and the `cant-fail-ok:` count. `<pkey>` hashes the
+  project directory and the transcript directory, so a `/clear` or fork successor finds its
+  predecessor's writes. Session state and the task-end judge's state directories are pruned after
+  7 days. The record also carries `lines`, the lines the write changed (`null` when unknown). A
+  test file a Bash call changed gets the same record, one per file as `<tool_use_id>-<n>`, when
+  Claude Code records the call's `bashEditDiff`.
+- **hooks:** an opt-in task-end test judge (`test_judge_enabled`, off by default, needs
+  `test_guards_enabled`). A separate headless `claude -p` run asks one question of each test block
+  the session created or changed: where did its expected value come from? It answers FLAG, PASS or
+  UNKNOWN with quoted evidence and, for FLAG, a proposed diff it never applies. `test-judge-bg.sh`
+  (PostToolUse, async) judges soon after a write and keeps the verdicts in a ledger;
+  `test-judge.sh` (Stop) waits only on runs still in flight, judges the rest (10 per Stop, the
+  remainder at the next task end), writes a review-findings file and, in an attended session,
+  asks Claude once to show the verdicts; `test-judge-start.sh` (SessionStart) names verdicts an
+  earlier session never showed. The judge's model class differs from every model that wrote the
+  tests: `test_judge_model` (default `opus`), `test_judge_fallback_model` (`sonnet`),
+  `test_judge_effort` (`medium`), and `test_judge_session_runs` (unset: no limit; each run is reserved
+  before it waits for a judge slot, so jobs that start together cannot pass it). Each judge run
+  is bounded at 150 s by the same process-group watchdog that bounds the scanner (the plan's
+  "timeout 150" is that bound, not the coreutils binary, which stock macOS lacks and Git Bash may
+  resolve to Windows' `timeout.exe`); the whole group gets TERM, then KILL, and a run cut at its
+  bound gives no verdict. Every wait in the Stop hook (a judge slot, a run, a background job)
+  ends at its 180 s bound, and tests not judged in time go to a background job, which waits for
+  the Stop's own unfinished run to let go of them, and are shown at the next task end. On Windows
+  (Git Bash with the native `jq.exe`) the judge hooks read payload fields NUL-separated rather than
+  through `@tsv`, which doubled every backslash in a Windows `transcript_path`, `cwd` or file path
+  and so gave the Stop hook a different project key from `test-scan`'s; and every `jq` call runs
+  with `-b` under Git Bash and Cygwin, which `jq.exe` (1.6 and later) needs to write LF rather than
+  CRLF, chosen over stripping CR from each field because it leaves every byte as written, a CR a
+  diff or a quote really carries included, and costs no extra process. A Stop over files whose
+  verdicts are ready no longer re-runs the scanner: the in-doubt blocks are cached by the file's
+  content, the records and the config layers, and the hook reads each record and verdict with one
+  `jq`; a ready Stop over one file went from 187 processes to 31 on Linux, over five files from
+  671 to 79. A quote in a verdict is valid when it appears, whitespace trimmed, in the test file or
+  in another file of the repository (`git grep --untracked`), because the implementation line an
+  expected value restates is a FLAG's best evidence; one found nowhere still makes the verdict
+  UNKNOWN. The judge prompt now says so; it changed before any Phase 4 calibration label was read,
+  so the prompt freeze is not broken. Hardened after a security review: the findings directory
+  and the memory root must resolve, symbolic links followed, inside the checkout before and after
+  they are created; the `.gitignore` is written only where no name exists, so an existing link,
+  FIFO or other non-regular name is refused (noclobber alone would open a non-regular name); the
+  findings file goes to a temporary file in the checked directory and takes a free name with
+  `mv -n` after a second check, so a link in the repository cannot carry the write elsewhere (it
+  falls back to the plugin data directory; a local process racing those steps is an accepted
+  residual); the frontmatter `branch:` is quoted when its plain YAML form would misparse, with the
+  predicate `testing:audit` uses; `memory_dir` is used only
+  when it matches `[A-Za-z0-9._/-]` with no `..`; judge text in the findings file is capped, kept
+  on one line and fenced past its own backticks, and a verdict that failed validation shows only
+  its reason; a test file in no repository is not judged ("no repository"); and every numeric
+  setting is checked as a number before any arithmetic. The README and
+  `/testing:setup` describe the options, what is tunable and what is fixed, and what the judge
+  reaches.
+
+## [0.12.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.12.0] - 2026-09-30
+
+### Added
+
+- **`test-scan` covers test files a Bash call changed.** A PostToolUse `Bash` hook reads `bashEditDiff`
+  and runs `test-scan` on each changed test file (up to four), behind the same opt-in. Claude Code
+  records the field only with `bashEditDiffEnabled: true` in user, `--settings` or managed settings,
+  or `CLAUDE_CODE_BASH_EDIT_DIFF=1`; without one of these it was absent in `default`, `acceptEdits`,
+  `auto` and `bypassPermissions` mode. The `Bash` row has no `if`, so its node launcher starts on
+  every Bash call, whatever `test_guards_enabled` says; the README states the cost
+  ([#5608](https://github.com/melodic-software/claude-code-plugins/issues/5608)).
+
+## [0.11.9] - 2026-09-30
+
+### Changed
+
+- **README declares the Node.js requirement.** A Requirements section states that every hook row launches through `node`, and that a missing `node` is a hook launch error. `/testing:setup` checks it.
+
+## [0.11.8] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.11.7] - 2026-09-30
+
+### Fixed
+
+- **`audit` eval names the repair routes.** The expectation names `/testing:write` and the review fix pass as where repair goes ([#5394](https://github.com/melodic-software/claude-code-plugins/issues/5394)).
+
+## [0.11.6] - 2026-09-30
+
+### Changed
+
+- **The `run` Boundary bullet in `run-e2e` no longer asserts that the skill ships with Claude
+  Code.** It keeps the provenance class, what the skill does and how it is invoked, in the
+  native-references template form.
+
+## [0.11.5] - 2026-09-30
+
+### Fixed
+
+- **setup:** `check`'s instruction line names the one file Claude Code loads at the repository
+  root (`CLAUDE.md`, `.claude/CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md`, or the user `CLAUDE.md`
+  under `${CLAUDE_CONFIG_DIR:-~/.claude}` when the repository has none) instead of offering
+  "CLAUDE.md or AGENTS.md": `AGENTS.md` does not load beside a `CLAUDE.md`, `.claude/CLAUDE.md` or
+  `CLAUDE.local.md`, and `CLAUDE.local.md` always loads, so it is named with a note that a
+  `CLAUDE.md` would share the line with the team.
+
+## [0.11.4] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.11.3] - 2026-09-29
+
+### Fixed
+
+- **audit:** `rule-zero-assertion` follows same-file helpers to any depth: a helper that calls an
+  asserting helper asserts too, so a test awaiting `waitForAll()`, which returns `pollUntil(...)`,
+  which throws, is no longer a finding. A C# overload that calls another overload of its name, by argument count, counts when that
+  overload asserts; plain recursion does not. A bats test whose last line is a standalone `! cmd` (no `||`, `&&` or `;`) asserts through that line. A
+  base-versus-head re-scan of this repository, `medley` and `ci-runner` under gawk and mawk
+  cleared exactly medley's two known false positives and moved nothing else.
+
+## [0.11.2] - 2026-09-29
+
+### Changed
+
+- **audit:** fewer `rule-zero-assertion` false positives, from a precision run over this repository,
+  `medley` and `ci-runner` (`docs/specs/tautological-tests/precision-run.md`). A test that calls a
+  function defined in the same file, bare or on `self`, `this` or `cls`, whose own body asserts,
+  throws, raises or rejects has an assertion; the helper's own calls are not followed. A call on
+  `self` or `this`, and a bare C# call, resolves to the test's own class when that class defines
+  the name (every C# overload must assert), so another class's asserting helper of the same name
+  does not count. The C# adapters count `}.RunAsync(` as an assertion only in a file that imports
+  `Microsoft.CodeAnalysis.Testing` or aliases one of its types, and `bash-harness` counts
+  `exit "$((FAIL > 0))"`.
+- **audit:** `rule-conditional-assertion` treats a loop over `.map` of a nonempty array literal,
+  or of a name the test bound to one, awaited through `Promise.all` or not, as a loop over a
+  literal table.
+- **audit:** `rule-recomputed-expectation` keeps firing on a deliberate determinism check,
+  `f(x) == f(x)`; its remedy says to mark one `cant-fail-ok: determinism contract`.
+
+### Fixed
+
+- **audit:** a `cant-fail-ok:` comment at the end of a Python `assert` line no longer drops the
+  recomputed-expectation finding without counting it as exempt.
+
+## [0.11.1] - 2026-09-29
+
+### Added
+
+- **test-value:** new model-invoked skill stating where each expected value must come from, when
+  call-count checks (unmanaged, state-changing boundaries) and direct database reads are
+  legitimate, the EF Core `DbContext` carve-out, refactoring inside the TDD loop, and the can't-fail
+  and change-detector taxonomy keyed to `testing:audit` rule ids. `write`, `plan` and `diagnose`
+  point to it and each gains a `## Next` section.
+
+### Changed
+
+- **write:** the per-cycle checklist points to `testing:test-value` instead of listing oracle
+  sources, and keeps the round-trip caution. "Verify through the interface" now calls a direct
+  read of a managed database after the act step state verification, and flags only a read of an
+  internal table when a public read path exists.
+- **audit, hooks:** `rule-recomputed-derived` reports at SUGGESTION, not IMPORTANT: a derived
+  expectation can fail, but passes when the test and the code share a mistake. `test-scan` leads
+  such a finding with "check little", not "cannot fail". It stays report-only.
+- **README:** documents the two `userConfig` options and the hooks they gate, and lists seven skills.
+
+## [0.11.0] - 2026-09-29
+
+### Added
+
+- **hooks:** opt-in `test-scan` PostToolUse hook (`test_guards_enabled`, default `false`). After
+  Claude writes or edits a test file it runs the can't-fail scanner on that file and feeds the
+  findings back through `additionalContext`. A new file reports every test block; an edit reports
+  only blocks that overlap the lines it wrote. A recomputed expectation asks Claude where the
+  expected value comes from. The first write per file per session and agent adds a pointer to the
+  test-value guidance. The hook starts only for paths its `if` rows match, generated from the
+  adapters' `files:` globs by `scripts/gen-hook-filters.sh`; gitignored files are left alone, and
+  a scanner error or timeout lets the edit through and logs a line.
+- **audit:** `cant-fail-scan.sh --file <path> --lines <list>` reports only findings whose test
+  block overlaps the listed lines.
+- **audit:** adapters for Bash harnesses (`*.test.sh`), bats, Pester, Go `testing`, `node:test`,
+  Playwright, unittest, NUnit and MSTest, with lexers for Bash, PowerShell and Go. A harness with
+  no per-case marker is judged as one test. Recomputed expectations are also caught in shell
+  command form (`assert_eq "$(f)" "$(f)"`) and pipeline form (`f | Should -Be (f)`). The
+  `bash-harness` and `bats` findings are advisory: they never fail `--check` without `--strict`.
+  The test-scan hook covers the new globs.
+- **audit:** a fixture corpus with a bad and a good file per adapter and rule, and
+  `check-corpus-grid.sh`, which fails when a `GRID.md` pair cell lacks either file.
+- **audit:** three report-only rules. They print and count, and never gate `--check`, `--strict`
+  included. `rule-inert-assertion` finds assertions that never evaluate: an async matcher nothing
+  awaits, an `expect` with no matcher, a bare `.Should()`, a Python tuple assert or a Mock
+  `called_once_with`, a bats `run` nothing checks or a `!` that is not the last line, and the like
+  in every adapter. `rule-constant-restatement` finds a constant, or a literal the test bound
+  itself, compared to a literal with no call before the assertion; it does not run in C#, Go or
+  Pester, whose constants are not uppercase. `rule-source-text-read` finds a test reading a
+  git-tracked, non-test source file by a static path and searching its text; a read through a
+  glob or a walk, of a `__testfixtures__` path, or that the test parses or executes is never
+  flagged. Adapters gain `assertion.async` and `assertion.inert` fields. The inert-assertion
+  remedy names the repair for the file's language.
+- **audit:** four more report-only rules. `rule-conditional-assertion` finds a test whose every
+  assertion sits inside an `if`, a `catch` or a loop over a result it computed, with no `else` and
+  no length check. `rule-recomputed-derived` finds an expected value rebuilt from the call's own
+  arguments with an operator or an aggregate (`items.reduce(...)`, `sum(xs)`, `a + b`); a file
+  holding a property-test marker and the Playwright adapter are exempt. `rule-snapshot-only`
+  finds a test whose only oracle is a snapshot ("snapshot is the only oracle: review it as code"),
+  never an image comparison such as `toHaveScreenshot`. `rule-weak-oracle` finds a test whose only
+  oracle is a weak matcher (`toBeDefined`, `is not None`, `Assert.NotNull`) or an over-broad
+  exception check (`toThrow()`, `pytest.raises(Exception)`). Adapters gain `assertion.weak`,
+  `assertion.count`, `assertion.fail`, `property_markers` and `rules_off`, and fill the existing
+  `snapshot` field. The audit skill lists every rule with its tier and gating.
+- **audit:** `GRID.md` maps each of Matt Pocock's low-value test examples to a rule or to the
+  Release 2 judge, and the corpus holds the twelve planted taxonomy tests, one per file.
+- **hooks:** `test-scan` asks where the expected value comes from for a constant restatement or a
+  derived expectation too, and leads with "change detectors" or "weak or snapshot-only oracles"
+  when only findings of tests that can fail are present. The 7-day marker prune removes the
+  directories the earlier `mkdir` markers left, as well as marker files.
+- **audit, hooks:** `.claude/testing.yaml`, resolved across `~/.claude/testing.yaml`, the team file
+  and `.claude/testing.local.yaml` by `scripts/resolve-config.sh` (lists concatenate, a later
+  scalar overrides). `adapters.disable` and `adapters.enable` (an allowlist) pick adapters,
+  `paths.exclude` and `paths.include` take repo-root globs (`**` crosses `/`, `*` does not;
+  Windows paths are normalized first), `extend.<adapter>.<field>` appends to an adapter's list,
+  `adapter_dirs` loads consumer adapters, and `rules.<rule>: off | warn | error` drops a rule's
+  findings, keeps them out of the `--check` gate, or gates them. The scanner applies all of it, so
+  an excluded file or a disabled adapter also silences the `test-scan` hook, rules note included.
+  A file whose adapter is off is not scanned at all, never handed to another adapter that matches
+  its name. The team and local layers are read from the scanned file's own repository, so a
+  sibling worktree uses its own config; a UTF-8 byte-order mark and a leading `~/` in
+  `adapter_dirs` are accepted. An unknown adapter id is refused at its file and line, and the
+  `test-scan` hook names an invalid config back to Claude instead of going quiet. The audit names
+  every consumer adapter or `extend` glob no shipped hook row matches. A repository with no layer
+  file scans exactly as before.
+- **setup:** `/testing:setup check | apply`. `check` prints the resolved config, which test-lint
+  rules the lint config turns on per language (a missing `valid-expect`, Playwright await or
+  focused-test rule, `xUnit2021`, `NUnit2009`, or ruff `PLR0124`, `PT011` or `F631` is a finding),
+  an optional instruction line to paste, and a `.claude/settings.json` entry for each glob the
+  shipped hook skips. `apply` writes only `.claude/testing.yaml`. The `test-scan` hook takes
+  `--enabled` for that settings entry, since a settings hook receives no plugin option variables.
+  The entry runs the highest installed version of the plugin from the marketplace `check` ran
+  from, says so on stderr when no installed copy takes `--enabled`, and shares the plugin hook's
+  markers, so a file both cover is reported once.
+- **hooks:** opt-in `test-weaken` PreToolUse hook, under the same `test_guards_enabled` option and
+  the same generated `if` rows as `test-scan`. Before Claude writes or edits a test file it
+  compares the old text with the new and names removed test blocks, removed assertions, added skip
+  markers (a suite skip such as `describe.skip` included) and changed expected values, then asks Claude for its reason. It returns no permission
+  decision, so the user's own prompt still applies. With `rules: {test-weaken-block: error}` in
+  `.claude/testing.yaml`, an added skip or a removed test block is denied until the edit carries a
+  `test-change: <reason>` comment; removed assertions and changed expected values never deny. A
+  scanner error or timeout lets the edit through and logs a line.
+- **audit:** `cant-fail-scan.sh --file <path> --inventory <text>` counts test starts, assertion
+  tokens and skip markers per line of a text, and lists its equalities with a literal side, using
+  the adapter and config of `<path>`.
+
+### Changed
+
+- **audit:** when no adapter's `detect` matches a file, the claimant with no `detect` list wins, so
+  `cs-xunit` stays the C# default.
+- **audit:** `--findings` rows carry a per-rule tier: `SUGGESTION` for the two change-detector rules.
+- **audit:** the Jest-family adapters count `expect.poll(` and `expect.soft(` as assertions, and no
+  longer count a `checkout(` call as one.
+- **audit:** `check-corpus-grid.sh` reads only the `GRID.md` table headed `Adapter`.
+- **hooks:** `test-scan` claims its once-per-call and once-per-file markers as files created with
+  `noclobber` (`O_EXCL`) instead of `mkdir`, which is not atomic under uutils coreutils.
+
+### Security
+
+- **setup:** `apply` refuses a `.claude` directory or `.claude/testing.yaml` that is a symlink, so a
+  repository cannot point it at `CLAUDE.md` and have it overwritten. It writes a temporary file in
+  `.claude/` and renames it into place, and restores a refused answer the same way.
+- **setup:** the `check` hook entry names the marketplace only when it is a plain name
+  (`[A-Za-z0-9_.-]`); any other name prints the `<marketplace>` placeholder instead of splicing it
+  into the command.
+- **config:** `resolve-config.sh` exits 2 on a team or overlay layer that is a symlink or sits under
+  a symlinked `.claude`, so a repository cannot have the loader parse a file outside it.
+- **hooks:** the `test-scan` and `test-weaken` scanner timeout ends the scanner's whole process
+  group, not just its shell, so no `awk` outlives it.
+- **hooks:** without `CLAUDE_PLUGIN_DATA`, `test-weaken` keeps its log and markers where `test-scan`
+  does (the plugin data directory, else `XDG_STATE_HOME`), never in a shared `TMPDIR` directory.
+
 ## [0.10.0] - 2026-09-29
 
 ### Changed

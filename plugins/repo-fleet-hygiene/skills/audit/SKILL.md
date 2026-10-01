@@ -23,7 +23,8 @@ checkout resolution, fleet-scale evidence collection, rollup, and action-plan ro
 The collector produces the detailed read-only report described below, including the compact
 machine-readable rollup and action-plan artifact. Tell the user to run
 `/repo-fleet-hygiene:apply --plan-file <path>` (dry-run by default; `--apply` plus confirmation or
-`--yes` to mutate). Do not add an execute flag to this audit script.
+`--yes` to mutate; `--remote-branches` additionally opts in to per-branch remote deletion, which
+`--yes` never answers). Do not add an execute flag to this audit script.
 
 ## Non-negotiable boundary
 
@@ -72,9 +73,15 @@ variable is substituted in this markdown content and in `allowed-tools` Bash rul
 it in is what makes the project rung below reachable at all.
 
 If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
-shared no-scope ladder: `--named` paths, then `ghq root` when `ghq` is installed, then the current
-working directory when it is a Git checkout, else exit 3 naming every rung. A Git checkout in the
-working directory is a rung; the session project directory is not one on its own. Pass that guidance
+shared no-scope ladder: `--named` paths, then `ghq root --all` when `ghq` is installed, then the
+nearest of the 4 parents above the working directory's checkout (above the working directory itself
+outside a checkout) that directly holds 2 or more Git repositories, so a run inside one checkout
+covers its sibling fleet, then the checkout holding the working directory, else exit 3 naming every
+rung. A Git checkout in the working directory is a rung; the session project directory is not one
+on its own. **Claim:** `ghq root --all` prints every configured root. **Basis:** the
+[ghq README](https://github.com/x-motemen/ghq#usage) (`ghq root [--all]`; "Without '--all' option,
+the primary one is shown") and `ghq help root` on ghq 1.10.1 ("--all  Show all roots"). **As of:**
+2026-09-29. **Recheck:** the README's `root` entry drops or renames `--all`. Pass that guidance
 through rather than re-deriving a root yourself. Config resolution is the script's own ladder. Do not
 pre-resolve or pass a probed path yourself:
 explicit `--config` wins, else the script probes
@@ -151,12 +158,52 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    (`core.sshCommand`, `credential.helper`, proxies). It runs only when the remote URL names the
    same github.com repository with and without that config; otherwise it counts as a failure.
    When every attempted probe in the run fails (non-zero status; empty success does not count),
-   emit one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding. The per-repository
-   MEDIUM findings stay; they are not independent live-probe failures.
+   emit one fleet-level `UNKNOWN` `ls-remote-fleet-unavailable` finding and withhold the
+   per-repository `MEDIUM` rows, because no live probe succeeded.
    Remote-only heads (local already deleted) are included. The handoff is an optional `git push --delete --dry-run`
    preview naming the remote and branch; this skill never runs it and never calls org-admin APIs to
    flip repository settings. Enabling `delete_branch_on_merge` is complementary (it stops the class
    accruing) and is **not** a substitute for this fleet visibility.
+   When the merged PR's `headRefOid` differs from the remote-tracking tip, the tip is still merged
+   content if it is an ancestor of `headRefOid` and that commit is in the clone
+   (`git merge-base --is-ancestor <tip> <headRefOid>` exits 0). That case is `MEDIUM`
+   `merged-remote-branch` with the reason `tip is an ancestor of the merged head`. It runs no
+   ls-remote probe, so it is never `HIGH`. A head commit absent from the clone, or a tip that is not
+   an ancestor, emits nothing.
+   **Remote branch families:** each remote-tracking branch under the selected remote whose name
+   belongs to a family below, and that no `merged-remote-branch` finding covers, gets one `LOW`
+   `remote-branch-family` row: the family, the tip, its age in days from the committer date, and
+   whether the tip is an ancestor of `<remote>/<default>` (`yes`, `no`, or `unknown`). The row reads
+   the last-fetched `refs/remotes/<remote>/` inventory and adds no remote probe. It is report-only:
+   no handoff, no deletion, no deletion preview. Whether and when such branches are deleted is the
+   owner's decision.
+
+   | Family | Branch name | Source |
+   |---|---|---|
+   | `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees |
+   | `claude` | `claude/*` | Claude Code on the web |
+   | `plan` | `plan/*` | named by hand |
+   | `stranded` | `stranded/*` | named by hand |
+   | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
+
+   | Claim | Basis | As of | Recheck |
+   |---|---|---|---|
+   | `agent-<hex>` branches come from Claude Code subagent worktrees. | `plugins/source-control/scripts/worktree-create.sh` uses the harness-supplied name verbatim as the branch. | 2026-09-29 | The harness stops supplying `agent-<hex>` names, or that script changes how it names the branch. |
+   | `claude/*` branches come from Claude Code on the web. | Observed on fleet remotes; <https://code.claude.com/docs/en/claude-code-on-the-web> names no branch prefix. | 2026-09-29 | That page names a branch prefix, or a `claude/*` branch turns up with another origin. |
+
+   **Unmerged remote branch:** a remote-tracking head with no `MERGED` PR row (not the default,
+   current, or worktree-attached branch) gets one more read-only GraphQL query for pull requests
+   whose `headRefName` is exactly that branch, in any state, plus `totalCount`. With a live
+   `ls-remote` tip: no PR at all and a complete list → `HIGH` `unmerged-remote-branch`, class
+   `never-pr`; only `CLOSED` PRs with one `headRefOid` equal to the live tip → `HIGH`, class
+   `closed-unmerged`. An `OPEN` or `MERGED` PR emits nothing. `ls-remote` failing → `MEDIUM`
+   `unmerged-remote-branch-unverified` (no tip, no deletion candidate). Only `CLOSED` PRs and none at
+   the live tip (commits pushed after close), or a `totalCount` above the returned page → `MEDIUM`
+   `unmerged-remote-branch-review`. Only the two `HIGH` classes reach the action plan, as
+   `delete-remote-branches` rows carrying the live tip as `expected_oid`, the remote's `remote_key`,
+   and the `github_repo` that apply rechecks. A branch whose only PR is merged stays
+   `merged-remote-branch` and is never a deletion candidate here.
+
 5. **Local inventories:** parse only `git worktree list --porcelain -z` registrations and
    NUL-delimited `git for-each-ref` branch/tip records. Directory naming is
    never worktree evidence. Compare each existing registered path's actual `--git-common-dir` with
@@ -204,7 +251,9 @@ Default output is screen-scale:
 
 1. Fleet header (config, scope, discovery counts).
 2. **Repository rollup**. One row per repository with `CLEAN` / `N candidates` /
-   `BLOCKED (evidence gap)`, plus counts by finding kind. Fleet-level findings (stale config,
+   `BLOCKED (evidence gap)`, plus counts by finding kind. Every UNKNOWN kind except the
+   disclosure-only `discovery-skip` and `discovery-symlink-skip` makes a repository, and so the fleet,
+   BLOCKED. Fleet-level findings (stale config,
    duplicate checkouts) get their own row. A fleet verdict summarizes blocked vs candidate vs clean.
 3. **Fleet action plan**. Recommended skill invocations **once per repository** (not once per
    finding), ordered so branch cleanups precede worktree cleanups, behind **one** confirmation gate.
@@ -217,7 +266,8 @@ same-named branches across repositories.
 `ACKNOWLEDGED` is a prominence demotion, not a fifth confidence tier: the evidence stays exactly
 as weak as the `UNKNOWN` it came from. A rollup `CLEAN` verdict means no actionable cleanup-plan
 candidates (the kinds that produce skill invocations) and no UNKNOWN evidence gap for that
-repository, not "GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
+repository (`discovery-skip` and `discovery-symlink-skip` are disclosure-only and do not count), not
+"GitHub was unreachable so nothing was wrong." Manual-review HIGH/MEDIUM findings
 (for example `locked-worktree` or `merged-pr-tip-drift`) remain in kind counts but do not inflate
 `N candidates` when the action plan correctly lists `Actions: none`.
 
@@ -250,8 +300,10 @@ report, rollup, and plan path; tell the user to run `/repo-fleet-hygiene:apply` 
 
 Related fleet contracts that remain separate:
 
-- merged remote branches carry a distinct safety gate: this skill reports them, and remote
-  deletion is not part of `/repo-fleet-hygiene:apply`.
+- merged remote branches carry a distinct safety gate: this skill reports them, and their deletion
+  is not part of `/repo-fleet-hygiene:apply`. Only never-PR and closed-unmerged remote branches can
+  be deleted, and only through `/repo-fleet-hygiene:apply --remote-branches` (per-branch prompt,
+  never bypassed by `--yes`, tip recorded first).
 
 ## Graceful degradation
 
@@ -267,7 +319,8 @@ Related fleet contracts that remain separate:
   subsequent run until the config is edited).
 - A path discovered under `--root` that is unreadable or not a Git working tree (despite a `.git`
   marker) degrades the same way: an `UNKNOWN` `discovery-skip` finding, header skip counts, and the
-  rest of the fleet is still audited. An explicitly named `--repo` that is not a working tree still
+  rest of the fleet is still audited. The finding is disclosure-only: it does not make the fleet
+  BLOCKED. An explicitly named `--repo` that is not a working tree still
   hard-fails.
 - A directory that itself carries a `.git` marker (directory or file) is treated as a nested
   repository: discovery `add_target`s it and **returns without descending into its children**. A
@@ -275,7 +328,8 @@ Related fleet contracts that remain separate:
   audit target unless named explicitly via `--repo` / `fleet.repo`.
 - A symlinked or junctioned intermediate directory under `--root` is not followed, but is disclosed
   as an `UNKNOWN` `discovery-symlink-skip` finding and counted on the discovery-skips header line.
-  Windows directory junctions test as symlinks under Git Bash, so they take this path. Symlinked
+  Like `discovery-skip`, it is disclosure-only and does not make the fleet BLOCKED. Windows
+  directory junctions test as symlinks under Git Bash, so they take this path. Symlinked
   discovery *roots* remain a hard refusal (CLI) or `stale-config-entry` (configured).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
@@ -294,6 +348,10 @@ Related fleet contracts that remain separate:
 |---|---|
 | `merged-local-branch` | Run `/repo-hygiene:clean git` in the named canonical repository |
 | `merged-remote-branch` | Optional preview only: `git push --delete --dry-run <remote> <branch>` in the canonical repository (never executed here). Enabling GitHub `delete_branch_on_merge` is complementary and owned by the repository's settings automation. This audit does not change it |
+| `unmerged-remote-branch` | Gated delete: `apply-plan.sh --plan-file <path> --apply --remote-branches` in the operator's own terminal, one prompt per branch, deleted only at the recorded tip; `/repo-fleet-hygiene:apply --remote-branches` from a session without a terminal only previews. Preview by hand: `git push --delete --dry-run <remote> <branch>` in the canonical repository |
+| `unmerged-remote-branch-unverified` | Confirm `git ls-remote --heads` works by hand, then rerun. No deletion is planned |
+| `unmerged-remote-branch-review` | Manual review of the branch and its closed PRs; never a deletion candidate |
+| `remote-branch-family` | None. Report only: no deletion and no deletion preview. Read the family, age and on-default fields and decide by hand |
 | `merged-worktree`, `prunable-worktree`, `missing-worktree` | Run `/source-control:worktree cleanup --dry-run` in the canonical repository |
 | `worktree-status-handoff` | Run `/source-control:worktree status` in the canonical repository (stranded-work axis); use cleanup `--dry-run` only after Work is safe. If `source-control` is not installed, name the listed worktree targets and the missing collaborator. Emit no porcelain-based substitute verdict |
 | `worktree-admin-mismatch` | Manual inspection; `git worktree repair` is an option only after validating which administrative directory is authoritative |
@@ -306,7 +364,7 @@ Related fleet contracts that remain separate:
 | `worktree-root-conformance` | Read the per-worktree outside/wrong-layout findings for expected paths; migrate toward the configured root |
 | `worktree-root-conformance-summary` | Same as per-repository conformance; fleet-scale migration toward the configured root |
 | `worktree-root-unconfigured` | Set `worktreeroot.path` (git config) or source-control `worktree_root`, then rerun |
-| `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun. Per-repository MEDIUM `merged-remote-branch` findings are not independent |
+| `ls-remote-fleet-unavailable` | Confirm `git ls-remote --heads` works by hand with the operator's usual Git transport, then rerun |
 | `worktree-root-pluginconfigs-unreadable` | Install `jq`, or set `worktreeroot.path`; do not treat the fleet as unconfigured |
 | `worktree-placement-unverifiable` | Inspect the canonical checkout; placement was not checked for any of its worktrees, so their placement is unknown rather than confirmed |
 | `bare-repo-with-working-tree` | Manual review. `core.bare=true` coincides with working-tree content or registered linked worktrees, so the main worktree is disabled while linked worktrees keep working. Nothing is lost; the documented remedy is `git config --local core.bare false` in the named checkout |

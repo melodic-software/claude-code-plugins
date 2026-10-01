@@ -20,13 +20,17 @@ in an ``OSError`` (a plausible shape for an unreachable/slow path — e.g. a
 stale network drive letter or UNC path referenced by an ordinary, unrelated
 Bash command) would not by itself explain an *uncaught* exception. Two things
 follow: (1) the strongest identified candidate for the 17s itself is
-``_engine_gate_relevant``'s marker-free fallback, which calls
-``os.path.samefile`` on every separator-containing word of *every* Bash/
+``_engine_gate_relevant``'s marker-free fallback, which runs on *every* Bash/
 PowerShell command in *every* session (not only disk-hygiene commands) when
-resolving the plugin-level engine gate — a slow or unreachable path argument
-in an unrelated command is a real, user-reachable way to stall this hook for
-longer than milliseconds; (2) empty stderr is not what an uncaught Python
-exception normally produces (the default handler writes a traceback), so an
+resolving the plugin-level engine gate. It calls ``os.path.samefile`` on each
+distinct whitespace token (or literal shell word) as written — a slow or
+unreachable path argument in an unrelated command is a real, user-reachable
+way to stall this hook for longer than milliseconds, and the as-written probe
+stays unfiltered because a bare name reaches a link in the working directory —
+and on each distinct relative, non-empty word with no drive or the engine's
+own, joined to the engine's own directory; (2) empty stderr is not what an
+uncaught Python exception normally produces (the default handler writes a
+traceback), so an
 external kill (antivirus/EDR scanning the ``python3`` process, a transient OS
 resource issue) remains an open, unconfirmed possibility this module cannot
 fix from inside the interpreter. What IS fixable and is fixed here: the
@@ -45,6 +49,7 @@ import json
 import math
 import os
 import re
+import stat
 import sys
 import threading
 import time
@@ -62,6 +67,15 @@ import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
 
 _SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
+# A whole-word quoted span: a quote at a word start, no quote inside, the same
+# quote closing it, then a space or the end. Braces are inert inside one.
+_WHOLE_WORD_QUOTED = re.compile(r"(?<![^ ])(?P<q>['\"])[^'\"]*(?P=q)(?= |$)")
+_BRACES = str.maketrans("", "", "{}")
+
+
+def _without_quoted_braces(command: str) -> str:
+    """``command`` with ``{`` and ``}`` dropped from inside whole-word quotes."""
+    return _WHOLE_WORD_QUOTED.sub(lambda m: m.group().translate(_BRACES), command)
 
 
 def decision(value: str, reason: str) -> dict[str, object]:
@@ -176,10 +190,13 @@ def _literal_shell_words(
 
     ``allow_backslash`` permits ``\\`` inside words for surfaces where it is a
     path separator rather than an escape character (PowerShell commands); the
-    Bash default keeps rejecting it.
+    Bash default keeps rejecting it. ``{`` and ``}`` are accepted only inside a
+    whole-word quote, where they are literal; every other expansion or operator
+    character is rejected wherever it sits.
     """
     if not command or any(
-        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in command
+        value in _SHELL_EXPANSION_OR_OPERATOR_CHARS
+        for value in _without_quoted_braces(command)
     ):
         return None
     words: list[str] = []
@@ -569,6 +586,14 @@ def _within_plugin_cache_family(value: str) -> bool:
 # before it matches flags, so an unknown subcommand fails closed.
 _ALLOWED_ENGINE_SUBCOMMANDS = engine_grammar.SUBCOMMAND_NAMES
 
+# The verdict `_decide` gives each admitted subcommand. Placed by hand, not
+# derived from the grammar: a newly declared subcommand is still denied until
+# someone decides whether it is read-only or a mutation that needs the prompt.
+_READONLY_ENGINE_SUBCOMMANDS = frozenset(
+    {"scan", "inventory", "preview", "handoff-verify", "catalog"}
+)
+_MUTATING_ENGINE_SUBCOMMANDS = frozenset({"apply", "handoff-apply"})
+
 
 def _engine_script_path() -> Path:
     """The one bundled engine path both the classifier and the denial disclose."""
@@ -685,6 +710,137 @@ def _carries_marker(word: str) -> bool:
     return name == _ENGINE_MARKER
 
 
+def _is_interpreter(word: str) -> bool:
+    base = Path(word.casefold()).name
+    return base.startswith("python") or base in {"py", "py.exe"}
+
+
+def _reads_as_engine_payload(word: str) -> bool:
+    """Whether a word that is not the engine path still reads as an engine call.
+
+    A quoted compound payload (sh -c / pwsh -Command) whose first token is the
+    engine or an interpreter, or any word holding both the engine filename and
+    "python". The gate and its denial reason share this test, so the reason
+    names the word the gate acted on.
+    """
+    folded = word.casefold()
+    if _carries_marker(word) or _ENGINE_MARKER not in folded:
+        return False
+    if " " in word:
+        first_token = folded.split()[0]
+        if _carries_marker(first_token) or _is_interpreter(first_token):
+            return True
+    return "python" in folded
+
+
+# PowerShell also closes a quote opened with ' by any of these and a " by the
+# double forms; a scanner that knows only the ASCII pair would see a different
+# string boundary than PowerShell does.
+_POWERSHELL_TYPOGRAPHIC_QUOTES = frozenset("‘’‚‛“”„")
+# Outside string data: expansion, subexpression, scriptblock, type/method,
+# splat, call/background, comment, statement-separator and redirection syntax.
+# Any of them can turn a string into code, so their presence keeps the gate.
+_POWERSHELL_CODE_CHARS = frozenset("$`#()[]{}@&;|<>")
+_POWERSHELL_HERE_STRING_OPEN = re.compile(r"@(['\"])[ \t]*\r?\n")
+_POWERSHELL_EXECUTORS = frozenset(
+    {
+        "pwsh",
+        "powershell",
+        "iex",
+        "invoke-expression",
+        "start-process",
+        "saps",
+        "start",
+        "cmd",
+        "bash",
+        "sh",
+        "wsl",
+        "invoke-item",
+        "ii",
+        "invoke-command",
+        "icm",
+        "start-job",
+        "sajb",
+    }
+)
+# Launchers that run their argument as the command.
+_LAUNCHER_WRAPPERS = frozenset(
+    {
+        "env",
+        "nohup",
+        "nice",
+        "time",
+        "timeout",
+        "setsid",
+        "stdbuf",
+        "sudo",
+        "doas",
+        "exec",
+        "command",
+    }
+)
+_POWERSHELL_INTERPRETER = re.compile(
+    r"(?<![\w.\-])(?:py|python[\w.\-]*)(?![\w\-])", re.IGNORECASE
+)
+
+
+def _powershell_without_string_data(command: str) -> str | None:
+    """``command`` with each string literal replaced by ``_``, or None to keep it.
+
+    Returns a rewrite only for ONE statement of an ordinary command whose
+    string literals cannot execute: single-quoted literals and here-strings
+    always qualify, double-quoted ones only without ``$`` or backtick (a
+    subexpression runs code). None, meaning the caller must classify the
+    command as written, for anything that could run a string: an interpreter
+    token outside string data, an executor as the command word, a
+    string in the command position, a launcher wrapper (``env``, ``sudo``,
+    ``timeout``) as the command word, code syntax outside strings, a second
+    statement (``Set-Content x.ps1 '...'; ./x.ps1``), ``--%``, typographic
+    quotes, or an unterminated literal.
+    """
+    if any(char in _POWERSHELL_TYPOGRAPHIC_QUOTES for char in command) or (
+        command.lstrip(" \t")[:1] in {"'", '"'}
+    ):
+        return None
+    out: list[str] = []
+    index = 0
+    while index < len(command):
+        here = _POWERSHELL_HERE_STRING_OPEN.match(command, index)
+        char = command[index]
+        if here:
+            quote = here.group(1)
+            closer = re.compile(r"\r?\n" + re.escape(quote) + "@").search(
+                command, here.end() - 1
+            )
+            if closer is None:
+                return None
+            body, index = command[here.end() : closer.start()], closer.end()
+        elif char in {"'", '"'}:
+            quote = char
+            end = command.find(quote, index + 1)
+            if end < 0:
+                return None
+            body, index = command[index + 1 : end], end + 1
+        else:
+            if char in _POWERSHELL_CODE_CHARS or (char.isspace() and char not in " \t"):
+                return None
+            out.append(char)
+            index += 1
+            continue
+        if quote == '"' and ("$" in body or "`" in body):
+            return None
+        out.append("_")
+    stripped = "".join(out)
+    words = stripped.split()
+    if not words or "--%" in words or _POWERSHELL_INTERPRETER.search(stripped):
+        return None
+    command_word = _PATH_SEPARATOR.split(words[0].casefold())[-1]
+    if command_word.endswith(".exe"):
+        command_word = command_word[: -len(".exe")]
+    blocked = _POWERSHELL_EXECUTORS | _LAUNCHER_WRAPPERS
+    return None if command_word in blocked else stripped
+
+
 def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
 
@@ -721,20 +877,38 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
       mere mention (expansions, operators, unparsable quoting) — fail closed
       into the gate; the belt's own rules then decide.
 
-    A path-like word (containing a separator) that is the SAME FILE as the
-    bundled engine — a symlink or hard link under any name — gates regardless
-    of its filename. Accepted residuals, all of the copy-evasion class the gate
-    can never close (a byte copy is a different file): a PATH-installed alias
-    with no separator, an alias inside a command the literal parser rejects
-    when the marker is absent, and a copied engine. This is a belt, not the
+    On PowerShell, string DATA is a mention: when a command is one statement
+    of an ordinary command (``gh``, ``git``, ``Select-String``) whose literals
+    cannot execute, every single-quoted literal, here-string body, and
+    ``$``/backtick-free double-quoted literal is blanked before the rules above
+    run (``_powershell_without_string_data``), so a ``gh issue create --body``
+    here-string naming the engine defers. The command is classified as written
+    whenever a string could run: an interpreter token outside string data, an
+    executor or launcher wrapper as the command word (``pwsh -Command``, ``iex``, ``Start-Process``,
+    ``cmd``/``bash``/``sh``, ``Invoke-Item``), a call operator, a variable,
+    a subexpression, a scriptblock or type literal, or a second statement.
+    Identity is checked before blanking, so a string naming this plugin's own
+    engine by a resolving path still gates. Accepted residual: a command the
+    executor list does not name that runs a string naming the engine
+    (``ssh host './hygiene.py scan'``) reads as data.
+
+    A word that is the SAME FILE as the bundled engine — a symlink or hard link
+    under any name — gates regardless of its filename. Without the marker, each
+    distinct whitespace token (or ``_literal_shell_words`` word) is read two
+    ways: as written, and joined to the engine's own directory when it is
+    relative, non-empty and has no drive or the engine's own. A link in the
+    working directory therefore gates invoked bare (``python3 alias``) as well
+    as by path, a link beside the engine gates bare or as ``./alias``, and
+    ``C:alias`` reads against the engine's directory on the engine's own drive.
+    Accepted residuals, all of the copy-evasion class the gate can never close
+    (a byte copy is a different file): a PATH-installed alias with no
+    separator, an alias inside a command the literal parser rejects when the
+    marker is absent, an alias qualified with a drive other than the
+    engine's (``D:alias``), and a copied engine. This is a belt, not the
     authority: an invocation smuggled past it still answers to the engine's own
     preview/approval-token containment (and to the skill-frontmatter belt for
     the rest of the session once that belt has registered).
     """
-
-    def _is_interpreter(word: str) -> bool:
-        base = Path(word.casefold()).name
-        return base.startswith("python") or base in {"py", "py.exe"}
 
     bundled = _engine_script_path()
 
@@ -744,17 +918,22 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         except (OSError, ValueError):
             return False
 
+    def _in_engine_dir(word: str) -> bool:
+        return _samefile(os.path.join(bundled.parent, word))
+
     def _same_file_as_bundled(word: str) -> bool:
         """Whether ``word`` NAMES the bundled engine, under any spelling.
 
-        Read two ways: as written, and — when relative — against the ENGINE'S
-        OWN directory. The second reading is what closes the Windows
-        filename-alias class. Win32 discards trailing dots and spaces from a
-        filename and resolves `::$DATA` to the main stream, so `hygiene.py.`,
-        `"hygiene.py "` and `hygiene.py::$DATA` all open the bundled engine
-        while none of them has its basename; `cd <scripts> && python
-        hygiene.py. apply` then ran the kill-switched engine unseen. 8.3 short
-        names are a third spelling of the same kind.
+        Read two ways: as written (``_samefile``), and — when relative —
+        against the ENGINE'S OWN directory (``_in_engine_dir``). The
+        marker-free branch filters the second reading by drive; the
+        marker-carrying branch uses both unfiltered. The second reading is
+        what closes the Windows filename-alias class. Win32 discards trailing
+        dots and spaces from a filename and resolves `::$DATA` to the main
+        stream, so `hygiene.py.`, `"hygiene.py "` and `hygiene.py::$DATA` all
+        open the bundled engine while none of them has its basename; `cd
+        <scripts> && python hygiene.py. apply` then ran the kill-switched
+        engine unseen. 8.3 short names are a third spelling of the same kind.
 
         Asking the filesystem whether a spelling resolves to the engine closes
         every alias at once. Enumerating the spellings closes one per review
@@ -762,18 +941,30 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         directory is the right base precisely because it is the directory such
         a command must `cd` into for the alias to run.
         """
-        if _samefile(word):
-            return True
-        return not os.path.isabs(word) and _samefile(os.path.join(bundled.parent, word))
+        return _samefile(word) or (not os.path.isabs(word) and _in_engine_dir(word))
 
     allow_backslash = tool_name == "PowerShell"
+    data_free = _powershell_without_string_data(command) if allow_backslash else None
+    if data_free is not None:
+        # Identity is read on the command AS WRITTEN, before any literal is
+        # blanked: a word naming one of this plugin's engines gates even when
+        # it sits in string data.
+        if any(
+            _samefile(candidate)
+            or (_carries_marker(token) and _within_plugin_cache_family(candidate))
+            for token, word in _marker_tokens_with_words(command)
+            for candidate in (token, word)
+        ):
+            return True
+        command = data_free
     marker_candidates = _marker_tokens(command)
     if not any(_carries_marker(token) for token in marker_candidates):
         # No marker: the only relevant shape is a linked alias of the bundled
         # engine invoked by path. Unparsable marker-free commands cannot fail
         # closed (that would gate every command with an operator), so scan
-        # their whitespace tokens for separator-carrying words and identity-
-        # check those — a literal alias path gates even beside an operator.
+        # their whitespace tokens and identity-check every one, not only
+        # separator-carrying words — a literal alias path gates even beside an
+        # operator.
         #
         # The path-legal tokens are scanned as well, and carry this branch's
         # weight now that a name merely CONTAINING the marker lands here: a
@@ -782,6 +973,15 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         # `/tmp/test_hygiene.py;echo`, which resolves to nothing, so identity
         # would miss the engine under a name that is not the marker. Adding
         # candidates can only ever gate more, never less.
+        #
+        # Each distinct candidate is read two ways. As written, always: a bare
+        # name reaches a link in the shell's working directory (`python3
+        # alias`), so no word is skipped. Against the engine's directory when it
+        # is relative, non-empty and has no drive or the engine's own: Windows
+        # joins `D:foo` onto drive D and discards the engine's directory, so
+        # that reading would repeat the as-written probe of the same path, while
+        # `C:foo` on the engine's own drive still resolves inside the engine's
+        # directory.
         candidates = list(marker_candidates)
         words = _literal_shell_words(command, allow_backslash=allow_backslash)
         candidates += (
@@ -789,7 +989,17 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
             if words is None
             else list(words)
         )
-        return any(_same_file_as_bundled(candidate) for candidate in candidates)
+        engine_drive = os.path.splitdrive(bundled.parent)[0].casefold()
+        return any(
+            _samefile(candidate)
+            or (
+                bool(candidate)
+                and not os.path.isabs(candidate)
+                and os.path.splitdrive(candidate)[0].casefold() in {"", engine_drive}
+                and _in_engine_dir(candidate)
+            )
+            for candidate in dict.fromkeys(candidates)
+        )
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         # Marker present but not literally parseable (operators, compounds).
@@ -836,26 +1046,13 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     # The effective command word: skip launcher wrappers, VAR=value
     # assignments, and option words — `env PATH=... hygiene.py apply` makes the
     # bare marker word the command even though it is not word 0.
-    _WRAPPERS = {
-        "env",
-        "nohup",
-        "nice",
-        "time",
-        "timeout",
-        "setsid",
-        "stdbuf",
-        "sudo",
-        "doas",
-        "exec",
-        "command",
-    }
+    _WRAPPERS = _LAUNCHER_WRAPPERS
     wrapper_indices = [
         index
         for index, word in enumerate(words)
         if Path(word.casefold()).name in _WRAPPERS
     ]
     for index, word in enumerate(words):
-        folded = word.casefold()
         if _carries_marker(word):
             if _samefile(word) or _within_plugin_cache_family(word):
                 # The word is one of THIS PLUGIN'S engines — the bundled one,
@@ -889,13 +1086,7 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
                 # (`git diff -- hygiene.py`) still defer.
                 return True
             continue
-        if _ENGINE_MARKER in folded and " " in word:
-            first_token = folded.split()[0]
-            if _carries_marker(first_token) or _is_interpreter(first_token):
-                # A quoted compound payload (sh -c / pwsh -Command) whose first
-                # token is the engine or an interpreter is an invocation.
-                return True
-        if _ENGINE_MARKER in folded and "python" in folded:
+        if _reads_as_engine_payload(word):
             return True
     return False
 
@@ -1254,7 +1445,9 @@ def _parse_bracket_test_words(command: str) -> list[str] | None:
     if len(text) < 2 or text[0] != "[" or text[-1] != "]":
         return None
     interior = text[1:-1]
-    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+    if _SHELL_EXPANSION_OR_OPERATOR_CHARS.intersection(
+        _without_quoted_braces(interior)
+    ):
         return None
     stripped = interior.strip()
     if not stripped:
@@ -1482,7 +1675,9 @@ def _absolute_bracket_test_words(command: str) -> tuple[str, list[str]] | None:
     if rest != "]" and not rest.endswith(" ]"):
         return None
     interior = "" if rest == "]" else rest[:-1].strip()
-    if any(value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in interior):
+    if _SHELL_EXPANSION_OR_OPERATOR_CHARS.intersection(
+        _without_quoted_braces(interior)
+    ):
         return None
     if not interior:
         return head, []
@@ -1533,6 +1728,111 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r"|format-volume|clear-disk|initialize-disk"
     r")(?![\w-])"
 )
+# Quoted-literal relief for the mutation-word check. A mutation word inside a
+# quoted literal (a commit message, a search term, an issue body) is data only
+# when nothing in the command can run that literal as code, so relief is an
+# allow-list: every command head must be one of the commands below, none of
+# which evaluates or executes its string arguments. Anything else keeps the
+# raw-text match, which fails toward ask.
+_POWERSHELL_RELIEF_HEADS = frozenset(
+    {
+        # Write their arguments to the output stream as text.
+        "write-output",
+        "echo",
+        "write-host",
+        # List items; a path or filter string names items, never runs them.
+        "get-childitem",
+        "gci",
+        "ls",
+        "dir",
+        # Filter or project objects; a script block argument is split into its
+        # own segments below, so its heads are checked too.
+        "where-object",
+        "where",
+        "?",
+        "select-object",
+        "sort-object",
+        "measure-object",
+        # Match a string as a regular expression, never as code.
+        "select-string",
+        "sls",
+        # Render objects as text.
+        "format-table",
+        "format-list",
+        "out-string",
+        "out-null",
+        # Read item content or metadata without running it.
+        "get-content",
+        "gc",
+        "cat",
+        "test-path",
+        "get-item",
+    }
+)
+# git and gh do run strings through some arguments (`git -c core.pager=...`,
+# `git grep -O...`, `gh alias set --shell`), so each qualifies only when its
+# first argument is a subcommand that takes message and search text without
+# running it.
+_POWERSHELL_RELIEF_SUBCOMMANDS = {
+    "git": frozenset({"log", "show", "status", "diff", "commit"}),
+    "gh": frozenset({"issue", "pr", "search"}),
+}
+# Constructs that change where PowerShell opens or closes a quote, or that run
+# code from inside a string: an escape backtick, a non-ASCII character
+# (typographic quotes and Unicode line breaks), a subexpression, a here-string,
+# a braced variable name (`${a'b}`), and the stop-parsing token. Each one sends
+# the command to the raw-text match, so the quote pairing below agrees with
+# PowerShell's up to the first unquoted comment `#`, which is refused after
+# masking.
+_POWERSHELL_RELIEF_RAW_FALLBACK = re.compile(
+    r"[`\x80-\U0010ffff]|[$@]\(|@['\"]|\$\{|--%"
+)
+# A single- or double-quoted literal, a doubled quote inside it standing for one.
+_POWERSHELL_QUOTED_LITERAL = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"")
+# After masking: a comment, a static call, a member call (`.Name(`, `.''(`,
+# `.$m(`), or a call operator `&` (not the `>&` stream merge or `&&`).
+_POWERSHELL_RELIEF_MASKED_FALLBACK = re.compile(r"#|::|\.[\w'$\s]*\(|(?<![>&])&(?!&)")
+_POWERSHELL_SEGMENT_SPLIT = re.compile(r"&&|[|;\r\n{}()]")
+# The pipeline object heads a Where-Object comparison such as `$_.Name -match`.
+_POWERSHELL_PIPELINE_VARIABLE = re.compile(r"(?i)\$(?:_|psitem)(?!\w)")
+
+
+def _powershell_relief_head(segment: str) -> bool:
+    """Whether a segment's head is on the relief allow-list."""
+    words = segment.split()
+    head = words[0].lower()
+    if head in _POWERSHELL_RELIEF_SUBCOMMANDS:
+        return (
+            len(words) > 1 and words[1].lower() in _POWERSHELL_RELIEF_SUBCOMMANDS[head]
+        )
+    if _POWERSHELL_PIPELINE_VARIABLE.match(head):
+        # An assignment puts a command after `=`.
+        return "=" not in segment
+    return head in _POWERSHELL_RELIEF_HEADS
+
+
+def _powershell_mutation_word_text(command: str) -> str:
+    """The text the mutation-word check scans: literals masked, or the raw command.
+
+    Single- and double-quoted literals (with their doubled-quote escapes) become
+    ``''`` only when no fallback construct appears and every command head is on
+    the relief allow-list; otherwise the raw command is returned. Words are then
+    matched anywhere in the masked text, so an unquoted ``git rm x`` or
+    ``$x = rm y`` still asks.
+    """
+    if _POWERSHELL_RELIEF_RAW_FALLBACK.search(command):
+        return command
+    if re.search(r"['\"]", _POWERSHELL_QUOTED_LITERAL.sub("", command)):
+        return command  # an unterminated quote
+    text = _POWERSHELL_QUOTED_LITERAL.sub("''", command)
+    if _POWERSHELL_RELIEF_MASKED_FALLBACK.search(text):
+        return command
+    for segment in _POWERSHELL_SEGMENT_SPLIT.split(text):
+        if segment.strip() and not _powershell_relief_head(segment):
+            return command
+    return text
+
+
 _POWERSHELL_NEW_ITEM_FORCE = re.compile(
     r"(?i)(?<![\w./\\-])new-item(?![\w-]).*-force\b"
 )
@@ -1701,7 +2001,9 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
         # Invocation-shaped engine references only — the same classifier the
         # plugin-level engine gate uses, so read-only text processing that
         # merely NAMES the script (Select-String over a bare name, git diff)
-        # defers instead of being denied by a raw substring test. A command
+        # defers instead of being denied by a raw substring test, and so does
+        # a name inside string data no executor, interpreter, variable, or
+        # expansion can run (a `gh issue create --body` here-string). A command
         # whose argument IS the bundled engine (file identity) still denies,
         # even under a read-verb spelling: PowerShell aliases and profile
         # functions shadow cmdlet names, so a verb name proves nothing about
@@ -1712,46 +2014,45 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             "exact guarded command shapes, not PowerShell. To READ the engine "
             "source, use non-shell file tools.",
         )
+    verdict = functools.partial(_powershell_mutation_verdict, command=command)
     if _POWERSHELL_VB_FILESYSTEM_DELETE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged Microsoft.VisualBasic.FileIO.FileSystem "
             "DeleteFile/DeleteDirectory (Recycle Bin / FileIO deletion).",
         )
     shell_app_recycle_bin = _shell_application_recycle_bin_delete_reason(command)
     if shell_app_recycle_bin is not None:
-        return _powershell_mutation_verdict(enabled, shell_app_recycle_bin)
-    match = _POWERSHELL_MUTATION_WORDS.search(command)
+        return verdict(enabled, shell_app_recycle_bin)
+    match = _POWERSHELL_MUTATION_WORDS.search(_powershell_mutation_word_text(command))
     if match:
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             f'disk-hygiene flagged the mutation spelling "{match.group(0)}".',
         )
     if _POWERSHELL_NEW_ITEM_FORCE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged New-Item -Force (truncates an existing file).",
         )
     if _POWERSHELL_OUTPUT_REDIRECT.search(
         command
     ) or _POWERSHELL_APPEND_REDIRECT.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged shell output redirection (may overwrite a file).",
         )
     if _POWERSHELL_DOTNET_DELETE.search(command):
-        return _powershell_mutation_verdict(
-            enabled, "disk-hygiene flagged a .NET Delete call."
-        )
+        return verdict(enabled, "disk-hygiene flagged a .NET Delete call.")
     qualified = _POWERSHELL_QUALIFIED_DELETE.search(command)
     if qualified:
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged the module-qualified deletion spelling "
             f'"{qualified.group(0)}".',
         )
     if _POWERSHELL_ROBOCOPY_PURGE.search(command):
-        return _powershell_mutation_verdict(
+        return verdict(
             enabled,
             "disk-hygiene flagged a robocopy mirror/purge/move invocation "
             "(mass deletion via mirroring).",
@@ -1759,17 +2060,73 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     return None
 
 
-def _powershell_mutation_verdict(enabled: bool, flagged: str) -> tuple[str, str]:
-    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt."""
+def _display_text(value: str) -> str:
+    """``value`` with control characters escaped, for the ``ask`` reason text.
+
+    A newline or escape byte inside a path taken from a command or a plan file
+    would otherwise restructure the prompt the person reads before approving.
+    """
+    return "".join(
+        char if char.isprintable() else char.encode("unicode_escape").decode()
+        for char in value
+    )
+
+
+# Quoted literals and unquoted drive-letter paths. Double-quoted text that
+# interpolates (`$` or a backtick) is not a literal and is filtered afterward.
+_POWERSHELL_LITERAL_PATH = re.compile(
+    r"""'([^']*)'|"([^"]*)"|(?<![\w'"])([A-Za-z]:[\\/][^\s'"`;|(){}]*)"""
+)
+
+
+def _powershell_literal_paths(command: str) -> list[str]:
+    """Path-shaped literals in ``command``, in order and de-duplicated.
+
+    Informational only: it feeds the ``ask`` reason text and never a verdict, so
+    a miss or a false hit changes what the prompt shows, not what is decided.
+    """
+    found: list[str] = []
+    for match in _POWERSHELL_LITERAL_PATH.finditer(command):
+        value = next(group for group in match.groups() if group is not None).strip()
+        if (
+            value
+            and not value.startswith("-")
+            and not any(char in value for char in "$`\r\n")
+            and ("\\" in value or "/" in value or re.match(r"[A-Za-z]:", value))
+        ):
+            found.append(value)
+    return list(dict.fromkeys(found))
+
+
+def _powershell_mutation_verdict(
+    enabled: bool, flagged: str, command: str = ""
+) -> tuple[str, str]:
+    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt.
+
+    The prompt also lists the literal paths the command names when they can be
+    read from it; any failure keeps the generic text.
+    """
     if not enabled:
         return (
             "deny",
             f"{flagged} Disk-hygiene execution is disabled (audit-only mode), so "
             "deletions are blocked on every lane.",
         )
+    try:
+        paths = _powershell_literal_paths(command)
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        paths = []
+    named = (
+        f" The command contains {len(paths)} path-shaped literal(s), which may not "
+        "be every path it acts on: "
+        + "; ".join(_display_text(path) for path in paths)
+        + "."
+        if paths
+        else ""
+    )
     return (
         "ask",
-        f"{flagged} Confirm only if this is the explicitly approved manual "
+        f"{flagged}{named} Confirm only if this is the explicitly approved manual "
         "handoff and the command touches exactly the paths you approved.",
     )
 
@@ -1819,7 +2176,145 @@ def _bash_allowlist_disclosure(authority: str | None) -> str:
     )
 
 
-def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str:
+_OPERATOR_LABELS = {
+    char: label
+    for chars, label in (
+        ("|", "a pipe"),
+        ("<>", "a redirect"),
+        (";", "a ';'"),
+        ("&", "an '&'"),
+        ("$`(){}", "a substitution or expansion"),
+        ("*?[]~", "a glob or tilde"),
+        ("\r\n\t", "a newline or tab"),
+        ("!#", "a '!' or '#'"),
+    )
+    for char in chars
+}
+
+
+def _unparsable_reason(command: str) -> str:
+    """Name the first thing in ``command`` that ``_literal_shell_words`` rejects."""
+    for char in _without_quoted_braces(command):
+        if char in _OPERATOR_LABELS:
+            culprit = f"{_OPERATOR_LABELS[char]} ({char!r})"
+            break
+    else:
+        culprit = (
+            "a backslash"
+            if "\\" in command
+            else "a quote that does not wrap a whole word, or a non-space whitespace character"
+        )
+    return f"The command contains {culprit}, so it is not one plain literal invocation."
+
+
+def _resolves_to_engine(word: str) -> bool:
+    key = _script_path_key(word)
+    return key is not None and key == _script_path_key(str(_engine_script_path()))
+
+
+def _engine_mismatch_reason(command: str, authority: str | None) -> str:
+    """One sentence naming what ``classify_exact_engine_command`` refuses.
+
+    Deny path only; the caller has already denied and this decides nothing. It
+    walks the classifier's stages in order, except that when the command is not
+    the hook's Python, an engine operand or a word that reads as an engine
+    payload is named first: that word is what the gate acts on, whatever the
+    command's length.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None:
+        return _unparsable_reason(command)
+    python_ok = _is_current_python(tokens[0])
+    operand = (
+        None
+        if python_ok
+        else next((word for word in tokens[1:] if _resolves_to_engine(word)), None)
+    )
+    payload = (
+        None
+        if python_ok or operand is not None
+        else next((word for word in tokens if _reads_as_engine_payload(word)), None)
+    )
+    if payload is not None:
+        return (
+            f"{engine_grammar.clip_token(payload)} holds the engine filename with "
+            "an interpreter or as its first word, so the gate reads it as an "
+            "engine call."
+        )
+    if operand is not None:
+        named = (
+            "is the engine path"
+            if os.path.isabs(operand)
+            else "resolves to the engine from the current directory"
+        )
+        return (
+            f"{engine_grammar.clip_token(operand)} {named}, and only a call "
+            f'through "{_display_python()}" may name it; '
+            f"{engine_grammar.clip_token(tokens[0])} is not that interpreter."
+        )
+    if len(tokens) < 3:
+        return (
+            f"The command has {len(tokens)} word(s); an engine call is "
+            "<hook python> <engine script> <subcommand> <flags>."
+        )
+    if not python_ok:
+        return (
+            f"{engine_grammar.clip_token(tokens[0])} is not this hook's Python; "
+            f'the interpreter must be "{_display_python()}".'
+        )
+    if not _resolves_to_engine(tokens[1]):
+        return (
+            f"{engine_grammar.clip_token(tokens[1])} is not the bundled engine "
+            f'"{_display_path(_engine_script_path())}".'
+        )
+    subcommand = tokens[2]
+    if subcommand not in _ALLOWED_ENGINE_SUBCOMMANDS:
+        return (
+            f"{engine_grammar.clip_token(subcommand)} is not an engine "
+            f"subcommand; use one of {', '.join(_ALLOWED_ENGINE_SUBCOMMANDS)}."
+        )
+    words = tokens[3:]
+    if engine_grammar.DATA_ROOT_FLAG not in words:
+        return (
+            f"{engine_grammar.DATA_ROOT_FLAG} is missing; every engine call "
+            f"passes {engine_grammar.DATA_ROOT_FLAG} with the authorized root."
+        )
+    external_checks = {
+        engine_grammar.AUTHORIZED_DATA_ROOT: (
+            lambda value: _is_authorized_data_root(value, authority)
+        ),
+    }
+    return (
+        engine_grammar.explain_mismatch(subcommand, words, external_checks)
+        or "The arguments do not match the engine grammar."
+    )
+
+
+def _engine_flag_order_rule() -> str:
+    heads = "; ".join(
+        f"{spec.name}: {engine_grammar.required_order(spec)}"
+        for spec in engine_grammar.SUBCOMMANDS
+        if spec.required
+    )
+    return (
+        "Flag order: required flags come first, in declared order "
+        f"({heads}), then optional flags in any order."
+    )
+
+
+_ENGINE_GATE_SCOPE = (
+    "Any command that contains the engine filename together with a pipe, "
+    "redirect, ;, substitution, or an absolute engine-path operand is gated. "
+    "The read-only forms that work name the engine by a relative path or bare "
+    "name in a plain git show, git grep, grep or rg with no pipe, redirect or ;. "
+    "A relative path or bare name that resolves to the installed engine from "
+    "the current directory is still gated."
+)
+
+
+def _bash_denial_guidance(
+    authority: str | None, mode: str | None = None, command: str | None = None
+) -> str:
     """Explain a Bash deny in the words of the surface that issued it.
 
     ``engine-gate`` (the plugin-level always-on hook) gates this engine
@@ -1829,16 +2324,25 @@ def _bash_denial_guidance(authority: str | None, mode: str | None = None) -> str
     that skill is invoked, and names how it clears. Both bodies disclose the
     same classifier allow-list so the denial cannot teach a grammar the
     classifier does not implement. Unrecognized ``mode`` values fall back to
-    ``belt``, matching ``resolve_mode``.
+    ``belt``, matching ``resolve_mode``. ``command`` is read only by the
+    ``engine-gate`` body, to name what failed in the denied command.
     """
     resolved = resolve_mode() if mode is None else mode
     grammar = _bash_allowlist_disclosure(authority)
     if resolved == _MODE_ENGINE_GATE:
+        reason = (
+            f"{_engine_mismatch_reason(command, authority)} "
+            if command is not None
+            else ""
+        )
         return (
             "Disk-hygiene engine gate: this specific engine invocation is "
-            "gated. The rest of the Bash lane is unaffected, and "
+            "gated. " + reason + "The rest of the Bash lane is unaffected, and "
             "/disk-hygiene:clean need not have been invoked for this to fire. "
-            "Allowed shapes for this invocation are "
+            + _engine_flag_order_rule()
+            + " "
+            + _ENGINE_GATE_SCOPE
+            + " Allowed shapes for this invocation are "
             + grammar
             + " Supporting inspection of this invocation may use that small "
             "Bash allowlist or non-Bash read-only tools; any other shape of "
@@ -2332,6 +2836,84 @@ def _settle(
     return 0
 
 
+_APPLY_ASK_GENERIC_REASON = (
+    "disk-hygiene is ready to apply one exact, previewed tier. Confirm this "
+    "final mutation prompt only if it matches the tier and paths you just approved."
+)
+_APPLY_PLAN_READ_LIMIT = 1 << 20
+_APPLY_SNAPSHOT_READ_LIMIT = 16 << 20
+
+
+def _read_json_file(path: str, limit: int) -> object:
+    """Parse one regular JSON file of at most ``limit`` bytes, else ``None``.
+
+    Never raises. The size check happens on the bytes actually read, and a
+    non-regular file (a FIFO would block) is refused before it is opened.
+    """
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return None
+        with open(path, "rb") as handle:
+            data = handle.read(limit + 1)
+        return None if len(data) > limit else json.loads(data)
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        return None
+
+
+def _apply_ask_reason(command: str) -> str:
+    """Tier, count, and every path of the plan an apply command names.
+
+    Text only. Any missing or malformed plan returns the generic reason, so the
+    caller's ``ask`` verdict never depends on what this reads.
+    """
+    try:
+        words = _literal_shell_words(command) or []
+        flags = {
+            flag: words[index + 1]
+            for index, flag in enumerate(words[:-1])
+            if flag in {"--plan", "--snapshot"}
+        }
+        plan = _read_json_file(flags["--plan"], _APPLY_PLAN_READ_LIMIT)
+        candidates = plan["candidates"]  # type: ignore[index]
+        tier = plan["tier"]  # type: ignore[index]
+        paths = [candidate["path"] for candidate in candidates]
+        if not (
+            isinstance(tier, str)
+            and paths
+            and all(isinstance(path, str) for path in paths)
+        ):
+            return _APPLY_ASK_GENERIC_REASON
+        snapshot = _read_json_file(flags["--snapshot"], _APPLY_SNAPSHOT_READ_LIMIT)
+        target = snapshot.get("target") if isinstance(snapshot, dict) else None
+        where = (
+            f"under {_display_text(target)}"
+            if isinstance(target, str)
+            else "(snapshot-relative; the snapshot target could not be read)"
+        )
+        return (
+            f"disk-hygiene is ready to apply one exact, previewed tier: {_display_text(tier)}, "
+            f"{len(paths)} path(s) {where}:\n"
+            + "\n".join(f"- {_display_text(path)}" for path in paths)
+            + "\nConfirm this final mutation prompt only if it matches the tier "
+            "and paths you just approved."
+        )
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        return _APPLY_ASK_GENERIC_REASON
+
+
+_HANDOFF_APPLY_ASK_REASON = (
+    "disk-hygiene is ready to verify and delete one exact approved path, "
+    "including version-control content you acknowledged losing: unpushed "
+    "commits and untracked or ignored files do not come back. Confirm this "
+    "final mutation prompt only if it is the one path you just approved."
+)
+# The ask reason each mutating subcommand shows, given the command.
+_MUTATION_PROMPTS = {
+    "apply": _apply_ask_reason,
+    "handoff-apply": lambda _command: _HANDOFF_APPLY_ASK_REASON,
+}
+
+
 def _decide(command: str, tool_name: str, start: float) -> int:
     """The guard's decision logic once the JSON payload has parsed cleanly.
 
@@ -2402,7 +2984,7 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             "(disk-hygiene belt inspection allowlist).",
         )
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview", "handoff-verify"}:
+    if command_kind in _READONLY_ENGINE_SUBCOMMANDS:
         return _settle(
             command,
             tool_name,
@@ -2411,27 +2993,38 @@ def _decide(command: str, tool_name: str, start: float) -> int:
             f"exact-engine-{command_kind}",
             "Exact bundled disk-hygiene read-only gate invocation.",
         )
-    if command_kind == "apply" and enabled:
+    if command_kind in _MUTATING_ENGINE_SUBCOMMANDS and enabled:
         return _settle(
             command,
             tool_name,
             start,
             "ask",
-            "exact-engine-apply",
-            "disk-hygiene is ready to apply one exact, previewed tier. Confirm this final mutation prompt only if it matches the tier and paths you just approved.",
+            f"exact-engine-{command_kind}",
+            _MUTATION_PROMPTS[command_kind](command),
         )
-    denied_by_kill_switch = command_kind == "apply"
+    if command_kind in _MUTATING_ENGINE_SUBCOMMANDS:
+        readonly = [
+            name
+            for name in _ALLOWED_ENGINE_SUBCOMMANDS
+            if name in _READONLY_ENGINE_SUBCOMMANDS
+        ]
+        return _settle(
+            command,
+            tool_name,
+            start,
+            "deny",
+            f"kill-switch-disabled-{command_kind}",
+            "Disk-hygiene execution is disabled; only exact bundled "
+            f"{', '.join(readonly[:-1])}, and {readonly[-1]} invocations are "
+            "permitted.",
+        )
     return _settle(
         command,
         tool_name,
         start,
         "deny",
-        "kill-switch-disabled-apply"
-        if denied_by_kill_switch
-        else "not-exact-engine-command",
-        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
-        if denied_by_kill_switch
-        else _bash_denial_guidance(authority),
+        "not-exact-engine-command",
+        _bash_denial_guidance(authority, command=command),
     )
 
 

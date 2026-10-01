@@ -41,6 +41,7 @@ trap 'd1_cleanup; rm -rf "$TEST_TMPDIR"' EXIT
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
+jq_crlf_free
 
 # Neutralize any ambient CLAUDE_PROJECT_DIR (a CC-wrapped run sets it) so the
 # default cases exercise the fail-closed scan path deterministically.
@@ -1088,6 +1089,31 @@ D1_DISPATCH_RC=0
 bash "$HOOK_DIR/run-guards.sh" secret-pattern-detection.sh hardcoded-path-check.sh block-windows-drive-tmp.sh \
   <<<"$(write_json "$D1_TARGET" "token = '$GH_PAT'")" >/dev/null 2>&1 || D1_DISPATCH_RC=$?
 assert_exit "D1 dispatcher: root unset → exit 2" 2 "$D1_DISPATCH_RC"
+
+# A target outside temp spawns no cygpath on a Windows shell, except under a
+# custom temp root with no tmp or temp component (TMPDIR=/usr here), whose drive
+# spelling a target under it carries and the lexical pre-match cannot see. A stub
+# cygpath logs its calls, so this runs on a POSIX host with the Windows arm
+# forced; a Windows host has no such stub.
+if ((!D1_WIN)); then
+  CR_DIR="$TEST_TMPDIR/custom-root"
+  mkdir -p "$CR_DIR/bin"
+  # shellcheck disable=SC2016 # the stub's own expressions
+  printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$CR_LOG"' 'for a in "$@"; do case "$a" in -*) ;; *) echo "$a" ;; esac; done' \
+    >"$CR_DIR/bin/cygpath"
+  chmod +x "$CR_DIR/bin/cygpath"
+  # cr_calls <TMPDIR> -> the number of cygpath calls for a drive-spelled target
+  cr_calls() {
+    : >"$CR_DIR/log"
+    # shellcheck disable=SC2016 # $1 is the child's own positional parameter
+    env TMPDIR="$1" TMP="" TEMP="" CR_LOG="$CR_DIR/log" PATH="$CR_DIR/bin:$PATH" CLAUDE_PROJECT_DIR="D:/cr-root" \
+      bash -c 'OSTYPE=msys; source "$1"' _ "$HOOK" <<<"$(write_json "C:/cr-out/f.txt" "token = '$GH_PAT'")" >/dev/null 2>&1
+    wc -l <"$CR_DIR/log" | tr -d ' '
+  }
+  assert_eq "D1 target outside a default temp root spawns no cygpath" "0" "$(cr_calls /tmp)"
+  [[ "$(cr_calls /usr)" -ge 1 ]] && CR_CUSTOM=yes || CR_CUSTOM=no
+  assert_eq "D1 custom temp root without a tmp component asks for drive spellings" "yes" "$CR_CUSTOM"
+fi
 
 # A NotebookEdit declines or scans exactly as a Write to the same path does.
 nb_both "D1 NotebookEdit: non-temp non-git root, temp target → exit 0" 0 "" \

@@ -63,6 +63,24 @@ Write the record so `check-stamps.sh` can parse it: an ISO 8601 date (`YYYY-MM-D
 short span of a stamp keyword. A month-name or bare-year date is honest prose but the checker
 declines it, and a stamp the checker cannot read is a stamp that never expires.
 
+## Restated facts: report-only
+
+A `restated-fact` finding (a passage that states a value, default, limit or field list an
+external source owns, judged by the restated-fact rubric) is never `fingerprint-confirmed`, so it
+is never fix-eligible. `fix` and `sweep` do not reach it: no guard below runs on it and no edit is
+applied. It is reported and routed behind the human gate, and the human applies the disposition.
+The dispositions below are what the report recommends, not what a run performs.
+
+| Disposition | Recommend it when |
+|---|---|
+| `convert-to-pointer` | The reader can follow a link at the moment they need the fact, and the surface does not have to work offline. |
+| `condense-to-stamped-record` | The surface must state the fact to function without the source. The offline-load-bearing rule above still applies: it selects the stamped record over a bare pointer whatever the finding's tier. |
+| `leave-with-reason` | A carve-out applies (a conforming pointer or record, owned content, a distilling-file surface whose own attribution enumerates the fact, quoted and cited text), or the human decided. |
+
+A recommended stamped record carries the four parts above: the claim, the basis URL, an ISO 8601
+as-of date `check-stamps.sh` can parse, and a trigger naming an event someone could notice. When
+no such trigger exists, recommend `convert-to-pointer`.
+
 ## Guards, all of which must pass before an edit is kept
 
 Per file, in this order. Any guard that fails reverts that file's edits and routes the finding
@@ -83,12 +101,14 @@ to the human with the guard's own reason.
 4. **Carve-outs re-checked at edit time.** A passage inside a quotation context, a conforming
    stamped record, or a vendored tree is not edited, even if a finding reached this point.
 
-One gap is flagged here rather than guarded: a corpus file can be the rendered output of a
-generator whose source of record lives outside the markdown corpus, in a data file whose
-rendering carries a never-hand-edit marker in its own header. A fix applied to such a rendering edits a file its
-own header forbids editing, and the next regeneration overwrites it. Check the file head for a
-generated-output marker before applying any disposition; when one is present, route the finding
-to the human and name the generator's input as the real fix site. No script enforces this check.
+**`fix` and `sweep` apply dispositions to hand-written markdown only.** A corpus file can be the
+rendered output of a generator whose source of record lives outside the markdown corpus, in a
+data file, and whose rendering carries a never-hand-edit marker in its own header. A fix applied
+to such a rendering edits a file its own header forbids editing, and the next regeneration
+overwrites it. Check the file head for a generated-output marker before applying any
+disposition. A file that carries one is not edited: its findings are reported and routed to the
+human, and each names the generator's input as the fix site. The exclusion is the marker, never
+a list of files. No script enforces this check.
 
 ## The demotion path when a pointer later dies
 
@@ -162,22 +182,29 @@ neutral outcome**, never when the interesting ones are done. Record each closure
 ledger with its dispositions and guard outcomes, so an interrupted sweep resumes without
 re-deciding files it already closed, and so the closure count is a fact rather than a memory.
 
-The ledger is `.work/<topic-slug>/sweep-ledger.md`, and it is prose the run writes by hand. No
-script creates it, reads it back, or checks that an entry is complete, so an entry is worth
-exactly what the run put in it. Each closure carries five things, and an entry missing any of
-them cannot support a resume:
+The ledger is `.work/<topic-slug>/sweep-ledger.md`, and `scripts/sweep-ledger.sh` writes and
+reads it. `close` refuses an entry missing any of the first three fields below and a file already
+closed. The script checks an entry's shape and the arithmetic of the spend, never whether a
+disposition is right: it cannot know how many findings a file had, so "one per finding" and the
+truth of each guard outcome stay the run's own claim. Each closure carries five things, and an
+entry missing any of them cannot support a resume:
 
-1. **The file** that closed, by repo-relative path.
+1. **The file** that closed, by repo-relative path (`close <file>`).
 2. **The dispositions** applied in it, one per finding, `leave-with-reason` and
-   `neutral-not-found` included.
-3. **The guard outcomes** for that file: pointer liveness, the semantic-diff verdict, the
-   in-span check, and the carve-out re-check.
+   `neutral-not-found` included (`--dispositions`).
+3. **The guard outcomes** for that file, one flag each: pointer liveness (`--pointer-liveness`),
+   the semantic-diff verdict (`--semantic-diff`), the in-span check (`--in-span`), and the
+   carve-out re-check (`--carve-out`). Any non-empty text passes, `n/a` included, because a
+   file that only leaves findings has no pointer to check.
 4. **The fetches spent** against `corpus_fetch_ceiling`, as a running total for the sweep rather
-   than for the file.
-5. **The cache entries** the sweep holds: each source URL with the time it was fetched, so a
-   resume can re-validate an entry instead of reusing it unseen.
+   than for the file. The run adds each batch with `spend <n>`, and `close` stamps the running
+   total on the entry.
+5. **The cache entries** the sweep holds: each source URL with its sha256 and the time it was
+   fetched (`cache-add`), so a resume can re-validate an entry (`cache-check`) instead of reusing
+   it unseen.
 
 Fields 4 and 5 are what make the ceiling and the cache per-sweep rather than per-invocation. The
-ledger is checkout-local and never tracked; `SKILL.md` "Sweep" carries what a resume does with
+ledger opens with the sweep's id and the checkout it started in (`init` writes both), and every
+call refuses a ledger that names another checkout. The ledger is checkout-local and never tracked; `SKILL.md` "Sweep" carries what a resume does with
 these fields, and why a sweep resumed in a different checkout is a new sweep rather than a
 continuation of this one.

@@ -16,6 +16,9 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
@@ -144,7 +147,7 @@ marker() {
 lease_array() { jq -cn --argjson id "$1" --arg body "$2" '[{id:$id, node_id:"MDEx", body:$body, created_at:"2020-01-01T00:00:00Z"}]'; }
 
 new_scenario() {
-  GH_STUB_DIR="$(mktemp -d)"
+  GH_STUB_DIR="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   export GH_STUB_DIR
   : >"$GH_STUB_DIR/calls.log"
 }

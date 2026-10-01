@@ -121,33 +121,8 @@ chmod +x "$TEST_BIN/markdownlint-cli2"
 PATH="$TEST_BIN:$PATH"
 export PATH
 
-# make_sink <body> → path to an executable single-command stub sink running
-# <body> (which reads the envelope on stdin). The contract requires
-# HOOK_TELEMETRY_SINK to be a single executable path, not a command-with-args,
-# so tests point it at a stub script. Stubs live under $WORK so the trap reaps them.
-make_sink() {
-  local s
-  s="$(mktemp "$WORK/sink.XXXXXX")"
-  {
-    printf '#!/usr/bin/env bash\n'
-    printf '%s\n' "$1"
-  } >"$s"
-  chmod +x "$s"
-  printf '%s' "$s"
-}
-
-# wait_for_sink <file> [max_polls] → block until <file> is non-empty (the
-# fire-and-forget sink has flushed) or the bound elapses, polling in 20ms steps.
-# Replaces a fixed sleep so delivery assertions fire as soon as the write lands
-# instead of racing variable process-spawn latency (notably on Windows Git Bash).
-wait_for_sink() {
-  local f="$1" tries="${2:-150}"
-  while ((tries-- > 0)); do
-    [[ -s "$f" ]] && return 0
-    sleep 0.02
-  done
-  return 1
-}
+# shellcheck source=hook-test-sink.sh
+source "$HOOK_DIR/hook-test-sink.sh"
 
 # epoch_delta_ms <start> <end> → whole milliseconds between two $EPOCHREALTIME
 # reads. Splits on either '.' or ',' (locale decimal separator) and forces
@@ -1314,9 +1289,10 @@ else
 fi
 
 # --- Missing jq in a config-less repo: opt-in decided first, so NO notice ----
-# The opt-in gate's contract is "no config, no run, no notice", and a
+# The per-edit hook's opt-in contract is "no config, no run, no notice", and a
 # prerequisite notice is still a notice: a repository that never opted into
-# Markdown formatting must not be nagged to install jq for it. The assertion
+# Markdown formatting must not be nagged to install jq for it. (The SessionStart
+# probe is outside this contract; it reports a missing markdownlint-cli2.) The assertion
 # above pins the inverse (config present + jq absent -> notice), so the pair
 # distinguishes suppression from a hook that simply stopped warning.
 PD_NO_JQ_NOCFG="$(mktemp -d "$WORK/pd.XXXXXX")"
@@ -2067,13 +2043,7 @@ if [[ $RC_T -eq 0 ]]; then ok "telemetry/stub-sink: hook exit 0"; else fail "tel
 if [[ -s "$TEL_FILE" ]]; then
   ok "telemetry/stub-sink: envelope received"
   # Validate all 7 required common fields
-  for field in schema_version timestamp hook hook_event status duration_ms data; do
-    if jq -e "has(\"$field\")" "$TEL_FILE" >/dev/null 2>&1; then
-      ok "telemetry/envelope: $field present"
-    else
-      fail "telemetry/envelope: $field missing. file=$(cat "$TEL_FILE")"
-    fi
-  done
+  if check_envelope "$TEL_FILE"; then ok "telemetry/envelope: matches envelope schema"; else fail "telemetry/envelope: does not match envelope schema. envelope=$(cat "$TEL_FILE")"; fi
   # status must be "ok"
   TEL_STATUS="$(jq -r '.status' "$TEL_FILE")"
   if [[ "$TEL_STATUS" == "ok" ]]; then ok "telemetry/envelope: status ok"; else fail "telemetry/envelope: status expected ok, got $TEL_STATUS"; fi

@@ -3,6 +3,42 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.23] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
+## [0.24.22] - 2026-09-30
+
+### Fixed
+
+- **`setup` slice files link to the plugin's `reference/` pages relatively.** The links in the capture, guardrail, prerequisite-resolution, routine, trigger-dispatch and Windows-surface slices carried the literal plugin-root token, which is not substituted in a `context/` file, so none of them resolved.
+
+## [0.24.21] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
+## [0.24.20] - 2026-09-30
+
+### Changed
+
+- Test-only: the shared test helper `hooks/hook-test-sink.sh` gains the schema-driven envelope assertion `check_envelope`. No behavior change.
+
+## [0.24.19] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now carries `hook::file_is_gitignored` and `hook::gitignored_out_of_scope`.** No behavior change.
+
+## [0.24.18] - 2026-09-29
+
+### Changed
+
+- Test-only: the hook suites use the shared telemetry-sink test helper `hooks/hook-test-sink.sh` instead of an inline copy. No behavior change.
+
 ## [0.24.17] - 2026-09-29
 
 ### Fixed

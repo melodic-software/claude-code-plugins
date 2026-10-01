@@ -104,6 +104,11 @@ summary="$(
       gsub(/\|/, "/", s)
       return s
     }
+    function mm(s) {
+      s = safe(s)
+      if (s ~ /^[A-Za-z0-9_]+$/) return s
+      return "\"" s "\""
+    }
     function mtype(t,    x) {
       x = tolower(t)
       if (x ~ /^(int|integer|bigint|smallint|serial)$/) return "int"
@@ -113,6 +118,13 @@ summary="$(
       if (x ~ /^(float|double|decimal|numeric|real)$/) return "float"
       if (x ~ /^[a-z][a-z0-9_]*$/) return x
       return "string"
+    }
+    function dbml_cols(s,    n, k, parts, out) {
+      n = split(s, parts, ",")
+      if (n == 1) return "\"" safe(parts[1]) "\""
+      out = ""
+      for (k = 1; k <= n; k++) out = out (k > 1 ? ", " : "") "\"" safe(parts[k]) "\""
+      return "(" out ")"
     }
     function take_array(first, key, prefix,    line, item) {
       line = trim(first)
@@ -142,9 +154,13 @@ summary="$(
       if (r == "implicit-many-to-many")
         return "A Prisma schema declares a many-to-many with no foreign-key fields. Cardinality was not guessed. No diagram was drawn."
       if (r == "ef-fluent-unreadable")
-        return "An Entity Framework fluent chain is present but not in the shipped shape (Entity<T>, HasOne<T> or HasMany<T>, HasForeignKey(\"Column\"), IsRequired or IsRequired(false)). No diagram was drawn."
+        return "An Entity Framework fluent chain is outside the readable subset (HasOne or HasMany with a generic or lambda navigation, from Entity<T>() or the one IEntityTypeConfiguration<T> class in a file; one foreign-key column, HasForeignKey(\"Column\") or HasForeignKey(e => e.Column); IsRequired(), IsRequired(true) or IsRequired(false), or a foreign-key property declared as T?, Nullable<T> or a built-in value type). No diagram was drawn."
+      if (r == "sql-alter-unreadable")
+        return "A SQL migration uses an ALTER TABLE action or foreign-key clause outside the readable subset (ADD COLUMN, DROP COLUMN, ADD FOREIGN KEY, UNIQUE or PRIMARY KEY, and DROP CONSTRAINT of one the migrations declared). Replaying it would leave the schema wrong. No diagram was drawn."
       if (r == "unsupported")
         return "A Prisma schema contains a block comment or another construct this adapter does not read. No diagram was drawn."
+      if (r == "unknown-cardinality")
+        return "A composite foreign key has no unique or primary-key column set inside it, so whether the relationship is one-to-one or one-to-many is not readable. Cardinality was not guessed. No diagram was drawn."
       if (r == "unresolved-target" || r == "unreadable-relation")
         return "A Prisma relation does not name a model and foreign-key fields in the same schema file. No diagram was drawn."
       if (r == "optionality-disagrees")
@@ -212,6 +228,7 @@ summary="$(
         rel_to[i] = jget(item, "to")
         rcard[i] = jget(item, "cardinality")
         rcols[i] = jget(item, "columns")
+        rref[i] = jget(item, "references")
         ropt[i] = jget(item, "optional")
         rev[i] = jget(item, "evidence")
       }
@@ -256,6 +273,11 @@ summary="$(
           in_scope[scope_arg] = 1
         }
       }
+      # Two modules can declare the same short name. With more than one module
+      # in scope a node carries its module (orders/User), so none merge.
+      nscope = 0
+      for (m in in_scope) nscope++
+      if (nscope > 1) for (i = 1; i <= ne; i++) { ename[i] = eid[i]; name_of[eid[i]] = eid[i] }
       print "# Data model" > md
       print "" > md
       print "Generated on " generated "." > md
@@ -352,9 +374,9 @@ summary="$(
             if (columns) {
               any = 0
               for (a = 1; a <= na; a++) if (aent[a] == id) any = 1
-              if (!any) print "  " safe(ename[ei]) > md
+              if (!any) print "  " mm(ename[ei]) > md
               else {
-                print "  " safe(ename[ei]) " {" > md
+                print "  " mm(ename[ei]) " {" > md
                 for (a = 1; a <= na; a++) if (aent[a] == id) {
                   mark = ""
                   if (apk[a] == "yes" && afk[a] == "yes") mark = " PK, FK"
@@ -365,12 +387,12 @@ summary="$(
                 print "  }" > md
               }
             } else {
-              print "  " safe(ename[ei]) > md
+              print "  " mm(ename[ei]) > md
             }
           }
           for (i = 1; i <= drawn_r; i++) {
             ri = show_r[i]
-            print "  " safe(name_of[rel_to[ri]]) " " rcard[ri] " " safe(name_of[rfrom[ri]]) " : \"" safe(rcols[ri]) "\"" > md
+            print "  " mm(name_of[rel_to[ri]]) " " rcard[ri] " " mm(name_of[rfrom[ri]]) " : \"" safe(rcols[ri]) "\"" > md
           }
           print "```" > md
           print "" > md
@@ -397,11 +419,15 @@ summary="$(
           }
           for (i = 1; i <= drawn_r; i++) {
             ri = show_r[i]
-            op = (ropt[ri] == "yes" ? "one-to-one" : "")
-            # kind is recovered from the token
-            if (rcard[ri] == "||--||" || rcard[ri] == "||--o|") op = "-"
-            else op = ">"
-            print "Ref: \"" safe(name_of[rfrom[ri]]) "\".\"" safe(rcols[ri]) "\" " op " \"" safe(name_of[rel_to[ri]]) "\".\"id\"" > dbml
+            # a one-to-one token ends in a bar, a one-to-many token in a brace
+            op = (rcard[ri] ~ /\|$/ ? "-" : ">")
+            target = "\"" safe(name_of[rel_to[ri]]) "\""
+            if (rref[ri] == "") {
+              # DBML needs a column on both sides, so an unnamed target column stays a comment
+              print "// Ref: \"" safe(name_of[rfrom[ri]]) "\"." dbml_cols(rcols[ri]) " " op " " target " (referenced column not declared)" > dbml
+              continue
+            }
+            print "Ref: \"" safe(name_of[rfrom[ri]]) "\"." dbml_cols(rcols[ri]) " " op " " target "." dbml_cols(rref[ri]) > dbml
           }
         }
         if (next_r > 0) {

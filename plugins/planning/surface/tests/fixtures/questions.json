@@ -14,12 +14,14 @@
     {
       "id": "content",
       "title": "Content and visuals",
-      "summary": "What rich content means and where it lives."
+      "summary": "What rich content means and where it lives.",
+      "summaryOf": ["Q1"]
     },
     {
       "id": "ordering",
       "title": "Ordering and groups",
       "summary": "How the rail groups and orders questions.",
+      "summaryOf": ["Q2", "Q3"],
       "dependsOn": [
         "content"
       ]
@@ -316,7 +318,8 @@
       "facts": "Both actions record no decision. Claude's reply lands in the question's thread.",
       "recommendation": "Page only, plus a one-line terminal note naming the question.",
       "dependsOn": [
-        "Q4"
+        "Q4",
+        "Q2"
       ],
       "commits": [],
       "alternatives": [
@@ -342,6 +345,39 @@
           "replyTo": 17
         }
       ]
+    },
+    {
+      "id": "Q11",
+      "group": "realtime",
+      "stage": "interview",
+      "round": 1,
+      "rev": 1,
+      "short": "Where four upstream answers meet and the title runs long enough to wrap",
+      "title": "Should four upstream answers gate one question?",
+      "facts": "Four dependsOn entries at a narrow sidebar.",
+      "recommendation": "Yes.",
+      "dependsOn": ["Q1", "Q2", "Q3", "Q4"],
+      "commits": [],
+      "alternatives": [
+        { "key": "a", "text": "Yes" },
+        { "key": "b", "text": "No" }
+      ],
+      "history": [
+        {
+          "at": "2026-09-26T01:12:49Z",
+          "by": "user-terminal",
+          "kind": "accept",
+          "alt": null,
+          "text": "",
+          "summary": "Accepted"
+        }
+      ],
+      "terminal": {
+        "decision": "accept",
+        "alt": null,
+        "text": "",
+        "updatedAt": "2026-09-26T01:12:49Z"
+      }
     },
     {
       "id": "Q8",

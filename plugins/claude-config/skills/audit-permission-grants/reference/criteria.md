@@ -14,7 +14,7 @@ finding. Each check's **Recommend** line below carries the fix in the form the r
 never depends on fetching the convention.
 
 The deterministic spine is
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh"`. It scans
+`bash "<skill-dir>/scripts/permission-rule-check.sh"`. It scans
 skill/command/agent frontmatter `allowed-tools` and the `permissions.allow` arrays of
 `.claude/settings.json`, `.claude/settings.local.json`, and the user-global settings file, plus any
 plugin `settings.json`, and emits one finding per fragile grant. The user-global file resolves as

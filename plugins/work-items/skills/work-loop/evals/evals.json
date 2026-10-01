@@ -24,7 +24,7 @@
       "id": 2,
       "name": "work-loop-adaptive-cap-guard-floor-and-572-provisioning",
       "prompt": "/work-items:work-loop\n\nDurable state: item_cap=5, clean_streak=2, rate_limit_latch=false. work_loop_item_cap_ceiling is unset (manifest default 3). This cycle one item completes clean and a second returns a failed verdict after a seam exit 8 backoff. Mid-cycle the tee file at ~/.claude/rate-limit-guard/rate-limits.json shows five_hour used_percentage 93 with a fresh captured_at. One admitted item carries the capability-tier: frontier label.",
-      "expected_output": "The cycle clamps the persisted item_cap (5) to the resolved ceiling (3) after the durable-state re-read, reports the correction, then after dirty/clean adaptations persists the final post-outcome item_cap (e.g. clamped 5\u21923 then dirty \u2192 2). Execution delegates each admitted item to /work-items:work (claim/lease, dispatch, PR contract owned there), with worker-side provisioning owned by /work-items:work: the dispatched subagent materializes the item's branch and out-of-tree worktree as its own first step and works via git -C without entering it (via /source-control:worktree's non-entering seam when installed, plain git worktree add otherwise), and the orchestrator never invokes /source-control:worktree create itself since its EnterWorktree terminal would transition the parent session; a worker that cannot provision parks the item and escalates. The item carrying capability-tier: frontier runs at concurrency 1 under the frontier ceiling of 2; the general ceiling applies only to items without that label. The dirty item (failed verdict; seam exit 8 counts dirty) decrements the cap toward the floor and resets the clean streak; no ramp-up occurs once the 93% trip latches rate_limit_latch. The guard floor is honored as inlined: threshold 90% of either window, pause until the tripped window's resets_at, drain-then-pause (finish in-flight, stop claiming, report), staleness rule with a mandatory session Monitor on the tee file while paused, and untrusted session fields never string-interpolated. The composed budget is stated as item cap times implement-dispatch's per-item wave cap (its internal 3\u20135 default, or the work_dispatch_concurrency_cap ceiling threaded through as --wave-cap when set), with the loop body's arithmetic over the two factors bounding the fan-out. Telemetry records guard mode and the updated state block. Clamping sets the cycle starting cap only; the telemetry upsert persists the final post-outcome item_cap after dirty/clean adaptations (e.g. clamped 5\u21923 then dirty \u2192 2).",
+      "expected_output": "The cycle clamps the persisted item_cap (5) to the resolved ceiling (3) after the durable-state re-read, reports the correction, then after dirty/clean adaptations persists the final post-outcome item_cap (e.g. clamped 5\u21923 then dirty \u2192 2). Execution delegates each admitted item to /work-items:work (claim/lease, dispatch, PR contract owned there), with worker-side provisioning owned by /work-items:work: the dispatched subagent materializes the item's branch and out-of-tree worktree as its own first step and works via git -C without entering it (via /source-control:worktree's non-entering seam when installed, plain git worktree add otherwise), and the orchestrator never invokes /source-control:worktree create itself since its EnterWorktree terminal would transition the parent session; a worker that cannot provision parks the item and escalates. The item carrying capability-tier: frontier runs at concurrency 1 under the frontier ceiling of 2; the general ceiling applies only to items without that label. The dirty item (failed verdict; seam exit 8 counts dirty) decrements the cap toward the floor and resets the clean streak; no ramp-up occurs once the 93% trip latches rate_limit_latch. The guard floor is honored as inlined: threshold 90% of either window, pause until the tripped window's resets_at, drain-then-pause (finish in-flight, stop claiming, report), staleness rule with a mandatory session Monitor on the tee file while paused, and untrusted session fields never string-interpolated. The composed budget is stated as item cap times implement-dispatch's per-item wave cap (its resolved cap: argument, operator option, or internal default, including the work_dispatch_concurrency_cap ceiling threaded through as --wave-cap when set), with the loop body's arithmetic over the two factors as an upper bound only and the effective wave one row under worker authority. Telemetry records guard mode and the updated state block. Clamping sets the cycle starting cap only; the telemetry upsert persists the final post-outcome item_cap after dirty/clean adaptations (e.g. clamped 5\u21923 then dirty \u2192 2).",
       "files": [],
       "expectations": [
         "Clamps persisted item_cap to the resolved [floor, ceiling] before execute (item_cap 5 with ceiling 3 \u2192 3), reports the correction, then after dirty/clean adaptations persists the final post-outcome item_cap in the telemetry state block",
@@ -35,7 +35,7 @@
         "On the 93% reading: drains in-flight work, stops claiming, pauses until the tripped window's resets_at, and arms a session Monitor on the tee file while paused",
         "Sets rate_limit_latch and refuses cap ramp-up while it is set",
         "Parses tee-file session fields only with a JSON parser and never string-interpolates them into a shell command or prompt",
-        "States the composed budget (item cap x implement-dispatch wave cap \u2014 internal 3\u20135 default or the work_dispatch_concurrency_cap ceiling threaded in as --wave-cap when set) with the loop body's arithmetic bounding the fan-out",
+        "States the composed budget (item cap x implement-dispatch wave cap \u2014 its resolved cap, including the work_dispatch_concurrency_cap ceiling threaded in as --wave-cap when set) with the loop body's arithmetic as an upper bound only (effective wave one row under worker authority)",
         "Persists cap, streak, latch, and guard mode into the telemetry comment's machine-readable state block"
       ],
       "assertions": []
@@ -135,14 +135,87 @@
       "id": 9,
       "name": "work-loop-in-flight-candidate-skips-ratification-queue",
       "prompt": "/work-items:work-loop\n\nCycle 1 of a first drain (first_drain_complete is false). The frontier holds two agent-ready C3 bug-fix-shaped candidates with no ratification marker: #310, which GitHub's closedByPullRequestsReferences links to open draft PR #412 via 'Closes #310', and #311, which has no closing PR. The Open linked PRs query for #311 succeeds.",
-      "expected_output": "Before any classification, the admission gate runs the in-flight precondition through the bound adapter's Open linked PRs operation, applying /work-items:work's candidate-discovery exclusion rule by reference with drafts counted. #310 is excluded: no kind=ratify-c3 comment, no escalation, no dispatch, and no label change (it keeps agent-ready and gains no needs-human). The cycle report lists it as 'in flight: #310 (PR #412)'. #311 proceeds to classification and, as an unratified C3 during the first drain, is queued for ratification per reference/c3-ratification-queue.md (comment first, then the human-gated role label replacing the autonomous-eligible one).",
+      "expected_output": "Before any classification, the admission gate runs the in-flight precondition through the bound adapter's Open linked PRs operation, applying /work-items:work's candidate-discovery exclusion rule by reference with drafts counted. #310 is excluded: no kind=ratify-c3 comment, no escalation, no dispatch, and no label change (it keeps agent-ready and gains no needs-human). The cycle report lists it as 'in flight: #310 (PR #412, draft, open <age>)'. #311 proceeds to classification and, as an unratified C3 during the first drain, is queued for ratification per reference/c3-ratification-queue.md (comment first, then the human-gated role label replacing the autonomous-eligible one).",
       "files": [],
       "expectations": [
         "Runs the in-flight check before classifying, queuing, escalating, or dispatching any candidate",
         "Counts the open draft closing PR as in flight and excludes #310 from the ratification queue",
         "Posts no kind=ratify-c3 comment on #310 and leaves its labels unchanged",
-        "Reports #310 as 'in flight: #310 (PR #412)' in the cycle report",
+        "Reports #310 as 'in flight: #310 (PR #412, draft, open <age>)' in the cycle report",
         "Queues #311 for C3 ratification with the comment written before the label edit"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "work-loop-stale-in-flight-pr-escalates-younger-stays-excluded",
+      "prompt": "/work-items:work-loop\n\nCycle 4 of a drain. work_loop_in_flight_stale_days is unset. The frontier holds two agent-ready candidates. #320 is linked by closedByPullRequestsReferences to open ready PR #451 via 'Closes #320', created 30 days ago. #321 is linked to open draft PR #452, created 3 days ago. No escalation marker exists on either item. Both Open linked PRs queries succeed.",
+      "expected_output": "The in-flight check runs before classification. The unset key falls back to the manifest default of 14 days. #320's closing PR is 30 days old, past the bound, so it stops being silently excluded: it is not dispatched or classified, and step 5 escalates it with the human-gated label and a kind=escalated marker whose question names PR #451, ready state, and age (about 30 days) and asks the human to land, close, or unlink it. The cycle report lists it as 'stale in flight: #320 (PR #451, ready, open 30d) -> escalated'. #321's PR is 3 days old, within the bound, so it stays silently excluded: no comment, no label change, no dispatch, listed as 'in flight: #321 (PR #452, draft, open 3d)'. The escalation does not reset the no-progress streak.",
+      "files": [],
+      "expectations": [
+        "Applies the manifest default of 14 days when work_loop_in_flight_stale_days is unset",
+        "Does not dispatch or classify #320 and escalates it with the human-gated label and a kind=escalated marker",
+        "The escalation question names PR #451, its ready state, and its age, and asks to land, close, or unlink it",
+        "Names #320 in the cycle report as a stale in-flight item escalated",
+        "Keeps #321 silently excluded: no marker, no label change, no dispatch, reported as in flight",
+        "Does not count the escalation as progress for the no-progress streak"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "work-loop-paused-lane-drops-latch-on-account-switch",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint, and the tee file holds a fresh snapshot whose account.email matches the new account with both windows at 40%. Later in the same run a second wake finds .claude.json unparsable.",
+      "expected_output": "On the wake the lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser (never via the tee) and compares fingerprints, never printing or interpolating the address. The fingerprint differs, so it re-evaluates with the fresh tee snapshot whose account.email fingerprint equals the new account: both windows below 90, so it resumes, clearing rate_limit_latch, paused_until, and latched_account together in the durable state, and adds an account-switch: resumed line to the cycle report without the address or fingerprint. On the second wake the unparsable state file means cannot attribute: the lane keeps its existing state, with no spurious drop of a latch and no fabricated pause.",
+      "files": [],
+      "expectations": [
+        "Reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser on the wake, not from the tee file",
+        "Compares a fingerprint of the account against latched_account and never prints, logs, or interpolates the address or the state file",
+        "On a differing account, takes the new account's windows only from a fresh tee snapshot whose account.email matches the new account",
+        "With both windows below 90, resumes and clears rate_limit_latch, paused_until, and latched_account together rather than leaving a future paused_until behind",
+        "Records an account-switch: resumed line in the cycle report carrying neither the address nor the fingerprint",
+        "Treats an unparsable, absent, or key-less .claude.json as cannot attribute and keeps the existing latch instead of dropping it"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "work-loop-pause-entry-latches-the-tripping-snapshot-account",
+      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose account.email names account A and whose five-hour window reads 91%. After that snapshot the operator switched to account B: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names account B, and no other tee snapshot exists. Durable state carries no latched_account.",
+      "expected_output": "The 91% reading trips the pause threshold. At pause entry the lane records latched_account as the fingerprint of the tripping snapshot's account.email (account A), never the fingerprint of the account .claude.json names now (account B), and writes it in the same write as paused_until. It then reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, finds that account B differs from the latched account A, and re-evaluates at once instead of waiting for a later wake. No fresh tee snapshot attributes account B, so B's windows are unknown: it clears rate_limit_latch, paused_until, and latched_account together, runs reactive-only, and adds an account-switch: unknown line to the cycle report without the address or the fingerprint. It does not sleep until account A's resets_at.",
+      "files": [],
+      "expectations": [
+        "Records latched_account at pause entry as the fingerprint of the tripping snapshot's account.email, not of the account .claude.json names now",
+        "Compares the .claude.json account against the latched account at pause entry and re-evaluates at once when they differ, without waiting for a wake",
+        "Takes account B's windows only from a fresh tee snapshot attributed to B and, finding none, treats them as unknown and falls back to reactive-only",
+        "Does not pause until account A's resets_at and leaves no future paused_until, rate_limit_latch, or latched_account behind",
+        "Records an account-switch: unknown line in the cycle report with neither the address nor the fingerprint",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "work-loop-unattributed-trip-stays-paused",
+      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The tee file holds one snapshot captured 4 minutes ago whose five-hour window reads 91% and which has no account.email field. ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a readable .oauthAccount.emailAddress. Durable state carries no latched_account.",
+      "expected_output": "The 91% reading trips the pause threshold. The snapshot has no account.email, so the pause entry is unattributed: latched_account stays null, and with no latched account there is nothing for the .claude.json account to differ from, so the lane does not treat it as a switch and does not re-evaluate at entry. It stays paused with paused_until set to the five-hour window's resets_at and rate_limit_latch set, finishes in-flight work, and stops claiming new work. On its first later wake it reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, records the fingerprint as latched_account, and continues the ordinary re-evaluation.",
+      "files": [],
+      "expectations": [
+        "Leaves latched_account null at pause entry because the tripping snapshot has no account.email",
+        "Does not treat the readable .claude.json account as a switch at pause entry and does not drop the pause through the unknown-windows branch",
+        "Stays paused until the tripped window's resets_at with rate_limit_latch set, and stops claiming new work",
+        "On the first later wake records the .claude.json fingerprint as latched_account and continues the ordinary re-evaluation",
+        "Never prints, logs, or interpolates the address or the state file"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "work-loop-switch-with-one-plausible-window-resumes",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 93% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint. The tee file holds one snapshot captured 2 minutes ago whose account.email matches the new account, with the five-hour window at 40% and no seven-day window.",
+      "expected_output": "The fingerprint differs, so the lane re-evaluates against the new account using the fresh snapshot, read once and used for both the fingerprint and the windows. Only the five-hour window is plausible and it is below 90, so it resumes: it clears rate_limit_latch, paused_until, and latched_account together and resumes claiming work. It does not treat the absent seven-day window as blocking the resume, does not fall to reactive-only, and does not keep the old account's paused_until. It adds an account-switch: resumed line to the cycle report without the address or fingerprint.",
+      "files": [],
+      "expectations": [
+        "Resumes because every plausible window is below 90, treating the absent seven-day window as unknown rather than as a reason to stay paused",
+        "Does not fall back to reactive-only, since one window is plausible",
+        "Clears rate_limit_latch, paused_until, and latched_account together",
+        "Derives the snapshot's fingerprint and its windows from one read of the tee file, not from two reads",
+        "Records an account-switch: resumed line in the cycle report with neither the address nor the fingerprint"
       ]
     }
   ]

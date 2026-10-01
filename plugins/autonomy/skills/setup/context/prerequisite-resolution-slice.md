@@ -1,7 +1,7 @@
 # Prerequisite-resolution slice
 
 Extends `/autonomy:setup` per the skill's own extension model. Owns the
-[routine prerequisite resolution](${CLAUDE_PLUGIN_ROOT}/reference/prerequisite-resolution.md)
+[routine prerequisite resolution](../../../reference/prerequisite-resolution.md)
 question at setup time: which `v1` identities can run against this repository on each
 declared scheduling surface, and why.
 

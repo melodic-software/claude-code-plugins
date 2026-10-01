@@ -1,6 +1,6 @@
 ---
-description: "Draw an entity-relationship diagram from committed schema declarations, with no database connection. Prisma models win over Entity Framework fluent mappings, which win over SQL migrations, and a disagreement is reported. Use when: 'map data', 'ERD', 'entity relationship', 'schema diagram', 'cardinality from mappings', 'which tables relate'. Skip when: the question is deployment topology, runtime state, or data volume."
-argument-hint: "[--scope module|all|<module>] [--include-columns] [--dialect mermaid|dbml] [--live] [--out <dir>]"
+description: "Draw an entity-relationship diagram from committed schema declarations, with no database connection. Prisma models win over a stated subset of Entity Framework fluent mappings, which win over SQL migrations read from a stated subset of statements, and a disagreement is reported. Use when: 'map data', 'ERD', 'entity relationship', 'schema diagram', 'cardinality from mappings', 'which tables relate'. Skip when: the question is deployment topology, runtime state, or data volume."
+argument-hint: "[--scope module|all|<module>] [--include-columns] [--dialect mermaid|dbml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -88,18 +88,38 @@ The record is schema_version 1, one object per line. `status` is `drawn` or `ref
 names `reason` and writes no relationships. Shipped tiers, first present wins the diagram:
 
 - **model / prisma.** `*.prisma` model blocks.
-- **orm / ef-fluent.** A C# chain `Entity<T>().HasOne<U>().WithMany().HasForeignKey("Column").IsRequired()`,
-  or `HasMany<U>().WithOne()`, or `WithOne` for one-to-one, with `IsRequired(false)` when the
-  foreign key is optional.
-- **migration / sql-migration.** `*.sql` under a `migrations` directory, replayed in path order,
-  including `DROP TABLE`.
+- **orm / ef-fluent.** A stated subset of one-to-many and one-to-one chains. The chain starts at
+  `Entity<T>()` or, in a file that declares exactly one `class X : IEntityTypeConfiguration<T>`
+  (also among several base types), at the `Configure` builder parameter. `HasOne`/`HasMany` take a
+  generic argument or, for one-to-many, a lambda navigation (`HasMany(e => e.Posts).WithOne(e => e.Blog)`,
+  `HasOne(e => e.Blog).WithMany(e => e.Posts)`); the navigation's target comes from the property
+  declared on the configured entity's class in the scanned `.cs` files (`ICollection`, `List`,
+  `IList`, `IEnumerable` or `HashSet` of one identifier for a collection, `T` or `T?` for a
+  reference). `HasForeignKey` and `HasPrincipalKey` take one string literal or one single-member
+  lambda. Requiredness is an explicit `IsRequired()`, `IsRequired(true)` or `IsRequired(false)`; with none, it is the
+  foreign-key property's declared type on the dependent class: `T?`, `Nullable<T>` and `string?`
+  are optional, and `int`, `uint`, `long`, `ulong`, `short`, `ushort`, `byte`, `sbyte`, `Guid`,
+  `DateTime` and `DateTimeOffset` are required.
+- **migration / sql-migration.** `*.sql` under a `migrations` directory at any depth, including one
+  at the repository root, replayed in path order. The readable statements are `CREATE TABLE`
+  (with inline `REFERENCES`, table-level `FOREIGN KEY`, `UNIQUE` and `PRIMARY KEY`),
+  `CREATE UNIQUE INDEX`, `DROP INDEX`, `DROP TABLE`, and `ALTER TABLE` with `ADD COLUMN`,
+  `DROP COLUMN`, `ADD [CONSTRAINT n] FOREIGN KEY | UNIQUE | PRIMARY KEY`, and `DROP CONSTRAINT`
+  naming a constraint the migrations declared. Any other `ALTER TABLE` action (`RENAME`,
+  `ALTER COLUMN`, a `DROP CONSTRAINT` it cannot map) refuses the tier with `sql-alter-unreadable`.
 
 A second shipped tier that disagrees becomes a mismatch row. The diagram stays on the winning tier.
-Django models, SQLAlchemy columns, EF `[ForeignKey]` annotations, an EF lambda chain, and a Prisma
-many-to-many with no `fields:` list refuse the record (`partial-read` or a named reason). A shipped
-diagram beside an unread mechanism would be a partial read.
+A tier that loses and cannot be read (an EF chain outside the subset, an unreadable migration) does
+not refuse the record: it is left out of the comparison and listed as a `not-compared` row.
+Django models, SQLAlchemy columns, EF `[ForeignKey]` annotations, and a Prisma many-to-many with no
+`fields:` list refuse the record (`partial-read` or a named reason), as does an EF chain outside the
+subset when EF is the winning tier (`ef-fluent-unreadable`), a migration outside the subset when
+SQL is the winning tier (`sql-alter-unreadable`), and a composite foreign key with no unique column
+set inside it (`unknown-cardinality`). A shipped diagram beside an unread mechanism would be a
+partial read.
 
-A module is the first path segment of the declaring file, or `.` at the repository root.
+A module is the first path segment of the declaring file, or `.` at the repository root. It is
+listed only when the winning tier declares an entity in it.
 
 ## Render
 
@@ -112,7 +132,8 @@ A module is the first path segment of the declaring file, or `.` at the reposito
 Add `--include-columns` only when the invocation asked for columns. The default scope is `module`:
 one module is drawn; several modules write a refusal that lists them and the script exits 3. Draw
 nothing until the operator passes `--scope <id>` or `--scope all`. In a non-interactive run, stop
-after that refusal. Do not pick a module.
+after that refusal. Do not pick a module. With more than one module in scope, every node is named
+`module/Entity`, so `orders/User` and `billing/User` stay two nodes.
 
 Mermaid writes an `erDiagram` inside `data-model.md`. DBML writes `data-model.dbml` and points at
 it from `data-model.md`. Column names and types appear in the diagram only with `--include-columns`.
@@ -143,9 +164,17 @@ End every run with this block, in this order:
 - Open a database connection, read production data, or compare live rows to the declaration.
 - Indexes, data volumes, query plans, lineage, or ETL.
 - A C4 view, or a new dialect key. The dialect is the existing `diagram_dialect.data`.
-- Adapters other than Prisma models, the EF fluent subset above, and SQL migrations. Other
-  mechanisms refuse.
-- Guess a cardinality the declaration does not state. Implicit Prisma many-to-many refuses.
+- Adapters other than Prisma models, the EF fluent subset above, and the SQL statements listed
+  above. Other mechanisms refuse. Within EF, these refuse: a composite key, `HasOne(lambda)` paired
+  with `WithOne`, a navigation with no single declared type (an expression-bodied property, a
+  positional record member, an undeclared name), two declarations of one class property in the
+  same module, a file with zero or several `IEntityTypeConfiguration<T>` classes, an `IsRequired`
+  argument other than `true` or `false`, and, when
+  `IsRequired` is absent, a foreign key that is undeclared or has a plain `string`, enum or other
+  type, because its nullability depends on the project's nullable setting. A `[ForeignKey]`
+  annotation is not read.
+- Guess a cardinality the declaration does not state. Implicit Prisma many-to-many and a composite
+  foreign key with no unique column set refuse.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop.
 
 ## Next
@@ -165,17 +194,52 @@ End every run with this block, in this order:
   Required means both the relation field and the scalar omit `?`. Verified 2026-09-28 against
   <https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/one-to-many-relations>.
   Recheck when that page stops using `fields` and `references` to name the foreign key.
-- **The EF reader is a subset of the documented fluent chain.** The one-to-many page shows
+- **The EF reader is a stated subset of the documented fluent chain.** The one-to-many page shows
   `HasMany`/`HasOne`, `WithOne`/`WithMany`, `HasForeignKey`, and `IsRequired`, including the lambda
-  form. Verified 2026-09-28 against
-  <https://learn.microsoft.com/en-us/ef/core/modeling/relationships/one-to-many>. Recheck when that
-  page drops those methods. This adapter reads `HasOne<T>()`, `HasMany<T>()`, and
-  `HasForeignKey("Column")` plus `IsRequired()` or `IsRequired(false)`. A lambda chain does not
-  name the other entity, so it is refused rather than drawn.
+  form, and the foreign-key page says the nullability of the foreign-key property determines
+  whether a relationship is optional or required. A non-nullable navigation does not change that:
+  a probe with EF Core 10.0.0 and nullable reference types on gave an optional relationship for
+  `int? BlogId` with `Blog Blog = null!` and no `IsRequired`, and a required one for `int BlogId`.
+  Verified 2026-09-29 against
+  <https://learn.microsoft.com/en-us/ef/core/modeling/relationships/one-to-many> and
+  <https://learn.microsoft.com/en-us/ef/core/modeling/relationships/foreign-and-principal-keys>.
+  Recheck when either page changes how nullability sets requiredness, or on an EF Core major
+  release. The script's stderr names the property or chain that stopped a refused read; the
+  record's reason stays `ef-fluent-unreadable`. A declaration in the configuration file's own
+  module is preferred over the rest of the repository. A chain outside the subset refuses the
+  record only when EF is the winning tier. Beside a Prisma schema it is a `not-compared` row, so a
+  test or sample file cannot block the diagram.
+- **The SQL reader replays a stated subset.** It reads the statements listed under the tiers and
+  refuses the tier with `sql-alter-unreadable` on any other `ALTER TABLE` action, because a renamed
+  table or a changed column would leave the replayed shape wrong. A migration it cannot read never
+  produces a mismatch claim against the winning tier.
+- **Two modules can declare the same short name.** Nodes are keyed by module and name. The
+  diagram names a node `module/Entity` whenever more than one module is in scope, quoted in
+  Mermaid (`"orders/User"`) because an unquoted name with a slash does not parse. Verified
+  2026-09-29 by parsing both forms with mermaid 12.0.0 and against
+  <https://mermaid.js.org/syntax/entityRelationshipDiagram.html> (entity names in double quotes).
+  Recheck when that page changes its rule for entity names.
 - **A required relationship does not mean the principal has at least one dependent.** The diagram
   uses `||--o{` for a required foreign key. That matches both Prisma and EF: the many side may be
   empty. The same EF page states there is no standard way to require a minimum number of
   dependents. Do not draw `||--|{` from a required foreign key.
+- **A foreign key covered by a unique column set is one-to-one, drawn `||--o|` or `|o--o|`.** The
+  referenced entity is on the left, so `||` says each dependent row names exactly one principal,
+  and `o|` says the principal has zero or one dependent. A required unique foreign key is
+  `||--o|`; an optional one is `|o--o|`. Never `||--||`, which would demand a dependent for every
+  principal. Uniqueness is a Prisma `@unique`, `@id`, `@@unique([..])` or `@@id([..])`, or a SQL
+  `UNIQUE`, `PRIMARY KEY`, `CREATE UNIQUE INDEX` or `ALTER TABLE ... ADD UNIQUE`, whose columns
+  lie inside the foreign-key columns. A composite foreign key with no such set has no readable
+  cardinality, so the record refuses with `unknown-cardinality` rather than drawing one-to-many.
+  Verified 2026-09-29 against <https://mermaid.js.org/syntax/entityRelationshipDiagram.html> (`|o`
+  and `o|` zero or one, `||` exactly one, `o{` zero or more) and
+  <https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/one-to-one-relations> (a 1-1
+  relation needs a `UNIQUE` constraint on the foreign key). Recheck when either page changes its
+  markers or its uniqueness rule.
+- **DBML names the referenced column the declaration names.** Prisma `references: [..]` and SQL
+  `REFERENCES t(col)` fill it, and EF `HasPrincipalKey("Col")` does. Where the declaration names
+  none, the `Ref` becomes a `//` comment that says so, because DBML needs a column on both sides;
+  the script never assumes `id`.
 - **A reformatted record reads as empty unless the reader refuses it.** Render exits 1 on any
   layout other than one object per line and writes nothing.
 - **Tracked files only.** `git ls-files` is the source list. An untracked schema is not a

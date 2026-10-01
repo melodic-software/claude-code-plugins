@@ -20,22 +20,22 @@ depends on `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`. Defer rather than decline, in th
 [0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md](0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md)
 uses it: the question stays open behind an explicit trigger instead of being closed or silently
 dropped. The surface fails the Native-first gate's second test ("is stable and works cleanly") and
-stops there, on Anthropic's own wording — `mods/README.md` says the interface "may change between
+stops there, on Anthropic's own wording: `mods/README.md` says the interface "may change between
 releases without notice" (`SOURCE`).
 
 **Converting this repository's guard hooks to mods is off the table** until all three hold:
 issue [anthropics/claude-code#92533](https://github.com/anthropics/claude-code/issues/92533) is
 fixed, Anthropic settles throw and timeout semantics, and mods leave early access. The three are
 conjunctive because each removes a different defect. #92533 is that registering *any* `tool.call`
-hook on Bash — a pure passthrough `next(e)` suffices — breaks `Agent(isolation: "worktree")`, the
+hook on Bash (a pure passthrough `next(e)` suffices) breaks `Agent(isolation: "worktree")`, the
 isolation this repository's own worktree flow uses; it is OPEN, filed 2026-09-06, with one
 independent Windows reproduction in the thread, a second Windows reproduction run here on 2026-09-19
 at 2.1.278, and no staff reply (`COMMUNITY` `OBSERVED`). Throw and timeout semantics are fail-open:
 a hook that throws, overruns its 10 s `HookBudget`, or answers a wrong shape is skipped and the chain
 beneath runs in its place, so a guard without `.catch(() => ({ deny }))` is strictly weaker than the
 classic command hook it would replace (`SOURCE` `OBSERVED`). That mechanism *is* stated, in the
-generated `mods/types/claude-code.d.ts` JSDoc — the per-event doc and `Registration.catch` both say
-it (`SOURCE`) — so it is documented inside the early-access tree, under the same "may change without
+generated `mods/types/claude-code.d.ts` JSDoc: the per-event doc and `Registration.catch` both say
+it (`SOURCE`), so it is documented inside the early-access tree, under the same "may change without
 notice" warning, and nowhere on `code.claude.com`. What is genuinely unsettled is the engine's
 *default* on an uncaught throw: the maintainer's position moved four times across #91870 between
 2026-09-03 and 2026-09-08 and landed on "construct fail-closed yourself" rather than on a default
@@ -44,7 +44,7 @@ notice" warning, and nowhere on `code.claude.com`. What is genuinely unsettled i
 **No CI or script enforcement of this stance.** `scripts/check-hook-exec-form.sh` is unchanged. The
 check was considered and rejected as overengineering; this record and the "Recorded gate runs" row
 are the stance. Revisit only if a `modules` key ever ships by accident. Note the standing
-consequence either way — that gate selects hook objects satisfying both
+consequence either way: that gate selects hook objects satisfying both
 `has("command")` and `has("args")`, and a hook entry naming a TypeScript module carries neither, so a
 mod-shaped `hooks.json` passes it vacuously.
 
@@ -130,7 +130,7 @@ Probe behavior, not help text.
   Desktop build `app-2.2553.1` whose bundled Claude Code is 2.1.275: a probe plugin installed at user
   scope, with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS=1` supplied to the app process only, fired its
   `session.start` hook in a local Code tab session (`OBSERVED`). That the flag is what enabled it is
-  `INFERRED` — the flag-unset arm was not run in Desktop. Still untested: that unset arm, cloud
+  `INFERRED`: the flag-unset arm was not run in Desktop. Still untested: that unset arm, cloud
   sessions, Cowork, and mods that draw UI. Commands and the exact route:
   [experiments.md](../upstream/claude-code-mods/experiments.md), under the Desktop probe. None of
   this moves the verdict: Desktop loading is in no go criterion.

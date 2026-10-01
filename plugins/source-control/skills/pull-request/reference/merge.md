@@ -46,9 +46,25 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 
 Default merge mode is squash: one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
 
+In a regular checkout:
+
 ```bash
 gh pr merge <pr_number> --squash --delete-branch
 ```
+
+In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), omit `--delete-branch`: on older gh it tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote, never a hardcoded `origin`:
+
+```bash
+gh pr merge <pr_number> --squash && {
+  if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
+    REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
+  else
+    echo 'PR not merged yet (merge queue or auto-merge); delete <branch> once it reads MERGED' >&2
+  fi
+}
+```
+
+When the repo deletes head branches on merge, the push fails with "remote ref does not exist"; that is expected, and it is the only failure to ignore. 4.3 deletes the local branch. Verified 2026-09-29 against [cli/cli#14007](https://github.com/cli/cli/pull/14007), which ships in gh 2.99.0 and makes `gh pr merge --delete-branch` skip the local delete when the head is checked out in the current linked worktree; earlier gh, such as 2.98.0, fails as described. Recheck when the minimum gh this plugin supports is 2.99.0 or later, at which point the split is no longer needed.
 
 **Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message. It is shaped to satisfy the resolved subject/title convention, per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
 
@@ -84,6 +100,14 @@ git branch -D <old-branch>
 If a stash was created, report it and tell the user to inspect it with `git stash list` and restore it on an appropriate branch with `git stash pop`. Then report the transition and suggest `/clear` for fresh conversation context (`/clear` fires any SessionStart hooks the project registers). Use `-D` not `-d` because squash merge changes the commit SHA.
 
 Worktree reuse (new branch from latest default branch in the same directory) is faster than remove+recreate and preserves gitignored files; the alternative is `ExitWorktree` + a fresh `EnterWorktree` for a clean slate.
+
+The worktree's lock stays while it is reused for the next task. When the worktree is not reused (leaving it with `ExitWorktree`), release the lock after the merge succeeds, so later cleanup does not find a lock nobody holds:
+
+```bash
+bash "<scripts-dir>/worktree-claim.sh" release <worktree-path> --session-id "${CLAUDE_SESSION_ID}"
+```
+
+`release` unlocks only a lock this session armed and exits non-zero on a foreign one; report that and leave the lock.
 
 **If on a regular branch (not in worktree):**
 

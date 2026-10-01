@@ -3,6 +3,29 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-09-30
+
+### Added
+
+- **macOS Keychain and Linux `pass` rungs in `Resolve-UnattendedSecret`** ([#5315](https://github.com/melodic-software/claude-code-plugins/issues/5315)).
+  The ladder is now environment, file, SecretManagement vault, the platform store (`security` on
+  macOS, `pass` on Linux; skipped silently when the tool is absent, has no entry, or the name is a `pass` directory), then a hidden
+  prompt. Tests cover each rung's presence, absence and precedence.
+
+## [0.4.0] - 2026-09-29
+
+### Added
+
+- **`-Secrets` on `Invoke-UnattendedRun`** ([#5315](https://github.com/melodic-software/claude-code-plugins/issues/5315)).
+  Declared secrets resolve once before the first stage, so the human answers every hidden prompt
+  up front. An undeclared name still resolves at first use. The `cutover.result/1` envelope gains
+  a names-only `secrets` field and dry-run `planned` gains a `secrets` count.
+- **A credential-store rung in `Resolve-UnattendedSecret`**: environment, then file, then a
+  `Microsoft.PowerShell.SecretManagement` vault (skipped silently when absent), then a hidden
+  prompt. Only a string secret is used; a `PSCredential`, hashtable or `byte[]` secret is skipped
+  with a warning. Declaring a name twice in `-Secrets` fails the run. A native macOS Keychain and
+  `pass` rung are not yet supported.
+
 ## [0.3.0] - 2026-09-29
 
 ### Added

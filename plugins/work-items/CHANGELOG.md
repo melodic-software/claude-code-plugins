@@ -3,6 +3,77 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.3] - 2026-09-30
+
+### Fixed
+
+- **`attend-queue`, `decompose`, `setup`, `triage`, `work` and `work-loop` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` and `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/*.md` are now relative to the spoke, and script and tool paths read `<plugin-root>/...`. `attend-queue`, `decompose`, `setup` and `work` gain a `## Spoke paths` section saying `<plugin-root>` is the plugin's root directory. `work-loop` is at the `SKILL.md` line cap, so its `telemetry-upsert.md` points at the script path `SKILL.md` already gives, resolved, instead of adding a section.
+
+## [0.43.2] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.43.1] - 2026-09-30
+
+### Fixed
+
+- **`setup` description fits the 1024-codepoint Agent Skills maximum.** The description keeps its trigger phrases and the check and apply summary; the first-run and schedule-summary detail lives in the skill body. The skill leaves the description-cap baseline.
+
+## [0.43.0] - 2026-09-29
+
+### Changed
+
+- **`work-loop` and `attend-queue` drop a latched pause on an account switch.** The inlined guard floor carries the new `Account switch` bullet. `work-loop` records the account of the snapshot that tripped the pause, not the account `.claude.json` names at pause entry, as the latched account beside `rate_limit_latch` and `paused_until`. It reads the account at pause entry and on each paused wake and Monitor tick, and on a change clears the latch when the new account is below the pause threshold, re-latches at or above it, and drops the latch and runs reactive-only when no fresh snapshot attributes the new account (`reference/paused-wait.md`). The account read falls back to `shasum -a 256` where `sha256sum` is absent and rejects a value that is not email-shaped, and the tee file is read once so the fingerprint and the windows come from the same snapshot. A fresh snapshot with one plausible window resumes when that window is below the threshold. Four evals cover a resume on a wake with a keep-latch on an unreadable state file, a switch found at pause entry, an unattributed trip that stays paused, and a switch with one plausible window. `attend-queue` keeps no durable state and holds the latched account in the session.
+- **`work-loop`'s instance-collision block and its `instance:` cycle-report line moved, unchanged, from `SKILL.md` to `reference/telemetry-upsert.md`.** The floor sync pushed `SKILL.md` past the 500-line cap; `SKILL.md` keeps a pointer.
+
+## [0.42.1] - 2026-09-29
+
+### Changed
+
+- **The work-loop recommends launching a background lane from inside an isolated linked worktree.** "Background-job launch mode" now says to `git worktree add` and run `claude --bg` from there, because a linked worktree outside `.claude/worktrees` keeps the lane's record write in place; the fallback wording for a non-isolated launch is kept
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+
+## [0.42.0] - 2026-09-29
+
+### Added
+
+- **The work-loop bounds its in-flight exclusion by PR age.** A candidate whose open closing PR is older than the new `work_loop_in_flight_stale_days` option (default 14) is no longer silently excluded: the lane escalates it with the `kind=escalated` marker naming the PR, its draft or ready state, and its age, and the cycle report lists it as `stale in flight`. Younger PRs stay excluded as before, and the escalation does not reset the no-progress streak
+  ([#5326](https://github.com/melodic-software/claude-code-plugins/issues/5326)).
+
+## [0.41.10] - 2026-09-29
+
+### Fixed
+
+- **`create-item` works on a GitHub CLI whose GraphQL calls are refused.** Below gh 2.94 it creates the item with `gh api repos/{owner}/{repo}/issues`, emits it from a REST read, and resolves the repo over REST. The `--type` fallback adds the mapped `type:` label only when the repo defines it and otherwise omits it with a stderr note. The GitHub adapter README's *Search items* operation has a REST form (a repo-scoped issues listing filtered client-side) for the `track add` duplicate pre-flight
+  ([#5338](https://github.com/melodic-software/claude-code-plugins/issues/5338)).
+
+## [0.41.9] - 2026-09-29
+
+### Fixed
+
+- **The onboard-adapter generator handles the seam's `release` verb.** It no longer refuses a spec that carries `release` or requires specs to omit it: `release` is in the generated verb set, the claim usage and parsing accept `--ttl-minutes`, and `features.leases` is required only when `release` is true. The bundled gitea and linear specs declare `release: false`, the generated `capabilities.test.sh` covers it, and a drift test pins the generator's verbs to the dispatcher's public verbs plus `list-items`
+  ([#4690](https://github.com/melodic-software/claude-code-plugins/issues/4690),
+  [#4609](https://github.com/melodic-software/claude-code-plugins/issues/4609)).
+- **The work-loop cycle report says which closing PR holds an item in flight, and for how long.** The github adapter's open-linked-PRs query also emits each open closing PR as `{number, isDraft, createdAt}`, and the report line reads `in flight: #<item> (PR #<pr>, draft|ready, open <age>)`. The gate stays boolean. The skill states that the exclusion has no age bound
+  ([#4610](https://github.com/melodic-software/claude-code-plugins/issues/4610)).
+
+### Changed
+
+- The work-loop background-job paragraph reports the `#4598` refusal as observed and conditional on the session not yet being isolated in a worktree, marks itself interim, and carries a verification record. `reference/escalation-marker.md` points at it, and its sections are back in writer/reader order
+  ([#4598](https://github.com/melodic-software/claude-code-plugins/issues/4598)).
+- `work_dispatch_concurrency_cap`, the README, and the `work` and `work-loop` skills say that `/implementation:implement-dispatch` owns the wave cap and names its `implement_dispatch_wave_cap` operator option in the precedence. The cap does not bind under worker authority, where rows in one worktree run one per wave, and changes behavior only under commit authority `orchestrator`, which `implement-dispatch` sets from the consuming plan; the composed-budget sentence in `work-loop` says the same
+  ([#4262](https://github.com/melodic-software/claude-code-plugins/issues/4262)).
+- The triage exits point at the lane-barred branch, and the `0.41.1` entry lists the trigger phrases and routing pointers that release dropped
+  ([#4605](https://github.com/melodic-software/claude-code-plugins/issues/4605),
+  [#4657](https://github.com/melodic-software/claude-code-plugins/issues/4657)).
+- Argument hints on `decompose`, `triage`, `scan-todos`, `work`, and `attend-queue` are grammar-only, and each skill states its arguments once, in Variables
+  ([#4051](https://github.com/melodic-software/claude-code-plugins/issues/4051)).
+- Eight skills gain a one-line `## Next` section naming their successor.
+- The `scan-todos` eval `work-flag-auto-selects-smallest-group` prompts `--work` as the skill defines it (auto-select the smallest group) instead of as a filing request
+  ([#4070](https://github.com/melodic-software/claude-code-plugins/issues/4070)).
+
 ## [0.41.8] - 2026-09-28
 
 ### Fixed
@@ -56,7 +127,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 ### Changed
 
 - Trimmed the nine model-invocable skill descriptions to 500 characters or fewer each, keeping
-  every skill's trigger phrases and its routing pointer (#4657). The plugin's listing-budget
+  most trigger phrases and routing pointers (#4657). `onboard-adapter` dropped "use
+  Gitea/Redmine/YouTrack/Azure DevOps/Phabricator with work-items", "the seam has no adapter for
+  my provider", and its two skip clauses; `attend-queue` dropped "attend queue"; the sibling-skill
+  lists in `decompose`, `triage`, `track`, `work`, and the `scan-todos` hygiene-gate guidance were
+  removed. The plugin's listing-budget
   aggregate (`check-listing-budget.sh plugins/work-items/skills`) drops from 7,651 to 4,212
   characters, and the fleet aggregate from 149,643 to 146,204. `decompose` no longer breaches
   the 1,024-codepoint cap, so its row leaves `scripts/skill-description-cap-baseline.txt`.

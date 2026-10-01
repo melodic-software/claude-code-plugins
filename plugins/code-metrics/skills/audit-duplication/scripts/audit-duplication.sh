@@ -5,7 +5,7 @@
 #   audit-duplication.sh [--json] [--all] [--base <ref>] [--config <resolved.json>]
 #                        [--registry <file>]... [<path>...]
 #
-# Prints the markdown report; `--json` prints the `code-metrics/v1` document
+# Prints the markdown report; `--json` prints the `code-metrics/v2` document
 # instead. Scope, lanes, and the collector ladder are the dispatcher's
 # (scripts/dispatch.sh in the plugin root); this script owns the merge of the
 # detector's clone pairs into clone classes (cluster-clones.py), `--registry`,
@@ -168,7 +168,9 @@ for registry in "${REGISTRY_ARGS[@]:-}" "${CONFIGURED_REGISTRIES[@]:-}"; do
   FILTER_ARGS+=(--registry "$resolved")
 done
 
-bash "$DISPATCH" audit-duplication --measures duplication --config "$CONFIG" ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} >"$WORK/report.json"
+# The clone pairs come cwd-relative: the merge and the registry filter rebase
+# them onto `--root` themselves. The final document is anchored once, below.
+bash "$DISPATCH" audit-duplication --measures duplication --config "$CONFIG" --no-anchor ${PASS_ARGS[@]+"${PASS_ARGS[@]}"} >"$WORK/report.json"
 rc=$?
 [[ $rc -eq 0 || $rc -eq 3 ]] || exit "$rc"
 
@@ -180,5 +182,6 @@ rc=$?
 "${PY[@]}" "$REPORT" resummarize --root "$ROOT" <"$WORK/filtered.json" >"$WORK/summed.json" || exit 2
 "${PY[@]}" "$FILTER" --zero-floor --root "$ROOT" <"$WORK/summed.json" >"$WORK/final.json" || exit 2
 
+cm_anchor_document "$WORK/final.json" || exit 2
 cm_emit_document audit-duplication "$JSON" "$WORK/final.json" --rollup-depth "$ROLLUP_DEPTH" || exit 2
 exit "$rc"

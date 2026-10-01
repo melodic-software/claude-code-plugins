@@ -16,16 +16,19 @@ Detect runtime conditions where deletion would corrupt active state:
 Run the preflight script. Do not reimplement detection inline:
 
 ```bash
-bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh
+bash <skill-dir>/scripts/preflight.sh [ROOT...]
 ```
+
+Pass the repositories about to be cleaned as ROOTs. With no ROOT the scope is the invoking repository.
 
 **Output contract:**
 
-- `RUNTIME_PROCS:` process lines, or empty
-- `RECENT_BUILD:` `project.assets.json` paths touched in last 10 minutes, or empty
-- `IDE_OPEN:` IDE process lines, or empty
+- `RUNTIME_PROCS:` runtime process lines scoped to the ROOTs, or empty. A process is in scope when its working directory or command line is at or under a ROOT; a relative path in the command line resolves against the process's working directory. The invoking process chain (this script and its ancestors) is never listed or counted. Each line ends `[repo: <ROOT>]` (the longest matching ROOT), and at most 5 print. Without `/proc` (Windows, macOS) the list is machine-wide and marked `(unscoped)`.
+- `RECENT_BUILD:` `project.assets.json` paths touched in last 10 minutes under the ROOTs, or empty
+- `IDE_OPEN:` IDE process lines, or empty. Always machine-wide (`tasklist`, Windows only), marked `(unscoped)` when non-empty.
+- `RUNTIME_PROCS_UNATTRIBUTED:` count of runtime-process matches elsewhere on the machine, or `n/a (unscoped)` on Windows. These are not risks to the scanned repositories and do not trigger the verdict; a process whose working directory cannot be read counts here.
 
-**Consumer verdict** (SKILL §1.5): if any label is non-empty, present risks and [confirm](../SKILL.md#confirmation-gate) (or abort autonomous deletion per session mode). Script exit is always 0.
+**Consumer verdict** (SKILL §1.5): if `RUNTIME_PROCS`, `RECENT_BUILD`, or `IDE_OPEN` is non-empty, present risks and [confirm](../SKILL.md#confirmation-gate) (or abort autonomous deletion per session mode). Script exit is always 0.
 
 ## Report format when risks fire
 
@@ -33,13 +36,13 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh
 ## Pre-flight: runtime risks detected
 
 **Active runtimes:**
-<RUNTIME_PROCS output, truncated to first 5 lines>
+<RUNTIME_PROCS lines (at most 5 print), each tagged repo:>
 
 **Recent build activity (last 10 min):**
 <RECENT_BUILD paths>
 
 **Open IDE processes:**
-<IDE_OPEN output>
+<IDE_OPEN output (machine-wide, unscoped)>
 
 **Risk:** deleting bin/obj/build dirs now may:
 - crash live MCP servers (lose CC session connections)

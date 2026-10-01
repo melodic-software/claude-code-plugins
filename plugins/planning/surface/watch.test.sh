@@ -139,7 +139,7 @@ next=$(printf '%s\n' "$fields" | sed -n 2p)
 kind=$(printf '%s\n' "$fields" | sed -n 3p)
 ndir=$(abs_dir "$d")
 nh=$(abs_dir "$here")
-want_next="bash '$nh/round.sh' --dir '$ndir' apply --file '$ndir/ops.json' && bash '$nh/watch.sh' '$ndir'"
+want_next="bash '$nh/wake.sh' '$ndir'"
 if [[ "$code" == 200 && "$rc" -eq 0 && "$lines" == 1 && "$data_dir" == "$ndir" && "$next" == "$want_next" && "$kind" == note ]]; then
   ok "a delivery prints one JSON line with dataDir and next, exit 0"
 else
@@ -238,7 +238,8 @@ print(sum(1 for h in q.get("history", []) if h.get("by") == "claude"))
 rev_before=$(rev)
 lines_before=$(claude_lines)
 printf '{"ops": [{"op": "handle", "seqs": [%s, %s, %s]}]}\n' "$seq" "$((seq + 1))" "$((seq + 2))" >"$d/ops.json"
-run="${cmd//<data_dir>/$d}"
+run="${cmd//<surface_dir>/$here}"
+run="${run//<data_dir>/$d}"
 CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/h.out" "$tmp/h.err" bash -c "$run"
 rc=$?
 rev_after=$(rev)
@@ -282,12 +283,12 @@ if bash "$here/round.sh" --dir "$odd" ensure-running --port 0 >/dev/null 2>"$tmp
 import json, shlex, sys
 d = json.loads(open(sys.argv[1], encoding="utf-8").read().strip())
 t = shlex.split(d["next"])
-print(d["dataDir"]); print(t[3]); print(t[6]); print(t[-1]); print(len(t)); print(d["next"])
+print(d["dataDir"]); print(t[2]); print(t[1]); print(t[-1]); print(len(t)); print(d["next"])
 print(d["events"][0]["seq"])
 ' "$tmp/i.out" 2>&1)
   line() { printf '%s\n' "$fields" | sed -n "$1p"; }
   next=$(line 6)
-  if [[ "$code" == 200 && "$rc" -eq 0 && "$(line 1)" == "$odd" && "$(line 2)" == "$odd" && "$(line 3)" == "$odd/ops.json" && "$(line 4)" == "$odd" && "$(line 5)" == 11 ]]; then
+  if [[ "$code" == 200 && "$rc" -eq 0 && "$(line 1)" == "$odd" && "$(line 2)" == "$odd" && "$(line 3)" == "$nh/wake.sh" && "$(line 4)" == "$odd" && "$(line 5)" == 3 ]]; then
     ok "next names an odd data dir as literal words"
   else
     bad "odd dir: post=$code rc=$rc fields=[$fields] out=$(cat "$tmp/i.out") err=$(cat "$tmp/i.err")"

@@ -100,7 +100,7 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 ## Worker procedure
 
-Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, the six dimensions, exploration modes, and the output format. The parent does not load it in order to dispatch. The outcome gate below still applies.
+Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, the six dimensions, exploration modes, and the output format. The parent does not load it to dispatch. The outcome gate below still applies.
 
 ## Outcome gate (before EXPLORE.md handoff)
 
@@ -135,6 +135,26 @@ This file is the authoritative stage summary, a fresh session must be able to re
 **Sidecar headers use the EXPLORE schema, not the research one.** Local evidence is a repository path and whether the file was actually Read. `verified: read | grep | inferred`, not a URL, a source tier, and a publishing pool. Handed the research header, a run either fabricates fields it has no values for or improvises a shape no consumer can parse; the fabrication is worse, because it launders a grep hit into the field a fetched primary would occupy. Schema and why `verified` is load-bearing: the artifact-shape spoke's "EXPLORE.md sidecar header" section.
 
 **If an unrelated `EXPLORE.md` already exists** in that slice, do not clobber it, and do not rename the index to dodge it, since `EXPLORE-*.md` is the sidecar pattern and a renamed index collides with its own sidecars. Occupancy is the PARENT's to resolve, before any write: stat the slice root pre-dispatch, and when it is occupied assign a sub-slice `<memory_dir>/<slug>/<scope-slug>/` as the envelope's slice path, so the whole artifact set is written there under its normal names. A worker never picks a sub-slice itself, and on an inline run this session is the parent and applies the same check before writing. A prior exploration lost to a filename collision is silent and unrecoverable.
+
+## Boundary, the built-in `Explore` agent
+
+Both answer "what is in this codebase", so a request to explore can route to either.
+
+- **`Explore` (built-in subagent)**: a one-shot locator that returns excerpts to its caller and
+  skips CLAUDE.md. It mutates nothing: it cannot write files. It is reached through the Agent
+  tool's `subagent_type`.
+- **This skill (marketplace plugin)**: the full exploration: six dimensions, the project's rules
+  loaded, and a persisted, verified `EXPLORE.md` a cleared session resumes from.
+
+**Routing.** When the built-in `Explore` agent resolves in this session, dispatch it directly for a
+bare locate ("where is X", "what calls Y"); use this skill when the four tests under Routing above
+send the run to `discovery:explorer`. Inside this skill's run, `Explore` is the locate-tier scout,
+never the worker.
+
+**Mutation gate.** `Explore` writes nothing. This skill writes the artifact set in the memory slice
+only.
+
+The four-part records live in [reference/native-explore.md](reference/native-explore.md).
 
 ## Next
 

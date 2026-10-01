@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (.work-item-tracker.json), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider, writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps to the label, and optionally remaps canonical role labels. First-time bind writes minimum viable config only, binding, role labels, both label axes, legacy backfill, empty skeleton, and candidate inference plus per-item interview is opt-in via --seed-schedule or a skip-RECOMMENDED offer (silent when unattended); a schedule with items is summarized and offered updates. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable. Safe to invoke again to reconfigure or to seed the schedule later."
+description: "Verify and configure the work-items plugin for this repo. check read-only inspects the tracker binding (.work-item-tracker.json), tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), jq and tracker-seam entry gates, recurring-maintenance role label, work-class axis, and capability-tier axis; apply binds the provider, writes the schedule, migrates work-class and capability-tier labels when authorized, backfills legacy frontier stamps, and optionally remaps role labels. First-time bind writes minimum viable config only; per-item schedule seeding is opt-in via --seed-schedule. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable."
 argument-hint: "check | apply [--seed-schedule] [--accept-recommended]"
 user-invocable: true
 disable-model-invocation: true
@@ -76,7 +76,7 @@ when this pass must stop instead of guessing.
      **never** a coordination surface. Needs `config.storage_dir`.
    - **`jira`**. Read/resolve-only against a Jira Cloud project set. Consume-only, so it does not
      enable `/work-items:work` or `track start`.
-   - **`linear`**. Full verb parity with `github`, so it **is** a coordination surface. Personal
+   - **`linear`**. Verb parity with `github` except `release`, so it **is** a coordination surface. Personal
      API key (the headless-appropriate credential); issue numbering lives outside the repo.
    - **`gitea`**. Gitea / Forgejo, self-hostable and free. Issues and dependency edges, but **no
      leases and no sub-items**, so `/work-items:work` cannot claim on it.
@@ -362,6 +362,16 @@ that only the empty skeleton was written and that `apply --seed-schedule` bulk-s
 operator wants them, whether any labels were created, any role→label remap written to
 `.work-item-tracker.json`, and how to re-run this setup to reconfigure. On a `check`-only run, the
 PASS/FAIL/INFO table and its remediation lines, mutating nothing.
+
+## Spoke paths
+
+The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## What this skill does NOT do
 

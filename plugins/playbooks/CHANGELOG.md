@@ -4,6 +4,112 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.15.3] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
+## [0.15.2] - 2026-09-29
+
+### Changed
+
+- **`fable-5`'s description opens with a presence-gated routing clause for the bundled
+  `claude-api` skill.** It routes current model, price, and API facts and the cost audit to
+  `claude-api` and keeps the judgment and lasting mechanisms around them, the split its Boundary
+  section states. The opening sentence is shortened ("standing instructions that arm the session
+  at once") to keep the description under the 1,024-character spec field maximum; every trigger
+  phrase is kept.
+- **The `claude-api` Boundary bullet no longer asserts that the skill ships with Claude Code.** It
+  keeps the provenance class, what the skill does and how it is invoked, in the native-references
+  template form.
+
+## [0.15.1] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep` `instruction-placement` persists declines** ([#5167](https://github.com/melodic-software/claude-code-plugins/issues/5167)).
+  The catalog entry runs `realign` whenever the audit reported a finding the user decided, accepted
+  or declined, so `realign` can write the `.claude/instruction-placement.md` suppression entry and
+  the next sweep stops re-proposing the decline. A step with no findings records only the skills
+  that ran. `reference/next.md` section 4 collects versions and `Playbook-Step` trailers only for
+  the skills that ran.
+
+## [0.15.0] - 2026-09-29
+
+### Added
+
+- **`repo-sweep` records a filed outcome** ([#5174](https://github.com/melodic-software/claude-code-plugins/issues/5174)).
+  `tick.sh <id> filed <issue-url> <skill@version>...` ticks a step whose only findings were fixed in
+  another repository and filed there. `state.sh` and `history.sh` treat the line as done, and
+  `history.sh` adds no rerun exemption for it; only a changed skill version recommends one.
+
+## [0.14.7] - 2026-09-29
+
+### Changed
+
+- **`repo-sweep` next step 3.4 runs `/planning:interview scope` for the scope questions**
+  ([#4502](https://github.com/melodic-software/claude-code-plugins/issues/4502)). The step no
+  longer forbids the interview. The returned decisions go into the step commit's
+  `Scope decisions:` section, and a `Blocked:` line or a USER-RESERVED `Deferred:` line is asked
+  of the user before step 5. Without the planning plugin the numbered-list fallback stays.
+
+## [0.14.6] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep` records a not-applicable step without a skill version** ([#5181](https://github.com/melodic-software/claude-code-plugins/issues/5181)).
+  A step whose `applies-when` no longer holds invokes no skill, yet `tick.sh` required
+  `<skill@version>...` and wrote them into the line. `tick.sh <id> not-applicable <evidence>` now
+  takes the evidence alone and writes `- [x] <id>: not applicable: <evidence>`. `state.sh` and
+  `history.sh` accept that shape, and still accept the earlier form that carries versions.
+
+## [0.14.5] - 2026-09-29
+
+### Fixed
+
+- **`repo-sweep next` stops when the sweep PR conflicts with its base** ([#5206](https://github.com/melodic-software/claude-code-plugins/issues/5206)).
+  GitHub runs no `pull_request` workflows on a conflicting PR, so step commits pushed to it got no
+  CI. `state.sh` now prints `mergeable CONFLICTING`, and `next` stops before any step and asks the
+  user to merge the base branch into the sweep branch and push.
+
+## [0.14.4] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `ai-slop` step is audit-only** ([#5194](https://github.com/melodic-software/claude-code-plugins/issues/5194)).
+  The catalog entry passed `audit fix .`, which chains the audit and the fix in one invocation and
+  rewrote prose before the findings review. The entry now passes `audit .`, and a note directs
+  running `fix` on the findings the user approves.
+
+## [0.14.3] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `compress` step runs `audit` first** ([#5193](https://github.com/melodic-software/claude-code-plugins/issues/5193)).
+  The step now runs `/docs-hygiene:compress audit`, excludes always-loaded instruction files from
+  its targets, and is ticked `not-applicable` when no targets remain, instead of compressing every
+  markdown file.
+
+## [0.14.2] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `coupling` step stays on the sweep branch** ([#5188](https://github.com/melodic-software/claude-code-plugins/issues/5188)).
+  `coupling:reduce` creates its own branch, commits per reduction and opens a pull request, which
+  conflicts with the sweep's one-branch, one-commit model. The catalog entry now carries an
+  `#### Override` that keeps the work on the current branch, leaves changes uncommitted for the step
+  commit, and files tracker items only with approval.
+
+## [0.14.1] - 2026-09-29
+
+### Fixed
+
+- **The `repo-sweep` hygiene `lint` step covers the whole repository** ([#5201](https://github.com/melodic-software/claude-code-plugins/issues/5201)).
+  The catalog entry passed only `--fix`, so `toolchain:lint` linted the changed files, which on a
+  clean sweep tree are the earlier steps' edits. The entry now passes `all --fix` and a note
+  directs a following `/toolchain:lint all` check-mode run, since `--fix` runs only format commands.
+
 ## [0.14.0] - 2026-09-29
 
 ### Added

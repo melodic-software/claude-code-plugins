@@ -11,7 +11,7 @@
 - [License](#license)
 
 A Claude Code plugin for running Claude Code well over time. One cohesive
-capability across thirteen skills and a family of telemetry-emitter hooks, including diagnosing why
+capability across fourteen skills and a family of telemetry-emitter hooks, including diagnosing why
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current
 repo's own components so a custom skill never silently duplicates what the
@@ -39,10 +39,11 @@ Claude Code's native OTEL cannot see.
 | `/claude-ops:audit-performance` | Read-only slowness-diagnostic capture, run at the moment the machine or a session feels slow, before restarting or deleting anything. One timed engine pass separates four documented suspects: accumulated install-tree state, version regression, component bloat, and the fan-out layer, plus on Windows a kernel-object census that names the host-level Token-object leak beneath all four. Each suspect's evidence and verdict routing is documented in the skill. Phase timings are first-class evidence; content reads are allowlisted to four non-secret config files (`settings.json`, `.last-cleanup`, `hooks.json`, `installed_plugins.json`), so `~/.claude.json` and `history.jsonl` stay stat-only. Reports and routes; never mutates, never elevates, and never executes a discovered hook or statusline command. |
 | `/claude-ops:observability` | Reads locally captured Claude Code telemetry, OTEL DuckDB store, machine-owned collector, optional Aspire dashboard, hook-event JSONL, ccusage, and renders cross-session trend reports (`session`/`day`/`week`/`month`/`since:`/`all` scopes). Read-only except the explicit `clean` action, which prunes the JSONL log and OTEL store by age. |
 | `/claude-ops:known-issues` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
-| `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage over a release range, no edits), `status` (the read marker from the repo's Claude Code ledger, the default range to the newest release, and the replay cap), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
+| `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (decision rows by owner surface and action lens over a release range, no edits), `status` (the read marker from the repo's Claude Code ledger, the default range to the newest release, and the replay cap), and `apply` (executes the decisions in scope one PR per owner plugin, hands larger ones off as work items, then runs a native-surface drift pass that files work items for new overlap candidates, fired store triggers, and a degraded or broken inventory; explicit user intent only). |
 | `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
 | `/claude-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
 | `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane> --permission-mode auto`, plus `--permission-prompts none` on CLI 2.1.259 or later) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
+| `/claude-ops:check` | Read-only check that `node` and `jq` resolve for the hooks, with the install route for a missing tool. Model-invocable; never installs. |
 | `/claude-ops:setup` | `check` reports the effective known-issues-registry, skill-usage-log and hook-log-root destinations, their defaults, path containment, the hook log root's self-ignoring guard, and retired conventions (`retirements.yaml`), and prints the guidance for routing personal option changes through Claude Code's plugin configuration prompt; `apply` writes exactly one file, the guard inside the hook log root, and runs the gated retirement cleanup. |
 
 ## The audit hooks
@@ -128,7 +129,9 @@ was 18 creations and 6 execs before #3512. Counts are measured with `strace -ff
 whose command carries its own redirection forks a subshell that xtrace cannot
 see, and those forks were most of the cost. `hook-failure-audit.test.sh`
 asserts both ceilings. Windows Git Bash, the host the convention binds to,
-stays unmeasured for this row, so its spawn-equivalents there (hook wall
+measured S (the bash spawn floor) at 33 ms on 2026-09-30, through the bash the
+launcher spawns (20 ms on the PATH bash), but the hook-failure-audit wall
+there is still unmeasured for this row, so its spawn-equivalents (hook wall
 divided by the same-run S) are still owed.
 
 `skill-usage-audit` is captured by two disjoint producers so both invocation
@@ -223,8 +226,10 @@ the hook log root, `<project-root>/.observability/claude` by default (the
 `session_event_log_dir` option moves it). An envelope carrying
 `data.session_id` lands in `sessions/<session_id>.jsonl`, beside the
 per-session event log; one without lands in the shared `hook-events.jsonl`
-in the legacy shape. Both are what the `observability` skill reads. The root
-carries a self-ignoring `.gitignore`, created on the first write (or by
+in the legacy shape; that file rotates to `hook-events.jsonl.1` at
+`hook_events_max_bytes` whatever the session-log switch is set to. Both are
+what the `observability` skill reads. The root carries a self-ignoring
+`.gitignore`, created on the first write (or by
 `/claude-ops:setup apply`); rows left at the old
 `.claude/observability/hook-events.jsonl` location are detected by setup as
 retirement `claude-ops-r001` and migrated on request.
@@ -280,9 +285,12 @@ launcher. The parallel wall, the 4 KB and 16 KB appends, `ls -t`, and the
 late-EOF stall, all through the launcher, are measured by
 [`hooks/measure-hook-log-budget.sh`](hooks/measure-hook-log-budget.sh) and
 recorded in
-[`reference/hook-log-budget.md`](reference/hook-log-budget.md). The Windows
-Git Bash column there is `unmeasured` until that harness runs on Git Bash,
-and the default stays off until that capture replaces the placeholder.
+[`reference/hook-log-budget.md`](reference/hook-log-budget.md). On Windows Git
+Bash (2026-09-30), the kill-switch-off median is 60 ms against a 33 ms bash
+spawn floor through the launcher's bash (49 ms node floor). Thirty parallel
+events take 406 ms wall off and 466 ms on. The 4 KB and 16 KB appends leave 0
+corrupt lines out of 33. `ls -t` ties at one-second resolution there, so no
+ordering is claimed. Late-EOF costs 358 ms. The switch stays off by default.
 `session_event_log_categories` narrows the set. At `SessionEnd` the retention
 hook, gated by the same switch, keeps the newest
 `session_log_keep_sessions` or the last `session_log_keep_days` days, and
@@ -310,8 +318,8 @@ your own repository's context:
   the hook log root (`<project-root>/.observability/claude` by default, the
   `session_event_log_dir` option moves it): `sessions/<session_id>.jsonl`
   when the per-session event log is on or the sink is wired, and the shared
-  `hook-events.jsonl` for envelopes without a session id; every source
-  degrades gracefully when absent.
+  `hook-events.jsonl` (rotated to `.1` at the size cap) for envelopes without
+  a session id; every source degrades gracefully when absent.
 - **Persistent state** defaults to the plugin's own per-machine data directory
   (`${CLAUDE_PLUGIN_DATA}`): the known-issues registry
   (`registry.json`), `check-all` output, `--write` observability reports, and
@@ -336,10 +344,11 @@ The audit hooks are Bash scripts (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)) and
 use `jq`; without jq they fail open (no audit line is written).
 
-**Node.js on PATH.** Every hook row starts through `node hooks/exec-bash.mjs`, which finds the
-real Bash and runs the script. Claude Code's native binary neither ships nor uses Node.js
-([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` on PATH
-the hooks do not launch. `/claude-ops:setup check` reports whether `node` resolves.
+**Node.js on PATH.** Every hook row except `hook-failure-audit` starts through
+`node hooks/exec-bash.mjs`, which finds the real Bash and runs the script. Claude Code's native
+binary neither ships nor uses Node.js ([setup](https://code.claude.com/docs/en/setup), fetched
+2026-09-29), so without `node` on PATH those hooks do not launch. The `hook-failure-audit` Stop row
+is shell form (`"shell": "bash"`) and needs no node, so it still reports the failed launches. `/claude-ops:check` reports whether `node` and `jq` resolve.
 
 `audit-install-state` needs **Python 3.11+ only**. No PowerShell, no third-party packages, no
 `jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and
@@ -437,6 +446,7 @@ reads it from.
 | `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty records every category the registry marks observable. |
 | `session_log_keep_sessions` | number<br>*min 1* | `30` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS` | At SessionEnd, keep the newest N session files regardless of age (a file is kept when it is among the newest N OR younger than session_log_keep_days). |
 | `session_log_keep_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS` | At SessionEnd, keep every session file younger than N days regardless of count (a file is kept when it is younger than N days OR among the newest session_log_keep_sessions). |
+| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | The telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1 (replacing any older .1) when it exceeds this many bytes, so the pair stays near twice this value. Applies whether or not the per-session event log is enabled. Read only when a claude-ops hook emits the envelope: an emitter in another plugin that runs the sink keeps the 10485760 default. A value above 999999999999999999 is ignored and the default applies. |
 | `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Optional command run detached at SessionEnd with one argument, a directory the session files about to be pruned were moved into; the physical delete of that directory happens on the next retention run after 24 hours, so an archiver has a stable set to read. Executed through `bash -c`, so it is trusted configuration: on current releases project and local pluginConfigs are ignored and only the user's own settings supply it (recheck: the plugins reference's user-configuration section). Leave unset to delete directly. |
 
 ### How to set these

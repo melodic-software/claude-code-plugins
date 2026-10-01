@@ -171,6 +171,17 @@
         "It states that clean-stop makes outbound changes without a further confirmation, which is why natural-language authorization does not start it",
         "It recommends and stops rather than treating the user's general 'without checking back with me' phrasing as the license"
       ]
+    },
+    {
+      "id": 15,
+      "name": "wrap-up-offers-plugin-audit-after-plugin-skill",
+      "prompt": "/workflow wrap-up — this session ran /source-control:commit and /verification:confirm. plugin-quality is installed.",
+      "expected_output": "The wrap-up checklist includes a one-line offer of `/plugin-quality:audit session` because the session invoked plugin skills. It is an offer only; the router does not run the audit.",
+      "files": [],
+      "expectations": [
+        "The wrap-up output offers `/plugin-quality:audit session` in a single line",
+        "It only offers the audit and does not run it or claim it ran"
+      ]
     }
   ]
 }

@@ -8,14 +8,17 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TRACKER="$SCRIPT_DIR/../../work-item-tracker.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
 
 # --- An expired lease reappears in the frontier (end-to-end, core CLI) ---
 
-STORAGE="$(mktemp -d)"
-BINDING="$(mktemp)"
+STORAGE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+BINDING="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 jq -cn --arg dir "$STORAGE" \
   '{schema_version: "1.0", provider: "local-markdown", config: {lease_ttl_hours: 24, storage_dir: $dir}}' \
   >"$BINDING"
@@ -68,7 +71,7 @@ LEASE_JSON='{"schema_version":"1.0","holder":"tester","acquired_at":"2020-01-01T
 MARKER_LINE="${WIT_LEASE_MARKER}${LEASE_JSON} -->"
 
 # Happy path (real wit_fm_set): both writes land and the helper reports success.
-OK_FILE="$(mktemp)"
+OK_FILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 write_item "$OK_FILE"
 wit_claim_write "$OK_FILE" "$MARKER_LINE" '["tester"]'
 assert_eq "successful claim write returns 0" "0" "$?"
@@ -79,7 +82,7 @@ rm -f "$OK_FILE"
 
 # Failure path: simulate a failed assignee write. The helper must fail AND roll the
 # just-appended marker back, leaving the store as if the claim never happened.
-FAIL_FILE="$(mktemp)"
+FAIL_FILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 write_item "$FAIL_FILE"
 wit_fm_set() { return 1; }
 wit_claim_write "$FAIL_FILE" "$MARKER_LINE" '["tester"]'
@@ -92,7 +95,7 @@ rm -f "$FAIL_FILE"
 # Failure path where the rollback itself cannot run (mktemp fails — the same class
 # of store condition). The claim still fails, and the helper WARNS that the marker
 # may be orphaned instead of silently claiming a clean rollback.
-FAIL2_FILE="$(mktemp)"
+FAIL2_FILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 write_item "$FAIL2_FILE"
 # Invoked indirectly by the sourced wit_claim_write, which shellcheck cannot see
 # across the source boundary (it resolves mktemp there as the external command).

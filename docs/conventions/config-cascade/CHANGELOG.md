@@ -7,6 +7,24 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## Location outliers ratified, 2026-09-29
+
+- **Consumer config placed outside `.claude/` is declared, not drift (#3577).** `standards`
+  (`<standards_dir>/`), `songwriting` (`songwriting/templates/pat-pattison/`) and the `work-items`
+  recurring schedule (`.github/recurring-schedule.json`) are recorded as Declared exceptions, each
+  with a four-part record, and `songwriting` and the schedule gain Implementers rows.
+  [ADR 0042](../../adr/0042-ratify-consumer-config-location-outliers-in-place.md) rules on location
+  only and names the recursive `.claude/**/*.local.*` line as the canonical overlay spelling,
+  applied when each surface next touches its setup. No `contract_version` bump: declaring
+  exceptions changes neither precedence nor what a layer means.
+
+## Semantics table generated, 2026-09-29
+
+- **The glance table is generated from the Implementers rows (#3575).** The Implementers table
+  gains `Who wins` and `Merge form` columns; `scripts/sync-config-cascade-semantics.py` writes the
+  glance table from them and `--check` fails on drift. No `contract_version` bump: a derived view
+  and documentation columns, not a rule change.
+
 ## Consumer gotchas forms narrowed, 2026-09-29
 
 - **`consumer-gotchas.md` permits one local form (#3547).** Consumer gotchas live in the `## Gotchas`
@@ -21,6 +39,20 @@ adding an optional layer or relaxing a rule additively is a minor bump.
   only, and a layer path that names the user-global file is not read twice. The
   participating-plugins row in `consumer-gotchas.md` moves from follow-up to wired. No
   `contract_version` bump: plugin reader, not a contract rule change.
+
+## [1.4] - 2026-09-29
+
+Additive relaxation (minor bump): the overlay-naming rule "no plugin writes the consumer's
+`.gitignore`" becomes that rule plus two declared consumer-root append exceptions.
+Recommend stays the default posture.
+
+- **Overlay naming names its exceptions (#3573).** `/source-control:setup apply` appends the
+  recursive `.claude/**/*.local.*` line and `/work-items:setup apply` appends
+  `.work-item-tracker.local.json`; each announces the edit and touches nothing else. A
+  self-ignoring `.gitignore` inside a plugin-owned directory is a different file, not an
+  exception. `source-control`'s append is ratified by
+  [ADR 0040](../../adr/0040-ratify-the-source-control-setup-append-of-the-recursive-overlay-gitignore-line.md);
+  `work-items`' by [ADR 0015](../../adr/0015-bind-the-tracker-at-repo-root-with-an-allowlisted-personal-overlay.md).
 
 ## [1.3] - 2026-09-28
 
@@ -51,9 +83,9 @@ personal `~/.claude/<surface>` as the team layer.
 - **gitignore postures declared, not converged (#3573).** Recommend stays the
   default. Two consumer-root appends are sanctioned exceptions (`source-control`
   recursive overlay line; `work-items` ADR 0015 overlay line). Own-ignore-file
-  inside a plugin-owned directory is a different file. No `contract_version`
-  bump: the layering rules are unchanged; the no-plugin-writes sentence now
-  names the exceptions it already described in Overlay spelling drift.
+  inside a plugin-owned directory is a different file. The postures were declared
+  in the Deviations list and the Implementers rows; the no-plugin-writes sentence
+  was left unchanged (reworded in 1.4).
 
 ## Consumer gotchas tier, 2026-09-28
 

@@ -1,5 +1,5 @@
 ---
-description: "Verify claude-ops's personal path configuration for this repository (where the known-issues registry, the skill-usage log and the per-session hook event log resolve), check the self-ignoring guard on the hook log root, check that node resolves for the hook launcher, detect retired conventions, and explain how to change the options through Claude Code. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', 'where is skill usage logged', 'set up hook logging', 'where does the hook event log live', or 'turn on session event logging'. check (read-only, default) verifies and reports; apply writes exactly one file, the guard inside the hook log root, and runs the gated retired-convention cleanup. Every option itself is reconfigured through Claude Code, never by this skill. Re-runnable and safe."
+description: "Verify claude-ops's personal path configuration for this repository (where the known-issues registry, the skill-usage log and the per-session hook event log resolve), check the self-ignoring guard on the hook log root, check that node and jq resolve for the hooks, detect retired conventions, and explain how to change the options through Claude Code. Use when: 'set up claude-ops', 'configure claude-ops', 'claude-ops setup', 'where does the known-issues registry live', 'where is skill usage logged', 'set up hook logging', 'where does the hook event log live', or 'turn on session event logging'. check (read-only, default) verifies and reports; apply writes exactly one file, the guard inside the hook log root, and runs the gated retired-convention cleanup. Every option itself is reconfigured through Claude Code, never by this skill. Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -19,8 +19,8 @@ hook log root (`${user_config.session_event_log_dir}`, default `.observability/c
 defines that file's shape (first non-comment line is `*`), the hooks create it on their first write
 when it is missing, and a fresh clone or worktree therefore heals itself; `apply` creates the same
 file ahead of the first event so `check` can report a configured state before logging has fired.
-The consumer's root `.gitignore` is never touched (config-cascade convention: "No plugin writes the
-consumer's `.gitignore`"; the guard lives in a tree the plugin owns, the same shape the topic-docs
+The consumer's root `.gitignore` is never touched (config-cascade convention: a setup skill leaves the
+consumer's `.gitignore` to the consumer; the guard lives in a tree the plugin owns, the same shape the topic-docs
 memory tier uses for its own root).
 
 Official contract (verified 2026-07-18):
@@ -103,11 +103,17 @@ modify anything.
    skill moved to the hook log root, so rows left in the old file are read by nothing. The
    skill-usage store and the OTEL store under `.claude/observability/` are not retired and produce
    no finding.
-7. **Node.js for the hook launcher.** Every hook row starts through
-   `node "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs"`, so the hooks need `node` on PATH. Probe it
+7. **Node.js for the hook launcher.** Every hook row except
+   `hook-failure-audit` (shell form, no node) starts through
+   `node "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs"`, so those hooks need `node` on PATH. Probe it
    through the Bash tool with `command -v node`, which does not depend on the launcher. Resolves:
    PASS. Does not resolve: FAIL, the hooks do not launch and record nothing; the remediation is
    the person installing Node.js (this skill installs nothing) and starting a fresh session.
+8. **jq for the hook libraries.** `hook::require_jq` and `hook::require_jq_blocking` in
+   `lib/hook-utils.sh` need `jq` on PATH. Probe it through the Bash tool with `command -v jq`.
+   Resolves: PASS. Does not resolve: FAIL, hooks that parse their payload with jq skip their work;
+   the remediation is the person installing jq (this skill installs nothing) and starting a fresh
+   session.
 
 ## `apply`
 
