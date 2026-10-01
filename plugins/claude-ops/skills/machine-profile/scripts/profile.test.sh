@@ -98,6 +98,19 @@ if [[ "$(id -u)" -ne 0 ]]; then
   expect_has "the blocked guard names the operator command" "chmod u+w" "$(jq -r --arg d "$HOME/work" '.domains[$d].facts[] | select(.verdict == "blocked") | .guard' <<<"$first")"
 fi
 
+# 1b. An include path that contains a credential word does not reach a fact key.
+CRED="$OUT/credpath"
+mkdir -p "$CRED/home/secret-dir" "$CRED/home/Token_dir"
+printf '[includeIf "gitdir:~/sx/"]\n\tpath = ~/secret-dir/gitconfig\n[includeIf "gitdir:~/tx/"]\n\tpath = ~/Token_dir/gitconfig\n' >"$CRED/gitconfig"
+printf '[user]\n\temail = x@example.invalid\n' >"$CRED/home/secret-dir/gitconfig"
+cred="$(HOME="$CRED/home" GIT_CONFIG_GLOBAL="$CRED/gitconfig" run discover </dev/null)"
+rc=$?
+expect_eq "an include path naming secret or token still discovers" 0 "$rc"
+expect_eq "both include trees are recorded" 2 "$(jq '.domains | length' <<<"$cred")"
+expect_eq "an include path with a credential word records its fact under a path-free key" "writable" "$(jq -r '.domains[] | .facts[] | select(.key | startswith("git_include_file:")) | .value' <<<"$cred" | head -n 1)"
+expect_eq "no fact key carries the include path text" "0" "$(jq '[.domains[].facts[].key | select(test("secret|token"; "i"))] | length' <<<"$cred")"
+expect_has "the include path is kept in the record" "secret-dir/gitconfig" "$cred"
+
 # 2. Store, then diff an unchanged fixture: an empty diff and no prompt.
 dry="$(run record --data-dir "$DATA" - <<<"$first")"
 expect_has "record without --confirm says nothing was written" "dry run, nothing written" "$dry"

@@ -134,6 +134,12 @@ dir_fact() { # KEY DIR
   fi
 }
 
+# A stable key for a path: the key must not carry user-controlled text, which
+# the validator's credential-key refusal would otherwise match.
+path_key() { # PATH
+  printf '%s' "$1" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-12
+}
+
 file_fact() { # KEY FILE
   if [[ ! -e "$2" ]]; then
     rec "$1" absent default-verified --arg observed_by "test -e $2" --arg mode observed --arg observation "file not found"
@@ -225,7 +231,7 @@ discover() {
         --arg mode observed --arg supplied_by "git config includeIf gitdir")" \
       --argjson gh "$(gh_fact "$tree")" \
       --argjson f1 "$(dir_fact tree_present "$tree")" \
-      --argjson f2 "$(file_fact "git_include_file:$inc" "$inc")" \
+      --argjson f2 "$(file_fact "git_include_file:$(path_key "$inc")" "$inc")" \
       '{tree: $tree, git_include: $gi, gh: $gh, facts: [$f1, $f2]}')")
   done < <(cd / && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git config --list --show-origin 2>/dev/null |
     jq -Rr 'capture("^(?<origin>[^\t]*)\t(?<key>includeif\\.gitdir(?:/i)?:(?<pat>.*)\\.path)=(?<inc>.*)$")? | [.origin, .pat, .inc] | @tsv')
