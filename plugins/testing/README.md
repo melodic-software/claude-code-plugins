@@ -141,6 +141,23 @@ line. A docs file with no block does not supply the team layer; `<root>/.claude/
 read instead. When both exist the docs block wins and the resolver prints one warning naming both
 paths. The user-global and `.claude/testing.local.yaml` layers do not change.
 
+#### Move `.claude/testing.yaml` into the docs file
+
+1. Open `docs/conventions/testing.md`, or create it with the team's prose testing rules.
+2. Paste the whole content of `.claude/testing.yaml` between a line of three backticks followed by
+   `yaml config` at column 0 and a closing line of three backticks. The keys do not change.
+3. Add a pointer line to `CLAUDE.md` or `AGENTS.md` so the file loads on demand, for example
+   `Testing rules and config: docs/conventions/testing.md`.
+4. Run `/testing:setup check`: it prints the resolved config and must show the docs file as the
+   team layer.
+5. Delete `.claude/testing.yaml`. While both exist the docs block wins and every run prints a
+   warning naming both paths.
+
+`~/.claude/testing.yaml` and `.claude/testing.local.yaml` stay where they are; only the team layer
+moves. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
+[latency probes](../../docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
+and `plugins/testing/scripts/time-config.sh` reproduces them.
+
 ### Test files written through Bash
 
 `test-scan` also scans test files a Bash call changed (`cat > foo.test.ts`, `sed -i`, a generator
