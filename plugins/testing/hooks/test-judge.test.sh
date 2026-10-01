@@ -568,6 +568,17 @@ printf 'rules:\n  rule-weak-oracle: warn\n' >"$REPO/.claude/testing.yaml"
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
 check "a changed .claude/testing.yaml re-derives" '[[ "$(scans)" == 1 ]]'
 rm -f "$REPO/.claude/testing.yaml" "$TMP/scans"
+mkdir -p "$REPO/docs/conventions"
+printf '# Testing\n\n```yaml config\nrules:\n  rule-weak-oracle: warn\n```\n' >"$REPO/docs/conventions/testing.md"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "a changed docs/conventions/testing.md block re-derives" '[[ "$(scans)" == 1 ]]'
+rm -f "$TMP/scans"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "and is not scanned again while unchanged" '[[ "$(scans)" == 0 ]]'
+printf '# Testing\n\n```yaml config\nrules:\n  rule-weak-oracle: error\n```\n' >"$REPO/docs/conventions/testing.md"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "an edited block re-derives again" '[[ "$(scans)" == 1 ]]'
+rm -rf "$REPO/docs" "$TMP/scans"
 transcript cache2 claude-sonnet-5
 CF2="$REPO/src/failscan.test.ts"
 js_file "$CF2" fs
