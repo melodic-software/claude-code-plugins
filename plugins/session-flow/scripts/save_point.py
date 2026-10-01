@@ -53,7 +53,7 @@ Exit codes:
     memory-root
               0 printed the absolute forward-slash memory root `new` uses
                 without --memory-dir (`.work` in a git work tree, else the
-                plugin data dir's `topic-docs`)
+                plugin data dir's `artifacts`)
               1 no git work tree and no plugin data dir
 
 Every write `new` makes is UTF-8 with `\\n` newlines, and `fill` keeps
@@ -1376,13 +1376,13 @@ def _plugin_data_root() -> Path | None:
 
 
 def _default_memory_dir() -> Path | None:
-    """``.work`` under a git top level; the topic-docs no-project-root
-    fallback (``<plugin data>/topic-docs``) outside one. None when there is
-    no project root and no plugin data dir to fall back to."""
+    """``.work`` under a git top level; ``<plugin data>/artifacts`` outside
+    one. None when there is no project root and no plugin data dir to fall
+    back to."""
     if _git_toplevel(Path.cwd()) is not None:
         return Path(".work")
     data_root = _plugin_data_root()
-    return data_root / "topic-docs" if data_root is not None else None
+    return data_root / "artifacts" if data_root is not None else None
 
 
 def _git_origin(repo_root: Path) -> str | None:
@@ -1908,7 +1908,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_new.add_argument(
         "--memory-dir",
-        help="memory root (default .work inside a git work tree; outside one, the plugin data dir's topic-docs/); handoffs go to <root>/handoffs/",
+        help="memory root (default .work inside a git work tree; outside one, the plugin data dir's artifacts/); handoffs go to <root>/handoffs/",
     )
     p_new.add_argument(
         "--session-id", help="session UUID (default: $CLAUDE_CODE_SESSION_ID)"
