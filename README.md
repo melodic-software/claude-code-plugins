@@ -165,7 +165,7 @@ wraps the runnable rows is a later tooling decision, not this record.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.27.1 (`4610c31e92eb1c4b24981e2f200ac87bdb2a1753`), the pin in
+- **As of:** `ci-workflows` v0.30.2 (`a267a27f7a321452267e20c82d57699b6c057cb0`), the pin in
   `.github/workflows/ci.yml`.
 - **Recheck:** the `ci.yml` pin moves, or the composite's entry script changes its environment
   contract.

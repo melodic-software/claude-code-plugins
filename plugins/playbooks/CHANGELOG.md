@@ -10,6 +10,12 @@ only after that version increases.
 
 - A Sonnet 5.5 model-adaptation chapter, `reference/model-adaptation/sonnet-5-5.md`. The `fable-5` skill's meta-rule 3 routes Sonnet 5.5 to it and names its fallback targets.
 
+## [0.15.5] - 2026-10-01
+
+### Changed
+
+- The `boris` advanced and autonomy references point at the current docs for model and effort facts instead of restating them.
+
 ## [0.15.4] - 2026-10-01
 
 ### Fixed
