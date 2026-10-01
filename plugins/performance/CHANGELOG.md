@@ -3,6 +3,18 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-10-01
+
+### Added
+
+- **`summarize.py` prints the nearest-rank percentile beside each interpolated one and flags a p95
+  that one sample carries**
+  ([#5660](https://github.com/melodic-software/claude-code-plugins/issues/5660)). Each reported cell
+  reads `p95=123ms(nearest-rank=130ms)`. When dropping the single largest sample moves p95 by more
+  than 10%, an `OUTLIER` line says so and points at the raw samples. Refused percentiles are
+  unchanged. `summarize.test.sh` covers the paired values, the outlier flag, a uniform control and a
+  refused control.
+
 ## [0.3.0] - 2026-09-29
 
 ### Added
