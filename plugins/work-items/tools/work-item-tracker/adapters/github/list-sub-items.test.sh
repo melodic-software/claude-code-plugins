@@ -5,6 +5,9 @@
 # `--json subIssues` projection. End-to-end behavior against the live provider
 # stays with the on-demand e2e-probe.
 set -uo pipefail
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-sub-items.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
@@ -49,7 +52,7 @@ assert_usage_error "$S" "local-markdown:o/r#1"       # foreign provider
 # `.repository.nameWithOwner`, which is absent there, so it matched no node and
 # every container came back childless — this case fails on that predicate.
 if command -v jq >/dev/null 2>&1; then
-  STUB="$(mktemp -d)"
+  STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
   # #12 is a genuine cross-repo sub-issue whose number also exists in o/r, so
   # dropping it is what the same-repo filter is for.
@@ -63,7 +66,7 @@ if command -v jq >/dev/null 2>&1; then
     {"number":13,"title":"unrelated","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/13"}
   ]'
 
-  ERRFILE="$(mktemp)"
+  ERRFILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   OUT="$(PATH="$STUB:$PATH" GH_STUB_VIEW="$VIEW" GH_STUB_LIST="$LIST" bash "$S" "github:o/r#99" 2>"$ERRFILE")"
   rc=$?
   assert_eq "list-sub-items over stubbed subIssues → exit 0" "0" "$rc"
@@ -88,7 +91,7 @@ fi
 # unattributable node as same-repo would pull in an unrelated same-numbered item.
 # What changes is that the drop now says so on stderr, leaving stdout parseable.
 if command -v jq >/dev/null 2>&1; then
-  STUB="$(mktemp -d)"
+  STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
   # #21 is well-formed. #22 carries no url at all and #23 a url that is not an
   # issue path: the two ways a narrowed projection could go unattributable.
@@ -103,7 +106,7 @@ if command -v jq >/dev/null 2>&1; then
     {"number":23,"title":"three","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/o/r/issues/23"}
   ]'
 
-  ERRFILE="$(mktemp)"
+  ERRFILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   OUT="$(PATH="$STUB:$PATH" GH_STUB_VIEW="$VIEW" GH_STUB_LIST="$LIST" bash "$S" "github:o/r#99" 2>"$ERRFILE")"
   rc=$?
   ERR="$(<"$ERRFILE")"
@@ -126,7 +129,7 @@ fi
 # child foreign and return an empty list with no signal, which is the same
 # silent blindness (#3825) was, just reached by a different route.
 if command -v jq >/dev/null 2>&1; then
-  STUB="$(mktemp -d)"
+  STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   write_gh_stub "$STUB"
   # Canonical casing from the API differs from the casing used in the id.
   VIEW='{"subIssues":{"nodes":[
@@ -138,7 +141,7 @@ if command -v jq >/dev/null 2>&1; then
     {"number":32,"title":"same number, this repo","state":"OPEN","assignees":[],"labels":[],"issueType":null,"blockedBy":{"nodes":[]},"url":"https://github.com/acme/widgets/issues/32"}
   ]'
 
-  ERRFILE="$(mktemp)"
+  ERRFILE="$(mktemp "$TMP_ROOT/f.XXXXXX")"
   OUT="$(PATH="$STUB:$PATH" GH_STUB_VIEW="$VIEW" GH_STUB_LIST="$LIST" bash "$S" "github:acme/widgets#99" 2>"$ERRFILE")"
   rc=$?
   assert_eq "case-differing repo → exit 0" "0" "$rc"

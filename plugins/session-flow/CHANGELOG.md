@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.41.1] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.41.0] - 2026-09-29
 
 ### Added

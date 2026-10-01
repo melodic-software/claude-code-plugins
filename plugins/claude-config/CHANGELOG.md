@@ -5,6 +5,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [0.55.2] - 2026-09-30
+
+### Changed
+
+- `automode-entry-diff.sh --oracle` removes its scratch directory on exit; the suites remove their temporary directories.
+
 ## [0.55.1] - 2026-09-30
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.5] - 2026-09-30
+
+### Changed
+
+- README: the pytest command passes `-o tmp_path_retention_policy=none` so test directories are not kept under `$TMPDIR`.
+
 ## [0.4.4] - 2026-09-30
 
 ### Fixed

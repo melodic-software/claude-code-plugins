@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.23.21] - 2026-09-30
+
+### Changed
+
+- Test-only: the suites remove their temporary directories on exit. No behavior change.
+
 ## [0.23.20] - 2026-09-29
 
 ### Changed
