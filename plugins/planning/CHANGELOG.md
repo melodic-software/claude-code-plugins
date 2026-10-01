@@ -9,8 +9,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`draft-goal-condition` proposes the drafted condition through the built-in `ProposeGoal`
   tool when it resolves.** The proposal keeps `ask_user` true, so the person approves it with one
-  keypress, and it is made only for a condition that passes the length counter at the tool's own
-  cap. The paste-ready `/goal` line is still emitted every time. The Boundary section and
+  keypress. It is made only from the main thread of an interactive local session outside plan
+  mode, and only for a condition that passes the length counter at the tool's own cap. The
+  paste-ready `/goal` line is still emitted every time. The Boundary section and
   `reference/native-goal.md` record the tool.
 
 ## [0.54.0] - 2026-09-30
