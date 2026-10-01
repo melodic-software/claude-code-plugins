@@ -36,11 +36,11 @@ STORE="$DATA/machine-profile/profile.json"
 mkdir -p "$HOME/work" "$HOME/oss" "$HOME/lab" "$FIX/repo" "$DATA"
 cat >"$HOME/.gitconfig" <<'EOF'
 [includeIf "gitdir:~/work/"]
-	path = ~/.gitconfig-work
+    path = ~/.gitconfig-work
 [includeIf "gitdir/i:~/oss/"]
-	path = .gitconfig-oss
+    path = .gitconfig-oss
 [includeIf "gitdir:~/lab/**"]
-	path = ~/.gitconfig-lab
+    path = ~/.gitconfig-lab
 EOF
 printf '[user]\n\temail = work@example.invalid\n' >"$HOME/.gitconfig-work"
 printf '[user]\n\temail = oss@example.invalid\n' >"$HOME/.gitconfig-oss"
