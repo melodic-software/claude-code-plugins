@@ -161,6 +161,15 @@ assert_contains "missing executable uses the fails-to-launch wording" "$OUT_NOTF
 assert_absent "missing executable is not a completed non-zero exit" "$OUT_NOTFOUND" "completed non-zero exit"
 assert_absent "missing executable is not called ambiguous" "$OUT_NOTFOUND" "ambiguous"
 
+# A launched hook that relays the phrase from a child of its own carries no launcher
+# prefix, so it stays a completed non-zero exit.
+T_RELAY="$TEST_TMPDIR/relay.jsonl"
+# shellcheck disable=SC2016 # literal $PATH must not expand
+custom_record "PreToolUse:Bash" 'bash ${CLAUDE_PROJECT_DIR}/wrapper.sh' \
+  'wrapper: Executable not found in $PATH: "jq"' 1 8 >"$T_RELAY"
+OUT_RELAY=$(run_hook "$T_RELAY" "$TEST_TMPDIR/data-relay")
+assert_absent "a relayed phrase without the launcher prefix is not a launch failure" "$OUT_RELAY" "launch failure"
+
 # A signature AT 126/127 is a launch failure outright — the signature decides,
 # so the ambiguity below is only ever about a code with no signature behind it.
 T_SIG127="$TEST_TMPDIR/sig127.jsonl"
