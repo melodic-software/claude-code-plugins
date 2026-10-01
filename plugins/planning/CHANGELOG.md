@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.58.3] - 2026-10-01
+
+### Fixed
+
+- **The interview page no longer says `Sent to Claude` while no session holds the watcher lease.** The chip, the rail receipt and the working line read `No session is listening; type next in the terminal` until a watcher is armed, and the server pushes a frame when a lease expires so an open page does not keep a dead watcher's lease ([#5714](https://github.com/melodic-software/claude-code-plugins/issues/5714)).
+
+## [0.58.2] - 2026-10-01
+
+### Fixed
+
+- **`reply --rec` and `revise --rec` or `--alt` refuse a recommendation that an alternative equals, contains or is contained by.** Case, whitespace and trailing punctuation are folded and containment is whole-word. The refusal names the question and the alternative and writes nothing; pass revised alternatives in the same `revise` ([#5710](https://github.com/melodic-software/claude-code-plugins/issues/5710)).
+- **The interview page's event stream pushes a questions change that lands inside the same clock tick as the last push.** The change stamp carries size and inode with the mtime, and a state read that falls back to the last good state no longer advances it, so the next pass retries ([#5710](https://github.com/melodic-software/claude-code-plugins/issues/5710)).
+
 ## [0.58.1] - 2026-10-01
 
 ### Fixed

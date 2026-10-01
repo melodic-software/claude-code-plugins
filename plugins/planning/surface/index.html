@@ -482,6 +482,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const SUMMARY = "__summary";
   const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600};
   const RESTART = "Restart the server to enable this.";
+  const NOT_LISTENING = "No session is listening; type next in the terminal";
   const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
   const FREEZE_MS = 10000; // longest wrap-up freeze on decision saves
@@ -739,7 +740,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const aa = live(q) && afterAnswer(q);
     if (aa) chips.push('<span class="chip hot">' + esc(afterText(aa)) + "</span>");
     if (waitingReply(q)) chips.push('<span class="chip hot">Waiting for Claude\'s reply</span>');
-    if (lastEventSeq(q.id) && !answered(q, lastEventSeq(q.id))) chips.push('<span class="chip plain">Sent to Claude</span>');
+    const sent = lastEventSeq(q.id);
+    if (sent && !answered(q, sent)) chips.push('<span class="chip plain">' + (unheard() && !delivered(events().find(e => e.seq === sent)) ? NOT_LISTENING : "Sent to Claude") + "</span>");
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const gone = p => Q[p].supersededBy ? " (superseded by " + Q[p].supersededBy + ")" : stateOf(Q[p]) === "arch" ? " (archived)" : "";
     const needs = upOf(q).map(p => '<span class="needs' + (parentMet(p) ? "" : " unmet") + '">needs ' + esc(p + gone(p)) + "</span>").join("");
@@ -807,7 +809,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function subject(e){ return e.id ? e.id : e.kind === "note" ? "your note" : e.kind === "wrapup" ? "the wrap-up" : "an event"; }
   function deaf(){ // no watcher has polled for DEAF_AFTER seconds; idleFor is measured when state is built
     const l = S.listener || {};
-    if (l.waiters > 0) return false;
+    if (l.waiters > 0 || l.lease) return false;
     const idle = typeof l.idleFor === "number" ? l.idleFor + (Date.now() - S.stateAt) / 1000 : (Date.now() - LOADED_AT) / 1000;
     return idle >= DEAF_AFTER;
   }
@@ -815,11 +817,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = pending().find(delivered);
     return !!d && !!d.deliveredAt && Date.now() - Date.parse(d.deliveredAt) > 600000 && !((S.listener || {}).waiters > 0);
   }
+  function unheard(){ return deaf() || stalled(); } // no session is listening for the user's events
   function conn(){ // the connection dot's one word; offline says why
     if (S.restarted) return ["offline", "Server restarted: reload"];
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
     if (S.finished) return ["rest", "Finished"];
-    if (deaf() || stalled()) return pending().length ? ["idle", "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
+    if (unheard()) return pending().length ? ["idle", "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
     return ["listening", "Live"];
   }
   function working(){ // what Claude is doing with the user's events, else ""
@@ -827,7 +830,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const p = pending(), more = p.length > 1 ? " (+" + (p.length - 1) + ")" : "";
     if (!p.length) return ""; // everything handled: the newest entry says more than the watcher's state
     const d = p.find(delivered);
-    if (!d) return "Sent to Claude: " + subject(p[0]) + more;
+    if (!d) return (unheard() ? NOT_LISTENING + ": " : "Sent to Claude: ") + subject(p[0]) + more;
     return stalled() ? "Claude has not handled " + subject(d) + more + " yet" : "Claude is working on " + subject(d) + more;
   }
   function ago(iso){ const s = (Date.now() - Date.parse(iso)) / 1000; return isNaN(s) ? "" : s < 60 ? "just now" : s < 3600 ? Math.floor(s / 60) + " min ago" : Math.floor(s / 3600) + " h ago"; }
@@ -2062,7 +2065,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     e.preventDefault(); // a key that moved focus into a text box must not type itself there
   });
   window.addEventListener("resize", () => grow($("note")));
-  setInterval(() => { if (S.loaded) renderHeader(); }, 2000);
+  let wasUnheard = false;
+  setInterval(() => { if (!S.loaded) return; renderHeader(); if (unheard() !== wasUnheard) { wasUnheard = unheard(); renderRail(); } }, 2000);
 
   applySettings();
   refresh().then(() => setOnline(true)).catch(() => { setOnline(false); restoreFinish(); }).finally(connect);

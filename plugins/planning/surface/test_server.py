@@ -601,7 +601,10 @@ class TestFinishAndPort(unittest.TestCase):
 
     def test_a_new_server_drops_the_context_badge_and_handoff(self):
         s = self.start()
-        self.ops({"op": "context", "percent": 72, "zone": "amber"}, {"op": "context", "handoff": "Resume from x"})
+        self.ops(
+            {"op": "context", "percent": 72, "zone": "amber"},
+            {"op": "context", "handoff": "Resume from x"},
+        )
         self.assertIn("context", self.state(s)["questions"])
         run_round(self.dir, "stop")
         second = self.state(self.start())["questions"]
@@ -1340,6 +1343,112 @@ class TestEventStreamPing(ServerCase):
             self.assertEqual(resp.fp.readline(), b"data: {}\n")
         finally:
             conn.close()
+
+
+class TestEventStreamHandle(ServerCase):
+    """A handle-only apply reaches an open tab as a new state frame carrying the handled seq."""
+
+    fixtures = True
+
+    def test_handle_only_apply_pushes_a_state_frame(self):
+        seq = self.post({"id": "Q1", "kind": "accept"})[1]["seq"]
+        frames, ready = [], threading.Event()
+
+        def read(resp):
+            event = None
+            while line := resp.fp.readline():
+                if line.startswith(b"event: "):
+                    event = line[7:].strip()
+                elif line.startswith(b"data: ") and event == b"state":
+                    frames.append(json.loads(line[6:]))
+                    ready.set()
+
+        def handled(frame):
+            q = frame["questions"]
+            return q.get("handledSeq", 0) >= seq or seq in q.get("handled", [])
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/events")
+            threading.Thread(
+                target=read, args=(conn.getresponse(),), daemon=True
+            ).start()
+            self.assertTrue(ready.wait(TIMEOUT), "no first state frame")
+            time.sleep(1)
+            seen = len(frames)
+            ops = self.tmp / "ops.json"
+            ops.write_text(
+                json.dumps({"ops": [{"op": "handle", "seqs": [seq]}]}),
+                encoding="utf-8",
+            )
+            rc, out = self.rp("apply", "--file", str(ops))
+            self.assertEqual(rc, 0, out)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and not any(
+                handled(f) for f in frames[seen:]
+            ):
+                time.sleep(0.1)
+            self.assertTrue(
+                any(handled(f) for f in frames[seen:]),
+                f"no state frame after the apply carried seq {seq}",
+            )
+        finally:
+            conn.close()
+
+
+class TestEventStreamPush(ServerCase):
+    """A rewrite of questions.json reaches an open stream even when the file's mtime did not move."""
+
+    fixtures = True
+
+    def frame(self, resp):
+        """The next state frame's questions doc."""
+        while (line := resp.fp.readline()) != b"event: state\n":
+            self.assertTrue(line, "the stream closed before a state frame")
+        return json.loads(resp.fp.readline().split(b"data: ", 1)[1])["questions"]
+
+    def test_a_same_mtime_rewrite_is_pushed(self):
+        path = self.dir / "questions.json"
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            first = self.frame(resp)
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            doc["questions"][0]["recommendation"] = "Revised while the tab was open."
+            old = path.stat().st_mtime_ns
+            tmp = path.with_name("questions.json.swap")
+            tmp.write_text(json.dumps(doc), encoding="utf-8")
+            os.utime(tmp, ns=(old, old))
+            os.replace(tmp, path)
+            self.assertEqual(path.stat().st_mtime_ns, old)
+            self.assertEqual(
+                self.frame(resp)["questions"][0]["recommendation"],
+                "Revised while the tab was open.",
+            )
+            self.assertNotEqual(
+                first["questions"][0]["recommendation"],
+                "Revised while the tab was open.",
+            )
+        finally:
+            conn.close()
+
+
+class TestStateFallback(unittest.TestCase):
+    """A state read that fails keeps the last good state and says so, so the stream retries."""
+
+    def test_a_failed_read_is_marked_stale_until_a_read_succeeds(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-stale-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        hub = server.Hub(0, tmp)
+        self.assertFalse(hub.read_state()[1])
+        with unittest.mock.patch.object(
+            server, "load_json", side_effect=RuntimeError("busy")
+        ):
+            self.assertTrue(hub.read_state()[1])
+        self.assertFalse(hub.read_state()[1])
 
 
 class TestEventStreamCap(ServerCase):
@@ -2810,6 +2919,27 @@ class TestLease(WaitCase):
         self.assertEqual(
             self.state()["settings"]["leaseTimeout"], {"value": 5, "layer": "session"}
         )
+
+    def test_2b_the_stream_pushes_a_frame_when_the_lease_expires(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=15)
+        try:
+            conn.request("GET", "/events")
+            resp = conn.getresponse()
+            leases = []
+            end = (
+                time.monotonic() + 8
+            )  # before the listener state itself goes idle (LISTEN_GRACE, 10 s)
+            while time.monotonic() < end:
+                line = resp.fp.readline()
+                self.assertTrue(line, "the stream closed")
+                if line.startswith(b"data: {") and b'"listener"' in line:
+                    leases.append(json.loads(line[6:])["listener"]["lease"])
+                    if leases[-1] is None:
+                        break
+            self.assertIsNotNone(leases[0])
+            self.assertIsNone(leases[-1])
+        finally:
+            conn.close()
 
     def test_3_expired_lease_is_reclaimed(self):
         time.sleep(5.5)
