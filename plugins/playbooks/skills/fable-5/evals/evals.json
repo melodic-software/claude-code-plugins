@@ -52,6 +52,32 @@
         "Does not apply an Opus 5.5, Opus 5, Opus 4.8, or Sonnet 5 chapter in place of the Fable 5.1 file",
         "Does not treat the request as a /playbooks:update drift check"
       ]
+    },
+    {
+      "id": 5,
+      "name": "route-sonnet-5-5-session-at-arm-time",
+      "prompt": "You are running as Claude Sonnet 5.5. Load the playbook before we start on this refactor.",
+      "expected_output": "Arms the session and, per meta-rule 3, reads the Sonnet 5.5 model-adaptation chapter, sonnet-5-5.md, at arm time. Does not read sonnet-5.md or any other version's chapter in its place or beside it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads sonnet-5-5.md from the model-adaptation directory before continuing work",
+        "Does not read sonnet-5.md, opus-5-5.md, or fable-5-1.md as a substitute for or in addition to sonnet-5-5.md",
+        "Does not load every adaptation chapter in the directory"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "reroute-after-fallback-to-sonnet-5",
+      "prompt": "The playbook is armed and you started this session as Claude Sonnet 5.5. Claude Code just showed a notice that it re-ran my last request on Claude Sonnet 5. Keep going with the task.",
+      "expected_output": "Treats the notice as in-context evidence of a model switch, re-resolves meta-rule 3 against Claude Sonnet 5, and reads sonnet-5.md before continuing, instead of applying sonnet-5-5.md for the rest of the session.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads sonnet-5.md after the fallback notice and before continuing the task",
+        "Stops applying the Sonnet 5.5 chapter's deltas once the switch is evident",
+        "Continues the user's task after the re-read rather than stopping to ask whether to proceed"
+      ]
     }
   ]
 }

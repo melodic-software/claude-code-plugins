@@ -6,7 +6,27 @@ only after that version increases.
 
 ## [0.16.0] - 2026-10-01
 
+### Added
+
+- A `sonnet-5-5` model-adaptation chapter, links-only: each section holds a trigger for reading the
+  Sonnet 5.5 guide's section, the pointer, and only decisions that are ours (the medium effort
+  floor, posture P12 at `xhigh` and `max`, the agents' own finish-then-stop sections, which
+  surfaces we author as system prompt, which Sonnet 5 sections carry), plus three recorded page
+  disagreements.
+- A cross-model `reading-dense-images` note in `fable-5`, routed from the trigger table: a value
+  read from an image you could not read reliably is recall-grade.
+- Two `fable-5` evals: Sonnet 5.5 routing at arm time, and re-routing after a fallback to
+  Sonnet 5.
+
 ### Changed
+
+- The `fable-5` description and meta-rule 3 list Fable 5.1, Opus 5.5 and Sonnet 5.5 as current and
+  Opus 5, Opus 4.8 and Sonnet 5 as fallback-only, each still routed to its chapter. The fallback
+  mechanism and the Fable 5 system-card finding are now pointers, and only evidence that reaches
+  the context counts as a switch.
+- The `opus-5` thinking-and-effort decision, the `context-economy` thinking-retention probe
+  (re-run on Claude Code 2.1.285) and the `calibration` thinking-matrix record are re-derived
+  against the current pages.
 
 - The `fable-5-1`, `opus-4-8`, `opus-5`, `opus-5-5` and `sonnet-5` model-adaptation chapters and the
   `prompt-caching` chapter now hold our decision in our own words, with a pointer to the exact

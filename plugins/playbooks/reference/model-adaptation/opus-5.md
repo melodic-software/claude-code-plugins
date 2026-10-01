@@ -136,17 +136,19 @@ Keep thinking on and lower effort instead of disabling it. In prompts you author
 tell the model to skip thinking or reasoning, and phrase a tag-hygiene rule generally rather than
 naming thinking tags. `[CC: prompt-authoring]` Treat a configuration that pairs a thinking-disable
 surface with `xhigh` or `max` effort for this model as an authoring defect, wherever such
-configuration is audited. The effort ladder, the default, and per-model support resolve at the
-pointers, never from this file. `[CC: direct]`
+configuration is audited: we hold that a configuration states the level that actually runs, and
+how each surface handles this pairing resolves at the pointers. The effort ladder, the default, and per-model support resolve at the pointers, never from this file.
+`[CC: direct]`
 
 - **Pointer**: for thinking disabled, see
   [Running with thinking disabled](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5#running-with-thinking-disabled);
-  for Claude Code's thinking controls, see
-  [Extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking); for effort,
-  see
+  for how Claude Code handles the pairing, see
+  [Extended thinking](https://code.claude.com/docs/en/model-config#extended-thinking) and
+  [Effort isn't available with thinking turned off](https://code.claude.com/docs/en/errors#effort-isnt-available-with-thinking-turned-off);
+  for effort, see
   [Recommended effort levels for Claude Opus 5](https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-opus-5)
   and [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-- **As of**: 2026-08-08 for the guide; 2026-09-23 for model-config.
+- **As of**: 2026-08-08 for the guide; 2026-10-01 for model-config and the errors page.
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
   or a Claude Code release note changing how a thinking-disable setting combines with effort.
 

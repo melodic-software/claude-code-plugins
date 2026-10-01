@@ -276,7 +276,12 @@ Phases 2-6 follow the same rule: every file a phase edits is converted whole by 
 - **Sanity Check:** each converted catalog skill's evals run before and after 1b with the same results (`/skill-quality:check validate-evals <skill>` for the static gate; `/evals:plugin-eval` where a suite exists). A changed result is a regression to fix, not to accept.
 - **Sanity Check:** `node plugins/attribution/skills/audit/scripts/fingerprint.test.mjs` exits 0, and `bash scripts/affected-tests.sh --run --base origin/main` exits 0.
 
-### Phase 2: Sonnet 5.5 chapter and model coverage [TODO]
+### Phase 2: Sonnet 5.5 chapter and model coverage [DONE]
+
+Done 2026-10-01. Three fresh-context verifier passes. The second and third tightened the chapter
+from reworded guide steers to triggers, pointers and our own decisions only, per the
+model-adaptation contributor rule; the last flagged spot (meta-rule 3) was fixed and re-read
+main-side.
 
 - [ ] Create `plugins/playbooks/reference/model-adaptation/sonnet-5-5.md`, links-only and structured from the Sonnet 5.5 page and the Sonnet 5 lineage (Q2). Contents:
   - pointers with our trigger notes for each page section (Q23);
