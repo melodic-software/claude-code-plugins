@@ -173,14 +173,15 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
-| [`/actionlint:check`](../plugins/actionlint/skills/check/SKILL.md) | `actionlint` | Report whether the actionlint binary is installed. Never installs. |
+| [`/actionlint:check`](../plugins/actionlint/skills/check/SKILL.md) | `actionlint` | Report whether actionlint and node are installed. Never installs. |
 | [`/adhd:clarify`](../plugins/adhd/skills/clarify/SKILL.md) | `adhd` | Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing |
 | [`/adhd:shape`](../plugins/adhd/skills/shape/SKILL.md) | `adhd` | Set a standing action-first output posture. Lead with the next action, cut preamble |
 | [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown prose |
 | [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |
 | [`/attribution:audit`](../plugins/attribution/skills/audit/SKILL.md) | `attribution` | Find prose copied from external sources and convert it into pointers |
-| [`/bash-format:check`](../plugins/bash-format/skills/check/SKILL.md) | `bash-format` | Report whether shfmt and shellcheck are installed. Never installs. |
-| [`/biome-format:check`](../plugins/biome-format/skills/check/SKILL.md) | `biome-format` | Report whether the biome binary is installed. Never installs. |
+| [`/autonomy:check`](../plugins/autonomy/skills/check/SKILL.md) | `autonomy` | Report whether node and jq resolve for the autonomy hooks. Never installs. |
+| [`/bash-format:check`](../plugins/bash-format/skills/check/SKILL.md) | `bash-format` | Report whether shfmt, shellcheck and node are installed. Never installs. |
+| [`/biome-format:check`](../plugins/biome-format/skills/check/SKILL.md) | `biome-format` | Report whether biome and node are installed. Never installs. |
 | [`/claude-config:audit`](../plugins/claude-config/skills/audit/SKILL.md) | `claude-config` | Audit settings, hooks, permissions, and MCP config for drift against current official docs |
 | [`/claude-config:audit-automation-gaps`](../plugins/claude-config/skills/audit-automation-gaps/SKILL.md) | `claude-config` | Audit the repo's automation landscape for hook, MCP, skill, and subagent gaps worth adding |
 | [`/claude-config:audit-instructions`](../plugins/claude-config/skills/audit-instructions/SKILL.md) | `claude-config` | Find instructions current models no longer need across CLAUDE.md, AGENTS.md, rules, and skill bodies |
@@ -193,6 +194,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/claude-memory:audit`](../plugins/claude-memory/skills/audit/SKILL.md) | `claude-memory` | Audit CLAUDE.md, a root AGENTS.md, rules, and auto-memory against the official-docs checklist |
 | [`/claude-memory:stateless`](../plugins/claude-memory/skills/stateless/SKILL.md) | `claude-memory` | Inspect, disable, or purge Claude Code's per-repo auto memory |
 | [`/claude-ops:changelog`](../plugins/claude-ops/skills/changelog/SKILL.md) | `claude-ops` | Ingest a Claude Code release changelog and integrate its changes into the repo |
+| [`/claude-ops:check`](../plugins/claude-ops/skills/check/SKILL.md) | `claude-ops` | Report whether node and jq resolve for the claude-ops hooks. Never installs. |
 | [`/claude-ops:known-issues`](../plugins/claude-ops/skills/known-issues/SKILL.md) | `claude-ops` | Look up and track known Claude product issues, health, and workarounds |
 | [`/code-metrics:audit-complexity`](../plugins/code-metrics/skills/audit-complexity/SKILL.md) | `code-metrics` | Per-function complexity beside a cited reference, no verdict |
 | [`/code-metrics:audit-coverage`](../plugins/code-metrics/skills/audit-coverage/SKILL.md) | `code-metrics` | Coverage and CRAP read from build artifacts, no verdict |
@@ -205,8 +207,11 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/codebase-health:audit`](../plugins/codebase-health/skills/audit/SKILL.md) | `codebase-health` | Audit for drift between docs, config, code, and architecture via verified findings |
 | [`/computer-use:diagnose`](../plugins/computer-use/skills/diagnose/SKILL.md) | `computer-use` | Resolve computer-use capture, input, and screenshot symptoms to a cause |
 | [`/context-budget:audit`](../plugins/context-budget/skills/audit/SKILL.md) | `context-budget` | Measure the startup context payload per item and ledger every lever's real delta |
+| [`/context-budget:check`](../plugins/context-budget/skills/check/SKILL.md) | `context-budget` | Report whether node resolves for the context-budget hooks. Never installs. |
+| [`/context-guard:check`](../plugins/context-guard/skills/check/SKILL.md) | `context-guard` | Report whether node and jq resolve for the context-guard hooks. Never installs. |
 | [`/context7:check`](../plugins/context7/skills/check/SKILL.md) | `context7` | Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs. |
 | [`/coupling:reduce`](../plugins/coupling/skills/reduce/SKILL.md) | `coupling` | Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest |
+| [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |
 | [`/discipline:do-your-research`](../plugins/discipline/skills/do-your-research/SKILL.md) | `discipline` | Re-anchor research discipline, then audit and correct the current work |
 | [`/discipline:do-your-research-deep`](../plugins/discipline/skills/do-your-research-deep/SKILL.md) | `discipline` | Verify every session claim against primary sources in a heavy fan-out |
 | [`/discipline:follow-our-standards`](../plugins/discipline/skills/follow-our-standards/SKILL.md) | `discipline` | Re-anchor to org engineering standards and audit the work in flight |
@@ -229,28 +234,30 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/disk-hygiene:clean`](../plugins/disk-hygiene/skills/clean/SKILL.md) | `disk-hygiene` | Audit a directory tree for stale leftovers and remove validated paths |
 | [`/docs-hygiene:audit-derivability`](../plugins/docs-hygiene/skills/audit-derivability/SKILL.md) | `docs-hygiene` | Judge whether a doc earns its existence or should become a pointer |
 | [`/docs-hygiene:audit-encapsulation`](../plugins/docs-hygiene/skills/audit-encapsulation/SKILL.md) | `docs-hygiene` | Find external citations reaching into a skill's private surfaces |
-| [`/docs-hygiene:audit-file-names`](../plugins/docs-hygiene/skills/audit-file-names/SKILL.md) | `docs-hygiene` | Inventory a doc tree's file names and plan the renames with their references |
 | [`/docs-hygiene:audit-noise`](../plugins/docs-hygiene/skills/audit-noise/SKILL.md) | `docs-hygiene` | Classify markdown for citations, ghost refs, meta-commentary, plan/conversational/tracker residue |
 | [`/docs-hygiene:audit-progressive-disclosure`](../plugins/docs-hygiene/skills/audit-progressive-disclosure/SKILL.md) | `docs-hygiene` | Grade instruction files for split opportunities and hub/spoke disclosure defects |
 | [`/docs-hygiene:compress`](../plugins/docs-hygiene/skills/compress/SKILL.md) | `docs-hygiene` | Tighten markdown by dropping flavor while preserving every directive |
 | [`/docs-hygiene:extract-ssot`](../plugins/docs-hygiene/skills/extract-ssot/SKILL.md) | `docs-hygiene` | Deduplicate repeated prose into one named source of truth |
-| [`/docs-hygiene:realign-file-names`](../plugins/docs-hygiene/skills/realign-file-names/SKILL.md) | `docs-hygiene` | Apply a file-name rename plan, one acceptance per file |
 | [`/docs-hygiene:rename-references`](../plugins/docs-hygiene/skills/rename-references/SKILL.md) | `docs-hygiene` | Sweep stale references after renames, including forms grep misses |
 | [`/docs-hygiene:write-for-agents`](../plugins/docs-hygiene/skills/write-for-agents/SKILL.md) | `docs-hygiene` | Authoring-time doctrine for agent-consumed markdown |
 | [`/docs-hygiene:write-for-humans`](../plugins/docs-hygiene/skills/write-for-humans/SKILL.md) | `docs-hygiene` | Authoring-time doctrine for human-read documentation |
+| [`/docs-naming:audit-file-names`](../plugins/docs-naming/skills/audit-file-names/SKILL.md) | `docs-naming` | Inventory a doc tree's file names and plan the renames with their references |
+| [`/docs-naming:realign-file-names`](../plugins/docs-naming/skills/realign-file-names/SKILL.md) | `docs-naming` | Apply a file-name rename plan, one acceptance per file |
 | [`/education:eli5`](../plugins/education/skills/eli5/SKILL.md) | `education` | Visual HTML explainer assuming zero prior knowledge, one idea per diagram |
 | [`/education:explain`](../plugins/education/skills/explain/SKILL.md) | `education` | Explain any concept or the last response in genuinely plain words |
 | [`/education:quiz-me`](../plugins/education/skills/quiz-me/SKILL.md) | `education` | Generate a post-change report with a quiz verifying you absorbed the work |
 | [`/education:teach`](../plugins/education/skills/teach/SKILL.md) | `education` | Multi-session learning coach for general topics or repo-grounded concepts |
+| [`/eol-normalizer:check`](../plugins/eol-normalizer/skills/check/SKILL.md) | `eol-normalizer` | Report whether node and jq resolve for the eol-normalizer hooks. Never installs. |
 | [`/fleet:reach`](../plugins/fleet/skills/reach/SKILL.md) | `fleet` | Reach another fleet lane (WSL or Windows, here or remote) to run, prompt, query or message |
 | [`/github:advise`](../plugins/github/skills/advise/SKILL.md) | `github` | Design and set up GitHub settings and admin areas grounded in live gh state |
 | [`/github:audit`](../plugins/github/skills/audit/SKILL.md) | `github` | Read-only audit of GitHub org and repo settings, drift, and cost signals |
-| [`/go-format:check`](../plugins/go-format/skills/check/SKILL.md) | `go-format` | Report whether goimports is installed. Never installs. |
+| [`/go-format:check`](../plugins/go-format/skills/check/SKILL.md) | `go-format` | Report whether goimports and node are installed. Never installs. |
+| [`/guardrails:check`](../plugins/guardrails/skills/check/SKILL.md) | `guardrails` | Report whether node and jq resolve for the guardrails hooks. Never installs. |
 | [`/improvement:find`](../plugins/improvement/skills/find/SKILL.md) | `improvement` | Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline |
 | [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
 | [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
 | [`/instruction-placement:delta`](../plugins/instruction-placement/skills/delta/SKILL.md) | `instruction-placement` | Report only what moved since the last placement audit |
-| [`/markdown-format:check`](../plugins/markdown-format/skills/check/SKILL.md) | `markdown-format` | Report whether markdownlint-cli2 is installed. Never installs. |
+| [`/markdown-format:check`](../plugins/markdown-format/skills/check/SKILL.md) | `markdown-format` | Report whether markdownlint-cli2 and node are installed. Never installs. |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
 | [`/overengineering:justify`](../plugins/overengineering/skills/justify/SKILL.md) | `overengineering` | Make one artifact you point at justify its own existence, on evidence |
@@ -261,11 +268,15 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/playgrounds:use`](../plugins/playgrounds/skills/use/SKILL.md) | `playgrounds` | Route playground requests to the first-party plugin, or install it, with recipes and guidance |
 | [`/playwright:check`](../plugins/playwright/skills/check/SKILL.md) | `playwright` | Report whether playwright-cli and a browser resolve. Never installs. |
 | [`/powershell-format:check`](../plugins/powershell-format/skills/check/SKILL.md) | `powershell-format` | Report whether pwsh, PSScriptAnalyzer, jq and node are installed. Never installs. |
+| [`/rate-limit-guard:check`](../plugins/rate-limit-guard/skills/check/SKILL.md) | `rate-limit-guard` | Report whether node and jq resolve for the rate-limit-guard hook and statusline tee. Never installs. |
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
-| [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether the ruff binary is installed. Never installs. |
+| [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether ruff and node are installed. Never installs. |
+| [`/session-flow:check`](../plugins/session-flow/skills/check/SKILL.md) | `session-flow` | Report whether node and jq resolve for the session-flow observer hook. Never installs. |
 | [`/session-flow:show-options`](../plugins/session-flow/skills/show-options/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |
-| [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether the typos binary is installed. Never installs. |
+| [`/source-control:check`](../plugins/source-control/skills/check/SKILL.md) | `source-control` | Report whether node and jq resolve for the source-control hooks. Never installs. |
+| [`/testing:check`](../plugins/testing/skills/check/SKILL.md) | `testing` | Report whether node and jq resolve for the testing hooks. Never installs. |
+| [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether typos and node are installed. Never installs. |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
 | [`/wizard:unattended`](../plugins/wizard/skills/unattended/SKILL.md) | `wizard` | Author an unattended script a human launches once for a privilege or policy boundary |
@@ -303,6 +314,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/claude-ops:audit-skill-visibility`](../plugins/claude-ops/skills/audit-skill-visibility/SKILL.md) | `claude-ops` | weekly | Which skills the model can actually see, which are starved, and which are unobservable |
 | [`/claude-ops:inventory`](../plugins/claude-ops/skills/inventory/SKILL.md) | `claude-ops` | weekly | Enumerate every command, skill, agent, and plugin component this machine can invoke |
 | [`/claude-ops:lanes`](../plugins/claude-ops/skills/lanes/SKILL.md) | `claude-ops` | daily | Start, restart, stop, and check loop lanes as named background sessions |
+| [`/claude-ops:machine-profile`](../plugins/claude-ops/skills/machine-profile/SKILL.md) | `claude-ops` | weekly | Discover, store and diff machine facts and per-tree identity domains. Read-only by default. |
 | [`/claude-ops:morning-brief`](../plugins/claude-ops/skills/morning-brief/SKILL.md) | `claude-ops` | daily | Print the operator's read-only morning view. Queues, merge-ready PRs, parked decisions |
 | [`/claude-ops:observability`](../plugins/claude-ops/skills/observability/SKILL.md) | `claude-ops` | weekly | Report on locally captured telemetry. Token burn, cost, hook latency, per-session activity |
 | [`/claude-ops:plugins`](../plugins/claude-ops/skills/plugins/SKILL.md) | `claude-ops` | weekly | Bring the machine's plugin fleet current. Refresh, update, install per policy |

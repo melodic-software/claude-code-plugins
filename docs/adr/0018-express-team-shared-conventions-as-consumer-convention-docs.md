@@ -1,6 +1,8 @@
 # Express team-shared plugin conventions as consumer convention docs bound by a pointer line, with manifest-driven retirement detection
 
-- Status: accepted
+- Status: accepted; Decision 1 partly superseded by
+  [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
+  for structured surfaces
 - Date: 2026-09-01
 
 ## Context

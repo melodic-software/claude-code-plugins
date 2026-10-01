@@ -3,14 +3,17 @@
 The operator-supplied surfaces the trusted seam in
 [`promotion-evidence-resolution.md`](promotion-evidence-resolution.md) reads: what each one is,
 where it may live, and why. That file owns the resolution rule and the fail-closed table; this file
-owns what an operator provides. Providing these surfaces does not enable autonomous merge. No cycle
-step invokes `check-security-binding.mjs`, so every promotable cell resolves effective-unpromoted
-with or without them, and operators keep `--merge human-only` on launch lines.
+owns what an operator provides. A compliant set lets the seam return a qualified read: cycle-shape
+step 3 runs the operator-supplied `check-security-binding.mjs` on the three evidence surfaces each
+cycle. A cell then resolves
+promoted only when the binding's ceiling and the in-epoch evidence say so, and every cell stays
+effective-unpromoted when a surface is absent or non-compliant. Operators keep `--merge human-only`
+on launch lines; lifting it is the owner's call after Phase 3 of the plan.
 
 ## Contents
 
 - [Allowed source class](#allowed-source-class)
-- [The three surfaces](#the-three-surfaces)
+- [The four surfaces](#the-four-surfaces)
 - [Value shape](#value-shape)
 - [Out of scope](#out-of-scope)
 - [Verification record](#verification-record)
@@ -22,7 +25,7 @@ org-level platform configuration outside repo blast radius, or the executor's tr
 config
 ([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md)
 "Agent-unwritable bootstrap for security resolution", not restated here). The lane receives their
-locations through the three plugin options below. Claude Code reads plugin options from user
+locations through the four plugin options below. Claude Code reads plugin options from user
 settings, the `--settings` flag, and managed settings only, and ignores a project's
 `.claude/settings.json` for them
 ([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
@@ -49,15 +52,16 @@ file. Managed settings, or a `--settings` file the executor owns, keep the locat
 agent's reach too. Whether a deployment meets the requirement is the operator's to establish. This
 file states the requirement and does not certify a deployment.
 
-## The three surfaces
+## The four surfaces
 
-| Option | Passed to `check-security-binding.mjs` as | What it names |
+| Option | Passed to the resolution helper as | What it names |
 |---|---|---|
-| `promotion_evidence_binding` | the `<binding.json>` argument | file: the security binding document |
+| `promotion_evidence_binding` | `--binding`, the checker's `<binding.json>` argument | file: the security binding document |
 | `promotion_evidence_root` | `--probe-evidence-root <dir>` | directory: the protected evidence surface |
 | `promotion_evidence_source` | `--evidence <evidence.json>` | file: epoch-scoped promotion-evidence events |
+| `promotion_evidence_checker` | `--checker <file>` | file: the `check-security-binding.mjs` that decides promoted |
 
-The script's `Usage:` comment, and its `usage:` error message, list all three arguments
+The checker's `Usage:` comment, and its `usage:` error message, list its three arguments
 ([`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)).
 
 ### `promotion_evidence_binding`
@@ -103,6 +107,17 @@ Agent-unwritable, because an agent that can write the file can delete a `reverte
 keep its cell promoted. Outside the target repository's blast radius, for the same reason as the
 binding.
 
+### `promotion_evidence_checker`
+
+The `check-security-binding.mjs` the helper runs (the autonomy plugin's
+`skills/setup/scripts/check-security-binding.mjs`), from an install the operator trusts. The
+operator names it because this plugin never looks for another plugin's install directory, and the
+lane cannot be the source of the program whose output decides `promoted`.
+
+Agent-unwritable, because the helper runs it and reads its verdict as the resolution: a program
+the lane or an agent can write, or can point at, prints `bound promoted -> effective promoted` for
+any cell. Outside the target repository's blast radius, for the same reason as the binding.
+
 ## Value shape
 
 Each option holds one local filesystem path and has no default. Unset means the bootstrap is
@@ -110,9 +125,11 @@ absent. A set value is compliant only when it is:
 
 - **Absolute.** A relative path resolves against the launch directory, which for a lane started in
   a checkout is inside the target repository.
-- **Outside the target repository's checkout and every worktree the lane creates.** That includes
-  `babysit_worktree_root`, `worktree_root`, and the plugin data directory's `worktrees/`, judged
-  after symlinks resolve.
+- **Outside the target repository's checkout and every worktree the lane creates, and containing
+  none of them.** That includes `babysit_worktree_root`, `worktree_root`, and the plugin data
+  directory's `worktrees/`, judged after symlinks resolve. A directory surface (the probe evidence
+  root) must not be an ancestor of the checkout or a worktree root: a transcript the lane writes
+  anywhere beneath it would resolve as evidence.
 - **Read-only to the lane.** The lane's identity can read the surface and cannot write it. That is
   a property of the host (ownership, an ACL, a read-only mount, an executor-owned volume). A path
   string cannot show it, so the operator establishes it in how the surface is provisioned.
@@ -123,10 +140,20 @@ absent. A set value is compliant only when it is:
   back to a weaker read.
 - Reading promotion evidence from `.claude/source-control.md` or any other repo-local or
   agent-writable surface.
-- Autonomous merge on promotion grounds. Operators keep `--merge human-only` on launch lines while
-  the bootstrap is absent, and while it is present until a cycle step consumes it.
-- Invoking `check-security-binding.mjs` from the lane. The phased plan is in
+- Lifting `--merge human-only`. Operators keep it on launch lines whether or not the bootstrap is
+  present; lifting it is the owner's call after Phase 3 of the plan.
+- A `--credential-roots` surface. The lane passes the checker none, so a binding whose L2/L3
+  isolation entries rest on filesystem credential probes is rejected by the checker and every cell
+  resolves effective-unpromoted. The phased plan is in
   [`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md).
+- Proving where a value came from. The helper enforces where each of the four paths sits (absolute,
+  outside the checkout and worktree roots, not containing one). It cannot tell an operator's
+  option value from a path the lane chose, so a forged checker or surface kept outside those roots
+  passes it, and the cycle step is instructed to pass only the substituted option values. Closing
+  that in code means the helper reads the operator's own settings (channel F of
+  [hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)),
+  which is outside Phase 2 and left to the owner; `--merge human-only` is the control that holds
+  until then.
 
 ## Verification record
 
@@ -146,3 +173,31 @@ absent. A set value is compliant only when it is:
 - **As of:** 2026-09-29.
 - **Recheck:** any of those changing the usage line, the quoted reason, the evidence shape, or the
   plugin-option read scopes.
+
+- **Claim:** the checker leaves an L2/L3 entry unproven, with a reason beginning
+  `no --credential-roots configured`, when a filesystem credential probe is evaluated and the
+  `--credential-roots` argument is absent. The lane's helper passes the checker the binding,
+  `--evidence`, and `--probe-evidence-root` only, and a checker exit of 1 fails the helper closed.
+- **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
+  the `credentialRoots === null` branch of the credential-probe check, `verifyProbeTranscript`);
+  `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` (the
+  `spawnSync` argv and the non-zero-exit branch), checked 2026-10-01.
+- **As of:** 2026-10-01.
+- **Recheck:** the checker gaining a default for credential roots, or the helper passing more
+  arguments.
+
+- **Claim:** the checker is the program that prints each cell's `bound X -> effective Y` line in
+  evaluation mode, and the helper reports that line as the resolution. The helper takes the checker
+  path as `--checker` and refuses a path inside the checkout or a worktree root, or containing one,
+  with or without symlinks resolved, and a probe evidence root that is an ancestor of either. It
+  has no operator-controlled source for the checker, so the bootstrap names one. This plugin does
+  not discover another plugin's install directory.
+- **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (the
+  `Effective promotion state (evaluation mode):` print);
+  `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs`
+  (`resolveInput`, the `spawnSync` call);
+  [`docs/plugin-philosophy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/plugin-philosophy.md)
+  "Keep plugins horizontally decoupled", checked 2026-10-01.
+- **As of:** 2026-10-01.
+- **Recheck:** the helper reading an operator source for the checker itself, the checker's print
+  format changing, or the decoupling rule changing.

@@ -60,7 +60,7 @@ export const EXCLUDED_SKILLS = new Map([
   // Same class again: it emits a gate and its suite into the consuming
   // repository once, which is provisioning. The dev-lifecycle actions in this
   // plugin's file-name set are `audit-file-names` and `realign-file-names`.
-  ["docs-hygiene/generate-file-name-gate", "infra setup"],
+  ["docs-naming/generate-file-name-gate", "infra setup"],
   // The return-contract copies. One text, three byte-identical copies, each
   // preloaded into its own plugin's agents by a `skills:` entry and reachable
   // no other way: `user-invocable: false`, never a dev-lifecycle action a

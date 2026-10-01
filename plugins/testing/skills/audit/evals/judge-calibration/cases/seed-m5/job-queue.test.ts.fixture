@@ -1,0 +1,9 @@
+import { expect, it } from 'vitest';
+import { JobQueue } from './job-queue';
+
+it('queues jobs in order', () => {
+  const queue = new JobQueue();
+  queue.push('build');
+  queue.push('test');
+  expect(queue.items).toEqual(['build', 'test']);
+});

@@ -3,6 +3,18 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-01
+
+### Added
+
+- **`/rate-limit-guard:check` reads whether `node` and `jq` resolve for the rate-limit-guard hook and statusline tee.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `node` and `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.9.4] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
 ## [0.9.3] - 2026-09-30
 
 ### Fixed

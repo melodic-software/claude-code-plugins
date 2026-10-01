@@ -4,13 +4,13 @@
     {
       "id": 1,
       "prompt": "Is the testing plugin configured for this repo? Which test lint rules are missing?",
-      "expected_output": "Runs setup.sh check read-only and shows its four sections: the resolved .claude/testing.yaml (or that no layer exists), one lint row per rule for each language the tracked tests use with every missing rule reported as a finding rather than a neutral absence and Bash, PowerShell and Go marked no maintained rule, the optional instruction line offered for pasting, and the hook-entry section. Writes nothing and does not edit CLAUDE.md or AGENTS.md.",
+      "expected_output": "Runs setup.sh check read-only and shows its four sections: the resolved testing config (or that no layer exists), one lint row per rule for each language the tracked tests use with every missing rule reported as a finding rather than a neutral absence and Bash, PowerShell and Go marked no maintained rule, the optional instruction line offered for pasting, and the hook-entry section. Writes nothing and does not edit CLAUDE.md or AGENTS.md.",
       "files": []
     },
     {
       "id": 2,
       "prompt": "Exclude our legacy folder from the can't-fail audit and scan *.it.ts files as Vitest tests.",
-      "expected_output": "Runs check first, then apply with --exclude 'legacy/**' and --extend js-vitest.files='*.it.ts', keeping any values the existing file already holds. Only .claude/testing.yaml is written. Re-runs check and shows the settings hook entry printed for *.it.ts, which no shipped hook row covers, explaining that the user adds it to .claude/settings.json and that it passes --enabled because settings hooks get no plugin variables. Offers the git add and commit without running them unasked.",
+      "expected_output": "Runs check first, then apply with --exclude 'legacy/**' and --extend js-vitest.files='*.it.ts', keeping any values the existing file already holds. Only the config block of docs/conventions/testing.md is written (the file is created with the block when absent, and .claude/testing.yaml is rewritten instead only when it is the file already in use). Re-runs check and shows the settings hook entry printed for *.it.ts, which no shipped hook row covers, explaining that the user adds it to .claude/settings.json and that it passes --enabled because settings hooks get no plugin variables. Offers the git add and commit without running them unasked.",
       "files": []
     },
     {

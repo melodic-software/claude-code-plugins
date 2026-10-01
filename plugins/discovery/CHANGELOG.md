@@ -1,5 +1,28 @@
 # Changelog: discovery plugin
 
+## [0.25.21] - 2026-10-01
+
+### Added
+
+- **`evals/explorer-uses-delivered-scout-hand-back` is the plugin's first `claude plugin eval` case.** It dispatches `discovery:explorer` with a nested scout's final report already delivered in the dispatch prompt, and grades that the explorer uses the report and runs on to its own return block: the slice index reaches `Run status: complete`, and the relayed block carries `status: complete` and `persistence: written`. The delivery is simulated, so the case grades the explorer's reaction and not the harness. A run needs `--scaffold --allow-tools Bash,Write --ablation none`.
+
+## [0.25.20] - 2026-10-01
+
+### Added
+
+- **`reference/parent-contract.md` records a first-party reproduction of the named `discovery:explorer` dispatch as harness fact 12.** Four headless dispatches on Claude Code 2.1.286 (`model:` with `name:`, `name:` alone, and `model:` alone, plus a probe run) delivered the definition body and resolved the `skills:` preload, and every first return was the YAML block. The two reported runs that behaved as if both were missing did not reproduce; the record states what that does not establish and its recheck trigger.
+- **Two `explore` evals cover the parent side of the failure shapes.** Eval 14 grades a prose-only explorer return with no payload block as a failed dispatch. Eval 15 grades an explorer's final report delivered as a message: the parent runs the acceptance gate instead of waiting.
+
+### Changed
+
+- **`agents/explorer.md` says a nested child's delivered hand-back is its final report.** The explorer uses it and continues instead of idling for a report it already holds.
+
+## [0.25.19] - 2026-10-01
+
+### Changed
+
+- **The `maxTurns` record in `reference/parent-contract.md` now states the decision to keep 40 as a checkpoint and not size research-deep lanes to it.** A run that reaches the limit completes through resume; the recheck triggers are unchanged.
+
 ## [0.25.18] - 2026-09-30
 
 ### Fixed

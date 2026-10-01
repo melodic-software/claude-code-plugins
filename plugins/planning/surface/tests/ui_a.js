@@ -22,7 +22,8 @@ async page => {
   await page.setViewportSize({width: 510, height: 860});
   if (!(await page.isVisible('.qbtn[data-q="Q7"]'))) await page.click('.sec[data-key="g:realtime"] .sec-h');
   const n4 = await page.evaluate(() => { const b = document.querySelector('.qbtn[data-q="Q7"]'), q = b.querySelector(".qid"), r = document.createRange(); r.selectNodeContents(q); return {idW: q.getBoundingClientRect().width, textW: r.getBoundingClientRect().width, idRight: q.getBoundingClientRect().right, tLeft: b.querySelector(".qtitle").getBoundingClientRect().left}; });
-  ok("a rail card with two dependsOn keeps the id column as wide as the id text", n4.idW <= n4.textW + 2 && n4.tLeft >= n4.idRight, JSON.stringify(n4));
+  const w4 = await page.$$eval(".qbtn .qid", els => els.filter(e => e.offsetParent).map(e => Math.round(e.getBoundingClientRect().width)));
+  ok("every rail card has the same fixed id column, wide enough for its id", new Set(w4).size === 1 && n4.idW >= n4.textW && n4.tLeft >= n4.idRight, JSON.stringify([w4, n4]));
   for (const id of ["Q8", "Q9", "Q7", "Q11"]) if (!(await page.isVisible('.qbtn[data-q="' + id + '"]'))) await page.evaluate(i => document.querySelector('.qbtn[data-q="' + i + '"]').closest(".sec").querySelector(".sec-h").click(), id);
   const lay = await page.evaluate(() => ["Q8", "Q9", "Q7", "Q11"].map(id => {
     const b = document.querySelector('.qbtn[data-q="' + id + '"]'), t = b.querySelector(".qtitle").getBoundingClientRect(), qid = b.querySelector(".qid").getBoundingClientRect(), ns = [...b.querySelectorAll(".needs")];
@@ -138,6 +139,24 @@ async page => {
   await page.keyboard.press("Escape"); await page.waitForTimeout(150);
   ok("Esc closes full screen", await page.evaluate(() => document.getElementById("fs").hidden));
   await page.keyboard.press("Escape");
+
+  // medium widths: the agrid is one column, the rail cut is marked, nothing widens the page
+  await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
+  for (const w of [1024, 820]) {
+    await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);
+    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice .t")).webkitLineClamp}));
+    ok("at " + w + " px the answer grid is one column and the page does not widen", m.cols === 1 && m.wide <= 1, JSON.stringify(m));
+    if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
+    ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
+    await page.click(".sumbtn"); await page.waitForTimeout(250);
+    ok("the summary does not widen the page at " + w + " px", await page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1));
+    await page.click('.qbtn[data-q="N2"]').catch(() => {}); await page.waitForTimeout(150);
+  }
+  await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(250);
+  ok("the meter title states the archived count", /\d+ archived/.test(await page.getAttribute("#meterText", "title")), await page.getAttribute("#meterText", "title"));
+  await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);
+  ok("a filter that matches nothing says so in the rail, not a blank list", (await page.$$(".rail-list .qbtn")).length > 0 || /No questions match/.test(await page.textContent("#railList")));
+  await page.selectOption("#filter", "all"); await page.waitForTimeout(200);
 
   // set up the 409 test on N2: pick a choice and write a note
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);

@@ -1,0 +1,5 @@
+using Platform.AI.Abstractions.Validation;
+
+namespace Platform.AI.Validation;
+
+public sealed record ValidatorRegistration(IContentValidator Validator, ContentValidationCriteria Criteria);

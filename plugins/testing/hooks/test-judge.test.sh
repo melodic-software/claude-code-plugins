@@ -368,18 +368,25 @@ model_for() { # model_for <sid> <env...>: the --model the Stop hook's judge run 
   out="$(payload "$sid" stop "" '{"hook_event_name": "Stop"}' | env "$@" bash "$HOOK" 2>/dev/null)"
   stub_args 1 | sed -n '/^--model$/{n;p;}'
 }
-transcript ma claude-sonnet-5
-check "keys unset: opus" '[[ "$(model_for ma X=1)" == opus && "$(stub_args 1 | sed -n "/^--effort$/{n;p;}")" == medium ]]'
-transcript mb claude-opus-5-5
-check "keys unset, an opus writer: the sonnet fallback" '[[ "$(model_for mb X=1)" == sonnet ]]'
-transcript mc claude-sonnet-5
-check "an invalid alias falls back to opus, an invalid effort to medium" \
-  '[[ "$(model_for mc CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=gpt CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT=ultra)" == opus &&
+transcript ma claude-haiku-4-5-20251001
+check "keys unset: sonnet at medium" '[[ "$(model_for ma X=1)" == sonnet && "$(stub_args 1 | sed -n "/^--effort$/{n;p;}")" == medium ]]'
+transcript mb claude-sonnet-5
+check "keys unset, a sonnet writer: opus" '[[ "$(model_for mb X=1)" == opus ]]'
+transcript mh claude-haiku-4-5-20251001
+check "fallback unset, a haiku writer of a haiku judge: the opus fallback" \
+  '[[ "$(model_for mh CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=haiku)" == opus ]]'
+transcript mi claude-haiku-4-5-20251001
+check "an invalid fallback alias falls back to opus" \
+  '[[ "$(model_for mi CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=haiku CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL=gpt)" == opus ]]'
+transcript mc claude-haiku-4-5-20251001
+check "an invalid alias falls back to sonnet, an invalid effort to medium" \
+  '[[ "$(model_for mc CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=gpt CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT=ultra)" == sonnet &&
     "$(stub_args 1 | sed -n "/^--effort$/{n;p;}")" == medium ]]'
 transcript md claude-opus-5-5
 jq -cn '{type: "assistant", message: {model: "claude-opus-5-5", content: [{type: "tool_use", name: "Agent", input: {model: "haiku", prompt: "x"}}]}}' >>"$TDIR/md.jsonl"
 jq -cn '{type: "assistant", message: {model: "<synthetic>", content: []}}' >>"$TDIR/md.jsonl"
-check "Agent-call and <synthetic> lines do not change the session model" '[[ "$(model_for md X=1)" == sonnet ]]'
+check "Agent-call and <synthetic> lines do not change the session model" \
+  '[[ "$(model_for md CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL=opus CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL=sonnet)" == sonnet ]]'
 transcript me claude-sonnet-5
 subagent me a1 claude-opus-5-5
 check "class collisions walk opus, sonnet, haiku" \
@@ -591,6 +598,17 @@ printf 'rules:\n  rule-weak-oracle: warn\n' >"$REPO/.claude/testing.yaml"
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
 check "a changed .claude/testing.yaml re-derives" '[[ "$(scans)" == 1 ]]'
 rm -f "$REPO/.claude/testing.yaml" "$TMP/scans"
+mkdir -p "$REPO/docs/conventions"
+printf '# Testing\n\n```yaml config\nrules:\n  rule-weak-oracle: warn\n```\n' >"$REPO/docs/conventions/testing.md"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "a changed docs/conventions/testing.md block re-derives" '[[ "$(scans)" == 1 ]]'
+rm -f "$TMP/scans"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "and is not scanned again while unchanged" '[[ "$(scans)" == 0 ]]'
+printf '# Testing\n\n```yaml config\nrules:\n  rule-weak-oracle: error\n```\n' >"$REPO/docs/conventions/testing.md"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "an edited block re-derives again" '[[ "$(scans)" == 1 ]]'
+rm -rf "$REPO/docs" "$TMP/scans"
 transcript cache2 claude-sonnet-5
 CF2="$REPO/src/failscan.test.ts"
 js_file "$CF2" fs

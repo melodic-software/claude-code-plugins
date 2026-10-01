@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.2] - 2026-10-01
+
+### Changed
+
+- `map-events` and `map-flow` state their scope: C# is read, and Node, Go, Python, Rust, JVM, Ruby and PHP are declined, so a message or call that exists only in those files is absent from the output.
+
 ## [0.17.1] - 2026-09-30
 
 ### Fixed

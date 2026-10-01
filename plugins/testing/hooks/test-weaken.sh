@@ -15,7 +15,7 @@
 # on a path that does not exist yet). A side the lexer ends inside a string or
 # comment is not judged.
 #
-# With `rules: {test-weaken-block: error}` in .claude/testing.yaml, an added
+# With `rules: {test-weaken-block: error}` in the testing config, an added
 # skip or a removed test block is denied unless the new text carries more
 # `test-change: <reason>` markers than the old. The agent can write that
 # marker itself: it makes the reason visible to reviewers and proves nothing.
@@ -133,7 +133,7 @@ lead="testing: $FILE_BASE: this $tool weakens its tests:"$'\n'"$body"
 # grep -c prints 0 and exits 1 on no match; the count is what matters.
 if [[ "$head" == block$'\t'error ]] &&
   (($(grep -c 'test-change:[[:space:]]*[^[:space:]]' "$work/new") <= $(grep -c 'test-change:[[:space:]]*[^[:space:]]' "$old"))); then
-  reason="$lead"$'\n'"rules.test-weaken-block is error in .claude/testing.yaml, so a skipped or removed test needs a stated reason. If the change is deliberate, retry the same edit with a comment in the edited text that reads test-change: <reason>, naming why the test goes (a removed feature, a tracked flaky test). Never skip or delete a test to make failing code pass."
+  reason="$lead"$'\n'"rules.test-weaken-block is error in the testing config, so a skipped or removed test needs a stated reason. If the change is deliberate, retry the same edit with a comment in the edited text that reads test-change: <reason>, naming why the test goes (a removed feature, a tracked flaky test). Never skip or delete a test to make failing code pass."
   esc=""
   hook::json_escape_to esc "$reason"
   if [[ -n "${start:-}" ]] && hook::telemetry_enabled; then

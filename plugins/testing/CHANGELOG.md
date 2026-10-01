@@ -3,6 +3,67 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-10-01
+
+### Changed
+
+- **judge:** the task-end judge defaults to `sonnet` at `medium` effort, with `opus` as the fallback
+  class, in `plugin.json` and in `judge-lib.sh`'s in-script defaults and invalid-value fallbacks.
+  The calibration sweep chose them: `sonnet` `medium` is tied-best under both the consensus labels
+  and GPT's labels (the tie-break alone picks `sonnet` `low`, which GPT's labels rate significantly
+  worse than `opus` `high`), at about $0.001 more per row. The table is in `docs/specs/tautological-tests-judge/calibration.md`.
+
+### Added
+
+- **calibration:** the judge calibration set under `skills/audit/evals/judge-calibration/`: 78
+  labeled cases, `raters.sh` (blind opus and Codex raters), `metrics.sh` (kappa, confusion matrix,
+  Wilson intervals, `--check`, a seven-arm `--sweep`, `--table` and `--rerun` for run-to-run
+  variance), and the sweep's verdict, cost and wall-time files under `sweep/`.
+
+### Fixed
+
+- **calibration:** `metrics.sh` printed `flag-n` for a stratum with no reference FLAG as a value
+  like `5.22809e-310` instead of `0`.
+- **calibration:** `raters.sh` dropped an answer whose reason quoted code containing braces; it now
+  parses the outermost `{...}` object first, then falls back to the flat scan.
+- **calibration:** `raters.sh` runs Codex with `--ignore-user-config`, web search off and connected
+  apps off, so the user's MCP servers, plugins and `AGENTS.md` never reach the rater.
+
+## [0.15.1] - 2026-10-01
+
+### Changed
+
+- **`prerequisites.json` declares `node`.** The hooks run it, so `/claude-ops:prerequisites` now reports a missing `node` and names `/testing:check`, which probes it.
+
+## [0.15.0] - 2026-10-01
+
+### Changed
+
+- **config:** the team layer is read from the one `yaml config` fenced block in
+  `docs/conventions/testing.md` (a second block is an error), with `.claude/testing.yaml` as the fallback when the docs file has
+  no block. When both exist the docs block wins and `resolve-config.sh` prints one warning naming
+  both paths. Config errors in the block report the `.md` path and line. The user-global and
+  `.local` layers are unchanged.
+- **hooks:** `judge-lib.sh` cache keys include `docs/conventions/testing.md`, so a changed block
+  re-derives; `test-scan` and `test-weaken` messages name whichever source failed.
+- **setup:** `apply` writes the docs block, or `.claude/testing.yaml` when that file is the one in
+  use, and refuses to touch a docs block that does not parse. It rejects a flag value that holds a
+  line break and refuses a symlinked docs file before reading it.
+- **docs:** the README carries the migration steps and the measured `test-scan` timings;
+  `scripts/time-config.sh` reproduces them.
+
+## [0.14.0] - 2026-10-01
+
+### Added
+
+- **`/testing:check` reads whether `jq` resolves for the testing hooks.** The skill is model-invocable, read-only and never installs. A new `prerequisites.json` declares `jq` and points at it, so `/claude-ops:prerequisites` and the per-plugin check read the same list.
+
+## [0.13.1] - 2026-10-01
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` `jq` notices name `/claude-ops:prerequisites` when the claude-ops plugin is installed.** No behavior or exit-code change.
+
 ## [0.13.0] - 2026-09-30
 
 ### Added

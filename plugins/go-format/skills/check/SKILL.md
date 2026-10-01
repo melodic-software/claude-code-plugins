@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that goimports resolves for the go-format hook. Use when a hook notice says goimports is missing, or before assuming Go formatting ran. Does not install."
+description: "Read-only check that goimports and node resolve for the go-format hook. Use when a hook notice says goimports or node is missing, or before assuming Go formatting ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether goimports is installed. Never installs.
+  summary: Report whether goimports and node are installed. Never installs.
 ---
 
 ## Purpose
@@ -15,7 +15,7 @@ Run the read-only check. Do not run `apply`. Do not install or download.
 
 ## Check
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Report the PASS/FAIL table. Stop.
+Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section. Setup's pre-computed rows are not rendered when this skill reads the file, so run every probe (node, jq, goimports) via Bash. Report the PASS/FAIL table. Stop.
 
 ## Next
 

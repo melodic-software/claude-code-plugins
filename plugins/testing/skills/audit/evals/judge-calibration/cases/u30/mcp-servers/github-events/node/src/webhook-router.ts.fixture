@@ -1,0 +1,229 @@
+import type { ChannelNotificationParams } from "./shared/event-payload.js";
+
+export type KnownEvent =
+  | "check_run"
+  | "check_suite"
+  | "workflow_run"
+  | "pull_request"
+  | "pull_request_review"
+  | "pull_request_review_comment"
+  | "issue_comment"
+  | "ping";
+
+export interface RouteResult {
+  notification: ChannelNotificationParams;
+}
+
+interface GhPayload {
+  action?: string;
+  repository?: { full_name?: string };
+  sender?: { login?: string };
+  pull_request?: {
+    number?: number;
+    title?: string;
+    html_url?: string;
+    state?: string;
+    merged?: boolean;
+    user?: { login?: string };
+    head?: { ref?: string };
+    base?: { ref?: string };
+  };
+  issue?: { number?: number; title?: string; html_url?: string; pull_request?: unknown };
+  check_run?: {
+    name?: string;
+    status?: string;
+    conclusion?: string | null;
+    html_url?: string;
+    details_url?: string;
+    annotations_url?: string;
+    pull_requests?: Array<{ number?: number }>;
+  };
+  check_suite?: {
+    status?: string;
+    conclusion?: string | null;
+    check_runs_url?: string;
+    pull_requests?: Array<{ number?: number }>;
+  };
+  workflow_run?: {
+    name?: string;
+    status?: string;
+    conclusion?: string | null;
+    html_url?: string;
+    logs_url?: string;
+    jobs_url?: string;
+    artifacts_url?: string;
+    check_suite_url?: string;
+    head_branch?: string;
+    pull_requests?: Array<{ number?: number }>;
+  };
+  review?: { state?: string; user?: { login?: string }; html_url?: string };
+  comment?: { user?: { login?: string }; body?: string; html_url?: string };
+  zen?: string;
+  hook_id?: number;
+}
+
+interface BuildContext {
+  repo: string;
+  action: string;
+  sender: string;
+  meta: Record<string, unknown>;
+}
+
+type EventBuilder = (p: GhPayload, ctx: BuildContext) => string;
+
+const knownBuilders: Partial<Record<string, EventBuilder>> = {
+  ping: buildPing,
+  pull_request: buildPullRequest,
+  pull_request_review: buildPullRequestReview,
+  pull_request_review_comment: buildPullRequestReviewComment,
+  issue_comment: buildIssueComment,
+  check_run: buildCheckRun,
+  check_suite: buildCheckSuite,
+  workflow_run: buildWorkflowRun,
+};
+
+/**
+ * Map an inbound GitHub webhook (event header + JSON payload) to a
+ * `notifications/claude/channel` notification. Routes ALL event types —
+ * known events get rich meta extraction, unknown events get minimal meta.
+ * Returns null only for malformed input (missing event header).
+ */
+export function routeEvent(event: string, payload: unknown): RouteResult | null {
+  if (!event || event.trim() === "") return null;
+
+  const p = (typeof payload === "object" && payload !== null ? payload : {}) as GhPayload;
+  const repo = p.repository?.full_name ?? "?";
+  const action = p.action ?? "";
+  const sender = p.sender?.login ?? "?";
+
+  const meta: Record<string, unknown> = { event, repo, sender };
+  if (action !== "") meta["action"] = action;
+
+  const builder = knownBuilders[event];
+  const content = builder
+    ? builder(p, { repo, action, sender, meta })
+    : buildGeneric(event, { repo, action, sender, meta });
+
+  return { notification: { content, meta } };
+}
+
+function buildGeneric(event: string, { repo, action }: BuildContext): string {
+  const parts = [event];
+  if (action) parts.push(action);
+  parts.push(`(${repo})`);
+  return parts.join(" ");
+}
+
+function buildPing(p: GhPayload, { repo, meta }: BuildContext): string {
+  if (p.hook_id !== undefined) meta["hook_id"] = p.hook_id;
+  return `GitHub ping (${repo}): ${p.zen ?? "ok"}`;
+}
+
+function buildPullRequest(p: GhPayload, { repo, action, meta }: BuildContext): string {
+  const pr = p.pull_request;
+  const num = pr?.number ?? "?";
+  const title = pr?.title ?? "(untitled)";
+  attachPrMeta(meta, num, pr?.html_url, pr?.state, pr?.merged);
+  if (pr?.head?.ref !== undefined) meta["head_ref"] = pr.head.ref;
+  if (pr?.base?.ref !== undefined) meta["base_ref"] = pr.base.ref;
+  return `PR #${num} ${action}: ${title} (${repo})`;
+}
+
+function buildPullRequestReview(p: GhPayload, { repo, sender, meta }: BuildContext): string {
+  const pr = p.pull_request;
+  const num = pr?.number ?? "?";
+  const reviewer = p.review?.user?.login ?? sender;
+  const state = p.review?.state ?? "?";
+  attachPrMeta(meta, num, p.review?.html_url ?? pr?.html_url);
+  meta["review_state"] = state;
+  return `PR #${num} review ${state} by ${reviewer} (${repo})`;
+}
+
+function buildPullRequestReviewComment(p: GhPayload, { repo, sender, meta }: BuildContext): string {
+  const pr = p.pull_request;
+  const num = pr?.number ?? "?";
+  const author = p.comment?.user?.login ?? sender;
+  attachPrMeta(meta, num, p.comment?.html_url ?? pr?.html_url);
+  return `PR #${num} review comment by ${author} (${repo})`;
+}
+
+function buildIssueComment(p: GhPayload, { repo, sender, meta }: BuildContext): string {
+  const issue = p.issue;
+  const num = issue?.number ?? "?";
+  const author = p.comment?.user?.login ?? sender;
+  const isPr = issue?.pull_request !== undefined;
+  const kind = isPr ? "PR" : "Issue";
+  meta["issue_number"] = num;
+  meta["is_pr_comment"] = isPr;
+  if (isPr) meta["pr_number"] = num;
+  if (p.comment?.html_url !== undefined) meta["url"] = p.comment.html_url;
+  return `${kind} #${num} comment by ${author} (${repo})`;
+}
+
+function buildCheckRun(p: GhPayload, { repo, meta }: BuildContext): string {
+  const cr = p.check_run;
+  const name = cr?.name ?? "?";
+  const status = cr?.status ?? "?";
+  const conclusion = cr?.conclusion ?? null;
+  const num = cr?.pull_requests?.[0]?.number;
+  meta["check_name"] = name;
+  meta["status"] = status;
+  meta["conclusion"] = conclusion;
+  if (num !== undefined) meta["pr_number"] = num;
+  if (cr?.html_url !== undefined) meta["url"] = cr.html_url;
+  if (cr?.details_url !== undefined) meta["details_url"] = cr.details_url;
+  if (cr?.annotations_url !== undefined) meta["annotations_url"] = cr.annotations_url;
+  return `${prTag(num)}check_run ${name}: ${status}${conclTag(conclusion)} (${repo})`;
+}
+
+function buildCheckSuite(p: GhPayload, { repo, meta }: BuildContext): string {
+  const cs = p.check_suite;
+  const status = cs?.status ?? "?";
+  const conclusion = cs?.conclusion ?? null;
+  const num = cs?.pull_requests?.[0]?.number;
+  meta["status"] = status;
+  meta["conclusion"] = conclusion;
+  if (num !== undefined) meta["pr_number"] = num;
+  if (cs?.check_runs_url !== undefined) meta["check_runs_url"] = cs.check_runs_url;
+  return `${prTag(num)}check_suite: ${status}${conclTag(conclusion)} (${repo})`;
+}
+
+function buildWorkflowRun(p: GhPayload, { repo, meta }: BuildContext): string {
+  const wr = p.workflow_run;
+  const name = wr?.name ?? "?";
+  const status = wr?.status ?? "?";
+  const conclusion = wr?.conclusion ?? null;
+  const num = wr?.pull_requests?.[0]?.number;
+  meta["workflow_name"] = name;
+  meta["status"] = status;
+  meta["conclusion"] = conclusion;
+  meta["head_branch"] = wr?.head_branch ?? null;
+  if (num !== undefined) meta["pr_number"] = num;
+  if (wr?.html_url !== undefined) meta["url"] = wr.html_url;
+  if (wr?.logs_url !== undefined) meta["logs_url"] = wr.logs_url;
+  if (wr?.jobs_url !== undefined) meta["jobs_url"] = wr.jobs_url;
+  if (wr?.artifacts_url !== undefined) meta["artifacts_url"] = wr.artifacts_url;
+  if (wr?.check_suite_url !== undefined) meta["check_suite_url"] = wr.check_suite_url;
+  return `${prTag(num)}workflow_run ${name}: ${status}${conclTag(conclusion)} (${repo})`;
+}
+
+function prTag(num: number | undefined): string {
+  return num !== undefined ? `PR #${num} ` : "";
+}
+
+function conclTag(conclusion: string | null): string {
+  return conclusion !== null ? ` (${conclusion})` : "";
+}
+
+function attachPrMeta(
+  meta: Record<string, unknown>,
+  num: number | string,
+  url?: string,
+  state?: string,
+  merged?: boolean,
+): void {
+  meta["pr_number"] = num;
+  if (url !== undefined) meta["url"] = url;
+  if (state !== undefined) meta["state"] = state;
+  if (merged !== undefined) meta["merged"] = merged;
+}

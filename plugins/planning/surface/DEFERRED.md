@@ -8,7 +8,7 @@ Reason for parking: the owner's scope guard, "we want these to be, in most cases
 
 | Entry | Decision |
 |---|---|
-| 1. Addendum wording lint: whether the coined-term check becomes a script check | Open: awaiting the owner |
+| 1. Addendum wording lint: whether the coined-term check becomes a script check | Park |
 
 ## Deferred behaviors
 

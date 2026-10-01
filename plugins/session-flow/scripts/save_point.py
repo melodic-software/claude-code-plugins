@@ -179,6 +179,9 @@ HANDOFF_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-handoff-[^/\\]+\.md$")
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
+# The Read tool returns at most 25k tokens per call; at about 70 tokens a line that is
+# about 355 lines, so 300 leaves margin.
+MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
 BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
 H2_RE = re.compile(r"^## (.+?)\s*$")
@@ -206,6 +209,7 @@ DIRECTIVE_TAIL = (
 PRIOR_SESSION_RE = re.compile(r"^Prior session: ([0-9A-Fa-f-]{36})\.$")
 THEN_RE = re.compile(r"^Then: /[A-Za-z0-9_:.-]+$")
 THIS_SESSION_RE = re.compile(r"^did: .+ · left: .+$")
+RESCAN_PREFIX = "Re-scan: "
 NEXT_CLOSED = "Next: none (closed)"
 NEXT_MAX = 5
 OPENING_ASK_CAP = 15
@@ -804,9 +808,17 @@ def _check_cumulative(
         if body is None:
             continue
         entries = parse_entries(body)
+        seen: set[str] = set()
         for entry in entries:
             if entry.exempt:
                 continue
+            key = entry.normalized.casefold()
+            if key in seen:
+                f.warn(
+                    f"{title}: duplicate of an earlier entry (keep the oldest tag, "
+                    f"drop this copy): {entry.text[:60]!r}"
+                )
+            seen.add(key)
             tag = entry.tag
             if tag is None:
                 f.fail(
@@ -1013,9 +1025,12 @@ def validate_doc(
     this = doc.section("This session")
     if this is not None:
         content = [line for line in this if line.strip()]
-        if len(content) != 1:
+        rescan = content[1:]
+        if not content or len(rescan) > 1 or any(
+            not line.strip().startswith(RESCAN_PREFIX) for line in rescan
+        ):
             f.fail(
-                f"This session: exactly one line 'did: … · left: …' required (found {len(content)})"
+                f"This session: one line 'did: … · left: …', optionally followed by one '{RESCAN_PREFIX}…' line, required (found {len(content)})"
             )
         else:
             line = content[0].strip()
@@ -1091,6 +1106,11 @@ def validate_doc(
                 f.warn(f"transcript: {transcript}{located}")
         elif not Path(transcript).is_file():
             f.fail(f"transcript: stated path does not exist: {transcript}")
+
+    if len(doc.lines) > MAX_READABLE_LINES:
+        f.warn(
+            f"size: {len(doc.lines)} lines exceeds {MAX_READABLE_LINES}; a single Read may truncate it (cumulative sections are carried verbatim, so trim by moving resolved entries under Superseded or promoting them to a committed doc)"
+        )
 
     for i, line in enumerate(doc.lines, 1):
         for pattern, marker in SECRET_SHAPES:
@@ -1649,6 +1669,11 @@ def build_skeleton(
             + _fill("did", "what landed this session, past tense, no '|'")
             + " · left: "
             + _fill("left", "what is still open, past tense, no 'next', no '|'"),
+            RESCAN_PREFIX
+            + _fill(
+                "rescan",
+                "one line: the constraints re-scan read the lossless on-disk transcript, or 'visible conversation only; a compaction occurred this session, so pre-compaction turns were NOT re-scanned for buried constraints'",
+            ),
         ],
     )
 
