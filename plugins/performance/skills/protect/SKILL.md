@@ -62,13 +62,16 @@ flushes, queries, and prints the token itself; `ratchet.py` only runs the comman
 
 ```json
 {"name": "tool-calls", "field": "calls", "ceiling": 12, "goal": "<the verified goal this protects>",
- "command": "id=$(uuidgen); RUN_ID=$id ./run-subject.sh && ./flush-exporter.sh && n=$(duckdb -noheader -csv .telemetry/events.db \"select count(*) from events where run_id='$id'\") && [ \"$n\" -gt 0 ] && echo calls=$n"}
+ "command": "id=$(uuidgen); RUN_ID=$id ./run-subject.sh && ./flush-exporter.sh && ./count-run.sh $id"}
 ```
 
 - **Scope the query to the run the command started**, by an id it generates, never a time window.
   A late batch from the previous run lands in a window and inflates the count.
-- **Exit non-zero on zero rows.** `[ "$n" -gt 0 ]` above: a missing event must fail the command, or
-  it reads as a count of 0 and passes any ceiling. The subject's own failure must also fail it.
+- **Exit non-zero when the run record is missing, not when the count is zero.** `count-run.sh` is
+  the counter's query step: it checks for a completion record the subject emits for that id and
+  exits non-zero without it, so lost telemetry fails the command instead of reading as 0. With the
+  record present it prints `calls=<n>`, and `calls=0` is valid, since a zero ceiling is legitimate.
+  The subject's own failure must also fail the command.
 - **Force the exporter to flush, or poll until the run's record is complete, before printing.**
   `add` and `propose-tighten` measure twice. A read taken before the flush sees a partial count: the
   two runs disagree and `add` refuses, or both read partial values, agree, and set a ceiling that is
