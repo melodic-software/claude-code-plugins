@@ -1,5 +1,11 @@
 # PLAN: tautological-tests-cleanup (Release 3: cleanup)
 
+Status (2026-10-01): PR #5604 was closed unmerged with `do-not-merge`. The plan of record is
+issue #5742, which links this branch at commit `97a41ff`. #5719 deletes `docs/specs`, so the spec edits in
+Phases 1 and 4 and "PR A" in Execution shape no longer have a target; they are left as written, not
+redesigned. A PR that carries this plan again is titled
+`docs(testing): plan Release 3 test cleanup skill`.
+
 ## Brief
 
 The contract is the Brief in `docs/specs/tautological-tests.md` (Q1-Q13, amendments A1-A14). Release 3
@@ -29,17 +35,26 @@ Standards grounding: `AGENTS.md` (draft PRs, Conventional Commits titles, stop b
 `scripts/check-contract-slice-prune.sh` (no path left under `docs/topics/`),
 `docs/conventions/detector-findings/README.md` (findings shape, destination, crosswalk),
 `docs/conventions/shell-test-helpers` (no cross-plugin imports), `.claude/rules/skill-bodies-state-current-rules.md`
-(new skill body). Configuration: this plan adds no `.claude/*` config file. Issue #5606 makes a docs
-convention file with a CLAUDE.md pointer the default config location; any cleanup setting reads the
-testing config wherever #5606 puts it (DT18).
+(new skill body). Configuration: this plan adds no `.claude/*` config file. #5606 closed through
+PR #5697: the testing team config is the `yaml config` block of the consumer's
+`docs/conventions/testing.md`, with `.claude/testing.yaml` as the fallback (the docs block wins when
+both exist), resolved by `plugins/testing/scripts/resolve-config.sh` per
+`docs/conventions/config-cascade/README.md`. Any cleanup setting reads that cascade (DT18).
 
-Dependency (settled, #5603): Release 2b owns the question "which production files do these tests
-exercise" through its DT3 static mapping. As the user decided on 2026-09-30, `--exercised` takes an
-optional test file or folder; given one, the mapping starts from the tests under that path, not the
-changed set. The effort cap applies and `--max` overrides it. 2b recognizes test files by asking
-the testing scanner (`cant-fail-scan.sh --file` reports which adapter claims each file) and refuses
-the scope when the testing plugin is not installed; cleanup lives in `testing`, so that holds.
-Phase 2 builds on this interface and cannot start before 2b's Phase 4 lands.
+Dependency (pending, Release 2b): 2b owns the question "which production files do these tests
+exercise" through its DT3 static mapping. It has not shipped: PR #5603 was closed unmerged on
+2026-10-01 and the plan now lives in issue #5741 (open, plan pending approval); `--exercised` is
+absent from `plugins/mutation-testing/skills/audit/SKILL.md:3` on main; the spec lists the 2b scope
+as `[TODO]` (`docs/specs/tautological-tests.md:886-887`). As the user decided on 2026-09-30,
+`--exercised` takes an optional test file or folder; given one, the mapping starts from the tests
+under that path, not the changed set. The effort cap applies and `--max` overrides it. 2b
+recognizes test files through `cant-fail-scan.sh --file` and refuses the scope when the testing
+plugin is not installed; cleanup lives in `testing`, so that holds. The user narrowed 2b on
+2026-10-01: `--exercised` is explicit-only (no auto-engage), and survivor causes are `input-gap`
+and `no-assertion` only; copied or restated expectations belong to the shipped judge rule
+`testing/judge/rule-restated-expectation` (`plugins/testing/hooks/judge-lib.sh:39`). Release 3
+always passes `--exercised <folder>` explicitly and reads no survivor cause, so the narrowing
+changes nothing here. Phase 2 cannot start before 2b ships.
 
 Test strategy: TDD (Red, Green, Refactor) for every script. Test boundaries, all through their
 command lines:
@@ -56,8 +71,9 @@ command lines:
 ### Phase 1: Spec housekeeping [TODO]
 
 Runs in the next PR that edits `docs/specs/tautological-tests.md` (this design PR does not edit it).
-PR #5605 already rewrote the Release 2 gate; this plan's Release 3 pointer at spec:890 is added the
-same way.
+PR #5605 already rewrote the Release 2 gate; this plan's Release 3 pointer goes in the Release 3
+outline's Sanity Check (heading spec:897, check spec:908), which still names
+`docs/topics/tautological-tests-cleanup/PLAN.md`. Superseded if #5719 deletes the spec first.
 
 1. A15 (DT2), decided 2026-09-30 by the user. Add under spec Q5 and Q13: "Amended 2026-09-30 (user,
    A15): wave 2 and the SW1 backend leave Release 3 until a switch condition in
@@ -67,7 +83,7 @@ same way.
    shows that main-session tests carry provenance defects the Release 1 hooks and the judge both
    miss. The design is kept in `docs/specs/tautological-tests-cleanup/plan.md` 'Deferred: split
    mode'."
-3. The Release 3 sanity check at spec:890 points at `docs/specs/tautological-tests-cleanup/plan.md`.
+3. The Release 3 sanity check at spec:908 points at `docs/specs/tautological-tests-cleanup/plan.md`.
 
 **Sanity Check:**
 
@@ -79,7 +95,7 @@ same way.
 
 ### Phase 2: Mutation record, replay and compare (DT6, DT7, DT12) [TODO]
 
-Needs Release 2b's `--exercised <folder>` interface and DT3 mapping (PR #5603, settled). Pre-flight
+Needs Release 2b's `--exercised <folder>` interface and DT3 mapping (#5741, pending). Pre-flight
 consumer check, first work item: `git grep -n 'mutation-testing:audit'` over `plugins/` and `docs/`, listing every caller
 and every reader of its findings file. The two new flags are additive, so the existing flag set and
 findings shape must stay unchanged for them.
@@ -91,7 +107,7 @@ findings shape must stay unchanged for them.
   `\t`, `\n`, `\\`, so a multi-line statement removal fits one row. No other plugin reads a record.
   A record lives for one batch in the caller's `.work/` directory.
 - `plugins/mutation-testing/skills/audit/SKILL.md`:
-  - `--record-mutants <file>` runs under 2b's `--exercised <folder>` scope, not `--paths`: 2b's
+  - `--record-mutants <file>` runs only under an explicit `--exercised <folder>`, not `--paths`: 2b's
     DT3 mapping starts from the named tests as they stand, because a recording runs before any
     test is edited. It mutates every mutable line in the mapped functions, one mutant each, with no
     diff intersection. 2b's effort cap and `--max` apply unchanged; the caller passes `--max`
@@ -158,7 +174,11 @@ paths to `mutation-testing:audit` and reads only its report, never a record.
 0. Refuse on the default branch, on a dirty tree, or when `mutation-testing` has no config (points
    to `/mutation-testing:setup`, DT12).
 1. Inputs (DT3): the scanner's `--findings` over the folder; the branch's judge findings file when
-   present; the flaky tests the user names.
+   present; the flaky tests the user names. The judge is off by default
+   (`plugins/testing/.claude-plugin/plugin.json`: `test_judge_enabled` false; `sonnet` at `medium`,
+   fallback `opus`), so the file is usually absent. Cleanup finds it with the same lookup as
+   `judge::findings_dir` (`plugins/testing/hooks/judge-lib.sh:652-661`) and runs unchanged without
+   it.
 2. Quarantine first (DT6, DT9): skip the named flaky tests in the working tree with the
    `test-change: quarantined <date>` reason, so both mutation runs exclude them.
 3. Baseline: `mutation-testing:audit --exercised <folder> --max <n> --record-mutants <before>` on
@@ -166,7 +186,10 @@ paths to `mutation-testing:audit` and reads only its report, never a record.
    the batch. A red baseline stops the batch: cleanup reports the failing tests so the user can
    name the flaky ones for step 2 or fix them. Stop when the report shows K0 empty.
 4. Classify (DT4): dispatch a fresh-context general-purpose subagent, `model: opus` named in the
-   body so it does not inherit a session model by accident, with a brief file (the candidates, the
+   body so it does not inherit a session model by accident (Release 2 found `sonnet` `medium`
+   tied-best on the judge's provenance task, `docs/specs/tautological-tests-judge/plan.md:220-229`
+   and calibration.md "Chosen default"; opus is kept first because a wrong deletion costs more than
+   a wrong verdict: Recommended, awaiting user), with a brief file (the candidates, the
    rule table, the pointer to `testing:test-value` section 1). It returns one row per candidate:
    test, row fired, evidence, K citation or the positive no-contract statement, proposed action and
    diff.
@@ -230,42 +253,22 @@ Other files:
 
 ## Deferred: split mode
 
-Deferred by A16 (DT13, decided 2026-09-30 by the user). Switch condition: probe R2-P1 passes, and
-the Release 2 judge's calibration shows that main-session tests carry provenance defects the
-Release 1 hooks and the judge both miss. R2-P1 already holds on the Release 2 branch (#5605,
-`docs/specs/tautological-tests/probes.md`), so the calibration half is what remains open.
+Deferred by A16 (DT13, decided 2026-09-30 by the user). The design is DT13-DT16 in
+`design/design-threads.md`; if it ships, the done-time `git diff --quiet <freeze-sha> -- <frozen
+files>` check comes before any hook. The hook-form detail (freeze list script, dispatcher, test
+cases, probe R3-P3) is at commit `97a41ff` of this file.
 
-Design summary (DT13-DT16): `/testing:write --split`, run per vertical slice. The orchestrator
-writes a spec brief (behaviors with expected values from requirements, signatures only) and
-dispatches a `testing:test-writer` agent (`tools: Read, Grep, Glob, Write, Edit`, a
-`testing:test-value` preload). A validity check freezes a test only when `cant-fail-scan.sh --file`
-is clean, it fails on the current code for the right reason, and the user has seen the list. The
-implementer then makes the tests pass without editing them, and reports a disagreement to the user.
-
-If it ships, use the simpler form first: record the commit sha at freeze time, and when the
-implementer reports done, run `git diff --quiet <freeze-sha> -- <frozen files>`. A non-zero exit
-means a frozen test was edited, and the slice goes back to the user. This detects an edit rather
-than preventing it, and needs no hook.
-
-The hook form, kept here for when detection proves too late:
-
-- A `split_mode_enabled` userConfig key (boolean, default false, defaulted in-script too), and a
-  dependency on `test_guards_enabled`, because the freeze check shares test-weaken's launcher.
-- `plugins/testing/scripts/freeze-list.sh add|clear|path <session_id> [file...]`, the one reader and
-  writer of `$DATA/freeze/<session_id>.list`, paths stored through `hook::normalize_path_to`.
-- `plugins/testing/hooks/test-freeze.sh`, run by a `test-pretool.sh` dispatcher from test-weaken's
-  existing PreToolUse rows; `hooks.json` regenerated through `gen-hook-filters.sh`, never
-  hand-edited. It denies a listed path for every agent, the test-writer included.
-- Test cases: no list allows; a listed path is denied for the main thread,
-  `implementation:implementer` and `testing:test-writer`; `C:\repo\a.test.ts`, `C:/repo/a.test.ts` and <!-- path-example -->
-  `/c/repo/a.test.ts` match one entry; `../` and empty session ids write and read nothing; a stale
-  list is pruned; a strace spawn-budget case shows no extra process with the key on.
-- Probe R3-P3: an edit to a frozen test from the main session, an implementer spawn and a
-  test-writer spawn is denied, and the list is gone at the end.
-- A dated Q4 clarification: the freeze deny is a lock the user starts and ends, not a detection
-  signal.
-- If R2-P1 regresses (it holds today), the list keys on a hash of the normalized repo toplevel, and the flow clears it on
-  done, refusal and error.
+Switch condition: probe R2-P1 holds (it does, `docs/specs/tautological-tests/probes.md`), and
+main-session tests carry provenance defects the Release 1 hooks and the judge both miss. That half
+is unmeasured. Calibration found 0 provenance-shaped scanner findings in 60 drawn blocks and in the
+586-block pool, and says that count is not a prevalence estimate
+(`docs/specs/tautological-tests-judge/calibration.md:69-73`). Runnable form: over
+`plugins/testing/skills/audit/evals/judge-calibration/labels.tsv`, count in-use rows (`source` ends
+in `@<40-hex sha>` and is neither `authored` nor a `.fixture`) with `reference_label` FLAG and
+`judge_verdict` not FLAG. Today: 60 in-use rows, 0 labeled FLAG, 0 missed. The set does not record
+whether the main session or a subagent wrote a test, so it cannot isolate "main-session". Proposed
+threshold (judgment, awaiting user): at least 1 such joint miss in a fresh in-use sample of 60 or
+more blocks whose writer is recorded.
 
 ## Alternatives considered
 
@@ -277,14 +280,14 @@ The hook form, kept here for when detection proves too late:
 | Bisect a lost kill by reverting changes one at a time (DT6, DT7) | Deferred by the user (2026-09-30); the user reverts from the candidate list | batches regularly show more than 2 candidates |
 | Sweep expired quarantines on each run (DT9) | Deferred by the user (2026-09-30) | a quarantine outlives its date in practice |
 | Report line coverage before and after (DT6) | Deferred by the user (2026-09-30) | a real batch shows a coverage drop the mutation gate missed |
-| Build split mode in Release 3 (DT13) | Deferred by the user (2026-09-30) through A16 | probe R2-P1 passes, and the Release 2 judge's calibration shows that main-session tests carry provenance defects the Release 1 hooks and the judge both miss |
+| Build split mode in Release 3 (DT13) | Deferred by the user (2026-09-30) through A16 | the measurement in "Deferred: split mode" shows joint misses (unmeasured today) |
 | Build wave 2 now | No fleet repo uses Rust, Java/Kotlin or testify (DT2) | a DT2 switch fires |
 
 ## Risks and mitigations
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Release 2b's `--exercised <folder>` does not ship | Low | High | Phase 2 waits on 2b; no fallback scope is built |
+| Release 2b's `--exercised <folder>` does not ship | High (#5603 closed unmerged; #5741 has no PR and an unapproved plan) | High | Consequence: Release 3 PR B (Phases 2-4) waits until 2b ships; no fallback scope is built |
 | A module-wide mutation run is slow or costly | High | Med | `--max` caps the recording run; replay runs the same list only; one folder per batch |
 | The gate passes while a deletion loses real regression detection | Med | High | The gate is necessary, not sufficient: every deletion needs a no-contract reason and the user's yes (DT4, DT5) |
 | The classifier misreads "contract exists" | Med | Med | K must cite `file:line`; rewrite is the default; eval cases; the user reviews the batch |
@@ -304,45 +307,19 @@ path that deletes tests, and a dependency on Release 2b's unmerged scope.
 - Plan reviewer (fresh context): 2 CRITICAL, 6 IMPORTANT, 7 SUGGESTION, all checked against the
   files and folded in. The two CRITICALs were Sanity Check commands that could not run as written:
   `check-skill.sh` takes a skills root, not a skill directory (check-skill.sh:13-15), and
-  `check-evals-quality.sh` takes an `evals.json` path (:16-17). Both were fixed. The IMPORTANT findings
-  fixed were:
-  - the Phase 5 grep that matched its own text;
-  - a real strace budget case replacing a missing test;
-  - the test-writer exemption, which let the implementer route an edit through a writer spawn, so
-    no agent is now exempt (DT14);
-  - one shared freeze-list script, so the skill and the hook read the same data directory;
-  - Windows path normalization through the existing `hook::normalize_path_to`;
-  - working files on disk so a compacted session can resume.
+  `check-evals-quality.sh` takes an `evals.json` path (:16-17). Both were fixed. The IMPORTANT finding
+  still in the plan: working files on disk so a compacted session can resume.
 - Devil's advocate (fresh context): 1 CRITICAL, 7 HIGH, 8 MEDIUM, 4 LOW. The CRITICAL was verified
   (`mutation-testing` SKILL.md Phase 1 step 1 intersects `--paths` with the diff, so a test-only
   batch mutated nothing and passed). It was fixed in two ways: recording runs now have a no-diff
-  scope, and the gate refuses an empty K0. The HIGHs were folded into DT6 and Phases 2-3:
-  - sampling blindness: the gate-blind marking, and no effort cap on recording runs;
-  - no way to tell which change lost a kill: bounded bisection;
-  - quarantine colliding with the gate, and a flaky baseline: quarantine is applied before
-    recording;
-  - replay through a tool: replay uses per-mutant application;
-  - the dropped coverage leg: coverage is now reported where a report exists;
-  - the freeze bypass: no exemption.
-
-  MEDIUMs folded in:
-  - the fallback key is hashed;
-  - `/clear` and `--end` are documented;
-  - refusals when an option is off or a path is unmatched;
-  - one launcher through a dispatcher (an any-of gate in the 21-plugin `exec-bash.mjs` was rejected);
-  - the `test-change:` quarantine prefix;
-  - row 4 needs a positive no-contract statement;
-  - record columns and escaping;
-  - a version-skew check.
-
-  LOWs folded in: timeout counts both ways; the Phase 5 grep and wave-2 phase numbering; an extra
-  A15 switch (a consumer outside the fleet). LOW 20 needed no change after the exemption was removed.
-- Overengineering review (2026-09-30): the user cut the plan to the cleanup core. Reversed from the
-  folds above: bounded bisection (the user reverts from a candidate list), the coverage leg, the
-  three-run flaky pre-pass, the expired-quarantine sweep, the version-skew check, the v1 header, the
-  `col` column and the USER-RESERVED record gate (the comparator moved into `mutation-testing`), the
-  `--paths` glob proposal (2b's scope replaces it), and all of split mode (A16, "Deferred: split
-  mode"). Each is recorded as "Decided 2026-09-30 (user)" in its design thread.
+  scope, and the gate refuses an empty K0. Folds still in the plan: the gate-blind marking;
+  quarantine before recording; replay by per-mutant application; the `test-change:` quarantine
+  prefix; row 4's positive no-contract statement; record columns and escaping; timeout counted as
+  detected both ways; an extra A15 switch (a consumer outside the fleet).
+- Overengineering review (2026-09-30): the user cut the plan to the cleanup core, removing the
+  other folds: bisection, the coverage leg, the flaky pre-pass, the expired-quarantine sweep, the
+  version-skew check and record header, and all split-mode items (A16). Each is recorded as
+  "Decided 2026-09-30 (user)" in its design thread.
 
 ## Execution shape
 
@@ -357,8 +334,8 @@ Release 2b and gates Phase 3 (the gate needs record and replay). Main session th
 | 4 | main session | bookkeeping |
 
 PR slicing, each opened as a draft, each version one minor above main at merge: PR A = this design
-and plan (no plugin change); PR B = Phases 2-4 (`mutation-testing` and `testing` minors), after 2b
-merges. Phase 1 rides whichever PR next edits the spec.
+and plan (no plugin change; closed as #5604, see Status); PR B = Phases 2-4 (`mutation-testing` and
+`testing` minors), after 2b ships (#5741). Phase 1 rides whichever PR next edits the spec.
 
 ## Decisions made (gate-passed)
 
@@ -367,8 +344,10 @@ earlier rows belonged to split mode, now deferred.
 
 ## Open questions
 
-- Every DT1-DT18 answer not covered by a "Decided 2026-09-30 (user)" line was taken unattended;
-  each is the user's to redirect.
+- Every DT1-DT18 answer not covered by a "Decided (user)" line was taken unattended; each is the
+  user's to redirect.
+- The classifier's model (Phase 3 step 4): opus, Recommended, awaiting user.
+- The split-mode switch threshold ("Deferred: split mode"): judgment, awaiting user.
 
 ## Handoff to implementation
 

@@ -1,11 +1,10 @@
 # Design threads: tautological-tests-cleanup (Release 3)
 
 Contract: the Brief in `docs/specs/tautological-tests.md` (Q1-Q13, amendments A1-A14), whose
-"Release 3 outline" (spec:879-890) names three items: `testing:cleanup`, opt-in split mode, and the
+"Release 3 outline" (spec:897-908) names three items: `testing:cleanup`, opt-in split mode, and the
 wave 2 adapters. Research (gitignored, main checkout): `.work/tautological-tests/cleanup/`,
 `.work/tautological-tests/context-separation/`, `.work/tautological-tests/mutation/`. Release 2
-design (read-only, unmerged): `docs/specs/tautological-tests-judge/` on branch
-`docs/tautological-tests-judge-design`.
+design: `docs/specs/tautological-tests-judge/` on main (merged in #5605).
 
 Status values: resolved, directional, deferred.
 
@@ -70,7 +69,10 @@ Decision: one batch is one folder. Cleanup reads three inputs, all gathered befo
 2. Release 2 judge findings, when present: a findings file on the current branch in the
    detector-findings shape (Release 2 PLAN Phase 3 step 4). A FLAG verdict makes its test a
    candidate. A PASS verdict does not clear a scanner finding. The judge's proposed diff is only a
-   candidate rewrite (DT5).
+   candidate rewrite (DT5). The judge is off by default (`test_judge_enabled` false in
+   `plugins/testing/.claude-plugin/plugin.json`), so this input is usually absent. Cleanup finds
+   the file with the same lookup as `judge::findings_dir` (`plugins/testing/hooks/judge-lib.sh:652-661`)
+   and runs without it.
 3. Flaky tests: the folder's tests run three times on unmodified code before the baseline. A test
    that both passes and fails is flaky. The user may name more.
 
@@ -130,6 +132,10 @@ the rule is synthesized judgment, not sourced; Shi et al., ISSTA 2018
 the cleanup slice's verifier); Khorikov, "Pragmatic unit testing" (2018 deck, cited in the same
 sidecar) for the no-contract deletion case.
 
+Decided (user) 2026-10-01: the deletion rule is accepted as written. Rewrite by default; delete only
+with a positive no-contract statement plus its evidence; each deletion or merge waits for the
+user's yes.
+
 ### DT5. Approval and commit rule (Q9, A10) (resolved)
 
 Decision: cleanup never commits on its own. It stages one batch in the working tree:
@@ -154,7 +160,7 @@ user).
 Decision:
 
 - Scope: mutate the production code the batch's tests exercise. Release 2b's DT3 static mapping
-  (PR #5603) owns that question. The recording run passes 2b's `--exercised <folder>` with the
+  (issue #5741, not shipped) owns that question. The recording run passes 2b's `--exercised <folder>` explicitly with the
   batch folder, and no `--paths`. That form maps the named tests as they stand, not the changed
   set, which is empty before any test is edited.
 - No diff intersection. Today `--paths` is intersected with the changed lines (Phase 1 step 1), so a
@@ -215,6 +221,12 @@ Decided 2026-09-30 (user):
   testing plugin, which cleanup, a `testing` skill, always has. The recording run's
   `--exercised <folder> --max <n>` form matches that interface.
 - Probe R3-P1 runs once, with `tool: manual`.
+
+Update 2026-10-01: PR #5603 closed unmerged and 2b is pending in issue #5741, so this thread's
+dependency is open. The user narrowed 2b: `--exercised` is explicit-only (no auto-engage), survivor
+causes are `input-gap` and `no-assertion`, and copied or restated expectations belong to the judge
+rule `testing/judge/rule-restated-expectation`. Cleanup always passes `--exercised` explicitly and
+reads no cause, so the decision above stands.
 
 ### DT7. Per-test kill attribution (resolved: not built)
 
@@ -345,8 +357,9 @@ Switch condition: probe R2-P1 passes, and the Release 2 judge's calibration show
 tests carry provenance defects the Release 1 hooks and the judge both miss. If it ships, the simpler
 form comes first: a done-time `git diff --quiet <freeze-sha> -- <files>` check, which detects an
 edit rather than preventing it. The test-writer agent, the validity check (DT15), the
-`split_mode_enabled` key, the freeze hook (DT14), probe R3-P3 and the Q4 clarification move to `plan.md`
-"Deferred: split mode".
+`split_mode_enabled` key, the freeze hook (DT14), probe R3-P3 and the Q4 clarification leave
+Release 3. The "calibration shows" half of the switch is unmeasured; `plan.md` "Deferred: split
+mode" states it as a runnable count over the calibration labels.
 
 ### DT14. Freezing: how the implementer is kept off the tests (deferred with DT13)
 
@@ -463,13 +476,14 @@ Decision:
 Recommended answer taken unattended (2026-09-30). Basis: `plugins/testing/.claude-plugin/plugin.json`
 userConfig (`test_guards_enabled`, `stdin_read_timeout` today, Explore report); spec:43 (Q1).
 
-Decided 2026-09-30 (user): no new `.claude/*` config file. Issue #5606 makes a docs convention file
-with a CLAUDE.md pointer the default config location, and any cleanup config reads the testing
-config wherever #5606 puts it. The `split_mode_enabled` key and the `test-freeze` deny log leave
-Release 3 with DT13.
+Decided 2026-09-30 (user): no new `.claude/*` config file. #5606 closed through PR #5697: the
+testing team config is the `yaml config` block of `docs/conventions/testing.md`, with
+`.claude/testing.yaml` as the fallback, resolved by `plugins/testing/scripts/resolve-config.sh`
+(`docs/conventions/config-cascade/README.md`). Any cleanup config reads that cascade. The
+`split_mode_enabled` key and the `test-freeze` deny log leave Release 3 with DT13.
 
 ## Dependency order
 
-DT1 orders the work. DT6 needs Release 2b's exercised scope (PR #5603, interface settled) and two
+DT1 orders the work. DT6 needs Release 2b's exercised scope (issue #5741, interface settled, not shipped) and two
 `mutation-testing:audit` flags before the cleanup gate works. A15 (DT2) and A16 (DT13) are decided
 and go into the spec with the next PR that edits it.
