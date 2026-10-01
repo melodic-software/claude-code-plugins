@@ -29,6 +29,12 @@ verifies the answer, not the work.
 The brief should say, in substance: distrust the reported numbers, re-derive them yourself, and
 report what you actually observe including the ways you could not reproduce it.
 
+The brief also sets a turn budget, a limit the verifier keeps for itself: 30 turns, stop gathering and
+re-measuring by turn 22, and spend the remaining turns writing the report. Run the highest-value
+checks first: re-derive the headline number and the differential before any secondary check. A
+report that ends short names what it did not reach under `Not covered:`. A verification that ran out
+of turns is not complete, so anything unreached stays NOT MET or unverified.
+
 Two independent verifiers routinely find different defects, so one verifier is the floor, not the
 target.
 

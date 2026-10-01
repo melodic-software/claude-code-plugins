@@ -9,6 +9,17 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
 
 - **`/claude-ops:machine-profile` records what this machine has and reports when it changes.** It discovers machine facts and per-tree identity domains, stores them as a profile with the observation behind every value, and diffs the stored profile against the host. Read-only unless the operator confirms: `record --confirm` writes the profile and `apply --confirm` prints what to hand to each setup. It never installs and never reapplies a stored value on its own.
 
+## [0.79.2] - 2026-10-01
+
+### Fixed
+
+- **The inventory no longer reports a phantom built-in command `string` on Claude Code 2.1.286.**
+  A command, bundled-skill, subagent or tool name held in an identifier now resolves only when the
+  binding that read sees, by the module and scope rule, is that string constant. A name bound to a
+  conditional or a call, or a constant in another module, stays unresolved; before, the nearest
+  string constant anywhere ahead won, so the skill loader's `Vt=$t?smt(e):e` read an unrelated
+  `Vt="string"`. `VALIDATED_AGAINST` is `2.1.286`.
+
 ## [0.79.1] - 2026-10-01
 
 ### Fixed
