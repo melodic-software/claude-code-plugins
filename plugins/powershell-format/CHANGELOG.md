@@ -7,7 +7,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Changed
 
-- **The setup skill describes the missing-`jq` notice as once per session and agent.** The notice is shown once per session and agent and renewed every eighth skip; the wording said once per session.
+- **The setup skill describes the missing-`jq` notice, and the `powershell-format.sh` comment the trust-gate notice, as once per session and agent.** Each notice is shown once per session and agent and renewed every eighth skip; the wording said once per session.
 
 ## [0.9.6] - 2026-10-01
 

@@ -27,7 +27,7 @@
 # missing jq, or a non-Stop event it allows the stop. An unreadable or malformed
 # TRUSTED CONFIG source likewise contributes no verdict — the default (off)
 # applies — but an enablement claimed only on the untrusted env channel gets a
-# visible once-per-session notice rather than a silent disengage.
+# visible notice, once per session and agent, rather than a silent disengage.
 #
 # CONFIG IS READ FROM TRUSTED SOURCES ONLY (#1784). The gate never reads
 # `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_*` straight off the environment as a
@@ -475,8 +475,8 @@ gate_option_to ENABLED lane_stop_gate_enabled || ENABLED=""
 if [[ "$ENABLED" != "true" ]]; then
   # No trusted source says "on". A trusted explicit false stays silent — that is
   # a configured verdict, not a claim the gate declined to honor. The two ways a
-  # gate a lane EXPECTED can end up off get distinct, accurate once-per-session
-  # notices instead of a silent disengage:
+  # gate a lane EXPECTED can end up off get distinct, accurate notices, once
+  # per session and agent, instead of a silent disengage:
   if [[ -z "$ENABLED" ]]; then
     if [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" && -z "$GATE_ARM_JSON" ]]; then
       # An arm id reached the hook, but no valid record backs it — spent,

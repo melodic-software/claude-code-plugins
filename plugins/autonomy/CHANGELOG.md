@@ -7,7 +7,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- **The `lane-stop-gate.sh` comment describes the missing-`jq` notice as once per session and agent.** The notice is shown once per session and agent and renewed every eighth skip; the comment said once per session. Shared `hooks/hook-utils.sh` resynced (comment wording only, no behavior change).
+- **The `lane-stop-gate.sh` comments describe the missing-`jq`, stale-arm and untrusted-enable notices as once per session and agent.** Each notice is shown once per session and agent and renewed every eighth skip; the comments said once per session. Shared `hooks/hook-utils.sh` resynced (comment wording only, no behavior change).
 
 ## [0.25.1] - 2026-10-01
 
