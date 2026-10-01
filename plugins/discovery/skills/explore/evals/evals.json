@@ -173,6 +173,34 @@
         "A payload that echoed the token but omitted preload: is an out-of-date agent definition, not a pass, the same class as a missing scope_as_received",
         "The artifact set is still graded off disk against the parent's own slice path; fallback provenance changes nothing about the gate's remaining steps"
       ]
+    },
+    {
+      "id": 14,
+      "name": "absent-skill-body-first-return-is-the-payload-block",
+      "prompt": "[You are the dispatched discovery:explorer. Your dispatch prompt carries the scope 'item-service command and query handlers' and a memory-slice path. Nothing from the discovery:explore skill body is in your context: no exploration dimensions, no outcome gate, no preload token.]",
+      "files": [],
+      "expected_output": "The first return is the fenced YAML payload block, never bare prose. The agent either Reads the skill file from disk and returns preload: fallback with the token it found there, or, when no skill content reaches it by either route, returns preload_token: MISSING with no fabricated preload value and status: truncated. It does not reconstruct the workflow from memory.",
+      "expectations": [
+        "The first return is the YAML payload block, not bare prose and not a conversational message about missing instructions",
+        "The agent confirms whether the skill body is in context before any exploration and, when it is not, Reads the skill file from disk before the first dimension",
+        "After reading the skill file from disk the payload carries the token found there and preload: fallback, never preload: fired",
+        "When no skill content reaches the agent by either route the payload carries preload_token: MISSING, omits a fabricated preload value, and sets status: truncated",
+        "The agent does not reconstruct the exploration dimensions from memory or write an artifact under a remembered workflow"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "nested-scout-hand-back-is-used-without-waiting",
+      "prompt": "[You are the dispatched discovery:explorer, already mid-exploration. You spawned a read-only scout to list the callers of the currency-conversion entry point, and its hand-back has been delivered to you as a message containing the caller list with file:line citations.]",
+      "files": [],
+      "expected_output": "Treats the delivered hand-back as the scout's final report. Uses the caller list, Reads the cited files itself before any conclusion rests on them, and continues with the remaining dimensions and the EXPLORE.md write. Does not idle waiting for a report it already holds and does not re-request or re-dispatch the same hand-back.",
+      "expectations": [
+        "The delivered hand-back is treated as the scout's final report and used immediately",
+        "The explorer does not wait, poll, or idle for a further report from the scout",
+        "The explorer does not re-request the hand-back or re-dispatch a scout for the same question",
+        "The explorer continues with the remaining exploration work and still writes EXPLORE.md itself, since a scout cannot write",
+        "A conclusion that rests on the scout's citations is verified by Reading the cited file, because a scout report alone supports verified: grep"
+      ]
     }
   ]
 }
