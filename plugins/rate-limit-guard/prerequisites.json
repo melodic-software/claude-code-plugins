@@ -1,0 +1,9 @@
+{
+  "tools": [
+    {
+      "name": "node",
+      "check": "/rate-limit-guard:check",
+      "install": "install Node.js from https://nodejs.org/en/download"
+    }
+  ]
+}
