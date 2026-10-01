@@ -98,7 +98,8 @@ if [[ "$(id -u)" -ne 0 ]]; then
   expect_has "the blocked guard names the operator command" "chmod u+w" "$(jq -r --arg d "$HOME/work" '.domains[$d].facts[] | select(.verdict == "blocked") | .guard' <<<"$first")"
 fi
 
-# 1b. An include path that contains a credential word does not reach a fact key.
+# 1b. A credential word in a key discovery derives (an include path, a binary
+# name) does not abort discover, and the document survives record, diff and explain.
 CRED="$OUT/credpath"
 mkdir -p "$CRED/home/secret-dir" "$CRED/home/Token_dir"
 printf '[includeIf "gitdir:~/sx/"]\n\tpath = ~/secret-dir/gitconfig\n[includeIf "gitdir:~/tx/"]\n\tpath = ~/Token_dir/gitconfig\n' >"$CRED/gitconfig"
@@ -107,9 +108,25 @@ cred="$(HOME="$CRED/home" GIT_CONFIG_GLOBAL="$CRED/gitconfig" run discover </dev
 rc=$?
 expect_eq "an include path naming secret or token still discovers" 0 "$rc"
 expect_eq "both include trees are recorded" 2 "$(jq '.domains | length' <<<"$cred")"
-expect_eq "an include path with a credential word records its fact under a path-free key" "writable" "$(jq -r '.domains[] | .facts[] | select(.key | startswith("git_include_file:")) | .value' <<<"$cred" | head -n 1)"
-expect_eq "no fact key carries the include path text" "0" "$(jq '[.domains[].facts[].key | select(test("secret|token"; "i"))] | length' <<<"$cred")"
-expect_has "the include path is kept in the record" "secret-dir/gitconfig" "$cred"
+expect_eq "an include path with a credential word keeps its fact" "writable" "$(jq -r '.domains[] | .facts[] | select(.key | startswith("git_include_file:")) | .value' <<<"$cred" | head -n 1)"
+expect_eq "no include-path fact key matches the credential pattern" "0" "$(jq '[.domains[].facts[].key | select(test("token|secret|password|credential"; "i"))] | length' <<<"$cred")"
+expect_has "the include path stays readable in its key" "/home/[s]ecret-dir/gitconfig" "$(jq -r '.domains[].facts[].key' <<<"$cred")"
+
+printf 'tool\tplugin\tstatus\tcheck\tinstall\nsecret-tool\tplug-a\tpresent\t/plug-a:check\tx\ngit-credential-manager\tplug-a\tmissing\t/plug-a:check\tx\ndocker-credential-pass\tplug-b\tpresent\t/plug-b:check\t\nsecretoken\tplug-b\tpresent\t/plug-b:check\t\n' >"$OUT/credbin.tsv"
+CREDDATA="$OUT/creddata"
+credbin="$(run discover --prerequisites "$OUT/credbin.tsv" </dev/null)"
+rc=$?
+expect_eq "a declared binary named for a credential tool still discovers" 0 "$rc"
+expect_eq "each credential word in a binary key is bracketed, overlaps included" "binary.[s]ecre[t]oken binary.[s]ecret-tool binary.docker-[c]redential-pass binary.git-[c]redential-manager" "$(jq -r '[.machine.facts[].key | select(startswith("binary."))] | sort | join(" ")' <<<"$credbin")"
+expect_eq "a credential-named binary keeps its observed value" "present" "$(jq -r '.machine.facts[] | select(.key == "binary.[s]ecret-tool") | .value' <<<"$credbin")"
+expect_eq "no discovered key matches the credential pattern" "0" "$(jq '[.machine.facts[].key | select(test("token|secret|password|credential"; "i"))] | length' <<<"$credbin")"
+run record --data-dir "$CREDDATA" --confirm - <<<"$credbin" >/dev/null 2>&1
+expect_eq "record accepts the discovered document" 0 "$?"
+out="$(run diff --data-dir "$CREDDATA" --prerequisites "$OUT/credbin.tsv" </dev/null 2>&1)"
+rc=$?
+expect_eq "diff of the stored credential-named keys exits 0" 0 "$rc"
+expect_eq "diff of the stored credential-named keys prints nothing" "" "$out"
+expect_has "explain resolves a bracketed key" '"verdict":"set"' "$(run explain --data-dir "$CREDDATA" 'binary.[s]ecret-tool' 2>&1)"
 
 # 2. Store, then diff an unchanged fixture: an empty diff and no prompt.
 dry="$(run record --data-dir "$DATA" - <<<"$first")"

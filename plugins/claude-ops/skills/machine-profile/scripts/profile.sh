@@ -25,6 +25,10 @@ die() {
 
 command -v jq >/dev/null 2>&1 || die "jq is required"
 
+# Words a record key may not contain. The validator refuses them in a hand-supplied
+# key, and rec rewrites them in a key discovery derives, from this one pattern.
+CRED_RE='token|secret|password|credential'
+
 # Every record in a document is checked here. Prints one line per problem.
 # shellcheck disable=SC2016  # jq source, not shell expansion
 VALIDATE_JQ='
@@ -64,7 +68,7 @@ def rp:
         (if $r.verdict == "set" and ($r.supplied_by | nz | not) then "set requires supplied_by" else empty end),
         (if $r.verdict == "blocked" and ($r.guard | nz | not) then "blocked requires guard" else empty end)
       end),
-      (if ($r.key | type) == "string" and ($r.key | test("token|secret|password|credential"; "i")) then "key names a credential" else empty end),
+      (if ($r.key | type) == "string" and ($r.key | test($cred; "i")) then "key names a credential" else empty end),
       ($r | .. | strings | select(test("gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}")) | "holds what looks like a credential")
     ] | .[] | "\($w): \(.)" end;
 def dupkeys($w): map(select(type == "object") | .key) | group_by(.) | map(select(length > 1)) | .[] | "\($w): duplicate key \(.[0])";
@@ -108,9 +112,16 @@ def side($t): "  \($t)";
   else empty end
 '
 
-# rec KEY VALUE VERDICT [--arg FIELD VALUE ...] -> one compact JSON record.
+# rec KEY VALUE VERDICT [--arg FIELD VALUE ...] -> one compact JSON record. Every
+# key discovery derives from host text (a binary name, an include path) passes
+# through here, so a credential word in it is bracketed (secret-tool becomes
+# [s]ecret-tool) and no longer matches the validator's refusal. Hand-supplied
+# records never pass through here.
+# shellcheck disable=SC2016  # jq source, not shell expansion
 rec() {
-  jq -nc '$ARGS.named' --arg key "$1" --arg value "$2" --arg verdict "$3" "${@:4}"
+  jq -nc --arg cred "$CRED_RE" '$ARGS.named | del(.cred)
+    | .key |= gsub("(?=\($cred))(?<c>.)"; "[\(.c)]"; "i")' \
+    --arg key "$1" --arg value "$2" --arg verdict "$3" "${@:4}"
 }
 
 unexamined() { # KEY REASON
@@ -132,12 +143,6 @@ dir_fact() { # KEY DIR
   else
     rec "$1" absent default-verified --arg observed_by "test -d $2" --arg mode observed --arg observation "directory not found"
   fi
-}
-
-# A stable key for a path: the key must not carry user-controlled text, which
-# the validator's credential-key refusal would otherwise match.
-path_key() { # PATH
-  printf '%s' "$1" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-12
 }
 
 file_fact() { # KEY FILE
@@ -231,7 +236,7 @@ discover() {
         --arg mode observed --arg supplied_by "git config includeIf gitdir")" \
       --argjson gh "$(gh_fact "$tree")" \
       --argjson f1 "$(dir_fact tree_present "$tree")" \
-      --argjson f2 "$(file_fact "git_include_file:$(path_key "$inc")" "$inc")" \
+      --argjson f2 "$(file_fact "git_include_file:$inc" "$inc")" \
       '{tree: $tree, git_include: $gi, gh: $gh, facts: [$f1, $f2]}')")
   done < <(cd / && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_CONFIG git config --list --show-origin 2>/dev/null |
     jq -Rr 'capture("^(?<origin>[^\t]*)\t(?<key>includeif\\.gitdir(?:/i)?:(?<pat>.*)\\.path)=(?<inc>.*)$")? | [.origin, .pat, .inc] | @tsv')
@@ -255,7 +260,7 @@ discover() {
 validate() {
   local problems
   jq -e . >/dev/null 2>&1 <<<"$1" || { echo "profile.sh: refused: the document is not valid JSON" >&2; return 1; }
-  problems="$(jq -r "$VALIDATE_JQ" <<<"$1")" || return 1
+  problems="$(jq -r --arg cred "$CRED_RE" "$VALIDATE_JQ" <<<"$1")" || return 1
   [[ -z "$problems" ]] && return 0
   printf 'profile.sh: refused:\n  %s\n' "${problems//$'\n'/$'\n'  }" >&2
   return 1
