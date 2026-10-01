@@ -95,7 +95,8 @@ When the `ProposeGoal` tool resolves in this session, also propose the condition
 the conditions the Boundary section below lists (no subagent, interactive local session, not plan
 mode). The tool has its own, lower cap (500 characters on 2.1.285, per
 [reference/native-goal.md](reference/native-goal.md)): re-run the Step 3 counter with
-`--limit 500` first, and propose only a condition that passes it. The paste-ready line above is
+`--limit 500` first, and propose only a condition that passes it and contains no tab character
+(the tool expands tabs before it counts, so the raw count would understate it). The paste-ready line above is
 emitted either way.
 
 Note for the user: `/goal` holds for the current session only. A goal survives `--resume` / `--continue` (though its turn count, timer, and token baseline reset), but running `/clear` removes it. So the goal must be re-set after any `/clear`.
