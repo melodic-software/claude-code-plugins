@@ -68,7 +68,9 @@ Models:
   and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5>
   The release notes and prompting guide for Sonnet 5.5, the current Sonnet, and the first-party
   sources for the `playbooks` Sonnet 5.5 model-adaptation chapter. Both fetched 2026-10-01 (HTTP
-  200); the models `overview` page does not carry the guide's behavior claims. One page per run
+  200); the models `overview` page does not carry the guide's behavior claims. Recheck "current
+  Sonnet" when the models `overview` page lists a later Sonnet or a Sonnet release note appears.
+  One page per run
 
 Claude Code companion docs (digest in this order):
 
