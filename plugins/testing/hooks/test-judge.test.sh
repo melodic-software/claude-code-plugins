@@ -729,6 +729,82 @@ stub_reset
 stop sec6
 check "a test file in no repository: no judge run, UNKNOWN 'no repository'" \
   '[[ "$(stub_calls)" == 0 && "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/sec6/"*.json)" == *"no repository"* ]]'
+# Re-review: the memory root itself, non-regular names, the write race and
+# the branch in the frontmatter.
+# fdir <repo> <branch>: FDIR as judge::findings_dir resolves it, within 5 s.
+fdir() { timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" R="$1" B="$2" bash -c "$(declare -f lib); lib linux-gnu 'judge::findings_dir \"\$R\" \"\$B\"; printf %s \"\$FDIR\"'"; }
+newrepo() { # newrepo <dir> <memory_dir>
+  mkdir -p "$1/.claude"
+  git -C "$1" init -q
+  printf 'memory_dir: %s\n' "$2" >"$1/.claude/topic-docs.yaml"
+}
+SEC="$TMP/sec"
+newrepo "$SEC/a/reviews" x
+ln -s .. "$SEC/a/reviews/x"
+check "a memory root linked out of the checkout (x -> .., in a checkout named reviews): no .gitignore outside" \
+  '[[ "$(fdir "$SEC/a/reviews" main)" == "$DATA/findings" && ! -e "$SEC/a/.gitignore" ]]'
+mkdir -p "$SEC/b/sib" "$SEC/b/victim/inner"
+newrepo "$SEC/b/victim" x
+ln -s ../sib "$SEC/b/victim/x"
+ln -s ../victim/inner "$SEC/b/sib/reviews"
+check "a memory root in a sibling whose reviews/ links back in: no .gitignore in the sibling" \
+  '[[ "$(fdir "$SEC/b/victim" main)" == "$DATA/findings" && ! -e "$SEC/b/sib/.gitignore" ]]'
+newrepo "$SEC/c" .work
+mkdir -p "$SEC/c/real"
+ln -s real "$SEC/c/.work"
+check ".work linked to a directory inside the checkout still works" '[[ "$(fdir "$SEC/c" main)" == "$SEC/c/.work/reviews/main" && -f "$SEC/c/real/.gitignore" ]]'
+newrepo "$SEC/d" "$SEC/d/notes"
+check "an absolute memory_dir inside the checkout still works" '[[ "$(fdir "$SEC/d" main)" == "$SEC/d/notes/reviews/main" ]]'
+newrepo "$SEC/e" .work
+mkdir -p "$SEC/e/.work"
+mkfifo "$SEC/e/.work/.gitignore"
+check "a FIFO at .gitignore: returns at once, nothing written, the plugin data directory" '[[ "$(fdir "$SEC/e" main)" == "$DATA/findings" ]]'
+newrepo "$SEC/f" .work
+mkdir -p "$SEC/f/.work" "$SEC/fout"
+mkfifo "$SEC/fout/fifo"
+ln -s "$SEC/fout/fifo" "$SEC/f/.work/.gitignore"
+check "a link to a FIFO at .gitignore: returns at once, nothing written" '[[ "$(fdir "$SEC/f" main)" == "$DATA/findings" ]]'
+# A findings name taken by a link to a FIFO is skipped, not written through.
+newrepo "$SEC/g" .work
+git -C "$SEC/g" checkout -q -b main 2>/dev/null
+mkdir -p "$SEC/g/.work/reviews/main"
+printf '*\n' >"$SEC/g/.work/.gitignore"
+mkfifo "$SEC/fout/fifo2"
+now="$(date +%s)"
+for s in 0 1 2 3 4 5 6 7 8 9; do
+  ln -s "$SEC/fout/fifo2" "$SEC/g/.work/reviews/main/$(jq -rn --argjson t "$((now + s))" '$t | strftime("%Y%m%dT%H%M%SZ")')-test-judge.md"
+done
+jq -cn --arg f "$SEC/g/t.test.ts" --arg r "$SEC/g" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+  evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/g-verdict.json"
+gout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" GV="$TMP/g-verdict.json" R="$SEC/g" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$GV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
+check "a findings name taken by a link to a FIFO is skipped: no hang, written under the next name" \
+  '[[ "$gout" == "$SEC/g/.work/reviews/main/"*-test-judge-2.md && -f "$gout" && ! -L "$gout" ]]'
+# The directory is checked again just before the file takes its name: one
+# swapped for a link out after the first check is not written through.
+newrepo "$SEC/h" .work
+git -C "$SEC/h" checkout -q -b main 2>/dev/null
+mkdir -p "$SEC/hout"
+jq -cn --arg f "$SEC/h/t.test.ts" --arg r "$SEC/h" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+  evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/h-verdict.json"
+hout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" HV="$TMP/h-verdict.json" R="$SEC/h" O="$SEC/hout" bash -c "$(declare -f lib); lib linux-gnu '
+  eval \"\$(declare -f judge::findings_dir | sed \"1s/judge::findings_dir/orig_fd/\")\"
+  judge::findings_dir() { orig_fd \"\$@\"; rm -rf \"\$R/.work/reviews/main\"; ln -s \"\$O\" \"\$R/.work/reviews/main\"; }
+  RELAY=\"\$(<\"\$HV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
+check "a findings directory swapped for a link out after the check: nothing lands outside" \
+  '[[ -z "$(ls -A "$SEC/hout")" && "$hout" == "$DATA/findings/"* && -f "$hout" ]]'
+# The branch in the frontmatter parses back to itself: quoted exactly when its
+# plain YAML form would misparse (the predicate testing:audit shares), so
+# a"b#c stays plain and #x, which plain would read as a comment, is quoted.
+newrepo "$SEC/i" .work
+git -C "$SEC/i" checkout -q -b 'a"b#c'
+jq -cn --arg f "$SEC/i/t.test.ts" --arg r "$SEC/i" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+  evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/i-verdict.json"
+iout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" IV="$TMP/i-verdict.json" R="$SEC/i" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$IV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
+check "a branch named a\"b#c is a plain scalar, as YAML reads it back" '[[ "$(sed -n 4p "$iout")" == "branch: a\"b#c" ]]'
+git -C "$SEC/i" checkout -q -b '#x'
+iout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" IV="$TMP/i-verdict.json" R="$SEC/i" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$IV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
+check "a branch named #x is quoted, or YAML would read a comment" '[[ "$(sed -n 4p "$iout")" == "branch: \"#x\"" ]]'
+
 # 5. Numeric settings are numbers, never arithmetic run on the environment.
 transcript sec7 claude-sonnet-5
 js_file "$REPO/src/sec7.test.ts" sec7

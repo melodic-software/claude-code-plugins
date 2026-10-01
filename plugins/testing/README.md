@@ -87,9 +87,14 @@ evidence, source or diff. The repository is the git toplevel of the test file's 
 whatever the hook's working directory. In the findings file each judge field is kept on one line
 and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
 the diff's fence is longer than any run of backticks inside it, so judge text cannot add a heading,
-a table row or a fence. The findings directory must resolve, symbolic links followed, inside the
-checkout, and its `.gitignore` and the findings file are created exclusively, never through an
-existing link; otherwise the file goes to `findings/` in the plugin data directory. A
+a table row or a fence. The memory root and the findings directory must resolve, symbolic links
+followed, inside the checkout, before and after they are created. The `.gitignore` is written only
+where no name exists yet, or kept when it is a regular file; a link, FIFO or anything else there is
+refused. The findings file is written to a new temporary file in the checked directory, the
+directory is checked again, and the file then takes the first free name with `mv -n`, so any name
+already taken (by a file, a link or anything else) is skipped. A check that fails sends the file
+to `findings/` in the plugin data directory. A local process that swaps a directory between those
+steps can still race them; that residual is accepted. A
 `memory_dir` with characters outside `[A-Za-z0-9._/-]` or a `..` component is ignored for `.work`.
 
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run

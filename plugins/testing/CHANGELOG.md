@@ -51,9 +51,14 @@ All notable changes to the `testing` plugin are documented here. Format follows
   expected value restates is a FLAG's best evidence; one found nowhere still makes the verdict
   UNKNOWN. The judge prompt now says so; it changed before any Phase 4 calibration label was read,
   so the prompt freeze is not broken. Hardened after a security review: the findings directory
-  must resolve, symbolic links followed, inside the checkout before and after it is created, and
-  the `.gitignore` and findings file are created exclusively, so a link in the repository cannot
-  carry the write elsewhere (it falls back to the plugin data directory); `memory_dir` is used only
+  and the memory root must resolve, symbolic links followed, inside the checkout before and after
+  they are created; the `.gitignore` is written only where no name exists, so an existing link,
+  FIFO or other non-regular name is refused (noclobber alone would open a non-regular name); the
+  findings file goes to a temporary file in the checked directory and takes a free name with
+  `mv -n` after a second check, so a link in the repository cannot carry the write elsewhere (it
+  falls back to the plugin data directory; a local process racing those steps is an accepted
+  residual); the frontmatter `branch:` is quoted when its plain YAML form would misparse, with the
+  predicate `testing:audit` uses; `memory_dir` is used only
   when it matches `[A-Za-z0-9._/-]` with no `..`; judge text in the findings file is capped, kept
   on one line and fenced past its own backticks, and a verdict that failed validation shows only
   its reason; a test file in no repository is not judged ("no repository"); and every numeric
