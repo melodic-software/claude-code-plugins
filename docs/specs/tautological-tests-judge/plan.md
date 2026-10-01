@@ -476,11 +476,15 @@ Other files:
   model and effort of the arm calibration.md names as chosen.
 - `bash scripts/check-orphaned-fixtures.sh --check` exits 0.
 
-### Phase 5: Close out [TODO]
+### Phase 5: Close out [DONE]
 
 - Spec Release 2 outline: judge items `[DONE]`; the mutation scope stays `[TODO]`.
-- R2-P13's Stop wait re-measured with the chosen arm (`sonnet` `low`) and recorded in probes.md;
+- R2-P13's Stop wait re-measured with the shipped arm (`sonnet` `medium`) and recorded in probes.md;
   a shorter debounce is considered if the wait stays long (moved from Phase 4, 2026-10-01).
+  Result 2026-10-01: max wait 17.8 s (was 28.2 s with `opus`), under the 60 s bar. Every Stop still
+  waits out the rest of the 20 s debounce, so the debounce is now the larger share of the wait. The
+  debounce stays 20 s in Release 2: shortening it trades the wait for superseded runs, which no probe
+  has measured; that trade is a follow-up, not part of this release.
 - All phase tags here `[DONE]`.
 
 **Sanity Check:**
