@@ -1,0 +1,333 @@
+"""Tests for the todo-to-issues migration script.
+
+TDD Red phase: these tests define the contract before implementation.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+import yaml
+
+# The module under test — will be created in the Green phase.
+# Using importlib to handle the hyphenated filename.
+import importlib.util
+
+SCRIPT_PATH = Path(__file__).parent.parent / "migrate-todo-to-issues.py"
+
+
+@pytest.fixture()
+def load_module():
+    """Load the migration script as a module."""
+    spec = importlib.util.spec_from_file_location("migrate", SCRIPT_PATH)
+    assert spec is not None, f"Could not find {SCRIPT_PATH}"
+    assert spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+# ---------------------------------------------------------------------------
+# Frontmatter parsing
+# ---------------------------------------------------------------------------
+
+
+class TestParseFrontmatter:
+    def test_standard_frontmatter(self, load_module: object) -> None:
+        """Standard items have id, status, category."""
+        content = (
+            "---\n"
+            "id: add-actionlint-to-prerequisites\n"
+            "status: pending\n"
+            "category: general\n"
+            "---\n"
+            "\n"
+            "**Add actionlint.** Body text here.\n"
+        )
+        meta, body = load_module.parse_frontmatter(content)
+        assert meta["id"] == "add-actionlint-to-prerequisites"
+        assert meta["status"] == "pending"
+        assert meta["category"] == "general"
+        assert "**Add actionlint.**" in body
+
+    def test_nonstandard_frontmatter_uses_title_field(
+        self, load_module: object
+    ) -> None:
+        """Items with title/priority/tags instead of id/status/category."""
+        content = (
+            "---\n"
+            "title: Evaluate TDD Guard plugin\n"
+            "priority: medium\n"
+            "tags: [hooks, tdd]\n"
+            "created: 2026-03-31\n"
+            "---\n"
+            "\n"
+            "Evaluate the plugin.\n"
+        )
+        meta, body = load_module.parse_frontmatter(content)
+        assert meta.get("title") == "Evaluate TDD Guard plugin"
+        # id should NOT be present — caller must handle fallback
+        assert "id" not in meta
+
+    def test_frontmatter_with_missing_category_defaults(
+        self, load_module: object
+    ) -> None:
+        """Missing category should not crash — caller handles default."""
+        content = "---\nid: test-item\nstatus: pending\n---\n\nBody.\n"
+        meta, body = load_module.parse_frontmatter(content)
+        assert meta["id"] == "test-item"
+        assert "category" not in meta
+
+    def test_frontmatter_body_separation(self, load_module: object) -> None:
+        """Body should not contain frontmatter delimiters."""
+        content = "---\nid: test\nstatus: pending\ncategory: general\n---\n\nBody text.\n"
+        meta, body = load_module.parse_frontmatter(content)
+        assert "---" not in body
+        assert body.strip() == "Body text."
+
+
+# ---------------------------------------------------------------------------
+# Title extraction
+# ---------------------------------------------------------------------------
+
+
+class TestExtractTitle:
+    def test_bold_with_period(self, load_module: object) -> None:
+        """Standard bold title ending with period."""
+        body = "**Add actionlint to prerequisites.** More text here."
+        assert load_module.extract_title(body, "fallback-id") == "Add actionlint to prerequisites"
+
+    def test_bold_without_period(self, load_module: object) -> None:
+        """Bold title without trailing period."""
+        body = "**Source-generate AOT-safe CQRS dispatch table** More text."
+        assert load_module.extract_title(body, "fallback-id") == "Source-generate AOT-safe CQRS dispatch table"
+
+    def test_bold_with_colon(self, load_module: object) -> None:
+        """Bold title ending with colon (recurring items)."""
+        body = "**Recurring: Rules files audit.** Evaluate files."
+        assert load_module.extract_title(body, "fallback-id") == "Recurring: Rules files audit"
+
+    def test_heading(self, load_module: object) -> None:
+        """Markdown heading as title."""
+        body = "# Audit all `false` plugin entries in settings.json\n\nBody."
+        assert (
+            load_module.extract_title(body, "fallback-id")
+            == "Audit all `false` plugin entries in settings.json"
+        )
+
+    def test_fallback_to_id(self, load_module: object) -> None:
+        """No bold or heading — fall back to id as title case."""
+        body = "How should we handle architecture tests for other languages?"
+        title = load_module.extract_title(body, "architecture-tests-other-languages")
+        assert title == "Architecture Tests Other Languages"
+
+    def test_frontmatter_title_field_takes_priority(
+        self, load_module: object
+    ) -> None:
+        """If frontmatter has 'title' field, use it directly."""
+        title = load_module.extract_title(
+            "Body text.", "fallback-id", frontmatter_title="Evaluate TDD Guard plugin"
+        )
+        assert title == "Evaluate TDD Guard plugin"
+
+
+# ---------------------------------------------------------------------------
+# Label mapping
+# ---------------------------------------------------------------------------
+
+
+class TestMapLabels:
+    def test_standard_labels(self, load_module: object) -> None:
+        """Standard item gets type:chore + category + migrated."""
+        labels = load_module.map_labels(category="general")
+        assert "type:chore" in labels
+        assert "category:general" in labels
+        assert "migrated" in labels
+
+    def test_plugins_maps_to_general(self, load_module: object) -> None:
+        """category:plugins should map to category:general."""
+        labels = load_module.map_labels(category="plugins")
+        assert "category:general" in labels
+        assert "category:plugins" not in labels
+
+    def test_recurring_labels(self, load_module: object) -> None:
+        """Recurring items get recurring + cadence labels."""
+        labels = load_module.map_labels(
+            category="general", recurring=True, cadence="quarterly"
+        )
+        assert "recurring" in labels
+        assert "cadence:quarterly" in labels
+        assert "type:chore" in labels
+        assert "migrated" in labels
+
+    def test_no_duplicate_labels(self, load_module: object) -> None:
+        """Labels list should not contain duplicates."""
+        labels = load_module.map_labels(category="general", recurring=True, cadence="monthly")
+        assert len(labels) == len(set(labels))
+
+
+# ---------------------------------------------------------------------------
+# Context file extraction
+# ---------------------------------------------------------------------------
+
+
+class TestExtractContextRefs:
+    def test_finds_context_refs(self, load_module: object) -> None:
+        """Extract context/ file references from body text."""
+        body = "See `context/mcp-cli-inventory-2026-03-24.md` for details."
+        refs = load_module.extract_context_refs(body)
+        assert refs == ["context/mcp-cli-inventory-2026-03-24.md"]
+
+    def test_multiple_refs(self, load_module: object) -> None:
+        """Multiple context references in one body."""
+        body = (
+            "See `context/foo.md` and `context/bar.md`."
+        )
+        refs = load_module.extract_context_refs(body)
+        assert len(refs) == 2
+        assert "context/foo.md" in refs
+        assert "context/bar.md" in refs
+
+    def test_no_refs(self, load_module: object) -> None:
+        """Body without context references."""
+        body = "Just a plain description."
+        refs = load_module.extract_context_refs(body)
+        assert refs == []
+
+
+# ---------------------------------------------------------------------------
+# Issue body building
+# ---------------------------------------------------------------------------
+
+
+class TestBuildIssueBody:
+    def test_includes_migration_marker(self, load_module: object) -> None:
+        """Body must contain <!-- migrated-from: id --> HTML comment."""
+        body = load_module.build_issue_body(
+            item_id="test-item",
+            description="Test description.",
+            context_refs=[],
+        )
+        assert "<!-- migrated-from: test-item -->" in body
+
+    def test_includes_description(self, load_module: object) -> None:
+        """Body includes the original item description."""
+        body = load_module.build_issue_body(
+            item_id="test-item",
+            description="Original description text.",
+            context_refs=[],
+        )
+        assert "Original description text." in body
+
+    def test_includes_context_refs(self, load_module: object) -> None:
+        """Body includes context file references when present."""
+        body = load_module.build_issue_body(
+            item_id="test-item",
+            description="Description.",
+            context_refs=["context/foo.md"],
+        )
+        assert "## Related Context" in body
+        assert "`.claude/skills/todo/context/foo.md`" in body
+
+    def test_no_context_section_when_empty(self, load_module: object) -> None:
+        """No Related Context section when no refs."""
+        body = load_module.build_issue_body(
+            item_id="test-item",
+            description="Description.",
+            context_refs=[],
+        )
+        assert "## Related Context" not in body
+
+
+# ---------------------------------------------------------------------------
+# Recurring mapping
+# ---------------------------------------------------------------------------
+
+
+class TestRecurringMapping:
+    def test_with_matching_item(self, load_module: object) -> None:
+        """Recurring entry with a matching item uses item's category."""
+        recurring_entry = {
+            "id": "review-banned-symbols",
+            "match": "Review BannedSymbols.txt",
+            "cadence": "semi-annual",
+            "triggers": [".NET SDK major release"],
+            "last_checked": "2026-03-23",
+            "next_due": "2026-09-19",
+            "notes": "Check all bans.",
+        }
+        item_meta = {"id": "review-banned-symbols", "category": "general"}
+        result = load_module.map_recurring_to_schedule(recurring_entry, item_meta)
+        assert result["id"] == "review-banned-symbols"
+        assert result["title"] == "Review BannedSymbols.txt"
+        assert result["cadence"] == "semi-annual"
+        assert result["category"] == "general"
+        assert result["close_previous"] is True
+        assert result["triggers"] == [".NET SDK major release"]
+
+    def test_without_matching_item(self, load_module: object) -> None:
+        """Recurring entry without matching item uses defaults."""
+        recurring_entry = {
+            "id": "review-gitignore",
+            "match": "Review .gitignore",
+            "cadence": "annual",
+            "triggers": ["new language added"],
+            "last_checked": "2026-03-23",
+            "next_due": "2027-03-23",
+            "notes": "Sync stock template.",
+        }
+        result = load_module.map_recurring_to_schedule(recurring_entry, item_meta=None)
+        assert result["title"] == "Review .gitignore"
+        assert result["category"] == "general"
+        assert result["close_previous"] is True
+
+    def test_preserves_all_fields(self, load_module: object) -> None:
+        """All recurring.json fields map to recurring-schedule.json format."""
+        recurring_entry = {
+            "id": "test-recurring",
+            "match": "Test title",
+            "cadence": "monthly",
+            "triggers": ["trigger1", "trigger2"],
+            "last_checked": "2026-04-01",
+            "next_due": "2026-05-01",
+            "notes": "Notes text.",
+        }
+        result = load_module.map_recurring_to_schedule(recurring_entry, item_meta=None)
+        assert result["last_checked"] == "2026-04-01"
+        assert result["next_due"] == "2026-05-01"
+        assert result["notes"] == "Notes text."
+        assert result["triggers"] == ["trigger1", "trigger2"]
+
+
+# ---------------------------------------------------------------------------
+# Dry-run mode
+# ---------------------------------------------------------------------------
+
+
+class TestDryRun:
+    def test_no_subprocess_calls(self, load_module: object) -> None:
+        """Dry-run mode must not call subprocess.run."""
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            patch("subprocess.run") as mock_run,
+        ):
+            items_dir = Path(tmpdir) / "items"
+            items_dir.mkdir()
+            # Create a minimal item
+            (items_dir / "test-item.md").write_text(
+                "---\nid: test-item\nstatus: pending\ncategory: general\n---\n\n**Test item.** Body.\n",
+                encoding="utf-8",
+            )
+            load_module.run_migration(
+                items_dir=str(items_dir),
+                recurring_path=None,
+                repo="owner/repo",
+                dry_run=True,
+                log_path=os.path.join(tmpdir, "log.jsonl"),
+            )
+            mock_run.assert_not_called()

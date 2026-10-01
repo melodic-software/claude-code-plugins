@@ -1,0 +1,5 @@
+export function renderReceipt(items: { name: string; price: number }[]): string {
+  const lines = items.map((i) => `${i.name} ${i.price}`);
+  const total = items.reduce((sum, i) => sum + i.price, 0);
+  return [...lines, `Total ${total}`].join('\n');
+}

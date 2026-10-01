@@ -1,0 +1,165 @@
+using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
+using Platform.AI.Abstractions.Content;
+using Platform.AI.Abstractions.Errors;
+using Platform.AI.Abstractions.Generations;
+using Platform.AI.Abstractions.Prompts;
+using Platform.AI.Abstractions.Resources;
+using Platform.AI.Generations;
+using Platform.Core.Errors;
+using Platform.Core.Results;
+
+namespace Platform.AI.Tests.Generations;
+
+public class ResourceGuardTests
+{
+    private readonly ITextGenerator _inner = Substitute.For<ITextGenerator>();
+    private readonly IBudgetProvider _budgetProvider = Substitute.For<IBudgetProvider>();
+    private readonly IUsageRecorder _usageRecorder = Substitute.For<IUsageRecorder>();
+    private readonly FakeTimeProvider _timeProvider = new();
+
+    private ResourceGuard CreateGuard() =>
+        new(_inner, _budgetProvider, _usageRecorder, _timeProvider);
+
+    private static Prompt MakePrompt() =>
+        new([new PromptMessage(PromptRole.User, [new TextContent("test")])]);
+
+    private static Generation MakeGeneration() =>
+        new("response", FinishReason.Complete, new UsageReport(100, 50, TimeSpan.FromMilliseconds(200)));
+
+    [Fact]
+    public async Task GenerateAsync_BudgetAvailable_PassesThrough()
+    {
+        _budgetProvider.GetBudgetAsync(Arg.Any<BudgetScope>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new TokenBudget(1000, 500, BudgetScope.PerSession)));
+
+        _inner.GenerateAsync(Arg.Any<Prompt>(), Arg.Any<GenerationOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(MakeGeneration()));
+
+        _usageRecorder.RecordAsync(Arg.Any<UsageRecord>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success());
+
+        ResourceGuard guard = CreateGuard();
+        Result<Generation> result = await guard.GenerateAsync(
+            MakePrompt(), ct: TestContext.Current.CancellationToken);
+
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Text.ShouldBe("response");
+        await _usageRecorder.Received(1).RecordAsync(Arg.Any<UsageRecord>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GenerateAsync_BudgetExhausted_ReturnsBudgetExceededError()
+    {
+        _budgetProvider.GetBudgetAsync(Arg.Any<BudgetScope>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new TokenBudget(0, 0, BudgetScope.PerSession)));
+
+        ResourceGuard guard = CreateGuard();
+        Result<Generation> result = await guard.GenerateAsync(
+            MakePrompt(), ct: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldBeOfType<BudgetExceededError>();
+        await _inner.DidNotReceive().GenerateAsync(
+            Arg.Any<Prompt>(), Arg.Any<GenerationOptions?>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GenerateAsync_BudgetProviderFails_PropagatesError()
+    {
+        var error = Error.Failure("Budget.Unavailable", "Cannot check budget");
+        _budgetProvider.GetBudgetAsync(Arg.Any<BudgetScope>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<TokenBudget>(error));
+
+        ResourceGuard guard = CreateGuard();
+        Result<Generation> result = await guard.GenerateAsync(
+            MakePrompt(), ct: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Budget.Unavailable");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_InnerGeneratorFails_PropagatesWithoutRecording()
+    {
+        _budgetProvider.GetBudgetAsync(Arg.Any<BudgetScope>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new TokenBudget(1000, 500, BudgetScope.PerSession)));
+
+        var error = new AiUnavailableError("AI.Down", "Provider unavailable");
+        _inner.GenerateAsync(Arg.Any<Prompt>(), Arg.Any<GenerationOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure<Generation>(error));
+
+        ResourceGuard guard = CreateGuard();
+        Result<Generation> result = await guard.GenerateAsync(
+            MakePrompt(), ct: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldBeOfType<AiUnavailableError>();
+        await _usageRecorder.DidNotReceive().RecordAsync(Arg.Any<UsageRecord>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GenerateAsync_UsageRecordingFails_PropagatesFailure()
+    {
+        // Codex P2: a quota/accounting store outage should not silently allow
+        // generation through — the next budget check would under-count.
+        _budgetProvider.GetBudgetAsync(Arg.Any<BudgetScope>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new TokenBudget(1000, 500, BudgetScope.PerSession)));
+
+        _inner.GenerateAsync(Arg.Any<Prompt>(), Arg.Any<GenerationOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(MakeGeneration()));
+
+        var recordError = Platform.Core.Errors.Error.Failure("Usage.RecordFailed", "accounting store unavailable");
+        _usageRecorder.RecordAsync(Arg.Any<UsageRecord>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Failure(recordError));
+
+        ResourceGuard guard = CreateGuard();
+        Result<Generation> result = await guard.GenerateAsync(
+            MakePrompt(), ct: TestContext.Current.CancellationToken);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("Usage.RecordFailed");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_PerSessionScope_RecordsSessionId()
+    {
+        _budgetProvider.GetBudgetAsync(Arg.Any<BudgetScope>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new TokenBudget(1000, 500, BudgetScope.PerSession)));
+
+        _inner.GenerateAsync(Arg.Any<Prompt>(), Arg.Any<GenerationOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(MakeGeneration()));
+
+        _usageRecorder.RecordAsync(Arg.Any<UsageRecord>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success());
+
+        ResourceGuard guard = new(
+            _inner, _budgetProvider, _usageRecorder, _timeProvider, BudgetScope.PerSession, "session-123");
+        await guard.GenerateAsync(MakePrompt(), ct: TestContext.Current.CancellationToken);
+
+        await _usageRecorder.Received(1).RecordAsync(
+            Arg.Is<UsageRecord>(record => record.SessionId == "session-123" && record.UserId == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GenerateAsync_PerUserScope_RecordsUserId()
+    {
+        _budgetProvider.GetBudgetAsync(Arg.Any<BudgetScope>(), Arg.Any<string?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(new TokenBudget(1000, 500, BudgetScope.PerUser)));
+
+        _inner.GenerateAsync(Arg.Any<Prompt>(), Arg.Any<GenerationOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success(MakeGeneration()));
+
+        _usageRecorder.RecordAsync(Arg.Any<UsageRecord>(), Arg.Any<CancellationToken>())
+            .Returns(Result.Success());
+
+        ResourceGuard guard = new(
+            _inner, _budgetProvider, _usageRecorder, _timeProvider, BudgetScope.PerUser, "user-456");
+        await guard.GenerateAsync(MakePrompt(), ct: TestContext.Current.CancellationToken);
+
+        await _usageRecorder.Received(1).RecordAsync(
+            Arg.Is<UsageRecord>(record => record.UserId == "user-456" && record.SessionId == null),
+            Arg.Any<CancellationToken>());
+    }
+}
