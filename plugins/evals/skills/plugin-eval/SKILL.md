@@ -89,10 +89,11 @@ word `eval`, `claude plugin eval --help` included, and refuses the user's own `!
 session the same way. This applies only when `run` or `init` is about to invoke `claude plugin eval`;
 `preflight`, `validate`, `read`, and `ci` never invoke it and proceed as usual. Do not retry, wrap
 the command in a script, route it through another tool, or bypass the guard in any other way. Stop,
-print the exact `claude plugin eval <target> ...` command this skill would have run, with an
-absolute `<target>` and an absolute `--json` path inside the isolated worktree so the command gives
-the same result from any directory, and tell the user to paste it into a terminal outside Claude
-Code. Then read the result back, for example the `--json` file, with the `read` action.
+print the exact command this skill would have run and tell the user to paste it into a terminal
+outside Claude Code. For `run` that is `claude plugin eval <target> ...` with an absolute
+`<target>` and an absolute `--json` path inside the isolated worktree, so the command gives the same
+result from any directory; for `init` it is `claude plugin eval init --bare <name>`, which takes no
+`--json`. After a `run`, read the `--json` file back with the `read` action.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
@@ -287,8 +288,8 @@ is what tells a reader which one happened and whether the arms were comparable a
 
 ## Gotchas
 
-- The worktree refusal's text mentions git operations, but `claude plugin eval` is not one; the
-  guard matches the word `eval`, so no flag or rewording of the command clears it.
+- The worktree refusal says the command runs a string through eval, but `claude plugin eval` does
+  not; the guard matches the word `eval`, so no flag or rewording of the command clears it.
 - A pass that crosses the ceiling can still end `partial: false` with exit 0 and one case missing
   its `delta`: the ceiling skips judge calls, not runs. A pass that crosses it earlier skips whole
   cases and reports `partial: true` with exit 2. Only the JSON distinguishes them.
