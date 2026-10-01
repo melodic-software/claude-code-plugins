@@ -3,6 +3,78 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.55.1] - 2026-10-01
+
+### Fixed
+
+- **The plan and interview texts tell a session to write the reconfirm row in the named-field form.** Accepting a superseded-by-plan row now reads `proposal:: <new>; was:: <old>; answer:: accepted: <new>`, the row the exporter writes, so a hand-written row imports the same way; a test round-trips it. Ledgers already written in the older `reconfirmed at plan approval` form still import as plain own text ([#5534](https://github.com/melodic-software/claude-code-plugins/issues/5534)).
+
+## [0.55.0] - 2026-10-01
+
+### Added
+
+- **`round.sh doctor --ledger <file>` reports what the running version needs and a ledger or page lacks, and writes nothing.** It prints a `missing:` line for each absent `## Constraint ledger` or `## Open-question register` section and for open questions without a Basis or a `Checked against:` line, exits 1 on any, and prints a `note:` when the ledger's `Planning version:` line or `meta.pluginVersion` names another version. A data dir records the version that first wrote it in `meta.pluginVersion`, the ledger template carries the header line, and the resume guidance says to resolve the surface again through the start command and run the check before the first resumed round ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A question's `facts` can open with a Source block, and the page renders `>` quotes as block quotes.** The block is the exact text the decision rests on, a link to its section and one line on why. The Brief and report carry no `facts`, so no quote reaches them ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The ledger and the page stay in step.** `sync-ledger` rewrites only the register rows from page state, `export-ledger --ledger` keeps a ledger's own rows, titles and round labels, `export-ledger --diff` prints what a merge would change, and the register gate reports every bad row with its line number. `import-ledger` warns on a round cell that does not lead with `round <N>` and keeps each cell it cannot normalize ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`export-brief` takes Goal, Constraints, Acceptance criteria and Out-of-scope from the newest confirmed restatement.** Every revision is kept, the TLDR says `Restatement: confirmed at rev N` or `UNCONFIRMED (latest rev N)`, and `check-open-questions.sh --brief` fails an unconfirmed Brief. `reply --resolution` records the accepted reading of an own answer as the exported answer and keeps the user's words as its note ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`revise --depends` replaces a question's prerequisites, and `add --repoint` moves dependents off a superseded question.** An archived or superseded prerequisite counts as met and is labeled on the page, a changed recommendation marks the questions it affects `Upstream changed`, and a hold set by the user clears once a later decision follows it ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A `finish` op closes the interview.** `round.sh stop` posts one when none exists, and the page shows it in a dismissible modal, says why it is offline (finished, connection lost, server restarted), and keeps the terminal status visible. Activity splits into Needs you and a collapsed Log ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+### Changed
+
+- **The wording lint flags only `Q<N>` and `C<N>` ids that name nothing in the file.** Tracker keys, severity codes and standard names such as `ABC2`, `SEV1`, `S12`, `HTTP2` and `ES2022` no longer warn ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`ops.schema.json` carries the text caps `round.py` enforces** (500 characters for one-line fields, 20000 for markdown fields), and `surface.md` states both ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **`stop` keeps the port in the data dir and `ensure-running` reuses it when free,** so open tabs and their per-origin settings survive a restart ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The page labels the recommendation Rec, shows the note box empty after a save, lists outstanding items before Wrap up, and labels each round with its stage.** Decision events record the `contentRev` they answered, and `add-round` keeps the existing title unless `--replace-title` is passed ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+## [0.54.1] - 2026-09-30
+
+### Fixed
+
+- **`interview` and `plan` spokes no longer cite bundled files through the literal plugin-root token in the surface and close-out pages.** The token is not substituted in a `context/` file, so the `reference/topic-docs.md` link in `plan`'s `context/close-out.md` resolved to nothing and is now relative to the spoke. The wake command in `interview`'s `context/surface.md` now reads `bash '<surface_dir>/wake.sh' '<data_dir>'`, matching the other commands on that page, and `watch.test.sh` substitutes `<surface_dir>` when it runs it.
+
+## [0.54.0] - 2026-09-30
+
+### Added
+
+- **The interview page has Research this and Cancel research buttons.** They post generic `research` and `cancel-research` events that name no skill or plugin; the interviewing session decides how to fulfill them. The `wait` op stamps `waitingSince`, and a held card reads "Research in progress, started <time>". While Claude holds a question, Accept, the alternatives and Own answer stay enabled (Answer anyway, as before); disabling them is not done and is left to the owner ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A question waiting for Claude's reply shows a chip, and Accept asks first.** An ask or rephrase with no later reply from Claude marks the question "Waiting for Claude's reply", and Accept then asks "Accept current recommendation anyway?" ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **A bare `#N` in question text links to the issue in the new `meta.repo` key.** `round.py` warns, without blocking, when text carries one and `meta.repo` is unset ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+### Fixed
+
+- **The revising chip reads "Answer not handled yet" and shows on a question only while Claude has not handled that question's own decision.** It no longer names an upstream question; a changed prerequisite stays in the Stale and Waiting-on chips ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The summary's Confirm and Something's off buttons sit in one row below the What-is-off box**, clear of it ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The decide area caps at 40% of the viewport height on short screens, and the phone layout wraps the status line and no longer scrolls the question rail inside itself** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+- **The wake contract says to re-read the events and restate after a stale-read refusal instead of forcing** ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+## [0.53.0] - 2026-09-30
+
+### Added
+
+- **The interview surface records a hedged decision, and an accepted or hedged row with an unticked commitment exports as open.** The page has a Hedged choice that takes a required condition; it exports as `answer:: hedged: <recommendation>` with the condition in `note::` and imports back as `hedged`. A row whose counting decision is an accept or a hedge while any commitment is unticked, including after a revise replaces the commitment list, now grades `open` in the ledger, so `check-open-questions.sh` fails it under `lock` instead of passing it with the commitments only named as risks in the Brief ([#5471](https://github.com/melodic-software/claude-code-plugins/issues/5471)).
+
+## [0.52.2] - 2026-09-30
+
+### Fixed
+
+- **The interview page drives its Open filter, counters and first pick from one "needs you" state.** The revising chip names the upstream question it waits on, "Sent to Claude" clears once the question is answered, and the composer has a Clear button. An answered question shows the chosen option and an answered-after marker. The `reply` op stamps `kind: "reply"` on its history line by default, and only Claude's reply, rephrase, note and revise lines count as replies, so a hold or a confirm-commitments line does not put a settled question back in Show: Open. Muted text and the Archived chip meet WCAG AA contrast, question titles render through `inline()`, and `surface.md` documents the `meta.stages` shape. The 510px sidebar check now covers cards with 0, 1, 2 and 4 dependencies ([#5569](https://github.com/melodic-software/claude-code-plugins/issues/5569)).
+
+## [0.52.1] - 2026-09-30
+
+### Changed
+
+- **`reference/standards-contract.md` is the standards contract at 1.0.1.** The contract's prose
+  drops its em dashes; nothing else in it changes. An index at 1.0.0 is older than the bundled
+  contract, so `setup` offers the guided migration.
+
+## [0.52.0] - 2026-09-30
+
+### Changed
+
+- **Every interview ledger row exports in one escaped named-field grammar.** Hold, proposal, was, answer, note, aside and commitments each get a named field, so export followed by import restores the question state, except two held-row cases the fields cannot name (a seeded blocked row comes back deferred, and the seed text of a row whose held accept or alternative is set aside is lost). The importer still reads every earlier row form ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+- **The Brief words two imported rows differently.** A plain answer that a ledger seeded now reads `free-text: ...`, and a seeded withdrawal reads `archived: superseded by X` ([#4611](https://github.com/melodic-software/claude-code-plugins/issues/4611)).
+
 ## [0.51.0] - 2026-09-30
 
 ### Added

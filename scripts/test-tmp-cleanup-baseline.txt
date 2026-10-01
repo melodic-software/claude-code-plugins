@@ -2,36 +2,3 @@
 # repo-relative path per line; a `#` starts a comment. Stale-guarded: an entry
 # whose file is gone or no longer offends fails the gate, so the list only
 # shrinks. Never add a suite here: give it the trap instead.
-plugins/docs-hygiene/skills/compress/scripts/audit-scan.test.sh
-plugins/firecrawl/skills/update/scripts/update.test.sh
-plugins/instruction-placement/scripts/precompute.test.sh
-plugins/instruction-placement/scripts/verify-load.test.sh
-plugins/playbooks/skills/boris/scripts/update.test.sh
-plugins/playbooks/skills/skill-authoring/scripts/update.test.sh
-plugins/playwright/skills/playwright/scripts/update.test.sh
-plugins/session-flow/scripts/harness/hop_chain.test.sh
-plugins/testing/scripts/gen-hook-filters.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/common.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/create-item.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/lease-coordination.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/github/list-sub-items.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/claim-integrity.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/claim.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/create-item.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/list-items.test.sh
-plugins/work-items/tools/work-item-tracker/adapters/local-markdown/renew-lease.test.sh
-plugins/work-items/tools/work-item-tracker/conformance/bindings/jira.test.sh
-plugins/work-items/tools/work-item-tracker/conformance/bindings/linear.test.sh
-plugins/work-items/tools/work-item-tracker/conformance/bindings/local-markdown.test.sh
-scripts/affected-tests.test.sh
-scripts/check-changed-skills.test.sh
-scripts/check-contract-slice-prune.test.sh
-scripts/check-detector-eval-coverage.test.sh
-scripts/check-discriminating-test-skips.test.sh
-scripts/check-docs-only.test.sh
-scripts/check-exec-form-windows-probe.test.sh
-scripts/check-shell-portability.test.sh
-scripts/gen-hook-event-registry.test.sh
-scripts/lib/changed-files.test.sh
-scripts/lib/gate-entry.test.sh
-scripts/lib/read-list.test.sh

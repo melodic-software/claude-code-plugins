@@ -3,6 +3,18 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.3] - 2026-09-30
+
+### Fixed
+
+- **`setup` spokes no longer name `compose-statusline-wiring.sh` and `statusline-shim.sh` through the literal plugin-root token.** The token is not substituted in a `reference/` file, so a command copied from one resolved to nothing. The paths now read `<plugin-root>/scripts/...`, and the skill gains a `## Spoke paths` section saying `<plugin-root>` is the plugin root directory.
+
+## [0.9.2] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.9.1] - 2026-09-30
 
 ### Changed
@@ -243,7 +255,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   0.3.4, 0.3.3, 0.3.1, 0.3.0, 0.2.1, 0.2.0, and 0.1.0: their wording changed, their facts did not.
 - **`reference/reader-contract.md` says what the scope column decides instead of calling it
   load-bearing.** It now reads "the scope column decides how far a failure reaches", which names
-  the thing the reader needs in order to use the table.
+  the thing the reader needs to use the table.
 - **The plugin's markdown is declared in `scripts/em-dash-purged-paths.txt`.** The gate now defends
   `CHANGELOG.md`, `reference/reader-contract.md`, `bench/README.md`, and every `skills/*/SKILL.md`.
 

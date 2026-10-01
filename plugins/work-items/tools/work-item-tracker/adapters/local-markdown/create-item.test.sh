@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
+
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/create-item.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
@@ -14,7 +17,7 @@ assert_usage_error "$S" --title x --type # --type needs a value
 # create-item is the verb that writes a whole item, so assert what reaches the
 # store, not just the exit code. `type` is additive: supplied it round-trips,
 # omitted it projects as JSON null rather than an empty string.
-STORE="$(mktemp -d)"
+STORE="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 TYPED="$(WIT_STORAGE_DIR="$STORE" bash "$S" --title "typed item" --type bug)"
 assert_eq "--type reaches the emitted record" "bug" "$(jq -r '.type' <<<"$TYPED")"
 assert_contains "--type reaches the stored file" \

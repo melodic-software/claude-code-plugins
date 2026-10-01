@@ -55,7 +55,7 @@ spec mode, a verdict is only as good as the artifact it judged against.
    here with the container already in hand; when they pass it, use it.
 3. **The recorded pointer**: the `**Spec container:** <qualified-id>` line under the `## Brief`
    heading of the topic's PLAN.md, resolved through
-   [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+   [`reference/topic-docs.md`](../../../reference/topic-docs.md).
    **Expect this rung to be empty at close-out time.** The contract slice is pruned before merge,
    so by the moment this review runs the file is usually gone from the default branch. It is listed
    because close-out also runs at PR time on an unmerged branch, where the slice still exists.

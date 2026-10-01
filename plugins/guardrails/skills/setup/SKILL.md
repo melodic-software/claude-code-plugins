@@ -51,7 +51,7 @@ restores the FAIL semantics.
    OPEN (disabled) with a one-line stderr notice. The machine is unguarded, which is
    exactly what this check exists to surface.
 3. **`node`.** The pre-computed `node` row. FAIL if absent, with the README Requirements
-   remediation: every hook row starts through `hooks/exec-bash.mjs`, so no guard starts
+   remediation: every guard row starts through `hooks/exec-bash.mjs`, so no guard starts
    without it. The README records what Claude Code documents about a hook that cannot start.
 4. **Per-guard toggles.** Report each guard's effective `<guard>_enabled` value, one row per
    guard, so the user sees the live guard surface at a glance. The effective value is the
@@ -133,3 +133,13 @@ interactions to state in the report.
   enforcement lane is a human decision in a PR.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
   through the native configuration surface.
+
+## Spoke paths
+
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
+2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.

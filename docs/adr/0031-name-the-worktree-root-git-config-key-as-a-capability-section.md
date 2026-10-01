@@ -18,7 +18,7 @@ documentation and from the keys popular git-related tools actually ship.
 
 ## Decision
 
-Keep a git config vendor section — that is Git's documented idiom — and
+Keep a git config vendor section (that is Git's documented idiom) and
 name it after the **capability**, not the publisher and not this
 marketplace's plugin:
 
@@ -36,7 +36,7 @@ organization names in skill content.
 ## Evidence
 
 **Git invites third-party keys, and requires collision-freedom plus
-documentation — not org-neutrality, not reverse-DNS.**
+documentation, not org-neutrality, not reverse-DNS.**
 
 git-config(1) Variables: "Other git-related tools may and do use their own
 variables. When inventing new variables for use in your own tool, make sure

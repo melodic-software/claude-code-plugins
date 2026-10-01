@@ -22,7 +22,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 2 | 1 | route 2 | complementary 2 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
-| Built-in tools | 2 | 2 | route 2 | complementary 2 |
+| Built-in tools | 4 | 4 | route 4 | complementary 4 |
 | Session-provided skills (observation-only) | 1 | 0 | route 1 | defer 1 |
 | First-party marketplace plugins | 2 | 2 | route 2 | complementary 2 |
 
@@ -1041,7 +1041,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - `Explore` present in the extraction as builtin-agent
   - markers: gated
-  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions.
+  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions. <!-- ai-slop-ignore: verbatim native text -->
   - disallowed tools: Agent, Artifact, ArtifactComments, ArtifactData, ArtifactCheck, ExitPlanMode, Edit, Write, NotebookEdit; omits CLAUDE.md
   - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional
   - detect: origin discovered, score 0.5706, invocable_by model+user, recommended integration route
@@ -1060,7 +1060,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Evidence:**
   - `Explore` present in the extraction as builtin-agent
   - markers: gated
-  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions.
+  - native description: Fast read-only search agent for locating code. Use it to find files by pattern (eg. "src/components/**/*.tsx"), grep for symbols or keywords (eg. "API endpoints"), or answer "where is X defined / which files reference Y." Do NOT use it for code review, design-doc auditing, cross-file consistency checks, or open-ended analysis — it reads excerpts rather than whole files and will miss content past its read window. When calling, specify search breadth: "quick" for a single targeted lookup, "medium" for moderate exploration, or "very thorough" to search across multiple locations and naming conventions. <!-- ai-slop-ignore: verbatim native text -->
   - invocation mode (2026-09-29, Claude Code 2.1.285): model-invocable and user-invocable; roster conditional
   - detect: origin discovered, score 0.6029, invocable_by model+user, recommended integration route
   - docs cross-check (sub-agents page, 2026-09-29): documented as a built-in subagent
@@ -1089,6 +1089,40 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Built-in tools
+
+### `ClaudeDesign` → `prototype:explore-directions`
+
+- **Verdict:** `complementary`: The built-in tool reads and writes files in an existing claude.ai/design project; ours builds throwaway variants on the real stack or as a local HTML mockup and keeps only the winning-variant key. When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill builds its variants as today. Distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.
+- **Integration:** `route`
+- **Native surface:** `ClaudeDesign` (built-in tool; markers: gated)
+- **Our component:** `prototype:explore-directions` (skill)
+- **Evidence:**
+  - `ClaudeDesign` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Claude Design', model_invocable true, user_invocable false, gated true, deferred false; search hint 'work with Claude Design (claude.ai/design) projects'
+  - description unresolved in the extraction (description_source 'unresolved', listed under integrity.undetermined.description_unresolved); a separate PR fixes the extractor; a targeted string search of the 2.1.285 binary (2026-09-30) reads the description 'Work with Claude Design (claude.ai/design)', then an em dash, then 'a collaborative canvas for decks, prototypes, landing pages, and UI mockups backed by your team's design system.'
+  - operations in the same binary (string search 2026-09-30): list, get_project, write_files, create_support_js, copy_files, finalize_plan (returns a plan_token), list_members, get_conversation; a write needs a one-time interactive durable project approval or a finalize_plan plan_token; writes are denied in subagents, non-interactive sessions, and plan mode without a plan_token
+  - docs cross-check (tools reference, 2026-09-29): undocumented
+  - our Boundary: 'When the built-in `ClaudeDesign` tool resolves in this session and the person names or links an existing claude.ai/design project, or asks for the work to go into one, use that tool for the project's files'; the description carries the same condition
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ClaudeDesign` tool, makes it user-only or not model-invocable, changes its description or operations, drops or changes the write-approval gate, or the tools reference starts documenting it (verified 2026-09-30)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `ClaudeDesign` → `visualization:visualize`
+
+- **Verdict:** `complementary`: The built-in tool reads and writes files in an existing claude.ai/design project; ours picks a visual form and medium and renders its own output (inline, a local file, or a published Artifact). When the person names or links an existing claude.ai/design project, or asks for the work to go into one, and the tool resolves in this session, use the tool; otherwise this skill renders its own output as today. Same surface as the explore-directions row, sibling component; distinct from the bundled `design` skill row, which creates a new Design artifact and is user-only. Ruled 2026-09-30 by the operator: route rows with Boundary, because the tool is in the shipped binary and model-usable, documented or not.
+- **Integration:** `route`
+- **Native surface:** `ClaudeDesign` (built-in tool; markers: gated)
+- **Our component:** `visualization:visualize` (skill)
+- **Evidence:**
+  - `ClaudeDesign` present in the 2.1.285 extraction's builtin_tools lane as builtin-tool: user-facing name 'Claude Design', model_invocable true, user_invocable false, gated true, deferred false; search hint 'work with Claude Design (claude.ai/design) projects'
+  - description unresolved in the extraction (description_source 'unresolved', listed under integrity.undetermined.description_unresolved); a separate PR fixes the extractor; a targeted string search of the 2.1.285 binary (2026-09-30) reads the description 'Work with Claude Design (claude.ai/design)', then an em dash, then 'a collaborative canvas for decks, prototypes, landing pages, and UI mockups backed by your team's design system.'
+  - operations in the same binary (string search 2026-09-30): list, get_project, write_files, create_support_js, copy_files, finalize_plan (returns a plan_token), list_members, get_conversation; a write needs a one-time interactive durable project approval or a finalize_plan plan_token; writes are denied in subagents, non-interactive sessions, and plan mode without a plan_token
+  - docs cross-check (tools reference, 2026-09-29): undocumented
+  - our Boundary: 'When the built-in `ClaudeDesign` tool resolves in this session and the person names or links an existing claude.ai/design project, or asks for the work to go into one, use that tool for the project's files'; the description carries the same condition
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-09-29 (the /claude-ops:inventory extraction of the installed native build; builtin_tools lane integrity ok, degraded overall only because 2.1.285 is past the extractor's last validated build 2.1.284), with a targeted string search of the same binary on 2026-09-30 for the unresolved description and the operations (2026-09-29)
+- **Recheck trigger:** a Claude Code release renames or removes the built-in `ClaudeDesign` tool, makes it user-only or not model-invocable, changes its description or operations, drops or changes the write-approval gate, or the tools reference starts documenting it (verified 2026-09-30)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `WebFetch` → `firecrawl:firecrawl`
 
@@ -1185,7 +1219,7 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `Agent` | builtin-tool | `docs-hygiene:write-for-agents` | The Agent tool launches a subagent; ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Bash` | builtin-tool | `bash-format:check` | Name overlap only: bash-format:check is a read-only check that the shfmt and shellcheck binaries resolve for the bash-format hook; the built-in Bash tool executes shell commands. Different jobs, no routing. | 2.1.285 | 2026-09-30 |
 | `Bash` | builtin-tool | `bash-format:setup` | The Bash tool runs shell commands; ours sets up the shell-script formatter hook. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `Explore` | builtin-agent | `prototype:explore-directions` | The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
+| `Explore` | builtin-agent | `prototype:explore-directions` | The Explore agent locates code; ours builds throwaway UI variations. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-30 |
 | `Plan` | builtin-agent | `planning:plan-reviewer (agent)` | The Plan agent drafts an implementation approach; this agent stress-tests a written plan for /planning:plan. The Plan pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Plan` | builtin-agent | `testing:plan` | The Plan agent drafts an implementation approach; ours plans tests for a change by regression risk. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `PowerShell` | builtin-tool | `powershell-format:check` | Name overlap only: powershell-format:check is a read-only check that pwsh, PSScriptAnalyzer, jq and node resolve for the powershell-format hook; the built-in PowerShell tool executes PowerShell commands. Different jobs, no routing. | 2.1.285 | 2026-09-30 |

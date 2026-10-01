@@ -143,6 +143,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
   # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
   bash "$here/round.sh" --dir "$c" revise Q1 --commit "Uses a private cache" --commit "Runs on every commit" --force >/dev/null
   bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
+  # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
+  bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
   py=$(command -v python3 || command -v python)
@@ -187,13 +189,13 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_c5.js")" >"$tmp/ui_c5.out" 2>&1
 
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
-  # flow on one page in fifteen phases; the shell writes as Claude between them.
+  # flow on one page in twenty phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
   cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
   bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
   bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
   jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')
-  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
     sed "s/__PORT__/$jport/; s/__PHASE__/$n/" tests/ui_journey.js >"$tmp/uj$n.js"
   done
   jhandle() {
@@ -271,13 +273,34 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$j" revise Q9 --rec "All of them, since the lock file lists none." --affects none --seq "${js[${#js[@]} - 1]}" >/dev/null
   jhandle
   jrun 15
+  # Phase 16 runs after the wrap-up: a new open question, a range in a question's facts, and a
+  # third restatement the wrap-up never saw.
+  japply n '{"ops": [{"op": "revise", "id": "Q6", "facts": "Compare Q1-Q3, Q6 and Q9 before deciding."},
+    {"op": "add", "question": {"id": "Q10", "group": "g1", "stage": "interview", "short": "Cache scope", "title": "Which jobs share the cache?",
+      "recommendation": "Only the jobs on the same runner image.", "commits": ["Shares one cache across jobs"], "alternatives": [{"key": "a", "text": "Every job"}, {"key": "b", "text": "None"}]}},
+    {"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
+      "constraints": "Builds stop at ten minutes and share one cache."}}]}'
+  jrun 16
+  # Phase 17 confirms the third restatement. The shell then posts a status and the finish op,
+  # phase 18 reads the modal, the shell stops the server (phase 19 reads the offline reason) and
+  # starts it again on the same data dir, which must keep its port (phase 20 reads the restart).
+  jrun 17
+  japply o '{"ops": [{"op": "set-status", "text": "Done: the Brief is written"},
+    {"op": "finish", "brief": "docs/PLAN.md", "next": "Run the plan with the next step.", "text": "The interview is complete."}]}'
+  jrun 18
+  bash "$here/round.sh" --dir "$j" stop >/dev/null
+  jrun 19
+  bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
+  [[ "$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')" == "$jport" ]] || bad "journey: stop then ensure-running changed the port"
+  jrun 20
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4 5; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
-  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
 else
-  echo "SKIP: 305 browser checks not run, 121 of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
-  skip=$((skip + 305))
+  browser=409 journey=189
+  echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
+  skip=$((skip + browser))
 fi
 
 echo "PASS=$pass FAIL=$fail SKIP=$skip"

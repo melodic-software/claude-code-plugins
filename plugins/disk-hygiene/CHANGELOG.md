@@ -3,6 +3,169 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2] - 2026-09-30
+
+### Fixed
+
+- **`clean` reference files cite the engine without the plugin-root token.** The fan-out worker brief, the unsupported-platform handoff and the safety model's engine commands each say the engine sits in the `scripts/` directory that `SKILL.md`'s engine commands give; the handoff and the safety model call that directory `<skill-dir>` where they use it. The safety model's prose about the harness substitution keeps the token, since the token is its subject.
+
+## [0.42.1] - 2026-09-30
+
+### Fixed
+
+- **The engine gate accepts braces inside a quoted word** ([#5641](https://github.com/melodic-software/claude-code-plugins/issues/5641)). A `--target` such as `'D:/wsl/{673ac4db-a2e3-459e-882c-1ec71b253aa2}'` now forms an exact engine call, so the WSL distro folders can be snapshotted. `{` and `}` are literal inside a whole-word single or double quote and are accepted only there; every other expansion or operator character, `$` included, is still refused wherever it sits, and an unquoted brace is still refused. The denial no longer names a quoted brace as the culprit.
+
+## [0.42.0] - 2026-09-30
+
+### Added
+
+- **Catalog scope and an `uncataloged` report**
+  ([#4008](https://github.com/melodic-software/claude-code-plugins/issues/4008)). `catalog` now
+  accounts for every immediate child of the target, every hinted or empty entry at any depth, and,
+  at a user-home or `--root-children` target, every out-of-place immediate child. Entries with no
+  record and no owner-level ancestor are listed under `uncataloged`; a record marked
+  `owner_level` covers everything below its path while its identity holds.
+- **Required ownership investigation** (`reference/ownership-investigation.md`). Each entry is
+  checked against nine local sources, each evidence item names its source, `/discovery:research`
+  is used only when no owner is found and only when it resolves, and the report ends with one
+  question per entry whose owner is unknown, which stays `keep` until answered.
+
+### Changed
+
+- **Operator answers follow the entry, not the scan target.** A `source: human` record whose identity
+  and descendant set still hold is reused when another scan target reaches the same entry, so it is
+  not asked again, even where this target holds an engine record with an open question. The scan
+  sets `target_prior_disposition` when the scan target itself was answered, and the `catalog`
+  report lists a reused entry under `unchanged` as `answered under <target>`. A new answer replaces
+  older answers for the same entry recorded under other targets, an owner-level answer reached from
+  another target covers its descendants, and `catalog` refuses a `--sizes-only` snapshot, which has
+  no entries to account for.
+
+## [0.41.3] - 2026-09-30
+
+### Changed
+
+- **A Windows `detached` answer does not mean unused for WSL and Docker disks** ([#5642](https://github.com/melodic-software/claude-code-plugins/issues/5642)). `Get-DiskImage` reads a running distro's root `ext4.vhdx`, Docker Desktop's `docker_data.vhdx` and WSL's `swap.vhdx` as `detached`, because WSL2 and Docker hold them open through their own virtual machine. The image keeps `virtual-disk` and the block, so nothing becomes deletable and reclaimable bytes stay 0. The `Get-DiskImage` record in `skills/clean/reference/safety-model.md` is now observed on Windows: `attached` plus the drive letter for a host-mounted VHDX, `detached` for those disks, and an error for an `initrd.img`. No code changes.
+
+## [0.41.2] - 2026-09-30
+
+### Changed
+
+- **The deep inventory's `plugin-cache-version` rows come from a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `claude-ops`, so the install-state audit and the deep inventory apply one rule for which cache versions are unreferenced, including the guarded read of `installed_plugins.json`. `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge.
+
+## [0.41.1] - 2026-09-30
+
+### Changed
+
+- **The engine-gate denial names what failed** ([#5519](https://github.com/melodic-software/claude-code-plugins/issues/5519)). A denied Bash command now says which token or stage the exact-engine classifier refused, states the flag-order rule (required flags first, in declared order, then optional flags in any order), and states which mention forms are gated and which read-only forms work, adding that a relative path or bare name which resolves to the installed engine from the current directory is still gated. A quoted word the gate reads as an engine call, such as a `gh --search` query naming an interpreter and the engine, is named as the gated word. The message is the only change: the guard matches and denies exactly as before.
+
+## [0.41.0] - 2026-09-30
+
+### Added
+
+- **Class-matched policy rules, atime/ctime age basis, and a reference in-flight input**
+  ([#5229](https://github.com/melodic-software/claude-code-plugins/issues/5229)). A schema v2 rule
+  can match on a hint `class` as well as `hint_id`/`hint_ids`. `min_age_days` can be measured on
+  `mtime`, `atime` or `ctime` through `min_age_basis`. `scan --in-flight-refs <json>` reads
+  `{"references":[{"path","reason"}]}` and leaves a path (and its ancestors) referenced by open
+  work unticked, with the reason shown in the preview. The policy overlay schema,
+  `skills/clean/SKILL.md` and `skills/clean/reference/scan-flags.md` document all three.
+
+## [0.40.0] - 2026-09-30
+
+### Added
+
+- **A read-only managed-state owner registry**
+  ([#4006](https://github.com/melodic-software/claude-code-plugins/issues/4006)).
+  `skills/clean/reference/owner-registry.json` maps managed-state locations to the tool that owns
+  them, validated by `owner-registry.schema.json`, with `managed-state-report.md` specifying how a
+  registry match is reported. A match grants no approval and adds no delete path; the engine is
+  unchanged. The report neither shows nor runs a product-native destructive command; the registry
+  keeps each as data. Its presence check and read-only command run through the PowerShell tool or
+  the operator, because the skill's Bash guard denies them, and by the resolved application
+  executable so a profile alias cannot stand in. An absent tool suppresses the commands, not the
+  manual step. Each entry carries a verification record: claim, basis, as-of date, recheck trigger.
+
+## [0.39.0] - 2026-09-30
+
+### Added
+
+- **Read-only `inventory` subcommand with a deep mode**
+  ([#5221](https://github.com/melodic-software/claude-code-plugins/issues/5221)). `hygiene.py inventory
+  --target <path> [--data-root <dir>] [--deep]` lists what is under a target and writes a JSONL report and
+  a JSON summary under `<data-root>/inventory/`. Deep mode adds per-category entries, each with a
+  validated KEEP reason (exit 5 when the validator fails); without a readable `/proc`, rows that depend
+  on the process table are UNKNOWN, not CANDIDATE. A home-directory target, or any target with
+  `--deep`, runs it before any `scan`, so a bare `/disk-hygiene:clean ~` starts there. The engine
+  grammar declares the subcommand read-only, so the destructive guard admits it beside `catalog`.
+  A superseded version a symlink points at is kept, a release outranks its own prerelease, a
+  plugin cache candidate carries its `.orphaned_at` marker age and sweep-window flag, and the
+  `tmp-producer` category reads `/tmp`, not `$TMPDIR`. The walk does not enter a bind mount on the
+  same device (read from `/proc/self/mountinfo`), an open file counts as use of a `/tmp` entry, and
+  the report is written to a temporary file and renamed only when the walk finishes.
+  `skills/clean/SKILL.md` and its references document the attended workflow.
+
+## [0.38.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:check`, a model-invocable probe**
+  ([#5436](https://github.com/melodic-software/claude-code-plugins/issues/5436)). It reads the
+  `check` section of `setup` and installs nothing, so a hook notice can name a command Claude is
+  able to run. Its interpreter probes are not pre-granted in `allowed-tools`: a wildcarded
+  interpreter rule grants nothing under auto mode.
+
+### Changed
+
+- **Missing-Python hook notice:** `run-python-hook.sh` now ends its remedy with
+  `/disk-hygiene:check` instead of `/disk-hygiene:setup check`, which carries
+  `disable-model-invocation: true`.
+
+## [0.37.0] - 2026-09-30
+
+### Added
+
+- **A SessionStart notice warns when `node` is missing.** The hook rows launch through `node`, so a host without it skipped the destructive-command guard silently. A shell-form row now prints a system message and model context at session start when `node` is not on `PATH`. The README documents the row.
+
+## [0.36.0] - 2026-09-30
+
+### Added
+
+- **`/disk-hygiene:audit`, a model-invocable read-only scan**
+  ([#5516](https://github.com/melodic-software/claude-code-plugins/issues/5516)). A delegated or
+  orchestrated session can run the probe and one engine `scan` and report the snapshot with its
+  coverage gaps. It runs no `preview` or `apply` and hands any removal to `/disk-hygiene:clean`,
+  which stays manual-only.
+
+## [0.35.2] - 2026-09-30
+
+### Fixed
+
+- **The engine gate probes half as many files on commands that do not name the engine**
+  ([#3527](https://github.com/melodic-software/claude-code-plugins/issues/3527)). Without the
+  `hygiene.py` marker, `_engine_gate_relevant` now deduplicates its candidates, so each distinct
+  word is probed once as written and once joined to the engine's own directory:
+  `git log --oneline --graph --decorate origin/main` drops from 24 probes to 12. The
+  engine-directory reading skips a word qualified with a drive other than the engine's, such as
+  `D:foo`: Windows joins it onto that drive and drops the engine's directory, so the reading only
+  repeated the as-written probe of the same path. A bare `alias` and `C:alias` beside an engine on
+  `C:` still read against the engine's directory. The as-written reading stays unconditional,
+  because a bare name reaches a link in the working directory (`python3 alias`) and a separator
+  filter would have stopped gating it. Flags and other non-path words are therefore still probed
+  against the working directory, so an unreachable path given as a word can still stall the hook.
+  A link invoked with another drive's qualifier (`D:alias` beside an engine on `C:`) still does not
+  gate; the other accepted residuals are unchanged.
+
+## [0.35.1] - 2026-09-30
+
+### Changed
+
+- **`safety-model.md` records how the `apply --execute` ask behaves under `bypassPermissions`**
+  ([#5609](https://github.com/melodic-software/claude-code-plugins/issues/5609)). A four-part
+  verification record states which modes were probed (headless default, `--bg` default, headless
+  `bypassPermissions`), which were not (interactive `bypassPermissions`, auto mode, the Windows
+  PowerShell tool), and what the official docs and upstream issues say.
+
 ## [0.35.0] - 2026-09-30
 
 ### Added

@@ -20,7 +20,10 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import functools
+import itertools
 import json
+import math
 import os
 import platform
 import re
@@ -29,7 +32,8 @@ import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
@@ -590,8 +594,171 @@ _NON_STRING_WORDS = frozenset(
 )
 _JS_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v"}
 _ESCAPE_RE = re.compile(r"\\(u\{[0-9a-fA-F]+\}|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|[\s\S])")
-_MAX_HOPS = 4
+_MAX_HOPS = 6
+_MAX_COMBINATIONS = 16
+# The names a function body cannot read from the bundle: each parameter maps
+# to None (a runtime value) or to the values its call site passed.
+Scope = Mapping[str, "list[str] | None"]
+NO_SCOPE: Scope = MappingProxyType({})
 _NONSTRING = object()
+_NULLISH_WORDS = ("null", "undefined", "void")
+_NUMBER_RE = re.compile(
+    r"[-+]?(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+"
+    r"|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][-+]?\d[\d_]*)?)n?(?![\w$])"
+)
+
+
+_FUNCTION_KEYWORD_RE = re.compile(r"function\s*\*?\s*[\w$]*\s*\Z")
+
+
+def _open_paren(src: str, close: int) -> int | None:
+    """The `(` matching the `)` at `close`, within 4 KiB, or None."""
+    depth, k = 0, close
+    while k >= 0 and close - k < 4096:
+        depth += (src[k] == ")") - (src[k] == "(")
+        if depth == 0:
+            return k
+        k -= 1
+    return None
+
+
+def _opens_function(src: str, braces: BraceMap, brace: int) -> bool:
+    """Whether the `{` at `brace` opens a `function` body. The parameter
+    list is matched by depth with quoted text blanked, so a default holding
+    a call (`a=g()`) or a quoted paren (`s=")"`) counts. Raises ValueError
+    when the head cannot be read, so the caller's value stays unresolved."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    if j < 0 or src[j] != ")":
+        return False
+    k = _head_open(src, braces, j)
+    return bool(_FUNCTION_KEYWORD_RE.search(src, max(0, k - 200), k))
+
+
+def _catch_params(src: str, braces: BraceMap, brace: int) -> Scope:
+    """The parameters of the `catch (...)` whose block opens at `brace`, each
+    a runtime value; empty when the block is not a catch block."""
+    j = brace - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    if j < 0 or src[j] != ")":
+        return NO_SCOPE
+    k = _head_open(src, braces, j)
+    if not re.search(r"(?<![\w$.])catch\s*$", src[max(0, k - 16) : k]):
+        return NO_SCOPE
+    return _param_names(src[k + 1 : j])
+
+
+def _head_open(src: str, braces: BraceMap, close: int) -> int:
+    """The `(` matching the `)` at `close`, matched with quoted text blanked
+    from the enclosing block's start. Raises ValueError when unmatched."""
+    outer = braces.enclosing(close)
+    lo = outer[0] + 1 if outer else max(_chunk_span(src, close)[0], close - 4096)
+    k = _open_paren(_mask_strings(src[lo : close + 1]), close - lo)
+    if k is None:
+        raise ValueError("unmatched parameter list")
+    return lo + k
+
+
+def _mask_strings(text: str) -> str:
+    """`text` with the quoted text of each string and template literal
+    blanked to spaces, so a search for code (a parameter write) never matches
+    it; a template substitution's `${...}` is code and is kept."""
+    out, i, n = [], 0, len(text)
+    while i < n:
+        q = text[i]
+        if q not in _QUOTES:
+            out.append(q)
+            i += 1
+            continue
+        j = i + 1
+        out.append(" ")
+        while j < n and text[j] != q:
+            if text[j] == "\\":
+                out.append("  ")
+                j += 2
+            elif q == "`" and text.startswith("${", j):
+                try:
+                    end = _skip_substitution(text, j + 2, n)
+                except ValueError:
+                    end = n
+                out.append("  " + _mask_strings(text[j + 2 : end - 1]) + " ")
+                j = end
+            else:
+                out.append(" ")
+                j += 1
+        out.append(" ")
+        i = j + 1
+    return "".join(out)[:n]
+
+
+def _primitive_text(text: str, *, joined: bool) -> str | None:
+    """How a template (or, `joined`, `Array.join`) renders a known
+    primitive literal: `true`, `false`, `null`, `undefined`, or a plain
+    decimal integer. None for anything else, which stays a runtime value."""
+    text = text.strip()
+    if text in ("null", "undefined") or text.startswith("void "):
+        return "" if joined else ("null" if text == "null" else "undefined")
+    if text in ("true", "false"):
+        return text
+    # 15 digits stay below 2**53, where a JS double renders them exactly.
+    if re.fullmatch(r"-?(?:0|[1-9]\d{0,14})", text):
+        return str(int(text))
+    return None
+
+
+def _unparen(text: str) -> str:
+    """`text` without whitespace and wrapping parentheses: `((1))` is `1`."""
+    text = text.strip()
+    while text.startswith("(") and text.endswith(")"):
+        depth = 0
+        for k, ch in enumerate(text):
+            depth += (ch == "(") - (ch == ")")
+            if depth == 0 and k < len(text) - 1:
+                return text  # `(a)||(b)`: the first group closes early
+        text = text[1:-1].strip()
+    return text
+
+
+def _literal_truthy(text: str) -> bool | None:
+    """How `||` sees a non-string literal: truthy, falsy, or None (unknown)."""
+    text = _unparen(text)
+    if text.startswith("!"):
+        inner = _literal_truthy(text[1:])
+        return None if inner is None else not inner
+    if text == "true":
+        return True
+    if text == "false" or text.startswith(_NULLISH_WORDS):
+        return False
+    number = _number_value(text)
+    return None if number is None else number != 0
+
+
+def _literal_nullish(text: str) -> bool | None:
+    """How `??` sees a non-string literal: nullish, not, or None (unknown)."""
+    text = _unparen(text)
+    if text.startswith(_NULLISH_WORDS):
+        return True
+    if (
+        text.startswith("!")
+        or text in ("true", "false")
+        or _number_value(text) is not None
+    ):
+        return False
+    return None
+
+
+def _number_value(text: str) -> int | float | None:
+    """The value of a JavaScript numeric literal, or None for anything else.
+    A radix literal stays an exact integer, however large."""
+    if not _NUMBER_RE.fullmatch(text):
+        return None
+    text = text.replace("_", "").rstrip("n")
+    try:
+        return int(text, 0) if re.match(r"[-+]?0[xXoObB]", text) else float(text)
+    except (ValueError, OverflowError):
+        return None
 
 
 def _js_unescape(raw: str) -> str:
@@ -783,15 +950,19 @@ def _scan(
     block: bool,
     hops: int,
     anchor: int | None,
+    shadow: Scope = NO_SCOPE,
+    deferred: bool = False,
 ) -> int:
     """Collect the string values an expression (or a function body) yields.
 
     Expression mode reads one expression from `i`, stopping at a top-level
     `,`, `;`, or closing bracket. Block mode reads a function body and
     collects what each `return` yields. Within a yielded expression, the
-    operands in value position (the start, and after a ternary `?` or `:`)
-    are the candidates; an operand followed by `?` is a condition, not a
-    value.
+    operands in value position (the start, after a ternary `?` or `:`, and
+    after a `||` or `??` fallback) are the candidates; an operand followed by
+    `?` is a condition, not a value. `shadow` names the enclosing function's
+    parameters: their values exist only at runtime, so they never resolve
+    to a same-named binding elsewhere in the bundle.
     """
     active = at_value = not block
     depth = 0
@@ -806,9 +977,24 @@ def _scan(
             active
             and at_value
             and depth == 0
-            and (c in _QUOTES or c in _ID_START or c == "(")
+            and (
+                c in _QUOTES
+                or c in _ID_START
+                or c in "([!"
+                or _NUMBER_RE.match(src, i, n) is not None
+            )
         ):
-            i = _operand(src, braces, i, n, acc, hops=hops, anchor=anchor)
+            i = _operand(
+                src,
+                braces,
+                i,
+                n,
+                acc,
+                hops=hops,
+                anchor=anchor,
+                shadow=shadow,
+                deferred=deferred,
+            )
             at_value, prev, prev_word = False, "x", ""
             continue
         if c in _QUOTES:
@@ -823,9 +1009,20 @@ def _scan(
                 block
                 and depth == 0
                 and (prev == ")" or prev_word in ("else", "try", "finally"))
+                # A nested function declaration is not a branch of this body.
+                and not _opens_function(src, braces, i)
             ):
                 _scan(
-                    src, braces, i + 1, close, acc, block=True, hops=hops, anchor=anchor
+                    src,
+                    braces,
+                    i + 1,
+                    close,
+                    acc,
+                    block=True,
+                    hops=hops,
+                    anchor=anchor,
+                    shadow=shadow | _catch_params(src, braces, i),
+                    deferred=deferred,
                 )
             i, at_value, prev, prev_word = close + 1, False, "}", ""
             continue
@@ -842,8 +1039,19 @@ def _scan(
                 break
             if c == ";":
                 active = False
-        elif depth == 0 and c == "?":
-            if src.startswith(("??", "?."), i):
+        elif depth == 0 and (c == "?" or src.startswith("||", i)):
+            if src.startswith(("??", "||"), i):
+                # A fallback: its right side is what shows when the left is
+                # empty, unless it is an empty string itself (`x??""`), which
+                # says nothing.
+                i = _skip_ws(src, i + 2, n)
+                after = _skip_ws(src, i + 2, n)
+                empty = src[i : i + 2] in ('""', "''", "``") and (
+                    after >= n or src[after] in ",;})]:"
+                )
+                at_value, prev = active and not empty, "?"
+                continue
+            if src.startswith("?.", i):
                 i += 2
                 at_value, prev = False, "?"
                 continue
@@ -877,33 +1085,69 @@ def _operand(
     *,
     hops: int,
     anchor: int | None,
+    shadow: Scope = NO_SCOPE,
+    deferred: bool = False,
 ) -> int:
-    """Read one operand in value position; record it when it is a string value."""
+    """Read one operand in value position; record it when it is a string value.
+
+    An operand is a `+` concatenation of string or template literals,
+    identifiers, member reads and calls, parenthesized expressions, and
+    `[...].join(sep)` arrays. A part whose value exists only at runtime (a
+    parameter, a call the reader cannot follow) renders as an ellipsis, and
+    a result with no static word left in it is unresolved, never recorded.
+    """
+    kw = {"hops": hops, "anchor": anchor, "shadow": shadow, "deferred": deferred}
     if src[i] == "(":
         close = _match_close(src, braces, i, n)
         k = _skip_ws(src, close, n)
-        if not src.startswith("=>", k):
-            return close
-        return _arrow_body(src, braces, k + 2, n, acc, hops=hops, anchor=anchor)
+        if src.startswith("=>", k):
+            params = shadow | _param_names(src[i + 1 : close - 1])
+            return _arrow_body(src, braces, k + 2, n, acc, **{**kw, "shadow": params})
+    start = i
     parts: list[Any] = []
+    # A call or a group can also yield a non-string (`void 0`, `null`) this
+    # reader does not record, so its values never settle a fallback.
+    computed = False
+    quoted = True  # every part a string or template literal: never nullish
     while True:
         i = _skip_ws(src, i, n)
         if i >= n:
             break
         c = src[i]
+        quoted = quoted and c in _QUOTES
         if c in _QUOTES:
-            text, i, subst = _read_literal(src, i, n)
-            parts.append(text)
-            acc.via.add("template" if subst else "literal")
+            texts, i, via = _read_string(src, braces, i, n, **kw)
+            parts.append(texts if len(texts) > 1 else texts[0])
+            acc.via |= via
+        elif c == "(":
+            close = _match_close(src, braces, i, n)
+            # `(x()?a:b)` yields both branches.
+            group = _sub_value(src, braces, i + 1, close - 1, acc, **kw)
+            computed = computed or bool(group and group.partial)
+            inner = src[i + 1 : close - 1]
+            known = _literal_truthy(inner) is not None or _literal_nullish(inner)
+            # `(true)`: a known primitive stays one, for the fallback below.
+            parts.append(_NONSTRING if group is None and known else group)
+            i = close
+        elif c == "[":
+            joined, i = _array_join(src, braces, i, n, acc, **kw)
+            parts.append(joined)
         elif c in _ID_START:
             j = _ident_end(src, i)
             word = src[i:j]
             k = _skip_ws(src, j, n)
             if word == "async" and k < n and (src[k] == "(" or src[k] in _ID_START):
                 # `async()=>...` or `async x=>...`: the keyword, not a callee.
-                return _operand(src, braces, k, n, acc, hops=hops, anchor=anchor)
+                return _operand(src, braces, k, n, acc, **kw)
             if src.startswith("=>", k):
-                return _arrow_body(src, braces, k + 2, n, acc, hops=hops, anchor=anchor)
+                return _arrow_body(
+                    src,
+                    braces,
+                    k + 2,
+                    n,
+                    acc,
+                    **{**kw, "shadow": shadow | {word: None}},
+                )
             if word in _NON_STRING_WORDS:
                 i = _skip_ws(src, j, n)
                 if (
@@ -915,11 +1159,17 @@ def _operand(
                 parts.append(_NONSTRING)
             else:
                 chain, i = _read_chain(src, braces, i, n)
-                parts.append(
-                    _resolve_chain(src, braces, chain, i, acc, hops=hops, anchor=anchor)
-                )
-        elif c == "!" or c.isdigit():
-            i = _ident_end(src, i + 1)
+                computed = computed or any(e[0] == "call" for e in chain)
+                parts.append(_resolve_chain(src, braces, chain, i, acc, **kw))
+        elif number := _NUMBER_RE.match(src, i, n):
+            i = number.end()
+            parts.append(_NONSTRING)
+        elif c == "!":
+            j = i
+            while src.startswith("!", j):
+                j += 1
+            number = _NUMBER_RE.match(src, j, n)
+            i = number.end() if number else _ident_end(src, j)
             parts.append(_NONSTRING)
         else:
             break
@@ -932,27 +1182,260 @@ def _operand(
     t = src[i] if i < n else ""
     if t == "?" and not src.startswith(("??", "?."), i):
         return i
-    if t and t not in ":,;})]":
+    fallback = src.startswith(("||", "??"), i)
+    if t and t not in ":,;})]" and not fallback:
         return i
+    values: list[str] | None = []
     if len(parts) == 1:
         p = parts[0]
-        if p is None:
+        values = p if isinstance(p, list) else [p] if isinstance(p, str) else None
+        if p is _NONSTRING:
+            # A non-string (`void 0`, `null`, a number): nothing to record,
+            # but the expression is not a string for certain.
+            values = []
             acc.unresolved += 1
-        elif isinstance(p, list):
-            for v in p:
-                acc.add(v)
-        elif isinstance(p, str):
-            acc.add(p)
-    elif len(parts) > 1 and any(isinstance(p, str) for p in parts):
-        acc.add(
-            "".join(
-                p
+    elif len(parts) > 1 and any(isinstance(p, (str, list)) and p for p in parts):
+        values = _combine(
+            [
+                [p]
                 if isinstance(p, str)
-                else (p[-1] if isinstance(p, list) and p else _ELLIPSIS)
+                else (p if isinstance(p, list) and p else [_ELLIPSIS])
                 for p in parts
+            ]
+        )
+    if fallback:
+        # `a||b`: when every value `a` can take is a non-empty string, `b`
+        # never shows, so it is skipped; otherwise `b` is read as a value
+        # after the values of `a` that are non-empty strings.
+        # `a??b` tests only null and undefined, so any string `a` keeps it.
+        # A non-string literal settles it by its own truthiness.
+        literal = src[start:i].strip() if parts == [_NONSTRING] else None
+        or_op = src.startswith("||", i)
+        kept = (not or_op and quoted and bool(parts)) or (
+            bool(literal)
+            and (
+                _literal_truthy(literal) is True
+                if or_op
+                else _literal_nullish(literal) is False
             )
         )
+        if kept:
+            values = values if quoted else []
+        elif (
+            computed
+            or not values
+            or _ELLIPSIS in values  # a bare runtime value settles nothing
+            or (or_op and not all(values))
+        ):
+            for v in values or []:
+                if v:
+                    _add_static(acc, v)
+            return i
+        while src.startswith(("||", "??"), i):
+            i = _operand(src, braces, _skip_ws(src, i + 2, n), n, _Values(), **kw)
+            i = _skip_ws(src, i, n)
+    if values is None:
+        acc.unresolved += 1
+    for v in values or []:
+        _add_static(acc, v)
     return i
+
+
+def _combine(choices: list[list[str]], sep: str = "") -> list[str]:
+    """Every way to pick one value per part, joined by `sep`, with the
+    fallthrough (each part's last value) last; past `_MAX_COMBINATIONS`, the
+    fallthrough alone."""
+    if math.prod(len(c) for c in choices) > _MAX_COMBINATIONS:
+        choices = [[c[-1]] for c in choices]
+    return [sep.join(combo) for combo in itertools.product(*choices)]
+
+
+class _Alternatives(list):
+    """An expression's string values; `partial` when it may also yield a
+    value this reader did not record (a non-string or an unresolved part)."""
+
+    partial = False
+
+
+_STATIC_WORD_RE = re.compile(r"[A-Za-z0-9]")
+
+
+def _add_static(acc: _Values, text: str) -> None:
+    """Record `text` unless its runtime substitutions left no static word in it.
+
+    `${a}\\n\\n${b}` with neither part resolved reads as an ellipsis pair; that
+    is not a description, so it counts as unresolved rather than as a value.
+    """
+    if _ELLIPSIS in text and not _STATIC_WORD_RE.search(text.replace(_ELLIPSIS, "")):
+        acc.unresolved += 1
+    else:
+        acc.add(text)
+
+
+def _param_names(text: str) -> Scope:
+    """Every identifier in a parameter list: each is a runtime value.
+
+    Destructuring keys (`{tools:n}`) and default-value callees are included
+    too; shadowing an extra name only leaves more unresolved, never less.
+    """
+    return {name: None for name in re.findall(_IDENT, text)}
+
+
+def _params_before(src: str, braces: BraceMap, body_open: int) -> Scope:
+    """The parameters of the method or function whose body opens at `body_open`."""
+    j = body_open - 1
+    while j >= 0 and src[j] in " \t\r\n":
+        j -= 1
+    if j < 0 or src[j] != ")":
+        return NO_SCOPE
+    return _param_names(src[_head_open(src, braces, j) + 1 : j])
+
+
+def _sub_value(
+    src: str,
+    braces: BraceMap,
+    start: int,
+    end: int,
+    acc: _Values,
+    **kw: Any,
+) -> _Alternatives | None:
+    """The values of the one expression spanning `[start, end)`, or None.
+
+    None when it yields nothing or does not span the range (a comma
+    expression, a trailing member read), so a partial read never stands in
+    for the whole.
+    """
+    sub = _Values()
+    stop = _scan(src, braces, start, end, sub, block=False, **kw)
+    if not sub.variants or _skip_ws(src, stop, end) < end:
+        return None
+    acc.via |= sub.via
+    out = _Alternatives(sub.variants)
+    out.partial = sub.unresolved > 0
+    return out
+
+
+def _read_string(
+    src: str,
+    braces: BraceMap,
+    i: int,
+    n: int,
+    *,
+    hops: int,
+    anchor: int | None,
+    shadow: Scope,
+    deferred: bool = False,
+) -> tuple[list[str], int, set[str]]:
+    """A string or template literal: (its values, index past it, how it was read).
+
+    Each template substitution is resolved like any other expression and
+    contributes each of its values, the texts combined (see `_combine`); one
+    that does not resolve renders as an ellipsis and marks the text
+    `template`.
+    """
+    if src[i] != "`":
+        text, end, _ = _read_literal(src, i, n)
+        return [text], end, {"literal"}
+    via: set[str] = set()
+    parts: list[list[str]] = []
+    j = seg = i + 1
+    while j < n:
+        ch = src[j]
+        if ch == "\\":
+            j += 2
+            continue
+        if ch == "`":
+            parts.append([_js_unescape(src[seg:j])])
+            return _combine(parts), j + 1, via or {"literal"}
+        if ch == "$" and src.startswith("{", j + 1):
+            parts.append([_js_unescape(src[seg:j])])
+            end = _skip_substitution(src, j + 2, n)
+            acc = _Values()
+            value = (
+                _sub_value(
+                    src,
+                    braces,
+                    j + 2,
+                    end - 1,
+                    acc,
+                    hops=hops - 1,
+                    anchor=anchor,
+                    shadow=shadow,
+                    deferred=deferred,
+                )
+                if hops > 1
+                else None
+            )
+            primitive = _primitive_text(src[j + 2 : end - 1], joined=False)
+            if value is None and primitive is not None:
+                parts.append([primitive])
+            elif value is None:
+                parts.append([_ELLIPSIS])
+                via.add("template")
+            else:
+                # A branch that may yield something unrecorded stays a runtime
+                # alternative ahead of the resolved ones.
+                parts.append(([_ELLIPSIS] if value.partial else []) + list(value))
+                if value.partial:
+                    via.add("template")
+                via |= acc.via
+            j = seg = end
+            continue
+        j += 1
+    raise ValueError("unterminated template")
+
+
+def _array_join(
+    src: str, braces: BraceMap, i: int, n: int, acc: _Values, **kw: Any
+) -> tuple[list[str] | None, int]:
+    """`[a, ...[b, c], d].join(sep)` as its joined values; None for any other array.
+
+    An element that does not resolve renders as an ellipsis.
+    """
+    close = _match_close(src, braces, i, n)
+    m = re.compile(r"\s*\.join\(\s*").match(src, close, n)
+    if not m:
+        return None, close
+    k = m.end()
+    sep = ","
+    if k < n and src[k] in _QUOTES:
+        sep, k, subst = _read_literal(src, k, n)
+        if subst:
+            return None, close
+        k = _skip_ws(src, k, n)
+    if not src.startswith(")", k):
+        return None, close
+
+    def elements(open_i: int, end: int) -> list[list[str]]:
+        out: list[list[str]] = []
+        starts = _split_args(src, braces, open_i + 1)
+        for idx, start in enumerate(starts):
+            stop = (starts[idx + 1] if idx + 1 < len(starts) else end) - 1
+            while stop > start and src[stop] in " \t\r\n,":
+                stop -= 1
+            if src.startswith("]", start):
+                continue
+            if start > stop or src.startswith(",", start):
+                out.append([""])  # a hole joins as the empty string
+                continue
+            if src.startswith("...[", start):
+                inner = _match_close(src, braces, start + 3, n)
+                out.extend(elements(start + 3, inner - 1))
+                continue
+            value = _sub_value(src, braces, start, stop + 1, acc, **kw)
+            primitive = _primitive_text(src[start : stop + 1], joined=True)
+            if value is None and primitive is not None:
+                out.append([primitive])
+                continue
+            # A partial element keeps a runtime alternative ahead of its values.
+            partial = not value or value.partial
+            out.append(([_ELLIPSIS] if partial else []) + list(value or []))
+            if partial:
+                acc.via.add("template")
+        return out
+
+    acc.via.add("literal")
+    return _combine(elements(i, close - 1), sep), k + 1
 
 
 def _arrow_body(
@@ -964,16 +1447,19 @@ def _arrow_body(
     *,
     hops: int,
     anchor: int | None,
+    shadow: Scope = NO_SCOPE,
+    deferred: bool = False,
 ) -> int:
     acc.via.add("arrow")
+    kw = {"hops": hops, "anchor": anchor, "shadow": shadow, "deferred": True}
     k = _skip_ws(src, k, n)
     if src.startswith("{", k):
         close = braces.pairs.get(k)
         if close is None:
             raise ValueError("unmatched brace")
-        _scan(src, braces, k + 1, close, acc, block=True, hops=hops, anchor=anchor)
+        _scan(src, braces, k + 1, close, acc, block=True, **kw)
         return close + 1
-    return _scan(src, braces, k, n, acc, block=False, hops=hops, anchor=anchor)
+    return _scan(src, braces, k, n, acc, block=False, **kw)
 
 
 def _read_chain(
@@ -992,7 +1478,7 @@ def _read_chain(
             i = j
         elif src.startswith("(", i):
             j = _match_close(src, braces, i, n)
-            chain.append(("call", src[i + 1 : j - 1].strip()))
+            chain.append(("call", src[i + 1 : j - 1].strip(), i))
             i = j
         elif src.startswith("[", i):
             j = _match_close(src, braces, i, n)
@@ -1003,25 +1489,463 @@ def _read_chain(
     return chain, i
 
 
-def _binding_value(src: str, ident: str, at: int) -> int | None:
-    """Offset of the nearest `ident=` value before `at`, under the locality rule."""
-    v = _nearest_binding(src, ident, at)
-    if v is None or (len(ident) == 1 and at - v > SHORT_VALUE_LOCALITY_BYTES):
+_CHUNK_MARKER = "\n// @bun"
+
+
+@functools.lru_cache(maxsize=4)
+def _chunk_starts(src: str) -> tuple[int, ...]:
+    """Where each bundled module begins: the bytecode layout concatenates
+    modules, each opening with its own `// @bun` header."""
+    starts, i = [0], src.find(_CHUNK_MARKER)
+    while i >= 0:
+        starts.append(i + 1)
+        i = src.find(_CHUNK_MARKER, i + 1)
+    return tuple(starts)
+
+
+def _chunk_span(src: str, at: int) -> tuple[int, int]:
+    """The `[start, end)` of the module holding offset `at`."""
+    starts = _chunk_starts(src)
+    k = bisect.bisect_right(starts, at) - 1
+    return starts[k], starts[k + 1] if k + 1 < len(starts) else len(src)
+
+
+# A module's statements that link it to others: its header comment lines, its
+# leading imports, and its closing export list. Only these positions count,
+# so `import{x}` quoted in a string or comment elsewhere links nothing.
+_HEADER_LINE_RE = re.compile(r"[ \t]*(?://[^\n]*)?\n")
+_IMPORT_STMT_RE = re.compile(r'\s*import\s*(?:\{([^{}]*)\}\s*from\s*)?"[^"\n]*"\s*;?')
+_EXPORT_TAIL_RE = re.compile(r"export\s*\{([^{}]*)\}\s*;?\s*\Z")
+
+
+@functools.lru_cache(maxsize=4096)
+def _chunk_imports(src: str, lo: int, hi: int) -> dict[str, str]:
+    """A module's imported names: local name to the name its exporter uses."""
+    i = lo
+    while (m := _HEADER_LINE_RE.match(src, i, hi)) and m.end() > i:
+        i = m.end()
+    out: dict[str, str] = {}
+    while (m := _IMPORT_STMT_RE.match(src, i, hi)) and m.end() > i:
+        i = m.end()
+        for part in (m.group(1) or "").split(","):
+            exported, _, local = part.strip().partition(" as ")
+            if exported.strip():
+                out[(local or exported).strip()] = exported.strip()
+    return out
+
+
+@functools.lru_cache(maxsize=4)
+def _export_index(src: str) -> dict[str, list[tuple[int, str]]]:
+    """Every exported name: the start of each module exporting it, and the
+    local name it has there."""
+    out: dict[str, list[tuple[int, str]]] = {}
+    starts = _chunk_starts(src)
+    for k, lo in enumerate(starts):
+        hi = starts[k + 1] if k + 1 < len(starts) else len(src)
+        tail = max(lo, hi - 65_536)
+        m = _EXPORT_TAIL_RE.search(src[tail:hi])
+        if not m:
+            continue
+        for part in m.group(1).split(","):
+            local, _, exported = part.strip().partition(" as ")
+            if local.strip():
+                out.setdefault((exported or local).strip(), []).append(
+                    (lo, local.strip())
+                )
+    return out
+
+
+_CONTROL_HEAD_RE = re.compile(r"(?<![\w$.])(?:if|for|while|switch|catch|with)\s*\Z")
+_KEYWORD_START_RE = re.compile(r"\s*(var|let|const)\s")
+
+
+def _function_block(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
+    """The body of the function that holds `pos`, or None at module level:
+    a `var` belongs to it whatever blocks sit in between."""
+    block = braces.enclosing(max(pos - 1, 0))
+    while block is not None:
+        j = block[0] - 1
+        while j >= 0 and src[j] in " \t\r\n":
+            j -= 1
+        if src.startswith("=>", j - 1):
+            return block
+        if j >= 0 and src[j] == ")":
+            try:
+                k = _head_open(src, braces, j)
+            except ValueError:
+                return block
+            if not _CONTROL_HEAD_RE.search(src, max(0, k - 16), k):
+                return block
+        block = braces.enclosing(block[0] - 1) if block[0] > 0 else None
+    return None
+
+
+def _statement_keyword(src: str, pos: int) -> str | None:
+    """`var`, `let`, or `const` when the statement holding `pos` starts with
+    it, else None. The walk back skips balanced brackets, so an earlier
+    declarator's initializer (`var a=f(1),x=`) does not hide the keyword."""
+    start = _statement_start(src, pos)
+    m = None if start is None else _KEYWORD_START_RE.match(src, start)
+    return m.group(1) if m else None
+
+
+def _for_scope(src: str, braces: BraceMap, pos: int) -> tuple[int, int] | None:
+    """For a `let` or `const` declared in a `for (...)` head, the span it is
+    visible in, from the head's `(` to the end of a braced body. Raises
+    ValueError for an unbraced body, whose end is not read."""
+    start = _statement_start(src, pos)
+    if not start or src[start - 1] != "(":
         return None
-    return v
+    if not re.search(r"\bfor\s*(?:await\s*)?$", src[max(0, start - 16) : start - 1]):
+        return None
+    if _statement_keyword(src, pos) not in ("let", "const"):
+        return None
+    body = _skip_ws(src, _match_close(src, braces, start - 1, len(src)), len(src))
+    end = braces.pairs.get(body) if body < len(src) and src[body] == "{" else None
+    if end is None:
+        raise ValueError("unbraced loop body")
+    return start - 1, end
 
 
-def _function_body(src: str, braces: BraceMap, ident: str, at: int) -> int | None:
-    """The `{` of `function ident(){...}`: nearest before `at`, else first after."""
+def _statement_start(src: str, pos: int) -> int | None:
+    """Offset just past the `;` or unmatched opener starting the statement
+    that holds `pos`, or None when that is more than 4 KiB back."""
+    lo = max(0, pos - 4096)
+    text = _mask_strings(src[lo:pos])
+    depth, k = 0, len(text) - 1
+    while k >= 0:
+        c = text[k]
+        if c in ")]}":
+            depth += 1
+        elif c in "([{":
+            if depth == 0:
+                break
+            depth -= 1
+        elif c == ";" and depth == 0:
+            break
+        k -= 1
+    if k < 0 and lo > 0:
+        return None
+    return lo + k + 1
+
+
+def _is_var(src: str, pos: int) -> bool:
+    """Whether the binding at `pos` is declared by a `var` statement."""
+    return _statement_keyword(src, pos) == "var"
+
+
+def _declares(src: str, pos: int) -> bool:
+    """Whether the name at `pos` is a declarator: right after `var`, `let`,
+    or `const`, or after a `,` in such a statement."""
+    head = src[max(0, pos - 8) : pos]
+    if re.search(r"\b(?:var|let|const)\s+$", head):
+        return True
+    return bool(re.search(r",\s*$", head)) and _statement_keyword(src, pos) is not None
+
+
+def _redeclared_later(src: str, braces: BraceMap, ident: str, at: int) -> bool:
+    """Whether the function reading `ident` at `at` declares it again after
+    `at`: a `var` there hoists, and a `let` or `const` in a block holding the
+    read is not yet initialized, so an earlier binding is not what it reads."""
+    reader = _function_block(src, braces, at)
+    if reader is None:
+        return False
+    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    for m in name.finditer(_mask_strings(src[at : reader[1]])):
+        pos = at + m.start()
+        if not _declares(src, pos):
+            continue
+        if _is_var(src, pos):
+            if _function_block(src, braces, pos) == reader:
+                return True
+        elif _visible(braces, pos, at):
+            return True
+    return False
+
+
+def _unset_between(src: str, braces: BraceMap, ident: str, lo: int, at: int) -> bool:
+    """Whether, after the binding at `lo`, the read at `at` sees a newer
+    declaration of `ident` with no initializer (`let x;`, `var a,x`) or a
+    `catch (x)` parameter: its value is not that binding's."""
+    name = re.compile(r"(?<![\w$.])" + re.escape(ident) + r"(?![\w$])")
+    for m in name.finditer(_mask_strings(src[lo:at]), 1):
+        pos = lo + m.start()
+        if re.search(r"catch\s*\(\s*$", src[max(0, pos - 12) : pos]):
+            if _visible(braces, pos, at):
+                return True
+        elif (
+            _declares(src, pos)
+            and not re.match(r"\s*=(?![=>])", src[m.end() + lo : m.end() + lo + 8])
+            and _visible(braces, pos, at, src)
+        ):
+            return True
+    return False
+
+
+def _visible(braces: BraceMap, pos: int, at: int, src: str | None = None) -> bool:
+    """Whether a declaration at `pos` is visible from a reader at `at`: at
+    the top level, or in a block that also holds the reader; with `src`, a
+    `var` is visible throughout its function. A binding local to an
+    unrelated function is not the one `at` reads; with `src`, a `let` or
+    `const` in a `for` head is visible only in that loop."""
+    if src is not None and (loop := _for_scope(src, braces, pos)) is not None:
+        return loop[0] < at <= loop[1]
+    block = braces.enclosing(pos)
+    if block is None or block[0] < at <= block[1]:
+        return True
+    if src is None or not _is_var(src, pos):
+        return False
+    scope = _function_block(src, braces, pos)
+    return scope is not None and scope[0] < at <= scope[1]
+
+
+def _declaration(
+    src: str,
+    braces: BraceMap,
+    ident: str,
+    at: int,
+    pattern_for: Any,
+    later_ok: Any = lambda _m: True,
+) -> re.Match[str] | None:
+    """The declaration of `ident` that the code at `at` reads.
+
+    In a bundle of concatenated modules, where minified names repeat from
+    module to module: a name the module imports is declared at the top level
+    of the one module exporting it (anything else is unresolved); any other
+    name is declared in the module itself (nearest before `at`, else first
+    after when `later_ok` allows it), and a name neither imported nor
+    declared there is unresolved.
+    A single-module source keeps the plain rule: nearest before `at`.
+    """
+    if len(_chunk_starts(src)) == 1:
+        found = None
+        for m in pattern_for(ident).finditer(src, 0, at):
+            if _visible(braces, m.start(), at, src):
+                found = m
+        return found
+    lo, hi = _chunk_span(src, at)
+    exported = _chunk_imports(src, lo, hi).get(ident)
+    if exported is not None:
+        homes = _export_index(src).get(exported, [])
+        if len(homes) != 1:
+            return None
+        home, local = homes[0]
+        top = [
+            m
+            for m in pattern_for(local).finditer(src, home, _chunk_span(src, home)[1])
+            if braces.enclosing(m.start()) is None
+        ]
+        return top[0] if len(top) == 1 else None
+    pattern = pattern_for(ident)
+    if pattern_for is _function_pattern:
+        # A function declaration is hoisted through its whole block, so the
+        # innermost visible one wins wherever it sits, then the nearest.
+        visible = [
+            m for m in pattern.finditer(src, lo, hi) if _visible(braces, m.start(), at)
+        ]
+        if not visible:
+            return None
+
+        def rank(m: re.Match[str]) -> tuple[int, int]:
+            block = braces.enclosing(m.start())
+            return (block[0] if block else -1, -abs(m.start() - at))
+
+        return max(visible, key=rank)
+    found = None
+    for m in pattern.finditer(src, lo, at):
+        if _visible(braces, m.start(), at, src):
+            found = m
+    if found is not None:
+        # A declaration later in a scope nearer the reader shadows `found`
+        # and is not yet initialized when read: the value is not static.
+        # A `var` hoists to its function, so one anywhere in the reader's
+        # function counts, however deeply it is nested there.
+        outer = braces.enclosing(found.start())
+        outer_open = outer[0] if outer else -1
+        reader = _function_block(src, braces, at)
+        for m in pattern.finditer(src, at, hi):
+            block = braces.enclosing(m.start())
+            if (
+                block
+                and block[0] > outer_open
+                and (
+                    _visible(braces, m.start(), at, src)
+                    or (
+                        reader is not None
+                        and reader[0] < m.start() < reader[1]
+                        and _is_var(src, m.start())
+                    )
+                )
+                and re.search(
+                    r"(?:\b(?:var|let|const)\s+|,\s*)$",
+                    src[max(0, m.start() - 8) : m.start()],
+                )
+            ):
+                return None
+    if found is None:
+        found = next(
+            (
+                m
+                for m in pattern.finditer(src, at, hi)
+                if _visible(braces, m.start(), at, src)
+            ),
+            None,
+        )
+        if found is not None and not later_ok(found):
+            found = None
+    return found
+
+
+def _write_pattern(ident: str) -> re.Pattern[str]:
+    """Any write to `ident`: plain or compound assignment, `++` or `--`, a
+    destructuring target at any depth (`[x]=`, `{a:{b:x}}=`), or a
+    `for (x of|in ...)` head. A pattern is not parsed: `x` followed in its
+    statement by `]=` or `}=` counts, which can only over-report a write."""
+    name = re.escape(ident)
+    return re.compile(
+        r"(?<![\w$.])(?:(?:\+\+|--)\s*"
+        + name
+        + r"(?![\w$])|"
+        + name
+        + r"\s*(?:\+\+|--|(?:\*\*|<<|>>>?|&&|\|\||\?\?|[-+*/%&|^])?=(?![=>])))"
+        + r"|(?<![\w$.])"
+        + name
+        + r"(?![\w$])[^;]*?[\]}]\s*=(?![=>])"
+        + r"|for\s*\(\s*"
+        + name
+        + r"\s+(?:of|in)\b"
+    )
+
+
+def _binding_pattern(ident: str) -> re.Pattern[str]:
+    name = re.escape(ident)
+    return re.compile(name + r"(?<![\w$.]" + name + r")\s*=(?![=>])\s*")
+
+
+def _binding_value(
+    src: str, braces: BraceMap, ident: str, at: int, *, deferred: bool = False
+) -> int | None:
+    """Offset of the `ident=` value `at` reads.
+
+    A single-character name is function-local: the nearest binding before
+    `at` in `at`'s own module, within `SHORT_VALUE_LOCALITY_BYTES`. A longer
+    one follows the module rule in `_declaration`. A binding after `at` is
+    taken only when the read is `deferred`, reached through a getter, a
+    method, an arrow, or a function-valued field, which run after the module
+    has loaded, and only when that binding is at the module's top level: an
+    eager read, such as a field's `f()` call at load time, sees no later
+    initializer.
+    """
     if len(ident) == 1:
+        lo = max(_chunk_span(src, at)[0], at - SHORT_VALUE_LOCALITY_BYTES)
+        found = None
+        for m in _binding_pattern(ident).finditer(src, lo, at):
+            if _visible(braces, m.start(), at, src):
+                found = m
+    else:
+        found = _declaration(
+            src,
+            braces,
+            ident,
+            at,
+            _binding_pattern,
+            lambda later: deferred and braces.enclosing(later.start()) is None,
+        )
+    if found is None:
         return None
-    pattern = re.compile(r"function\s+" + re.escape(ident) + r"\s*\(\s*\)\s*\{")
-    last = None
-    for m in pattern.finditer(src, 0, at):
-        last = m
-    if last is None:
-        last = pattern.search(src, at)
-    return None if last is None else last.end() - 1
+    # An imported binding lives in another module: what can shadow it is
+    # declared in the reader's own module.
+    home = _chunk_span(src, at)[0]
+    lo = found.start() if home <= found.start() < at else home
+    if _redeclared_later(src, braces, ident, at) or _unset_between(
+        src, braces, ident, lo, at
+    ):
+        return None
+    return found.end()
+
+
+def _function_pattern(ident: str) -> re.Pattern[str]:
+    return re.compile(r"function\s+" + re.escape(ident) + r"\s*\(([^()]*)\)\s*\{")
+
+
+def _function_body(
+    src: str, braces: BraceMap, ident: str, at: int
+) -> tuple[int, Scope, str] | None:
+    """The `{` of `function ident(...){...}` and its parameter names.
+
+    A single-character name is usually function-local; it resolves only to
+    the one top-level declaration in `at`'s own module, and only when the
+    source is split into modules. A declaration of `ident` in `at`'s module
+    whose parameter list holds parentheses is not read, so any such
+    declaration leaves the name unresolved rather than skipped.
+    """
+    lo, hi = _chunk_span(src, at)
+    head = re.compile(r"function\s+" + re.escape(ident) + r"\s*\(")
+    if len(head.findall(src, lo, hi)) != len(
+        _function_pattern(ident).findall(src, lo, hi)
+    ):
+        return None
+    if len(ident) == 1:
+        if len(_chunk_starts(src)) == 1:
+            return None
+        lo, hi = _chunk_span(src, at)
+        top = [
+            m
+            for m in _function_pattern(ident).finditer(src, lo, hi)
+            if braces.enclosing(m.start()) is None
+        ]
+        if len(top) != 1:
+            return None
+        return top[0].end() - 1, _param_names(top[0].group(1)), top[0].group(1)
+    if len(_chunk_starts(src)) == 1:
+        found = _declaration(src, braces, ident, at, _function_pattern)
+        found = found or _function_pattern(ident).search(src, at)
+    else:
+        found = _declaration(src, braces, ident, at, _function_pattern)
+    if found is None:
+        return None
+    return found.end() - 1, _param_names(found.group(1)), found.group(1)
+
+
+def _bound_arguments(
+    src: str,
+    braces: BraceMap,
+    params: str,
+    open_paren: int,
+    *,
+    hops: int,
+    shadow: Scope,
+    deferred: bool = False,
+) -> dict[str, list[str]]:
+    """Each plain parameter mapped to the values its call-site argument
+    resolves to; a destructured or defaulted list binds nothing."""
+    names = [p.strip() for p in params.split(",")] if params.strip() else []
+    if hops <= 0 or not all(re.fullmatch(_IDENT, p) for p in names):
+        return {}
+    close = _match_close(src, braces, open_paren, len(src)) - 1
+    starts = _split_args(src, braces, open_paren + 1)
+    out: dict[str, list[str]] = {}
+    for k, name in enumerate(names[: len(starts)]):
+        stop = (starts[k + 1] if k + 1 < len(starts) else close) - 1
+        while stop >= starts[k] and src[stop] in " \t\r\n,":
+            stop -= 1
+        if stop < starts[k]:
+            continue
+        value = _sub_value(
+            src,
+            braces,
+            starts[k],
+            stop + 1,
+            _Values(),
+            hops=hops,
+            anchor=None,
+            shadow=shadow,
+            deferred=deferred,
+        )
+        if value:
+            # A partial argument keeps a runtime alternative ahead of its values.
+            out[name] = ([_ELLIPSIS] if value.partial else []) + list(value)
+    return out
 
 
 def _resolve_chain(
@@ -1033,42 +1957,129 @@ def _resolve_chain(
     *,
     hops: int,
     anchor: int | None,
+    shadow: Scope = NO_SCOPE,
+    deferred: bool = False,
 ) -> list[str] | None:
-    """The string values a constant, a no-argument call, or a member read yields."""
+    """The string values a constant, a call, or a member read yields.
+
+    A call is followed into its function declaration whatever its arguments.
+    A plain parameter takes the values its argument resolves to at the call
+    site; every other parameter is a runtime value, so what depends on it
+    stays unresolved while the rest of the body resolves.
+    """
+    ident = chain[0][1]
+    if ident in shadow:
+        bound = shadow[ident]
+        return bound if bound is not None and len(chain) == 1 else None
     if hops <= 0:
         return None
     at = anchor if anchor is not None else pos
-    ident = chain[0][1]
     sub = _Values()
     # A bare identifier naming a function declaration is a function-valued
     # field, which the registrars read through a getter: resolve it as a call
     # when the declaration is nearer than any `ident=` binding.
-    v = _binding_value(src, ident, at) if len(chain) == 1 else None
-    fn_body = _function_body(src, braces, ident, at) if len(chain) == 1 else None
-    if fn_body is not None and v is not None and (fn_body > at or fn_body < v):
-        fn_body = None
-    if len(chain) == 1 and fn_body is None:
+    v = (
+        _binding_value(src, braces, ident, at, deferred=deferred)
+        if len(chain) == 1
+        else None
+    )
+    fn = _function_body(src, braces, ident, at) if len(chain) == 1 else None
+    if fn is not None and v is not None and (fn[0] > at or fn[0] < v):
+        fn = None
+    if len(chain) == 1 and fn is None:
         if v is None:
             return None
-        _scan(src, braces, v, len(src), sub, block=False, hops=hops - 1, anchor=None)
-        acc.via.add("constant")
-    elif chain[1:] == [("call", "")] or fn_body is not None:
-        body = (
-            fn_body if fn_body is not None else _function_body(src, braces, ident, at)
+        # A local binding (inside a function) reads that function's scope.
+        local = braces.enclosing(v) is not None
+        _scan(
+            src,
+            braces,
+            v,
+            len(src),
+            sub,
+            block=False,
+            hops=hops - 1,
+            anchor=None,
+            shadow=shadow if local else NO_SCOPE,
+            deferred=deferred and local,
         )
-        close = None if body is None else braces.pairs.get(body)
-        if close is None:
+        acc.via.add("constant")
+    elif (len(chain) == 2 and chain[1][0] == "call") or fn is not None:
+        fn = fn or _function_body(src, braces, ident, at)
+        close = None if fn is None else braces.pairs.get(fn[0])
+        if fn is None or close is None:
             return None
-        _scan(src, braces, body + 1, close, sub, block=True, hops=hops - 1, anchor=None)
+        # A nested function closes over its caller's parameters; a top-level
+        # one sees none of them.
+        nested = braces.enclosing(fn[0] - 1) is not None
+        scope = {**shadow, **fn[1]} if nested else fn[1]
+        if len(chain) == 2:
+            body = _mask_strings(src[fn[0] : close])
+            scope = {
+                **scope,
+                **{
+                    # A parameter the body reassigns is not its argument.
+                    name: values
+                    for name, values in _bound_arguments(
+                        src,
+                        braces,
+                        fn[2],
+                        chain[1][2],
+                        hops=hops - 1,
+                        shadow=shadow,
+                        deferred=deferred,
+                    ).items()
+                    if not _write_pattern(name).search(body)
+                },
+            }
+        _scan(
+            src,
+            braces,
+            fn[0] + 1,
+            close,
+            sub,
+            block=True,
+            hops=hops - 1,
+            anchor=None,
+            shadow=scope,
+            # A function-valued field is read through a getter: deferred.
+            deferred=deferred or len(chain) == 1,
+        )
         acc.via.add("call")
     elif len(chain) == 2 and chain[1][0] == "prop":
         if len(ident) == 1:
             return None
-        obj = _resolve_object(src, braces, ident, at)
+        # The object the reader sees: the visible binding holding a literal,
+        # following aliases (`let t=c`) through each one's own visible
+        # binding; no visible binding at all is unresolved.
+        obj, target, where, hop_deferred = None, ident, at, deferred
+        for _ in range(_MAX_HOPS):
+            v = _binding_value(src, braces, target, where, deferred=hop_deferred)
+            if v is None:
+                break
+            close_v = braces.pairs.get(v)
+            if close_v is not None:
+                obj = (v, src[v : close_v + 1])
+                break
+            alias = re.match(_IDENT + r"(?=[;,)\s])", src[v : v + 64])
+            if not alias:
+                break
+            # An alias initializer runs when its own scope does: a top-level
+            # one at load time, so it reads no later binding.
+            hop_deferred = hop_deferred and braces.enclosing(v) is not None
+            target, where = alias.group(0), v
         if obj is None:
             return None
         found = _eval_field(
-            src, braces, obj[0], chain[1][1], sub, hops=hops - 1, anchor=None
+            src,
+            braces,
+            obj[0],
+            chain[1][1],
+            sub,
+            hops=hops - 1,
+            anchor=None,
+            # A local object literal reads the enclosing function's scope.
+            shadow=shadow if braces.enclosing(obj[0] - 1) is not None else NO_SCOPE,
         )
         if found is None:
             return None
@@ -1076,6 +2087,9 @@ def _resolve_chain(
     else:
         return None
     acc.via |= sub.via
+    # A branch the reader could not settle stays visible to the caller, so a
+    # substitution or argument built from this value keeps its runtime part.
+    acc.unresolved += sub.unresolved
     return sub.variants or None
 
 
@@ -1089,6 +2103,7 @@ def _eval_field(
     hops: int = _MAX_HOPS,
     anchor: int | None = None,
     methods: bool = False,
+    shadow: Scope = NO_SCOPE,
 ) -> str | None:
     """Evaluate one top-level field into `acc`; returns its form, or None when absent."""
     entry = _object_fields(src, braces, open_i, methods=methods).get(key)
@@ -1101,10 +2116,32 @@ def _eval_field(
         close = braces.pairs.get(pos)
         if close is None:
             return kind
-        _scan(src, braces, pos + 1, close, acc, block=True, hops=hops, anchor=anchor)
+        _scan(
+            src,
+            braces,
+            pos + 1,
+            close,
+            acc,
+            block=True,
+            hops=hops,
+            anchor=anchor,
+            # A getter or method closes over the scope it was read in.
+            shadow={**shadow, **_params_before(src, braces, pos)},
+            deferred=True,
+        )
         return kind
     close = braces.pairs.get(open_i, len(src))
-    _scan(src, braces, pos, close, acc, block=False, hops=hops, anchor=anchor)
+    _scan(
+        src,
+        braces,
+        pos,
+        close,
+        acc,
+        block=False,
+        hops=hops,
+        anchor=anchor,
+        shadow=shadow,
+    )
     return "value"
 
 
@@ -1888,7 +2925,7 @@ def _workflow_registrars(src: str) -> dict[str, tuple[int | None, int | None]]:
 
 def _array_titles(src: str, braces: BraceMap, ident: str, at: int) -> list[str] | None:
     """`title` of each row of the array literal an identifier is bound to."""
-    v = _binding_value(src, ident, at)
+    v = _binding_value(src, braces, ident, at)
     if v is None or not src.startswith("[", v):
         return None
     titles: list[str] = []

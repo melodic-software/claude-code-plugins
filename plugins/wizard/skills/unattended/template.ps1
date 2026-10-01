@@ -3,7 +3,8 @@
   Unattended procedure library. The agent authors the block below # STAGES.
   The human launches this script. The agent never launches the real run.
   Secrets declared on Invoke-UnattendedRun resolve once before the first stage:
-  environment, then file, then the SecretManagement store, then one hidden
+  environment, then file, then the credential store (SecretManagement, then the
+  macOS Keychain or Linux pass), then one hidden
   prompt per name still unresolved. An undeclared name resolves at first use.
   -WhatIf narrates the plan and -Test reports what would change. Neither
   invokes a helper's block, and both write only the result directory.
@@ -92,27 +93,60 @@ function Assert-NotInside {
     }
 }
 
+# The native store for the platform, asked by name only; the value never rides on argv.
+# WIZARD_PLATFORM (macos, linux) replaces platform detection: the test seam for template.test.sh.
+# An absent command, a nonzero exit or empty output is a miss, skipped silently. `pass show` lists a
+# directory instead of failing, so pass is asked only for a name that is an entry file in the store.
+function Get-UnattendedNativeSecret {
+    param([Parameter(Mandatory = $true)][string] $Name)
+    $PSNativeCommandUseErrorActionPreference = $false
+    $platform = $env:WIZARD_PLATFORM
+    if (-not $platform) {
+        $platform = if ($IsMacOS) { 'macos' } elseif ($IsLinux) { 'linux' }
+    }
+    $lines = $null
+    if ($platform -eq 'macos' -and (Get-Command security -CommandType Application -ErrorAction SilentlyContinue)) {
+        $lines = & security find-generic-password -s $Name -w 2>$null
+    } elseif ($platform -eq 'linux' -and (Get-Command pass -CommandType Application -ErrorAction SilentlyContinue)) {
+        $store = if ($env:PASSWORD_STORE_DIR) { $env:PASSWORD_STORE_DIR } else { Join-Path $HOME '.password-store' }
+        if (-not (Test-Path -LiteralPath (Join-Path $store "$Name.gpg") -PathType Leaf)) {
+            return $null
+        }
+        $lines = & pass show -- $Name 2>$null
+    } else {
+        return $null
+    }
+    if ($LASTEXITCODE -ne 0) {
+        return $null
+    }
+    $first = $lines | Select-Object -First 1
+    if ($first -is [string] -and $first) {
+        return $first
+    }
+    return $null
+}
+
 # Microsoft.PowerShell.SecretManagement fronts whichever vaults are registered. Only a
 # string is used: -AsPlainText leaves a PSCredential, hashtable or byte[] as an object,
 # and redaction would record its type name instead of the secret.
-# Without the module, or without the name, the rung is skipped silently.
+# Without the module, or without the name, the rung falls through to the native store
+# (macOS Keychain, Linux pass), then is skipped silently.
 function Get-UnattendedStoreSecret {
     param([Parameter(Mandatory = $true)][string] $Name)
-    if (-not (Get-Command Get-Secret -ErrorAction SilentlyContinue)) {
-        return $null
+    if (Get-Command Get-Secret -ErrorAction SilentlyContinue) {
+        try {
+            $value = Get-Secret -Name $Name -AsPlainText -ErrorAction SilentlyContinue
+        } catch {
+            $value = $null
+        }
+        if ($value -is [string]) {
+            return $value
+        }
+        if ($null -ne $value) {
+            $script:Warnings.Add("store secret $Name is a $($value.GetType().Name), not a string; the store rung skipped it") | Out-Null
+        }
     }
-    try {
-        $value = Get-Secret -Name $Name -AsPlainText -ErrorAction SilentlyContinue
-    } catch {
-        return $null
-    }
-    if ($value -is [string]) {
-        return $value
-    }
-    if ($null -ne $value) {
-        $script:Warnings.Add("store secret $Name is a $($value.GetType().Name), not a string; the store rung skipped it") | Out-Null
-    }
-    return $null
+    return Get-UnattendedNativeSecret -Name $Name
 }
 
 # The ladder both paths share: environment, file, store. $null when nothing resolves.

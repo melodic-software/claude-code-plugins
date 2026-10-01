@@ -17,7 +17,7 @@ Every shape below invokes the same line, and the two arguments are not optional 
 ```
 
 - **`unattended` is mandatory for anything unwatched.** It selects the audit's unattended
-  disposition for low-confidence intent (`${CLAUDE_PLUGIN_ROOT}/context/scrutiny-method.md` §4): record `OPEN-INTENT`, ask
+  disposition for low-confidence intent (`<plugin-root>/context/scrutiny-method.md` §4): record `OPEN-INTENT`, ask
   nothing, guess nothing. The harness gives a prose skill no reliable probe for whether a human is
   watching, so the caller owns the flag, and a scheduled run that omits it will sit waiting on a
   checkpoint question nobody will answer.

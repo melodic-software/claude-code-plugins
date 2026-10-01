@@ -980,6 +980,95 @@ report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
 assert_exit "render re-entry: exit 0" 0 "$REPORT_RC"
 assert_golden "render re-entry: the superseding report matches the golden" ask-reentry-installed.txt "$REPORT_TEXT"
 
+# --- an ask-policy re-entry where the human picked none of the offered plugins
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.3.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal"
+run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+report_of "$case_dir" --only-install '' --run-dir "$run_dir"
+assert_exit "render ask none picked: exit 0" 0 "$REPORT_RC"
+assert_eq "render ask none picked: nothing was installed" "0" "$(grep -c 'plugin install' "$case_dir/claude.log")"
+assert_golden "render ask none picked: the report names the declined gap" ask-reentry-none-picked.txt "$REPORT_TEXT"
+
+# --- an ask-policy re-entry where the human picked one of three offered plugins
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.3.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+catalog_plugin "$case_dir" market1 gamma 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal"
+run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
+assert_exit "render ask partial pick: exit 0" 0 "$REPORT_RC"
+assert_contains "render ask partial pick: the marketplace needs action" "$REPORT_TEXT" "needs update"
+assert_contains "render ask partial pick: the declined plugin is named" "$REPORT_TEXT" \
+  "1 catalog plugin(s) offered and not installed (policy ask): gamma@market1;"
+assert_eq "render ask partial pick: the installed plugin is not in the gap bullet" "0" \
+  "$(grep -c 'offered and not installed.*beta@market1' <<<"$REPORT_TEXT")"
+
+# --- every `needs update` carries evidence of what needs doing -----------------
+# A minimal digest per $needs disjunct, rendered directly. Sync mode: an
+# `Action needed` bullet must name it. Audit mode renders predictions as rows
+# (`would run:`, `Would withhold`) instead of bullets.
+CASE_NUM=$((CASE_NUM + 1))
+needs_policy=none
+needs_digest() {
+  jq -n --arg mode "$1" --arg policy "$needs_policy" --argjson patch "$2" '{
+    mode: $mode, cwd: "/w", run_dir: "/r", install_new: $policy, allow_downgrade: false,
+    timings: {total: 1, resolution: "seconds"}, errors: [],
+    marketplaces: [({
+      name: "m", auto_update: true, project_root: null, in_repo_records: null,
+      refresh: {rc: 0, output: ""}, source_checkout: null, catalog_last_updated: null,
+      in_repo: {updated: [], would_update: [], failed: []},
+      user_sweep: {updated: [], would_update: [], failed: [], withheld_downgrades: []},
+      downgraded: [], catalog_regression: null, installed: [], enabled: [],
+      install_gap: [], enable_gap: [], project_enable_rows: [], user_scope_orphans: [],
+      installed_with_unset_user_config: [], updated_with_monitors: [],
+      install_enable_deferred: false, stopped_before_install: false,
+      normalize: {output: ""}, errors: [], self_updated: false,
+      divergences: {post: 0}, stale_project_records: {total: 0}, cache_content: null,
+      timings: {total: 1, resolution: "seconds"}
+    } * $patch)]
+  }'
+}
+needs_check() {
+  local label="$1" mode="$2" patch="$3" want="$4" kind="${5:-bullet}" text
+  text=$(needs_digest "$mode" "$patch" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+  assert_contains "needs: $label marks the marketplace" "$text" "needs update"
+  if [[ "$kind" == bullet ]]; then
+    assert_contains "needs: $label has an Action needed bullet" "$text" $'Action needed:\n  - '
+  fi
+  assert_contains "needs: $label names it" "$text" "$want"
+}
+failed_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\nboom"}'
+needs_check "failed update" sync "{\"user_sweep\":{\"failed\":[$failed_row]}}" "update failed (exit 1): a@m"
+needs_check "withheld downgrade" sync \
+  '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "downgrade withheld: 1"
+needs_check "deferred install gap" sync '{"install_enable_deferred":true,"install_gap":["b@m"]}' "install gap deferred"
+needs_check "deferred enable gap" sync '{"install_enable_deferred":true,"enable_gap":["b@m"]}' "enable gap deferred"
+needs_check "stopped before install" sync '{"stopped_before_install":true,"install_gap":["b@m"]}' "stopped before Step 4"
+needs_check "failed install" sync "{\"installed\":[$failed_row]}" "install failed (exit 1): a@m"
+needs_check "failed enable" sync "{\"enabled\":[$failed_row]}" "enable failed (exit 1): a@m"
+needs_check "marketplace error" sync '{"errors":["boom"]}' "error: boom"
+needs_check "unfilled enable gap" sync '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
+needs_check "install gap under none" sync '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
+needs_policy=ask
+needs_check "declined install gap under ask" sync '{"install_gap":["b@m","c@m"],"installed":[{"id":"b@m","rc":0}]}' \
+  "1 catalog plugin(s) offered and not installed (policy ask): c@m;"
+needs_policy=none
+needs_check "audit would update" audit '{"in_repo":{"would_update":[{"id":"a@m","scope":"project","installed":"1"}]}}' \
+  "would run: claude plugin update a@m" row
+needs_check "audit withheld downgrade" audit \
+  '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "Would withhold: 1 downgrade(s)" row
+needs_check "audit install gap" audit '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
+needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
+
 # --- an install that left userConfig options unset ---------------------------
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)

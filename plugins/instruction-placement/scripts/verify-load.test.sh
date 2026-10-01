@@ -16,6 +16,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/verify-load.sh"
+SCRATCH="$(mktemp -d)"
+trap 'rm -rf "$SCRATCH"' EXIT
 
 FAILED=0
 CASE_NUM=0
@@ -46,7 +48,7 @@ run() { bash "$SCRIPT" "$@" 2>&1; }
 # A repository where a path-scoped rule genuinely covers the trigger file.
 build_fixture() {
   local dir
-  dir="$(mktemp -d)"
+  dir="$(mktemp -d "$SCRATCH/fx.XXXXXX")"
   mkdir -p "$dir/.claude/rules" "$dir/src"
   printf 'public class Invoice { }\n' >"$dir/src/Invoice.cs"
   printf 'export const x = 1;\n' >"$dir/src/client.ts"
@@ -177,7 +179,6 @@ if [[ -n "$CLI" ]]; then
         --expect rules/csharp.md --timeout 300)" \
       "$(printf 'EXPECTED\trules/csharp.md\tMET')"
   fi
-  rm -rf "$near"
 else
   skip "a near-miss expectation is MISSING, not MET" "no Claude Code CLI found"
 fi
@@ -187,8 +188,6 @@ fi
 # --------------------------------------------------------------------------
 dirty="$(git -C "$repo" status --porcelain | wc -l | tr -d ' ')"
 assert_eq "the probe leaves the repository under test untouched" "0" "$dirty"
-
-rm -rf "$repo"
 
 printf '\n%d case(s), %d failure(s), %d skipped\n' "$CASE_NUM" "$FAILED" "$SKIPPED"
 [[ $FAILED -eq 0 ]] || exit 1

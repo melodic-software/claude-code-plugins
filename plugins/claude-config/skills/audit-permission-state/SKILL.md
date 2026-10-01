@@ -1,5 +1,5 @@
 ---
-description: "When the bundled fewer-permission-prompts skill resolves in this session, prefer it for reducing permission prompts by writing an allowlist; this skill to see what permission state is in effect. Report the Claude Code permission state in effect: merges every settings scope into the effective allow/ask/deny set, each rule with its source and precedence, and flags allow rules auto mode drops. Report-only. Use when: 'what permissions are actually in effect', 'show me my effective permissions', 'which of my rules survive auto mode', 'is my managed policy being read', or before changing a rule whose source is unknown. A rule ignored for its shape: `audit-permission-grants`."
+description: "When the bundled fewer-permission-prompts skill resolves in this session, prefer it to reduce prompts via an allowlist; this skill to see the state in effect. Report-only: merges every settings scope into the allow/ask/deny set in effect with source and precedence per rule, and flags allow rules auto mode drops. Use when: 'what permissions are actually in effect', 'which of my rules survive auto mode', 'is my managed policy being read'. A rule ignored for its shape: `audit-permission-grants`."
 argument-hint: "[--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]"
 user-invocable: true
 disable-model-invocation: false

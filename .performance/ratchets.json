@@ -83,6 +83,20 @@
       "field": "spawns",
       "ceiling": 3,
       "goal": "A PostToolBatch whose snapshot is newer than the mark, whose captured_at is fresh, and whose other bytes match the last resolve spends at most this many process creations and execs. The exec-form row runs node, which starts bash (creations 1); the resolver stays unstarted. The same fire measured 7 (creations 3) on main before the body reuse, 2026-09-28 Linux census. Wall on a measurable host (bash -c : p50 0.77 ms, n=22) is 2.88 S after hook-utils.sh stays unloaded on this path. A band crossing still starts the resolver. #4392."
+    },
+    {
+      "name": "testing-posttooluse-bash-test-scan-option-off-spawns",
+      "command": "bash scripts/hook-census.sh testing PostToolUse test-scan-bash.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"},\"tool_response\":{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false}}' --env CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=false --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 1,
+      "goal": "With test_guards_enabled at its default (false), the PostToolUse Bash row costs only the node launcher: the option gate closes before bash starts. The row has no if, so this is what every Bash call costs a user who never opted in (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions."
+    },
+    {
+      "name": "testing-posttooluse-bash-test-scan-no-diff-spawns",
+      "command": "bash scripts/hook-census.sh testing PostToolUse test-scan-bash.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"true\"},\"tool_response\":{\"stdout\":\"\",\"stderr\":\"\",\"interrupted\":false}}' --env CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true --check 'test ! -s \"$HOOK_STDOUT\"'",
+      "field": "spawns",
+      "ceiling": 3,
+      "goal": "With test_guards_enabled on and a Bash payload that carries no bashEditDiff, the row costs node, then bash, and the script exits at its substring test before jq starts: creations 1, execs 2. This is every Bash call for an opted-in user whose Claude Code does not record changed files (#5608). Measured on WSL2 Ubuntu with bash 5.3.9, dash as sh, strace 6.19; the ratchet step prints the current versions."
     }
   ]
 }

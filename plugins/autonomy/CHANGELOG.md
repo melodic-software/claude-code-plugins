@@ -3,6 +3,18 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.22] - 2026-09-30
+
+### Fixed
+
+- **`setup` slice files link to the plugin's `reference/` pages relatively.** The links in the capture, guardrail, prerequisite-resolution, routine, trigger-dispatch and Windows-surface slices carried the literal plugin-root token, which is not substituted in a `context/` file, so none of them resolved.
+
+## [0.24.21] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.24.20] - 2026-09-30
 
 ### Changed

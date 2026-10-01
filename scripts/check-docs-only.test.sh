@@ -7,6 +7,9 @@
 # widens the allowlist to cover a doc a code lane actually reads.
 set -uo pipefail
 
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SELF_DIR/check-docs-only.sh"
 
@@ -129,7 +132,7 @@ mk_repo repo
 base="$(git -C "$repo" rev-parse HEAD)"
 printf 'changed\n' >"$repo/docs/topics/example/PLAN.md"
 git_test_config "$repo" add -A >/dev/null && git_test_config "$repo" commit -qm change >/dev/null
-gho="$(mktemp)"
+gho="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 (cd "$repo" && GITHUB_OUTPUT="$gho" bash scripts/check-docs-only.sh "$base" >/dev/null 2>&1)
 if grep -qx 'docs_only=true' "$gho"; then
   ok "writes docs_only to GITHUB_OUTPUT"

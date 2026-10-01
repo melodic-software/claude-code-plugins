@@ -38,9 +38,9 @@ directory, and this line is how a reader tells them apart.
 ## Per-finding shape
 
 One `##` section per verified finding. The five fields are `/bugs:write`'s. The canonical shape is in
-[`${CLAUDE_PLUGIN_ROOT}/skills/write/context/template.md`](../../write/context/template.md) and the
+[`skills/write/context/template.md`](../../write/context/template.md) and the
 severity rubric is the "Severity rubric" section of
-[`${CLAUDE_PLUGIN_ROOT}/skills/write/SKILL.md`](../../write/SKILL.md); neither is restated here. Scan
+[`skills/write/SKILL.md`](../../write/SKILL.md); neither is restated here. Scan
 adds three lines: the evidence label, the lens id, and the scope tag.
 
 ````markdown

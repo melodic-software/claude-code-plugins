@@ -28,7 +28,7 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
 1. **Re-validate the glob.** The repository may have moved since the audit.
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/glob-tools.sh" validate --glob '<glob>'
+   "<plugin-root>/scripts/glob-tools.sh" validate --glob '<glob>'
    ```
 
    Anything other than `ok` or `over-broad` stops the move.
@@ -61,7 +61,7 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
 5. **Regenerate the index.**
 
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" write --file <index-file>
+   "<plugin-root>/scripts/render-index.sh" write --file <index-file>
    ```
 
 6. **Verify.** The glob still resolves, the index reports `IN-SYNC`, and the source no longer
@@ -86,7 +86,7 @@ Content keyed to a place rather than a file kind.
    own path, the repository root's included: Claude Code reads that file *instead* of the
    `AGENTS.md`, so skipping the shim produces a file that looks correct in review and reaches
    nothing. This is measured, not inferred. Run
-   `"${CLAUDE_PLUGIN_ROOT}/scripts/render-index.sh" wiring` to see which it is: an `UNWIRED` row
+   `"<plugin-root>/scripts/render-index.sh" wiring` to see which it is: an `UNWIRED` row
    needs the shim, a `NATIVE` row does not, because nothing blocks that file.
 
    The shim is also what covers the sessions where reading `AGENTS.md` directly is unavailable

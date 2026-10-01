@@ -1,0 +1,26 @@
+{
+  "negatives": false,
+  "findings": [
+    {
+      "class": "near-verbatim",
+      "tier": "fingerprint-confirmed",
+      "span": { "start_line": 12, "end_line": 19 },
+      "rule": "attribution/audit/rule-verbatim-copy"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "copy",
+    "rubric_version": 4,
+    "real_source": "https://howborisusesclaudecode.com/boris-SKILL.md"
+  },
+  "notes": {
+    "shape": "A compiled page's explanation and companion-tools list, lifted with light edits, including the compilation's own cross-references to tip numbers elsewhere in it and its phrase 'already in this skill'. The file credits the maintainers' original post and never names the compilation.",
+    "carve_outs": "None apply. The attribution is the thing under test and it does not enumerate the lift: the post it names contains neither the companion list nor the tip numbers.",
+    "rubric": "C1 holds: the explanation and four list items correspond line for line. C2 holds: the cross-references to tips 7, 13, 24, 31, 42, 43, 48 and 68 exist only in the compilation, which makes them the strongest evidence of where the text came from. C3 holds: the post is credited, the compilation is not, and the lifted text is the compilation's. C4 holds: the local text adds nothing the source does not say.",
+    "measured": "fingerprint.mjs at k=5: containment 0.628, jaccard 0.371, longest matched span 82 words at local lines 12-19.",
+    "tier_reason": "Both limbs fire against an identity-checked source. Crediting the upstream post does not change the tier: the derivation is from the compilation.",
+    "carries": "This case fails a run that accepts any attribution to the original author as covering a lift from a compilation of that author's work. A cross-reference to tips that appear nowhere in this file says which document was copied."
+  }
+}

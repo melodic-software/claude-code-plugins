@@ -3,6 +3,113 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.78.2] - 2026-10-01
+
+### Fixed
+
+- **`changelog`, `known-issues`, `lanes`, `observability` and `plugins` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `context/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Script and data paths inside a skill now read `<skill-dir>/...`, and the `known-issues` recommendation-basis link text is the relative path. Prose that names the variable keeps the token. `known-issues`, `lanes`, `observability` and `plugins` gain a `## Spoke paths` section saying `<skill-dir>` is the skill's directory.
+
+## [0.78.1] - 2026-10-01
+
+### Fixed
+
+- **A declined `ask` install gap stays in the report.** Re-entering with zero or partial picks
+  now lists the plugins left uninstalled under `Action needed`, and the plugins skill states that
+  a dismissed or unanswered multi-select re-enters with an empty id list.
+
+## [0.78.0] - 2026-09-30
+
+### Added
+
+- **Native drift files unresolved descriptions.** `native_drift.py summarize` records the
+  extraction's `integrity.undetermined.description_unresolved` names, and `diff` adds an
+  `unresolved-description` item for each name the previous summary did not list, so a release
+  that adds a description shape the inventory cannot read is filed instead of absorbed.
+
+### Fixed
+
+- **The inventory resolves built-in descriptions built by a call with arguments.** A tool's
+  `description()` method that passes a runtime value into a function (`kbr(RTe())`,
+  `gLr(void 0)`) is followed into that function, each plain parameter bound to its resolvable
+  argument and every other one a runtime value, and template
+  substitutions, `||`/`??` fallbacks, parenthesized parts and `[...].join()` arrays now resolve.
+  On Claude Code 2.1.285 the unresolved descriptions drop from 14 to 1 (`design`, whose text
+  reads a table keyed by a runtime mode, stays unresolved).
+- **Identifiers resolve by module.** The bytecode bundle repeats minified names from module to
+  module, so a name resolves through its import to the exporting module, or inside its own module;
+  a substitution such as `workflow-authoring`'s `${jd}` now reads `Workflow`, never a foreign
+  `host_exit`.
+- **Detect scores a tool's words and user-facing name.** A PascalCase native name
+  (`ClaudeDesign`, `EnterWorktree`) is scored as its words, and `user_facing_name` is scored
+  beside the description (it does not join the dismissal fingerprint), so a surface without a
+  resolvable description is still paired on its name, user-facing name and search hint.
+
+## [0.77.4] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` reads unreferenced plugin-cache versions through a shared `lib/plugin_cache_versions.py`.** The module is byte-identical with the copy in `disk-hygiene`, and `scripts/check-cross-plugin-source-drift.sh` fails if the copies diverge. The report is unchanged.
+
+## [0.77.3] - 2026-09-30
+
+### Changed
+
+- **`observability` and `inventory` descriptions fit the 500-character listing budget.** `observability` keeps its `explain-usage` route phrase and its sibling boundaries ([#4661](https://github.com/melodic-software/claude-code-plugins/issues/4661)).
+
+## [0.77.2] - 2026-09-30
+
+### Fixed
+
+- **`audit-native-overlap generate` marks a `native description:` evidence line that carries an
+  em dash with an `ai-slop-ignore` comment.** The description is quoted verbatim, so the dash stays
+  and the ai-slop audit skips that line instead of reporting it. A multi-line description is marked
+  on each physical line that carries a dash. Authored evidence lines are never marked.
+
+## [0.77.1] - 2026-09-30
+
+### Changed
+
+- **The `hook-failure-audit` Stop row runs in shell form.** The detector that reports unsurfaced hook failures no longer depends on `node`, the launcher whose absence it must report. The README and `/claude-ops:setup` name the exception.
+
+## [0.77.0] - 2026-09-30
+
+### Changed
+
+- **`audit-install-state` caps `unreferenced_versions` in the JSON report.** The report lists at
+  most 25 entries and adds `unreferenced_versions_total` and `unreferenced_versions_truncated`;
+  `--versions-out <file>` writes the full list. The schema is `claude-install-state/4`, and
+  `SKILL.md` documents the capped contract.
+
+## [0.76.0] - 2026-09-30
+
+### Changed
+
+- **`changelog apply` hands decisions off instead of implementing them.** After the scope gate, a
+  row that fits the session goes through `/planning:plan`, `/implementation:implement` and
+  `/verification:confirm`, one PR per owner plugin. A row too large for the session is filed
+  through `/work-items:track` and worked later in its own PR. A stage whose plugin is missing is
+  reported as not executed, not done by hand. The phases are now ingest, explore, research, scope
+  gate, hand off, native-surface drift.
+- **The description, router and README describe `apply` as in-scope execution plus handoff**, not
+  a full integrate pipeline.
+- **Filing and the read marker are gated.** Rows too large are filed only after the user confirms the
+  batch. The ledger PR advances the marker only past releases whose rows are all applied in a merged
+  PR, nominated, recorded as declined or deferred, or filed.
+- **Eval 2 checks the handoff**: `apply` scopes the range and hands off, and does not plan,
+  implement or close issues itself.
+
+### Removed
+
+- **The plan, implement, verify and close-issues phases of `changelog apply`.** Planning and
+  implementing a change belongs to the stage skills, and closing issues by matching a title
+  to a changelog item is gone with them.
+
+## [0.75.2] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.75.1] - 2026-09-30
 
 ### Changed

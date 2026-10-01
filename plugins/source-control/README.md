@@ -302,11 +302,6 @@ fails when a gate feeds its payload to a reader by here-string.
 
 ## Works in any repo
 
-- **Node.js on PATH.** Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's
-  native binary neither ships nor uses Node
-  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29), so without `node` the
-  hooks do not launch and the PR-linkage and worktree gates are not enforced. The setup `check`
-  reports whether `node` resolves.
 - **Self-contained.** Everything else runs on `git`, `gh` (authenticated), `jq`,
   and Bash scripts bundled under `${CLAUDE_PLUGIN_ROOT}` (Git Bash on native
   Windows); `unzip` is additionally required by the CI-log fetch path
@@ -327,6 +322,14 @@ fails when a gate feeds its payload to a reader by here-string.
   bot-identity wrappers also come from the project's own `CLAUDE.md` and
   rules. Defaults (Conventional Commits, squash merge) apply only when the
   project declares nothing.
+
+## Requirements
+
+- **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, and Claude
+  Code's native binary neither ships nor uses Node
+  ([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29). Without `node` the hooks do
+  not launch and the PR-linkage and worktree gates are not enforced. The setup `check` reports
+  whether `node` resolves.
 
 ## Install
 
@@ -419,8 +422,8 @@ reads it from.
 | `babysit_autopilot_merge_tier` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_BABYSIT_AUTOPILOT_MERGE_TIER` | Enable the #476 autopilot merge tier: a distinct bot account submits a genuine approving review, then the gate merges only when every criterion holds (issue-linked, lane-authored, no do-not-merge label, distinct-bot approval on the live head, no human blocking comment). Ships DISABLED; a deliberate operator opt-in. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels to be set. Absent/false: the tier does not exist and PRs go to the human merge-ready list. |
 | `babysit_lane_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_LANE_LOGINS` | Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when enabled) refuses fail-closed. |
 | `babysit_approver_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_APPROVER_BOT_LOGINS` | Bot logins whose approving review satisfies the autopilot merge tier's author != approver criterion. Absent: the tier (when enabled) refuses fail-closed. |
-| `babysit_merge_block_labels` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_BLOCK_LABELS` | Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent: the tier (when enabled) refuses fail-closed. |
-| `babysit_review_trigger_phrase` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_TRIGGER_PHRASE` | Comment phrase that requests an AI re-review (posted and recognized). Absent: the review-trigger module stays dormant. |
+| `babysit_merge_block_labels` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_MERGE_BLOCK_LABELS` | Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent and undeclared in the target repository: the tier (when enabled) refuses fail-closed. |
+| `babysit_review_trigger_phrase` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_TRIGGER_PHRASE` | Comment phrase that requests an AI re-review (posted and recognized). Read only from this option: a target repository cannot supply it. Absent: the review-trigger module stays dormant. |
 | `babysit_review_bot_logins` | string (multiple) | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_BOT_LOGINS` | Logins of the AI review bots the trigger phrase addresses, and whose review of the live head the merge gate waits for. Absent: the review-trigger module stays dormant and the merge gate's review-settle hold stays dormant. |
 | `babysit_review_settle_minutes` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_SETTLE_MINUTES` | How long after a head appears a review bot's re-review may still be in flight. The merge gate holds a head that bot has not reviewed yet until the window elapses, then stops waiting. Requires babysit_review_bot_logins; absent, the hold stays dormant. Set it above the reviewer's observed latency. |
 | `babysit_review_gate_context` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_REVIEW_GATE_CONTEXT` | Check/status context name of the AI-review gate. Absent: gate treated as absent (degrade). |

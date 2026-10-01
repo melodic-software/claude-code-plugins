@@ -100,7 +100,7 @@ Read the by-value rung before performing that write: [`${CLAUDE_PLUGIN_ROOT}/ski
 
 ## Worker procedure
 
-Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, the six dimensions, exploration modes, and the output format. The parent does not load it in order to dispatch. The outcome gate below still applies.
+Load [reference/workflow.md](reference/workflow.md) when you are the worker (inline, or the dispatched `discovery:explorer`), before the first dimension. It holds purpose, the six dimensions, exploration modes, and the output format. The parent does not load it to dispatch. The outcome gate below still applies.
 
 ## Outcome gate (before EXPLORE.md handoff)
 

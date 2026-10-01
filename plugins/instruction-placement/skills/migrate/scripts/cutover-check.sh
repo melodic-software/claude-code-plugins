@@ -230,6 +230,7 @@ section '## `claude-code-action` release to installed CLI version' |
                         print $2 "\t" $3 "\t" $4 }' >"$ACTION_MAP"
 [[ -s "$ACTION_MAP" ]] || {
   echo "cutover-check: cannot parse the claude-code-action release map from $SOURCES_MD" >&2
+  rm -f "$ACTION_MAP"
   exit 2
 }
 

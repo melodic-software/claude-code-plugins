@@ -3,6 +3,34 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.68.1] - 2026-09-30
+
+### Fixed
+
+- **`babysit-loop`, `babysit-prs`, `commit`, `pull-request` and `setup` spokes no longer cite bundled files through the literal plugin-root token.** The token is substituted in SKILL.md bodies, not in the `reference/` files the model reads as plain bytes, so a command copied from one resolved to nothing. Links to `reference/review-discipline.md` and `reference/config-resolution.md` are now relative to the spoke, script paths inside a skill read `<skill-dir>/scripts/...`, and the `bin/`, `scripts/` and `lib/` paths read `<plugin-root>/...`. Each of those five `SKILL.md` files gains a `## Spoke paths` section saying which variable each placeholder is. The `babysit-prs` guard test that checks every documented wrapper command against its parser reads the `<plugin-root>` spelling too.
+
+## [0.68.0] - 2026-09-30
+
+### Added
+
+- **`babysit-prs` resolves seven repository-policy keys per target repository.** The merge method, block labels, extra dependency-manager logins, approval-downgrade logins, skip-downgrade logins, review gate context and CI gateway context come from each PR's own repository, read from `.claude/source-control.md` on its default branch through the GitHub contents API. Hold lists only grow, `babysit_skip_downgrade_logins` can only shrink, and a fetch or parse error refuses the merge and request-review paths and leaves that repository's PRs unclassified in the snapshot. A 404 on the file counts as "no file" only when the repository's root listing is readable, because GitHub answers 404 for a file the token cannot read. `babysit_review_trigger_phrase`, `babysit_review_bot_logins` and `babysit_review_settle_minutes` stay `userConfig`-only, and a repository declaration of any of them is ignored with a note: a repository does not choose the text the operator's account posts, and the review-settle hold clears when any listed reviewer has reviewed the head. The autopilot merge tier takes its block labels from the repository when `--block-labels` is unset, so moving that key into the repository file works with the `userConfig` value unset, and the tier still refuses (exit 3) when neither has a block label.
+
+### Deprecated
+
+- **The `userConfig` values for six of those seven keys are a fallback:** the merge method, block labels, extra dependency-manager logins, approval-downgrade logins, review gate context and CI gateway context. Each use prints one stderr note per key per process. The fallback is removed in a later minor release, no earlier than 90 days after this one. `babysit_skip_downgrade_logins` keeps its `userConfig` value as its only additive source, so it is not deprecated and prints no note.
+
+## [0.67.2] - 2026-09-30
+
+### Changed
+
+- **README moves the Node.js requirement into a Requirements section.** The statement is unchanged: without `node` on `PATH` the hooks do not launch.
+
+## [0.67.1] - 2026-09-30
+
+### Changed
+
+- **Shared library sync: `hook-utils.sh` now adds cygpath spellings of the temp root on Windows shells.** No behavior change off Windows.
+
 ## [0.67.0] - 2026-09-30
 
 ### Added
