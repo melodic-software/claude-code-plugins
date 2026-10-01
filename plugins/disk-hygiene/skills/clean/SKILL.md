@@ -474,8 +474,8 @@ and what the guard does when no Python resolves → "Hook launch form".
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash belt denies deletion shapes (`rm`, `rmdir`, `unlink`, `shred`, `truncate`, `mv`, `find`)
-  for the rest of the session, except exact engine calls and a read-only allowlist; git and gh never
-  reach it. Run the release lever its denial prints only when the user asks. Scope, lever and gaps:
+  for the rest of the session, except exact engine calls and a read-only allowlist; git reaches it only
+  by naming a bundled script. Run the release lever its denial prints only when the user asks. Gaps:
   [Session belt](reference/safety-model.md#session-belt).
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`

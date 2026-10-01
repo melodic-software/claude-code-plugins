@@ -818,7 +818,9 @@ The clean skill's frontmatter registers the guard in `belt` mode for the rest of
 Bash it registers one handler per `if` pattern, all running the same guard: `rm`, `rmdir`,
 `unlink`, `shred`, `truncate`, `mv` and `find`, each bare (`Bash(rm *)`) and by absolute path
 (`Bash(*/rm *)`), plus `*hygiene.py*`, `*kill_switch_probe.py*` and `*release_belt.py*`. git, gh,
-the repo-hygiene scripts and every other command match none of them and never reach the guard.
+the repo-hygiene scripts and other commands reach the guard only when they name one of those three
+scripts (`git diff -- .../hygiene.py`), or when Claude Code cannot split the command, which runs
+every handler.
 
 What reaches the guard is denied unless it is one of these:
 

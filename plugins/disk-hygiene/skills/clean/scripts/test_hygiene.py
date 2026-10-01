@@ -10448,7 +10448,7 @@ class GuardTests(unittest.TestCase):
 
         self.assertIn("/disk-hygiene:clean was invoked in this session", belt)
         self.assertIn("deletion-shaped Bash commands", belt)
-        self.assertIn("git and gh included, do not reach this belt", belt)
+        self.assertIn("git and gh included, reach this belt only", belt)
         self.assertIn("release lever", belt)
         self.assertNotIn("persists until the session ends", belt)
         self.assertNotIn("start a new session", belt)
@@ -12796,6 +12796,11 @@ class GuardTests(unittest.TestCase):
                 self._belt(self._engine_words("scan --target t --output s"))
             ),
         )
+        apply = self._engine_words(
+            "apply --execute --snapshot s --plan p --confirm-tier high "
+            f"--approval-token {'a' * 24} --report r"
+        )
+        self.assertEqual("ask", self._permission(self._belt(apply)))
 
     def test_release_marker_must_be_a_regular_file(self) -> None:
         self.authorize_data_root()
@@ -12811,6 +12816,29 @@ class GuardTests(unittest.TestCase):
         except OSError:
             self.skipTest("symlinks unavailable")
         self.assertEqual("deny", self._permission(self._belt("rm x")))
+
+    def test_release_script_never_writes_through_a_planted_link(self) -> None:
+        sentinel = Path(self._cfg.name) / "sentinel"
+        sentinel.write_text("keep", encoding="utf-8")
+        marker = release_belt.marker_path(os.fspath(self._data_root), self._SESSION)
+        marker.parent.mkdir(parents=True)
+        try:
+            marker.symlink_to(sentinel)
+        except OSError:
+            self.skipTest("symlinks unavailable")
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(
+                2,
+                release_belt.main(
+                    [
+                        "--data-root",
+                        os.fspath(self._data_root),
+                        "--session-id",
+                        self._SESSION,
+                    ]
+                ),
+            )
+        self.assertEqual("keep", sentinel.read_text(encoding="utf-8"))
 
     def test_release_script_rejects_an_invalid_session_id(self) -> None:
         with redirect_stderr(io.StringIO()):

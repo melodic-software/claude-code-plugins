@@ -2432,9 +2432,9 @@ def _bash_denial_guidance(
         "truncate, mv and find, bare or by absolute path, and engine calls) are "
         "denied unless they are "
         + grammar
-        + " Other Bash commands, git and gh included, do not reach this belt, "
-        "except a command Claude Code cannot split into its parts, which does "
-        "and is denied. "
+        + " Other Bash commands, git and gh included, reach this belt only "
+        "when they name the engine, probe or release script, or when Claude "
+        "Code cannot split them into their parts; then they are denied too. "
         "For read-only listing, use the Glob or Grep tools or an absolute-path "
         "find without side-effect primaries. " + lever
     )
