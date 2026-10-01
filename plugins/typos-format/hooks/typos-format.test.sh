@@ -991,15 +991,15 @@ fi
 
 # --- Notice text is bound to prerequisites.json --------------------------------
 # The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest has exactly one tool, typos,
+# path), so this case is the binding: the manifest lists typos and jq,
 # and the hook's missing-binary notice states that tool's name, check and
 # install, verbatim.
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | length) == 1 and .tools[0].name == "typos"' "$MANIFEST" >/dev/null 2>&1; then
-    ok "manifest: exactly one tool, typos"
+  if jq -e '(.tools | map(.name)) == ["typos", "jq"]' "$MANIFEST" >/dev/null 2>&1; then
+    ok "manifest: declares exactly typos and jq"
   else
-    fail "manifest: expected one tool named typos: $(cat "$MANIFEST")"
+    fail "manifest: expected tools typos and jq: $(cat "$MANIFEST")"
   fi
   IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
   NOTICE_CALL="$(sed -n '/hook::notice_once "typos-format-typos"/,/^  fi$/p' "$HOOK")"
