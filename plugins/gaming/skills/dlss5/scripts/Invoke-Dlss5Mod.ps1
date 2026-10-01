@@ -21,7 +21,8 @@ param(
     [switch]$Finish,
     [string]$ConfirmReset,
     [string]$ConfirmRefresh,
-    [switch]$Force
+    [switch]$Force,
+    [int]$StaleDays
 )
 $ErrorActionPreference = 'Stop'
 
@@ -1405,7 +1406,7 @@ function Get-PinAdvice {
 }
 function Do-Refetch {
     $cp = Join-Path $script:DataDir 'cache\upstream.json'
-    $prev = @{}; foreach ($i in @((LoadJson $cp).items)) { if ($i) { $prev[$i.item] = $i } }
+    $prev = @{}; try { foreach ($i in @((LoadJson $cp).items)) { if ($i) { $prev[$i.item] = $i } } } catch { }   # a corrupt cache is rebuilt
     $fmt = '"\(.tag_name)\(if .prerelease then " (prerelease)" else "" end)"'
     $rel = ".[] | $fmt"
     $items = @(
@@ -1437,6 +1438,15 @@ function Do-Refetch {
     New-Item -ItemType Directory -Force -Path (Split-Path $cp -Parent) | Out-Null
     Set-Content -LiteralPath $cp -Value $out -Encoding utf8
     $out
+}
+
+# -StaleDays: skip the network while the cache is younger than that, and never fail the caller.
+function Do-RefetchThrottled {
+    try {
+        $c = (LoadJson (Join-Path $script:DataDir 'cache\upstream.json')).checked
+        if ($c -and ([datetime]$c) -gt (Get-Date).AddDays(-$StaleDays)) { return ([pscustomobject]@{ fresh = $true; checked = "$c" } | ConvertTo-Json -Compress) }
+    } catch { }
+    try { Do-Refetch } catch { [pscustomobject]@{ skipped = $true; error = $_.Exception.Message } | ConvertTo-Json -Compress }
 }
 
 function Assert($name, $cond) { if ($cond) { "PASS  $name" } else { $script:fails++; "FAIL  $name" } }
@@ -2257,6 +2267,23 @@ public sealed class Dlss5DirHandle : IDisposable {
         $script:GhLatest = $pinBefore
         $u = Do-Refetch | ConvertFrom-Json
         Assert 'a newer prerelease alone gives no pin advice' (@($u.pinAdvice).Count -eq 0 -and (@($u.items) | Where-Object item -eq 'wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass').found -like '*v9.9.9 (prerelease)*')
+
+        # -StaleDays: a fresh cache makes no probe, a stale or corrupt one runs, and nothing throws.
+        $script:Gh = 'gh-missing-selftest'
+        $script:StaleDays = 7
+        $fresh = '{"checked":"' + (Get-Date).ToString('o') + '","items":[]}'
+        Put $uc $fresh
+        $r = Do-RefetchThrottled | ConvertFrom-Json
+        Assert 'a fresh cache skips the probes' ($r.fresh -and (Get-Content -LiteralPath $uc -Raw) -eq $fresh)
+        Put $uc ('{"checked":"' + (Get-Date).AddDays(-8).ToString('o') + '","items":[]}')
+        $r = Do-RefetchThrottled | ConvertFrom-Json
+        Assert 'a stale cache runs the probes' ($null -eq $r.fresh -and @($r.items).Count -eq 9)
+        Put $uc '{not json'
+        $r = Do-RefetchThrottled | ConvertFrom-Json
+        Assert 'a corrupt cache runs the probes' ($null -eq $r.fresh -and @($r.items).Count -eq 9)
+        Put $uc '{"checked":"not a date","items":[]}'
+        $r = Do-RefetchThrottled | ConvertFrom-Json
+        Assert 'an unparseable checked time counts as stale' ($null -eq $r.fresh -and @($r.items).Count -eq 9)
     }
     finally {
         Pop-Location
@@ -2278,7 +2305,7 @@ switch ($Verb) {
     'remove' { Do-Remove (Root $GameDir) }
     'reset' { Do-Reset (Root $GameDir) }
     'capture' { Do-Capture (Root $GameDir) }
-    'refetch' { Do-Refetch }
+    'refetch' { if ($PSBoundParameters.ContainsKey('StaleDays')) { Do-RefetchThrottled } else { Do-Refetch } }
     'discover' { Do-Discover }
     'selftest' { Do-Selftest; exit ([int]$script:fails) }
 }
