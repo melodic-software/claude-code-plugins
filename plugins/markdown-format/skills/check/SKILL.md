@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that markdownlint-cli2 resolves for the markdown-format hook. Use when a hook notice says markdownlint-cli2 is missing, or before assuming Markdown formatting ran. Does not install."
+description: "Read-only check that markdownlint-cli2 and node resolve for the markdown-format hook. Use when a hook notice says markdownlint-cli2 or node is missing, or before assuming Markdown formatting ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether markdownlint-cli2 is installed. Never installs.
+  summary: Report whether markdownlint-cli2 and node are installed. Never installs.
 ---
 
 ## Purpose

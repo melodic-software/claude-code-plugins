@@ -1,10 +1,10 @@
 ---
-description: "Read-only check that the typos binary resolves for the typos-format hook. Use when a hook notice says typos is missing, or before assuming spell-checking ran. Does not install."
+description: "Read-only check that typos and node resolve for the typos-format hook. Use when a hook notice says typos or node is missing, or before assuming spell-checking ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: anytime
-  summary: Report whether the typos binary is installed. Never installs.
+  summary: Report whether typos and node are installed. Never installs.
 ---
 
 ## Purpose
